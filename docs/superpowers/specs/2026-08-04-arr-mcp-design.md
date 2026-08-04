@@ -13,7 +13,9 @@ Demand is evident; the implementation is not worth inheriting. Two facts decide 
 - **No license means all rights reserved.** Publishing a derivative under our own name, or shipping images built from it, has no license grant behind it.
 - **At 35 KB there is nothing meaningful to inherit.** The value is in which tools are worth exposing, which is not the copyrightable part.
 
-**We build clean-room.** No upstream code is copied or consulted while writing. Upstream is credited in the README as prior art and inspiration.
+**We build clean-room.** No upstream code is copied or consulted while writing.
+
+**Amended 2026-08-04:** the README does *not* credit upstream. Nothing was copied, so there is nothing to attribute, and no licence obliges a mention. The README thanks the eight services and our dependencies instead. This section remains as the record of *why* the project is clean-room and MIT — that reasoning still governs §4's licence choice.
 
 ## 2. Goals
 

@@ -70,12 +70,33 @@ requires a bearer token because "LAN-only" is a network assumption rather than a
 security control — the endpoint fronts up to eight API keys and, once enabled,
 file deletion, and a home network contains guest phones and IoT devices.
 
-## Prior art
+## Thanks
 
-Inspired by
-[`BerryKuipers/mcp_services_radarr_sonarr`](https://github.com/BerryKuipers/mcp_services_radarr_sonarr),
-which demonstrated the demand for this and is no longer maintained. arr-mcp is a
-clean-room implementation and shares no code with it.
+arr-mcp is glue. The hard parts belong to other people.
+
+**The services it speaks to** — none of this exists without them, and every one
+is free software maintained largely by volunteers:
+
+[Radarr](https://radarr.video) · [Sonarr](https://sonarr.tv) ·
+[Prowlarr](https://prowlarr.com) · [Bazarr](https://www.bazarr.media) ·
+[Jellyfin](https://jellyfin.org) ·
+[Seerr](https://github.com/seerr-team/seerr) · [SABnzbd](https://sabnzbd.org) ·
+[Transmission](https://transmissionbt.com)
+
+**The libraries it is built on:**
+
+| | |
+| --- | --- |
+| [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk) | the protocol, and a stateless transport that made this simple |
+| [Hono](https://hono.dev) | the HTTP server |
+| [Zod](https://zod.dev) | config validation and tool input schemas |
+| [Pino](https://getpino.io) | logging |
+| [Vitest](https://vitest.dev) | tests |
+| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | the log ring buffer and write audit |
+| [yaml](https://eemeli.org/yaml/) | reading `config.yaml` |
+| [TypeScript](https://www.typescriptlang.org) | the language |
+
+If you find arr-mcp useful, consider supporting the services above first.
 
 ## Licence
 
