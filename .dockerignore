@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.github
+test
+docs
+config
+tmp-config
+coverage
+*.log
+.env
+vitest.config.ts
+eslint.config.mjs
