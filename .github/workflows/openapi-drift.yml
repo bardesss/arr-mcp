@@ -1,0 +1,43 @@
+name: OpenAPI drift
+
+on:
+  schedule: [{ cron: '17 4 * * *' }]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Converts "Radarr shipped a breaking API change" from a user's bug report into
+# a PR reviewed on a Tuesday. Phase 1 vendors no specs yet, so the job reports
+# that and exits; Phase 2 only has to add URLs to scripts/fetch-specs.sh.
+jobs:
+  refetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Re-fetch vendored specs
+        id: refetch
+        run: |
+          if [ ! -d specs ] || [ ! -x scripts/fetch-specs.sh ]; then
+            echo "::notice::No vendored specs yet (Phase 2 adds them). Nothing to check."
+            echo "ran=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ./scripts/fetch-specs.sh
+          echo "ran=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open a PR if anything changed
+        if: steps.refetch.outputs.ran == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/openapi-drift
+          title: 'chore: upstream OpenAPI spec drift'
+          body: |
+            The nightly job re-fetched the vendored OpenAPI specs and found changes.
+
+            Review the diff before merging — an upstream breaking change should
+            arrive here as a reviewable PR rather than as a user's bug report.
+          commit-message: 'chore: refresh vendored OpenAPI specs'
+          delete-branch: true
