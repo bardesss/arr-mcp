@@ -4,10 +4,12 @@ coverage/
 *.log
 
 # Runtime config volume — contains the bearer token and service API keys.
-config/
-tmp-config/
+# Leading slash anchors these to the repo root: an unanchored `config/` also
+# matches `src/config/` and silently drops source files from commits.
+/config/
+/tmp-config/
 .env
 
 # Internal design specs and implementation plans. Kept in a separate working
 # repo, not published here — the README's roadmap is the public summary.
-docs/superpowers/
+/docs/superpowers/
