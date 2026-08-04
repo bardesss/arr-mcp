@@ -1,0 +1,7 @@
+// Build-only config: emits src/ and nothing else, so the production image does
+// not ship the test suite. `tsconfig.json` still includes test/ so `npm run
+// typecheck` and the editor cover tests.
+{
+  "extends": "./tsconfig.json",
+  "include": ["src"]
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Runtime config volume — contains the bearer token and service API keys.
+config/
+tmp-config/
+.env

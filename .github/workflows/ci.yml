@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  # Catches Dockerfile rot on every PR. Skips cleanly until the Dockerfile
+  # exists (Task 8 of the Phase 1 plan) rather than reporting a red build for
+  # a file nobody has written yet.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check for a Dockerfile
+        id: probe
+        run: |
+          if [ -f Dockerfile ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Dockerfile yet — skipping the image build."
+          fi
+      - uses: docker/setup-buildx-action@v3
+        if: steps.probe.outputs.present == 'true'
+      - name: Build image (no push)
+        if: steps.probe.outputs.present == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
