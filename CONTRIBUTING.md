@@ -51,9 +51,10 @@ before it adds one.
 
 ## Adding a service adapter
 
-The highest-value contribution, and deliberately self-contained. Read
-[`docs/superpowers/specs/2026-08-04-arr-mcp-design.md`](docs/superpowers/specs/2026-08-04-arr-mcp-design.md)
-§6 for the adapter contract, then model your work on `src/services/radarr.ts`.
+The highest-value contribution, and deliberately self-contained. The contract
+lives in [`src/services/types.ts`](src/services/types.ts) and
+[`src/services/radarr.ts`](src/services/radarr.ts) is the reference
+implementation — read those two files and you have everything you need.
 
 An adapter must:
 

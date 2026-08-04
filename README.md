@@ -55,7 +55,8 @@ the container log. Until the config UI lands in 0.5, edit
 | 0.5 | Web config page: dashboard, diagnosing connection tests, log streams |
 | 0.6 → 1.0 | Metadata providers, MCP resources and prompts |
 
-Design and implementation plans live in [`docs/superpowers/`](docs/superpowers/).
+Each version is a self-contained, shippable slice — the goal is that 0.3 already
+answers questions no individual service can, with 0.4–0.6 making it complete.
 
 ## Requirements
 
