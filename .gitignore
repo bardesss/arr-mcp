@@ -7,3 +7,7 @@ coverage/
 config/
 tmp-config/
 .env
+
+# Internal design specs and implementation plans. Kept in a separate working
+# repo, not published here — the README's roadmap is the public summary.
+docs/superpowers/
