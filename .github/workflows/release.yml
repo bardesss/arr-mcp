@@ -44,6 +44,11 @@ jobs:
 
       # Stable releases get X.Y.Z / X.Y / X / latest; every other push to main
       # gets `main` for bleeding edge. Nothing else (design spec §18).
+      #
+      # Feed `outputs.version` (a bare `0.1.0`) to the semver patterns, not
+      # `outputs.tag`. metadata-action parses the value as semver and silently
+      # emits nothing when it cannot — so a tag like `arr-mcp-v0.1.0` produced
+      # an image with only `latest`, with the job still green.
       - name: Compute tags
         id: meta
         uses: docker/metadata-action@v5
@@ -51,10 +56,23 @@ jobs:
           images: ghcr.io/bardesss/arr-mcp
           tags: |
             type=raw,value=main,enable=${{ needs.release-please.outputs.released != 'true' }}
-            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag }},enable=${{ needs.release-please.outputs.released == 'true' }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag }},enable=${{ needs.release-please.outputs.released == 'true' }}
-            type=semver,pattern={{major}},value=${{ needs.release-please.outputs.tag }},enable=${{ needs.release-please.outputs.released == 'true' }}
+            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.version }},enable=${{ needs.release-please.outputs.released == 'true' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.version }},enable=${{ needs.release-please.outputs.released == 'true' }}
+            type=semver,pattern={{major}},value=${{ needs.release-please.outputs.version }},enable=${{ needs.release-please.outputs.released == 'true' }}
             type=raw,value=latest,enable=${{ needs.release-please.outputs.released == 'true' }}
+
+      # A release that publishes only `latest` is a silent policy violation, so
+      # fail loudly rather than discovering it after the fact.
+      - name: Assert the release produced version tags
+        if: needs.release-please.outputs.released == 'true'
+        run: |
+          tags='${{ steps.meta.outputs.tags }}'
+          echo "$tags"
+          version='${{ needs.release-please.outputs.version }}'
+          if ! echo "$tags" | grep -q ":${version}$"; then
+            echo "::error::Release ${version} computed no ${version} image tag — got: ${tags}"
+            exit 1
+          fi
 
       - name: Build and push
         id: push
