@@ -1,0 +1,20 @@
+services:
+  arr-mcp:
+    image: ghcr.io/bardesss/arr-mcp:latest
+    container_name: arr-mcp
+    ports: ['6060:6060']
+    volumes: ['./config:/config']
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Amsterdam
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:6060/healthz']
+
+# On first start, read the generated bearer token out of the log:
+#
+#   docker compose logs arr-mcp | grep 'first run'
+#
+# then add your services to ./config/config.yaml and restart. Hot-reload
+# arrives with the config UI in 0.5; until then a restart is required.
