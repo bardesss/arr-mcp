@@ -6,5 +6,9 @@ import pino from 'pino';
  */
 export const logger = pino({
     level: process.env.LOG_LEVEL ?? 'info',
-    base: { service: 'arr-mcp' }
+    // `app`, not `service`: `service` belongs to the media service a log line
+    // is about (radarr, sonarr, …), which is what the config UI's per-service
+    // log stream filters on in Phase 5. Binding both to `service` emits a
+    // duplicate JSON key and silently loses one of them.
+    base: { app: 'arr-mcp' }
 });
