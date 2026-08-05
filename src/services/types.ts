@@ -1,5 +1,6 @@
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
+import { assertVersionSupported } from './versions.ts';
 
 /**
  * A diagnosis, not a boolean (design spec §6/§14). A connection test that
@@ -286,6 +287,12 @@ export async function diagnoseConnection(
     const started = performance.now();
     try {
         const version = await probe();
+        // §14: a connection test distinguishes version-too-old from every other
+        // failure. Checked here rather than in each adapter, so no adapter can
+        // forget — and after the probe, so an unreachable service reports being
+        // unreachable rather than being the wrong version.
+        if (version !== undefined) assertVersionSupported(id, version);
+
         const diagnosis: ConnectionDiagnosis = {
             ok: true,
             service: id,
