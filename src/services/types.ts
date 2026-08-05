@@ -50,6 +50,16 @@ export interface ScanStateCapable {
     getScanState(): Promise<ScanState>;
 }
 
+/** Jellyfin and Seerr only — the two multi-user services (design spec §9). */
+export type ServiceUser = { id: string; name: string };
+
+export interface UserDirectoryCapable {
+    listUsers(): Promise<ServiceUser[]>;
+}
+
+export const hasUserDirectory = (a: ServiceAdapter): a is ServiceAdapter & UserDirectoryCapable =>
+    typeof (a as Partial<UserDirectoryCapable>).listUsers === 'function';
+
 export const hasDiskSpace = (a: ServiceAdapter): a is ServiceAdapter & DiskSpaceCapable =>
     typeof (a as Partial<DiskSpaceCapable>).getDiskSpace === 'function';
 
