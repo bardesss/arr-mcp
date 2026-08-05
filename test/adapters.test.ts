@@ -1,0 +1,360 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import type { KeyedServiceConfig, MultiUserServiceConfig, TransmissionServiceConfig } from '../src/config/schema.ts';
+import { BazarrAdapter } from '../src/services/bazarr.ts';
+import { JellyfinAdapter } from '../src/services/jellyfin.ts';
+import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
+import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
+import { SeerrAdapter } from '../src/services/seerr.ts';
+import { SonarrAdapter } from '../src/services/sonarr.ts';
+import { TransmissionAdapter } from '../src/services/transmission.ts';
+import {
+    hasDiskSpace,
+    hasHealthChecks,
+    hasScanState,
+    hasUserDirectory,
+    type ServiceAdapter
+} from '../src/services/types.ts';
+import { jsonResponse, serving, servingModes } from './helpers/serve.ts';
+
+/**
+ * These drive the adapters off the **recorded fixtures**, not off shapes
+ * invented in a plan. That is the whole point of the capture gate: if upstream
+ * changes, the fixture changes and these fail.
+ */
+const fixture = (path: string): unknown =>
+    JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures', path), 'utf8'));
+
+const keyed = (port: number): KeyedServiceConfig => ({
+    url: `http://192.0.2.10:${port}`,
+    api_key: 'k',
+    timeout_ms: 10_000,
+    permissions: { safe_write: false, destructive: false }
+});
+
+const multiUser = (port: number): MultiUserServiceConfig => ({
+    ...keyed(port),
+    allow_other_users: false
+});
+
+const transmissionConfig: TransmissionServiceConfig = {
+    url: 'http://192.0.2.10:9091',
+    timeout_ms: 10_000,
+    permissions: { safe_write: false, destructive: false }
+};
+
+const unauthorized = (async () => jsonResponse({}, 401)) as unknown as typeof fetch;
+
+/** Every adapter must diagnose rather than throw — design spec §6/§14. */
+const expectsAuthDiagnosis = (adapter: ServiceAdapter) =>
+    it(`${adapter.id} diagnoses a bad key as AuthFailed rather than throwing`, async () => {
+        const d = await adapter.testConnection();
+        expect(d.ok).toBe(false);
+        expect(d.service).toBe(adapter.id);
+        expect(d.error?.kind).toBe('AuthFailed');
+    });
+
+describe('SonarrAdapter', () => {
+    const routes = {
+        '/api/v3/system/status': fixture('sonarr/system-status.json'),
+        '/api/v3/diskspace': fixture('sonarr/diskspace.json'),
+        '/api/v3/health': fixture('sonarr/health.json'),
+        '/api/v3/system/task': fixture('sonarr/system-task.json')
+    };
+    const adapter = new SonarrAdapter(keyed(8989), serving(routes));
+
+    it('reads the version from the recorded status response', async () => {
+        expect(await adapter.getVersion()).toMatch(/^\d+\.\d+/);
+    });
+
+    it('stamps disk rows with sonarr and keeps the real numbers', async () => {
+        const disks = await adapter.getDiskSpace();
+        expect(disks.length).toBeGreaterThan(0);
+        expect(disks.every(d => d.service === 'sonarr')).toBe(true);
+        expect(disks.every(d => typeof d.freeSpace === 'number')).toBe(true);
+    });
+
+    it('reports RefreshSeries, not the every-minute download poll', async () => {
+        const state = await adapter.getScanState();
+        const tasks = fixture('sonarr/system-task.json') as { taskName?: string; lastExecution?: string }[];
+        const scan = tasks.find(t => t.taskName === 'RefreshSeries');
+        const poll = tasks.find(t => t.taskName === 'RefreshMonitoredDownloads');
+
+        expect(state.lastCompleted).toBe(scan?.lastExecution);
+        expect(state.lastCompleted).not.toBe(poll?.lastExecution);
+    });
+
+    it('advertises disk, health and scan capabilities', () => {
+        expect([hasDiskSpace(adapter), hasHealthChecks(adapter), hasScanState(adapter)]).toEqual([true, true, true]);
+    });
+
+    expectsAuthDiagnosis(new SonarrAdapter(keyed(8989), unauthorized));
+});
+
+describe('ProwlarrAdapter', () => {
+    const adapter = new ProwlarrAdapter(
+        keyed(9696),
+        serving({
+            '/api/v1/system/status': fixture('prowlarr/system-status.json'),
+            '/api/v1/health': fixture('prowlarr/health.json')
+        })
+    );
+
+    it('reads the version from the v1 api', async () => {
+        expect(await adapter.getVersion()).toMatch(/^\d+\.\d+/);
+    });
+
+    it('uses v1, not v3 — Prowlarr never had a v3', async () => {
+        const wrongVersion = new ProwlarrAdapter(
+            keyed(9696),
+            serving({ '/api/v3/system/status': fixture('prowlarr/system-status.json') })
+        );
+        await expect(wrongVersion.getVersion()).rejects.toThrow(/not found/i);
+    });
+
+    it('is health-capable but deliberately not disk-capable', () => {
+        // /api/v1/diskspace returned 404 during the capture run.
+        expect([hasHealthChecks(adapter), hasDiskSpace(adapter)]).toEqual([true, false]);
+    });
+
+    expectsAuthDiagnosis(new ProwlarrAdapter(keyed(9696), unauthorized));
+});
+
+describe('JellyfinAdapter', () => {
+    const routes = {
+        '/System/Info': fixture('jellyfin/system-info.json'),
+        '/Users': fixture('jellyfin/users.json'),
+        '/ScheduledTasks': fixture('jellyfin/scheduled-tasks.json')
+    };
+    const adapter = new JellyfinAdapter(multiUser(8096), serving(routes));
+
+    it('sends the MediaBrowser token header rather than X-Api-Key', async () => {
+        let seen: Headers | undefined;
+        const probe = (async (_i: string, init?: RequestInit) => {
+            seen = new Headers(init?.headers);
+            return jsonResponse({ Version: '10.11.11' });
+        }) as unknown as typeof fetch;
+
+        await new JellyfinAdapter(multiUser(8096), probe).getVersion();
+        expect(seen?.get('Authorization')).toBe('MediaBrowser Token="k"');
+        expect(seen?.get('X-Api-Key')).toBeNull();
+    });
+
+    it('reads the version from System/Info', async () => {
+        expect(await adapter.getVersion()).toMatch(/^\d+\.\d+/);
+    });
+
+    it('lists every user as an id and name pair', async () => {
+        const users = await adapter.listUsers();
+        const raw = fixture('jellyfin/users.json') as unknown[];
+        expect(users).toHaveLength(raw.length);
+        expect(users.every(u => u.id.length > 0 && u.name.length > 0)).toBe(true);
+    });
+
+    it('keys the scan task on Key, because Name is localised', async () => {
+        const state = await adapter.getScanState();
+        const tasks = fixture('jellyfin/scheduled-tasks.json') as {
+            Key?: string;
+            Name?: string;
+            LastExecutionResult?: { EndTimeUtc?: string };
+        }[];
+        const scan = tasks.find(t => t.Key === 'RefreshLibrary');
+
+        expect(state.lastCompleted).toBe(scan?.LastExecutionResult?.EndTimeUtc);
+        // The recorded server is Dutch; matching on Name would find nothing.
+        expect(scan?.Name).not.toBe('Scan Media Library');
+    });
+
+    it('advertises scan state and a user directory, but not disk space', () => {
+        expect([hasScanState(adapter), hasUserDirectory(adapter), hasDiskSpace(adapter)]).toEqual([true, true, false]);
+    });
+
+    expectsAuthDiagnosis(new JellyfinAdapter(multiUser(8096), unauthorized));
+});
+
+describe('SeerrAdapter', () => {
+    const adapter = new SeerrAdapter(
+        multiUser(5055),
+        serving({
+            '/api/v1/status': fixture('seerr/status.json'),
+            '/api/v1/user': fixture('seerr/user.json')
+        })
+    );
+
+    it('reads the version from the status endpoint', async () => {
+        expect(await adapter.getVersion()).toMatch(/^\d+\.\d+/);
+    });
+
+    it('unwraps the paginated results envelope', async () => {
+        const users = await adapter.listUsers();
+        const page = fixture('seerr/user.json') as { results: unknown[] };
+        expect(users).toHaveLength(page.results.length);
+        expect(users.every(u => u.id.length > 0 && u.name.length > 0)).toBe(true);
+    });
+
+    it('falls back to the email local part when a user has no display name', async () => {
+        const bare = new SeerrAdapter(
+            multiUser(5055),
+            serving({ '/api/v1/user': { results: [{ id: 3, email: 'nodisplay@example.test' }] } })
+        );
+        expect(await bare.listUsers()).toEqual([{ id: '3', name: 'nodisplay' }]);
+    });
+
+    it('advertises a user directory', () => {
+        expect(hasUserDirectory(adapter)).toBe(true);
+    });
+
+    expectsAuthDiagnosis(new SeerrAdapter(multiUser(5055), unauthorized));
+});
+
+describe('BazarrAdapter', () => {
+    const adapter = new BazarrAdapter(
+        keyed(6767),
+        serving({
+            '/api/system/status': fixture('bazarr/system-status.json'),
+            '/api/system/health': fixture('bazarr/system-health.json')
+        })
+    );
+
+    it('sends X-API-KEY, spelled differently from every *arr', async () => {
+        let seen: Headers | undefined;
+        const probe = (async (_i: string, init?: RequestInit) => {
+            seen = new Headers(init?.headers);
+            return jsonResponse({ data: { bazarr_version: '1.6.0' } });
+        }) as unknown as typeof fetch;
+
+        await new BazarrAdapter(keyed(6767), probe).getVersion();
+        expect(seen?.get('X-API-KEY')).toBe('k');
+    });
+
+    it('unwraps the data envelope to read bazarr_version', async () => {
+        expect(await adapter.getVersion()).toMatch(/^\d+\.\d+/);
+    });
+
+    it('fails loudly when the envelope itself is missing rather than reading undefined', async () => {
+        const empty = new BazarrAdapter(keyed(6767), serving({ '/api/system/status': {} }));
+        await expect(empty.getVersion()).rejects.toThrow(/no version/i);
+    });
+
+    it('maps health entries into the shared shape', async () => {
+        const withIssue = new BazarrAdapter(
+            keyed(6767),
+            serving({ '/api/system/health': { data: [{ object: 'Sonarr', issue: 'Cannot connect' }] } })
+        );
+        expect(await withIssue.getFailedHealthChecks()).toEqual([
+            { service: 'bazarr', source: 'Sonarr', type: 'warning', message: 'Cannot connect' }
+        ]);
+    });
+
+    it('reports no failures for the recorded healthy instance', async () => {
+        expect(await adapter.getFailedHealthChecks()).toEqual([]);
+    });
+
+    expectsAuthDiagnosis(new BazarrAdapter(keyed(6767), unauthorized));
+});
+
+describe('SabnzbdAdapter', () => {
+    const adapter = new SabnzbdAdapter(
+        keyed(8080),
+        servingModes({
+            version: fixture('sabnzbd/version.json'),
+            queue: fixture('sabnzbd/queue.json')
+        })
+    );
+
+    it('puts the api key in the query string, because SABnzbd has no header auth', async () => {
+        let seen = '';
+        const probe = (async (input: string) => {
+            seen = String(input);
+            return jsonResponse({ version: '5.0.4' });
+        }) as unknown as typeof fetch;
+
+        await new SabnzbdAdapter(keyed(8080), probe).getVersion();
+        expect(new URL(seen).searchParams.get('apikey')).toBe('k');
+        expect(new URL(seen).searchParams.get('output')).toBe('json');
+    });
+
+    it('reads the version from mode=version', async () => {
+        expect(await adapter.getVersion()).toMatch(/^\d+\.\d+/);
+    });
+
+    it('converts the gigabyte strings in the queue payload into bytes', async () => {
+        const disks = await adapter.getDiskSpace();
+        const queue = (fixture('sabnzbd/queue.json') as { queue: { diskspace1: string } }).queue;
+
+        expect(disks.length).toBeGreaterThan(0);
+        expect(disks[0]?.freeSpace).toBe(Math.round(Number(queue.diskspace1) * 1024 ** 3));
+        expect(disks[0]?.service).toBe('sabnzbd');
+    });
+
+    it('returns no rows rather than NaN when the fields are not numeric', async () => {
+        const weird = new SabnzbdAdapter(
+            keyed(8080),
+            servingModes({ queue: { queue: { diskspace1: 'unknown', diskspacetotal1: '1.0' } } })
+        );
+        expect(await weird.getDiskSpace()).toEqual([]);
+    });
+
+    it('advertises disk space but not health checks', () => {
+        expect([hasDiskSpace(adapter), hasHealthChecks(adapter)]).toEqual([true, false]);
+    });
+
+    expectsAuthDiagnosis(new SabnzbdAdapter(keyed(8080), unauthorized));
+});
+
+describe('TransmissionAdapter', () => {
+    const session = fixture('transmission/session-get.json');
+    const adapter = new TransmissionAdapter(transmissionConfig, (async () =>
+        jsonResponse(session)) as unknown as typeof fetch);
+
+    it('posts a session-get RPC call rather than issuing a GET', async () => {
+        let method: string | undefined;
+        let payload: string | undefined;
+        const probe = (async (_i: string, init?: RequestInit) => {
+            method = init?.method;
+            payload = init?.body as string;
+            return jsonResponse(session);
+        }) as unknown as typeof fetch;
+
+        await new TransmissionAdapter(transmissionConfig, probe).getVersion();
+        expect(method).toBe('POST');
+        expect(JSON.parse(payload ?? '{}')).toEqual({ method: 'session-get' });
+    });
+
+    it('completes the 409 session handshake transparently', async () => {
+        let calls = 0;
+        const handshaking = (async () => {
+            calls += 1;
+            if (calls === 1) {
+                return new Response('', { status: 409, headers: { 'X-Transmission-Session-Id': 'sid-1' } });
+            }
+            return jsonResponse(session);
+        }) as unknown as typeof fetch;
+
+        expect(await new TransmissionAdapter(transmissionConfig, handshaking).getVersion()).toMatch(/^\d+\.\d+/);
+        expect(calls).toBe(2);
+    });
+
+    it('treats an RPC-level error as upstream even though HTTP was 200', async () => {
+        const failing = new TransmissionAdapter(transmissionConfig, (async () =>
+            jsonResponse({ result: 'method not allowed' })) as unknown as typeof fetch);
+        await expect(failing.getVersion()).rejects.toThrow(/method not allowed/);
+    });
+
+    it('reports free space with no total, because Transmission does not report one', async () => {
+        const disks = await adapter.getDiskSpace();
+        expect(disks).toHaveLength(1);
+        expect(disks[0]?.service).toBe('transmission');
+        expect(disks[0]?.totalSpace).toBeUndefined();
+        expect(disks[0]?.freeSpace).toBeGreaterThan(0);
+    });
+
+    it('returns no disk rows when free space is absent', async () => {
+        const bare = new TransmissionAdapter(transmissionConfig, (async () =>
+            jsonResponse({ result: 'success', arguments: { version: '4.1.3' } })) as unknown as typeof fetch);
+        expect(await bare.getDiskSpace()).toEqual([]);
+    });
+
+    expectsAuthDiagnosis(new TransmissionAdapter(transmissionConfig, unauthorized));
+});

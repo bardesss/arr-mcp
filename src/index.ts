@@ -2,8 +2,7 @@ import { serve } from '@hono/node-server';
 import { buildApp } from './app.ts';
 import { loadConfig } from './config/load.ts';
 import { logger } from './core/logger.ts';
-import { RadarrAdapter } from './services/radarr.ts';
-import type { ServiceAdapter } from './services/types.ts';
+import { buildAdapters } from './services/registry.ts';
 
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? '/config';
 const PORT = Number(process.env.ARR_MCP_PORT ?? 6060);
@@ -16,10 +15,7 @@ if (created) {
     logger.info({ token: config.auth.bearer_token }, 'first run — use this bearer token for /mcp');
 }
 
-const adapters: ServiceAdapter[] = [];
-if (config.services.radarr) {
-    adapters.push(new RadarrAdapter(config.services.radarr));
-}
+const adapters = buildAdapters(config);
 
 if (adapters.length === 0) {
     logger.warn(
