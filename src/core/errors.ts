@@ -19,11 +19,20 @@ const PROSE: Record<ServiceErrorKind, string> = {
     UpstreamError: 'upstream error'
 };
 
+function formatServiceError(kind: ServiceErrorKind, service: ServiceId, detail: string, remedy?: string): string {
+    const base = `${service} ${PROSE[kind]}: ${detail}`;
+    return remedy ? `${base} — ${remedy}` : base;
+}
+
 /**
  * A model told *why* something failed reports it; a model handed an opaque
- * error invents an explanation (design spec §15). `toModelText` is the only
- * string that ever reaches the model — it never includes a stack trace, and
- * never the underlying cause, which stays available for logs via `.cause`.
+ * error invents an explanation (design spec §15). The remedy therefore lives
+ * in `.message` itself, not only in `toModelText()`: every path that throws
+ * this error is caught somewhere as a plain `Error`, and the only field a
+ * generic catcher reads is `.message` — including the MCP SDK's own tool
+ * dispatch loop, which builds its error result from `error.message` alone.
+ * `.message` never includes a stack trace, and never the underlying cause,
+ * which stays available for logs via `.cause`.
  */
 export class ServiceError extends Error {
     readonly kind: ServiceErrorKind;
@@ -37,7 +46,10 @@ export class ServiceError extends Error {
         detail: string,
         opts?: { remedy?: string; cause?: unknown }
     ) {
-        super(`${service} ${PROSE[kind]}: ${detail}`, opts?.cause !== undefined ? { cause: opts.cause } : undefined);
+        super(
+            formatServiceError(kind, service, detail, opts?.remedy),
+            opts?.cause !== undefined ? { cause: opts.cause } : undefined
+        );
         this.name = 'ServiceError';
         this.kind = kind;
         this.service = service;
@@ -45,9 +57,13 @@ export class ServiceError extends Error {
         this.remedy = opts?.remedy;
     }
 
+    /**
+     * Now identical to `.message` — kept as the named, documented surface so
+     * a call site reads as "the text a model may see" rather than "whatever
+     * `Error.prototype` happens to expose".
+     */
     toModelText(): string {
-        const base = `${this.service} ${PROSE[this.kind]}: ${this.detail}`;
-        return this.remedy ? `${base} — ${this.remedy}` : base;
+        return this.message;
     }
 }
 

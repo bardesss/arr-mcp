@@ -30,6 +30,36 @@ describe('ServiceError.toModelText', () => {
     });
 });
 
+/**
+ * The MCP SDK's own catch around a tool handler reads `error.message`, not
+ * `toModelText()` — nothing in this codebase calls `toModelText()` in a
+ * throwing path. A remedy that lives only there never reaches a caller. The
+ * remedy therefore has to live in `.message` itself, which every catcher of a
+ * thrown Error already reads.
+ */
+describe('ServiceError.message', () => {
+    it('includes the remedy, since .message is what a thrown error is caught as', () => {
+        const err = new ServiceError('AuthFailed', 'radarr', 'HTTP 401 at /api/v3/system/status', {
+            remedy: 'The API key is wrong. Radarr → Settings → General.'
+        });
+        expect(err.message).toBe(
+            'radarr auth failed: HTTP 401 at /api/v3/system/status — The API key is wrong. Radarr → Settings → General.'
+        );
+    });
+
+    it('matches toModelText() exactly — one sanctioned string, not two that can drift', () => {
+        const err = new ServiceError('AuthFailed', 'radarr', 'HTTP 401 at /api/v3/system/status', {
+            remedy: 'The API key is wrong. Radarr → Settings → General.'
+        });
+        expect(err.message).toBe(err.toModelText());
+    });
+
+    it('omits the trailing dash when there is no remedy', () => {
+        const err = new ServiceError('UpstreamError', 'radarr', 'boom');
+        expect(err.message).toBe('radarr upstream error: boom');
+    });
+});
+
 describe('classifyHttpStatus', () => {
     it.each([
         [401, 'AuthFailed'],

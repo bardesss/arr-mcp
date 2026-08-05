@@ -4,9 +4,11 @@ import { IdentityResolver } from '../src/core/identity.ts';
 import type { ServiceAdapter, ServiceUser, UserDirectoryCapable } from '../src/services/types.ts';
 
 /**
- * `ServiceError.message` carries kind and detail; the remedy lives only in
- * `toModelText()`. Assertions about *what the user is told to do* therefore
- * have to look at the error object, not at the thrown message.
+ * `.message` and `.remedy` both carry the remedy text now (`.message`
+ * includes it inline; `.remedy` is the field alone). This helper unwraps to
+ * the `ServiceError` itself so a test can assert on `.remedy` specifically —
+ * useful when a test cares about the remedy's wording in isolation, not
+ * about the whole formatted string.
  */
 async function rejection(promise: Promise<unknown>): Promise<ServiceError> {
     try {
@@ -139,8 +141,9 @@ describe('IdentityResolver', () => {
         const err = await rejection(r.resolve('Guest'));
         expect(err.kind).toBe('AuthFailed');
         expect(err.remedy).toMatch(/every user's history/);
-        // The remedy is not in `message` by design, so a tool that surfaces
-        // only the message would drop the one sentence the user needs.
+        // .message (what a tool that only surfaces the caught error's message
+        // sees) must carry the same sentence, not just the .remedy field.
+        expect(err.message).toMatch(/every user's history/);
         expect(err.toModelText()).toMatch(/every user's history/);
     });
 });
