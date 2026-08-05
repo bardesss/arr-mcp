@@ -84,6 +84,41 @@ describe('classifyFetchError', () => {
         expect(classifyFetchError(e, 'radarr', 'http://h:7878').kind).toBe('Timeout');
     });
 
+    it('maps a firewall-blocked connection to a remedy that names the firewall', () => {
+        // Windows reports this as EACCES on connect, which reads like a
+        // permission problem and sends people looking in the wrong place.
+        const e = Object.assign(new TypeError('fetch failed'), {
+            cause: { code: 'EACCES', message: 'connect EACCES 192.168.1.20:7878' }
+        });
+        const out = classifyFetchError(e, 'radarr', 'http://192.168.1.20:7878');
+
+        expect(out.kind).toBe('Unreachable');
+        expect(out.remedy).toMatch(/firewall/i);
+    });
+
+    it('maps an unroutable address to Unreachable with a routing remedy', () => {
+        const e = Object.assign(new TypeError('fetch failed'), { cause: { code: 'EHOSTUNREACH' } });
+        const out = classifyFetchError(e, 'radarr', 'http://10.9.9.9:7878');
+
+        expect(out.kind).toBe('Unreachable');
+        expect(out.remedy).toMatch(/not reachable|network/i);
+    });
+
+    it('maps a connect timeout to Unreachable, not Timeout, so reads do not retry a dead address', () => {
+        const e = Object.assign(new TypeError('fetch failed'), { cause: { code: 'ETIMEDOUT' } });
+        expect(classifyFetchError(e, 'radarr', 'http://10.9.9.9:7878').kind).toBe('Unreachable');
+    });
+
+    it('surfaces the underlying cause rather than undici’s opaque "fetch failed"', () => {
+        const e = Object.assign(new TypeError('fetch failed'), {
+            cause: { code: 'ESOMETHINGNEW', message: 'connect ESOMETHINGNEW 192.168.1.20:7878' }
+        });
+        const out = classifyFetchError(e, 'radarr', 'http://192.168.1.20:7878');
+
+        expect(out.detail).toContain('ESOMETHINGNEW');
+        expect(out.detail).not.toBe('fetch failed at 192.168.1.20:7878');
+    });
+
     it('maps a TLS certificate failure to Unreachable with a TLS remedy', () => {
         const e = Object.assign(new Error('self-signed'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' });
         expect(classifyFetchError(e, 'radarr', 'https://h:7878').remedy).toMatch(/certificate/i);
