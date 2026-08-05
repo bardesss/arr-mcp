@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/bardesss/arr-mcp/compare/v0.3.0...v0.3.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* reconcile every Phase 2b adapter against a live stack (missed 0.3.0) ([#24](https://github.com/bardesss/arr-mcp/issues/24)) ([4470e76](https://github.com/bardesss/arr-mcp/commit/4470e76e3cc3e490479a973a0404d6fc32a3e3f7))
+
 ## [0.3.0](https://github.com/bardesss/arr-mcp/compare/v0.2.1...v0.3.0) (2026-08-05)
 
 
