@@ -214,7 +214,7 @@ export class LibraryIndex {
             .map(({ item }) => item);
     }
 
-    all(): MergedItem[] {
+    all(): readonly MergedItem[] {
         return this.#items;
     }
 

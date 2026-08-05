@@ -419,4 +419,40 @@ describe('LibraryIndex.all', () => {
         expect(index.all()).toEqual([]);
         expect(index.size()).toBe(0);
     });
+
+    it('hands out a snapshot a caller can copy without disturbing the index', () => {
+        // A caller that shares a five-minute cached snapshot across tool
+        // calls (Phase 3b's LibraryLoader) must not be able to corrupt it.
+        // `assertAllIsReadonlyAtCompileTime` below (never invoked — tsc still
+        // checks its body) proves the compiler rejects mutating the array
+        // `all()` hands out directly. This proves that a caller who instead
+        // makes a copy, as `readonly` pushes them to, cannot reach back into
+        // the index through it.
+        const index = LibraryIndex.build([arr(), jelly()]);
+        const copy = [...index.all()];
+        copy.sort(() => -1);
+        copy.pop();
+
+        expect(index.all()).toHaveLength(1);
+        expect(index.size()).toBe(1);
+    });
 });
+
+/**
+ * Never called — its only job is to be type-checked by `npm run typecheck`.
+ * Each line below must fail to compile, proving `LibraryIndex.all()` returns
+ * `readonly MergedItem[]` rather than `MergedItem[]`: a caller that sorts or
+ * splices the array a five-minute cache handed out would corrupt the index
+ * for every later call, and that must be a compile error, not a hope.
+ */
+function assertAllIsReadonlyAtCompileTime(items: readonly MergedItem[]): void {
+    // @ts-expect-error - push is not on a readonly array
+    items.push({} as never);
+    // @ts-expect-error - sort is not on a readonly array
+    items.sort();
+    // @ts-expect-error - splice is not on a readonly array
+    items.splice(0, 1);
+    // @ts-expect-error - index assignment is not on a readonly array
+    items[0] = {} as never;
+}
+void assertAllIsReadonlyAtCompileTime;
