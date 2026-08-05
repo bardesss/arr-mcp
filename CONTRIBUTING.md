@@ -10,8 +10,9 @@ npm install
 npm test
 ```
 
-An optional integration script for maintainers with a real stack lives under
-`scripts/` (from 0.2 onwards).
+Maintainers with a real stack refresh the recorded fixtures with
+`npm run capture` — see below. An integration script that *exercises* a live
+stack rather than recording it is planned for 0.4.
 
 ## The three gates
 
@@ -69,6 +70,51 @@ An adapter must:
 Three of the eight services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
+
+## Vendored API specs
+
+`specs/*.json` are upstream OpenAPI documents, refreshed by `npm run specs:fetch`
+and regenerated into `src/services/generated/` by `npm run codegen`. Both are
+committed. A nightly workflow re-fetches them and opens a PR when upstream
+changes, so **review `specs/` in that diff** — the generated files are output,
+not source, and are not meant to be read by hand.
+
+Radarr, Sonarr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd and
+Transmission publish no usable spec and are hand-written against recorded
+fixtures.
+
+Two things worth knowing before you touch this:
+
+- **The generator runs through `npx` at a pinned version, not as a
+  devDependency.** `openapi-typescript` requires `typescript@^5.x` and this
+  project is pinned to TypeScript 6, so a local install cannot resolve. Running
+  it in npx's isolated tree keeps the conflict out of ours, and the tool is not
+  part of the shipped artefact — its reviewed output is.
+- **The generated types are nullable where the spec says nullable.** If a mapper
+  fails to typecheck against them, fix the mapper. Do not widen it with a cast:
+  that failure is the codegen doing the job it was added for.
+
+## Recorded fixtures
+
+Adapter tests run against real responses captured once from a live stack, so
+neither CI nor a contributor needs one. Maintainers refresh them with:
+
+```bash
+npm run capture            # reads ./config/config.yaml, never prints credentials
+```
+
+Set `ARR_MCP_CAPTURE_CONFIG` to read credentials from outside the repo. The
+script redacts every configured credential and every secret-named field, then
+**refuses to write a file** if a credential survived — a reviewer spotting a
+leaked key in a large diff is not a control worth relying on.
+
+`test/fixtures.test.ts` re-checks every committed fixture on every PR, so a
+recapture years from now cannot quietly leak either. It works on key names and
+value shape, not on the secrets themselves, because CI does not have them.
+
+Review `git diff test/fixtures/` before committing: redaction is **secrets
+only** by decision, so real titles, usernames, LAN addresses and mount paths are
+published deliberately.
 
 ## Reporting a bug
 
