@@ -43,3 +43,22 @@ A phase that ships without its README change is not finished.
 - [ ] `docker run` the published tag against a real stack, not just the build
 - [ ] An MCP client lists the expected tool count and calls one successfully
 - [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected
+
+## Distribution
+
+Do this at **0.3 and later**, not for 0.1 or 0.2 — those are foundations, and
+an announcement lands once.
+
+- [ ] [MCP registry](https://github.com/modelcontextprotocol/registry) listing
+- [ ] Unraid Community Applications template
+- [ ] Umbrel app store submission
+- [ ] CasaOS app store submission
+- [ ] r/selfhosted post — lead with the differentiator, not the feature list:
+      one server for the whole stack, a config page that diagnoses instead of
+      printing pass/fail, and tool output treated as untrusted data
+- [ ] Link the release in the README's status callout
+
+Lead every listing with what no comparable project does. Fourteen of them
+exist; none ships a config UI and none addresses untrusted tool content.
+Discovery, not capability, is the binding constraint here — the unmaintained
+project this one succeeds still leads the field on stars.

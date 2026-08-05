@@ -52,20 +52,43 @@ before it adds one.
 
 ## Adding a service adapter
 
-The highest-value contribution, and deliberately self-contained. The contract
-lives in [`src/services/types.ts`](src/services/types.ts) and
-[`src/services/radarr.ts`](src/services/radarr.ts) is the reference
-implementation — read those two files and you have everything you need.
+The highest-value contribution, and deliberately self-contained. Six steps,
+each with a worked example already in the tree.
+
+1. **Add the service id** to `ServiceIdSchema` in `src/config/schema.ts`, and a
+   schema for it in `ServicesSchema`. Reuse `KeyedServiceSchema` unless the
+   service authenticates differently.
+2. **Pick or write an auth strategy** in `src/core/auth.ts`. The five existing
+   shapes cover most services; write a new one only if the service does
+   something genuinely different, as Transmission's session handshake does.
+3. **Add its endpoints** to `ENDPOINTS` in `scripts/capture-fixtures.ts` and run
+   `npm run capture` against a live instance. Review the diff.
+4. **Write the adapter** in `src/services/<id>.ts`, implementing `ServiceAdapter`
+   plus whichever capability interfaces the service actually supports.
+   `src/services/sonarr.ts` is the simplest example; `src/services/transmission.ts`
+   is the most unusual.
+5. **Declare its contract** in `test/contract.test.ts` — the response fields your
+   adapter reads. Omit the `spec` when the service publishes no OpenAPI document.
+6. **Register it** in `src/services/registry.ts`.
 
 An adapter must:
 
-- implement `ServiceAdapter` (`id`, `testConnection`, `getVersion`)
-- return a `ConnectionDiagnosis` from `testConnection`, **never a boolean** — it
-  distinguishes DNS failure, connection refused, TLS error, 401, 404 and
-  version-too-old, and states the remedy
-- map every failure onto the error taxonomy in `src/core/errors.ts`
+- return a `ConnectionDiagnosis` from `testConnection`, **never a boolean** and
+  **never a thrown error** — use `diagnoseConnection`, which every adapter shares
 - accept an injectable `fetch` so it is testable without the service
-- ship recorded fixtures covering success and each error mode
+- **not implement a capability it has no fixture for.** Prowlarr is not
+  `DiskSpaceCapable` because its diskspace endpoint 404s. A method nothing has
+  tested is a method `stack_health` will call in production
+
+Transport concerns — timeouts, retries, the circuit breaker, error
+classification — belong to `ServiceHttp` and must not be reimplemented in an
+adapter. If a service needs behaviour `ServiceHttp` does not have, that is a
+change to `ServiceHttp`, so every service gets it.
+
+**Match on stable identifiers, not on display strings.** Both scan-state
+implementations learned this the hard way: Radarr runs three tasks whose names
+contain "Refresh", only one of which is the library scan, and Jellyfin's task
+names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
 Three of the eight services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
