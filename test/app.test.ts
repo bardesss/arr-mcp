@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
+import { RadarrAdapter } from '../src/services/radarr.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 
 const TOKEN = 'a'.repeat(64);
@@ -16,6 +17,12 @@ const rpc = (body: unknown, headers: Record<string, string> = {}) => ({
 });
 
 const toolsList = { jsonrpc: '2.0', id: 1, method: 'tools/list' };
+
+/** Parses the JSON-RPC payload out of the SDK's response, which may frame it as SSE. */
+const rpcPayload = async (res: Response): Promise<{ result?: Record<string, unknown> }> => {
+    const body = await res.text();
+    return JSON.parse(body.slice(body.indexOf('{'), body.lastIndexOf('}') + 1)) as { result?: Record<string, unknown> };
+};
 
 describe('GET /healthz', () => {
     it('is reachable without a token — it is a container probe, not an API', async () => {
@@ -176,5 +183,86 @@ describe('the advertised tool surface', () => {
     it('gives every tool a description, which is the only documentation a model reads', async () => {
         const undocumented = (await listTools()).filter(t => (t.description ?? '').length < 40);
         expect(undocumented.map(t => t.name)).toEqual([]);
+    });
+});
+
+describe('a thrown ServiceError reaches the client with its remedy', () => {
+    const radarrConfig = {
+        url: 'http://192.0.2.10:7878',
+        api_key: 'k',
+        timeout_ms: 10_000,
+        permissions: { safe_write: false, destructive: false }
+    };
+
+    /**
+     * This is the exact path a live tool call takes: registerGetMediaDetails
+     * throws a ServiceError, the MCP SDK's own dispatch loop catches it and
+     * builds the tool result from `error.message` alone
+     * (`@modelcontextprotocol/server`'s `createToolError`) — it never calls
+     * `toModelText()`. A remedy that does not reach `.message` is dropped here,
+     * not in application code, which is why the fix has to live in the error
+     * class rather than in a tool-layer catch.
+     */
+    it('surfaces the remedy for an auth failure through get_media_details', async () => {
+        const unauthorized: typeof fetch = async () =>
+            new Response(JSON.stringify({ message: 'Unauthorized' }), {
+                status: 401,
+                headers: { 'content-type': 'application/json' }
+            });
+        const withRadarr = buildApp({ config, adapters: [new RadarrAdapter(radarrConfig, unauthorized)] });
+
+        const callTool = {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'get_media_details', arguments: { service: 'radarr', id: '42', detail: 'standard', limit: 50 } }
+        };
+        const res = await withRadarr.request(
+            'http://localhost:6060/mcp',
+            rpc(callTool, { Authorization: `Bearer ${TOKEN}` })
+        );
+
+        const payload = await rpcPayload(res);
+        const result = payload.result as { isError?: boolean; content?: { type: string; text: string }[] };
+        expect(result.isError).toBe(true);
+        expect(result.content?.[0]?.text).toMatch(/API key is wrong/i);
+    });
+
+    /**
+     * The reported bug, reproduced end to end: a request for a Radarr id that
+     * does not exist. Confirmed live against the published 0.3.1 container as
+     * `radarr not found: HTTP 404 at /api/v3/movie/999999` with no remedy at
+     * all. With both fixes in, the model is told a remedy, and the right one —
+     * a missing id, not a misconfigured base URL.
+     */
+    it('tells the model to check the id, not the base URL, for a 404 on a nonexistent Radarr id', async () => {
+        const notFound: typeof fetch = async () =>
+            new Response(JSON.stringify({ message: 'NotFound' }), {
+                status: 404,
+                headers: { 'content-type': 'application/json' }
+            });
+        const withRadarr = buildApp({ config, adapters: [new RadarrAdapter(radarrConfig, notFound)] });
+
+        const callTool = {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: {
+                name: 'get_media_details',
+                arguments: { service: 'radarr', id: '999999', detail: 'standard', limit: 50 }
+            }
+        };
+        const res = await withRadarr.request(
+            'http://localhost:6060/mcp',
+            rpc(callTool, { Authorization: `Bearer ${TOKEN}` })
+        );
+
+        const payload = await rpcPayload(res);
+        const result = payload.result as { isError?: boolean; content?: { type: string; text: string }[] };
+        const text = result.content?.[0]?.text ?? '';
+        expect(result.isError).toBe(true);
+        expect(text).toContain('HTTP 404 at /api/v3/movie/999999');
+        expect(text).not.toMatch(/base path/i);
+        expect(text).toMatch(/id/i);
     });
 });
