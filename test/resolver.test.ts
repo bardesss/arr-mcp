@@ -1,23 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { LibraryIndex, type ExternalIds, type IndexInput } from '../src/core/resolver.ts';
+import type { ServiceId } from '../src/config/schema.ts';
+import { fenceText } from '../src/core/fence.ts';
+import { LibraryIndex, type ExternalIds, type IndexInput, type MergedItem } from '../src/core/resolver.ts';
+import { unfenced } from '../src/core/titleMatch.ts';
 
-const arr = (over: Partial<IndexInput> = {}): IndexInput => ({
-    kind: 'movie',
-    title: 'Some Film',
-    year: 2026,
-    ids: { tmdb: 550 },
-    acquisition: { service: 'radarr', monitored: true, hasFile: true },
-    ...over
-});
+// Production adapters fence every title before it reaches the resolver
+// (radarr.ts and sonarr.ts write it as `<service>.title`, jellyfin.ts as
+// `jellyfin.Name`) — bare-string fixtures are what let the search tiebreak
+// bug (fixed alongside these factories) hide from every existing test.
+// These factories fence too, so the merge and search tests below exercise
+// what the resolver actually receives.
+const fenceArr = (title: string, service: ServiceId = 'radarr'): string => fenceText(title, { service, field: 'title' });
+const fenceJelly = (title: string): string => fenceText(title, { service: 'jellyfin', field: 'Name' });
 
-const jelly = (over: Partial<IndexInput> = {}): IndexInput => ({
-    kind: 'movie',
-    title: 'Some Film',
-    year: 2026,
-    ids: { tmdb: 550 },
-    playback: { user: 'Bartus', watched: true },
-    ...over
-});
+/** Strips the fence so a test can assert against the human-readable title. */
+const plainTitle = (item?: MergedItem): string => unfenced(item?.title ?? '');
+
+const arr = (over: Partial<IndexInput> = {}): IndexInput => {
+    const { title, ...rest } = over;
+    return {
+        kind: 'movie',
+        title: fenceArr(title ?? 'Some Film', rest.acquisition?.service ?? 'radarr'),
+        year: 2026,
+        ids: { tmdb: 550 },
+        acquisition: { service: 'radarr', monitored: true, hasFile: true },
+        ...rest
+    };
+};
+
+const jelly = (over: Partial<IndexInput> = {}): IndexInput => {
+    const { title, ...rest } = over;
+    return {
+        kind: 'movie',
+        title: fenceJelly(title ?? 'Some Film'),
+        year: 2026,
+        ids: { tmdb: 550 },
+        playback: { user: 'Bartus', watched: true },
+        ...rest
+    };
+};
 
 describe('LibraryIndex merging', () => {
     it('merges an *arr and a Jellyfin record sharing a tmdb id', () => {
@@ -116,10 +137,10 @@ describe('LibraryIndex merging', () => {
             arr({ kind: 'series', title: 'The Series', ids: { tmdb: 224372 }, acquisition: { service: 'sonarr', monitored: true, hasFile: true } })
         ]);
 
-        expect(index.find({ tmdb: 224372 }, 'movie')?.title).toBe('The Film');
-        expect(index.find({ tmdb: 224372 }, 'series')?.title).toBe('The Series');
+        expect(plainTitle(index.find({ tmdb: 224372 }, 'movie'))).toBe('The Film');
+        expect(plainTitle(index.find({ tmdb: 224372 }, 'series'))).toBe('The Series');
         // Unspecified kind keeps today's behaviour: first match wins, movie first.
-        expect(index.find({ tmdb: 224372 })?.title).toBe('The Film');
+        expect(plainTitle(index.find({ tmdb: 224372 }))).toBe('The Film');
     });
 });
 
@@ -247,7 +268,7 @@ describe('LibraryIndex merge details', () => {
             arr({ title: 'Some Film' }),
             jelly({ title: 'Some Film (Director&apos;s Cut)' })
         ]);
-        expect(index.find({ tmdb: 550 })?.title).toBe('Some Film');
+        expect(plainTitle(index.find({ tmdb: 550 }))).toBe('Some Film');
     });
 
     it('prefers the *arr title even when the Jellyfin record merges in first', () => {
@@ -261,7 +282,7 @@ describe('LibraryIndex merge details', () => {
             jelly({ title: "Some Film (Director's Cut)" }),
             arr({ title: 'Some Film' })
         ]);
-        expect(index.find({ tmdb: 550 })?.title).toBe('Some Film');
+        expect(plainTitle(index.find({ tmdb: 550 }))).toBe('Some Film');
     });
 
     it('takes a year from whichever record has one', () => {
@@ -301,7 +322,7 @@ describe('LibraryIndex search', () => {
     ]);
 
     it('ranks exact above prefix above substring', () => {
-        expect(index.search('matrix').map(i => i.title)).toEqual([
+        expect(index.search('matrix').map(i => unfenced(i.title))).toEqual([
             'The Matrix',
             'Matrix Reloaded',
             'Enter the Matrix'
@@ -309,7 +330,7 @@ describe('LibraryIndex search', () => {
     });
 
     it('excludes non-matches rather than ranking them last', () => {
-        expect(index.search('matrix').some(i => i.title === 'Blade Runner')).toBe(false);
+        expect(index.search('matrix').some(i => unfenced(i.title) === 'Blade Runner')).toBe(false);
     });
 
     it('returns an empty list for a query matching nothing', () => {
@@ -322,7 +343,29 @@ describe('LibraryIndex search', () => {
     });
 
     it('matches through a leading article the caller omitted', () => {
-        expect(index.search('the matrix')[0]?.title).toBe('The Matrix');
+        expect(plainTitle(index.search('the matrix')[0])).toBe('The Matrix');
+    });
+
+    it('breaks a rank tie by the real title, not by which service fenced it', () => {
+        // Both titles are prefix matches for "matrix", so they tie on rank.
+        // Every production title is fenced, and the fence prefix carries the
+        // *service* name: "<<untrusted:jellyfin..." sorts before
+        // "<<untrusted:radarr..." regardless of the title inside, so a
+        // tiebreak on the raw fenced string would put "Zulu" ahead of
+        // "Alpha" here. Comparing through unfenced() is what fixes that.
+        const zulu: IndexInput = {
+            kind: 'movie',
+            title: fenceText('Matrix Zulu', { service: 'jellyfin', field: 'Name' }),
+            ids: { tmdb: 101 }
+        };
+        const alpha: IndexInput = {
+            kind: 'movie',
+            title: fenceText('Matrix Alpha', { service: 'radarr', field: 'title' }),
+            ids: { tmdb: 102 }
+        };
+
+        const tieIndex = LibraryIndex.build([zulu, alpha]);
+        expect(tieIndex.search('matrix').map(i => unfenced(i.title))).toEqual(['Matrix Alpha', 'Matrix Zulu']);
     });
 });
 

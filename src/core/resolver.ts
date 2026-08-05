@@ -1,5 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
-import { RANK_NONE, rankTitle } from './titleMatch.ts';
+import { RANK_NONE, rankTitle, unfenced } from './titleMatch.ts';
 
 export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string };
 
@@ -192,7 +192,13 @@ export class LibraryIndex {
         return this.#items
             .map(item => ({ item, rank: rankTitle(item.title, query) }))
             .filter(({ rank }) => rank !== RANK_NONE)
-            .sort((a, b) => a.rank - b.rank || a.item.title.localeCompare(b.item.title))
+            // Every production title is fenced (`<<untrusted:service.field>>…`),
+            // and the fence prefix carries the *service* name. Comparing the
+            // raw strings would tie-break alphabetically by service first —
+            // "all Jellyfin-sourced items, then all *arr-sourced items" — and
+            // only alphabetically by title within each group. unfenced() is
+            // what makes the tiebreak compare the title a person reads.
+            .sort((a, b) => a.rank - b.rank || unfenced(a.item.title).localeCompare(unfenced(b.item.title)))
             .map(({ item }) => item);
     }
 
