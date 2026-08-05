@@ -110,7 +110,19 @@ export class LibraryIndex {
             // taking only the first match would leave the other group's only
             // index entry overwritten by the re-index below, unreachable via
             // `find` but still sitting in `#items` reporting stale presence.
-            const matches = [...new Set(keys.map(k => byKey.get(k)).filter((v): v is MergedItem => v !== undefined))];
+            // `byKey` is patched incrementally in this loop (see the re-index
+            // comment below) and can still hold a key pointing at a group
+            // already spliced out of `items` by an earlier iteration. If such
+            // a stale key were allowed to win here, `matches[0]` would be that
+            // ghost: `mergeInto` below would write this input's evidence into
+            // an object outside `items`, no new item would be created because
+            // `matches.length` is not zero, and the evidence would be gone —
+            // present nowhere in the final `all()`. Filtering to objects still
+            // in `items` is what keeps a spliced-out group from ever winning a
+            // later merge.
+            const matches = [...new Set(keys.map(k => byKey.get(k)).filter((v): v is MergedItem => v !== undefined))].filter(m =>
+                items.includes(m)
+            );
 
             if (matches.length === 0) {
                 const created: MergedItem = { ...input, presence: 'arr_only' };

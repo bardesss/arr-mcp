@@ -188,6 +188,30 @@ describe('LibraryIndex byKey coherence after a bridging fuse', () => {
     });
 });
 
+describe('LibraryIndex — a spliced-out ghost must not win a later merge', () => {
+    it("does not let record four's evidence vanish into an object outside items()", () => {
+        // Same bridging shape as above, plus a fourth record whose only shared
+        // id (`imdb: 'tt7'`) is exactly the key that stopped belonging to any
+        // live item once the third record's bridge fused it away. Mid-build,
+        // `#byKey` still maps that key to the spliced-out ghost. If that ghost
+        // were allowed to win as `matches[0]`, `mergeInto` would write this
+        // record's `playback` into an object `items` does not contain — no
+        // new item gets created (`matches.length` is not zero), so the
+        // evidence is not lost as a stale-but-visible ghost, it is lost
+        // outright: nowhere in `all()`, and `find` on either of its own ids
+        // resolves to nothing.
+        const index = LibraryIndex.build([
+            arr({ ids: { tmdb: 1 } }),
+            jelly({ ids: { tvdb: 5, imdb: 'tt7' } }),
+            jelly({ ids: { tmdb: 1, tvdb: 5, imdb: 'tt9' } }),
+            jelly({ ids: { tmdb: 77, imdb: 'tt7' }, playback: { user: 'ReviewerFour', watched: true } })
+        ]);
+
+        expect(index.find({ tmdb: 77 })).toBeDefined();
+        expect(index.all().some(i => i.playback?.user === 'ReviewerFour')).toBe(true);
+    });
+});
+
 describe('LibraryIndex invariants', () => {
     // Two properties a coherent index must always hold, checked against every
     // id any *input* record ever mentioned — not just the ids the final
@@ -200,12 +224,20 @@ describe('LibraryIndex invariants', () => {
         const all = index.all();
 
         for (const item of all) {
-            if (item.presence === 'arr_only') expect(item.acquisition).toBeDefined();
-            if (item.presence === 'jellyfin_only') expect(item.playback).toBeDefined();
-            if (item.presence === 'both') {
-                expect(item.acquisition).toBeDefined();
-                expect(item.playback).toBeDefined();
-            }
+            // The full biconditional, not just "presence implies fields": an
+            // item holding both fields must be labelled `both`, not merely
+            // `arr_only` or `jellyfin_only` with the other field's presence
+            // left unchecked — a one-directional version of this passes for
+            // an item mislabelled `arr_only` despite carrying `playback` too.
+            const expectedPresence =
+                item.acquisition !== undefined && item.playback !== undefined
+                    ? 'both'
+                    : item.acquisition !== undefined
+                      ? 'arr_only'
+                      : item.playback !== undefined
+                        ? 'jellyfin_only'
+                        : 'unknown';
+            expect(item.presence).toBe(expectedPresence);
         }
 
         const everyId: ExternalIds[] = [];
@@ -366,6 +398,13 @@ describe('LibraryIndex search', () => {
 
         const tieIndex = LibraryIndex.build([zulu, alpha]);
         expect(tieIndex.search('matrix').map(i => unfenced(i.title))).toEqual(['Matrix Alpha', 'Matrix Zulu']);
+
+        // Neither input carries acquisition or playback, so this also
+        // exercises the 'unknown' presence branch — pinned here rather than
+        // left merely reached, so a regression to 'jellyfin_only' (the old
+        // fallthrough) would show up as a failure, not just as a branch this
+        // test happened to execute in passing.
+        for (const item of tieIndex.all()) expect(item.presence).toBe('unknown');
     });
 });
 
