@@ -38,8 +38,16 @@ export type MergedItem = {
      * §8's diagnostic payload. `arr_only` **with a file** means a broken
      * Jellyfin import; `jellyfin_only` means media nothing is managing.
      * Neither is visible from any single service.
+     *
+     * `unknown` covers a record with **neither** half of evidence — no
+     * `acquisition` and no `playback`. Real adapter data never produces one
+     * (every input contributes at least one side of the join), but the type
+     * does not forbid it, and the alternative — falling through to
+     * `jellyfin_only` — would assert Jellyfin evidence for a record that was
+     * never seen there. `arr_only` is equally wrong for the same reason.
+     * `unknown` is the only answer that does not fabricate a source.
      */
-    presence: 'both' | 'arr_only' | 'jellyfin_only';
+    presence: 'both' | 'arr_only' | 'jellyfin_only' | 'unknown';
 };
 
 export type IndexInput = Omit<MergedItem, 'presence'>;
@@ -125,21 +133,36 @@ export class LibraryIndex {
 
             // Re-index under every id the survivor now knows — from fused
             // losers and from this input — so a later record carrying any of
-            // them still finds this one group, and no key is left pointing
-            // at a loser that no longer exists in `#items`.
+            // them still finds this one group *during the build*. This is
+            // still an incremental patch, not a removal: it only ever adds or
+            // overwrites keys, so a key that used to point at a group later
+            // absorbed elsewhere (e.g. the loser fused above) can be left
+            // stale here, pointing at an object no longer in `items`.
             for (const key of keysOf(survivor.kind, survivor.ids)) byKey.set(key, survivor);
         }
 
+        // `byKey`, patched incrementally above, can still hold stale entries
+        // from groups that were fused away partway through the loop — a key
+        // set while a loser was still its own group, never revisited once
+        // that group merged into someone else's survivor. Rebuilding from
+        // `items` (the authoritative final set) is what guarantees `find`
+        // can never return an object `all()` does not contain, and it is
+        // also the natural place to compute `presence`: every item here has
+        // reached its final, fully-merged shape.
+        const finalByKey = new Map<string, MergedItem>();
         for (const item of items) {
             item.presence =
                 item.acquisition !== undefined && item.playback !== undefined
                     ? 'both'
                     : item.acquisition !== undefined
                       ? 'arr_only'
-                      : 'jellyfin_only';
+                      : item.playback !== undefined
+                        ? 'jellyfin_only'
+                        : 'unknown';
+            for (const key of keysOf(item.kind, item.ids)) finalByKey.set(key, item);
         }
 
-        return new LibraryIndex(items, byKey);
+        return new LibraryIndex(items, finalByKey);
     }
 
     /** Undefined for an empty id set: no id is not a wildcard. */

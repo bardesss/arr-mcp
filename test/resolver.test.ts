@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LibraryIndex, type IndexInput } from '../src/core/resolver.ts';
+import { LibraryIndex, type ExternalIds, type IndexInput } from '../src/core/resolver.ts';
 
 const arr = (over: Partial<IndexInput> = {}): IndexInput => ({
     kind: 'movie',
@@ -104,6 +104,101 @@ describe('LibraryIndex merging', () => {
     it('returns undefined for an empty id set rather than an arbitrary item', () => {
         const index = LibraryIndex.build([arr()]);
         expect(index.find({})).toBeUndefined();
+    });
+});
+
+describe('LibraryIndex byKey coherence after a bridging fuse', () => {
+    // Three records: an *arr-only film known by tmdb, a Jellyfin-only record
+    // known by tvdb+imdb, and a second Jellyfin record that bridges them by
+    // carrying both. The bridge forces two already-separate groups to fuse
+    // mid-build — exactly the shape that used to leave a stale `#byKey` entry
+    // pointing at a group no longer present in `#items`.
+    const bridged = () =>
+        LibraryIndex.build([
+            arr({ ids: { tmdb: 1 } }),
+            jelly({ ids: { tvdb: 5, imdb: 'tt7' } }),
+            jelly({ ids: { tmdb: 1, tvdb: 5, imdb: 'tt9' } })
+        ]);
+
+    it('fuses into exactly one item', () => {
+        const index = bridged();
+        expect(index.size()).toBe(1);
+        expect(index.all()).toHaveLength(1);
+    });
+
+    it('finds the fused item by every id it still carries, and never a ghost for one it does not', () => {
+        const index = bridged();
+        const [item] = index.all();
+
+        expect(index.find({ tmdb: 1 })).toBe(item);
+        expect(index.find({ tvdb: 5 })).toBe(item);
+        expect(index.find({ imdb: 'tt9' })).toBe(item);
+
+        // tt7 belonged to the record that got absorbed; the survivor's ids no
+        // longer include it (the bridge's tt9 supersedes it on merge), so a
+        // coherent index must not answer for it with an object `all()` does
+        // not contain.
+        expect(index.find({ imdb: 'tt7' })).toBeUndefined();
+    });
+
+    it('reports presence that matches the evidence the fused item actually holds', () => {
+        const index = bridged();
+        const [item] = index.all();
+
+        expect(item?.presence).toBe('both');
+        expect(item?.acquisition).toBeDefined();
+        expect(item?.playback).toBeDefined();
+    });
+});
+
+describe('LibraryIndex invariants', () => {
+    // Two properties a coherent index must always hold, checked against every
+    // id any *input* record ever mentioned — not just the ids the final
+    // merged items still carry. A ghost is by definition reachable only
+    // through a key some now-absorbed record used to own, so checking just
+    // the survivors' own ids (which is all a per-item loop over `all()` could
+    // see) would never exercise the bug this guards against.
+    const assertCoherent = (inputs: readonly IndexInput[]): void => {
+        const index = LibraryIndex.build(inputs);
+        const all = index.all();
+
+        for (const item of all) {
+            if (item.presence === 'arr_only') expect(item.acquisition).toBeDefined();
+            if (item.presence === 'jellyfin_only') expect(item.playback).toBeDefined();
+            if (item.presence === 'both') {
+                expect(item.acquisition).toBeDefined();
+                expect(item.playback).toBeDefined();
+            }
+        }
+
+        const everyId: ExternalIds[] = [];
+        for (const input of inputs) {
+            if (input.ids.tmdb !== undefined) everyId.push({ tmdb: input.ids.tmdb });
+            if (input.ids.tvdb !== undefined) everyId.push({ tvdb: input.ids.tvdb });
+            if (input.ids.imdb !== undefined) everyId.push({ imdb: input.ids.imdb });
+        }
+
+        for (const ids of everyId) {
+            const found = index.find(ids);
+            // Undefined is fine — a superseded id is allowed to stop
+            // resolving. What is never fine is resolving to an object `all()`
+            // does not contain.
+            if (found !== undefined) expect(all).toContain(found);
+        }
+    };
+
+    it('holds for the bridging-fuse reproduction', () => {
+        assertCoherent([
+            arr({ ids: { tmdb: 1 } }),
+            jelly({ ids: { tvdb: 5, imdb: 'tt7' } }),
+            jelly({ ids: { tmdb: 1, tvdb: 5, imdb: 'tt9' } })
+        ]);
+    });
+
+    it('holds for a plain merge, disjoint records, and an empty build', () => {
+        assertCoherent([arr(), jelly()]);
+        assertCoherent([arr({ ids: { tmdb: 550 } }), jelly({ ids: { tmdb: 999 } })]);
+        assertCoherent([]);
     });
 });
 
