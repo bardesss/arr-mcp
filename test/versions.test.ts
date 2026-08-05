@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { ServiceId } from '../src/config/schema.ts';
 import type { ServiceError } from '../src/core/errors.ts';
 import { MINIMUM_VERSIONS, assertVersionSupported, compareVersions, parseVersion } from '../src/services/versions.ts';
+
+const ROOT = join(import.meta.dirname, '..');
+const read = (path: string): unknown => JSON.parse(readFileSync(join(ROOT, path), 'utf8'));
 
 const rejection = (fn: () => void): ServiceError => {
     try {
@@ -84,4 +90,43 @@ describe('assertVersionSupported', () => {
         const services = ['radarr', 'sonarr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'transmission'];
         for (const s of services) expect(MINIMUM_VERSIONS[s as keyof typeof MINIMUM_VERSIONS]).toBeTruthy();
     });
+
+    it('has a parseable floor for every service', () => {
+        // The reported failure mode of an unparseable floor was wrong —
+        // parseVersion("4..0") returns [4], not undefined. The genuine
+        // silent-disable case is a digit-free floor: parseVersion("four")
+        // returns undefined, assertVersionSupported's `minimum === undefined`
+        // guard returns early, and enforcement is off for that service with a
+        // green suite, since nothing else exercises MINIMUM_VERSIONS' values.
+        for (const [service, floor] of Object.entries(MINIMUM_VERSIONS)) {
+            expect(parseVersion(floor), `${service}'s floor "${floor}" must parse`).toBeDefined();
+        }
+    });
+});
+
+describe('assertVersionSupported against captured evidence', () => {
+    // Every fixture below was captured from the real reference stack this
+    // project was developed against (see the version list in versions.ts's
+    // header comment). Checking each floor against that real version, rather
+    // than a hand-written string, is the "no capability without a fixture"
+    // discipline this project is held to elsewhere applied to the floors
+    // themselves — it is the test that would actually catch a floor
+    // accidentally set above what a real, currently-supported install
+    // reports.
+    const captured: Record<ServiceId, string> = {
+        radarr: (read('test/fixtures/radarr/system-status.json') as { version: string }).version,
+        sonarr: (read('test/fixtures/sonarr/system-status.json') as { version: string }).version,
+        prowlarr: (read('test/fixtures/prowlarr/system-status.json') as { version: string }).version,
+        bazarr: (read('test/fixtures/bazarr/system-status.json') as { data: { bazarr_version: string } }).data.bazarr_version,
+        jellyfin: (read('test/fixtures/jellyfin/system-info.json') as { Version: string }).Version,
+        seerr: (read('test/fixtures/seerr/status.json') as { version: string }).version,
+        sabnzbd: (read('test/fixtures/sabnzbd/version.json') as { version: string }).version,
+        transmission: (read('test/fixtures/transmission/session-get.json') as { arguments: { version: string } }).arguments.version
+    };
+
+    for (const [service, version] of Object.entries(captured)) {
+        it(`accepts ${service}'s captured version (${version})`, () => {
+            expect(() => assertVersionSupported(service as ServiceId, version)).not.toThrow();
+        });
+    }
 });
