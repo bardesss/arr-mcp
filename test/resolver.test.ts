@@ -316,6 +316,11 @@ describe('LibraryIndex search', () => {
         expect(index.search('zzzz')).toEqual([]);
     });
 
+    it('returns an empty list for an empty or punctuation-only query rather than the whole library', () => {
+        expect(index.search('')).toEqual([]);
+        expect(index.search('???')).toEqual([]);
+    });
+
     it('matches through a leading article the caller omitted', () => {
         expect(index.search('the matrix')[0]?.title).toBe('The Matrix');
     });

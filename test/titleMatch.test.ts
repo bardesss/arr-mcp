@@ -57,6 +57,17 @@ describe('rankTitle', () => {
         expect(rankTitle('<<untrusted:radarr.title>>The Matrix<</untrusted>>', 'matrix')).toBe(RANK_EXACT);
     });
 
+    it('reports no match for an empty query rather than a universal prefix', () => {
+        // normaliseTitle('') is '', and 'x'.startsWith('') is always true —
+        // without a guard, an empty query would rank every title as a prefix
+        // match, turning search('') into "return the whole library".
+        expect(rankTitle('anything', '')).toBe(RANK_NONE);
+    });
+
+    it('reports no match for a punctuation-only query, which normalises to empty too', () => {
+        expect(rankTitle('anything', '???')).toBe(RANK_NONE);
+    });
+
     it('orders correctly when sorted', () => {
         const titles = ['Enter the Matrix', 'The Matrix', 'Matrix Reloaded'];
         titles.sort((a, b) => rankTitle(a, 'matrix') - rankTitle(b, 'matrix'));

@@ -45,6 +45,14 @@ export function rankTitle(title: string, query: string): number {
     const t = normaliseTitle(title);
     const q = normaliseTitle(query);
 
+    // An empty query — whether the caller sent '' or something that
+    // normalises down to it, like '???' — matches nothing. Without this,
+    // `t === q` and `t.startsWith(q)` are both true for every title (the
+    // empty string is a prefix of everything), so an empty query would rank
+    // as an exact match against a title that is itself empty, and as a
+    // prefix match against every other title in the library.
+    if (q === '') return RANK_NONE;
+
     if (t === q) return RANK_EXACT;
     if (t.startsWith(q)) return RANK_PREFIX;
     if (t.includes(q)) return RANK_SUBSTRING;
