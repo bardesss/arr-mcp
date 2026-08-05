@@ -40,7 +40,20 @@ export function flattenSeriesRating(raw: RawRating | undefined): Record<string, 
     return { tvdb: raw.value };
 }
 
-/** The sources §4.1 names. Anything else an *arr invents is dropped rather than carried. */
+/**
+ * The sources §4.1 names. Anything else an *arr invents is dropped rather than
+ * carried.
+ *
+ * `tvdb` is deliberately absent. Sonarr's rating is flat — `{ votes, value }`,
+ * no source key — and is read via `flattenSeriesRating`, never through this
+ * function; `Sonarr.listLibrary` builds `{ tvdb: raw.tvdb }` by hand instead of
+ * calling `toMergedRatings`. Adding `tvdb` here would look like the fix that
+ * lets Sonarr's mapping "simplify" to reuse this function, but Radarr's
+ * per-source `Record<string, number>` and Sonarr's single flat value are not
+ * the same shape — routing the latter through `KNOWN`'s allowlist would look
+ * up a `tvdb` key that was never in the flattened record, and return
+ * `undefined` for every series rating, silently.
+ */
 const KNOWN = ['imdb', 'tmdb', 'rottenTomatoes', 'trakt', 'metacritic'] as const;
 
 /**

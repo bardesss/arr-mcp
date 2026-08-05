@@ -112,8 +112,14 @@ const CONTRACTS: Record<string, ServiceContract> = {
             {
                 // `ratings` here is flat — { votes, value } — not Radarr's
                 // per-source map. §21.2, resolved by the capture run.
+                //
+                // `statistics.episodeFileCount` is read by listLibrary to
+                // derive hasFile — a series has no single file, so this count
+                // stands in for it. Without this entry an upstream rename
+                // would make every series report hasFile: false with a green
+                // suite: the bare `statistics` key would still resolve.
                 fixture: 'test/fixtures/sonarr/series.json',
-                fields: ['id', 'title', 'monitored', 'tvdbId', 'ratings', 'statistics', 'genres']
+                fields: ['id', 'title', 'monitored', 'tvdbId', 'ratings', 'statistics', 'statistics.episodeFileCount', 'genres']
             },
             {
                 fixture: 'test/fixtures/sonarr/episode.json',
@@ -159,8 +165,11 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fields: ['Items.Id', 'Items.Name', 'Items.ProviderIds']
             },
             {
+                // `Items.Genres` is read by listUserLibrary and fenced into
+                // the merged item's genre list — omitted here, an upstream
+                // rename would silently make every item report no genres.
                 fixture: 'test/fixtures/jellyfin/items-library.json',
-                fields: ['Items.Id', 'Items.Name', 'Items.Type', 'Items.ProviderIds', 'Items.UserData']
+                fields: ['Items.Id', 'Items.Name', 'Items.Type', 'Items.ProviderIds', 'Items.UserData', 'Items.Genres']
             }
         ]
     },
