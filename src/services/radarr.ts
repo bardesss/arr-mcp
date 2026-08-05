@@ -26,11 +26,18 @@ type RawHealthCheck = components['schemas']['HealthResource'];
 type RawTask = components['schemas']['TaskResource'];
 
 /**
- * Task names whose last execution stands in for "when did the library last get
- * looked at". Confirmed against a live instance during the capture run — if the
- * real taskName does not match, this pattern changes and nothing else does.
+ * The task that actually rescans the film library, confirmed against a live
+ * Radarr 6.3.0 during the Phase 2a capture run.
+ *
+ * Matched exactly, never by pattern. A live instance runs eleven scheduled
+ * tasks, three of which contain "Refresh": `RefreshMovie` is the library scan,
+ * but `RefreshMonitoredDownloads` polls the download queue every minute and
+ * `RefreshCollections` syncs collections. Taking the most recent match
+ * reported the library as scanned a minute ago when it had in fact been
+ * scanned 23 hours earlier — scan staleness that can never look stale is worse
+ * than not reporting it at all.
  */
-const REFRESH_TASKS = /refresh|rescan/i;
+const LIBRARY_SCAN_TASK = 'RefreshMovie';
 
 export class RadarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCheckCapable, ScanStateCapable {
     readonly id: ServiceId = 'radarr';
@@ -78,13 +85,12 @@ export class RadarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCh
 
     async getScanState(): Promise<ScanState> {
         const tasks = await this.#http.get<RawTask[]>('/api/v3/system/task');
-        const latest = tasks
-            .filter(t => typeof t.taskName === 'string' && REFRESH_TASKS.test(t.taskName))
-            .map(t => t.lastExecution)
-            .filter((v): v is string => typeof v === 'string')
-            .sort()
-            .at(-1);
-        return { service: this.id, ...(latest === undefined ? {} : { lastCompleted: latest }) };
+        const scan = tasks.find(t => t.taskName === LIBRARY_SCAN_TASK);
+        const lastCompleted = scan?.lastExecution;
+        return {
+            service: this.id,
+            ...(typeof lastCompleted === 'string' ? { lastCompleted } : {})
+        };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

@@ -1,0 +1,58 @@
+{
+  "pageInfo": {
+    "pages": 1,
+    "pageSize": 10,
+    "results": 2,
+    "page": 1
+  },
+  "results": [
+    {
+      "permissions": 2,
+      "warnings": [],
+      "id": 1,
+      "email": "user1@example.test",
+      "plexUsername": null,
+      "jellyfinUsername": "user1",
+      "username": null,
+      "recoveryLinkExpirationDate": null,
+      "userType": 3,
+      "plexId": null,
+      "jellyfinUserId": "472c0639eaa641ebadd06d9d5107b730",
+      "avatar": "/avatarproxy/anonymous",
+      "avatarETag": "d0951add190a2aa743a05ce86d56f39ad00d6c3d05bc62deab617dfab19dc9d6",
+      "avatarVersion": "1755533786000",
+      "movieQuotaLimit": null,
+      "movieQuotaDays": null,
+      "tvQuotaLimit": null,
+      "tvQuotaDays": null,
+      "createdAt": "2024-07-02T07:38:29.000Z",
+      "updatedAt": "2024-12-24T16:06:09.000Z",
+      "requestCount": 10,
+      "displayName": "User 1"
+    },
+    {
+      "permissions": 32,
+      "warnings": [],
+      "id": 2,
+      "email": "user2@example.test",
+      "plexUsername": null,
+      "jellyfinUsername": "user2",
+      "username": null,
+      "recoveryLinkExpirationDate": null,
+      "userType": 3,
+      "plexId": null,
+      "jellyfinUserId": "d50a238bb88045419ab14206d6b8b7d5",
+      "avatar": "/avatarproxy/anonymous",
+      "avatarETag": "59c1226cef6f28faee03e3c4da5ed63f3a1bb0b50d5f958a2ef06eaca9feac26",
+      "avatarVersion": "1755533772000",
+      "movieQuotaLimit": null,
+      "movieQuotaDays": null,
+      "tvQuotaLimit": null,
+      "tvQuotaDays": null,
+      "createdAt": "2024-07-03T18:09:26.000Z",
+      "updatedAt": "2025-05-02T17:45:18.000Z",
+      "requestCount": 0,
+      "displayName": "User 2"
+    }
+  ]
+}

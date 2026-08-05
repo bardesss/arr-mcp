@@ -18,9 +18,75 @@ import { ServiceHttp } from '../src/core/http.ts';
 
 const REDACTED = '__REDACTED__';
 
-const SECRET_KEY = /^(api_?key|apikey|token|access_?token|auth_?token|password|passwd|secret|nzb_?key)$/i;
+/**
+ * `session[-_]id` is not a credential — Transmission hands one to any client
+ * that asks, and that handshake is the whole point. It is redacted anyway for
+ * two reasons: it rotates, so leaving it in produces a spurious diff on every
+ * recapture, and it looks exactly like a secret to anyone reading the fixture.
+ * The adapter reads the session id from the response *header*, never the body,
+ * so nothing depends on the recorded value.
+ */
+const SECRET_KEY =
+    /^(api_?key|apikey|token|access_?token|auth_?token|password|passwd|secret|nzb_?key|session[-_]?id)$/i;
 
-type Endpoint = { name: string; path: string; body?: unknown };
+type Endpoint = { name: string; path: string; body?: unknown; anonymise?: (body: unknown) => unknown };
+
+type Row = Record<string, unknown>;
+
+/**
+ * Identity scrubbing, which is a different job from secret redaction above.
+ *
+ * Redaction removes credentials. This removes *who and where you are*: account
+ * names, email addresses, and the indexers you subscribe to. None of it is a
+ * secret, all of it is permanent once committed to a public repository.
+ *
+ * It is deliberately declared per endpoint rather than by key name. `Name` is
+ * an identity on `/Users` and a scheduled task on `/ScheduledTasks`, and a
+ * blanket rule on the key would destroy the fixture that tells us which task
+ * scans the library.
+ */
+const anonymousUrl = 'https://indexer.example.test/';
+
+/** Replaces any absolute URL, leaving surrounding text intact. */
+const scrubUrls = (value: string): string => value.replace(/https?:\/\/[^\s"',\]]+/gi, anonymousUrl);
+
+/** Keeps a field present and typed, but replaces a string value. */
+const replaceIfString = (value: unknown, replacement: string): unknown =>
+    typeof value === 'string' ? replacement : value;
+
+function anonymiseIndexer(row: Row, index: number): Row {
+    const fields = Array.isArray(row.fields)
+        ? (row.fields as Row[]).map(f => ({
+              ...f,
+              value: typeof f.value === 'string' ? scrubUrls(f.value) : f.value
+          }))
+        : row.fields;
+
+    return {
+        ...row,
+        name: replaceIfString(row.name, `Indexer ${index + 1}`),
+        description: replaceIfString(row.description, 'An indexer.'),
+        definitionName: replaceIfString(row.definitionName, 'Definition'),
+        indexerUrls: Array.isArray(row.indexerUrls) ? [anonymousUrl] : row.indexerUrls,
+        legacyUrls: Array.isArray(row.legacyUrls) ? [] : row.legacyUrls,
+        fields
+    };
+}
+
+function anonymiseSeerrUser(row: Row, index: number): Row {
+    const n = index + 1;
+    return {
+        ...row,
+        email: replaceIfString(row.email, `user${n}@example.test`),
+        username: replaceIfString(row.username, `user${n}`),
+        plexUsername: replaceIfString(row.plexUsername, `user${n}`),
+        jellyfinUsername: replaceIfString(row.jellyfinUsername, `user${n}`),
+        displayName: replaceIfString(row.displayName, `User ${n}`),
+        // A gravatar URL embeds a hash of the email address, so leaving it
+        // would undo the line above.
+        avatar: replaceIfString(row.avatar, '/avatarproxy/anonymous')
+    };
+}
 
 /**
  * What each adapter needs to see. Extend this when an adapter starts reading a
@@ -43,7 +109,11 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'system-status', path: '/api/v1/system/status' },
         { name: 'health', path: '/api/v1/health' },
         { name: 'diskspace', path: '/api/v1/diskspace' },
-        { name: 'indexer', path: '/api/v1/indexer' },
+        {
+            name: 'indexer',
+            path: '/api/v1/indexer',
+            anonymise: body => (Array.isArray(body) ? (body as Row[]).map(anonymiseIndexer) : body)
+        },
         { name: 'indexerstatus', path: '/api/v1/indexerstatus' }
     ],
     bazarr: [
@@ -52,12 +122,30 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     ],
     jellyfin: [
         { name: 'system-info', path: '/System/Info' },
-        { name: 'users', path: '/Users' },
+        {
+            name: 'users',
+            path: '/Users',
+            anonymise: body =>
+                Array.isArray(body)
+                    ? (body as Row[]).map((u, i) => ({ ...u, Name: replaceIfString(u.Name, `User ${i + 1}`) }))
+                    : body
+        },
+        // Deliberately NOT anonymised: `Name` here is a scheduled task, and
+        // this is the fixture that identifies the library-scan task.
         { name: 'scheduled-tasks', path: '/ScheduledTasks' }
     ],
     seerr: [
         { name: 'status', path: '/api/v1/status' },
-        { name: 'user', path: '/api/v1/user' },
+        {
+            name: 'user',
+            path: '/api/v1/user',
+            anonymise: body => {
+                const page = body as { results?: Row[] };
+                return Array.isArray(page.results)
+                    ? { ...page, results: page.results.map(anonymiseSeerrUser) }
+                    : body;
+            }
+        },
         { name: 'settings-about', path: '/api/v1/settings/about' }
     ],
     sabnzbd: [
@@ -83,6 +171,32 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     return apiKeyHeader('X-Api-Key', key);
 }
 
+const ANONYMOUS_HOST = 'service.example.test';
+
+/**
+ * Every host the user configured — hostname and host:port both, longest first
+ * so `10.0.0.1:7878` is replaced before the bare `10.0.0.1` inside it.
+ *
+ * Substituting the configured values exactly, rather than pattern-matching for
+ * anything IP-shaped, means no false positives: an *arr version like
+ * `6.3.0.10514` is four dot-separated numbers and would match a naive IPv4
+ * regex.
+ */
+function hostsOf(config: Config): string[] {
+    const out = new Set<string>();
+    for (const service of Object.values(config.services)) {
+        if (service === undefined) continue;
+        try {
+            const url = new URL((service as { url: string }).url);
+            out.add(url.host);
+            out.add(url.hostname);
+        } catch {
+            // A url that does not parse cannot appear in a response either.
+        }
+    }
+    return [...out].sort((a, b) => b.length - a.length);
+}
+
 /** Every configured credential, so the post-write scan can look for them exactly. */
 function secretsOf(config: Config): string[] {
     const out: string[] = [];
@@ -95,16 +209,31 @@ function secretsOf(config: Config): string[] {
     return out;
 }
 
-function redact(node: unknown, secrets: string[]): unknown {
+/**
+ * Private and loopback IPv4 literals, for addresses a service reports about
+ * *itself* rather than ones we configured — Jellyfin's `LocalAddress` is its
+ * Docker bridge address, which no host substitution would ever match.
+ *
+ * Restricted to RFC1918, loopback and link-local on purpose. A blanket IPv4
+ * pattern would rewrite version strings; scoping it to ranges that cannot be a
+ * version number keeps that impossible. Replaced with TEST-NET-1, which is
+ * reserved for documentation.
+ */
+const PRIVATE_IPV4 =
+    /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b/g;
+
+function redact(node: unknown, secrets: string[], hosts: string[]): unknown {
     if (typeof node === 'string') {
-        return secrets.reduce((acc, secret) => acc.split(secret).join(REDACTED), node);
+        const withoutSecrets = secrets.reduce((acc, secret) => acc.split(secret).join(REDACTED), node);
+        const withoutHosts = hosts.reduce((acc, host) => acc.split(host).join(ANONYMOUS_HOST), withoutSecrets);
+        return withoutHosts.replace(PRIVATE_IPV4, '192.0.2.10');
     }
-    if (Array.isArray(node)) return node.map(v => redact(v, secrets));
+    if (Array.isArray(node)) return node.map(v => redact(v, secrets, hosts));
     if (node !== null && typeof node === 'object') {
         return Object.fromEntries(
             Object.entries(node).map(([key, value]) => [
                 key,
-                SECRET_KEY.test(key) && value !== null && value !== '' ? REDACTED : redact(value, secrets)
+                SECRET_KEY.test(key) && value !== null && value !== '' ? REDACTED : redact(value, secrets, hosts)
             ])
         );
     }
@@ -114,6 +243,7 @@ function redact(node: unknown, secrets: string[]): unknown {
 const configDir = process.env.ARR_MCP_CAPTURE_CONFIG ?? './config';
 const { config } = await loadConfig(configDir);
 const secrets = secretsOf(config);
+const hosts = hostsOf(config);
 
 if (secrets.length === 0) {
     console.error(`No credentials found in ${configDir}/config.yaml — nothing to capture.`);
@@ -137,13 +267,20 @@ for (const [id, service] of Object.entries(config.services) as [ServiceId, Confi
                     ? await http.get<unknown>(endpoint.path)
                     : await http.post<unknown>(endpoint.path, endpoint.body);
 
-            const serialised = JSON.stringify(redact(raw, secrets), null, 2);
+            // Anonymise identity first, then redact credentials — so a value
+            // the anonymiser rewrites is still checked for leaked secrets.
+            const identified = endpoint.anonymise === undefined ? raw : endpoint.anonymise(raw);
+            const serialised = JSON.stringify(redact(identified, secrets, hosts), null, 2);
 
-            // The gate. If any configured credential survived redaction, refuse
-            // to write rather than trusting a reviewer to spot it in a diff.
-            const leaked = secrets.find(s => serialised.includes(s));
-            if (leaked !== undefined) {
+            // The gate. If a configured credential or host survived, refuse to
+            // write rather than trusting a reviewer to spot it in a diff.
+            if (secrets.some(s => serialised.includes(s))) {
                 console.error(`REFUSING TO WRITE ${id}/${endpoint.name}: a configured credential survived redaction`);
+                process.exit(1);
+            }
+            const leakedHost = hosts.find(h => serialised.includes(h));
+            if (leakedHost !== undefined) {
+                console.error(`REFUSING TO WRITE ${id}/${endpoint.name}: a configured host survived redaction`);
                 process.exit(1);
             }
 
