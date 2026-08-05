@@ -26,7 +26,9 @@ export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
                     .string()
                     .min(1)
                     .optional()
-                    .describe('Whose watch state to consider. Defaults to the configured default_user.')
+                    .describe(
+                        'Whose watch state to consider. Defaults to the configured default_user; any other value requires allow_other_users.'
+                    )
             })
         },
         async ({ query, service, id, user }) => {

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ServiceError } from '../src/core/errors.ts';
+import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
+import { collectEvidence } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import type { ServiceAdapter } from '../src/services/types.ts';
+import type { ServiceAdapter, UserDirectoryCapable } from '../src/services/types.ts';
 
 const stub = (id: string, extra: Record<string, unknown>): ServiceAdapter =>
     ({
@@ -158,5 +160,168 @@ describe('diagnose', () => {
     it('stays within budget — a diagnosis is prose, not a list', async () => {
         const d = await buildDiagnose(deps(), { query: 'some film' });
         expect(JSON.stringify(d).length).toBeLessThan(4_000);
+    });
+
+    // --- Fix round 1 ---
+
+    it('Finding F: diagnoses a Jellyfin item as the series Sonarr already manages, not a fabricated unmanaged movie', async () => {
+        // JellyfinAdapter.getMediaDetails reports kind: 'item' for everything.
+        // Coercing that to 'movie' before calling find() used to restrict the
+        // lookup to the movie keyspace and silently miss this series, which
+        // is genuinely sitting in the index under sonarr's acquisition.
+        const SERIES: IndexInput = {
+            kind: 'series',
+            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            ids: { tvdb: 900 },
+            acquisition: { service: 'sonarr', monitored: true, hasFile: false }
+        };
+        const adapters = [
+            stub('sonarr', { listLibrary: async () => [SERIES] }),
+            stub('jellyfin', {
+                getMediaDetails: async () => ({
+                    service: 'jellyfin',
+                    kind: 'item',
+                    id: 'abc123',
+                    title: 'A Series',
+                    ids: { tvdb: 900 }
+                })
+            })
+        ];
+
+        const d = await buildDiagnose(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { service: 'jellyfin', id: 'abc123' }
+        );
+
+        expect(d.resolved?.kind).toBe('series');
+        // The bug fabricated a kind: 'movie' record with no acquisition at
+        // all, verdicting 'managed' ("Neither Radarr nor Sonarr is managing
+        // it") at certain: true. The real join has Sonarr monitoring it with
+        // no file yet, so the true verdict is 'file'.
+        expect(d.verdict.stage).toBe('file');
+    });
+
+    it('Finding A: throws, rather than reporting "nothing matches", for an explicit service that cannot answer media details', async () => {
+        // get_media_details' schema accepts every ServiceId, but only Radarr,
+        // Sonarr and Jellyfin implement getMediaDetails. Naming any other
+        // configured service (e.g. sabnzbd) used to resolve silently to
+        // `undefined`, which the chain then reports as a confident
+        // "Nothing in your stack matches" — a false negative about a real
+        // configuration mistake, not a real absence.
+        await expect(buildDiagnose(deps(), { service: 'sabnzbd', id: '1' })).rejects.toThrow(
+            /sabnzbd.*not configured/i
+        );
+    });
+
+    it('Finding B: a tmdb-less series with Seerr configured reports "could not determine", not "no request", and loses certainty', async () => {
+        // SonarrAdapter.listLibrary never emits a tmdb id — only tvdb/imdb.
+        // Without Jellyfin to supply one, every series diagnosis on a
+        // Sonarr+Seerr stack used to read the missing tmdb id as "looked and
+        // found nothing" (request: null), silently hiding a pending request
+        // and reporting a confident, wrong remedy ("Trigger a search…").
+        const SERIES_NO_TMDB: IndexInput = {
+            kind: 'series',
+            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            ids: { tvdb: 700 },
+            acquisition: { service: 'sonarr', monitored: true, hasFile: false }
+        };
+        const adapters = [
+            stub('sonarr', { listLibrary: async () => [SERIES_NO_TMDB] }),
+            stub('seerr', { getRequests: async () => [] })
+        ];
+
+        const d = await buildDiagnose(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'a series' }
+        );
+
+        expect(d.steps.find(s => s.stage === 'request')).toMatchObject({
+            status: 'unknown',
+            detail: 'Could not determine whether this was requested.'
+        });
+        expect(d.verdict.certain).toBe(false);
+    });
+
+    it('collects a partially-read queue as {items, partial}, not undefined, when only some clients answer', async () => {
+        const adapters = [
+            stub('radarr', {
+                listLibrary: async () => [FILM],
+                getQueue: async () => [{ service: 'radarr', id: '1', title: 'Some.Film.2026.1080p', status: 'downloading' }]
+            }),
+            stub('sabnzbd', {
+                getQueue: async () => {
+                    throw new Error('down');
+                }
+            })
+        ];
+
+        const evidence = await collectEvidence(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'some film' }
+        );
+
+        expect(evidence.queue).toEqual({
+            items: [{ service: 'radarr', id: '1', title: 'Some.Film.2026.1080p', status: 'downloading' }],
+            partial: ['sabnzbd']
+        });
+        expect(evidence.degraded).toContain('sabnzbd');
+    });
+
+    it('collapses the queue to undefined only when every configured client fails, not when one of several does', async () => {
+        const adapters = [
+            stub('radarr', {
+                listLibrary: async () => [FILM],
+                getQueue: async () => {
+                    throw new Error('down');
+                }
+            }),
+            stub('sabnzbd', {
+                getQueue: async () => {
+                    throw new Error('down too');
+                }
+            })
+        ];
+
+        const evidence = await collectEvidence(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'some film' }
+        );
+
+        expect(evidence.queue).toBeUndefined();
+        expect(evidence.queueConfigured).toBe(true);
+        expect(evidence.degraded).toEqual(['radarr', 'sabnzbd']);
+    });
+
+    it('reports queueConfigured/prowlarrConfigured/jellyfinConfigured as false, not merely absent, when no such service exists', async () => {
+        const adapters = [stub('radarr', { listLibrary: async () => [FILM] })];
+
+        const evidence = await collectEvidence(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'some film' }
+        );
+
+        expect(evidence.queueConfigured).toBe(false);
+        expect(evidence.prowlarrConfigured).toBe(false);
+        expect(evidence.jellyfinConfigured).toBe(false);
+        expect(evidence.queue).toBeUndefined();
+        expect(evidence.rejections).toBeUndefined();
+        expect(evidence.scan).toBeUndefined();
+    });
+
+    it('propagates an identity refusal as a thrown error rather than a degraded stage', async () => {
+        // §9's gate: naming a user other than the configured default without
+        // allow_other_users must reach the caller as a refusal, not as "the
+        // library could not be read" — a model told the latter would retry
+        // forever instead of stopping.
+        const jellyfin = stub('jellyfin', {
+            listUsers: async () => [{ id: '1', name: 'alice' }]
+        }) as unknown as ServiceAdapter & UserDirectoryCapable;
+        const identity = new IdentityResolver(jellyfin, { default_user: 'alice', allow_other_users: false });
+        const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), jellyfin];
+        const library = new LibraryLoader(adapters, identity);
+
+        await expect(buildDiagnose({ adapters, library }, { query: 'some film', user: 'bob' })).rejects.toThrow(
+            /not permitted/i
+        );
     });
 });

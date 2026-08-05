@@ -1,4 +1,5 @@
 import type { ServiceId } from '../../config/schema.ts';
+import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
 import type { MergedItem } from '../../core/resolver.ts';
@@ -55,24 +56,48 @@ async function resolveItem(
     // The explicit id wins: it is unambiguous and a title is not.
     if (target.service !== undefined && target.id !== undefined) {
         const adapter = deps.adapters.find(a => a.id === target.service);
-        if (adapter === undefined || !hasMediaDetails(adapter)) return undefined;
+        // A `ServiceId` the schema accepts but that does not implement
+        // getMediaDetails (e.g. sabnzbd) is a configuration mistake, not a
+        // hole to degrade across — silently returning `undefined` here would
+        // make the caller's own named service read as "the item does not
+        // exist" (`certain: true`), which is worse than either a stale
+        // download-client outage or a real absence. Same error, same remedy,
+        // as get_media_details.
+        if (adapter === undefined || !hasMediaDetails(adapter)) {
+            throw new ServiceError('NotFound', target.service, `${target.service} is not configured`, {
+                remedy: `Add services.${target.service} to config.yaml, or name a configured service.`
+            });
+        }
 
         const details = await probe(adapter.id, degraded, () =>
             adapter.getMediaDetails(target.id as string, { includeEpisodes: false, episodeLimit: 1 })
         );
         if (details === undefined) return undefined;
 
-        // Looked up in its own service, then found in the index — which is what
-        // gives the diagnosis both halves of the join rather than one.
-        const joined = snapshot.index.find(details.ids, details.kind === 'series' ? 'series' : 'movie');
+        // Jellyfin's MediaDetails never says 'movie' or 'series' — it is the
+        // one adapter that reports `kind: 'item'` for everything. Passing a
+        // *wrong* kind to `find` is worse than passing none: it restricts the
+        // lookup to one keyspace and can silently miss a real hit sitting in
+        // the other (a series id would scan only movie keys and never find
+        // it). `undefined` here makes `find` scan both, exactly as it already
+        // does for every caller that does not know the kind in advance.
+        const searchKind = details.kind === 'item' ? undefined : details.kind;
+        const joined = snapshot.index.find(details.ids, searchKind);
         if (joined !== undefined) return joined;
 
         // The id was valid and the index does not contain it — a real state,
         // not an error: the service holding it may be the one that failed to
         // load. Diagnosing the half we have beats reporting the item unknown
         // when the caller just handed us its id.
+        //
+        // `searchKind` (not a fresh coercion) decides the synthesised kind
+        // too: for Radarr/Sonarr it is the kind they actually reported: for
+        // Jellyfin's ambiguous 'item' — reachable only when *no* index entry
+        // matched under either kind — there is no signal left to disambiguate,
+        // so 'movie' is the least-committal default already implied by
+        // `MergedItem.kind` having no third option.
         return {
-            kind: details.kind === 'series' ? 'series' : 'movie',
+            kind: searchKind ?? 'movie',
             title: details.title,
             ...(details.year === undefined ? {} : { year: details.year }),
             ids: details.ids,
@@ -116,7 +141,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // `null` here is a third state the chain needs: not configured, as
     // distinct from asked-and-empty (`[]`) or could-not-ask (`undefined`).
     const requestsP: Promise<MediaRequest[] | null | undefined> =
-        seerr === undefined ? Promise.resolve(null) : probe('seerr', degraded, () => seerr.getRequests({}));
+        seerr === undefined ? Promise.resolve(null) : probe(seerr.id, degraded, () => seerr.getRequests({}));
 
     // Multi-service: `gather` already distinguishes "some clients answered,
     // some didn't" from "all of them did" — exactly the queue shape §6.1 asks
@@ -151,8 +176,12 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     }
 
     /**
-     * Matched on tmdbId, never on title: Seerr's request payload carries no
-     * title at all, so a title match would find nothing on real data.
+     * Matched on tmdbId, never on title. Title is only optionally present on
+     * a Seerr request (`MediaRequest['title']` is `?`), and even when it is,
+     * a fuzzy match is far more fragile than the strong, structured id
+     * already used for §8's whole join — so tmdbId is the right key
+     * regardless of whether this particular request happened to carry a
+     * title.
      *
      * The requester's name is deliberately not carried into the evidence. The
      * status answers the question, and naming who asked exposes another
@@ -161,8 +190,18 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     let request: Evidence['request'];
     if (requests === undefined) {
         request = undefined; // could not ask
-    } else if (requests === null || item?.ids.tmdb === undefined) {
-        request = null; // no Seerr, or nothing to match on
+    } else if (requests === null) {
+        request = null; // no Seerr configured
+    } else if (item === undefined) {
+        request = null; // nothing resolved to match against
+    } else if (item.ids.tmdb === undefined) {
+        // Seerr answered, but this item carries no tmdb id to match on — e.g.
+        // a Sonarr series (`SonarrAdapter.listLibrary` never emits `tmdb`)
+        // whose Jellyfin counterpart is absent, unreachable, or was never
+        // mapped to TMDB. `undefined` means "could not determine", not
+        // "looked and found nothing" — a real pending request must not be
+        // reported as no request at all just because the join has a gap.
+        request = undefined;
     } else {
         const match = requests.find(r => r.tmdbId === item.ids.tmdb);
         request = match === undefined ? null : { status: match.status };
