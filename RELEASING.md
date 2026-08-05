@@ -18,6 +18,34 @@ bleeding edge. Nothing else. The release workflow fails the job when a release
 computes no version tag — a release that publishes only `latest` is a silent
 policy violation, and it has happened once.
 
+## Check `main` contains what you think it does
+
+**Before merging the release PR.** A release PR describes the commits on `main`
+right now — not the branch you were working on, and not a fix pushed to that
+branch after its PR merged.
+
+```bash
+git fetch origin
+git log --oneline origin/main -10
+```
+
+Read the list against what you believe the release contains. Anything missing
+is missing from the release.
+
+This is not hypothetical. **0.3.0 shipped without seven adapter fixes** — a
+crash in `get_subtitles`, ratings reporting a source called `votes` worth
+164018, Jellyfin search returning no external ids at all. The fixes existed,
+were tested, and were pushed to the feature branch about a minute after its PR
+was merged. The branch had them; `main` did not; the release went out anyway.
+
+Two habits prevent it:
+
+- **A green PR is not a merged PR.** "Pushed and CI is green" and "this is on
+  `main`" are different claims. Check the second one.
+- **Force-push before merging a stacked branch.** When PRs are stacked, merging
+  the lower one squashes its commits, and any commit added to the upper branch
+  afterwards needs a rebase before it can land.
+
 ## Every release updates the README
 
 **This is not optional and it is not a follow-up.** The README is the only
@@ -40,9 +68,27 @@ A phase that ships without its README change is not finished.
 
 ## Verify before announcing
 
+- [ ] `git log --oneline origin/main` contains everything you think the release does
 - [ ] `docker run` the published tag against a real stack, not just the build
-- [ ] An MCP client lists the expected tool count and calls one successfully
+- [ ] An MCP client lists the expected tool count and **calls every one of them**
 - [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected
+
+Calling every tool matters more than it sounds. Adapters are tested against
+recorded fixtures, which prove the mapping and nothing else. Every defect that
+reached 0.3.0 — a null field crashing a tool, a query parameter that has to be
+asked for, an endpoint that answers 400 — was invisible to 396 passing tests
+and obvious within seconds of a real call.
+
+## Recapture fixtures when an adapter starts reading a new endpoint
+
+`test/fixtures/` is what the contract tests check against, so an endpoint with
+no fixture has no guard at all. Add it to `ENDPOINTS` in
+`scripts/capture-fixtures.ts`, run `npm run capture`, and reconcile the adapter
+against what actually comes back.
+
+Skipping this for the ten Phase 2b tools is what put seven defects in a
+release. The same gate, followed properly one phase earlier, caught a bug that
+reported a 23-hour-stale library as scanned a minute ago.
 
 ## Distribution
 
