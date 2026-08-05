@@ -40,11 +40,20 @@ type RawRequestPage = { results?: RawRequest[] };
 const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 'declined' };
 
 /**
- * Whether Seerr filters requests by user server-side — design spec §21.4.
- * When false the adapter filters in memory, which the spec sanctions at
- * household request volumes.
+ * Design spec §21.4, settled 2026-08-06 against Seerr 3.4.1: passing
+ * `requestedBy` does filter server-side. Verified against a live 2-user
+ * stack where every recorded request happened to belong to one user, which
+ * made a naive before/after count comparison uninformative (it would match
+ * whether or not the server filtered). The decisive probe instead filtered
+ * by the *other* user — one with zero requests — and got back zero rows
+ * rather than the full unfiltered set, which only happens if the server
+ * parsed and applied `requestedBy`.
+ *
+ * The in-memory filter still runs unconditionally — it costs nothing at
+ * household volumes, and it means this constant can never silently widen
+ * what one user sees of another's requests.
  */
-const SEERR_FILTERS_SERVER_SIDE = false;
+const SEERR_FILTERS_SERVER_SIDE = true;
 
 /** Narrowed through a typed helper: an inline ternary widens this to `string`. */
 const mediaTypeOf = (value: string | undefined): MediaRequest['mediaType'] =>

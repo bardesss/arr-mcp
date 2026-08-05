@@ -288,4 +288,22 @@ describe('get_requests', () => {
 
         expectWithinBudget(result, 30_000);
     });
+
+    it('filters by user in memory regardless of what the server did', async () => {
+        // The guarantee that makes SEERR_FILTERS_SERVER_SIDE safe to flip:
+        // a server that ignores requestedBy — this fake one always returns
+        // both rows, however the request was routed — must not widen what a
+        // user sees.
+        const unfiltered = {
+            results: [
+                { id: 1, status: 2, media: { tmdbId: 1, mediaType: 'movie' }, requestedBy: { id: 1, displayName: 'Someone' } },
+                { id: 2, status: 2, media: { tmdbId: 2, mediaType: 'movie' }, requestedBy: { id: 2, displayName: 'Other' } }
+            ]
+        };
+        const config = seerrConfig();
+        const adapter = new SeerrAdapter(config, serving({ '/api/v1/request': unfiltered }));
+
+        const requests = await adapter.getRequests({ user: { id: '1', name: 'Someone' } });
+        expect(requests.map(r => r.id)).toEqual([1]);
+    });
 });
