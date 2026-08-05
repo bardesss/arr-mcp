@@ -27,12 +27,17 @@ npm test           # vitest
 
 ## Dependencies
 
-Renovate opens one grouped PR a month for non-major updates, and immediate PRs
-for security advisories. Two things it deliberately will not do on its own:
+Renovate runs monthly, plus immediate PRs for security advisories. Only one
+rule groups updates — non-major bumps land as a single PR — so a **major**
+bump of any dependency other than TypeScript or Node arrives as its own PR,
+same monthly schedule, up to `prConcurrentLimit: 3`. The cadence is monthly;
+it is the "one PR" part that stops being true once a major is involved. Two
+things Renovate deliberately will not do on its own:
 
 - **TypeScript** is pinned with `~` because `typescript-eslint` declares a peer
-  range it has to stay inside. A major bump silently disables linting, so it is
-  a human decision.
+  range it has to stay inside, and `renovate.json` disables Renovate for that
+  package outright — not only for majors. A TypeScript patch will never be
+  proposed either; bumping it, of any kind, is a human decision.
 - **Node majors** touch the Dockerfile, the CI workflow and `engines` together,
   so they wait for approval on the dependency dashboard.
 
