@@ -120,9 +120,24 @@ releases.
 
 ## Requirements
 
-- A LAN-reachable install of at least one supported service
+- A LAN-reachable install of at least one supported service, at or above its minimum version
 - Docker, or Node 24+ to run from source
 - An MCP client speaking protocol revision `2026-07-28`
+
+| Service | Minimum |
+| --- | --- |
+| Radarr | 4.0.0 |
+| Sonarr | 4.0.0 |
+| Prowlarr | 1.0.0 |
+| Bazarr | 1.4.0 |
+| Jellyfin | 10.8.0 |
+| Seerr | 1.0.0 |
+| SABnzbd | 3.0.0 |
+| Transmission | 3.0.0 |
+
+A service below its floor is reported unhealthy — no disk space, no failing
+health checks, no scan state, not just a version complaint — and
+contributes nothing to `stack_health` until it is upgraded.
 
 ## Security
 

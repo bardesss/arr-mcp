@@ -51,7 +51,15 @@ export class TtlCache {
         }
     }
 
-    /** The seam for write-invalidation (§16). Nothing calls it until 0.5. */
+    /**
+     * The seam for write-invalidation (§16). As of Phase 3a, still nothing in
+     * production code calls it (only `test/cache.test.ts` exercises it
+     * directly) — the original "nothing calls it until 0.5" was a
+     * prediction, not yet a fact this codebase can back up: the earliest
+     * planned caller is Phase 3b's library loader, invalidating on every
+     * degraded load so a partial library snapshot is not cached for the full
+     * five-minute TTL. That is well before 0.5 (writes), not at it.
+     */
     invalidate(key: string): void {
         this.#entries.delete(key);
     }

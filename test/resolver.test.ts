@@ -1,23 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { LibraryIndex, type IndexInput } from '../src/core/resolver.ts';
+import type { ServiceId } from '../src/config/schema.ts';
+import { fenceText } from '../src/core/fence.ts';
+import { LibraryIndex, type ExternalIds, type IndexInput, type MergedItem } from '../src/core/resolver.ts';
+import { unfenced } from '../src/core/titleMatch.ts';
 
-const arr = (over: Partial<IndexInput> = {}): IndexInput => ({
-    kind: 'movie',
-    title: 'Some Film',
-    year: 2026,
-    ids: { tmdb: 550 },
-    acquisition: { service: 'radarr', monitored: true, hasFile: true },
-    ...over
-});
+// Production adapters fence every title before it reaches the resolver
+// (radarr.ts and sonarr.ts write it as `<service>.title`, jellyfin.ts as
+// `jellyfin.Name`) — bare-string fixtures are what let the search tiebreak
+// bug (fixed alongside these factories) hide from every existing test.
+// These factories fence too, so the merge and search tests below exercise
+// what the resolver actually receives.
+const fenceArr = (title: string, service: ServiceId = 'radarr'): string => fenceText(title, { service, field: 'title' });
+const fenceJelly = (title: string): string => fenceText(title, { service: 'jellyfin', field: 'Name' });
 
-const jelly = (over: Partial<IndexInput> = {}): IndexInput => ({
-    kind: 'movie',
-    title: 'Some Film',
-    year: 2026,
-    ids: { tmdb: 550 },
-    playback: { user: 'Bartus', watched: true },
-    ...over
-});
+/** Strips the fence so a test can assert against the human-readable title. */
+const plainTitle = (item?: MergedItem): string => unfenced(item?.title ?? '');
+
+const arr = (over: Partial<IndexInput> = {}): IndexInput => {
+    const { title, ...rest } = over;
+    return {
+        kind: 'movie',
+        title: fenceArr(title ?? 'Some Film', rest.acquisition?.service ?? 'radarr'),
+        year: 2026,
+        ids: { tmdb: 550 },
+        acquisition: { service: 'radarr', monitored: true, hasFile: true },
+        ...rest
+    };
+};
+
+const jelly = (over: Partial<IndexInput> = {}): IndexInput => {
+    const { title, ...rest } = over;
+    return {
+        kind: 'movie',
+        title: fenceJelly(title ?? 'Some Film'),
+        year: 2026,
+        ids: { tmdb: 550 },
+        playback: { user: 'Bartus', watched: true },
+        ...rest
+    };
+};
 
 describe('LibraryIndex merging', () => {
     it('merges an *arr and a Jellyfin record sharing a tmdb id', () => {
@@ -105,6 +126,149 @@ describe('LibraryIndex merging', () => {
         const index = LibraryIndex.build([arr()]);
         expect(index.find({})).toBeUndefined();
     });
+
+    it('lets a caller who knows the kind reach a series when a film shares its numeric id', () => {
+        // TMDB's movie and TV id spaces are separate, but a recaptured Jellyfin
+        // fixture shows a Series carrying a numeric Tmdb id too — so the two
+        // can collide by coincidence. Without `kind`, find() scans movie keys
+        // first and the series is unreachable.
+        const index = LibraryIndex.build([
+            arr({ kind: 'movie', title: 'The Film', ids: { tmdb: 224372 } }),
+            arr({ kind: 'series', title: 'The Series', ids: { tmdb: 224372 }, acquisition: { service: 'sonarr', monitored: true, hasFile: true } })
+        ]);
+
+        expect(plainTitle(index.find({ tmdb: 224372 }, 'movie'))).toBe('The Film');
+        expect(plainTitle(index.find({ tmdb: 224372 }, 'series'))).toBe('The Series');
+        // Unspecified kind keeps today's behaviour: first match wins, movie first.
+        expect(plainTitle(index.find({ tmdb: 224372 }))).toBe('The Film');
+    });
+});
+
+describe('LibraryIndex byKey coherence after a bridging fuse', () => {
+    // Three records: an *arr-only film known by tmdb, a Jellyfin-only record
+    // known by tvdb+imdb, and a second Jellyfin record that bridges them by
+    // carrying both. The bridge forces two already-separate groups to fuse
+    // mid-build — exactly the shape that used to leave a stale `#byKey` entry
+    // pointing at a group no longer present in `#items`.
+    const bridged = () =>
+        LibraryIndex.build([
+            arr({ ids: { tmdb: 1 } }),
+            jelly({ ids: { tvdb: 5, imdb: 'tt7' } }),
+            jelly({ ids: { tmdb: 1, tvdb: 5, imdb: 'tt9' } })
+        ]);
+
+    it('fuses into exactly one item', () => {
+        const index = bridged();
+        expect(index.size()).toBe(1);
+        expect(index.all()).toHaveLength(1);
+    });
+
+    it('finds the fused item by every id it still carries, and never a ghost for one it does not', () => {
+        const index = bridged();
+        const [item] = index.all();
+
+        expect(index.find({ tmdb: 1 })).toBe(item);
+        expect(index.find({ tvdb: 5 })).toBe(item);
+        expect(index.find({ imdb: 'tt9' })).toBe(item);
+
+        // tt7 belonged to the record that got absorbed; the survivor's ids no
+        // longer include it (the bridge's tt9 supersedes it on merge), so a
+        // coherent index must not answer for it with an object `all()` does
+        // not contain.
+        expect(index.find({ imdb: 'tt7' })).toBeUndefined();
+    });
+
+    it('reports presence that matches the evidence the fused item actually holds', () => {
+        const index = bridged();
+        const [item] = index.all();
+
+        expect(item?.presence).toBe('both');
+        expect(item?.acquisition).toBeDefined();
+        expect(item?.playback).toBeDefined();
+    });
+});
+
+describe('LibraryIndex — a spliced-out ghost must not win a later merge', () => {
+    it("does not let record four's evidence vanish into an object outside items()", () => {
+        // Same bridging shape as above, plus a fourth record whose only shared
+        // id (`imdb: 'tt7'`) is exactly the key that stopped belonging to any
+        // live item once the third record's bridge fused it away. Mid-build,
+        // `#byKey` still maps that key to the spliced-out ghost. If that ghost
+        // were allowed to win as `matches[0]`, `mergeInto` would write this
+        // record's `playback` into an object `items` does not contain — no
+        // new item gets created (`matches.length` is not zero), so the
+        // evidence is not lost as a stale-but-visible ghost, it is lost
+        // outright: nowhere in `all()`, and `find` on either of its own ids
+        // resolves to nothing.
+        const index = LibraryIndex.build([
+            arr({ ids: { tmdb: 1 } }),
+            jelly({ ids: { tvdb: 5, imdb: 'tt7' } }),
+            jelly({ ids: { tmdb: 1, tvdb: 5, imdb: 'tt9' } }),
+            jelly({ ids: { tmdb: 77, imdb: 'tt7' }, playback: { user: 'ReviewerFour', watched: true } })
+        ]);
+
+        expect(index.find({ tmdb: 77 })).toBeDefined();
+        expect(index.all().some(i => i.playback?.user === 'ReviewerFour')).toBe(true);
+    });
+});
+
+describe('LibraryIndex invariants', () => {
+    // Two properties a coherent index must always hold, checked against every
+    // id any *input* record ever mentioned — not just the ids the final
+    // merged items still carry. A ghost is by definition reachable only
+    // through a key some now-absorbed record used to own, so checking just
+    // the survivors' own ids (which is all a per-item loop over `all()` could
+    // see) would never exercise the bug this guards against.
+    const assertCoherent = (inputs: readonly IndexInput[]): void => {
+        const index = LibraryIndex.build(inputs);
+        const all = index.all();
+
+        for (const item of all) {
+            // The full biconditional, not just "presence implies fields": an
+            // item holding both fields must be labelled `both`, not merely
+            // `arr_only` or `jellyfin_only` with the other field's presence
+            // left unchecked — a one-directional version of this passes for
+            // an item mislabelled `arr_only` despite carrying `playback` too.
+            const expectedPresence =
+                item.acquisition !== undefined && item.playback !== undefined
+                    ? 'both'
+                    : item.acquisition !== undefined
+                      ? 'arr_only'
+                      : item.playback !== undefined
+                        ? 'jellyfin_only'
+                        : 'unknown';
+            expect(item.presence).toBe(expectedPresence);
+        }
+
+        const everyId: ExternalIds[] = [];
+        for (const input of inputs) {
+            if (input.ids.tmdb !== undefined) everyId.push({ tmdb: input.ids.tmdb });
+            if (input.ids.tvdb !== undefined) everyId.push({ tvdb: input.ids.tvdb });
+            if (input.ids.imdb !== undefined) everyId.push({ imdb: input.ids.imdb });
+        }
+
+        for (const ids of everyId) {
+            const found = index.find(ids);
+            // Undefined is fine — a superseded id is allowed to stop
+            // resolving. What is never fine is resolving to an object `all()`
+            // does not contain.
+            if (found !== undefined) expect(all).toContain(found);
+        }
+    };
+
+    it('holds for the bridging-fuse reproduction', () => {
+        assertCoherent([
+            arr({ ids: { tmdb: 1 } }),
+            jelly({ ids: { tvdb: 5, imdb: 'tt7' } }),
+            jelly({ ids: { tmdb: 1, tvdb: 5, imdb: 'tt9' } })
+        ]);
+    });
+
+    it('holds for a plain merge, disjoint records, and an empty build', () => {
+        assertCoherent([arr(), jelly()]);
+        assertCoherent([arr({ ids: { tmdb: 550 } }), jelly({ ids: { tmdb: 999 } })]);
+        assertCoherent([]);
+    });
 });
 
 describe('LibraryIndex presence', () => {
@@ -136,7 +300,7 @@ describe('LibraryIndex merge details', () => {
             arr({ title: 'Some Film' }),
             jelly({ title: 'Some Film (Director&apos;s Cut)' })
         ]);
-        expect(index.find({ tmdb: 550 })?.title).toBe('Some Film');
+        expect(plainTitle(index.find({ tmdb: 550 }))).toBe('Some Film');
     });
 
     it('prefers the *arr title even when the Jellyfin record merges in first', () => {
@@ -150,7 +314,7 @@ describe('LibraryIndex merge details', () => {
             jelly({ title: "Some Film (Director's Cut)" }),
             arr({ title: 'Some Film' })
         ]);
-        expect(index.find({ tmdb: 550 })?.title).toBe('Some Film');
+        expect(plainTitle(index.find({ tmdb: 550 }))).toBe('Some Film');
     });
 
     it('takes a year from whichever record has one', () => {
@@ -190,7 +354,7 @@ describe('LibraryIndex search', () => {
     ]);
 
     it('ranks exact above prefix above substring', () => {
-        expect(index.search('matrix').map(i => i.title)).toEqual([
+        expect(index.search('matrix').map(i => unfenced(i.title))).toEqual([
             'The Matrix',
             'Matrix Reloaded',
             'Enter the Matrix'
@@ -198,15 +362,49 @@ describe('LibraryIndex search', () => {
     });
 
     it('excludes non-matches rather than ranking them last', () => {
-        expect(index.search('matrix').some(i => i.title === 'Blade Runner')).toBe(false);
+        expect(index.search('matrix').some(i => unfenced(i.title) === 'Blade Runner')).toBe(false);
     });
 
     it('returns an empty list for a query matching nothing', () => {
         expect(index.search('zzzz')).toEqual([]);
     });
 
+    it('returns an empty list for an empty or punctuation-only query rather than the whole library', () => {
+        expect(index.search('')).toEqual([]);
+        expect(index.search('???')).toEqual([]);
+    });
+
     it('matches through a leading article the caller omitted', () => {
-        expect(index.search('the matrix')[0]?.title).toBe('The Matrix');
+        expect(plainTitle(index.search('the matrix')[0])).toBe('The Matrix');
+    });
+
+    it('breaks a rank tie by the real title, not by which service fenced it', () => {
+        // Both titles are prefix matches for "matrix", so they tie on rank.
+        // Every production title is fenced, and the fence prefix carries the
+        // *service* name: "<<untrusted:jellyfin..." sorts before
+        // "<<untrusted:radarr..." regardless of the title inside, so a
+        // tiebreak on the raw fenced string would put "Zulu" ahead of
+        // "Alpha" here. Comparing through unfenced() is what fixes that.
+        const zulu: IndexInput = {
+            kind: 'movie',
+            title: fenceText('Matrix Zulu', { service: 'jellyfin', field: 'Name' }),
+            ids: { tmdb: 101 }
+        };
+        const alpha: IndexInput = {
+            kind: 'movie',
+            title: fenceText('Matrix Alpha', { service: 'radarr', field: 'title' }),
+            ids: { tmdb: 102 }
+        };
+
+        const tieIndex = LibraryIndex.build([zulu, alpha]);
+        expect(tieIndex.search('matrix').map(i => unfenced(i.title))).toEqual(['Matrix Alpha', 'Matrix Zulu']);
+
+        // Neither input carries acquisition or playback, so this also
+        // exercises the 'unknown' presence branch — pinned here rather than
+        // left merely reached, so a regression to 'jellyfin_only' (the old
+        // fallthrough) would show up as a failure, not just as a branch this
+        // test happened to execute in passing.
+        for (const item of tieIndex.all()) expect(item.presence).toBe('unknown');
     });
 });
 

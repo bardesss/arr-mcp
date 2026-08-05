@@ -1,5 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
-import { RANK_NONE, rankTitle } from './titleMatch.ts';
+import { RANK_NONE, rankTitle, unfenced } from './titleMatch.ts';
 
 export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string };
 
@@ -38,8 +38,16 @@ export type MergedItem = {
      * §8's diagnostic payload. `arr_only` **with a file** means a broken
      * Jellyfin import; `jellyfin_only` means media nothing is managing.
      * Neither is visible from any single service.
+     *
+     * `unknown` covers a record with **neither** half of evidence — no
+     * `acquisition` and no `playback`. Real adapter data never produces one
+     * (every input contributes at least one side of the join), but the type
+     * does not forbid it, and the alternative — falling through to
+     * `jellyfin_only` — would assert Jellyfin evidence for a record that was
+     * never seen there. `arr_only` is equally wrong for the same reason.
+     * `unknown` is the only answer that does not fabricate a source.
      */
-    presence: 'both' | 'arr_only' | 'jellyfin_only';
+    presence: 'both' | 'arr_only' | 'jellyfin_only' | 'unknown';
 };
 
 export type IndexInput = Omit<MergedItem, 'presence'>;
@@ -102,7 +110,19 @@ export class LibraryIndex {
             // taking only the first match would leave the other group's only
             // index entry overwritten by the re-index below, unreachable via
             // `find` but still sitting in `#items` reporting stale presence.
-            const matches = [...new Set(keys.map(k => byKey.get(k)).filter((v): v is MergedItem => v !== undefined))];
+            // `byKey` is patched incrementally in this loop (see the re-index
+            // comment below) and can still hold a key pointing at a group
+            // already spliced out of `items` by an earlier iteration. If such
+            // a stale key were allowed to win here, `matches[0]` would be that
+            // ghost: `mergeInto` below would write this input's evidence into
+            // an object outside `items`, no new item would be created because
+            // `matches.length` is not zero, and the evidence would be gone —
+            // present nowhere in the final `all()`. Filtering to objects still
+            // in `items` is what keeps a spliced-out group from ever winning a
+            // later merge.
+            const matches = [...new Set(keys.map(k => byKey.get(k)).filter((v): v is MergedItem => v !== undefined))].filter(m =>
+                items.includes(m)
+            );
 
             if (matches.length === 0) {
                 const created: MergedItem = { ...input, presence: 'arr_only' };
@@ -125,27 +145,53 @@ export class LibraryIndex {
 
             // Re-index under every id the survivor now knows — from fused
             // losers and from this input — so a later record carrying any of
-            // them still finds this one group, and no key is left pointing
-            // at a loser that no longer exists in `#items`.
+            // them still finds this one group *during the build*. This is
+            // still an incremental patch, not a removal: it only ever adds or
+            // overwrites keys, so a key that used to point at a group later
+            // absorbed elsewhere (e.g. the loser fused above) can be left
+            // stale here, pointing at an object no longer in `items`.
             for (const key of keysOf(survivor.kind, survivor.ids)) byKey.set(key, survivor);
         }
 
+        // `byKey`, patched incrementally above, can still hold stale entries
+        // from groups that were fused away partway through the loop — a key
+        // set while a loser was still its own group, never revisited once
+        // that group merged into someone else's survivor. Rebuilding from
+        // `items` (the authoritative final set) is what guarantees `find`
+        // can never return an object `all()` does not contain, and it is
+        // also the natural place to compute `presence`: every item here has
+        // reached its final, fully-merged shape.
+        const finalByKey = new Map<string, MergedItem>();
         for (const item of items) {
             item.presence =
                 item.acquisition !== undefined && item.playback !== undefined
                     ? 'both'
                     : item.acquisition !== undefined
                       ? 'arr_only'
-                      : 'jellyfin_only';
+                      : item.playback !== undefined
+                        ? 'jellyfin_only'
+                        : 'unknown';
+            for (const key of keysOf(item.kind, item.ids)) finalByKey.set(key, item);
         }
 
-        return new LibraryIndex(items, byKey);
+        return new LibraryIndex(items, finalByKey);
     }
 
-    /** Undefined for an empty id set: no id is not a wildcard. */
-    find(ids: ExternalIds): MergedItem | undefined {
-        for (const kind of ['movie', 'series'] as const) {
-            for (const key of keysOf(kind, ids)) {
+    /**
+     * Undefined for an empty id set: no id is not a wildcard.
+     *
+     * `kind` is optional so today's callers, which do not have one to hand,
+     * keep scanning movie keys before series keys unchanged. A caller that
+     * *does* know which it wants — `diagnose` will, since it already holds
+     * the kind of the thing it is chasing — should pass it: a film and a
+     * series can share the same numeric tmdb/tvdb id (unrelated id spaces
+     * colliding), and without `kind` the first one indexed wins, silently
+     * hiding the other.
+     */
+    find(ids: ExternalIds, kind?: 'movie' | 'series'): MergedItem | undefined {
+        const kinds = kind !== undefined ? [kind] : (['movie', 'series'] as const);
+        for (const k of kinds) {
+            for (const key of keysOf(k, ids)) {
                 const hit = this.#byKey.get(key);
                 if (hit !== undefined) return hit;
             }
@@ -158,7 +204,13 @@ export class LibraryIndex {
         return this.#items
             .map(item => ({ item, rank: rankTitle(item.title, query) }))
             .filter(({ rank }) => rank !== RANK_NONE)
-            .sort((a, b) => a.rank - b.rank || a.item.title.localeCompare(b.item.title))
+            // Every production title is fenced (`<<untrusted:service.field>>…`),
+            // and the fence prefix carries the *service* name. Comparing the
+            // raw strings would tie-break alphabetically by service first —
+            // "all Jellyfin-sourced items, then all *arr-sourced items" — and
+            // only alphabetically by title within each group. unfenced() is
+            // what makes the tiebreak compare the title a person reads.
+            .sort((a, b) => a.rank - b.rank || unfenced(a.item.title).localeCompare(unfenced(b.item.title)))
             .map(({ item }) => item);
     }
 
