@@ -2,11 +2,14 @@ import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { queryParamKey } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type QueueCapable,
+    type QueueItem,
     type ServiceAdapter
 } from './types.ts';
 
@@ -23,7 +26,32 @@ type RawQueue = {
         diskspace2?: string;
         diskspacetotal2?: string;
         status?: string;
+        slots?: RawSlot[];
     };
+};
+type RawSlot = {
+    nzo_id?: string;
+    filename?: string;
+    status?: string;
+    mb?: string;
+    mbleft?: string;
+    timeleft?: string;
+};
+
+const BYTES_PER_MB = 1024 ** 2;
+
+const megabytesToBytes = (value: string | undefined): number | undefined => {
+    if (value === undefined) return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.round(parsed * BYTES_PER_MB) : undefined;
+};
+
+/** SABnzbd's timeleft is "H:MM:SS", with no leading zero on the hour. */
+const parseSabTimeleft = (value: string | undefined): number | undefined => {
+    if (value === undefined) return undefined;
+    const parts = value.split(':').map(Number);
+    if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return undefined;
+    return parts[0]! * 3600 + parts[1]! * 60 + parts[2]!;
 };
 
 const BYTES_PER_GB = 1024 ** 3;
@@ -39,7 +67,7 @@ const gigabytesToBytes = (value: string | undefined): number | undefined => {
     return Number.isFinite(parsed) ? Math.round(parsed * BYTES_PER_GB) : undefined;
 };
 
-export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable {
+export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable {
     readonly id: ServiceId = 'sabnzbd';
     readonly #http: ServiceHttp;
 
@@ -84,6 +112,28 @@ export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable {
                 }
             ];
         });
+    }
+
+    async getQueue(): Promise<QueueItem[]> {
+        const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+        return (body.queue?.slots ?? [])
+            .filter((s): s is RawSlot & { nzo_id: string } => typeof s.nzo_id === 'string')
+            .map(s => {
+                const size = megabytesToBytes(s.mb);
+                const remaining = megabytesToBytes(s.mbleft);
+                const eta = parseSabTimeleft(s.timeleft);
+                return {
+                    service: this.id,
+                    id: s.nzo_id,
+                    // A queue entry's filename is the release name it came from.
+                    title: fenceText(s.filename ?? '', { service: this.id, field: 'filename' }),
+                    status: (s.status ?? 'unknown').toLowerCase(),
+                    protocol: 'usenet',
+                    ...(size === undefined ? {} : { sizeBytes: size }),
+                    ...(remaining === undefined ? {} : { remainingBytes: remaining }),
+                    ...(eta === undefined ? {} : { etaSeconds: eta })
+                };
+            });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

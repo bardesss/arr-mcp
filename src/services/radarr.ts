@@ -2,13 +2,18 @@ import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { calendarPath, readArrQueue, readRadarrCalendar } from './arrQueue.ts';
 import {
     diagnoseConnection,
+    type CalendarCapable,
+    type CalendarEntry,
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type QueueCapable,
+    type QueueItem,
     type ScanState,
     type ScanStateCapable,
     type ServiceAdapter
@@ -39,7 +44,9 @@ type RawTask = components['schemas']['TaskResource'];
  */
 const LIBRARY_SCAN_TASK = 'RefreshMovie';
 
-export class RadarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCheckCapable, ScanStateCapable {
+export class RadarrAdapter
+    implements ServiceAdapter, DiskSpaceCapable, HealthCheckCapable, ScanStateCapable, QueueCapable, CalendarCapable
+{
     readonly id: ServiceId = 'radarr';
     readonly #http: ServiceHttp;
 
@@ -91,6 +98,15 @@ export class RadarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCh
             service: this.id,
             ...(typeof lastCompleted === 'string' ? { lastCompleted } : {})
         };
+    }
+
+    async getQueue(): Promise<QueueItem[]> {
+        return readArrQueue(this.#http, this.id);
+    }
+
+    async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
+        const movies = await this.#http.get<Parameters<typeof readRadarrCalendar>[0]>(calendarPath(range));
+        return readRadarrCalendar(movies, this.id);
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

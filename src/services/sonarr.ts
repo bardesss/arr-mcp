@@ -2,14 +2,19 @@ import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { calendarPath, readArrQueue, readSonarrCalendar } from './arrQueue.ts';
 import type { components } from './generated/sonarr.ts';
 import {
     diagnoseConnection,
+    type CalendarCapable,
+    type CalendarEntry,
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type QueueCapable,
+    type QueueItem,
     type ScanState,
     type ScanStateCapable,
     type ServiceAdapter
@@ -32,7 +37,9 @@ type RawTask = components['schemas']['TaskResource'];
  */
 const LIBRARY_SCAN_TASK = 'RefreshSeries';
 
-export class SonarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCheckCapable, ScanStateCapable {
+export class SonarrAdapter
+    implements ServiceAdapter, DiskSpaceCapable, HealthCheckCapable, ScanStateCapable, QueueCapable, CalendarCapable
+{
     readonly id: ServiceId = 'sonarr';
     readonly #http: ServiceHttp;
 
@@ -77,6 +84,15 @@ export class SonarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCh
         const scan = tasks.find(t => t.taskName === LIBRARY_SCAN_TASK);
         const lastCompleted = scan?.lastExecution;
         return { service: this.id, ...(typeof lastCompleted === 'string' ? { lastCompleted } : {}) };
+    }
+
+    async getQueue(): Promise<QueueItem[]> {
+        return readArrQueue(this.#http, this.id);
+    }
+
+    async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
+        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(calendarPath(range));
+        return readSonarrCalendar(episodes, this.id);
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
