@@ -4,6 +4,7 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import { readArrQueue, readSonarrCalendar, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import type { components } from './generated/sonarr.ts';
@@ -16,6 +17,7 @@ import {
     type DiskSpaceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
     type QueueCapable,
@@ -37,6 +39,7 @@ type RawSeries = {
     path?: string;
     tvdbId?: number;
     imdbId?: string;
+    genres?: string[];
     /** Flat, unlike Radarr's per-source map — see `flattenSeriesRating`. */
     ratings?: RawRating;
     statistics?: { sizeOnDisk?: number; episodeFileCount?: number };
@@ -78,7 +81,8 @@ export class SonarrAdapter
         QueueCapable,
         CalendarCapable,
         MediaDetailCapable,
-        SearchCapable
+        SearchCapable,
+        LibraryCapable
 {
     readonly id: ServiceId = 'sonarr';
     readonly #http: ServiceHttp;
@@ -216,6 +220,37 @@ export class SonarrAdapter
             },
             ...(s.monitored === undefined ? {} : { monitored: s.monitored })
         };
+    }
+
+    async listLibrary(): Promise<IndexInput[]> {
+        const series = await this.#http.get<RawSeries[]>('/api/v3/series');
+
+        return series.map(s => ({
+            kind: 'series' as const,
+            title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
+            ...(s.year === undefined ? {} : { year: s.year }),
+            ...(s.genres === undefined
+                ? {}
+                : { genres: s.genres.map(g => fenceText(g, { service: this.id, field: 'genre' })) }),
+            ids: {
+                ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
+                ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
+            },
+            acquisition: {
+                service: this.id,
+                monitored: s.monitored ?? false,
+                // A series has no single file, so "has a file" means "has any
+                // episode on disk". No quality either: it is per-episode, which
+                // is why §5.2 makes the quality filter films-only.
+                hasFile: (s.statistics?.episodeFileCount ?? 0) > 0,
+                ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk })
+            },
+            // Flat, and labelled tvdb. Treating it as a per-source map is the
+            // 0.3.0 defect that reported a source called `votes` worth 164018.
+            ...((r => (r === undefined ? {} : { ratings: r }))(
+                (raw => (raw?.tvdb === undefined ? undefined : { tvdb: raw.tvdb }))(flattenSeriesRating(s.ratings))
+            ))
+        }));
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

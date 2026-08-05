@@ -1,3 +1,5 @@
+import type { MergedRatings } from '../core/resolver.ts';
+
 export type RawRating = { value?: number; votes?: number };
 
 /**
@@ -36,4 +38,37 @@ export function flattenRatings(raw: Record<string, RawRating> | undefined): Reco
 export function flattenSeriesRating(raw: RawRating | undefined): Record<string, number> | undefined {
     if (typeof raw?.value !== 'number' || raw.value <= 0) return undefined;
     return { tvdb: raw.value };
+}
+
+/**
+ * The sources §4.1 names. Anything else an *arr invents is dropped rather than
+ * carried.
+ *
+ * `tvdb` is deliberately absent. Sonarr's rating is flat — `{ votes, value }`,
+ * no source key — and is read via `flattenSeriesRating`, never through this
+ * function; `Sonarr.listLibrary` builds `{ tvdb: raw.tvdb }` by hand instead of
+ * calling `toMergedRatings`. Adding `tvdb` here would look like the fix that
+ * lets Sonarr's mapping "simplify" to reuse this function, but Radarr's
+ * per-source `Record<string, number>` and Sonarr's single flat value are not
+ * the same shape — routing the latter through `KNOWN`'s allowlist would look
+ * up a `tvdb` key that was never in the flattened record, and return
+ * `undefined` for every series rating, silently.
+ */
+const KNOWN = ['imdb', 'tmdb', 'rottenTomatoes', 'trakt', 'metacritic'] as const;
+
+/**
+ * `flattenRatings` produces `Record<string, number>` because that is what
+ * `MediaDetails` has carried since Phase 2. The merged record uses named
+ * sources instead, so an unknown source name cannot survive into a filter that
+ * would then match nothing.
+ */
+export function toMergedRatings(flat: Record<string, number> | undefined): MergedRatings | undefined {
+    if (flat === undefined) return undefined;
+
+    const out: MergedRatings = {};
+    for (const key of KNOWN) {
+        const value = flat[key];
+        if (typeof value === 'number') out[key] = value;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
 }

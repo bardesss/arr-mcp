@@ -1,0 +1,1024 @@
+{
+  "Items": [
+    {
+      "Name": "#MissingCouple",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "65cbd491b1ecb02fdb3d7cbaefab5353",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2024-10-07T22:00:00.0000000Z",
+      "OfficialRating": "NR",
+      "ChannelId": null,
+      "Genres": [
+        "Thriller",
+        "Crime",
+        "Horror"
+      ],
+      "CommunityRating": 5,
+      "RunTimeTicks": 56381319999,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt33794261",
+        "Tmdb": "1368213"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Thriller",
+          "Id": "4936f5b1a6f84f0b0aa2657368a5b364"
+        },
+        {
+          "Name": "Crime",
+          "Id": "83a9dab21914792744c8fb23b9925dc6"
+        },
+        {
+          "Name": "Horror",
+          "Id": "8b9bd9a3eddad02f2b759b4938fdd0b8"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "1368213",
+        "ItemId": "65cbd491b1ecb02fdb3d7cbaefab5353"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "3 Body Problem",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "cf939e2aa448fbe76b4f5eb80fa0d39f",
+      "PremiereDate": "2024-03-20T23:00:00.0000000Z",
+      "OfficialRating": "TV-MA",
+      "ChannelId": null,
+      "Genres": [
+        "Science Fiction",
+        "Fantasy",
+        "Drama",
+        "Adventure",
+        "Thriller",
+        "Mystery"
+      ],
+      "RunTimeTicks": 33000000000,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt13016388",
+        "Tmdb": "108545",
+        "Tvdb": "411959",
+        "TvdbSlug": "three-body-problem"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Science Fiction",
+          "Id": "0430d514c35e1f158fa93f1eeb8361ea"
+        },
+        {
+          "Name": "Fantasy",
+          "Id": "a30dcc65be22eb3c21c03f7c1c7a57d1"
+        },
+        {
+          "Name": "Drama",
+          "Id": "090eac6e9de4fe1fbc194e5b96691277"
+        },
+        {
+          "Name": "Adventure",
+          "Id": "51cec9645b896084d12b259acd05ccb1"
+        },
+        {
+          "Name": "Thriller",
+          "Id": "4936f5b1a6f84f0b0aa2657368a5b364"
+        },
+        {
+          "Name": "Mystery",
+          "Id": "d3a0ead52489743e5a68704142092c71"
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 1,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "411959",
+        "ItemId": "cf939e2aa448fbe76b4f5eb80fa0d39f"
+      },
+      "Status": "Continuing",
+      "AirTime": "03:00",
+      "AirDays": [
+        "Thursday"
+      ],
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    },
+    {
+      "Name": "The 100 Year-Old Man Who Climbed Out the Window and Disappeared",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "d9d758cc97ae50a0e4bc3ac252a5a298",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-12-24T23:00:00.0000000Z",
+      "CriticRating": 68,
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "Genres": [
+        "Adventure",
+        "Comedy",
+        "Drama"
+      ],
+      "CommunityRating": 6.812,
+      "RunTimeTicks": 68580060000,
+      "ProductionYear": 2013,
+      "ProviderIds": {
+        "Imdb": "tt2113681",
+        "Tmdb": "145247",
+        "TmdbCollection": "501772"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Adventure",
+          "Id": "51cec9645b896084d12b259acd05ccb1"
+        },
+        {
+          "Name": "Comedy",
+          "Id": "08d31605d366d63a7a924f944b4417f1"
+        },
+        {
+          "Name": "Drama",
+          "Id": "090eac6e9de4fe1fbc194e5b96691277"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "145247",
+        "ItemId": "d9d758cc97ae50a0e4bc3ac252a5a298"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "1923",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "3edf56dd60d54882848c09bf2e4c7a4f",
+      "PremiereDate": "2022-12-17T23:00:00.0000000Z",
+      "OfficialRating": "TV-MA",
+      "ChannelId": null,
+      "Genres": [
+        "Drama",
+        "Western"
+      ],
+      "RunTimeTicks": 36000000000,
+      "ProductionYear": 2022,
+      "ProviderIds": {
+        "Imdb": "tt18335752",
+        "Tmdb": "157744",
+        "Tvdb": "416491",
+        "TvdbCollection": "7502;",
+        "TvdbSlug": "1923-yellowstone"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Drama",
+          "Id": "090eac6e9de4fe1fbc194e5b96691277"
+        },
+        {
+          "Name": "Western",
+          "Id": "a64ff36d22e03d8479fbac2360725aea"
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 1,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "416491",
+        "ItemId": "3edf56dd60d54882848c09bf2e4c7a4f"
+      },
+      "Status": "Ended",
+      "AirTime": "03:00",
+      "AirDays": [
+        "Sunday"
+      ],
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "EndDate": "2025-01-05T23:04:00.0000000Z"
+    },
+    {
+      "Name": "The Amateur",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "bd506f6de56ad3c3c600ad723982c0a5",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2025-04-08T22:00:00.0000000Z",
+      "CriticRating": 62,
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "Genres": [
+        "Thriller",
+        "Action"
+      ],
+      "CommunityRating": 6.949,
+      "RunTimeTicks": 73612710000,
+      "ProductionYear": 2025,
+      "ProviderIds": {
+        "Imdb": "tt0899043",
+        "Tmdb": "1087891"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Thriller",
+          "Id": "4936f5b1a6f84f0b0aa2657368a5b364"
+        },
+        {
+          "Name": "Action",
+          "Id": "ce06903d834d2c3417e0889dd4049f3b"
+        }
+      ],
+      "UserData": {
+        "PlayedPercentage": 100,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "1087891",
+        "ItemId": "bd506f6de56ad3c3c600ad723982c0a5"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "American Murder: Laci Peterson",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "e8211d1f87a7b235a84010f81a4f10b9",
+      "PremiereDate": "2024-08-13T22:00:00.0000000Z",
+      "ChannelId": null,
+      "Genres": [
+        "Documentary",
+        "Crime"
+      ],
+      "RunTimeTicks": 31800000000,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt33079160",
+        "Tmdb": "261034",
+        "Tvdb": "452965",
+        "TvdbSlug": "american-murder-laci-peterson"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Documentary",
+          "Id": "818912eba0fc399e496b109d438effe9"
+        },
+        {
+          "Name": "Crime",
+          "Id": "83a9dab21914792744c8fb23b9925dc6"
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 1,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "452965",
+        "ItemId": "e8211d1f87a7b235a84010f81a4f10b9"
+      },
+      "Status": "Ended",
+      "AirTime": "03:00",
+      "AirDays": [
+        "Wednesday"
+      ],
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "EndDate": "2024-01-13T23:08:00.0000000Z"
+    },
+    {
+      "Name": "Amsterdam Empire",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "80e2802357bebfc2467c947dd8eea7dc",
+      "PremiereDate": "2025-10-29T23:00:00.0000000Z",
+      "ChannelId": null,
+      "Genres": [
+        "Drama",
+        "Crime",
+        "Thriller"
+      ],
+      "RunTimeTicks": 26400000000,
+      "ProductionYear": 2025,
+      "ProviderIds": {
+        "Imdb": "tt31835154",
+        "Tmdb": "249586",
+        "Tvdb": "447836",
+        "TvdbSlug": "amsterdam-empire"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Drama",
+          "Id": "090eac6e9de4fe1fbc194e5b96691277"
+        },
+        {
+          "Name": "Crime",
+          "Id": "83a9dab21914792744c8fb23b9925dc6"
+        },
+        {
+          "Name": "Thriller",
+          "Id": "4936f5b1a6f84f0b0aa2657368a5b364"
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 0,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "447836",
+        "ItemId": "80e2802357bebfc2467c947dd8eea7dc"
+      },
+      "Status": "Continuing",
+      "AirTime": "04:00",
+      "AirDays": [
+        "Thursday"
+      ],
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    },
+    {
+      "Name": "Amsterdamned",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "28e69e8a9eb65601fa975ac1fcd5bf8a",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "1988-02-10T23:00:00.0000000Z",
+      "OfficialRating": "NL-16",
+      "ChannelId": null,
+      "Genres": [
+        "Action",
+        "Horror",
+        "Thriller"
+      ],
+      "CommunityRating": 6.3,
+      "RunTimeTicks": 67898880000,
+      "ProductionYear": 1988,
+      "ProviderIds": {
+        "Imdb": "tt0094651",
+        "Tmdb": "2093",
+        "TmdbCollection": "1239180"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Action",
+          "Id": "ce06903d834d2c3417e0889dd4049f3b"
+        },
+        {
+          "Name": "Horror",
+          "Id": "8b9bd9a3eddad02f2b759b4938fdd0b8"
+        },
+        {
+          "Name": "Thriller",
+          "Id": "4936f5b1a6f84f0b0aa2657368a5b364"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "2093",
+        "ItemId": "28e69e8a9eb65601fa975ac1fcd5bf8a"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Amsterdamned II",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "fd18f09cb13f87ce5567cf1f6be43c72",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2025-11-29T23:00:00.0000000Z",
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "Genres": [
+        "Action",
+        "Thriller"
+      ],
+      "CommunityRating": 5.7,
+      "RunTimeTicks": 66100160000,
+      "ProductionYear": 2025,
+      "ProviderIds": {
+        "Imdb": "tt29943172",
+        "Tmdb": "1179684",
+        "TmdbCollection": "1239180"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Action",
+          "Id": "ce06903d834d2c3417e0889dd4049f3b"
+        },
+        {
+          "Name": "Thriller",
+          "Id": "4936f5b1a6f84f0b0aa2657368a5b364"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "1179684",
+        "ItemId": "fd18f09cb13f87ce5567cf1f6be43c72"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Amy",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "70ae426515fa74b379ca5d8fcaa96422",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2015-07-01T22:00:00.0000000Z",
+      "CriticRating": 96,
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "Genres": [
+        "Documentary",
+        "Music"
+      ],
+      "CommunityRating": 7.6,
+      "RunTimeTicks": 73616960000,
+      "ProductionYear": 2015,
+      "ProviderIds": {
+        "Imdb": "tt2870648",
+        "Tmdb": "331781"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Documentary",
+          "Id": "818912eba0fc399e496b109d438effe9"
+        },
+        {
+          "Name": "Music",
+          "Id": "f67b77276f76b0e5413abcedbe777bbe"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "331781",
+        "ItemId": "70ae426515fa74b379ca5d8fcaa96422"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Amy Bradley Is Missing",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "549e5408cd866e4d9342c6ff762ab2ad",
+      "PremiereDate": "2025-07-15T22:00:00.0000000Z",
+      "ChannelId": null,
+      "Genres": [
+        "Documentary",
+        "Crime"
+      ],
+      "RunTimeTicks": 26400000000,
+      "ProductionYear": 2025,
+      "ProviderIds": {
+        "Imdb": "tt37439438",
+        "Tmdb": "294726",
+        "Tvdb": "465157",
+        "TvdbSlug": "amy-bradley-is-missing"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Documentary",
+          "Id": "818912eba0fc399e496b109d438effe9"
+        },
+        {
+          "Name": "Crime",
+          "Id": "83a9dab21914792744c8fb23b9925dc6"
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 0,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "465157",
+        "ItemId": "549e5408cd866e4d9342c6ff762ab2ad"
+      },
+      "Status": "Ended",
+      "AirTime": "03:00",
+      "AirDays": [
+        "Wednesday"
+      ],
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "EndDate": "2025-01-15T23:07:00.0000000Z"
+    },
+    {
+      "Name": "Ancient Apocalypse (2022)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "0546221e71d4c9c54f0e4e970e898b08",
+      "PremiereDate": "2022-11-10T23:00:00.0000000Z",
+      "ChannelId": null,
+      "Genres": [
+        "Documentary"
+      ],
+      "RunTimeTicks": 21000000000,
+      "ProductionYear": 2022,
+      "ProviderIds": {
+        "Imdb": "tt22807484",
+        "Tmdb": "212869",
+        "Tvdb": "426211",
+        "TvdbSlug": "ancient-apocalypse-2022"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Documentary",
+          "Id": "818912eba0fc399e496b109d438effe9"
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 1,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "426211",
+        "ItemId": "0546221e71d4c9c54f0e4e970e898b08"
+      },
+      "Status": "Ended",
+      "AirTime": "09:00",
+      "AirDays": [
+        "Friday"
+      ],
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "EndDate": "2024-01-15T23:10:00.0000000Z"
+    },
+    {
+      "Name": "Apartment 7A",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "d945d0ee6a304cb86eb361595ff9333d",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2024-09-20T00:00:00.0000000Z",
+      "OfficialRating": "R",
+      "ChannelId": null,
+      "Genres": [
+        "Horror",
+        "Thriller"
+      ],
+      "CommunityRating": 6.2,
+      "RunTimeTicks": 63689880000,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt14371860",
+        "Tmdb": "807339",
+        "TmdbCollection": "264338"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Horror",
+          "Id": "8b9bd9a3eddad02f2b759b4938fdd0b8"
+        },
+        {
+          "Name": "Thriller",
+          "Id": "4936f5b1a6f84f0b0aa2657368a5b364"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "807339",
+        "ItemId": "d945d0ee6a304cb86eb361595ff9333d"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Apocalypse in the Tropics",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "7585be0381737042591059e5fc603445",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2025-07-03T00:00:00.0000000Z",
+      "CriticRating": 94,
+      "OfficialRating": "PG-13",
+      "ChannelId": null,
+      "Genres": [
+        "Documentary"
+      ],
+      "CommunityRating": 6.3,
+      "RunTimeTicks": 65970559999,
+      "ProductionYear": 2025,
+      "ProviderIds": {
+        "Imdb": "tt30012657",
+        "Tmdb": "1320400"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Documentary",
+          "Id": "818912eba0fc399e496b109d438effe9"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "1320400",
+        "ItemId": "7585be0381737042591059e5fc603445"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "The Apprentice",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "cdf1015e99d2bce7b5cc37b231b74253",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2024-10-09T00:00:00.0000000Z",
+      "CriticRating": 83,
+      "OfficialRating": "NL-14",
+      "ChannelId": null,
+      "Genres": [
+        "History",
+        "Drama"
+      ],
+      "CommunityRating": 6.9,
+      "RunTimeTicks": 73379980000,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt8368368",
+        "Tmdb": "1182047"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "History",
+          "Id": "7e6f6b834496507dc07db3b9623caef4"
+        },
+        {
+          "Name": "Drama",
+          "Id": "090eac6e9de4fe1fbc194e5b96691277"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "1182047",
+        "ItemId": "cdf1015e99d2bce7b5cc37b231b74253"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Attack on Titan",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "d9b4602426bd51fb2ee5737ad3396180",
+      "PremiereDate": "2013-04-06T22:00:00.0000000Z",
+      "OfficialRating": "18",
+      "ChannelId": null,
+      "Genres": [
+        "Horror",
+        "Fantasy",
+        "Drama",
+        "Animation",
+        "Adventure",
+        "Action",
+        "Anime"
+      ],
+      "CommunityRating": 8.3,
+      "RunTimeTicks": 15000000000,
+      "ProductionYear": 2013,
+      "ProviderIds": {
+        "AniDB": "9541",
+        "Imdb": "tt2560140",
+        "Tmdb": "1429",
+        "Tvdb": "267440",
+        "TvdbSlug": "attack-on-titan"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Horror",
+          "Id": "8b9bd9a3eddad02f2b759b4938fdd0b8"
+        },
+        {
+          "Name": "Fantasy",
+          "Id": "a30dcc65be22eb3c21c03f7c1c7a57d1"
+        },
+        {
+          "Name": "Drama",
+          "Id": "090eac6e9de4fe1fbc194e5b96691277"
+        },
+        {
+          "Name": "Animation",
+          "Id": "074229225b7254292f131f9f49f8dcd6"
+        },
+        {
+          "Name": "Adventure",
+          "Id": "51cec9645b896084d12b259acd05ccb1"
+        },
+        {
+          "Name": "Action",
+          "Id": "ce06903d834d2c3417e0889dd4049f3b"
+        },
+        {
+          "Name": "Anime",
+          "Id": "f89b4d4d7733020ed2721d8fec37f26c"
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 1,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440",
+        "ItemId": "d9b4602426bd51fb2ee5737ad3396180"
+      },
+      "Status": "Ended",
+      "AirTime": "00:30",
+      "AirDays": [
+        "Saturday"
+      ],
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "EndDate": "2023-01-04T23:11:00.0000000Z"
+    },
+    {
+      "Name": "Avicii - I'm Tim",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "6a7f6ac536286d4d49929fcd361685be",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2024-06-08T22:00:00.0000000Z",
+      "OfficialRating": "NL-AL",
+      "ChannelId": null,
+      "Genres": [
+        "Documentary",
+        "Music"
+      ],
+      "CommunityRating": 8.103,
+      "RunTimeTicks": 58083200000,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt32138523",
+        "Tmdb": "1275945"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Documentary",
+          "Id": "818912eba0fc399e496b109d438effe9"
+        },
+        {
+          "Name": "Music",
+          "Id": "f67b77276f76b0e5413abcedbe777bbe"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "1275945",
+        "ItemId": "6a7f6ac536286d4d49929fcd361685be"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Back to Black",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "cf861b4ae4b3c3ea2b5e21106b984838",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2024-04-10T22:00:00.0000000Z",
+      "CriticRating": 35,
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "Genres": [
+        "Music",
+        "History",
+        "Drama"
+      ],
+      "CommunityRating": 6.675,
+      "RunTimeTicks": 73847110000,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt21261712",
+        "Tmdb": "998846"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Music",
+          "Id": "f67b77276f76b0e5413abcedbe777bbe"
+        },
+        {
+          "Name": "History",
+          "Id": "7e6f6b834496507dc07db3b9623caef4"
+        },
+        {
+          "Name": "Drama",
+          "Id": "090eac6e9de4fe1fbc194e5b96691277"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "998846",
+        "ItemId": "cf861b4ae4b3c3ea2b5e21106b984838"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Bad Monkey",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "0e812b162bb7ac70065fb339fc8b8c41",
+      "PremiereDate": "2024-08-13T22:00:00.0000000Z",
+      "OfficialRating": "TV-MA",
+      "ChannelId": null,
+      "Genres": [
+        "Drama",
+        "Crime",
+        "Comedy",
+        "Mystery"
+      ],
+      "RunTimeTicks": 27600000000,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt15203646",
+        "Tmdb": "130853",
+        "Tvdb": "408436",
+        "TvdbSlug": "bad-monkey"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Drama",
+          "Id": "090eac6e9de4fe1fbc194e5b96691277"
+        },
+        {
+          "Name": "Crime",
+          "Id": "83a9dab21914792744c8fb23b9925dc6"
+        },
+        {
+          "Name": "Comedy",
+          "Id": "08d31605d366d63a7a924f944b4417f1"
+        },
+        {
+          "Name": "Mystery",
+          "Id": "d3a0ead52489743e5a68704142092c71"
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 0,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "408436",
+        "ItemId": "0e812b162bb7ac70065fb339fc8b8c41"
+      },
+      "Status": "Continuing",
+      "AirTime": "00:00",
+      "AirDays": [
+        "Wednesday"
+      ],
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    },
+    {
+      "Name": "The Beach Boys",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "e2b85a832a2bfc16881b58d5d276fefc",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2024-05-20T22:00:00.0000000Z",
+      "CriticRating": 89,
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "Genres": [
+        "Documentary",
+        "Music"
+      ],
+      "CommunityRating": 6.576,
+      "RunTimeTicks": 67862380000,
+      "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt31922530",
+        "Tmdb": "1265066"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Documentary",
+          "Id": "818912eba0fc399e496b109d438effe9"
+        },
+        {
+          "Name": "Music",
+          "Id": "f67b77276f76b0e5413abcedbe777bbe"
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "1265066",
+        "ItemId": "e2b85a832a2bfc16881b58d5d276fefc"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 292,
+  "StartIndex": 0
+}

@@ -1,4 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { assertVersionSupported } from './versions.ts';
 
@@ -265,6 +266,29 @@ export interface SearchCapable {
 
 export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapable =>
     typeof (a as Partial<SearchCapable>).search === 'function';
+
+/**
+ * A whole-library read, shaped for the identity resolver rather than for a
+ * tool. Phase 3 joins three of these into one index; nothing else consumes it.
+ */
+export interface LibraryCapable {
+    listLibrary(): Promise<IndexInput[]>;
+}
+
+export const hasLibrary = (a: ServiceAdapter): a is ServiceAdapter & LibraryCapable =>
+    typeof (a as Partial<LibraryCapable>).listLibrary === 'function';
+
+/**
+ * Separate from LibraryCapable because Jellyfin's half is per-user (§4.3):
+ * watch state does not exist without a user, and a shared signature would let
+ * a caller forget to supply one.
+ */
+export interface UserLibraryCapable {
+    listUserLibrary(user: ServiceUser): Promise<IndexInput[]>;
+}
+
+export const hasUserLibrary = (a: ServiceAdapter): a is ServiceAdapter & UserLibraryCapable =>
+    typeof (a as Partial<UserLibraryCapable>).listUserLibrary === 'function';
 
 export interface DiscoverCapable {
     discover(opts: {

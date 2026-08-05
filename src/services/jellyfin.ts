@@ -1,4 +1,5 @@
 import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import { embyToken } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -16,7 +17,8 @@ import {
     type SearchSource,
     type ServiceAdapter,
     type ServiceUser,
-    type UserDirectoryCapable
+    type UserDirectoryCapable,
+    type UserLibraryCapable
 } from './types.ts';
 
 /**
@@ -77,6 +79,8 @@ type RawItemDetail = {
     Type?: string;
     ProviderIds?: { Tmdb?: string; Tvdb?: string; Imdb?: string };
     MediaSources?: { Size?: number }[];
+    Genres?: string[];
+    UserData?: { Played?: boolean; PlayCount?: number; LastPlayedDate?: string };
 };
 
 /**
@@ -91,7 +95,13 @@ const numericId = (value: string | undefined): number | undefined => {
 };
 
 export class JellyfinAdapter
-    implements ServiceAdapter, ScanStateCapable, UserDirectoryCapable, MediaDetailCapable, SearchCapable
+    implements
+        ServiceAdapter,
+        ScanStateCapable,
+        UserDirectoryCapable,
+        MediaDetailCapable,
+        SearchCapable,
+        UserLibraryCapable
 {
     readonly id: ServiceId = 'jellyfin';
     readonly #http: ServiceHttp;
@@ -263,6 +273,44 @@ export class JellyfinAdapter
                     }
                 };
             });
+    }
+
+    /**
+     * Per-user by construction (§4.3). `EnableUserData` is what makes `Played`
+     * come back at all, and `Fields=ProviderIds` is what makes the join
+     * possible — the same parameter whose absence made every Phase 2 search hit
+     * arrive with no external ids.
+     */
+    async listUserLibrary(user: ServiceUser): Promise<IndexInput[]> {
+        const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
+            `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Movie,Series` +
+                '&Fields=ProviderIds,Genres&EnableUserData=true'
+        );
+
+        return (page.Items ?? []).map(i => {
+            const tmdb = numericId(i.ProviderIds?.Tmdb);
+            const tvdb = numericId(i.ProviderIds?.Tvdb);
+
+            return {
+                kind: i.Type === 'Series' ? ('series' as const) : ('movie' as const),
+                title: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
+                ...(i.ProductionYear === undefined ? {} : { year: i.ProductionYear }),
+                ...(i.Genres === undefined
+                    ? {}
+                    : { genres: i.Genres.map(g => fenceText(g, { service: this.id, field: 'Genres' })) }),
+                ids: {
+                    ...(tmdb === undefined ? {} : { tmdb }),
+                    ...(tvdb === undefined ? {} : { tvdb }),
+                    ...(i.ProviderIds?.Imdb === undefined ? {} : { imdb: i.ProviderIds.Imdb })
+                },
+                playback: {
+                    user: user.name,
+                    watched: i.UserData?.Played ?? false,
+                    ...(i.UserData?.PlayCount === undefined ? {} : { playCount: i.UserData.PlayCount }),
+                    ...(i.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: i.UserData.LastPlayedDate })
+                }
+            };
+        });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
