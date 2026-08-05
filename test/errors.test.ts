@@ -86,7 +86,8 @@ describe('classifyHttpStatus', () => {
 
     it('gives a 404 on Radarr’s real get-by-id path a missing-item remedy, not the base-path one', () => {
         // The reported bug, live: GET /api/v3/movie/{id} for an id that does
-        // not exist. Nothing about the base URL is wrong here.
+        // not exist. Nothing about the base URL is wrong here. The id is the
+        // *last* path segment.
         const remedy = classifyHttpStatus(404, 'radarr', 'http://h/api/v3/movie/999999')?.remedy;
         expect(remedy).not.toMatch(/base path/i);
         expect(remedy).toMatch(/id/i);
@@ -98,16 +99,44 @@ describe('classifyHttpStatus', () => {
         expect(remedy).toMatch(/id/i);
     });
 
-    it('keeps the base-path remedy for a 404 on a collection endpoint with no id', () => {
-        // GET /api/v3/movie (the collection itself, no trailing id) 404ing
-        // means the base path is wrong — that route always exists.
+    it('gives the missing-item remedy when the id is in the middle of the path, not just the end', () => {
+        // Real Jellyfin path used by get_playback (jellyfin.ts):
+        // `/Users/${userId}/Items/Resume` — the id sits between two words, and
+        // the trailing segment ("Resume") looks exactly like a collection.
+        // Classifying on the last segment alone would blame the base URL for
+        // what is far more likely a stale or wrong user id.
+        const remedy = classifyHttpStatus(
+            404,
+            'jellyfin',
+            'http://h/Users/8a1e21b1a1b04c1b8a1e21b1a1b04c1b/Items/Resume'
+        )?.remedy;
+        expect(remedy).not.toMatch(/base path/i);
+        expect(remedy).toMatch(/id/i);
+    });
+
+    it('keeps the base-path remedy for a 404 on a collection endpoint with no id anywhere in the path', () => {
+        // GET /api/v3/movie (the collection itself, no id segment at all)
+        // 404ing means the base path is wrong — that route always exists.
+        // Also exercises a version segment ("v3") staying endpoint-vocabulary
+        // rather than being read as an opaque id-shaped token.
         expect(classifyHttpStatus(404, 'radarr', 'http://h/api/v3/movie')?.remedy).toMatch(/base path/i);
     });
 
-    it('hedges rather than guessing when the trailing path segment is neither an id nor a collection name', () => {
-        // A GUID-shaped segment (letters and digits both) is not confidently
-        // either shape from the path alone.
-        const remedy = classifyHttpStatus(404, 'jellyfin', 'http://h/Users/8a1e21b1a1b04c1b8a1e21b1a1b04c1b')?.remedy;
+    it('keeps the base-path remedy for SABnzbd’s single fixed endpoint', () => {
+        // SABnzbd never puts an id in the path — ids travel as query
+        // parameters (?name=...) — so a 404 here is unambiguously the base
+        // path, and that must not change.
+        expect(classifyHttpStatus(404, 'sabnzbd', 'http://h/api')?.remedy).toMatch(/base path/i);
+    });
+
+    it('keeps the base-path remedy for Transmission’s single fixed RPC endpoint', () => {
+        expect(classifyHttpStatus(404, 'transmission', 'http://h/transmission/rpc')?.remedy).toMatch(/base path/i);
+    });
+
+    it('hedges rather than guessing when a path segment is neither an id nor endpoint vocabulary', () => {
+        // A hyphenated slug is not a plain word (collection-shaped) and not a
+        // number or GUID (id-shaped) — genuinely unclear from the path alone.
+        const remedy = classifyHttpStatus(404, 'radarr', 'http://h/api/v3/movie/the-matrix-1999')?.remedy;
         expect(remedy).toMatch(/id/i);
         expect(remedy).toMatch(/base path|url/i);
     });

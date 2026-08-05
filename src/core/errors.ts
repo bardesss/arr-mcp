@@ -58,9 +58,16 @@ export class ServiceError extends Error {
     }
 
     /**
-     * Now identical to `.message` — kept as the named, documented surface so
-     * a call site reads as "the text a model may see" rather than "whatever
-     * `Error.prototype` happens to expose".
+     * Deliberately just an alias for `.message` — it is `.message` that now
+     * carries the remedy (see the class doc comment), so there is nothing
+     * left for this method to add. Nothing in this codebase calls it; it is
+     * kept anyway as the named, documented surface so a call site reads as
+     * "the text a model may see" rather than "whatever `Error.prototype`
+     * happens to expose". A dead-but-plausible-looking method is exactly
+     * what let the remedy go unreachable before (nothing called it, and
+     * nothing noticed) — if this is ever removed, remove it because it is
+     * unused, not because it looks redundant with `.message`; it is
+     * *supposed* to be redundant with `.message`.
      */
     toModelText(): string {
         return this.message;
@@ -84,20 +91,36 @@ function safeHost(url: string): string {
     }
 }
 
+/** A plain endpoint-vocabulary word, or a REST version segment such as `v3`. */
+const WORD_SEGMENT = /^([A-Za-z]+|v\d+)$/i;
+
+/**
+ * An integer id, or a GUID — hyphenated or not (Jellyfin's are 32 raw hex
+ * characters, no hyphens). Requiring a digit alongside the hex letters keeps
+ * an incidental all-letter word that happens to be hex-shaped (`face`,
+ * `cafe`, `dead`) from being misread as an id.
+ */
+const ID_SEGMENT = /^(\d+|(?=[0-9a-f-]*\d)[0-9a-f]{4,}(-[0-9a-f]{4,})*)$/i;
+
 /**
  * The only signal a 404 carries about *why* is the path it was for. Every
  * real by-id endpoint in this codebase (Radarr `/api/v3/movie/{id}`, Sonarr
- * `/api/v3/series/{id}`) ends the path in a bare integer; every collection or
- * status endpoint (`/api/v3/movie`, `/api/v3/system/status`) ends in a plain
- * word. A trailing segment that is neither — a GUID, a hash, a slug — is
- * genuinely ambiguous from the path alone, so it gets a remedy that says so
- * instead of confidently guessing one cause.
+ * `/api/v3/series/{id}`, and — critically — Jellyfin's
+ * `/Users/{userId}/Items/Resume`, where the id sits mid-path, not last) has
+ * an id-shaped segment *somewhere*; a collection or status endpoint
+ * (`/api/v3/movie`, `/api/v3/system/status`) is made entirely of
+ * endpoint-vocabulary words. Position must not matter — classifying only the
+ * last segment is exactly what missed the Jellyfin case — so every segment is
+ * inspected, and an id anywhere outweighs the rest of the path being
+ * word-shaped. A segment that is neither a recognisable word nor a
+ * recognisable id (a hash, a slug) makes the path genuinely ambiguous, so it
+ * gets a remedy that says so instead of confidently guessing one cause.
  */
 function classifyNotFoundPath(pathname: string): 'item' | 'collection' | 'ambiguous' {
-    const last = pathname.split('/').filter(Boolean).at(-1);
-    if (last === undefined) return 'collection';
-    if (/^\d+$/.test(last)) return 'item';
-    if (/^[A-Za-z]+$/.test(last)) return 'collection';
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return 'collection';
+    if (segments.some(s => ID_SEGMENT.test(s))) return 'item';
+    if (segments.every(s => WORD_SEGMENT.test(s))) return 'collection';
     return 'ambiguous';
 }
 
