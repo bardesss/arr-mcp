@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "arr-mcp",
   "version": "0.2.1",
   "private": true,
@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "specs:fetch": "bash scripts/fetch-specs.sh",
-    "codegen": "node scripts/codegen.mjs"
+    "codegen": "node scripts/codegen.mjs",
+    "capture": "node scripts/capture-fixtures.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.0",

@@ -10,8 +10,9 @@ npm install
 npm test
 ```
 
-An optional integration script for maintainers with a real stack lives under
-`scripts/` (from 0.2 onwards).
+Maintainers with a real stack refresh the recorded fixtures with
+`npm run capture` — see below. An integration script that *exercises* a live
+stack rather than recording it is planned for 0.4.
 
 ## The three gates
 
@@ -92,6 +93,28 @@ Two things worth knowing before you touch this:
 - **The generated types are nullable where the spec says nullable.** If a mapper
   fails to typecheck against them, fix the mapper. Do not widen it with a cast:
   that failure is the codegen doing the job it was added for.
+
+## Recorded fixtures
+
+Adapter tests run against real responses captured once from a live stack, so
+neither CI nor a contributor needs one. Maintainers refresh them with:
+
+```bash
+npm run capture            # reads ./config/config.yaml, never prints credentials
+```
+
+Set `ARR_MCP_CAPTURE_CONFIG` to read credentials from outside the repo. The
+script redacts every configured credential and every secret-named field, then
+**refuses to write a file** if a credential survived — a reviewer spotting a
+leaked key in a large diff is not a control worth relying on.
+
+`test/fixtures.test.ts` re-checks every committed fixture on every PR, so a
+recapture years from now cannot quietly leak either. It works on key names and
+value shape, not on the secrets themselves, because CI does not have them.
+
+Review `git diff test/fixtures/` before committing: redaction is **secrets
+only** by decision, so real titles, usernames, LAN addresses and mount paths are
+published deliberately.
 
 ## Reporting a bug
 
