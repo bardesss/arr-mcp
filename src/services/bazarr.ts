@@ -2,12 +2,17 @@ import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
-    type ServiceAdapter
+    type MissingLanguage,
+    type ServiceAdapter,
+    type SubtitleCapable,
+    type SubtitleGap,
+    type SubtitleProvider
 } from './types.ts';
 
 /**
@@ -21,8 +26,20 @@ import {
 type Envelope<T> = { data?: T };
 type RawStatus = { bazarr_version?: string };
 type RawHealth = { object?: string; issue?: string };
+type RawMissing = { name?: string; code2?: string; forced?: boolean; hi?: boolean };
+type RawWantedMovie = { radarrId?: number; title?: string; sceneName?: string; missing_subtitles?: RawMissing[] };
+type RawWantedEpisode = {
+    sonarrEpisodeId?: number;
+    seriesTitle?: string;
+    episodeTitle?: string;
+    season?: number;
+    episode?: number;
+    sceneName?: string;
+    missing_subtitles?: RawMissing[];
+};
+type RawProvider = { name?: string; status?: string; retry?: string };
 
-export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable {
+export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, SubtitleCapable {
     readonly id: ServiceId = 'bazarr';
     readonly #http: ServiceHttp;
 
@@ -55,6 +72,86 @@ export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable {
             type: 'warning',
             message: row.issue ?? ''
         }));
+    }
+
+    /**
+     * Two endpoints, one list. `sceneName` is a release name straight from an
+     * indexer, so it is fenced here rather than anywhere downstream.
+     *
+     * A failure in either throws; the tool converts that into `degraded`,
+     * which is where the design spec wants partial-result handling to live.
+     */
+    async getMissingSubtitles(): Promise<SubtitleGap[]> {
+        const fence = (field: string, value: string) => fenceText(value, { service: this.id, field });
+
+        const [movies, episodes] = await Promise.all([
+            this.#http.get<Envelope<RawWantedMovie[]>>('/api/movies/wanted'),
+            this.#http.get<Envelope<RawWantedEpisode[]>>('/api/episodes/wanted')
+        ]);
+
+        const language = (m: RawMissing): MissingLanguage => ({
+            name: m.name ?? 'unknown',
+            code2: m.code2 ?? '??',
+            forced: m.forced ?? false,
+            hearingImpaired: m.hi ?? false
+        });
+
+        const movieGaps: SubtitleGap[] = (movies.data ?? [])
+            .filter((m): m is RawWantedMovie & { radarrId: number } => typeof m.radarrId === 'number')
+            .map(m => ({
+                service: this.id,
+                kind: 'movie' as const,
+                id: m.radarrId,
+                title: fence('title', m.title ?? ''),
+                ...(m.sceneName === undefined ? {} : { releaseName: fence('sceneName', m.sceneName) }),
+                missing: (m.missing_subtitles ?? []).map(language)
+            }));
+
+        const episodeGaps: SubtitleGap[] = (episodes.data ?? [])
+            .filter((e): e is RawWantedEpisode & { sonarrEpisodeId: number } => typeof e.sonarrEpisodeId === 'number')
+            .map(e => ({
+                service: this.id,
+                kind: 'episode' as const,
+                id: e.sonarrEpisodeId,
+                title: fence('seriesTitle', e.seriesTitle ?? ''),
+                ...(e.episodeTitle === undefined ? {} : { episodeTitle: fence('episodeTitle', e.episodeTitle) }),
+                ...(e.season === undefined ? {} : { season: e.season }),
+                ...(e.episode === undefined ? {} : { episode: e.episode }),
+                ...(e.sceneName === undefined ? {} : { releaseName: fence('sceneName', e.sceneName) }),
+                missing: (e.missing_subtitles ?? []).map(language)
+            }));
+
+        return [...movieGaps, ...episodeGaps];
+    }
+
+    /**
+     * §12's "provider state". Bazarr reports a healthy provider as
+     * `status: "good"` and an unhealthy one with the provider's own error text,
+     * so `healthy` is derived here rather than making every caller know that
+     * string. The status text is provider-supplied and therefore fenced.
+     *
+     * `retry` is the literal "End of information" when nothing is scheduled —
+     * treating that as a timestamp would put a sentence into a date field and
+     * a model would read it as a time.
+     */
+    async getProviders(): Promise<SubtitleProvider[]> {
+        const body = await this.#http.get<Envelope<RawProvider[]>>('/api/providers');
+
+        return (body.data ?? [])
+            .filter((p): p is RawProvider & { name: string } => typeof p.name === 'string')
+            .map(p => {
+                const healthy = p.status === 'good';
+                const retry = p.retry !== undefined && p.retry !== 'End of information' ? p.retry : undefined;
+                return {
+                    service: this.id,
+                    name: p.name,
+                    healthy,
+                    ...(healthy || p.status === undefined
+                        ? {}
+                        : { status: fenceText(p.status, { service: this.id, field: 'status' }) }),
+                    ...(retry === undefined ? {} : { retryAt: retry })
+                };
+            });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

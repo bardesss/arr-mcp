@@ -5,7 +5,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { Config } from './config/schema.ts';
 import { logger } from './core/logger.ts';
 import type { ServiceAdapter } from './services/types.ts';
-import { registerStackHealth } from './tools/stackHealth.ts';
+import { buildToolContext, registerAllTools } from './tools/register.ts';
 
 const NAME = 'arr-mcp';
 const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
@@ -26,12 +26,17 @@ function tokenMatches(presented: string, expected: string): boolean {
 export function buildApp(opts: { config: Config; adapters: readonly ServiceAdapter[] }) {
     const { config, adapters } = opts;
 
+    // Built once, outside the per-request factory: the identity resolvers cache
+    // each service's user directory, and rebuilding them per request would
+    // refetch it on every tool call.
+    const toolContext = buildToolContext(adapters, config);
+
     // The factory runs once per request, so every call gets a fresh McpServer.
     // This is what keeps the transport stateless (design spec §5) — do not
     // hoist the server out of the closure.
     const handler = createMcpHandler(() => {
         const server = new McpServer({ name: NAME, version: VERSION });
-        registerStackHealth(server, adapters);
+        registerAllTools(server, toolContext);
         return server;
     });
 

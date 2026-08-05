@@ -27,6 +27,31 @@ Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Seerr · SABnzbd · Transm
 
 All eight are supported as of 0.3.
 
+## Tools
+
+| Tool | Answers |
+| --- | --- |
+| `stack_health` | Is anything broken, out of disk, or not scanning? |
+| `search_media` | What do I have, what exists, what can I get? |
+| `get_media_details` | Everything about one item |
+| `get_queue` | What is downloading, across all four download paths |
+| `get_calendar` | What is due, and what just aired |
+| `get_subtitles` | What is missing subtitles, and which providers are throttled |
+| `get_playback` | What am I watching, and what can I continue |
+| `get_indexers` | Which indexers are healthy, and what they recently rejected |
+| `get_requests` | What has been requested, and what is still pending |
+| `lookup_media` | Tell me about this, without adding it |
+| `discover_media` | What exists in this genre, year, or rating band |
+
+Every tool takes `detail` (`minimal`/`standard`/`full`) and `limit`, and reports
+`{ total, returned, truncated }` — a truncated answer always says so. Tools
+spanning several services also report which ones they could not reach, and how
+many results each contributed, so a long answer from one service can never
+silently hide another.
+
+Reads only. Writes arrive in 0.5, behind per-service permission toggles and
+per-call confirmation.
+
 ## Quick start
 
 ```yaml

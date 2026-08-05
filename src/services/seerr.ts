@@ -2,15 +2,53 @@ import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
+    type DiscoverCapable,
+    type MediaRequest,
+    type RequestStatus,
+    type SearchCapable,
+    type SearchHit,
+    type SearchSource,
     type ServiceAdapter,
     type ServiceUser,
     type UserDirectoryCapable
 } from './types.ts';
 
+type RawSearchResult = {
+    id?: number;
+    mediaType?: string;
+    title?: string;
+    name?: string;
+    releaseDate?: string;
+    firstAirDate?: string;
+};
+
 type RawStatus = { version?: string; commitTag?: string };
+type RawRequest = {
+    id?: number;
+    status?: number;
+    createdAt?: string;
+    media?: { tmdbId?: number; mediaType?: string; title?: string };
+    requestedBy?: { id?: number; displayName?: string; username?: string; email?: string };
+};
+type RawRequestPage = { results?: RawRequest[] };
+
+/** Seerr's numeric request statuses. */
+const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 'declined' };
+
+/**
+ * Whether Seerr filters requests by user server-side — design spec §21.4.
+ * When false the adapter filters in memory, which the spec sanctions at
+ * household request volumes.
+ */
+const SEERR_FILTERS_SERVER_SIDE = false;
+
+/** Narrowed through a typed helper: an inline ternary widens this to `string`. */
+const mediaTypeOf = (value: string | undefined): MediaRequest['mediaType'] =>
+    value === 'movie' || value === 'tv' ? value : 'unknown';
 type RawUser = { id?: number; displayName?: string; username?: string; email?: string };
 type RawUserPage = { results?: RawUser[] };
 
@@ -21,7 +59,7 @@ type RawUserPage = { results?: RawUser[] };
  */
 const nameOf = (u: RawUser): string | undefined => u.displayName ?? u.username ?? u.email?.split('@')[0];
 
-export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable {
+export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable, SearchCapable, DiscoverCapable {
     readonly id: ServiceId = 'seerr';
     readonly #http: ServiceHttp;
 
@@ -43,6 +81,91 @@ export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable {
             .map(u => ({ id: u.id, name: nameOf(u) }))
             .filter((u): u is { id: number; name: string } => u.id !== undefined && u.name !== undefined)
             .map(u => ({ id: String(u.id), name: u.name }));
+    }
+
+    async getRequests(opts: { user?: ServiceUser; status?: RequestStatus }): Promise<MediaRequest[]> {
+        const params = new URLSearchParams({ take: '500' });
+        if (SEERR_FILTERS_SERVER_SIDE && opts.user !== undefined) params.set('requestedBy', opts.user.id);
+
+        const page = await this.#http.get<RawRequestPage>(`/api/v1/request?${params.toString()}`);
+
+        return (page.results ?? [])
+            .filter((r): r is RawRequest & { id: number } => typeof r.id === 'number')
+            .map(r => ({
+                service: this.id,
+                id: r.id,
+                status: STATUS[r.status ?? -1] ?? ('unknown' as const),
+                mediaType: mediaTypeOf(r.media?.mediaType),
+                ...(r.media?.tmdbId === undefined ? {} : { tmdbId: r.media.tmdbId }),
+                ...(r.media?.title === undefined
+                    ? {}
+                    : { title: fenceText(r.media.title, { service: this.id, field: 'title' }) }),
+                requestedBy: nameOf(r.requestedBy ?? {}) ?? 'unknown',
+                ...(r.createdAt === undefined ? {} : { requestedAt: r.createdAt })
+            }))
+            // The in-memory user filter runs unconditionally, even when the
+            // server filtered too. It costs nothing, and it means flipping
+            // SEERR_FILTERS_SERVER_SIDE can never silently widen what a user sees.
+            .filter(r => opts.user === undefined || r.requestedBy.toLowerCase() === opts.user.name.toLowerCase())
+            .filter(r => opts.status === undefined || r.status === opts.status);
+    }
+
+    #toHit(r: RawSearchResult & { id: number }, kind: 'movie' | 'series'): SearchHit {
+        const date = r.releaseDate ?? r.firstAirDate;
+        return {
+            service: this.id,
+            source: 'discover',
+            kind,
+            id: String(r.id),
+            title: fenceText(r.title ?? r.name ?? '', { service: this.id, field: 'title' }),
+            ...(date === undefined ? {} : { year: Number(date.slice(0, 4)) }),
+            ids: { tmdb: r.id }
+        };
+    }
+
+    async search(query: string, source: SearchSource): Promise<SearchHit[]> {
+        if (source !== 'discover') return [];
+
+        const page = await this.#http.get<{ results?: RawSearchResult[] }>(
+            `/api/v1/search?query=${encodeURIComponent(query)}`
+        );
+
+        return (page.results ?? [])
+            .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
+            .map(r => this.#toHit(r, r.mediaType === 'tv' ? 'series' : 'movie'));
+    }
+
+    /**
+     * Seerr's discover is TMDB-backed, so the rating floor is applied by TMDB
+     * rather than by us. Design spec §7 defers rating filters over your *own*
+     * library to the IMDb dataset — that is get_library in Phase 3, not this.
+     */
+    async discover(opts: {
+        mediaType: 'movie' | 'tv';
+        genre?: string;
+        year?: number;
+        minRating?: number;
+    }): Promise<SearchHit[]> {
+        const params = new URLSearchParams();
+        if (opts.genre !== undefined) params.set('genre', opts.genre);
+        if (opts.minRating !== undefined) params.set('voteAverageGte', String(opts.minRating));
+        if (opts.year !== undefined) {
+            const [gte, lte] =
+                opts.mediaType === 'movie'
+                    ? ['primaryReleaseDateGte', 'primaryReleaseDateLte']
+                    : ['firstAirDateGte', 'firstAirDateLte'];
+            params.set(gte, `${opts.year}-01-01`);
+            params.set(lte, `${opts.year}-12-31`);
+        }
+
+        const endpoint = opts.mediaType === 'movie' ? 'movies' : 'tv';
+        const page = await this.#http.get<{ results?: RawSearchResult[] }>(
+            `/api/v1/discover/${endpoint}?${params.toString()}`
+        );
+
+        return (page.results ?? [])
+            .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
+            .map(r => this.#toHit(r, opts.mediaType === 'tv' ? 'series' : 'movie'));
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

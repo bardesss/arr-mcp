@@ -2,17 +2,43 @@ import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { fenceText } from '../core/fence.ts';
+import { calendarPath, readArrQueue, readRadarrCalendar } from './arrQueue.ts';
+import { flattenRatings, type RawRating } from './arrRatings.ts';
 import {
     diagnoseConnection,
+    type CalendarCapable,
+    type CalendarEntry,
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type MediaDetailCapable,
+    type MediaDetails,
+    type QueueCapable,
+    type QueueItem,
     type ScanState,
     type ScanStateCapable,
+    type SearchCapable,
+    type SearchHit,
+    type SearchSource,
     type ServiceAdapter
 } from './types.ts';
+
+type RawMovie = {
+    id?: number;
+    title?: string;
+    year?: number;
+    overview?: string;
+    monitored?: boolean;
+    hasFile?: boolean;
+    path?: string;
+    tmdbId?: number;
+    imdbId?: string;
+    ratings?: Record<string, RawRating>;
+    movieFile?: { size?: number; quality?: { quality?: { name?: string } } };
+};
 
 import type { components } from './generated/radarr.ts';
 
@@ -39,7 +65,17 @@ type RawTask = components['schemas']['TaskResource'];
  */
 const LIBRARY_SCAN_TASK = 'RefreshMovie';
 
-export class RadarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCheckCapable, ScanStateCapable {
+export class RadarrAdapter
+    implements
+        ServiceAdapter,
+        DiskSpaceCapable,
+        HealthCheckCapable,
+        ScanStateCapable,
+        QueueCapable,
+        CalendarCapable,
+        MediaDetailCapable,
+        SearchCapable
+{
     readonly id: ServiceId = 'radarr';
     readonly #http: ServiceHttp;
 
@@ -90,6 +126,81 @@ export class RadarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCh
         return {
             service: this.id,
             ...(typeof lastCompleted === 'string' ? { lastCompleted } : {})
+        };
+    }
+
+    async getQueue(): Promise<QueueItem[]> {
+        return readArrQueue(this.#http, this.id);
+    }
+
+    async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
+        const movies = await this.#http.get<Parameters<typeof readRadarrCalendar>[0]>(calendarPath(range));
+        return readRadarrCalendar(movies, this.id);
+    }
+
+    async getMediaDetails(id: string): Promise<MediaDetails> {
+        const m = await this.#http.get<RawMovie>(`/api/v3/movie/${encodeURIComponent(id)}`);
+        const ratings = flattenRatings(m.ratings);
+
+        return {
+            service: this.id,
+            kind: 'movie',
+            id,
+            title: fenceText(m.title ?? '', { service: this.id, field: 'title' }),
+            ...(m.year === undefined ? {} : { year: m.year }),
+            ...(m.overview === undefined
+                ? {}
+                : { overview: fenceText(m.overview, { service: this.id, field: 'overview' }) }),
+            ...(m.monitored === undefined ? {} : { monitored: m.monitored }),
+            ...(m.hasFile === undefined ? {} : { hasFile: m.hasFile }),
+            ...(m.movieFile?.size === undefined ? {} : { sizeBytes: m.movieFile.size }),
+            ...(m.movieFile?.quality?.quality?.name === undefined
+                ? {}
+                : { quality: m.movieFile.quality.quality.name }),
+            ...(m.path === undefined ? {} : { path: fenceText(m.path, { service: this.id, field: 'path' }) }),
+            ids: {
+                ...(m.tmdbId === undefined ? {} : { tmdb: m.tmdbId }),
+                ...(m.imdbId === undefined ? {} : { imdb: m.imdbId })
+            },
+            ...(ratings === undefined ? {} : { ratings })
+        };
+    }
+
+    async search(query: string, source: SearchSource): Promise<SearchHit[]> {
+        const term = query.toLowerCase();
+
+        if (source === 'library') {
+            // Radarr has no library search endpoint, so this fetches the whole
+            // list. Costly on a 900-film instance and correct today; design
+            // spec §16's cache is what makes it cheap, and lands in Phase 3.
+            const movies = await this.#http.get<RawMovie[]>('/api/v3/movie');
+            return movies.filter(m => (m.title ?? '').toLowerCase().includes(term)).map(m => this.#toHit(m, 'library'));
+        }
+
+        if (source === 'discover') {
+            const found = await this.#http.get<RawMovie[]>(
+                `/api/v3/movie/lookup?term=${encodeURIComponent(query)}`
+            );
+            return found.map(m => this.#toHit(m, 'discover'));
+        }
+
+        return [];
+    }
+
+    #toHit(m: RawMovie, source: SearchSource): SearchHit {
+        return {
+            service: this.id,
+            source,
+            kind: 'movie',
+            id: String(m.id ?? m.tmdbId ?? ''),
+            title: fenceText(m.title ?? '', { service: this.id, field: 'title' }),
+            ...(m.year === undefined ? {} : { year: m.year }),
+            ids: {
+                ...(m.tmdbId === undefined ? {} : { tmdb: m.tmdbId }),
+                ...(m.imdbId === undefined ? {} : { imdb: m.imdbId })
+            },
+            ...(m.hasFile === undefined ? {} : { hasFile: m.hasFile }),
+            ...(m.monitored === undefined ? {} : { monitored: m.monitored })
         };
     }
 

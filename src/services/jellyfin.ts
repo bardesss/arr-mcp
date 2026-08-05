@@ -2,11 +2,18 @@ import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
 import { embyToken } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
+    type MediaDetailCapable,
+    type MediaDetails,
+    type PlaybackEntry,
     type ScanState,
     type ScanStateCapable,
+    type SearchCapable,
+    type SearchHit,
+    type SearchSource,
     type ServiceAdapter,
     type ServiceUser,
     type UserDirectoryCapable
@@ -38,7 +45,54 @@ type RawTask = {
  */
 const LIBRARY_SCAN_KEY = 'RefreshLibrary';
 
-export class JellyfinAdapter implements ServiceAdapter, ScanStateCapable, UserDirectoryCapable {
+type RawItem = {
+    Id?: string;
+    Name?: string;
+    SeriesName?: string;
+    ParentIndexNumber?: number;
+    IndexNumber?: number;
+    RunTimeTicks?: number;
+    UserData?: { PlaybackPositionTicks?: number; LastPlayedDate?: string };
+};
+type RawSession = {
+    UserId?: string;
+    UserName?: string;
+    DeviceName?: string;
+    NowPlayingItem?: RawItem;
+    PlayState?: { PositionTicks?: number };
+};
+type RawItemsPage = { Items?: RawItem[] };
+
+/** Jellyfin measures time in 100-nanosecond ticks. Nothing else in the stack does. */
+const TICKS_PER_SECOND = 10_000_000;
+const ticksToSeconds = (ticks: number | undefined): number | undefined =>
+    typeof ticks === 'number' ? Math.round(ticks / TICKS_PER_SECOND) : undefined;
+
+type RawItemDetail = {
+    Id?: string;
+    Name?: string;
+    ProductionYear?: number;
+    Overview?: string;
+    Path?: string;
+    Type?: string;
+    ProviderIds?: { Tmdb?: string; Tvdb?: string; Imdb?: string };
+    MediaSources?: { Size?: number }[];
+};
+
+/**
+ * Jellyfin stores external ids as **strings** while Radarr and Sonarr use
+ * numbers. Phase 3's identity resolver joins on tmdbId and tvdbId, so a string
+ * here would silently fail every join — convert at the boundary.
+ */
+const numericId = (value: string | undefined): number | undefined => {
+    if (value === undefined) return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+export class JellyfinAdapter
+    implements ServiceAdapter, ScanStateCapable, UserDirectoryCapable, MediaDetailCapable, SearchCapable
+{
     readonly id: ServiceId = 'jellyfin';
     readonly #http: ServiceHttp;
 
@@ -76,6 +130,117 @@ export class JellyfinAdapter implements ServiceAdapter, ScanStateCapable, UserDi
             running: scan?.State === 'Running',
             ...(typeof lastCompleted === 'string' ? { lastCompleted } : {})
         };
+    }
+
+    /**
+     * Sessions are global — an admin key sees the whole household — so they are
+     * filtered to the resolved user here. The identity gate has already decided
+     * that this user may be queried; this is the mechanical narrowing, not the
+     * authorization decision.
+     */
+    async getPlayback(user: ServiceUser): Promise<PlaybackEntry[]> {
+        const fence = (field: string, value: string) => fenceText(value, { service: this.id, field });
+
+        const [sessions, resume] = await Promise.all([
+            this.#http.get<RawSession[]>('/Sessions'),
+            this.#http.get<RawItemsPage>(`/Users/${encodeURIComponent(user.id)}/Items/Resume`)
+        ]);
+
+        const common = (item: RawItem) => ({
+            service: this.id,
+            itemId: item.Id ?? '',
+            title: fence('Name', item.Name ?? ''),
+            ...(item.SeriesName === undefined ? {} : { seriesTitle: fence('SeriesName', item.SeriesName) }),
+            ...(item.ParentIndexNumber === undefined ? {} : { season: item.ParentIndexNumber }),
+            ...(item.IndexNumber === undefined ? {} : { episode: item.IndexNumber }),
+            user: user.name
+        });
+
+        const progress = (position: number | undefined, runtime: number | undefined) => ({
+            ...(position === undefined ? {} : { positionSeconds: position }),
+            ...(runtime === undefined ? {} : { runtimeSeconds: runtime }),
+            // Guarded against a zero runtime, which would divide to Infinity.
+            ...(position !== undefined && runtime !== undefined && runtime > 0
+                ? { percentComplete: Math.round((position / runtime) * 100) }
+                : {})
+        });
+
+        const nowPlaying: PlaybackEntry[] = sessions
+            .filter(s => s.UserId === user.id && s.NowPlayingItem !== undefined)
+            .map(s => {
+                const item = s.NowPlayingItem as RawItem;
+                return {
+                    ...common(item),
+                    kind: 'now_playing' as const,
+                    ...progress(ticksToSeconds(s.PlayState?.PositionTicks), ticksToSeconds(item.RunTimeTicks)),
+                    ...(s.DeviceName === undefined ? {} : { device: s.DeviceName })
+                };
+            });
+
+        const resuming: PlaybackEntry[] = (resume.Items ?? []).map(item => ({
+            ...common(item),
+            kind: 'resume' as const,
+            ...progress(ticksToSeconds(item.UserData?.PlaybackPositionTicks), ticksToSeconds(item.RunTimeTicks)),
+            ...(item.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: item.UserData.LastPlayedDate })
+        }));
+
+        return [...nowPlaying, ...resuming];
+    }
+
+    async getMediaDetails(id: string): Promise<MediaDetails> {
+        const item = await this.#http.get<RawItemDetail>(`/Items/${encodeURIComponent(id)}`);
+        const tmdb = numericId(item.ProviderIds?.Tmdb);
+        const tvdb = numericId(item.ProviderIds?.Tvdb);
+
+        return {
+            service: this.id,
+            kind: 'item',
+            id,
+            title: fenceText(item.Name ?? '', { service: this.id, field: 'Name' }),
+            ...(item.ProductionYear === undefined ? {} : { year: item.ProductionYear }),
+            ...(item.Overview === undefined
+                ? {}
+                : { overview: fenceText(item.Overview, { service: this.id, field: 'Overview' }) }),
+            ...(item.MediaSources?.[0]?.Size === undefined ? {} : { sizeBytes: item.MediaSources[0].Size }),
+            ...(item.Path === undefined ? {} : { path: fenceText(item.Path, { service: this.id, field: 'Path' }) }),
+            ids: {
+                ...(tmdb === undefined ? {} : { tmdb }),
+                ...(tvdb === undefined ? {} : { tvdb }),
+                ...(item.ProviderIds?.Imdb === undefined ? {} : { imdb: item.ProviderIds.Imdb })
+            }
+        };
+    }
+
+    /**
+     * Jellyfin is the only service that knows what has actually been *watched*,
+     * which is the gap design spec §12 says upstream never closed.
+     */
+    async search(query: string, source: SearchSource): Promise<SearchHit[]> {
+        if (source !== 'library') return [];
+
+        const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
+            `/Items?searchTerm=${encodeURIComponent(query)}&Recursive=true&IncludeItemTypes=Movie,Series`
+        );
+
+        return (page.Items ?? [])
+            .filter((i): i is RawItemDetail & { Id: string } => typeof i.Id === 'string')
+            .map(i => {
+                const tmdb = numericId(i.ProviderIds?.Tmdb);
+                const tvdb = numericId(i.ProviderIds?.Tvdb);
+                return {
+                    service: this.id,
+                    source: 'library' as const,
+                    kind: i.Type === 'Series' ? ('series' as const) : ('item' as const),
+                    id: i.Id,
+                    title: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
+                    ...(i.ProductionYear === undefined ? {} : { year: i.ProductionYear }),
+                    ids: {
+                        ...(tmdb === undefined ? {} : { tmdb }),
+                        ...(tvdb === undefined ? {} : { tvdb }),
+                        ...(i.ProviderIds?.Imdb === undefined ? {} : { imdb: i.ProviderIds.Imdb })
+                    }
+                };
+            });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
