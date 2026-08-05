@@ -97,7 +97,12 @@ const TLS_CODES = new Set([
 ]);
 
 export function classifyFetchError(err: unknown, service: ServiceId, url: string): ServiceError {
-    const e = (err ?? {}) as { name?: string; code?: string; message?: string; cause?: { code?: string } };
+    const e = (err ?? {}) as {
+        name?: string;
+        code?: string;
+        message?: string;
+        cause?: { code?: string; message?: string };
+    };
     // undici wraps the OS-level failure one level down as `cause`.
     const code = e.code ?? e.cause?.code;
     const host = safeHost(url);
@@ -126,5 +131,32 @@ export function classifyFetchError(err: unknown, service: ServiceId, url: string
             cause: err
         });
     }
-    return new ServiceError('Unreachable', service, `${e.message ?? 'unknown error'} at ${host}`, { cause: err });
+    // Windows reports a firewall-blocked outbound connection as EACCES on
+    // connect, which reads nothing like a permission problem to the user.
+    if (code === 'EACCES' || code === 'EPERM') {
+        return new ServiceError('Unreachable', service, `connection blocked at ${host}`, {
+            remedy: 'Something refused to let the connection out — usually a local firewall. Check the host can reach that address and port.',
+            cause: err
+        });
+    }
+    if (code === 'EHOSTUNREACH' || code === 'ENETUNREACH') {
+        return new ServiceError('Unreachable', service, `no route to ${host}`, {
+            remedy: 'That address is not reachable from this machine. Check the IP is right and on a network this host can see.',
+            cause: err
+        });
+    }
+    if (code === 'ETIMEDOUT') {
+        // Deliberately Unreachable rather than Timeout: Timeout makes reads
+        // retry once, and a connect that timed out against a dead address will
+        // simply time out again, doubling the wait for no new information.
+        return new ServiceError('Unreachable', service, `connection to ${host} timed out`, {
+            remedy: 'Nothing answered at that address. Check the IP and port, and that a firewall is not dropping the packets.',
+            cause: err
+        });
+    }
+
+    // undici's own message is always the useless "fetch failed"; the cause
+    // carries the one that says what actually happened.
+    const detail = e.cause?.message ?? e.message ?? 'unknown error';
+    return new ServiceError('Unreachable', service, `${detail} at ${host}`, { cause: err });
 }
