@@ -177,7 +177,15 @@ const CONTRACTS: Record<string, ServiceContract> = {
         dependencies: [
             { fixture: 'test/fixtures/seerr/status.json', fields: ['version'] },
             { fixture: 'test/fixtures/seerr/user.json', fields: ['results'] },
-            { fixture: 'test/fixtures/seerr/request.json', fields: ['results'] },
+            {
+                // `results.media.tvdbId` is read as the diagnose matcher's
+                // fallback when a request carries no tmdbId (Task 7 Finding
+                // B). Present but null on every recorded row, since the
+                // capture happens to hold only movie requests — nullability
+                // is confirmed against specs/seerr.json's MediaInfo schema.
+                fixture: 'test/fixtures/seerr/request.json',
+                fields: ['results', 'results.media.tvdbId']
+            },
             { fixture: 'test/fixtures/seerr/discover-movies.json', fields: ['results'] }
         ]
     },

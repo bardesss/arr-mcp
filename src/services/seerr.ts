@@ -31,7 +31,7 @@ type RawRequest = {
     id?: number;
     status?: number;
     createdAt?: string;
-    media?: { tmdbId?: number; mediaType?: string; title?: string };
+    media?: { tmdbId?: number; tvdbId?: number | null; mediaType?: string; title?: string };
     requestedBy?: { id?: number; displayName?: string; username?: string; email?: string };
 };
 type RawRequestPage = { results?: RawRequest[] };
@@ -106,6 +106,10 @@ export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable, Searc
                 status: STATUS[r.status ?? -1] ?? ('unknown' as const),
                 mediaType: mediaTypeOf(r.media?.mediaType),
                 ...(r.media?.tmdbId === undefined ? {} : { tmdbId: r.media.tmdbId }),
+                // Seerr's MediaInfo carries tvdbId nullable (specs/seerr.json):
+                // populated for tv media, always null for movies. Matching the
+                // movie fixture, which carries the key present but null.
+                ...(r.media?.tvdbId === undefined || r.media?.tvdbId === null ? {} : { tvdbId: r.media.tvdbId }),
                 ...(r.media?.title === undefined
                     ? {}
                     : { title: fenceText(r.media.title, { service: this.id, field: 'title' }) }),

@@ -199,6 +199,7 @@ export type MediaRequest = {
     status: RequestStatus | 'unknown';
     mediaType: 'movie' | 'tv' | 'unknown';
     tmdbId?: number;
+    tvdbId?: number;
     title?: string;
     requestedBy: string;
     requestedAt?: string;
