@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import type { ServiceId } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { rankTitle, unfenced } from '../core/titleMatch.ts';
 import { hasSearch, type SearchHit, type SearchSource, type ServiceAdapter } from '../services/types.ts';
 
 export type GetSearchResult = {
@@ -23,27 +24,6 @@ const project = (h: SearchHit, detail: DetailLevel): SearchHit => {
     return rest;
 };
 
-const RANK_EXACT = 0;
-const RANK_PREFIX = 1;
-const RANK_SUBSTRING = 2;
-
-/** Fenced titles carry a boundary prefix; comparison strips it before matching. */
-const unfenced = (value: string): string =>
-    value.replace(/^<<untrusted:[^>]*>>/, '').replace(/<<\/untrusted>>$/, '');
-
-/**
- * Ranks a hit against the query: exact, then prefix, then substring — so a
- * truncated search returns the best matches rather than the first service
- * alphabetically.
- */
-function rank(hit: SearchHit, query: string): number {
-    const title = unfenced(hit.title).toLowerCase();
-    const term = query.toLowerCase();
-    if (title === term) return RANK_EXACT;
-    if (title.startsWith(term)) return RANK_PREFIX;
-    return RANK_SUBSTRING;
-}
-
 export async function buildSearchMedia(
     adapters: readonly ServiceAdapter[],
     opts: { query: string; source: SearchSource; detail: DetailLevel; limit: number }
@@ -56,7 +36,9 @@ export async function buildSearchMedia(
     // alphabetical — so limiting an unsorted merge would drop Sonarr's results
     // whenever Radarr returned enough of its own, regardless of relevance.
     items.sort(
-        (a, b) => rank(a, opts.query) - rank(b, opts.query) || unfenced(a.title).localeCompare(unfenced(b.title))
+        (a, b) =>
+            rankTitle(a.title, opts.query) - rankTitle(b.title, opts.query) ||
+            unfenced(a.title).localeCompare(unfenced(b.title))
     );
 
     const shaped = applyLimit(items, opts.limit);
