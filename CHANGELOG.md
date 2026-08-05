@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/bardesss/arr-mcp/compare/v0.2.1...v0.3.0) (2026-08-05)
+
+
+### Features
+
+* complete Phase 2 — the ten read tools ([#23](https://github.com/bardesss/arr-mcp/issues/23)) ([4fd103c](https://github.com/bardesss/arr-mcp/commit/4fd103c15165ef75afad7e2578139a74526f9211))
+* complete Phase 2a — seven adapters, registry, stack_health across eight services ([#22](https://github.com/bardesss/arr-mcp/issues/22)) ([0b8d614](https://github.com/bardesss/arr-mcp/commit/0b8d6144623cf277184c82f3e617c2252275c71b))
+* Phase 2a foundation — per-service config, ServiceHttp, capability interfaces ([#15](https://github.com/bardesss/arr-mcp/issues/15)) ([f5fefc8](https://github.com/bardesss/arr-mcp/commit/f5fefc88eb064f9321038257141dbd541aa8cccb))
+* Phase 2b core modules — fencing, gathering, identity, budgets ([#17](https://github.com/bardesss/arr-mcp/issues/17)) ([00928d0](https://github.com/bardesss/arr-mcp/commit/00928d061f957e07b4393049df14e5290cf44009))
+* vendor OpenAPI specs, codegen, and fixture capture with a secret guard ([#16](https://github.com/bardesss/arr-mcp/issues/16)) ([f3c6e50](https://github.com/bardesss/arr-mcp/commit/f3c6e501625e68a451ccd12e9ed36667d0eb55e8))
+
+
+### Bug Fixes
+
+* classify the connect failures a wrong LAN address actually produces ([#20](https://github.com/bardesss/arr-mcp/issues/20)) ([13d1306](https://github.com/bardesss/arr-mcp/commit/13d1306953da7ce9efd41f3ca4fa74bdcca98ddb))
+* remove the byte order mark that broke release-please ([#19](https://github.com/bardesss/arr-mcp/issues/19)) ([36eb5bb](https://github.com/bardesss/arr-mcp/commit/36eb5bbabcab66ed7a4539cc1d9e4dfe8d2a5aad))
+
 ## [0.2.1](https://github.com/bardesss/arr-mcp/compare/v0.2.0...v0.2.1) (2026-08-05)
 
 
