@@ -13,6 +13,10 @@
       "CommunityRating": 7.096,
       "RunTimeTicks": 84472920000,
       "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt11563598",
+        "Tmdb": "661539"
+      },
       "IsFolder": false,
       "Type": "Movie",
       "VideoType": "VideoFile",
@@ -54,6 +58,10 @@
       "CommunityRating": 6.45,
       "RunTimeTicks": 69041250000,
       "ProductionYear": 2025,
+      "ProviderIds": {
+        "Imdb": "tt32376165",
+        "Tmdb": "1290159"
+      },
       "IsFolder": false,
       "Type": "Movie",
       "VideoType": "VideoFile",
@@ -91,6 +99,13 @@
       "ChannelId": null,
       "RunTimeTicks": 19800000000,
       "ProductionYear": 2026,
+      "ProviderIds": {
+        "Imdb": "tt27497448",
+        "Tmdb": "224372",
+        "Tvdb": "433631",
+        "TvdbCollection": "7038;",
+        "TvdbSlug": "a-knight-of-the-seven-kingdoms-the-hedge-knight"
+      },
       "IsFolder": true,
       "Type": "Series",
       "Status": "Continuing",
@@ -135,6 +150,10 @@
       "CommunityRating": 6.2,
       "RunTimeTicks": 73274240000,
       "ProductionYear": 2025,
+      "ProviderIds": {
+        "Imdb": "tt33474172",
+        "Tmdb": "1397832"
+      },
       "IsFolder": false,
       "Type": "Movie",
       "VideoType": "VideoFile",
@@ -171,6 +190,12 @@
       "ChannelId": null,
       "RunTimeTicks": 31800000000,
       "ProductionYear": 2024,
+      "ProviderIds": {
+        "Imdb": "tt33079160",
+        "Tmdb": "261034",
+        "Tvdb": "452965",
+        "TvdbSlug": "american-murder-laci-peterson"
+      },
       "IsFolder": true,
       "Type": "Series",
       "Status": "Ended",

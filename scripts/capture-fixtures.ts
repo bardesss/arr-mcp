@@ -189,7 +189,10 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'sessions', path: '/Sessions' },
         {
             name: 'items-search',
-            path: '/Items?searchTerm=a&Recursive=true&IncludeItemTypes=Movie,Series&Limit=5'
+            // Must match what JellyfinAdapter.search actually requests. Without
+            // Fields, Jellyfin returns no ProviderIds at all — which is exactly
+            // what the resolver joins on.
+            path: '/Items?searchTerm=a&Recursive=true&IncludeItemTypes=Movie,Series&Limit=5&Fields=ProviderIds'
         }
     ],
     seerr: [
