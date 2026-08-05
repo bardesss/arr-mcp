@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
+import type { ServiceAdapter } from '../src/services/types.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { buildDiscoverMedia } from '../src/tools/discoverMedia.ts';
-import { buildGetMediaDetails } from '../src/tools/getMediaDetails.ts';
+import { buildGetMediaDetails, resolveMediaDetails } from '../src/tools/getMediaDetails.ts';
+import { LibraryLoader } from '../src/tools/library.ts';
 import { buildLookupMedia } from '../src/tools/lookupMedia.ts';
 import { buildSearchMedia } from '../src/tools/searchMedia.ts';
 import { repeat } from './helpers/bigFixture.ts';
@@ -377,6 +379,70 @@ describe('get_media_details', () => {
             limit: 500
         });
         expectWithinBudget(result, 30_000);
+    });
+
+    const RESOLVED = {
+        kind: 'movie' as const,
+        title: '<<untrusted:radarr.title>>The Matrix<</untrusted>>',
+        year: 1999,
+        ids: { tmdb: 603 },
+        acquisition: { service: 'radarr' as const, monitored: true, hasFile: true }
+    };
+
+    const loader = () =>
+        new LibraryLoader(
+            [
+                {
+                    id: 'radarr',
+                    testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                    getVersion: async () => '1.0.0',
+                    listLibrary: async () => [RESOLVED]
+                } as unknown as ServiceAdapter
+            ],
+            undefined
+        );
+
+    const query = { detail: 'standard' as const, limit: 50 };
+
+    it('answers a title query from the merged record', async () => {
+        const result = await resolveMediaDetails([], loader(), { ...query, query: 'matrix' });
+        expect(result).toMatchObject({ title: RESOLVED.title, presence: 'arr_only' });
+    });
+
+    it('matches through a leading article the caller omitted', async () => {
+        const result = await resolveMediaDetails([], loader(), { ...query, query: 'the matrix' });
+        expect(result).toMatchObject({ ids: { tmdb: 603 } });
+    });
+
+    it('throws rather than returning an empty success when nothing matches', async () => {
+        // A request for one item either produced it or did not; an empty
+        // success reads as "the item does not exist".
+        await expect(resolveMediaDetails([], loader(), { ...query, query: 'zzzz' })).rejects.toThrow(
+            /nothing in your library matches/i
+        );
+    });
+
+    it('keeps the explicit form, which is how you inspect one side of a join', async () => {
+        const result = await resolveMediaDetails([detailRadarr], loader(), {
+            ...query,
+            service: 'radarr',
+            id: '42'
+        });
+        expect(result).toMatchObject({ service: 'radarr', id: '42' });
+    });
+
+    it('prefers the explicit id when given both — an id is unambiguous and a title is not', async () => {
+        const result = await resolveMediaDetails([detailRadarr], loader(), {
+            ...query,
+            query: 'matrix',
+            service: 'radarr',
+            id: '42'
+        });
+        expect(result).toMatchObject({ service: 'radarr' });
+    });
+
+    it('names the parameters when given neither', async () => {
+        await expect(resolveMediaDetails([detailRadarr], loader(), query)).rejects.toThrow(/query.*service.*id/i);
     });
 });
 

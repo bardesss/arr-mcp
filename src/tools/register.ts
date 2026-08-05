@@ -71,7 +71,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, jellyfin, jellyfinIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
-    registerGetMediaDetails(server, adapters);
+    registerGetMediaDetails(server, adapters, library);
     registerGetLibrary(server, library);
     registerSearchMedia(server, adapters);
     registerLookupMedia(server, adapters);
