@@ -70,6 +70,29 @@ Three of the eight services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
+## Vendored API specs
+
+`specs/*.json` are upstream OpenAPI documents, refreshed by `npm run specs:fetch`
+and regenerated into `src/services/generated/` by `npm run codegen`. Both are
+committed. A nightly workflow re-fetches them and opens a PR when upstream
+changes, so **review `specs/` in that diff** — the generated files are output,
+not source, and are not meant to be read by hand.
+
+Radarr, Sonarr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd and
+Transmission publish no usable spec and are hand-written against recorded
+fixtures.
+
+Two things worth knowing before you touch this:
+
+- **The generator runs through `npx` at a pinned version, not as a
+  devDependency.** `openapi-typescript` requires `typescript@^5.x` and this
+  project is pinned to TypeScript 6, so a local install cannot resolve. Running
+  it in npx's isolated tree keeps the conflict out of ours, and the tool is not
+  part of the shipped artefact — its reviewed output is.
+- **The generated types are nullable where the spec says nullable.** If a mapper
+  fails to typecheck against them, fix the mapper. Do not widen it with a cast:
+  that failure is the codegen doing the job it was added for.
+
 ## Reporting a bug
 
 Please include service versions, your arr-mcp version, and redacted logs.

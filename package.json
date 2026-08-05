@@ -18,7 +18,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "specs:fetch": "bash scripts/fetch-specs.sh",
+    "codegen": "node scripts/codegen.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.0",

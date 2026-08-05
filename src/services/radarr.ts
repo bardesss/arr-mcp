@@ -14,11 +14,16 @@ import {
     type ServiceAdapter
 } from './types.ts';
 
-/** Hand-written until Task 4 replaces them with generated types. */
-type RawStatus = { appName?: string; version?: string; instanceName?: string };
-type RawDiskSpace = { path?: string; label?: string; freeSpace?: number; totalSpace?: number };
-type RawHealthCheck = { source?: string; type?: string; message?: string };
-type RawTask = { taskName?: string; lastExecution?: string };
+import type { components } from './generated/radarr.ts';
+
+/**
+ * Generated from the vendored spec, so an upstream field rename becomes a
+ * typecheck failure here rather than a runtime surprise for a user.
+ */
+type RawStatus = components['schemas']['SystemResource'];
+type RawDiskSpace = components['schemas']['DiskSpaceResource'];
+type RawHealthCheck = components['schemas']['HealthResource'];
+type RawTask = components['schemas']['TaskResource'];
 
 /**
  * Task names whose last execution stands in for "when did the library last get
@@ -45,12 +50,15 @@ export class RadarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCh
 
     async getDiskSpace(): Promise<DiskSpace[]> {
         const rows = await this.#http.get<RawDiskSpace[]>('/api/v3/diskspace');
+        // The generated types mark these nullable, not merely optional — the
+        // spec really does allow nulls. Narrowing on the value rather than on
+        // `!== undefined` is what keeps a null out of a `string` field.
         return rows.map(r => ({
             service: this.id,
-            ...(r.path === undefined ? {} : { path: r.path }),
+            ...(typeof r.path === 'string' ? { path: r.path } : {}),
             label: r.label ?? '',
             freeSpace: r.freeSpace ?? 0,
-            ...(r.totalSpace === undefined ? {} : { totalSpace: r.totalSpace })
+            ...(typeof r.totalSpace === 'number' ? { totalSpace: r.totalSpace } : {})
         }));
     }
 
