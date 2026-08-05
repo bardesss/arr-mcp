@@ -135,6 +135,26 @@ describe('LibraryLoader', () => {
         expect(snapshot.degraded).toEqual(['jellyfin']);
     });
 
+    it('degrades rather than fails when Jellyfin is unreachable, even with a user named', async () => {
+        // Naming a user must not turn a plain outage into a hard failure of
+        // the whole library read — the *arr half is still worth returning.
+        // Before this fix, #resolveUser propagated on `requested !== undefined`
+        // alone, so this exact case (a named user, an Unreachable error) threw.
+        const down = identity(new ServiceError('Unreachable', 'jellyfin', 'connection refused'));
+        const snapshot = await new LibraryLoader([radarr(), jellyfin({})], down).load('Someone');
+
+        expect(snapshot.index.size()).toBe(1);
+        expect(snapshot.degraded).toEqual(['jellyfin']);
+    });
+
+    it('propagates when an explicitly named user does not exist', async () => {
+        // Unlike the no-default-configured case above, a user *was* named —
+        // degrading here would silently answer as if nobody had asked.
+        const ghost = identity(new ServiceError('NotFound', 'jellyfin', 'no user named "Ghost"'));
+        const loader = new LibraryLoader([radarr(), jellyfin({})], ghost);
+        await expect(loader.load('Ghost')).rejects.toThrow(/no user named/);
+    });
+
     it('returns an empty index when nothing is configured', async () => {
         const snapshot = await new LibraryLoader([], undefined).load();
         expect(snapshot.index.size()).toBe(0);

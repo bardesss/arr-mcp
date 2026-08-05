@@ -1,5 +1,6 @@
 import type { ServiceId } from '../config/schema.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
+import { ServiceError } from '../core/errors.ts';
 import { gather, type Source } from '../core/gather.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
@@ -42,29 +43,45 @@ export class LibraryLoader {
         // a privacy one.
         const key = `library:${resolved?.id ?? 'none'}`;
 
-        const snapshot = await this.#cache.get(key, LIBRARY_TTL_MS, () => this.#build(resolved));
-
         // A partial load is not worth five minutes of cache: the missing
         // service is usually restarting, and the next call should find it.
-        if (snapshot.degraded.length > 0) this.#cache.invalidate(key);
-        return snapshot;
+        // Declined via `shouldCache` rather than a follow-up `invalidate()`:
+        // invalidate has no way to tell "my degraded load lost a race to a
+        // fresher, complete one" from "nothing raced me" — it would delete
+        // the good entry in the first case. `shouldCache` runs on the same
+        // identity check the cache's own failure path uses, so only this
+        // exact load's entry is ever dropped.
+        return this.#cache.get(key, LIBRARY_TTL_MS, () => this.#build(resolved), snapshot => snapshot.degraded.length === 0);
     }
 
     /**
-     * Returns undefined when there is no Jellyfin half to fetch, and **throws
-     * when a named user was refused**. Flattening a refusal into `degraded`
-     * would tell the model the service was down, and it would retry forever.
+     * Returns undefined when there is no Jellyfin half to fetch. The decision
+     * to propagate or degrade turns on the error's *kind*, not on whether a
+     * user was named — naming someone must not turn a plain Jellyfin outage
+     * into a hard failure of the whole library read; the *arr half is still
+     * worth returning:
+     *
+     * - `AuthFailed` always propagates — the model must not retry a refusal.
+     * - `NotFound` propagates only when a user was explicitly requested: the
+     *   caller named someone who does not exist, and degrading would silently
+     *   answer as if nobody had asked. Unrequested, `NotFound` means "no
+     *   default user is configured," a configuration gap that still degrades.
+     * - Everything else — `Unreachable`, `Timeout`, `UpstreamError`, and any
+     *   non-`ServiceError` — degrades regardless of whether a user was named.
      */
     async #resolveUser(requested: string | undefined): Promise<ServiceUser | undefined> {
         if (this.#identity === undefined) return undefined;
         try {
             return await this.#identity.resolve(requested);
         } catch (err) {
-            if (requested !== undefined) throw err;
-            // No user was asked for and none is configured — a configuration
-            // gap, not a refusal. Build the *arr half and say Jellyfin is
-            // missing from the answer.
-            logger.warn({ service: 'jellyfin', err }, 'no default user; building the library without watch state');
+            if (err instanceof ServiceError) {
+                if (err.kind === 'AuthFailed') throw err;
+                if (err.kind === 'NotFound' && requested !== undefined) throw err;
+            }
+            logger.warn(
+                { service: 'jellyfin', err },
+                'jellyfin identity unavailable; building the library without watch state'
+            );
             return undefined;
         }
     }
