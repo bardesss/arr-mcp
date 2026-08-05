@@ -25,6 +25,17 @@ npm run typecheck  # tsc --noEmit
 npm test           # vitest
 ```
 
+## Dependencies
+
+Renovate opens one grouped PR a month for non-major updates, and immediate PRs
+for security advisories. Two things it deliberately will not do on its own:
+
+- **TypeScript** is pinned with `~` because `typescript-eslint` declares a peer
+  range it has to stay inside. A major bump silently disables linting, so it is
+  a human decision.
+- **Node majors** touch the Dockerfile, the CI workflow and `engines` together,
+  so they wait for approval on the dependency dashboard.
+
 ## Commit messages
 
 [Conventional Commits](https://www.conventionalcommits.org/) — release-please

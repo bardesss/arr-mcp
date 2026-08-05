@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 5am on the first day of the month"],
+  "timezone": "Europe/Amsterdam",
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 3,
+  "packageRules": [
+    {
+      "description": "One PR for all non-major updates. A solo maintainer reviewing eight separate patch bumps is eight chances to rubber-stamp one.",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "non-major dependencies"
+    },
+    {
+      "description": "TypeScript is pinned with ~ because typescript-eslint declares a peer range it must stay inside. A major bump here silently disables linting, so it needs a human.",
+      "matchPackageNames": ["typescript"],
+      "enabled": false
+    },
+    {
+      "description": "Node major bumps touch the Dockerfile, CI and engines together.",
+      "matchPackageNames": ["node", "@types/node"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  }
+}
