@@ -59,6 +59,118 @@ describe('ConfigSchema', () => {
     });
 });
 
+describe('per-service config shapes', () => {
+    it('accepts transmission with username and password and no api_key', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { transmission: { url: 'http://h:9091', username: 'u', password: 'p' } }
+        });
+        expect(parsed.services.transmission?.username).toBe('u');
+    });
+
+    it('accepts transmission with no credentials at all — LAN RPC is often unauthenticated', () => {
+        const result = ConfigSchema.safeParse({
+            auth: AUTH,
+            services: { transmission: { url: 'http://h:9091' } }
+        });
+        expect(result.success).toBe(true);
+    });
+
+    it('rejects an api_key on transmission rather than silently ignoring it', () => {
+        const result = ConfigSchema.safeParse({
+            auth: AUTH,
+            services: { transmission: { url: 'http://h:9091', api_key: 'k' } }
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('still requires an api_key on radarr', () => {
+        const result = ConfigSchema.safeParse({
+            auth: AUTH,
+            services: { radarr: { url: 'http://h:7878' } }
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('defaults allow_other_users to false on jellyfin', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { jellyfin: { url: 'http://h:8096', api_key: 'k' } }
+        });
+        expect(parsed.services.jellyfin?.allow_other_users).toBe(false);
+    });
+
+    it('leaves default_user unset when it is not configured', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { jellyfin: { url: 'http://h:8096', api_key: 'k' } }
+        });
+        expect(parsed.services.jellyfin?.default_user).toBeUndefined();
+    });
+
+    it('carries default_user through when configured', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { seerr: { url: 'http://h:5055', api_key: 'k', default_user: 'bartus' } }
+        });
+        expect(parsed.services.seerr?.default_user).toBe('bartus');
+    });
+
+    it('rejects default_user on a single-tenant service, which has no users', () => {
+        const result = ConfigSchema.safeParse({
+            auth: AUTH,
+            services: { radarr: { url: 'http://h:7878', api_key: 'k', default_user: 'bartus' } }
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('rejects a misspelled key rather than dropping it silently', () => {
+        const result = ConfigSchema.safeParse({
+            auth: AUTH,
+            services: { radarr: { url: 'http://h:7878', api_key: 'k', timout_ms: 500 } }
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('keeps an existing Phase 1 radarr-only config valid', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { radarr: { url: 'http://192.168.1.20:7878', api_key: 'k' } }
+        });
+        expect(parsed.services.radarr?.timeout_ms).toBe(10_000);
+        expect(parsed.services.radarr?.permissions).toEqual({ safe_write: false, destructive: false });
+    });
+
+    it('accepts all eight services configured at once', () => {
+        const keyed = (port: number) => ({ url: `http://h:${port}`, api_key: 'k' });
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: {
+                radarr: keyed(7878),
+                sonarr: keyed(8989),
+                prowlarr: keyed(9696),
+                bazarr: keyed(6767),
+                sabnzbd: keyed(8080),
+                jellyfin: { ...keyed(8096), default_user: 'Bartus' },
+                seerr: { ...keyed(5055), default_user: 'bartus', allow_other_users: true },
+                transmission: { url: 'http://h:9091', username: 'u', password: 'p' }
+            }
+        });
+
+        expect(Object.keys(parsed.services).sort()).toEqual([
+            'bazarr',
+            'jellyfin',
+            'prowlarr',
+            'radarr',
+            'sabnzbd',
+            'seerr',
+            'sonarr',
+            'transmission'
+        ]);
+        expect(parsed.services.seerr?.allow_other_users).toBe(true);
+    });
+});
+
 describe('loadConfig', () => {
     it('creates config.yaml with a generated bearer token on first run', async () => {
         const dir = await freshDir();

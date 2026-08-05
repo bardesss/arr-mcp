@@ -4,7 +4,14 @@ import type { ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
-import type { ArrAdapter, ConnectionDiagnosis, DiskSpace, HealthCheck, ServiceAdapter } from '../services/types.ts';
+import {
+    hasDiskSpace,
+    hasHealthChecks,
+    type ConnectionDiagnosis,
+    type DiskSpace,
+    type HealthCheck,
+    type ServiceAdapter
+} from '../services/types.ts';
 
 type Shaped<T> = { items: T[]; total: number; returned: number; truncated: boolean };
 
@@ -14,9 +21,6 @@ export type StackHealthResult = {
     failures: Shaped<HealthCheck>;
     degraded: ServiceId[];
 };
-
-const isArr = (a: ServiceAdapter): a is ArrAdapter =>
-    'getDiskSpace' in a && typeof (a as ArrAdapter).getDiskSpace === 'function';
 
 /**
  * Composes per-service diagnoses into one answer. This tool must work
@@ -63,11 +67,11 @@ export async function buildStackHealth(
                 return; // do not hammer a service that just failed its probe
             }
 
-            if (!isArr(adapter)) return;
-
+            // A service with neither capability contributes its diagnosis and
+            // no rows, rather than being special-cased out of the loop.
             const [diskResult, healthResult] = await Promise.allSettled([
-                adapter.getDiskSpace(),
-                adapter.getFailedHealthChecks()
+                hasDiskSpace(adapter) ? adapter.getDiskSpace() : Promise.resolve([]),
+                hasHealthChecks(adapter) ? adapter.getFailedHealthChecks() : Promise.resolve([])
             ]);
 
             if (diskResult.status === 'fulfilled') {
