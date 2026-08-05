@@ -1,0 +1,37 @@
+{
+  "OperatingSystemDisplayName": "",
+  "HasPendingRestart": false,
+  "IsShuttingDown": false,
+  "SupportsLibraryMonitor": true,
+  "WebSocketPortNumber": 8096,
+  "CompletedInstallations": [],
+  "CanSelfRestart": true,
+  "CanLaunchWebBrowser": false,
+  "ProgramDataPath": "/config/data",
+  "WebPath": "/usr/share/jellyfin/web",
+  "ItemsByNamePath": "/config/data/metadata",
+  "CachePath": "/config/cache",
+  "LogPath": "/config/log",
+  "InternalMetadataPath": "/config/data/metadata",
+  "TranscodingTempPath": "/config/data/transcodes",
+  "CastReceiverApplications": [
+    {
+      "Id": "F007D354",
+      "Name": "Stable"
+    },
+    {
+      "Id": "6F511C87",
+      "Name": "Unstable"
+    }
+  ],
+  "HasUpdateAvailable": false,
+  "EncoderLocation": "System",
+  "SystemArchitecture": "X64",
+  "LocalAddress": "http://192.0.2.10:8096",
+  "ServerName": "homelab",
+  "Version": "10.11.11",
+  "ProductName": "Jellyfin Server",
+  "OperatingSystem": "",
+  "Id": "03b5e7fd4c8a4de8b4164d4d21b72608",
+  "StartupWizardCompleted": true
+}

@@ -1,0 +1,637 @@
+[
+  {
+    "Name": "Activiteitenlogboek legen",
+    "State": "Idle",
+    "Id": "b461ef918ab28520928183e794350e3c",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2021-05-24T13:56:52.4318791Z",
+      "EndTimeUtc": "2021-05-24T13:56:52.9908575Z",
+      "Status": "Completed",
+      "Name": "Clean Activity Log",
+      "Key": "CleanActivityLog",
+      "Id": "b461ef918ab28520928183e794350e3c"
+    },
+    "Triggers": [],
+    "Description": "Verwijdert activiteitenlogs ouder dan de ingestelde leeftijd.",
+    "Category": "Onderhoud",
+    "IsHidden": false,
+    "Key": "CleanActivityLog"
+  },
+  {
+    "Name": "Cache-map opschonen",
+    "State": "Idle",
+    "Id": "241d4fcb19a1d557ee62428e411da609",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:55.5251713Z",
+      "EndTimeUtc": "2026-08-05T09:03:55.747696Z",
+      "Status": "Completed",
+      "Name": "Cache-map opschonen",
+      "Key": "DeleteCacheFiles",
+      "Id": "241d4fcb19a1d557ee62428e411da609"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Verwijdert gecachte bestanden die het systeem niet langer nodig heeft.",
+    "Category": "Onderhoud",
+    "IsHidden": false,
+    "Key": "DeleteCacheFiles"
+  },
+  {
+    "Name": "Check for metadata updates.",
+    "State": "Idle",
+    "Id": "7053f526af0895e6d7e11bd42f0ec871",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2025-07-31T18:08:39.0415784Z",
+      "EndTimeUtc": "2025-07-31T18:08:39.0521812Z",
+      "Status": "Completed",
+      "Name": "Check for metadata updates.",
+      "Key": "CheckForMetadataUpdatesTask",
+      "Id": "7053f526af0895e6d7e11bd42f0ec871"
+    },
+    "Triggers": [],
+    "Description": "Checks TheTvdb's API Update endpoint for updates periodically and updates metadata accordingly.",
+    "Category": "TheTVDB",
+    "IsHidden": false,
+    "Key": "CheckForMetadataUpdatesTask"
+  },
+  {
+    "Name": "Clean Intro Skipper Cache",
+    "State": "Idle",
+    "Id": "b7cabb1a9d27d0f0177c6e370ad35384",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2025-12-28T14:46:12.1039229Z",
+      "EndTimeUtc": "2025-12-28T14:46:37.7683702Z",
+      "Status": "Completed",
+      "Name": "Clean Intro Skipper Cache",
+      "Key": "CPBIntroSkipperCleanCache",
+      "Id": "b7cabb1a9d27d0f0177c6e370ad35384"
+    },
+    "Triggers": [],
+    "Description": "Clear Intro Skipper cache of unused rows.",
+    "Category": "Intro Skipper",
+    "IsHidden": false,
+    "Key": "CPBIntroSkipperCleanCache"
+  },
+  {
+    "Name": "Collecties en afspeellijsten opruimen",
+    "State": "Idle",
+    "Id": "3a025083141d3c17dd96d5f9b951287b",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-02T09:00:56.3920378Z",
+      "EndTimeUtc": "2026-08-02T09:00:56.5079437Z",
+      "Status": "Completed",
+      "Name": "Collecties en afspeellijsten opruimen",
+      "Key": "CleanCollectionsAndPlaylists",
+      "Id": "3a025083141d3c17dd96d5f9b951287b"
+    },
+    "Triggers": [
+      {
+        "Type": "StartupTrigger"
+      }
+    ],
+    "Description": "Verwijdert niet langer bestaande items uit collecties en afspeellijsten.",
+    "Category": "Onderhoud",
+    "IsHidden": false,
+    "Key": "CleanCollectionsAndPlaylists"
+  },
+  {
+    "Name": "Database optimaliseren",
+    "State": "Idle",
+    "Id": "31de9ce83b9223d338c77b1a635e144b",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:13:04.4286641Z",
+      "EndTimeUtc": "2026-08-05T09:13:05.10538Z",
+      "Status": "Completed",
+      "Name": "Database optimaliseren",
+      "Key": "OptimizeDatabaseTask",
+      "Id": "31de9ce83b9223d338c77b1a635e144b"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 216000000000
+      }
+    ],
+    "Description": "Comprimeert de database en trimt vrije ruimte. Het uitvoeren van deze taak kan de prestaties verbeteren, na het scannen van de bibliotheek of andere aanpassingen die invloed hebben op de database.",
+    "Category": "Onderhoud",
+    "IsHidden": false,
+    "Key": "OptimizeDatabaseTask"
+  },
+  {
+    "Name": "Detect and Analyze Media Segments",
+    "State": "Idle",
+    "Id": "eed9a58097ab2f196265820308ec2e1c",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-04T22:00:00.0000107Z",
+      "EndTimeUtc": "2026-08-04T22:00:01.7486871Z",
+      "Status": "Completed",
+      "Name": "Detect and Analyze Media Segments",
+      "Key": "IntroSkipperDetectSegmentsTask",
+      "Id": "eed9a58097ab2f196265820308ec2e1c"
+    },
+    "Triggers": [
+      {
+        "Type": "DailyTrigger",
+        "TimeOfDayTicks": 0
+      }
+    ],
+    "Description": "Analyzes media to determine the timestamp and length of intros and credits.",
+    "Category": "Intro Skipper",
+    "IsHidden": false,
+    "Key": "IntroSkipperDetectSegmentsTask"
+  },
+  {
+    "Name": "Export library to trakt.tv",
+    "State": "Idle",
+    "Id": "b1a52e63d5fb09335557d4f1e6402299",
+    "Triggers": [],
+    "Description": "Exports any media that is in each user's trakt.tv monitored locations to their trakt.tv collection",
+    "Category": "Trakt",
+    "IsHidden": false,
+    "Key": "TraktSyncLibraryTask"
+  },
+  {
+    "Name": "Geluidsnormalisatie",
+    "State": "Idle",
+    "Id": "ec2f221fd8e7706b3d3afd2c4591b4d7",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:55.5251713Z",
+      "EndTimeUtc": "2026-08-05T09:03:55.9940166Z",
+      "Status": "Completed",
+      "Name": "Geluidsnormalisatie",
+      "Key": "AudioNormalization",
+      "Id": "ec2f221fd8e7706b3d3afd2c4591b4d7"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Scant bestanden op gegevens voor geluidsnormalisatie.",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "AudioNormalization"
+  },
+  {
+    "Name": "Hoofdstukafbeeldingen uitpakken",
+    "State": "Idle",
+    "Id": "4e6637c832ed644d1af3370a2506e80a",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T00:00:00.0012155Z",
+      "EndTimeUtc": "2026-08-05T00:00:00.8509712Z",
+      "Status": "Completed",
+      "Name": "Hoofdstukafbeeldingen uitpakken",
+      "Key": "RefreshChapterImages",
+      "Id": "4e6637c832ed644d1af3370a2506e80a"
+    },
+    "Triggers": [
+      {
+        "Type": "DailyTrigger",
+        "TimeOfDayTicks": 72000000000,
+        "MaxRuntimeTicks": 144000000000
+      }
+    ],
+    "Description": "Maakt voorbeeldafbeedingen aan voor video's met hoofdstukken.",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "RefreshChapterImages"
+  },
+  {
+    "Name": "Import watched states and playback progress from trakt.tv",
+    "State": "Idle",
+    "Id": "5e47e7d3542ace9c367691a65cb31e86",
+    "Triggers": [],
+    "Description": "Imports each user's watched/unwatched status and playback progress from trakt.tv to all items in the user's trakt.tv monitored locations",
+    "Category": "Trakt",
+    "IsHidden": false,
+    "Key": "TraktSyncFromTraktTask"
+  },
+  {
+    "Name": "Keyframes uitpakken",
+    "State": "Idle",
+    "Id": "f302d80f31bcacf76f979d277d448581",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2024-10-14T14:05:42.5347246Z",
+      "EndTimeUtc": "2024-10-14T14:14:20.7854516Z",
+      "Status": "Completed",
+      "Name": "Keyframes uitpakken",
+      "Key": "KeyframeExtraction",
+      "Id": "f302d80f31bcacf76f979d277d448581"
+    },
+    "Triggers": [],
+    "Description": "Haalt keyframes uit videobestanden om preciezere HLS-afspeellijsten te maken. Deze taak kan lang duren.",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "KeyframeExtraction"
+  },
+  {
+    "Name": "Locatie trickplay-afbeeldingen migreren",
+    "State": "Idle",
+    "Id": "ebb6e58c4e9a8f5d1f77ab6ddefb3143",
+    "Triggers": [],
+    "Description": "Verplaatst bestaande trickplay-bestanden op basis van de bibliotheekinstellingen.",
+    "Category": "Onderhoud",
+    "IsHidden": false,
+    "Key": "MoveTrickplayImages"
+  },
+  {
+    "Name": "Logboekmap opschonen",
+    "State": "Idle",
+    "Id": "1c8ede62c521bea0bf851344f5b8ca40",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:55.5255699Z",
+      "EndTimeUtc": "2026-08-05T09:03:55.526312Z",
+      "Status": "Completed",
+      "Name": "Logboekmap opschonen",
+      "Key": "CleanLogFiles",
+      "Id": "1c8ede62c521bea0bf851344f5b8ca40"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Verwijdert logboekbestanden ouder dan 3 dagen.",
+    "Category": "Onderhoud",
+    "IsHidden": false,
+    "Key": "CleanLogFiles"
+  },
+  {
+    "Name": "Mediabibliotheek scannen",
+    "State": "Idle",
+    "Id": "7738148ffcd07979c7ceb148e06b3aed",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:06:58.6303663Z",
+      "EndTimeUtc": "2026-08-05T09:07:11.0177471Z",
+      "Status": "Completed",
+      "Name": "Mediabibliotheek scannen",
+      "Key": "RefreshLibrary",
+      "Id": "7738148ffcd07979c7ceb148e06b3aed"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 432000000000
+      }
+    ],
+    "Description": "Scant de mediabibliotheek op nieuwe bestanden en vernieuwt de metadata.",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "RefreshLibrary"
+  },
+  {
+    "Name": "Ontbrekende liedteksten downloaden",
+    "State": "Idle",
+    "Id": "26649fe0aad57557245351f220da916c",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:55.6404562Z",
+      "EndTimeUtc": "2026-08-05T09:03:56.7397729Z",
+      "Status": "Completed",
+      "Name": "Ontbrekende liedteksten downloaden",
+      "Key": "DownloadLyrics",
+      "Id": "26649fe0aad57557245351f220da916c"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Downloadt liedteksten",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "DownloadLyrics"
+  },
+  {
+    "Name": "Ontbrekende ondertiteling downloaden",
+    "State": "Idle",
+    "Id": "2c66a88bca43e565d7f8099f825478f1",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:55.5255594Z",
+      "EndTimeUtc": "2026-08-05T09:03:56.5304914Z",
+      "Status": "Completed",
+      "Name": "Ontbrekende ondertiteling downloaden",
+      "Key": "DownloadSubtitles",
+      "Id": "2c66a88bca43e565d7f8099f825478f1"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Zoekt op het internet naar ontbrekende ondertiteling gebaseerd op metadataconfiguratie.",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "DownloadSubtitles"
+  },
+  {
+    "Name": "Opruimtaak gebruikersdata",
+    "State": "Idle",
+    "Id": "8240e309407dbbf43c99d30a6cbd239e",
+    "Triggers": [],
+    "Description": "Wist alle gebruikersgegevens (kijkstatus, favorieten, etc.) van media die al minstens 90 dagen niet meer aanwezig zijn.",
+    "Category": "Onderhoud",
+    "IsHidden": false,
+    "Key": "CleanupUserDataTask"
+  },
+  {
+    "Name": "Personen vernieuwen",
+    "State": "Idle",
+    "Id": "866456ed0d44e15468124ce33d85961e",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-07-12T11:51:13.6129846Z",
+      "EndTimeUtc": "2026-07-12T11:51:25.7152879Z",
+      "Status": "Completed",
+      "Name": "Personen vernieuwen",
+      "Key": "RefreshPeople",
+      "Id": "866456ed0d44e15468124ce33d85961e"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 6048000000000
+      }
+    ],
+    "Description": "Werkt metadata bij voor acteurs en regisseurs in je mediabibliotheek.",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "RefreshPeople"
+  },
+  {
+    "Name": "Plug-ins bijwerken",
+    "State": "Idle",
+    "Id": "f9b057c054e9e6daee4a88ffd146a403",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:56.1066412Z",
+      "EndTimeUtc": "2026-08-05T09:04:00.9096035Z",
+      "Status": "Completed",
+      "Name": "Plug-ins bijwerken",
+      "Key": "PluginUpdates",
+      "Id": "f9b057c054e9e6daee4a88ffd146a403"
+    },
+    "Triggers": [
+      {
+        "Type": "StartupTrigger"
+      },
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Downloadt en installeert updates van plug-ins waarvoor automatisch bijwerken is ingeschakeld.",
+    "Category": "Toepassing",
+    "IsHidden": false,
+    "Key": "PluginUpdates"
+  },
+  {
+    "Name": "Purge TheTVDB plugin cache",
+    "State": "Idle",
+    "Id": "ab62dc21b7192ed4799f77adf3da0419",
+    "Triggers": [],
+    "Description": "Purges the TheTVDB Cache",
+    "Category": "TheTVDB",
+    "IsHidden": false,
+    "Key": "PurgeTheTVDBPluginCache"
+  },
+  {
+    "Name": "Refresh Guide",
+    "State": "Idle",
+    "Id": "bea9b218c97bbf98c5dc1303bdb9a0ca",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:56.1158739Z",
+      "EndTimeUtc": "2026-08-05T09:04:43.8436316Z",
+      "Status": "Completed",
+      "Name": "Refresh Guide",
+      "Key": "RefreshGuide",
+      "Id": "bea9b218c97bbf98c5dc1303bdb9a0ca"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Downloads channel information from live tv services.",
+    "Category": "Live TV",
+    "IsHidden": false,
+    "Key": "RefreshGuide"
+  },
+  {
+    "Name": "Scan library for new language tags",
+    "State": "Idle",
+    "Id": "b260297412bdee74fed24841681f61fa",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:55.8632342Z",
+      "EndTimeUtc": "2026-08-05T09:03:58.6255885Z",
+      "Status": "Completed",
+      "Name": "Scan library for new language tags",
+      "Key": "LanguageTagsSetsRefreshLibraryTask",
+      "Id": "b260297412bdee74fed24841681f61fa"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Scans all items in the library for new language tags.",
+    "Category": "Language Tags",
+    "IsHidden": false,
+    "Key": "LanguageTagsSetsRefreshLibraryTask"
+  },
+  {
+    "Name": "Scannen op mediasegmenten",
+    "State": "Idle",
+    "Id": "f861734dd71b37f9482b52a820e39013",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:06:58.6291678Z",
+      "EndTimeUtc": "2026-08-05T09:07:01.7856958Z",
+      "Status": "Completed",
+      "Name": "Scannen op mediasegmenten",
+      "Key": "TaskExtractMediaSegments",
+      "Id": "f861734dd71b37f9482b52a820e39013"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 432000000000
+      }
+    ],
+    "Description": "Verkrijgt mediasegmenten vanuit plug-ins met MediaSegment-ondersteuning.",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "TaskExtractMediaSegments"
+  },
+  {
+    "Name": "SmartLists backup task",
+    "State": "Idle",
+    "Id": "6dab4ee9db79312b0509cc5e2d84f2f7",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T01:00:00.0038678Z",
+      "EndTimeUtc": "2026-08-05T01:00:00.005159Z",
+      "Status": "Completed",
+      "Name": "SmartLists backup task",
+      "Key": "SmartListsBackup",
+      "Id": "6dab4ee9db79312b0509cc5e2d84f2f7"
+    },
+    "Triggers": [
+      {
+        "Type": "DailyTrigger",
+        "TimeOfDayTicks": 108000000000
+      }
+    ],
+    "Description": "Creates automated backups of all SmartLists configurations and images.",
+    "Category": "SmartLists",
+    "IsHidden": false,
+    "Key": "SmartListsBackup"
+  },
+  {
+    "Name": "SmartLists cleanup task",
+    "State": "Idle",
+    "Id": "545790c6f2e00ebb9562c80d37249379",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-02T02:00:00.0009500Z",
+      "EndTimeUtc": "2026-08-02T02:00:00.0347364Z",
+      "Status": "Completed",
+      "Name": "SmartLists cleanup task",
+      "Key": "SmartListsCleanup",
+      "Id": "545790c6f2e00ebb9562c80d37249379"
+    },
+    "Triggers": [
+      {
+        "Type": "WeeklyTrigger",
+        "TimeOfDayTicks": 144000000000,
+        "DayOfWeek": "Sunday"
+      }
+    ],
+    "Description": "Cleans up orphaned data from SmartLists, including custom images from deleted lists.",
+    "Category": "SmartLists",
+    "IsHidden": false,
+    "Key": "SmartListsCleanup"
+  },
+  {
+    "Name": "TasksRefreshChannels",
+    "State": "Idle",
+    "Id": "0c9ee3a88fc15547c6852205480da1fd",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:56.1066458Z",
+      "EndTimeUtc": "2026-08-05T09:03:56.313423Z",
+      "Status": "Completed",
+      "Name": "TasksRefreshChannels",
+      "Key": "RefreshInternetChannels",
+      "Id": "0c9ee3a88fc15547c6852205480da1fd"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "TasksRefreshChannelsDescription",
+    "Category": "Internetkanalen",
+    "IsHidden": true,
+    "Key": "RefreshInternetChannels"
+  },
+  {
+    "Name": "Transcoderingsmap opschonen",
+    "State": "Idle",
+    "Id": "7d8088c10902f1bf4072ded42437bcfb",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T09:03:56.1197771Z",
+      "EndTimeUtc": "2026-08-05T09:03:56.1203072Z",
+      "Status": "Completed",
+      "Name": "Transcoderingsmap opschonen",
+      "Key": "DeleteTranscodeFiles",
+      "Id": "7d8088c10902f1bf4072ded42437bcfb"
+    },
+    "Triggers": [
+      {
+        "Type": "StartupTrigger"
+      },
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Verwijdert transcoderingsbestanden ouder dan een dag.",
+    "Category": "Onderhoud",
+    "IsHidden": false,
+    "Key": "DeleteTranscodeFiles"
+  },
+  {
+    "Name": "Trickplay-afbeeldingen genereren",
+    "State": "Idle",
+    "Id": "64f5f44cd30dc273cb9890205473bbcc",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T01:00:00.0015812Z",
+      "EndTimeUtc": "2026-08-05T01:00:02.5302926Z",
+      "Status": "Completed",
+      "Name": "Trickplay-afbeeldingen genereren",
+      "Key": "RefreshTrickplayImages",
+      "Id": "64f5f44cd30dc273cb9890205473bbcc"
+    },
+    "Triggers": [
+      {
+        "Type": "DailyTrigger",
+        "TimeOfDayTicks": 108000000000
+      }
+    ],
+    "Description": "Creëert trickplay-voorvertoningen voor video's in bibliotheken waarvoor dit is ingeschakeld.",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "RefreshTrickplayImages"
+  },
+  {
+    "Name": "Webhook Item Added Notifier",
+    "State": "Idle",
+    "Id": "daa0fb9aa8c102dfc72aebe621c4de22",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T14:34:03.4729266Z",
+      "EndTimeUtc": "2026-08-05T14:34:03.4729318Z",
+      "Status": "Completed",
+      "Name": "Webhook Item Added Notifier",
+      "Key": "WebhookItemAdded",
+      "Id": "daa0fb9aa8c102dfc72aebe621c4de22"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 300000000
+      }
+    ],
+    "Description": "Processes item added queue",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "WebhookItemAdded"
+  },
+  {
+    "Name": "Webhook Item Deleted Notifier",
+    "State": "Idle",
+    "Id": "5f282fddf843d0ec39d5252bb08d1b27",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2026-08-05T14:34:03.2176694Z",
+      "EndTimeUtc": "2026-08-05T14:34:03.2176763Z",
+      "Status": "Completed",
+      "Name": "Webhook Item Deleted Notifier",
+      "Key": "WebhookItemDeleted",
+      "Id": "5f282fddf843d0ec39d5252bb08d1b27"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 300000000
+      }
+    ],
+    "Description": "Processes item deleted queue",
+    "Category": "Bibliotheek",
+    "IsHidden": false,
+    "Key": "WebhookItemDeleted"
+  }
+]

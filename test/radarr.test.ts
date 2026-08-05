@@ -13,8 +13,11 @@ const config: KeyedServiceConfig = {
 const STATUS = { appName: 'Radarr', version: '6.3.0.10514', instanceName: 'Radarr' };
 const DISKSPACE = [{ path: '/movies', label: 'movies', freeSpace: 1_234_567_890, totalSpace: 9_876_543_210 }];
 const HEALTH = [{ source: 'IndexerStatusCheck', type: 'warning', message: 'Indexers unavailable due to failures' }];
+/** Trimmed from a real capture: a live Radarr runs eleven of these. */
 const TASKS = [
-    { taskName: 'RefreshMonitoredDownloads', lastExecution: '2026-08-05T06:00:00Z' },
+    { taskName: 'RefreshMovie', lastExecution: '2026-08-04T15:09:00Z' },
+    { taskName: 'RefreshMonitoredDownloads', lastExecution: '2026-08-05T14:09:00Z' },
+    { taskName: 'RefreshCollections', lastExecution: '2026-08-04T18:57:21Z' },
     { taskName: 'Backup', lastExecution: '2026-08-01T02:00:00Z' }
 ];
 
@@ -83,14 +86,24 @@ describe('RadarrAdapter', () => {
         expect(checks[0]?.service).toBe('radarr');
     });
 
-    it('reports the most recent refresh task as the last completed scan', async () => {
+    it('reports the library scan task, not whichever refresh task ran most recently', async () => {
         const state = await adapter({ '/api/v3/system/task': TASKS }).getScanState();
+
         expect(state.service).toBe('radarr');
-        expect(state.lastCompleted).toBe('2026-08-05T06:00:00Z');
+        // RefreshMovie, from 23 hours earlier — not RefreshMonitoredDownloads,
+        // which polls the download queue every minute and would make a stale
+        // library look permanently fresh.
+        expect(state.lastCompleted).toBe('2026-08-04T15:09:00Z');
     });
 
-    it('reports no last-completed scan rather than inventing one when no refresh task exists', async () => {
-        const state = await adapter({ '/api/v3/system/task': [TASKS[1]] }).getScanState();
+    it('reports no last-completed scan rather than inventing one when the scan task is absent', async () => {
+        const withoutScan = TASKS.filter(t => t.taskName !== 'RefreshMovie');
+        const state = await adapter({ '/api/v3/system/task': withoutScan }).getScanState();
+        expect(state.lastCompleted).toBeUndefined();
+    });
+
+    it('reports no last-completed scan when the task exists but has never run', async () => {
+        const state = await adapter({ '/api/v3/system/task': [{ taskName: 'RefreshMovie' }] }).getScanState();
         expect(state.lastCompleted).toBeUndefined();
     });
 

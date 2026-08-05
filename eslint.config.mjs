@@ -5,7 +5,10 @@ export default tseslint.config(
     // `src/services/generated` is openapi-typescript output, not source. It is
     // over a megabyte of type declarations that no rule should have an opinion
     // about, and linting it only slows every run down.
-    { ignores: ['dist', 'node_modules', 'coverage', 'src/services/generated'] },
+    // `tmp-config` is the gitignored scratch directory. It is not source, and
+    // linting throwaway probe scripts only produces noise that hides real
+    // errors in the output.
+    { ignores: ['dist', 'node_modules', 'coverage', 'src/services/generated', 'tmp-config'] },
     js.configs.recommended,
     ...tseslint.configs.recommended,
     {

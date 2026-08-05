@@ -20,8 +20,39 @@ const SECRET_KEY = /^(api_?key|apikey|token|access_?token|auth_?token|password|p
  */
 const LONG_OPAQUE = /^[A-Za-z0-9+/=_-]{40,}$/;
 
-/** Key names that legitimately carry long opaque values. */
-const ID_KEY = /(^|_)(id|guid|hash|etag|imdbid|tvdbid|tmdbid)$/i;
+/**
+ * Words that legitimately end a key holding a long opaque value: identifiers,
+ * content hashes and commit SHAs. Real captures turned up `avatarETag`,
+ * `commitTag` and `PrimaryImageTag`, none of which a `(^|_)word$` pattern
+ * matched — it could not see a camelCase boundary.
+ */
+const ID_WORDS = new Set([
+    'id',
+    'ids',
+    'guid',
+    'uuid',
+    'hash',
+    'etag',
+    'tag',
+    'sha',
+    'digest',
+    'checksum',
+    'fingerprint',
+    'imdbid',
+    'tvdbid',
+    'tmdbid'
+]);
+
+/** Last word of a key, splitting snake_case, kebab-case and camelCase alike. */
+const lastWord = (key: string): string =>
+    key
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .split(/[^A-Za-z0-9]+|\s+/)
+        .filter(Boolean)
+        .pop()
+        ?.toLowerCase() ?? '';
+
+const isIdKey = (key: string): boolean => ID_WORDS.has(lastWord(key)) || ID_WORDS.has(key.toLowerCase());
 
 type Finding = { file: string; path: string; reason: string };
 
@@ -36,7 +67,7 @@ export function scan(file: string, node: unknown, path = '$', out: Finding[] = [
             if (SECRET_KEY.test(key) && value !== REDACTED && value !== null && value !== '') {
                 out.push({ file, path: here, reason: `secret-named key holds ${JSON.stringify(value)}` });
             }
-            if (typeof value === 'string' && !ID_KEY.test(key) && value !== REDACTED && LONG_OPAQUE.test(value)) {
+            if (typeof value === 'string' && !isIdKey(key) && value !== REDACTED && LONG_OPAQUE.test(value)) {
                 out.push({ file, path: here, reason: 'long opaque value that is not an id-named field' });
             }
             scan(file, value, here, out);
@@ -82,6 +113,23 @@ describe('the guard itself', () => {
 
     it('does not flag a 32-character hex id, which is what Jellyfin item ids look like', () => {
         expect(scan('t', { Id: 'f137a2dd21bbc1b99aa5c0f6bf02a805' })).toEqual([]);
+    });
+
+    it('sees id-ish words across a camelCase boundary, not only after an underscore', () => {
+        // All three came out of a real capture and were false positives.
+        expect(scan('t', { avatarETag: 'd'.repeat(64) })).toEqual([]);
+        expect(scan('t', { commitTag: '6'.repeat(40) })).toEqual([]);
+        expect(scan('t', { PrimaryImageTag: 'a'.repeat(48) })).toEqual([]);
+    });
+
+    it('still flags a long value under a key with no id-ish word in it', () => {
+        expect(scan('t', { avatarThing: 'd'.repeat(64) })).toHaveLength(1);
+    });
+
+    it('does not let an id-ish suffix excuse a secret-named key', () => {
+        // `apiKeyId` ends in a word we allow, but the SECRET_KEY rule is
+        // independent and must still catch keys that are named as credentials.
+        expect(scan('t', { api_key: 'live-value' })).toHaveLength(1);
     });
 
     it('finds a secret nested several levels down', () => {

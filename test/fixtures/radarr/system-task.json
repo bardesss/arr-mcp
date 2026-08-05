@@ -1,0 +1,112 @@
+[
+  {
+    "name": "Application Check Update",
+    "taskName": "ApplicationCheckUpdate",
+    "interval": 360,
+    "lastExecution": "2026-08-05T08:35:56Z",
+    "lastStartTime": "2026-08-05T08:35:56Z",
+    "nextExecution": "2026-08-05T14:35:56Z",
+    "lastDuration": "00:00:00.2187072",
+    "id": 12
+  },
+  {
+    "name": "Backup",
+    "taskName": "Backup",
+    "interval": 10080,
+    "lastExecution": "2026-08-02T15:17:04Z",
+    "lastStartTime": "2026-08-02T15:17:03Z",
+    "nextExecution": "2026-08-09T15:17:04Z",
+    "lastDuration": "00:00:01.6462015",
+    "id": 7
+  },
+  {
+    "name": "Check Health",
+    "taskName": "CheckHealth",
+    "interval": 360,
+    "lastExecution": "2026-08-05T08:37:57Z",
+    "lastStartTime": "2026-08-05T08:37:56Z",
+    "nextExecution": "2026-08-05T14:37:57Z",
+    "lastDuration": "00:00:00.6586429",
+    "id": 4
+  },
+  {
+    "name": "Clean Up Recycle Bin",
+    "taskName": "CleanUpRecycleBin",
+    "interval": 1440,
+    "lastExecution": "2026-08-05T14:29:58Z",
+    "lastStartTime": "2026-08-05T14:29:58Z",
+    "nextExecution": "2026-08-06T14:29:58Z",
+    "lastDuration": "00:00:00.0137417",
+    "id": 13
+  },
+  {
+    "name": "Housekeeping",
+    "taskName": "Housekeeping",
+    "interval": 1440,
+    "lastExecution": "2026-08-05T14:29:58Z",
+    "lastStartTime": "2026-08-05T14:29:58Z",
+    "nextExecution": "2026-08-06T14:29:58Z",
+    "lastDuration": "00:00:00.3037298",
+    "id": 6
+  },
+  {
+    "name": "Import List Sync",
+    "taskName": "ImportListSync",
+    "interval": 5,
+    "lastExecution": "2026-08-05T14:30:28Z",
+    "lastStartTime": "2026-08-05T14:30:28Z",
+    "nextExecution": "2026-08-05T14:35:28Z",
+    "lastDuration": "00:00:00.0301659",
+    "id": 14
+  },
+  {
+    "name": "Messaging Cleanup",
+    "taskName": "MessagingCleanup",
+    "interval": 5,
+    "lastExecution": "2026-08-05T14:30:28Z",
+    "lastStartTime": "2026-08-05T14:30:28Z",
+    "nextExecution": "2026-08-05T14:35:28Z",
+    "lastDuration": "00:00:00.0220052",
+    "id": 2
+  },
+  {
+    "name": "Refresh Collections",
+    "taskName": "RefreshCollections",
+    "interval": 1440,
+    "lastExecution": "2026-08-04T18:57:21Z",
+    "lastStartTime": "2026-08-04T18:57:21Z",
+    "nextExecution": "2026-08-05T18:57:21Z",
+    "lastDuration": "00:00:00.2153318",
+    "id": 16
+  },
+  {
+    "name": "Refresh Monitored Downloads",
+    "taskName": "RefreshMonitoredDownloads",
+    "interval": 1,
+    "lastExecution": "2026-08-05T14:34:00Z",
+    "lastStartTime": "2026-08-05T14:34:00Z",
+    "nextExecution": "2026-08-05T14:35:00Z",
+    "lastDuration": "00:00:00.0581800",
+    "id": 15
+  },
+  {
+    "name": "Refresh Movie",
+    "taskName": "RefreshMovie",
+    "interval": 1440,
+    "lastExecution": "2026-08-04T15:09:00Z",
+    "lastStartTime": "2026-08-04T15:08:50Z",
+    "nextExecution": "2026-08-05T15:09:00Z",
+    "lastDuration": "00:00:10.2670295",
+    "id": 5
+  },
+  {
+    "name": "Rss Sync",
+    "taskName": "RssSync",
+    "interval": 30,
+    "lastExecution": "2026-08-05T14:11:01Z",
+    "lastStartTime": "2026-08-05T14:10:58Z",
+    "nextExecution": "2026-08-05T14:41:01Z",
+    "lastDuration": "00:00:03.1074478",
+    "id": 8
+  }
+]

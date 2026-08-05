@@ -103,18 +103,32 @@ neither CI nor a contributor needs one. Maintainers refresh them with:
 npm run capture            # reads ./config/config.yaml, never prints credentials
 ```
 
-Set `ARR_MCP_CAPTURE_CONFIG` to read credentials from outside the repo. The
-script redacts every configured credential and every secret-named field, then
-**refuses to write a file** if a credential survived — a reviewer spotting a
-leaked key in a large diff is not a control worth relying on.
+Set `ARR_MCP_CAPTURE_CONFIG` to read credentials from outside the repo.
+
+The script scrubs two different things, and the distinction matters:
+
+- **Credentials** — every configured API key and password, plus any
+  secret-named field. It then **refuses to write the file** if one survived. A
+  reviewer spotting a leaked key in a large diff is not a control worth relying
+  on.
+- **Identity** — account names, email addresses, avatar URLs (a gravatar URL
+  embeds a hash of the email), indexer names and URLs, every configured host,
+  and private IPv4 literals. None of these is a secret; all of them are
+  permanent once committed to a public repository.
+
+Identity scrubbing is declared **per endpoint**, not by key name, and that is
+deliberate: `Name` is an account on Jellyfin's `/Users` and a scheduled task on
+`/ScheduledTasks`. A blanket rule on the key would destroy the fixture that
+tells us which task scans the library.
+
+Real film and series titles are kept — they are not sensitive and they keep the
+fixtures realistic, which is most of the value of recording them.
 
 `test/fixtures.test.ts` re-checks every committed fixture on every PR, so a
 recapture years from now cannot quietly leak either. It works on key names and
 value shape, not on the secrets themselves, because CI does not have them.
 
-Review `git diff test/fixtures/` before committing: redaction is **secrets
-only** by decision, so real titles, usernames, LAN addresses and mount paths are
-published deliberately.
+Review `git diff test/fixtures/` before committing regardless.
 
 ## Reporting a bug
 
