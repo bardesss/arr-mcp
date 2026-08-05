@@ -165,10 +165,21 @@ export class LibraryIndex {
         return new LibraryIndex(items, finalByKey);
     }
 
-    /** Undefined for an empty id set: no id is not a wildcard. */
-    find(ids: ExternalIds): MergedItem | undefined {
-        for (const kind of ['movie', 'series'] as const) {
-            for (const key of keysOf(kind, ids)) {
+    /**
+     * Undefined for an empty id set: no id is not a wildcard.
+     *
+     * `kind` is optional so today's callers, which do not have one to hand,
+     * keep scanning movie keys before series keys unchanged. A caller that
+     * *does* know which it wants — `diagnose` will, since it already holds
+     * the kind of the thing it is chasing — should pass it: a film and a
+     * series can share the same numeric tmdb/tvdb id (unrelated id spaces
+     * colliding), and without `kind` the first one indexed wins, silently
+     * hiding the other.
+     */
+    find(ids: ExternalIds, kind?: 'movie' | 'series'): MergedItem | undefined {
+        const kinds = kind !== undefined ? [kind] : (['movie', 'series'] as const);
+        for (const k of kinds) {
+            for (const key of keysOf(k, ids)) {
                 const hit = this.#byKey.get(key);
                 if (hit !== undefined) return hit;
             }

@@ -105,6 +105,22 @@ describe('LibraryIndex merging', () => {
         const index = LibraryIndex.build([arr()]);
         expect(index.find({})).toBeUndefined();
     });
+
+    it('lets a caller who knows the kind reach a series when a film shares its numeric id', () => {
+        // TMDB's movie and TV id spaces are separate, but a recaptured Jellyfin
+        // fixture shows a Series carrying a numeric Tmdb id too — so the two
+        // can collide by coincidence. Without `kind`, find() scans movie keys
+        // first and the series is unreachable.
+        const index = LibraryIndex.build([
+            arr({ kind: 'movie', title: 'The Film', ids: { tmdb: 224372 } }),
+            arr({ kind: 'series', title: 'The Series', ids: { tmdb: 224372 }, acquisition: { service: 'sonarr', monitored: true, hasFile: true } })
+        ]);
+
+        expect(index.find({ tmdb: 224372 }, 'movie')?.title).toBe('The Film');
+        expect(index.find({ tmdb: 224372 }, 'series')?.title).toBe('The Series');
+        // Unspecified kind keeps today's behaviour: first match wins, movie first.
+        expect(index.find({ tmdb: 224372 })?.title).toBe('The Film');
+    });
 });
 
 describe('LibraryIndex byKey coherence after a bridging fuse', () => {
