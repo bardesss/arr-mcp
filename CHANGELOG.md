@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/bardesss/arr-mcp/compare/v0.2.0...v0.2.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* drop privileges by numeric id so PUID/PGID cannot silently fail ([#12](https://github.com/bardesss/arr-mcp/issues/12)) ([8060362](https://github.com/bardesss/arr-mcp/commit/8060362d2a261ba74d63e074c0f85636b33d8638))
+
 ## [0.2.0](https://github.com/bardesss/arr-mcp/compare/v0.1.0...v0.2.0) (2026-08-04)
 
 
