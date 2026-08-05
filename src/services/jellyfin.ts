@@ -2,9 +2,11 @@ import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
 import { embyToken } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
+    type PlaybackEntry,
     type ScanState,
     type ScanStateCapable,
     type ServiceAdapter,
@@ -37,6 +39,29 @@ type RawTask = {
  * captured from returns "Mediabibliotheek scannen".
  */
 const LIBRARY_SCAN_KEY = 'RefreshLibrary';
+
+type RawItem = {
+    Id?: string;
+    Name?: string;
+    SeriesName?: string;
+    ParentIndexNumber?: number;
+    IndexNumber?: number;
+    RunTimeTicks?: number;
+    UserData?: { PlaybackPositionTicks?: number; LastPlayedDate?: string };
+};
+type RawSession = {
+    UserId?: string;
+    UserName?: string;
+    DeviceName?: string;
+    NowPlayingItem?: RawItem;
+    PlayState?: { PositionTicks?: number };
+};
+type RawItemsPage = { Items?: RawItem[] };
+
+/** Jellyfin measures time in 100-nanosecond ticks. Nothing else in the stack does. */
+const TICKS_PER_SECOND = 10_000_000;
+const ticksToSeconds = (ticks: number | undefined): number | undefined =>
+    typeof ticks === 'number' ? Math.round(ticks / TICKS_PER_SECOND) : undefined;
 
 export class JellyfinAdapter implements ServiceAdapter, ScanStateCapable, UserDirectoryCapable {
     readonly id: ServiceId = 'jellyfin';
@@ -76,6 +101,61 @@ export class JellyfinAdapter implements ServiceAdapter, ScanStateCapable, UserDi
             running: scan?.State === 'Running',
             ...(typeof lastCompleted === 'string' ? { lastCompleted } : {})
         };
+    }
+
+    /**
+     * Sessions are global — an admin key sees the whole household — so they are
+     * filtered to the resolved user here. The identity gate has already decided
+     * that this user may be queried; this is the mechanical narrowing, not the
+     * authorization decision.
+     */
+    async getPlayback(user: ServiceUser): Promise<PlaybackEntry[]> {
+        const fence = (field: string, value: string) => fenceText(value, { service: this.id, field });
+
+        const [sessions, resume] = await Promise.all([
+            this.#http.get<RawSession[]>('/Sessions'),
+            this.#http.get<RawItemsPage>(`/Users/${encodeURIComponent(user.id)}/Items/Resume`)
+        ]);
+
+        const common = (item: RawItem) => ({
+            service: this.id,
+            itemId: item.Id ?? '',
+            title: fence('Name', item.Name ?? ''),
+            ...(item.SeriesName === undefined ? {} : { seriesTitle: fence('SeriesName', item.SeriesName) }),
+            ...(item.ParentIndexNumber === undefined ? {} : { season: item.ParentIndexNumber }),
+            ...(item.IndexNumber === undefined ? {} : { episode: item.IndexNumber }),
+            user: user.name
+        });
+
+        const progress = (position: number | undefined, runtime: number | undefined) => ({
+            ...(position === undefined ? {} : { positionSeconds: position }),
+            ...(runtime === undefined ? {} : { runtimeSeconds: runtime }),
+            // Guarded against a zero runtime, which would divide to Infinity.
+            ...(position !== undefined && runtime !== undefined && runtime > 0
+                ? { percentComplete: Math.round((position / runtime) * 100) }
+                : {})
+        });
+
+        const nowPlaying: PlaybackEntry[] = sessions
+            .filter(s => s.UserId === user.id && s.NowPlayingItem !== undefined)
+            .map(s => {
+                const item = s.NowPlayingItem as RawItem;
+                return {
+                    ...common(item),
+                    kind: 'now_playing' as const,
+                    ...progress(ticksToSeconds(s.PlayState?.PositionTicks), ticksToSeconds(item.RunTimeTicks)),
+                    ...(s.DeviceName === undefined ? {} : { device: s.DeviceName })
+                };
+            });
+
+        const resuming: PlaybackEntry[] = (resume.Items ?? []).map(item => ({
+            ...common(item),
+            kind: 'resume' as const,
+            ...progress(ticksToSeconds(item.UserData?.PlaybackPositionTicks), ticksToSeconds(item.RunTimeTicks)),
+            ...(item.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: item.UserData.LastPlayedDate })
+        }));
+
+        return [...nowPlaying, ...resuming];
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
