@@ -11,9 +11,15 @@ export const jsonResponse = (body: unknown, status = 200): Response =>
 export const serving = (routes: Record<string, unknown>): typeof fetch =>
     (async (input: string | URL | Request) => {
         const raw = input instanceof Request ? input.url : String(input);
-        const path = new URL(raw).pathname;
-        if (!(path in routes)) return jsonResponse({ message: 'not found' }, 404);
-        return jsonResponse(routes[path]);
+        const url = new URL(raw);
+        // Query string included first, so a route keyed on the full path (e.g.
+        // Jellyfin's `/Items?userId=…`) can be matched exactly rather than only
+        // by its pathname. Falling back to pathname-only keeps every existing
+        // route registered without a query string working unchanged.
+        const withQuery = `${url.pathname}${url.search}`;
+        if (withQuery in routes) return jsonResponse(routes[withQuery]);
+        if (url.pathname in routes) return jsonResponse(routes[url.pathname]);
+        return jsonResponse({ message: 'not found' }, 404);
     }) as unknown as typeof fetch;
 
 /** SABnzbd routes on the `mode` query parameter rather than on the path. */

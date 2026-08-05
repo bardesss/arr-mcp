@@ -92,7 +92,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { fixture: 'test/fixtures/radarr/calendar.json', fields: ['id', 'title', 'hasFile', 'monitored'] },
             {
                 fixture: 'test/fixtures/radarr/movie.json',
-                fields: ['id', 'title', 'year', 'monitored', 'hasFile', 'tmdbId', 'ratings']
+                fields: ['id', 'title', 'year', 'monitored', 'hasFile', 'tmdbId', 'ratings', 'genres']
             },
             { fixture: 'test/fixtures/radarr/movie-lookup.json', fields: ['title', 'tmdbId'] }
             // No `queue` entry: the queue was empty at capture time, and an
@@ -113,7 +113,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // `ratings` here is flat — { votes, value } — not Radarr's
                 // per-source map. §21.2, resolved by the capture run.
                 fixture: 'test/fixtures/sonarr/series.json',
-                fields: ['id', 'title', 'monitored', 'tvdbId', 'ratings', 'statistics']
+                fields: ['id', 'title', 'monitored', 'tvdbId', 'ratings', 'statistics', 'genres']
             },
             {
                 fixture: 'test/fixtures/sonarr/episode.json',
@@ -157,6 +157,10 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // three-way join silently.
                 fixture: 'test/fixtures/jellyfin/items-search.json',
                 fields: ['Items.Id', 'Items.Name', 'Items.ProviderIds']
+            },
+            {
+                fixture: 'test/fixtures/jellyfin/items-library.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.Type', 'Items.ProviderIds', 'Items.UserData']
             }
         ]
     },

@@ -193,6 +193,63 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             // Fields, Jellyfin returns no ProviderIds at all — which is exactly
             // what the resolver joins on.
             path: '/Items?searchTerm=a&Recursive=true&IncludeItemTypes=Movie,Series&Limit=5&Fields=ProviderIds'
+        },
+        {
+            name: 'items-library',
+            // Per-user, because UserData — the watched state — only comes back
+            // when Jellyfin knows who is asking. The id is read from the users
+            // fixture captured a moment earlier.
+            path: captured => {
+                const users = captured.get('users');
+                const id = Array.isArray(users) ? (users[0] as { Id?: string } | undefined)?.Id : undefined;
+                // EnableImages=false is capture-only trim: the adapter reads
+                // none of ImageTags/BackdropImageTags/ImageBlurHashes, and a
+                // flat-colour blurhash is long, alphanumeric-only, and
+                // undelimited — exactly the shape the fixture secret guard in
+                // test/fixtures.test.ts treats as a possible credential.
+                return id === undefined
+                    ? undefined
+                    : `/Items?userId=${id}&Recursive=true&IncludeItemTypes=Movie,Series` +
+                      '&Fields=ProviderIds,Genres&EnableUserData=true&EnableImages=false&Limit=20';
+            },
+            // Watch history is the one genuinely personal thing in the fixture
+            // set — the library titles are already public in radarr/movie.json,
+            // but who has watched what is not. Keys and types are preserved,
+            // which is all the contract test reads; the values are synthetic.
+            //
+            // A live 10.11.11 response carries more per-item watch signal than
+            // Played/PlayCount/LastPlayedDate: PlaybackPositionTicks (exact
+            // resume point), PlayedPercentage and UnplayedItemCount (partial
+            // series progress) and IsFavorite are all real behavioural data
+            // that the adapter never reads, so they are neutralised here too
+            // rather than left to leak past the three fields the adapter does.
+            anonymise: body => {
+                const page = body as { Items?: Row[] };
+                if (!Array.isArray(page.Items)) return body;
+                return {
+                    ...page,
+                    Items: page.Items.map((item, i) => ({
+                        ...item,
+                        UserData:
+                            item.UserData === undefined
+                                ? undefined
+                                : {
+                                      ...(item.UserData as Row),
+                                      Played: i % 2 === 0,
+                                      PlayCount: i % 2 === 0 ? 1 : 0,
+                                      LastPlayedDate: undefined,
+                                      PlaybackPositionTicks: 0,
+                                      IsFavorite: false,
+                                      ...('PlayedPercentage' in (item.UserData as Row)
+                                          ? { PlayedPercentage: i % 2 === 0 ? 100 : 0 }
+                                          : {}),
+                                      ...('UnplayedItemCount' in (item.UserData as Row)
+                                          ? { UnplayedItemCount: i % 2 === 0 ? 0 : 1 }
+                                          : {})
+                                  }
+                    }))
+                };
+            }
         }
     ],
     seerr: [

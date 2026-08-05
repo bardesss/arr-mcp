@@ -3,8 +3,9 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import { calendarPath, readArrQueue, readRadarrCalendar } from './arrQueue.ts';
-import { flattenRatings, type RawRating } from './arrRatings.ts';
+import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
 import {
     diagnoseConnection,
     type CalendarCapable,
@@ -14,6 +15,7 @@ import {
     type DiskSpaceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
     type QueueCapable,
@@ -36,6 +38,7 @@ type RawMovie = {
     path?: string;
     tmdbId?: number;
     imdbId?: string;
+    genres?: string[];
     ratings?: Record<string, RawRating>;
     movieFile?: { size?: number; quality?: { quality?: { name?: string } } };
 };
@@ -74,7 +77,8 @@ export class RadarrAdapter
         QueueCapable,
         CalendarCapable,
         MediaDetailCapable,
-        SearchCapable
+        SearchCapable,
+        LibraryCapable
 {
     readonly id: ServiceId = 'radarr';
     readonly #http: ServiceHttp;
@@ -202,6 +206,38 @@ export class RadarrAdapter
             ...(m.hasFile === undefined ? {} : { hasFile: m.hasFile }),
             ...(m.monitored === undefined ? {} : { monitored: m.monitored })
         };
+    }
+
+    /**
+     * The whole film library in one call — Radarr has no server-side filter, so
+     * this is the same `/api/v3/movie` read `search` already does. §16's cache
+     * is what makes it affordable, and it lives in the tool layer.
+     */
+    async listLibrary(): Promise<IndexInput[]> {
+        const movies = await this.#http.get<RawMovie[]>('/api/v3/movie');
+
+        return movies.map(m => ({
+            kind: 'movie' as const,
+            title: fenceText(m.title ?? '', { service: this.id, field: 'title' }),
+            ...(m.year === undefined ? {} : { year: m.year }),
+            ...(m.genres === undefined
+                ? {}
+                : { genres: m.genres.map(g => fenceText(g, { service: this.id, field: 'genre' })) }),
+            ids: {
+                ...(m.tmdbId === undefined ? {} : { tmdb: m.tmdbId }),
+                ...(m.imdbId === undefined ? {} : { imdb: m.imdbId })
+            },
+            acquisition: {
+                service: this.id,
+                monitored: m.monitored ?? false,
+                hasFile: m.hasFile ?? false,
+                ...(m.movieFile?.quality?.quality?.name === undefined
+                    ? {}
+                    : { quality: m.movieFile.quality.quality.name }),
+                ...(m.movieFile?.size === undefined ? {} : { sizeBytes: m.movieFile.size })
+            },
+            ...((r => (r === undefined ? {} : { ratings: r }))(toMergedRatings(flattenRatings(m.ratings))))
+        }));
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
