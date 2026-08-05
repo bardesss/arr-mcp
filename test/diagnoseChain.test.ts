@@ -14,6 +14,18 @@ type ItemOverride = { [K in keyof MergedItem]?: MergedItem[K] | undefined };
 
 const fence = (title: string): string => fenceText(title, { service: 'radarr', field: 'title' });
 
+/**
+ * Every queue fixture used to pass an unfenced release title, while all
+ * three adapters actually fence it (`arrQueue.ts`'s `title`, SABnzbd's
+ * `filename`, Transmission's `name`). Matching still worked either way — the
+ * fence markers are outside the word tokens `mentions()` compares — but an
+ * unfenced fixture is not production shape. This fences per-service the same
+ * way the real adapter does.
+ */
+const QUEUE_TITLE_FIELD: Record<string, string> = { radarr: 'title', sonarr: 'title', sabnzbd: 'filename', transmission: 'name' };
+const queueTitle = (service: string, title: string): string =>
+    fenceText(title, { service: service as Parameters<typeof fenceText>[1]['service'], field: QUEUE_TITLE_FIELD[service] ?? 'title' });
+
 const item = (over: ItemOverride = {}): MergedItem => {
     const merged: Record<string, unknown> = {
         kind: 'movie',
@@ -185,7 +197,7 @@ describe('buildChain — a symptom never outranks its cause', () => {
                     {
                         service: 'sabnzbd',
                         id: '1',
-                        title: 'Some.Film.2026',
+                        title: queueTitle('sabnzbd', 'Some.Film.2026'),
                         status: 'stalled',
                         errorMessage: 'no connection to news server'
                     }
@@ -204,7 +216,7 @@ describe('buildChain — a symptom never outranks its cause', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: noFile,
-            queue: { items: [{ service: 'radarr', id: '1', title: 'Some.Film.2026', status: 'downloading', etaSeconds: 600 }], partial: [] }
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'Some.Film.2026'), status: 'downloading', etaSeconds: 600 }], partial: [] }
         });
         expect(d.verdict.stage).toBe('queue');
         expect(d.verdict.summary).toMatch(/downloading/i);
@@ -223,7 +235,7 @@ describe('buildChain — a symptom never outranks its cause', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: noFile,
-            queue: { items: [{ service: 'radarr', id: '1', title: 'Some.Film.2026', status: 'completed' }], partial: [] }
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'Some.Film.2026'), status: 'completed' }], partial: [] }
         });
         expect(d.verdict.stage).toBe('queue');
         expect(d.verdict.summary).not.toMatch(/still downloading/i);
@@ -237,7 +249,7 @@ describe('buildChain — a symptom never outranks its cause', () => {
             const d = buildChain('some film', {
                 ...healthy(),
                 item: noFile,
-                queue: { items: [{ service: 'radarr', id: '1', title: 'Some.Film.2026', status }], partial: [] }
+                queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'Some.Film.2026'), status }], partial: [] }
             });
             expect(d.verdict.stage).toBe('queue');
             expect(d.verdict.summary).not.toMatch(/still downloading/i);
@@ -257,7 +269,7 @@ describe('buildChain — a symptom never outranks its cause', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: noFile,
-            queue: { items: [{ service: 'radarr', id: '1', title: 'Some.Film.2026', status: 'downloading' }], partial: [] }
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'Some.Film.2026'), status: 'downloading' }], partial: [] }
         });
         expect(stepFor(d, 'file')?.status).toBe('blocked');
     });
@@ -268,7 +280,7 @@ describe('buildChain — a symptom does not outrank a chain that is not actually
         const d = buildChain('some film', {
             ...healthy(),
             // item() defaults to hasFile: true.
-            queue: { items: [{ service: 'radarr', id: '1', title: 'Some.Film.2026', status: 'downloading', etaSeconds: 600 }], partial: [] }
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'Some.Film.2026'), status: 'downloading', etaSeconds: 600 }], partial: [] }
         });
         expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
     });
@@ -301,7 +313,7 @@ describe('buildChain — title matching (I3)', () => {
         const d = buildChain(title, {
             ...healthy(),
             item: noFileFor(title, year),
-            queue: { items: [{ service: 'radarr', id: '1', title: release, status: 'downloading' }], partial: [] }
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', release), status: 'downloading' }], partial: [] }
         });
         expect(d.verdict.stage).toBe('queue');
     });
@@ -310,7 +322,7 @@ describe('buildChain — title matching (I3)', () => {
         const d = buildChain('dune', {
             ...healthy(),
             item: noFileFor('Dune', 2021),
-            queue: { items: [{ service: 'radarr', id: '1', title: 'Dune.Part.Two.2024.1080p', status: 'downloading' }], partial: [] }
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'Dune.Part.Two.2024.1080p'), status: 'downloading' }], partial: [] }
         });
         // The queue row is correctly ignored as unrelated, so nothing
         // explains the missing file, and the verdict falls through to it.
@@ -321,7 +333,7 @@ describe('buildChain — title matching (I3)', () => {
         const d = buildChain('alien', {
             ...healthy(),
             item: noFileFor('Alien', 1979),
-            queue: { items: [{ service: 'radarr', id: '1', title: 'Aliens.1986.1080p', status: 'downloading' }], partial: [] }
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'Aliens.1986.1080p'), status: 'downloading' }], partial: [] }
         });
         expect(d.verdict.stage).toBe('file');
     });
@@ -330,7 +342,7 @@ describe('buildChain — title matching (I3)', () => {
         const d = buildChain('toy story', {
             ...healthy(),
             item: noFileFor('Toy Story', 1995),
-            queue: { items: [{ service: 'radarr', id: '1', title: 'American.Horror.Story.S01E01', status: 'downloading' }], partial: [] }
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'American.Horror.Story.S01E01'), status: 'downloading' }], partial: [] }
         });
         expect(d.verdict.stage).toBe('file');
     });
@@ -338,12 +350,19 @@ describe('buildChain — title matching (I3)', () => {
 
 describe('buildChain — certainty', () => {
     it('is uncertain when a stage before the verdict could not be checked', () => {
-        // A real, blocked verdict (library) with an earlier stage on its
+        // A real, blocked verdict (file — genuinely missing, nothing
+        // downloading, no indexer failure) with an earlier stage on its
         // certainty path (request) unreachable — the mechanism this test
         // name describes, exercised against an actual blocking stage rather
         // than the no-verdict/playable path (see the dedicated test below).
+        //
+        // Deliberately *not* a `library` verdict: once `file` is confirmed
+        // `ok`, request/managed are excluded from the certainty path
+        // entirely (residual C1) — an unreachable Seerr has no bearing on
+        // whether Jellyfin can see a file already confirmed to exist, so it
+        // would not be a meaningful "stage before the verdict" example there.
         const d = buildChain('some film', {
-            item: item({ presence: 'arr_only', playback: undefined }),
+            item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
             request: undefined,
             queue: { items: [], partial: [] },
             queueConfigured: true,
@@ -354,7 +373,7 @@ describe('buildChain — certainty', () => {
             degraded: ['seerr']
         });
 
-        expect(d.verdict.stage).toBe('library');
+        expect(d.verdict.stage).toBe('file');
         expect(d.verdict.certain).toBe(false);
         expect(d.verdict.summary).toMatch(/could not check|seerr/i);
     });
@@ -438,12 +457,25 @@ describe('buildChain — verdict order is pinned, not incidental (I7)', () => {
         expect(d.verdict.stage).toBe('request');
     });
 
-    it('managed outranks the queue/file group when both are blocked', () => {
+    it('managed outranks the queue/file group when both are genuinely blocked', () => {
+        // Not vacuous: `acquisition: undefined` alone always skips `file`
+        // (there is no hasFile to read), so queue/indexers can never compete
+        // regardless of ordering — that would make this test pass whether or
+        // not "managed first" is actually implemented. `monitored: false`
+        // with `hasFile: false` is the fixture where `file` is genuinely
+        // `blocked` (not skipped) *and* `managed` is *also* blocked, so
+        // queue/indexers really are in contention and the ordering matters.
         const d = buildChain('some film', {
             ...healthy(),
-            item: item({ acquisition: undefined, presence: 'jellyfin_only' }),
-            queue: { items: [{ service: 'sabnzbd', id: '1', title: 'Some.Film.2026', status: 'downloading' }], partial: [] }
+            item: item({
+                acquisition: { service: 'radarr', monitored: false, hasFile: false },
+                presence: 'arr_only',
+                playback: undefined
+            }),
+            queue: { items: [{ service: 'sabnzbd', id: '1', title: queueTitle('sabnzbd', 'Some.Film.2026'), status: 'downloading' }], partial: [] }
         });
+        expect(stepFor(d, 'file')?.status).toBe('blocked');
+        expect(stepFor(d, 'queue')?.status).toBe('blocked');
         expect(d.verdict.stage).toBe('managed');
     });
 
@@ -451,7 +483,7 @@ describe('buildChain — verdict order is pinned, not incidental (I7)', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
-            queue: { items: [{ service: 'sabnzbd', id: '1', title: 'Some.Film.2026', status: 'stalled', errorMessage: 'x' }], partial: [] },
+            queue: { items: [{ service: 'sabnzbd', id: '1', title: queueTitle('sabnzbd', 'Some.Film.2026'), status: 'stalled', errorMessage: 'x' }], partial: [] },
             rejections: [{ indexer: 'Indexer 1', at: '2026-08-05T09:00:00Z', reason: 'query failed', query: 'Some Film' }]
         });
         expect(d.verdict.stage).toBe('queue');
@@ -554,13 +586,302 @@ describe('buildChain — a stack without a download client or Prowlarr', () => {
             ...healthy(),
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
             queue: {
-                items: [{ service: 'sabnzbd', id: '1', title: 'Some.Film.2026', status: 'stalled', errorMessage: 'x' }],
+                items: [{ service: 'sabnzbd', id: '1', title: queueTitle('sabnzbd', 'Some.Film.2026'), status: 'stalled', errorMessage: 'x' }],
                 partial: ['transmission']
             }
         });
         expect(d.verdict.stage).toBe('queue');
         // A hole elsewhere in the same stage cannot undo evidence already in hand.
         expect(d.verdict.certain).toBe(true);
+    });
+});
+
+describe('buildChain — punctuated titles (N3 regression)', () => {
+    // Round 1's `mentions()` used `normaliseTitle`, which *deletes*
+    // intra-word punctuation ("Spider-Man" → "spiderman"), while a release
+    // name is naturally *split* on the same characters
+    // ("Spider.Man.2002" → "spider", "man", "2002"). Deleting on one side and
+    // splitting on the other means neither ever produces matching tokens —
+    // every hyphenated or apostrophed title matched nothing, and the queue
+    // and indexer stages went blind for them.
+    const noFileFor = (title: string, year: number): MergedItem =>
+        item({ title: fence(title), year, acquisition: { service: 'radarr', monitored: true, hasFile: false } });
+
+    const punctuatedCases: Array<[title: string, year: number, release: string]> = [
+        ['Spider-Man', 2002, 'Spider.Man.2002.1080p'],
+        ['Spider-Man', 2002, 'Spider-Man.2002.1080p'],
+        ['WALL-E', 2008, 'WALL.E.2008.1080p'],
+        ['Face/Off', 1997, 'Face.Off.1997.1080p'],
+        ["Ocean's Eleven", 2001, "Ocean's.Eleven.2001.1080p"]
+    ];
+
+    it.each(punctuatedCases)('matches %s against release name %s', (title, year, release) => {
+        const d = buildChain(title, {
+            ...healthy(),
+            item: noFileFor(title, year),
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', release), status: 'downloading' }], partial: [] }
+        });
+        expect(d.verdict.stage).toBe('queue');
+    });
+});
+
+describe("buildChain — the year guard ignores the title's own year words (N4)", () => {
+    const noFileFor = (title: string, year: number): MergedItem =>
+        item({ title: fence(title), year, acquisition: { service: 'radarr', monitored: true, hasFile: false } });
+
+    const titleYearCases: Array<[title: string, year: number, release: string]> = [
+        // A naive "first year-shaped token" guard picks 2049 here — the
+        // title's own year — and rejects the real release year (2017).
+        ['Blade Runner 2049', 2017, 'Blade.Runner.2049.2017.1080p'],
+        // Same failure mode with a whole title that is a year.
+        ['1917', 2019, '1917.2019.1080p'],
+        ['2001: A Space Odyssey', 1968, '2001.A.Space.Odyssey.1968.1080p']
+    ];
+
+    it.each(titleYearCases)('matches %s (%i) even though the title itself contains a year-shaped word', (title, year, release) => {
+        const d = buildChain(title, {
+            ...healthy(),
+            item: noFileFor(title, year),
+            queue: { items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', release), status: 'downloading' }], partial: [] }
+        });
+        expect(d.verdict.stage).toBe('queue');
+    });
+
+    it('skips the year guard entirely for a series, where the release year is an episode air year', () => {
+        const d = buildChain('the simpsons', {
+            ...healthy(),
+            item: item({
+                kind: 'series',
+                title: fence('The Simpsons'),
+                year: 1989,
+                ids: { tvdb: 71663 },
+                acquisition: { service: 'sonarr', monitored: true, hasFile: false },
+                presence: 'arr_only',
+                playback: undefined
+            }),
+            queue: {
+                items: [{ service: 'sonarr', id: '1', title: queueTitle('sonarr', 'The.Simpsons.S32E01.2020'), status: 'downloading' }],
+                partial: []
+            }
+        });
+        expect(d.verdict.stage).toBe('queue');
+    });
+});
+
+describe('buildChain — certainty is not laundered across an unreachable scan (N1)', () => {
+    it('is uncertain about a library verdict when scan itself could not be checked, even though scan is not itself blocked', () => {
+        // Round 1 only put `scan` on the certainty path when `scan` was
+        // *already* `blocked` — the one state that cannot change the
+        // verdict. With `library` blocked and `scan` merely `unknown` (could
+        // not tell if a scan is running), the verdict stayed `library` with
+        // `certain: true` and a remedy to "trigger a scan" — silent about
+        // the possibility one is already running, which I6 established
+        // outranks it.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ presence: 'arr_only', playback: undefined }),
+            scan: undefined
+        });
+        expect(d.verdict.stage).toBe('library');
+        expect(d.verdict.certain).toBe(false);
+        expect(d.verdict.summary).toMatch(/could not check/i);
+    });
+});
+
+describe('buildChain — the file remedy matches what was actually checked (N2)', () => {
+    it('hedges when queue and indexers are configured but unreachable, rather than asserting they were both checked', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
+            queue: undefined,
+            rejections: undefined,
+            degraded: ['sabnzbd', 'prowlarr']
+        });
+        expect(d.verdict.stage).toBe('file');
+        expect(d.verdict.certain).toBe(false);
+        // The old wording asserted both were checked; the caveat right next
+        // to it says neither could be. The remedy must not contradict it.
+        expect(d.verdict.remedy).not.toMatch(/nothing is downloading and no indexer reported a failure/i);
+        expect(d.verdict.remedy).toMatch(/could not/i);
+    });
+
+    it('hedges specifically about the download client on a partial queue read, crediting indexers for genuinely being checked', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
+            queue: { items: [], partial: ['transmission'] }
+        });
+        expect(d.verdict.stage).toBe('file');
+        expect(d.verdict.remedy).not.toMatch(/nothing is downloading and no indexer reported a failure/i);
+        expect(d.verdict.remedy).toMatch(/download client/i);
+        // Prowlarr genuinely was reachable and found nothing here — it must
+        // not be named alongside the download client as also uncheckable.
+        expect(d.verdict.remedy).not.toMatch(/indexer manager is configured|prowlarr could not/i);
+    });
+
+    it('does not confuse "not configured" with "checked and found nothing" — the original wording still applies when both genuinely were checked', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } })
+        });
+        expect(d.verdict.stage).toBe('file');
+        expect(d.verdict.certain).toBe(true);
+        expect(d.verdict.remedy).toMatch(/nothing is downloading and no indexer reported a failure/i);
+    });
+});
+
+describe('buildChain — request/managed do not outrank a file already confirmed on disk (residual C1)', () => {
+    it('does not blame an old declined request when the item is already on disk and visible in Jellyfin', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            // item() defaults to hasFile: true, presence: 'both'.
+            request: { status: 'declined' }
+        });
+        expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
+    });
+
+    it('does not blame a pending request (the normal state of a second/4K request) when the item is already playable', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            request: { status: 'pending' }
+        });
+        expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
+    });
+
+    it('does not blame monitoring being off when the item is already on disk and visible in Jellyfin', () => {
+        // "every hand-added Jellyfin item diagnoses as blocked" was the
+        // failure mode: `monitored: false` alone used to always win.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: false, hasFile: true } })
+        });
+        expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
+    });
+
+    it('blames the actual cause (library) rather than monitoring, when the file exists but Jellyfin cannot see it', () => {
+        // The worst case: monitored: false + hasFile: true + arr_only used to
+        // verdict `managed` with remedy "turn monitoring on" — a wrong
+        // remedy, not just a wrong label, while `library` was genuinely
+        // blocked and was the real cause.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({
+                acquisition: { service: 'radarr', monitored: false, hasFile: true },
+                presence: 'arr_only',
+                playback: undefined
+            })
+        });
+        expect(d.verdict.stage).toBe('library');
+        expect(d.verdict.remedy).not.toMatch(/monitor/i);
+        expect(d.verdict.remedy).toMatch(/scan/i);
+    });
+});
+
+describe('buildChain — queue status classification (N5, N6)', () => {
+    const noFile = item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } });
+
+    it.each(['seeding', 'queued to seed'])(
+        'classifies Transmission status %s as import-pending (the torrent itself finished), not "still downloading"',
+        status => {
+            const d = buildChain('some film', {
+                ...healthy(),
+                item: noFile,
+                queue: { items: [{ service: 'transmission', id: '1', title: queueTitle('transmission', 'Some.Film.2026'), status }], partial: [] }
+            });
+            expect(d.verdict.stage).toBe('queue');
+            expect(d.verdict.summary).not.toMatch(/still downloading/i);
+            expect(d.verdict.summary).toMatch(/import/i);
+            expect(d.verdict.remedy).toMatch(/import/i);
+        }
+    );
+
+    it('classifies SABnzbd status "propagating" as active (healthy), not a fault', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: noFile,
+            queue: { items: [{ service: 'sabnzbd', id: '1', title: queueTitle('sabnzbd', 'Some.Film.2026'), status: 'propagating' }], partial: [] }
+        });
+        expect(d.verdict.stage).toBe('queue');
+        // "Active" is exactly what "propagating" is: no fault, no remedy —
+        // "Still downloading" is the correct, healthy description of it.
+        expect(d.verdict.remedy).toBeUndefined();
+        expect(d.verdict.summary).toMatch(/still downloading/i);
+    });
+
+    it('reports an adapter\'s own "unknown" status sentinel as indeterminate, not a fault (I5\'s reasoning, applied to a queue row)', () => {
+        // SABnzbd's `(s.status ?? 'unknown').toLowerCase()` and
+        // Transmission's `TORRENT_STATUS[...] ?? 'unknown'` fall back to the
+        // literal string "unknown" for a status code they cannot map. That
+        // is the service answering with something this module cannot
+        // classify — the same situation I5 fixed for a Seerr request status.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: noFile,
+            queue: { items: [{ service: 'transmission', id: '1', title: queueTitle('transmission', 'Some.Film.2026'), status: 'unknown' }], partial: [] }
+        });
+        expect(stepFor(d, 'queue')?.status).toBe('unknown');
+        expect(d.verdict.certain).toBe(false);
+    });
+});
+
+describe('buildChain — a queue fault does not outrank an already-playable file, but is not swallowed either (N7)', () => {
+    it('mentions a failing upgrade grab in the playable summary without changing the verdict', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            // item() defaults to hasFile: true — a working file already exists.
+            queue: {
+                items: [
+                    {
+                        service: 'sabnzbd',
+                        id: '1',
+                        title: queueTitle('sabnzbd', 'Some.Film.2026'),
+                        status: 'failed',
+                        errorMessage: 'unpack failed'
+                    }
+                ],
+                partial: []
+            }
+        });
+        expect(d.verdict.stage).toBe('playable');
+        expect(d.verdict.summary).toMatch(/unpack failed/i);
+    });
+
+    it('does not mention a merely active (non-fault) queue row — that would just be C1 undone', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            queue: {
+                items: [{ service: 'radarr', id: '1', title: queueTitle('radarr', 'Some.Film.2026'), status: 'downloading', etaSeconds: 600 }],
+                partial: []
+            }
+        });
+        expect(d.verdict.stage).toBe('playable');
+        expect(d.verdict.summary).not.toMatch(/downloading/i);
+    });
+});
+
+describe('buildChain — degraded is read the same way for every stage (N8)', () => {
+    it('reports indexers as unreachable when Prowlarr is named in degraded, even if rejections happens to be present', () => {
+        // `libraryStep`/`scanStep` already treat `degraded` as authoritative
+        // over their own dedicated field; `indexerStep` used to only ever
+        // consult `ev.rejections === undefined`.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
+            rejections: [],
+            degraded: ['prowlarr']
+        });
+        expect(stepFor(d, 'indexers')?.status).toBe('unknown');
+    });
+
+    it('treats a queue-capable service named in degraded as unreachable even when the collector did not also add it to partial', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
+            queue: { items: [], partial: [] },
+            degraded: ['sabnzbd']
+        });
+        expect(stepFor(d, 'queue')?.status).toBe('unknown');
+        expect(d.verdict.certain).toBe(false);
     });
 });
 
@@ -584,7 +905,7 @@ describe('buildChain — fencing', () => {
                         // `mentions()` heuristic exists precisely to ignore
                         // unrelated queue entries, so a title that could not
                         // match anything would defeat the fencing check below.
-                        title: 'Some.Film.2026',
+                        title: queueTitle('sabnzbd', 'Some.Film.2026'),
                         status: 'failed',
                         errorMessage: '<<untrusted:sabnzbd.fail_message>>unpack failed<</untrusted>>'
                     }
