@@ -204,6 +204,13 @@ export type MediaRequest = {
     requestedAt?: string;
 };
 
+export interface RequestCapable {
+    getRequests(opts: { user?: ServiceUser; status?: RequestStatus }): Promise<MediaRequest[]>;
+}
+
+export const hasRequests = (a: ServiceAdapter): a is ServiceAdapter & RequestCapable =>
+    typeof (a as Partial<RequestCapable>).getRequests === 'function';
+
 export type EpisodeSummary = {
     id: number;
     season: number;
