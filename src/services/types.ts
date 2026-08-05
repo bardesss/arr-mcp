@@ -69,6 +69,211 @@ export const hasHealthChecks = (a: ServiceAdapter): a is ServiceAdapter & Health
 export const hasScanState = (a: ServiceAdapter): a is ServiceAdapter & ScanStateCapable =>
     typeof (a as Partial<ScanStateCapable>).getScanState === 'function';
 
+// --- Phase 2b read-tool capabilities ---
+
+export type IndexerSummary = {
+    service: ServiceId;
+    id: number;
+    name: string;
+    enabled: boolean;
+    protocol: string;
+    priority: number;
+    disabledUntil?: string;
+    lastFailure?: string;
+    queries?: number;
+    grabs?: number;
+    rejectedQueries?: number;
+    rejectedGrabs?: number;
+};
+
+/** A query an indexer refused, with the reason it gave. §12's "recent rejections". */
+export type IndexerRejection = { indexer: string; at: string; reason: string; query?: string };
+
+export interface IndexerCapable {
+    getIndexers(): Promise<IndexerSummary[]>;
+    /** Resolves empty rather than throwing when the service exposes no history. */
+    getRecentRejections(limit: number): Promise<IndexerRejection[]>;
+}
+
+export const hasIndexers = (a: ServiceAdapter): a is ServiceAdapter & IndexerCapable =>
+    typeof (a as Partial<IndexerCapable>).getIndexers === 'function';
+
+export type MissingLanguage = { name: string; code2: string; forced: boolean; hearingImpaired: boolean };
+
+export type SubtitleGap = {
+    service: ServiceId;
+    kind: 'movie' | 'episode';
+    id: number;
+    title: string;
+    episodeTitle?: string;
+    season?: number;
+    episode?: number;
+    releaseName?: string;
+    missing: MissingLanguage[];
+};
+
+/**
+ * §12's "provider state". A subtitle gap says what is missing; this says
+ * whether Bazarr is currently able to do anything about it.
+ */
+export type SubtitleProvider = {
+    service: ServiceId;
+    name: string;
+    healthy: boolean;
+    /** The provider's own words, present only when unhealthy. */
+    status?: string;
+    retryAt?: string;
+};
+
+export interface SubtitleCapable {
+    getMissingSubtitles(): Promise<SubtitleGap[]>;
+    getProviders(): Promise<SubtitleProvider[]>;
+}
+
+export const hasSubtitles = (a: ServiceAdapter): a is ServiceAdapter & SubtitleCapable =>
+    typeof (a as Partial<SubtitleCapable>).getMissingSubtitles === 'function';
+
+export type QueueItem = {
+    service: ServiceId;
+    id: string;
+    title: string;
+    status: string;
+    protocol?: string;
+    sizeBytes?: number;
+    remainingBytes?: number;
+    etaSeconds?: number;
+    errorMessage?: string;
+};
+
+export interface QueueCapable {
+    getQueue(): Promise<QueueItem[]>;
+}
+
+export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>
+    typeof (a as Partial<QueueCapable>).getQueue === 'function';
+
+export type CalendarEntry = {
+    service: ServiceId;
+    kind: 'movie' | 'episode';
+    id: number;
+    title: string;
+    seriesTitle?: string;
+    season?: number;
+    episode?: number;
+    /** ISO 8601. When the item becomes available, whatever the service calls it. */
+    date: string;
+    hasFile: boolean;
+    monitored: boolean;
+};
+
+export interface CalendarCapable {
+    getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]>;
+}
+
+export const hasCalendar = (a: ServiceAdapter): a is ServiceAdapter & CalendarCapable =>
+    typeof (a as Partial<CalendarCapable>).getCalendar === 'function';
+
+export type PlaybackEntry = {
+    service: ServiceId;
+    kind: 'now_playing' | 'resume';
+    itemId: string;
+    title: string;
+    seriesTitle?: string;
+    season?: number;
+    episode?: number;
+    user: string;
+    positionSeconds?: number;
+    runtimeSeconds?: number;
+    percentComplete?: number;
+    lastPlayed?: string;
+    device?: string;
+};
+
+export type RequestStatus = 'pending' | 'approved' | 'declined';
+
+export type MediaRequest = {
+    service: ServiceId;
+    id: number;
+    status: RequestStatus | 'unknown';
+    mediaType: 'movie' | 'tv' | 'unknown';
+    tmdbId?: number;
+    title?: string;
+    requestedBy: string;
+    requestedAt?: string;
+};
+
+export type EpisodeSummary = {
+    id: number;
+    season: number;
+    episode: number;
+    title: string;
+    airDate?: string;
+    hasFile: boolean;
+    monitored: boolean;
+};
+
+export type MediaDetails = {
+    service: ServiceId;
+    kind: 'movie' | 'series' | 'item';
+    id: string;
+    title: string;
+    year?: number;
+    overview?: string;
+    monitored?: boolean;
+    hasFile?: boolean;
+    sizeBytes?: number;
+    quality?: string;
+    path?: string;
+    ids: { tmdb?: number; tvdb?: number; imdb?: string };
+    /** Flattened from each service's nested shape to `source → value`. */
+    ratings?: Record<string, number>;
+    episodes?: EpisodeSummary[];
+    episodeCount?: number;
+    episodesTruncated?: boolean;
+};
+
+export interface MediaDetailCapable {
+    getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails>;
+}
+
+export const hasMediaDetails = (a: ServiceAdapter): a is ServiceAdapter & MediaDetailCapable =>
+    typeof (a as Partial<MediaDetailCapable>).getMediaDetails === 'function';
+
+export type SearchSource = 'library' | 'discover' | 'indexers';
+
+export type SearchHit = {
+    service: ServiceId;
+    source: SearchSource;
+    kind: 'movie' | 'series' | 'item' | 'release';
+    id: string;
+    title: string;
+    year?: number;
+    ids: { tmdb?: number; tvdb?: number; imdb?: string };
+    hasFile?: boolean;
+    monitored?: boolean;
+    indexer?: string;
+    sizeBytes?: number;
+    seeders?: number;
+    publishDate?: string;
+};
+
+export interface SearchCapable {
+    /** Returns [] for a source this service cannot serve, rather than throwing. */
+    search(query: string, source: SearchSource): Promise<SearchHit[]>;
+}
+
+export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapable =>
+    typeof (a as Partial<SearchCapable>).search === 'function';
+
+export interface DiscoverCapable {
+    discover(opts: {
+        mediaType: 'movie' | 'tv';
+        genre?: string;
+        year?: number;
+        minRating?: number;
+    }): Promise<SearchHit[]>;
+}
+
 /**
  * Every adapter's testConnection is the same twenty lines around a different
  * probe. Sharing them means "returns a diagnosis, never throws" is one

@@ -23,7 +23,15 @@ export default tseslint.config(
         rules: {
             // Unused args are allowed when prefixed with _, which the adapter
             // interfaces rely on for deliberately-unused parameters.
-            '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
+            //
+            // `ignoreRestSiblings` covers the omit-by-destructuring idiom the
+            // tool projections use — `const { a, ...rest } = x` to drop a field
+            // at a lower detail level. Without it every projection needs a
+            // disable comment, which is how disable comments start spreading.
+            '@typescript-eslint/no-unused-vars': [
+                'error',
+                { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }
+            ]
         }
     }
 );
