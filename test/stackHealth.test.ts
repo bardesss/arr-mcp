@@ -6,6 +6,7 @@ import type {
     DiskSpaceCapable,
     HealthCheck,
     HealthCheckCapable,
+    ScanState,
     ServiceAdapter
 } from '../src/services/types.ts';
 import { buildStackHealth, registerStackHealth } from '../src/tools/stackHealth.ts';
@@ -134,8 +135,37 @@ describe('stack_health', () => {
             { detail: 'standard', limit: 3 }
         );
 
-        expect(result.disks).toMatchObject({ total: 7, returned: 3, truncated: true });
+        // One budget across both lists, spent on failures first. Applying the
+        // limit to each independently would have returned 6 rows for limit: 3.
         expect(result.failures).toMatchObject({ total: 4, returned: 3, truncated: true });
+        expect(result.disks).toMatchObject({ total: 7, returned: 0, truncated: true });
+        expect(result.failures.returned + result.disks.returned).toBeLessThanOrEqual(3);
+    });
+
+    it('still reports the true disk total when the budget left no room for rows', async () => {
+        const result = await buildStackHealth(
+            [
+                fakeArr({
+                    diagnosis: healthy,
+                    getDiskSpace: async () => [
+                        { service: 'radarr', path: '/movies', label: 'movies', freeSpace: 1, totalSpace: 2 }
+                    ],
+                    getFailedHealthChecks: async () =>
+                        Array.from({ length: 5 }, (_, i) => ({
+                            service: 'radarr' as const,
+                            source: `S${i}`,
+                            type: 'warning',
+                            message: 'm'
+                        }))
+                })
+            ],
+            { detail: 'standard', limit: 2 }
+        );
+
+        // A starved list must not read as "there are no disks".
+        expect(result.disks.items).toEqual([]);
+        expect(result.disks.total).toBe(1);
+        expect(result.disks.truncated).toBe(true);
     });
 
     it('omits disk detail at minimal but keeps the counts truthful', async () => {
@@ -184,6 +214,95 @@ describe('stack_health', () => {
         expect(result.services.map(s => s.service)).toContain('sabnzbd');
         expect(result.degraded).toEqual([]);
         expect(result.disks.total).toBe(0);
+    });
+
+    it('collects scan state from services that report it', async () => {
+        const scanner: ServiceAdapter & { getScanState: () => Promise<ScanState> } = {
+            id: 'jellyfin',
+            getVersion: async () => '10.11.11',
+            testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
+            getScanState: async () => ({
+                service: 'jellyfin',
+                lastCompleted: '2026-08-05T09:07:11Z',
+                running: false
+            })
+        };
+        const result = await buildStackHealth([scanner], std);
+
+        expect(result.scans).toEqual([{ service: 'jellyfin', lastCompleted: '2026-08-05T09:07:11Z', running: false }]);
+    });
+
+    it('degrades rather than failing when a scan-state read throws', async () => {
+        const broken: ServiceAdapter & { getScanState: () => Promise<ScanState> } = {
+            id: 'jellyfin',
+            getVersion: async () => '10.11.11',
+            testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
+            getScanState: async () => {
+                throw new Error('boom');
+            }
+        };
+        const result = await buildStackHealth([broken], std);
+
+        expect(result.degraded).toEqual(['jellyfin']);
+        expect(result.scans).toEqual([]);
+        expect(result.services).toHaveLength(1);
+    });
+
+    it('reports an empty scans list rather than omitting the field', async () => {
+        expect((await buildStackHealth([], std)).scans).toEqual([]);
+    });
+
+    it('keeps counts honest at detail: minimal even though items are dropped', async () => {
+        const disks: DiskSpace[] = [
+            { service: 'radarr', path: '/movies', label: 'movies', freeSpace: 1, totalSpace: 2 }
+        ];
+        const failures: HealthCheck[] = [{ service: 'radarr', source: 'S', type: 'warning', message: 'm' }];
+        const result = await buildStackHealth(
+            [
+                fakeArr({
+                    diagnosis: healthy,
+                    getDiskSpace: async () => disks,
+                    getFailedHealthChecks: async () => failures
+                })
+            ],
+            { detail: 'minimal', limit: 50 }
+        );
+
+        // Both lists drop their payloads at minimal — Phase 1 dropped only disks.
+        expect(result.disks.items).toEqual([]);
+        expect(result.failures.items).toEqual([]);
+        expect(result.disks.total).toBe(1);
+        expect(result.failures.total).toBe(1);
+    });
+
+    it('returns disk paths only at detail: full', async () => {
+        const disks: DiskSpace[] = [
+            { service: 'radarr', path: '/movies', label: 'movies', freeSpace: 1, totalSpace: 2 }
+        ];
+        const build = (detail: 'standard' | 'full') =>
+            buildStackHealth([fakeArr({ diagnosis: healthy, getDiskSpace: async () => disks })], {
+                detail,
+                limit: 50
+            });
+
+        expect((await build('full')).disks.items[0]?.path).toBe('/movies');
+        expect((await build('standard')).disks.items[0]?.path).toBeUndefined();
+        // The row survives; only the path is gone.
+        expect((await build('standard')).disks.items[0]?.freeSpace).toBe(1);
+    });
+
+    it('drops the remedy at minimal but keeps the error kind', async () => {
+        const withRemedy: ConnectionDiagnosis = {
+            ok: false,
+            service: 'radarr',
+            latency_ms: 3,
+            error: { kind: 'Unreachable', detail: 'connection refused', remedy: 'Check the service is running.' }
+        };
+        const result = await buildStackHealth([fakeArr({ diagnosis: withRemedy })], { detail: 'minimal', limit: 50 });
+
+        expect(result.services[0]?.error?.kind).toBe('Unreachable');
+        expect(result.services[0]?.error?.remedy).toBeUndefined();
+        expect(result.degraded).toEqual(['radarr']);
     });
 
     it('registers without throwing', () => {

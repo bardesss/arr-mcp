@@ -14,22 +14,25 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
 - **Safe by default.** Deletion is off until you deliberately enable it, and
   then still asks per call.
 
-> ### Status: 0.2 — walking skeleton, published
+> ### Status: 0.3 — all eight services
 >
-> Radarr and a single `stack_health` tool. Runnable, but not yet useful for
-> much — this is the foundation the rest lands on. **0.3 adds the remaining
-> seven services and ten read tools.** See [the roadmap](#roadmap).
+> Every service reachable, with `stack_health` reporting versions, disk space,
+> failing checks and library scan staleness across the whole stack. The read
+> tools that answer questions about your library land in the same release; the
+> cross-service `diagnose` arrives in 0.4. See [the roadmap](#roadmap).
 
-## Planned services
+## Services
 
 Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Seerr · SABnzbd · Transmission
+
+All eight are supported as of 0.3.
 
 ## Quick start
 
 ```yaml
 services:
   arr-mcp:
-    image: ghcr.io/bardesss/arr-mcp:0.2
+    image: ghcr.io/bardesss/arr-mcp:0.3
     ports: ['6060:6060']
     volumes: ['./config:/config']
     environment:
@@ -51,10 +54,24 @@ services:
   radarr:
     url: http://192.168.1.20:7878
     api_key: "…"
+  jellyfin:
+    url: http://192.168.1.20:8096
+    api_key: "…"
+    default_user: "you"      # whose watched state `watched` means
+  transmission:
+    url: http://192.168.1.20:9091
+    username: "…"            # Transmission has no API key
+    password: "…"
 ```
 
-Radarr is the only service 0.2 speaks to; the other seven land in 0.3. Until
-the config UI arrives in 0.6, edit the file by hand and **restart the
+All eight are supported: `radarr`, `sonarr`, `prowlarr`, `bazarr`, `jellyfin`,
+`seerr`, `sabnzbd`, `transmission`. Configure only what you run — anything you
+leave out is simply absent, not broken.
+
+A misspelled key, an unknown service, or an `api_key` on Transmission fails at
+startup with the offending field named, rather than being silently ignored.
+
+Until the config UI arrives in 0.6, edit the file by hand and **restart the
 container** to pick up changes.
 
 ## Roadmap
