@@ -5,6 +5,7 @@ import type { KeyedServiceConfig, MultiUserServiceConfig, TransmissionServiceCon
 import { BazarrAdapter } from '../src/services/bazarr.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
+import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
@@ -357,4 +358,23 @@ describe('TransmissionAdapter', () => {
     });
 
     expectsAuthDiagnosis(new TransmissionAdapter(transmissionConfig, unauthorized));
+});
+
+describe('version floors', () => {
+    it('reports a below-floor service as VersionUnsupported rather than healthy', async () => {
+        const ancient = (async () => jsonResponse({ appName: 'Radarr', version: '3.0.0.1234' })) as unknown as typeof fetch;
+        const d = await new RadarrAdapter(keyed(7878), ancient).testConnection();
+
+        expect(d.ok).toBe(false);
+        expect(d.error?.kind).toBe('VersionUnsupported');
+        expect(d.error?.remedy).toMatch(/upgrade/i);
+    });
+
+    it('still reports a supported version as healthy', async () => {
+        const current = (async () => jsonResponse({ appName: 'Radarr', version: '6.3.0.10514' })) as unknown as typeof fetch;
+        const d = await new RadarrAdapter(keyed(7878), current).testConnection();
+
+        expect(d.ok).toBe(true);
+        expect(d.version).toBe('6.3.0.10514');
+    });
 });
