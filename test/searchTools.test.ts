@@ -147,11 +147,13 @@ describe('search_media', () => {
         expect(result.items.map(i => i.id)).toEqual(['10', '11']);
     });
 
-    it('ranks an indexer release containing the query above one that does not, with no upstream filter to rely on', async () => {
-        // Prowlarr returns whatever the indexer sent back — unlike the
-        // library sources there is no substring pre-filter upstream, so this
-        // is the case that actually exercises RANK_NONE rather than relying
-        // on an adapter to make unrelated results moot.
+    it('ranks a substring match above a title with no match, which the old fallback tier could not tell apart', async () => {
+        // Query 'film' is a mid-word substring of 'Some Film 2160p' but not a
+        // prefix of it — do not shorten the title to 'Film 2160p', which
+        // would turn it into a prefix match and silently disarm this test.
+        // Prowlarr's indexer results have no upstream substring pre-filter
+        // (unlike the library sources), so this is the case that actually
+        // exercises RANK_NONE.
         const mixed = [
             {
                 guid: 'r1',
@@ -172,8 +174,14 @@ describe('search_media', () => {
         ];
         const result = await buildSearchMedia(
             [new ProwlarrAdapter(keyed(9696), serving({ '/api/v1/search': mixed }))],
-            { query: 'some film', source: 'indexers', detail: 'full', limit: 50 }
+            { query: 'film', source: 'indexers', detail: 'full', limit: 50 }
         );
+        // Old ranking: neither title is an exact or prefix match against
+        // 'film', so both fall into the same default tier and the tie breaks
+        // alphabetically — 'Completely...' before 'Some...', i.e. r1, r2. New
+        // ranking tells them apart — RANK_SUBSTRING for the title that
+        // actually contains 'film', RANK_NONE for the one that does not —
+        // which reverses the order to r2, r1.
         expect(result.items.map(i => i.id)).toEqual(['r2', 'r1']);
     });
 
