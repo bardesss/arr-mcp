@@ -150,7 +150,14 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { fixture: 'test/fixtures/jellyfin/users.json', fields: ['Id', 'Name'] },
             { fixture: 'test/fixtures/jellyfin/scheduled-tasks.json', fields: ['Key', 'State', 'LastExecutionResult'] },
             { fixture: 'test/fixtures/jellyfin/sessions.json', fields: ['UserId', 'PlayState'] },
-            { fixture: 'test/fixtures/jellyfin/items-search.json', fields: ['Items'] }
+            { fixture: 'test/fixtures/jellyfin/items-search.json', fields: ['Items'] },
+            {
+                // Only assertable now that the capture requests Fields=ProviderIds.
+                // The resolver joins on these; an upstream change here breaks the
+                // three-way join silently.
+                fixture: 'test/fixtures/jellyfin/items-search.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.ProviderIds']
+            }
         ]
     },
     seerr: {
