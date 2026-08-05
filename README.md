@@ -14,10 +14,11 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
 - **Safe by default.** Deletion is off until you deliberately enable it, and
   then still asks per call.
 
-> ### Status: 0.1 walking skeleton
+> ### Status: 0.2 — walking skeleton, published
 >
-> Radarr and a single `stack_health` tool. Not yet useful — this is the
-> foundation the rest lands on. See [the roadmap](#roadmap).
+> Radarr and a single `stack_health` tool. Runnable, but not yet useful for
+> much — this is the foundation the rest lands on. **0.3 adds the remaining
+> seven services and ten read tools.** See [the roadmap](#roadmap).
 
 ## Planned services
 
@@ -25,12 +26,10 @@ Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Seerr · SABnzbd · Transm
 
 ## Quick start
 
-Not yet — there is no published image until 0.1.0 ships. Once it does:
-
 ```yaml
 services:
   arr-mcp:
-    image: ghcr.io/bardesss/arr-mcp:latest
+    image: ghcr.io/bardesss/arr-mcp:0.2
     ports: ['6060:6060']
     volumes: ['./config:/config']
     environment:
@@ -40,23 +39,42 @@ services:
     restart: unless-stopped
 ```
 
-The bearer token for the MCP endpoint is generated on first run and printed to
-the container log. Until the config UI lands in 0.5, edit
-`config/config.yaml` by hand and **restart the container** to pick up changes.
+Tags are `X.Y.Z`, `X.Y`, `X` and `latest` for releases, plus `main` for
+bleeding edge. Pin a minor while the tool surface is still moving.
+
+On first start, `config/config.yaml` is created and **the bearer token for the
+MCP endpoint is printed to the container log** — `docker logs arr-mcp`. Add
+your services to that file:
+
+```yaml
+services:
+  radarr:
+    url: http://192.168.1.20:7878
+    api_key: "…"
+```
+
+Radarr is the only service 0.2 speaks to; the other seven land in 0.3. Until
+the config UI arrives in 0.6, edit the file by hand and **restart the
+container** to pick up changes.
 
 ## Roadmap
 
 | Version | Delivers |
 | --- | --- |
-| 0.1 | Walking skeleton: stateless MCP transport, bearer auth, Radarr, `stack_health` |
-| 0.2 | The remaining seven service adapters and 11 read tools |
-| 0.3 | Cross-service correlation: identity resolver, three-way library join, `diagnose` |
-| 0.4 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation |
-| 0.5 | Web config page: dashboard, diagnosing connection tests, log streams |
-| 0.6 → 1.0 | Metadata providers, MCP resources and prompts |
+| 0.1 / 0.2 | Walking skeleton: stateless MCP transport, bearer auth, Radarr, `stack_health` |
+| 0.3 | The remaining seven service adapters and ten read tools |
+| 0.4 | Cross-service correlation: identity resolver, three-way library join, `diagnose` |
+| 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation |
+| 0.6 | Web config page: dashboard, diagnosing connection tests, log streams |
+| 0.7 → 1.0 | Metadata providers, MCP resources and prompts |
 
-Each version is a self-contained, shippable slice — the goal is that 0.3 already
-answers questions no individual service can, with 0.4–0.6 making it complete.
+Each version is a self-contained, shippable slice — the goal is that 0.4 already
+answers questions no individual service can, with 0.5–0.7 making it complete.
+
+0.1 and 0.2 are the same code under two tags. Dropping the component prefix
+from the release configuration made the release tooling treat the package as
+new and re-cut it; the changelog shows the same features twice. Not two
+releases.
 
 ## Requirements
 
