@@ -103,7 +103,10 @@ const mentions = (haystack: string, item: MergedItem): boolean => {
     const words = titleWords(item);
     if (words.length === 0) return false;
 
-    const hayWords = tokenize(haystack);
+    // Same asymmetry class as N3: the needle is unfenced before tokenising,
+    // so the haystack must be too — otherwise `<<untrusted:service.field>>`
+    // itself, the service id and the field name become haystack tokens.
+    const hayWords = tokenize(unfenced(haystack));
     const haySet = new Set(hayWords);
     if (!words.every(w => haySet.has(w))) return false;
 
@@ -402,6 +405,14 @@ function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepSt
  * correctly stops that from outranking a green chain, but going silent about
  * a real, active failure is over-correction in the other direction (N7): it
  * is worth a mention, just not the verdict.
+ *
+ * The wording asserts a file already exists — true only when `fileIsOk`, so
+ * callers gate this on that before including it. Without the gate, a
+ * `request`/`managed` verdict for something with genuinely no file yet
+ * (`monitored: false` *and* `hasFile: false`, with an unrelated queue row
+ * happening to fault) would read "…is not monitored. (Also: Download
+ * failed… This does not block the file already on disk…)" — asserting a
+ * file that was never confirmed to exist.
  */
 const queueAside = (queueResult: QueueResult): string =>
     queueResult.remedy === undefined || queueResult.step.status !== 'blocked'
@@ -476,14 +487,26 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // why playback fails when the file is sitting right there. From this
     // point on only Jellyfin's visibility of that file matters.
     const fileIsOk = byStage.get('file')?.status === 'ok';
+    // `fileIsOk` means something different for a series than for a movie.
+    // A movie's `hasFile` is unambiguous: this exact file is or is not on
+    // disk. A series' `hasFile` (`sonarr.ts`: `episodeFileCount > 0`) is
+    // "any episode has a file" — true for a show sitting on seasons 1-4
+    // while season 5, the actual question, has never arrived. Excluding
+    // request/managed there would silently drop the single most common
+    // series diagnosis — "monitoring got turned off" / "the new-season
+    // request is still pending" — under a confident "is available in
+    // Jellyfin and playable", with no remedy and no mention. So the
+    // exclusion applies only where the signal it depends on is actually
+    // unambiguous: movies.
+    const excludeRequestManaged = fileIsOk && item.kind === 'movie';
 
     let verdictStage: Stage | undefined;
     let certaintyPath: Stage[];
 
-    if (!fileIsOk && isBlocked('request')) {
+    if (!excludeRequestManaged && isBlocked('request')) {
         verdictStage = 'request';
         certaintyPath = ['request'];
-    } else if (!fileIsOk && isBlocked('managed')) {
+    } else if (!excludeRequestManaged && isBlocked('managed')) {
         verdictStage = 'managed';
         certaintyPath = ['request', 'managed'];
     } else if (isBlocked('file')) {
@@ -516,7 +539,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
         certaintyPath = ['file', 'library', 'scan'];
     } else {
         verdictStage = undefined; // playable
-        certaintyPath = fileIsOk ? ['file', 'library'] : ['request', 'managed', 'file', 'library'];
+        certaintyPath = excludeRequestManaged ? ['file', 'library'] : ['request', 'managed', 'file', 'library'];
     }
 
     const unchecked = certaintyPath.filter(s => byStage.get(s)?.status === 'unknown');
@@ -525,7 +548,13 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     const caveat = certain
         ? ''
         : ` Could not check: ${[...new Set(unchecked.map(s => byStage.get(s)?.service ?? s))].join(', ')}.`;
-    const aside = queueAside(queueResult);
+    // Gated on `fileIsOk`, not on which stage ended up as the verdict: the
+    // sentence claims a file exists, so it must only appear when one was
+    // actually confirmed — true regardless of whether that confirmed file
+    // then made request/managed moot (`excludeRequestManaged`) or not (the
+    // series case above, where `request`/`managed` can still be the verdict
+    // even with a file on disk).
+    const aside = fileIsOk ? queueAside(queueResult) : '';
 
     if (verdictStage === undefined) {
         const libStep = byStage.get('library');

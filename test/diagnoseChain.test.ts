@@ -777,6 +777,130 @@ describe('buildChain — request/managed do not outrank a file already confirmed
     });
 });
 
+describe('buildChain — a series file signal is ambiguous, so request/managed still compete there (round 3)', () => {
+    // Sonarr's own `hasFile` (`src/services/sonarr.ts`: `episodeFileCount >
+    // 0`) means "any episode has a file", not "the thing being asked about
+    // is on disk" — unlike a movie, where `hasFile` is unambiguous. A show
+    // sitting on seasons 1-4 satisfies `fileIsOk` while season 5, the actual
+    // question, has never arrived. Excluding request/managed there the same
+    // way movies do would silently drop the single most common series
+    // diagnosis — "my show stopped getting new episodes because monitoring
+    // got turned off" — under a confident "is available in Jellyfin and
+    // playable", with no remedy and no mention: the exact failure the aside
+    // (N7) exists to prevent, in a stage the aside does not cover.
+    const seriesOnDisk = (over: ItemOverride = {}): MergedItem =>
+        item({
+            kind: 'series',
+            title: fence('Some Show'),
+            year: 2020,
+            ids: { tvdb: 71663 },
+            acquisition: { service: 'sonarr', monitored: true, hasFile: true },
+            presence: 'both',
+            ...over
+        });
+
+    it('blames monitoring being off — not "playable" — when seasons 1-4 are on disk and monitoring stopped', () => {
+        const d = buildChain('some show', {
+            ...healthy(),
+            item: seriesOnDisk({ acquisition: { service: 'sonarr', monitored: false, hasFile: true } })
+        });
+        expect(d.verdict.stage).toBe('managed');
+        expect(d.verdict.remedy).toMatch(/monitor/i);
+    });
+
+    it('blames the pending request — not "playable" — when seasons 1-4 are on disk and the season 5 request is pending', () => {
+        const d = buildChain('some show', {
+            ...healthy(),
+            item: seriesOnDisk(),
+            request: { status: 'pending' }
+        });
+        expect(d.verdict.stage).toBe('request');
+        expect(d.verdict.remedy).toMatch(/approve/i);
+    });
+
+    it('leaves a movie in the identical shape verdicting playable — the exclusion is series-specific, not a general regression', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: false, hasFile: true } }),
+            request: { status: 'pending' }
+        });
+        expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
+    });
+
+    it('still mentions, but does not verdict on, a genuinely faulted queue row for a healthy series (N7 continues to apply)', () => {
+        const d = buildChain('some show', {
+            ...healthy(),
+            item: seriesOnDisk(),
+            queue: {
+                items: [
+                    {
+                        service: 'sabnzbd',
+                        id: '1',
+                        title: queueTitle('sabnzbd', 'Some.Show.S05E01.2026'),
+                        status: 'stalled',
+                        errorMessage: 'x'
+                    }
+                ],
+                partial: []
+            }
+        });
+        expect(d.verdict.stage).toBe('playable');
+        expect(d.verdict.summary).toMatch(/stalled/i);
+    });
+});
+
+describe('buildChain — the queue aside only appears once a file is actually confirmed (round 3)', () => {
+    it('does not claim a file already exists in the aside when managed is blocked and there genuinely is no file yet', () => {
+        // Round 2's aside was gated on `blocking.stage !== 'queue'` alone,
+        // not on whether a file had been confirmed at all — so a `managed`
+        // (or `request`) verdict with no file, alongside an unrelated queue
+        // row that happens to fault, produced: "radarr has it, but it is
+        // not monitored. (Also: Download failed: unpack failed. This does
+        // not block the file already on disk…)" — asserting a file that was
+        // never confirmed to exist.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: false, hasFile: false } }),
+            queue: {
+                items: [
+                    {
+                        service: 'sabnzbd',
+                        id: '1',
+                        title: queueTitle('sabnzbd', 'Some.Film.2026'),
+                        status: 'failed',
+                        errorMessage: 'unpack failed'
+                    }
+                ],
+                partial: []
+            }
+        });
+        expect(d.verdict.stage).toBe('managed');
+        expect(d.verdict.summary).not.toMatch(/already on disk/i);
+    });
+});
+
+describe('buildChain — the haystack is unfenced before tokenising (round 3)', () => {
+    it('does not let the fence markup itself — "untrusted", the service id, the field name — become a spurious matching token', () => {
+        const d = buildChain('untrusted', {
+            ...healthy(),
+            item: item({ title: fence('Untrusted'), acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
+            queue: {
+                // No year-shaped token in this release name: the point is to
+                // isolate the fence-vocabulary bug from N4's year guard,
+                // which would otherwise reject the match anyway (on a real
+                // year mismatch) and mask whether *this* fix did anything.
+                items: [{ service: 'sabnzbd', id: '1', title: queueTitle('sabnzbd', 'Completely.Unrelated.Movie.BluRay'), status: 'downloading' }],
+                partial: []
+            }
+        });
+        // Genuinely unrelated apart from the fence's own vocabulary, which
+        // must not count as a match — before this fix, the needle was
+        // unfenced but the haystack was not, so "untrusted" (present in
+        // every fenced string) matched every fenced queue row.
+        expect(d.verdict.stage).toBe('file');
+    });
+});
+
 describe('buildChain — queue status classification (N5, N6)', () => {
     const noFile = item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } });
 
