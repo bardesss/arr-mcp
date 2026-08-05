@@ -100,6 +100,67 @@ describe('TtlCache', () => {
         expect(results.map(r => r.status)).toEqual(['rejected', 'rejected']);
     });
 
+    it('does not cache a value shouldCache declines', async () => {
+        const cache = new TtlCache();
+        let calls = 0;
+        const load = async () => {
+            calls += 1;
+            return calls === 1 ? 'partial' : 'complete';
+        };
+
+        expect(await cache.get('k', 1000, load, v => v !== 'partial')).toBe('partial');
+        expect(await cache.get('k', 1000, load, v => v !== 'partial')).toBe('complete');
+        expect(calls).toBe(2);
+    });
+
+    it('still caches when shouldCache is omitted', async () => {
+        const cache = new TtlCache();
+        const load = vi.fn(async () => 'value');
+
+        await cache.get('k', 1000, load);
+        await cache.get('k', 1000, load);
+
+        expect(load).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not let a late-resolving, declined load delete a fresher entry that already replaced it', async () => {
+        // The scenario LibraryLoader's first fix (invalidate()) got wrong:
+        // every other test in this file awaits one load before starting the
+        // next, so none of them exercise two loads for the same key in
+        // flight at once. This one does — the first load outlives its own
+        // ttl before resolving, a second caller starts a fresh load in the
+        // gap, and only then does the first (degraded) load resolve.
+        const c = clock();
+        const cache = new TtlCache(c.now);
+
+        let resolveFirst!: (v: { ok: boolean }) => void;
+        const first = cache.get(
+            'k',
+            100,
+            () => new Promise<{ ok: boolean }>(resolve => (resolveFirst = resolve)),
+            v => v.ok
+        );
+
+        // The first load's ttl elapses while it is still pending.
+        c.advance(101);
+
+        // A second caller finds the entry expired and starts its own load,
+        // which completes and is kept.
+        const second = cache.get('k', 100, async () => ({ ok: true }), v => v.ok);
+        await expect(second).resolves.toEqual({ ok: true });
+
+        // The first load finally resolves, declined by shouldCache. It must
+        // not delete the second load's entry — it is not "the" entry for
+        // this key anymore, and the guard on the failure path exists for
+        // exactly this reason.
+        resolveFirst({ ok: false });
+        await expect(first).resolves.toEqual({ ok: false });
+
+        const load = vi.fn(async () => ({ ok: true }));
+        await cache.get('k', 100, load, v => v.ok);
+        expect(load).not.toHaveBeenCalled();
+    });
+
     it('drops an entry on invalidate', async () => {
         const cache = new TtlCache();
         const load = vi.fn(async () => 'value');
