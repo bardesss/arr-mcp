@@ -29,6 +29,14 @@ describe('normaliseTitle', () => {
     it('collapses runs of whitespace', () => {
         expect(normaliseTitle('  Blade   Runner  ')).toBe('blade runner');
     });
+
+    it('normalises a query of pure punctuation to the empty string, rather than throwing', () => {
+        expect(normaliseTitle('???')).toBe('');
+    });
+
+    it('leaves a title that is only an article alone, because LEADING_ARTICLE requires trailing whitespace', () => {
+        expect(normaliseTitle('The')).toBe('the');
+    });
 });
 
 describe('rankTitle', () => {

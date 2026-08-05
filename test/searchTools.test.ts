@@ -129,6 +129,54 @@ describe('search_media', () => {
         expect(result.items[0]?.service).toBe('sonarr');
     });
 
+    it('ranks a title carrying its leading article above one that only shares a prefix', async () => {
+        // "The Matrix" normalises to "matrix" and is an exact match; "Matrix
+        // Reloaded" is only a prefix match. Without stripping the article on
+        // the title side the two would tie in the fallback tier and sort by
+        // name instead, putting Matrix Reloaded first.
+        const articled = [
+            { id: 10, title: 'The Matrix', year: 1999, tmdbId: 603, hasFile: true, monitored: true },
+            { id: 11, title: 'Matrix Reloaded', year: 2003, tmdbId: 604, hasFile: true, monitored: true }
+        ];
+        const result = await buildSearchMedia([radarr(articled)], {
+            query: 'matrix',
+            source: 'library',
+            detail: 'full',
+            limit: 50
+        });
+        expect(result.items.map(i => i.id)).toEqual(['10', '11']);
+    });
+
+    it('ranks an indexer release containing the query above one that does not, with no upstream filter to rely on', async () => {
+        // Prowlarr returns whatever the indexer sent back — unlike the
+        // library sources there is no substring pre-filter upstream, so this
+        // is the case that actually exercises RANK_NONE rather than relying
+        // on an adapter to make unrelated results moot.
+        const mixed = [
+            {
+                guid: 'r1',
+                title: 'Completely Unrelated Release',
+                indexer: 'NZBgeek',
+                size: 1_000_000,
+                seeders: 1,
+                publishDate: '2026-08-01T00:00:00Z'
+            },
+            {
+                guid: 'r2',
+                title: 'Some Film 2160p',
+                indexer: 'NZBgeek',
+                size: 1_000_000,
+                seeders: 1,
+                publishDate: '2026-08-01T00:00:00Z'
+            }
+        ];
+        const result = await buildSearchMedia(
+            [new ProwlarrAdapter(keyed(9696), serving({ '/api/v1/search': mixed }))],
+            { query: 'some film', source: 'indexers', detail: 'full', limit: 50 }
+        );
+        expect(result.items.map(i => i.id)).toEqual(['r2', 'r1']);
+    });
+
     it('says what each service contributed even when truncation drops one entirely', async () => {
         const manyExact = repeat(LIBRARY[0]!, 60).map((m, n) => ({ ...m, id: n, title: 'Some Film' }));
         const onePrefix = [{ id: 9, title: 'Some Film Zzz', year: 2026, tvdbId: 1, monitored: true }];
