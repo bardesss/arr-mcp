@@ -1,0 +1,151 @@
+import type { ServiceId } from '../config/schema.ts';
+import { RANK_NONE, rankTitle } from './titleMatch.ts';
+
+export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string };
+
+/**
+ * Named sources rather than a loose map: §8 lists exactly these, and a
+ * `Record<string, number>` accepts a source name that does not exist.
+ *
+ * A film populates some subset of the first five. A series populates `tvdb`
+ * and nothing else — §21.2 established that Sonarr's rating is one flat value,
+ * unrelated to Radarr's per-source map. The two never mix.
+ */
+export type MergedRatings = {
+    imdb?: number;
+    tmdb?: number;
+    rottenTomatoes?: number;
+    trakt?: number;
+    metacritic?: number;
+    tvdb?: number;
+};
+
+export type MergedItem = {
+    kind: 'movie' | 'series';
+    title: string;
+    year?: number;
+    /**
+     * Absent from §4.1's record and required by §5: `genre` is a `get_library`
+     * filter, and no other field in the merged shape could answer one.
+     * Recorded here as a correction to the design rather than bolted on in 3b.
+     */
+    genres?: string[];
+    ids: ExternalIds;
+    acquisition?: { service: ServiceId; monitored: boolean; hasFile: boolean; quality?: string; sizeBytes?: number };
+    playback?: { user: string; watched: boolean; playCount?: number; lastPlayed?: string };
+    ratings?: MergedRatings;
+    /**
+     * §8's diagnostic payload. `arr_only` **with a file** means a broken
+     * Jellyfin import; `jellyfin_only` means media nothing is managing.
+     * Neither is visible from any single service.
+     */
+    presence: 'both' | 'arr_only' | 'jellyfin_only';
+};
+
+export type IndexInput = Omit<MergedItem, 'presence'>;
+
+/**
+ * Namespaced so a film with tmdb 550 never merges with a series carrying
+ * tvdb 550 — unrelated id spaces that happen to collide numerically.
+ */
+const keysOf = (kind: MergedItem['kind'], ids: ExternalIds): string[] => {
+    const out: string[] = [];
+    if (ids.tmdb !== undefined) out.push(`${kind}:tmdb:${ids.tmdb}`);
+    if (ids.tvdb !== undefined) out.push(`${kind}:tvdb:${ids.tvdb}`);
+    if (ids.imdb !== undefined) out.push(`${kind}:imdb:${ids.imdb}`);
+    return out;
+};
+
+function mergeInto(target: MergedItem, input: IndexInput): void {
+    // The *arr title wins: it is the managed one, and the one a user sees in
+    // the service they would go and fix something in.
+    if (input.acquisition !== undefined || target.title === '') target.title = input.title;
+    // `exactOptionalPropertyTypes` forbids assigning a possibly-undefined value
+    // into an optional field, so the incoming value must be known-present.
+    if (target.year === undefined && input.year !== undefined) target.year = input.year;
+    if (target.genres === undefined && input.genres !== undefined) target.genres = input.genres;
+
+    target.ids = { ...target.ids, ...input.ids };
+    if (input.acquisition !== undefined) target.acquisition = input.acquisition;
+    if (input.playback !== undefined) target.playback = input.playback;
+    if (input.ratings !== undefined) target.ratings = { ...target.ratings, ...input.ratings };
+}
+
+/**
+ * §8's shared join. Records merge when **any** strong id matches, which is what
+ * handles Radarr knowing only `tmdbId` while Jellyfin knows only `Imdb`.
+ *
+ * Records sharing no id stay separate. That is correct rather than lossy:
+ * absent a shared identifier there is no evidence they are the same item, and
+ * merging on title similarity is how a remake gets fused with its original.
+ */
+export class LibraryIndex {
+    readonly #items: MergedItem[];
+    readonly #byKey: Map<string, MergedItem>;
+
+    private constructor(items: MergedItem[], byKey: Map<string, MergedItem>) {
+        this.#items = items;
+        this.#byKey = byKey;
+    }
+
+    static build(inputs: readonly IndexInput[]): LibraryIndex {
+        const byKey = new Map<string, MergedItem>();
+        const items: MergedItem[] = [];
+
+        for (const input of inputs) {
+            const keys = keysOf(input.kind, input.ids);
+            const existing = keys.map(k => byKey.get(k)).find(v => v !== undefined);
+
+            if (existing === undefined) {
+                const created: MergedItem = { ...input, presence: 'arr_only' };
+                items.push(created);
+                for (const key of keys) byKey.set(key, created);
+                continue;
+            }
+
+            mergeInto(existing, input);
+            // Re-index under every id the merge just learned, so a later record
+            // carrying only the newly-discovered id still finds this group.
+            for (const key of keysOf(existing.kind, existing.ids)) byKey.set(key, existing);
+        }
+
+        for (const item of items) {
+            item.presence =
+                item.acquisition !== undefined && item.playback !== undefined
+                    ? 'both'
+                    : item.acquisition !== undefined
+                      ? 'arr_only'
+                      : 'jellyfin_only';
+        }
+
+        return new LibraryIndex(items, byKey);
+    }
+
+    /** Undefined for an empty id set: no id is not a wildcard. */
+    find(ids: ExternalIds): MergedItem | undefined {
+        for (const kind of ['movie', 'series'] as const) {
+            for (const key of keysOf(kind, ids)) {
+                const hit = this.#byKey.get(key);
+                if (hit !== undefined) return hit;
+            }
+        }
+        return undefined;
+    }
+
+    /** Ranked by relevance, non-matches excluded rather than ranked last. */
+    search(query: string): MergedItem[] {
+        return this.#items
+            .map(item => ({ item, rank: rankTitle(item.title, query) }))
+            .filter(({ rank }) => rank !== RANK_NONE)
+            .sort((a, b) => a.rank - b.rank || a.item.title.localeCompare(b.item.title))
+            .map(({ item }) => item);
+    }
+
+    all(): MergedItem[] {
+        return this.#items;
+    }
+
+    size(): number {
+        return this.#items.length;
+    }
+}
