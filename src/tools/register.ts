@@ -7,11 +7,13 @@ import { hasIndexers, hasSubtitles, type ServiceAdapter } from '../services/type
 import { registerDiscoverMedia } from './discoverMedia.ts';
 import { registerGetCalendar } from './getCalendar.ts';
 import { registerGetIndexers } from './getIndexers.ts';
+import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
 import { registerGetPlayback } from './getPlayback.ts';
 import { registerGetQueue } from './getQueue.ts';
 import { registerGetRequests } from './getRequests.ts';
 import { registerGetSubtitles } from './getSubtitles.ts';
+import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerStackHealth } from './stackHealth.ts';
@@ -25,22 +27,26 @@ export type ToolContext = {
     adapters: readonly ServiceAdapter[];
     jellyfinIdentity: IdentityResolver | undefined;
     seerrIdentity: IdentityResolver | undefined;
+    library: LibraryLoader;
 };
 
 export function buildToolContext(adapters: readonly ServiceAdapter[], config: Config): ToolContext {
     const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
+    const jellyfinIdentity =
+        jellyfin !== undefined && config.services.jellyfin !== undefined
+            ? new IdentityResolver(jellyfin, config.services.jellyfin)
+            : undefined;
+
     return {
         adapters,
-        jellyfinIdentity:
-            jellyfin !== undefined && config.services.jellyfin !== undefined
-                ? new IdentityResolver(jellyfin, config.services.jellyfin)
-                : undefined,
+        jellyfinIdentity,
         seerrIdentity:
             seerr !== undefined && config.services.seerr !== undefined
                 ? new IdentityResolver(seerr, config.services.seerr)
-                : undefined
+                : undefined,
+        library: new LibraryLoader(adapters, jellyfinIdentity)
     };
 }
 
@@ -54,7 +60,7 @@ export function buildToolContext(adapters: readonly ServiceAdapter[], config: Co
  * not find it missing after a config edit.
  */
 export function registerAllTools(server: McpServer, context: ToolContext): void {
-    const { adapters, jellyfinIdentity, seerrIdentity } = context;
+    const { adapters, jellyfinIdentity, seerrIdentity, library } = context;
     const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
@@ -66,6 +72,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetPlayback(server, jellyfin, jellyfinIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters);
+    registerGetLibrary(server, library);
     registerSearchMedia(server, adapters);
     registerLookupMedia(server, adapters);
     registerDiscoverMedia(server, seerr);
@@ -81,6 +88,7 @@ export const TOOL_NAMES = [
     'get_playback',
     'get_requests',
     'get_media_details',
+    'get_library',
     'search_media',
     'lookup_media',
     'discover_media'
