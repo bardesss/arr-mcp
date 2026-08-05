@@ -94,19 +94,40 @@ export class LibraryIndex {
 
         for (const input of inputs) {
             const keys = keysOf(input.kind, input.ids);
-            const existing = keys.map(k => byKey.get(k)).find(v => v !== undefined);
+            // A record can carry ids that already belong to *two* separate
+            // groups — e.g. a second Jellyfin copy holding both the tmdb id
+            // one group formed around and the imdb id another group formed
+            // around. Collecting every distinct match (not just the first)
+            // is what lets them be fused instead of orphaning all but one:
+            // taking only the first match would leave the other group's only
+            // index entry overwritten by the re-index below, unreachable via
+            // `find` but still sitting in `#items` reporting stale presence.
+            const matches = [...new Set(keys.map(k => byKey.get(k)).filter((v): v is MergedItem => v !== undefined))];
 
-            if (existing === undefined) {
+            if (matches.length === 0) {
                 const created: MergedItem = { ...input, presence: 'arr_only' };
                 items.push(created);
                 for (const key of keys) byKey.set(key, created);
                 continue;
             }
 
-            mergeInto(existing, input);
-            // Re-index under every id the merge just learned, so a later record
-            // carrying only the newly-discovered id still finds this group.
-            for (const key of keysOf(existing.kind, existing.ids)) byKey.set(key, existing);
+            // One survivor absorbs the rest. mergeInto reads the *incoming*
+            // record's `acquisition` to decide whether its title wins, so
+            // fusing a loser this way still lets it win the title over the
+            // survivor if the loser is the one carrying acquisition.
+            const survivor = matches[0]!;
+            for (const loser of matches.slice(1)) {
+                mergeInto(survivor, loser);
+                const index = items.indexOf(loser);
+                if (index !== -1) items.splice(index, 1);
+            }
+            mergeInto(survivor, input);
+
+            // Re-index under every id the survivor now knows — from fused
+            // losers and from this input — so a later record carrying any of
+            // them still finds this one group, and no key is left pointing
+            // at a loser that no longer exists in `#items`.
+            for (const key of keysOf(survivor.kind, survivor.ids)) byKey.set(key, survivor);
         }
 
         for (const item of items) {

@@ -76,6 +76,31 @@ describe('LibraryIndex merging', () => {
         expect(index.find({ tmdb: 111 })).toBeUndefined();
     });
 
+    it('fuses two already-separate groups when a later record bridges them on different ids', () => {
+        // A Radarr record known only by tmdb, a duplicate Jellyfin library
+        // copy known only by imdb — no shared id yet, so they form two
+        // groups — and a second Jellyfin copy that carries both ids. That
+        // third record cannot be reconciled with only one of the two
+        // existing groups: keeping the first match and discarding the
+        // second would silently orphan it (still counted in `all()`, no
+        // longer reachable by its own id, `presence` computed from half
+        // the evidence). Both groups must fuse into one.
+        const index = LibraryIndex.build([
+            arr({ ids: { tmdb: 1 } }),
+            jelly({ ids: { imdb: 'tt9' } }),
+            jelly({ ids: { tmdb: 1, imdb: 'tt9' } })
+        ]);
+
+        expect(index.size()).toBe(1);
+        expect(index.all()).toHaveLength(1);
+
+        const byTmdb = index.find({ tmdb: 1 });
+        const byImdb = index.find({ imdb: 'tt9' });
+        expect(byTmdb).toBeDefined();
+        expect(byTmdb).toBe(byImdb);
+        expect(byTmdb?.presence).toBe('both');
+    });
+
     it('returns undefined for an empty id set rather than an arbitrary item', () => {
         const index = LibraryIndex.build([arr()]);
         expect(index.find({})).toBeUndefined();
@@ -110,6 +135,20 @@ describe('LibraryIndex merge details', () => {
         const index = LibraryIndex.build([
             arr({ title: 'Some Film' }),
             jelly({ title: 'Some Film (Director&apos;s Cut)' })
+        ]);
+        expect(index.find({ tmdb: 550 })?.title).toBe('Some Film');
+    });
+
+    it('prefers the *arr title even when the Jellyfin record merges in first', () => {
+        // The test above feeds arr() first, so its title is already correct
+        // before jelly() merges in — that passes through mergeInto's no-op
+        // branch (`target.title === ''` is false) and would still pass even
+        // if the *arr-wins rule were deleted. Reversing the input order is
+        // what actually exercises the rule: only mergeInto reading `input`'s
+        // `acquisition` can make the second, *arr record's title win here.
+        const index = LibraryIndex.build([
+            jelly({ title: "Some Film (Director's Cut)" }),
+            arr({ title: 'Some Film' })
         ]);
         expect(index.find({ tmdb: 550 })?.title).toBe('Some Film');
     });
