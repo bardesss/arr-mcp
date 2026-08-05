@@ -128,7 +128,13 @@ const mentions = (haystack: string, item: MergedItem): boolean => {
 };
 
 function requestStep(ev: Evidence): Step {
-    if (ev.request === undefined) return { stage: 'request', service: 'seerr', status: 'unknown', detail: 'Seerr could not be reached.' };
+    // True both when Seerr itself could not be reached and when it answered
+    // but the item had no tmdb id to match against (evidence.ts) — the
+    // wording has to hold in both cases rather than asserting an outage that
+    // may not have happened.
+    if (ev.request === undefined) {
+        return { stage: 'request', service: 'seerr', status: 'unknown', detail: 'Could not determine whether this was requested.' };
+    }
     if (ev.request === null) return SKIPPED('request', 'No request recorded — not everything arrives through Seerr.');
 
     if (ev.request.status === 'declined') {

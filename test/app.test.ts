@@ -169,7 +169,7 @@ describe('the advertised tool surface', () => {
      * tool rather than raising an error. This asserts the exact set, so any
      * change to it has to be deliberate enough to edit a test.
      */
-    it('exposes exactly the twelve tools of the frozen surface', async () => {
+    it('exposes exactly the thirteen tools of the frozen surface', async () => {
         expect((await listTools()).map(t => t.name).sort()).toEqual([...TOOL_NAMES].sort());
     });
 

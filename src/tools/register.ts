@@ -4,6 +4,7 @@ import { IdentityResolver } from '../core/identity.ts';
 import { JellyfinAdapter } from '../services/jellyfin.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import { hasIndexers, hasSubtitles, type ServiceAdapter } from '../services/types.ts';
+import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
 import { registerGetCalendar } from './getCalendar.ts';
 import { registerGetIndexers } from './getIndexers.ts';
@@ -64,6 +65,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
+    registerDiagnose(server, { adapters, library });
     registerStackHealth(server, adapters);
     registerGetIndexers(server, adapters.find(hasIndexers));
     registerGetSubtitles(server, adapters.find(hasSubtitles));
@@ -80,6 +82,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
 
 /** The tool surface, frozen. §18: renaming one breaks users' saved prompts. */
 export const TOOL_NAMES = [
+    'diagnose',
     'stack_health',
     'get_indexers',
     'get_subtitles',
