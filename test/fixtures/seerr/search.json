@@ -1,0 +1,464 @@
+{
+  "page": 1,
+  "totalPages": 7,
+  "totalResults": 126,
+  "results": [
+    {
+      "id": 603,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        28,
+        878
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "The Matrix",
+      "overview": "De computerhacker Neo komt er achter dat het leven op aarde niets meer is dan een computersimulatie, opgezet door machines om de mensheid in bedwang te houden. Hij wordt door enkele vrijheidsstrijders uit deze \"Matrix\" gehaald.",
+      "popularity": 46.3964,
+      "releaseDate": "1999-03-31",
+      "title": "The Matrix",
+      "video": false,
+      "voteAverage": 8.253,
+      "voteCount": 28345,
+      "backdropPath": "/tlm8UkiQsitc8rSuIAscQDCnP8d.jpg",
+      "posterPath": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg"
+    },
+    {
+      "id": 711,
+      "firstAirDate": "2003-09-18",
+      "genreIds": [
+        18,
+        10759
+      ],
+      "mediaType": "tv",
+      "name": "Threat Matrix",
+      "originCountry": [
+        "US"
+      ],
+      "originalLanguage": "en",
+      "originalName": "Threat Matrix",
+      "overview": "",
+      "popularity": 7.8977,
+      "voteAverage": 6.1,
+      "voteCount": 7,
+      "backdropPath": "/Ams57f2bNSwWsoQWCfD5u3xQjgS.jpg",
+      "posterPath": "/xOeA42Rc9EiIe0dGnwywLqYKetG.jpg"
+    },
+    {
+      "id": 11393,
+      "firstAirDate": "1993-03-01",
+      "genreIds": [
+        18
+      ],
+      "mediaType": "tv",
+      "name": "Matrix",
+      "originCountry": [
+        "CA"
+      ],
+      "originalLanguage": "en",
+      "originalName": "Matrix",
+      "overview": "",
+      "popularity": 3.6679,
+      "voteAverage": 6.75,
+      "voteCount": 4,
+      "backdropPath": "/bEVjkVlOGlXwD02Q3ybnAvDNxPV.jpg",
+      "posterPath": "/2gBnvu6OEMq7Po2qMXd4JiAA4ZD.jpg"
+    },
+    {
+      "id": 605,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        12,
+        28,
+        53,
+        878
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "The Matrix Revolutions",
+      "overview": "Terwijl het een kwestie van uren is voor de machines Zion binnen zullen dringen moeten Trinity en Morpheus op zoek naar Neo, die gevangen zit in een wereld tussen de Matrix en de echte wereld. Wanneer het gevecht tussen de machines en de bewoners van Zion begint probeert Neo definitief af te rekenen met Agent Smith.",
+      "popularity": 16.0241,
+      "releaseDate": "2003-11-05",
+      "title": "The Matrix Revolutions",
+      "video": false,
+      "voteAverage": 6.756,
+      "voteCount": 10977,
+      "backdropPath": "/533xAMhhVyjTy8hwMUFEt5TuDfR.jpg",
+      "posterPath": "/bkkS61w94ZVMNVd8KEyyJl2tnY5.jpg"
+    },
+    {
+      "id": 604,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        12,
+        28,
+        53,
+        878
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "The Matrix Reloaded",
+      "overview": "De machines hebben de locatie van Zion, de laatste menselijke stad, gevonden. De enige hoop voor de rebellen is The Keymaker, een man met toegang tot alle deuren naar de machinewereld. Hij wordt echter bewaakt door The Twins, een gedreadlocked duo dat kan verdwijnen en verschijnen als geesten. Agent Smith kan zich inmiddels als een virus in The Matrix vermenigvuldigen, wat de zoektocht voor Neo, Trinity en Morpheus bemoeilijkt.",
+      "popularity": 17.3679,
+      "releaseDate": "2003-05-15",
+      "title": "The Matrix Reloaded",
+      "video": false,
+      "voteAverage": 7.084,
+      "voteCount": 12138,
+      "backdropPath": "/ihOJcrorpDQtHTzIOrobbOhpJsj.jpg",
+      "posterPath": "/aA5qHS0FbSXO8PxcxUIHbDrJyuh.jpg"
+    },
+    {
+      "id": 624860,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        878,
+        28,
+        12
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "The Matrix Resurrections",
+      "overview": "Neo zit weer gevangen in de wereld van de Matrix, maar is zich hiervan niet bewust. Hij neemt de blauwe pil in en gaat naar een therapeut. Hierin komt verandering wanneer een man Neo's leven binnenstapt om hem duidelijk te maken dat zijn realiteit nep is. Zijn leven blijkt niet meer dan een droombeeld.",
+      "popularity": 12.4757,
+      "releaseDate": "2021-12-16",
+      "title": "The Matrix Resurrections",
+      "video": false,
+      "voteAverage": 6.321,
+      "voteCount": 6598,
+      "backdropPath": "/eNI7PtK6DEYgZmHWP9gQNuff8pv.jpg",
+      "posterPath": "/8c4a8kE7PizaGQQnditMmI1xbRp.jpg"
+    },
+    {
+      "id": 51767,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        878,
+        10749
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "Sexual Matrix",
+      "overview": "Een professor die een machine ontwerpt om de stoutste fantasieën te vervullen. Om de ontdekking te perfectioneren, voerde hij, daarbij geholpen door zijn zeer aansprekende assistent, tests uit op verschillende onderwerpen.",
+      "popularity": 1.2546,
+      "releaseDate": "2000-04-01",
+      "title": "Sexual Matrix",
+      "video": false,
+      "voteAverage": 6.413,
+      "voteCount": 23,
+      "backdropPath": null,
+      "posterPath": "/vmhBIPKyYCWlp2PrIIc6EXZlP9Z.jpg"
+    },
+    {
+      "id": 14543,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        99
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "The Matrix Revisited",
+      "overview": "In 1999 werd het film kijkend publiek getrakteerd op The Matrix, een science-fiction film die geregisseerd werd door de jonge broers Andy en Larry Wachowski. The Matrix is een echte genre-topper: een zeer verrassende, intelligente, visueel prachtige, spectaculaire film, die vrijwel iedere zelf respecterende liefhebber van het genre dan ook (meerdere malen) gezien zal hebben. De DVD-versie van The Matrix staat bekend als één van de eerste schijfjes die liet zien waartoe het medium in staat is en geldt dan ook nog steeds als referentiemateriaal op beeld- en geluidsgebied. Ook wat extra’s betreft was de DVD redelijk uitgebreid, maar toch werden bepaalde zaken te kort of zelfs helemaal niet belicht. Maar dat is nu met The Matrix Revisited verleden tijd...",
+      "popularity": 1.8384,
+      "releaseDate": "2001-11-19",
+      "title": "The Matrix Revisited",
+      "video": false,
+      "voteAverage": 6.915,
+      "voteCount": 212,
+      "backdropPath": "/lBdXACywnLwKUZmZkZ87djDQBeV.jpg",
+      "posterPath": "/fNG2JOskhQnttmAaj2knM5h59Io.jpg"
+    },
+    {
+      "id": 31636,
+      "firstAirDate": "",
+      "genreIds": [],
+      "mediaType": "tv",
+      "name": "Matrix",
+      "originCountry": [
+        "IT"
+      ],
+      "originalLanguage": "en",
+      "originalName": "Matrix",
+      "overview": "",
+      "popularity": 0.3203,
+      "voteAverage": 0,
+      "voteCount": 0,
+      "backdropPath": null,
+      "posterPath": null
+    },
+    {
+      "id": 4381244,
+      "name": "Aurora Matrix",
+      "popularity": 0.5022,
+      "adult": false,
+      "mediaType": "person",
+      "profilePath": "/l5ho43eQhxEEz7MEavjsieA7S1W.jpg",
+      "knownFor": [
+        {
+          "id": 94038,
+          "firstAirDate": "2020-07-02",
+          "genreIds": [
+            10764
+          ],
+          "mediaType": "tv",
+          "name": "Canada's Drag Race",
+          "originCountry": [
+            "CA"
+          ],
+          "originalLanguage": "en",
+          "originalName": "Canada's Drag Race",
+          "overview": "",
+          "popularity": 5.7404,
+          "voteAverage": 6.8,
+          "voteCount": 31,
+          "backdropPath": "/qoiJX0jbpuUwlBwaZ1v6wZjH77D.jpg",
+          "posterPath": "/cYz6rYidxHjShL46bf960SBSRG0.jpg"
+        },
+        {
+          "id": 245323,
+          "firstAirDate": "2022-12-06",
+          "genreIds": [
+            10767,
+            10764,
+            35
+          ],
+          "mediaType": "tv",
+          "name": "Tongue Thai'd with Pangina Heals",
+          "originCountry": [
+            "US"
+          ],
+          "originalLanguage": "en",
+          "originalName": "Tongue Thai'd with Pangina Heals",
+          "overview": "",
+          "popularity": 1.5879,
+          "voteAverage": 9,
+          "voteCount": 1,
+          "backdropPath": "/sywhQTm9xeG8FnirWCisIVps5rd.jpg",
+          "posterPath": "/brERJFkJxsh1SxrwngWZK2BOg3B.jpg"
+        },
+        {
+          "id": 212882,
+          "firstAirDate": "2022-10-18",
+          "genreIds": [
+            10767
+          ],
+          "mediaType": "tv",
+          "name": "Bring Back My Girls",
+          "originCountry": [
+            "US"
+          ],
+          "originalLanguage": "en",
+          "originalName": "Bring Back My Girls",
+          "overview": "",
+          "popularity": 3.4188,
+          "voteAverage": 5,
+          "voteCount": 1,
+          "backdropPath": "/3KhW6dJ4vne3qY00gdDIDH4WkpB.jpg",
+          "posterPath": "/c4o5WNvfXZvisr16YkOfKPlickS.jpg"
+        }
+      ]
+    },
+    {
+      "id": 790345,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        16
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "Dinosaur Matrix",
+      "overview": "",
+      "popularity": 0.54,
+      "releaseDate": "1985-01-01",
+      "title": "Dinosaur Matrix",
+      "video": false,
+      "voteAverage": 0,
+      "voteCount": 0,
+      "backdropPath": null,
+      "posterPath": "/22AwsGF9PXc2cq72kH9P3mNzHGY.jpg"
+    },
+    {
+      "id": 411948,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        16
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "Matrix",
+      "overview": "",
+      "popularity": 1.0048,
+      "releaseDate": "1971-05-18",
+      "title": "Matrix",
+      "video": false,
+      "voteAverage": 7.3,
+      "voteCount": 3,
+      "backdropPath": "/2JCUdkC84MWnRQzOEMDO2i37tZy.jpg",
+      "posterPath": "/wwGvUPEM6MRiXv3gRNaVUlUCHiT.jpg"
+    },
+    {
+      "id": 4817014,
+      "name": "Matrix Quevedo",
+      "popularity": 0.1021,
+      "adult": false,
+      "mediaType": "person",
+      "profilePath": null,
+      "knownFor": [
+        {
+          "id": 1001925,
+          "mediaType": "movie",
+          "adult": false,
+          "genreIds": [
+            18,
+            53,
+            9648
+          ],
+          "originalLanguage": "en",
+          "originalTitle": "Collide",
+          "overview": "In de loop van een noodlottige nacht in een restaurant te Los Angeles, Californië komen drie koppels samen. Hunter heeft een ongemakkelijke blind date met de innemende Tamira. Ondertussen verbergen een hulpkelner en zijn vriendin een hoop cocaïne, wachtende op een manier om er veel geld voor te krijgen. Buiten zit Peter in zijn auto. Hij kijkt toe hoe zijn vrouw met de manager van het restaurant vreemdgaat. Hoewel de koppels elkaar niet kennen, worden hun verhalen met elkaar verweven en stevenen ze af op een explosief einde.",
+          "popularity": 1.729,
+          "releaseDate": "2022-08-05",
+          "title": "Collide",
+          "video": false,
+          "voteAverage": 4.838,
+          "voteCount": 37,
+          "backdropPath": "/aB7lSaNEpRUckaexlrvhGEFgpDf.jpg",
+          "posterPath": "/xdoOkjtC6BLZGdVBfLCKVXrKOcO.jpg"
+        }
+      ]
+    },
+    {
+      "id": 141225,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        35
+      ],
+      "originalLanguage": "hu",
+      "originalTitle": "Buhera mátrix",
+      "overview": "",
+      "popularity": 1.7797,
+      "releaseDate": "2007-03-29",
+      "title": "Buhera mátrix",
+      "video": false,
+      "voteAverage": 6.125,
+      "voteCount": 4,
+      "backdropPath": "/eCJ7a1ndfdkfkziDAA2OvOsNbsz.jpg",
+      "posterPath": "/mSA91zntAssOuzGiakE3foA1MM0.jpg"
+    },
+    {
+      "id": 373223,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [],
+      "originalLanguage": "en",
+      "originalTitle": "Matrix",
+      "overview": "",
+      "popularity": 0.96,
+      "releaseDate": "1973-09-06",
+      "title": "Matrix",
+      "video": false,
+      "voteAverage": 6.4,
+      "voteCount": 22,
+      "backdropPath": null,
+      "posterPath": "/wx2s9xYeC6uP2auuuVg99yl4RpU.jpg"
+    },
+    {
+      "id": 775293,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [],
+      "originalLanguage": "en",
+      "originalTitle": "Matrix",
+      "overview": "",
+      "popularity": 0.3797,
+      "releaseDate": "1973-01-01",
+      "title": "Matrix",
+      "video": false,
+      "voteAverage": 6.8,
+      "voteCount": 25,
+      "backdropPath": null,
+      "posterPath": "/frDqG8rmqKUg4HzQ604LZo8VLHB.jpg"
+    },
+    {
+      "id": 306887,
+      "firstAirDate": "2026-10-17",
+      "genreIds": [
+        10759,
+        16,
+        35,
+        9648
+      ],
+      "mediaType": "tv",
+      "name": "Matrix Dreads",
+      "originCountry": [
+        "MY"
+      ],
+      "originalLanguage": "en",
+      "originalName": "Matrix Dreads",
+      "overview": "",
+      "popularity": 1.6526,
+      "voteAverage": 0,
+      "voteCount": 0,
+      "backdropPath": null,
+      "posterPath": "/mQbvyR1ak6xoJ41wmKtPjMhkBoy.jpg"
+    },
+    {
+      "id": 555879,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [],
+      "originalLanguage": "en",
+      "originalTitle": "Matrix",
+      "overview": "",
+      "popularity": 0.6006,
+      "releaseDate": "1998-12-31",
+      "title": "Matrix",
+      "video": false,
+      "voteAverage": 7.1,
+      "voteCount": 51,
+      "backdropPath": null,
+      "posterPath": "/AfFD10ZqEx2vkxM2yvRZkybsGB7.jpg"
+    },
+    {
+      "id": 221495,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        99,
+        878
+      ],
+      "originalLanguage": "en",
+      "originalTitle": "The Matrix Recalibrated",
+      "overview": "",
+      "popularity": 1.1617,
+      "releaseDate": "2004-04-06",
+      "title": "The Matrix Recalibrated",
+      "video": true,
+      "voteAverage": 6.904,
+      "voteCount": 57,
+      "backdropPath": null,
+      "posterPath": "/gRni1Q651AZPnLqZczmahiIxG0s.jpg"
+    },
+    {
+      "id": 1217455,
+      "mediaType": "movie",
+      "adult": false,
+      "genreIds": [
+        99,
+        10770
+      ],
+      "originalLanguage": "fr",
+      "originalTitle": "Matrix génération",
+      "overview": "",
+      "popularity": 1.8192,
+      "releaseDate": "2023-12-13",
+      "title": "Matrix génération",
+      "video": false,
+      "voteAverage": 6.9,
+      "voteCount": 24,
+      "backdropPath": "/2P3FyI9ZTe9duRIGpGPiDC3mQMf.jpg",
+      "posterPath": "/jSmzYl9PQLZu4ZnumDBHNRGLF4s.jpg"
+    }
+  ]
+}

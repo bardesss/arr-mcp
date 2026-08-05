@@ -29,7 +29,26 @@ const REDACTED = '__REDACTED__';
 const SECRET_KEY =
     /^(api_?key|apikey|token|access_?token|auth_?token|password|passwd|secret|nzb_?key|session[-_]?id)$/i;
 
-type Endpoint = { name: string; path: string; body?: unknown; anonymise?: (body: unknown) => unknown };
+/**
+ * `path` may be a function when the endpoint needs an id from something
+ * captured earlier — Sonarr's episode list needs a series id, and inventing
+ * one would capture a 404 rather than a shape. It receives the fixtures
+ * captured so far for the same service, keyed by endpoint name, and returning
+ * undefined skips the endpoint with a reason rather than guessing.
+ */
+type Endpoint = {
+    name: string;
+    path: string | ((captured: Map<string, unknown>) => string | undefined);
+    body?: unknown;
+    anonymise?: (body: unknown) => unknown;
+};
+
+/** First numeric `id` in an array-shaped fixture. */
+const firstId = (body: unknown): number | undefined => {
+    const rows = Array.isArray(body) ? body : [];
+    const row = rows[0] as { id?: unknown } | undefined;
+    return typeof row?.id === 'number' ? row.id : undefined;
+};
 
 type Row = Record<string, unknown>;
 
@@ -97,13 +116,38 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'system-status', path: '/api/v3/system/status' },
         { name: 'diskspace', path: '/api/v3/diskspace' },
         { name: 'health', path: '/api/v3/health' },
-        { name: 'system-task', path: '/api/v3/system/task' }
+        { name: 'system-task', path: '/api/v3/system/task' },
+        { name: 'queue', path: '/api/v3/queue' },
+        { name: 'calendar', path: '/api/v3/calendar' },
+        { name: 'movie', path: '/api/v3/movie' },
+        // The detail endpoint returns the same shape as a list element, so the
+        // list is what the contract test needs — but capturing one detail
+        // response proves the path and the id type.
+        {
+            name: 'movie-detail',
+            path: captured => {
+                const id = firstId(captured.get('movie'));
+                return id === undefined ? undefined : `/api/v3/movie/${id}`;
+            }
+        },
+        { name: 'movie-lookup', path: '/api/v3/movie/lookup?term=matrix' }
     ],
     sonarr: [
         { name: 'system-status', path: '/api/v3/system/status' },
         { name: 'diskspace', path: '/api/v3/diskspace' },
         { name: 'health', path: '/api/v3/health' },
-        { name: 'system-task', path: '/api/v3/system/task' }
+        { name: 'system-task', path: '/api/v3/system/task' },
+        { name: 'queue', path: '/api/v3/queue' },
+        { name: 'calendar', path: '/api/v3/calendar' },
+        { name: 'series', path: '/api/v3/series' },
+        {
+            name: 'episode',
+            path: captured => {
+                const id = firstId(captured.get('series'));
+                return id === undefined ? undefined : `/api/v3/episode?seriesId=${id}`;
+            }
+        },
+        { name: 'series-lookup', path: '/api/v3/series/lookup?term=breaking%20bad' }
     ],
     prowlarr: [
         { name: 'system-status', path: '/api/v1/system/status' },
@@ -114,11 +158,20 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: '/api/v1/indexer',
             anonymise: body => (Array.isArray(body) ? (body as Row[]).map(anonymiseIndexer) : body)
         },
-        { name: 'indexerstatus', path: '/api/v1/indexerstatus' }
+        { name: 'indexerstatus', path: '/api/v1/indexerstatus' },
+        { name: 'indexerstats', path: '/api/v1/indexerstats' },
+        { name: 'history', path: '/api/v1/history?pageSize=20' },
+        // Deliberately a query nothing will match well: this is captured for
+        // its *shape*, and a popular term would pull hundreds of release names
+        // into a public repository for no extra information.
+        { name: 'search', path: '/api/v1/search?query=zzzq' }
     ],
     bazarr: [
         { name: 'system-status', path: '/api/system/status' },
-        { name: 'system-health', path: '/api/system/health' }
+        { name: 'system-health', path: '/api/system/health' },
+        { name: 'providers', path: '/api/providers' },
+        { name: 'movies-wanted', path: '/api/movies/wanted' },
+        { name: 'episodes-wanted', path: '/api/episodes/wanted' }
     ],
     jellyfin: [
         { name: 'system-info', path: '/System/Info' },
@@ -132,7 +185,12 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         },
         // Deliberately NOT anonymised: `Name` here is a scheduled task, and
         // this is the fixture that identifies the library-scan task.
-        { name: 'scheduled-tasks', path: '/ScheduledTasks' }
+        { name: 'scheduled-tasks', path: '/ScheduledTasks' },
+        { name: 'sessions', path: '/Sessions' },
+        {
+            name: 'items-search',
+            path: '/Items?searchTerm=a&Recursive=true&IncludeItemTypes=Movie,Series&Limit=5'
+        }
     ],
     seerr: [
         { name: 'status', path: '/api/v1/status' },
@@ -146,7 +204,26 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                     : body;
             }
         },
-        { name: 'settings-about', path: '/api/v1/settings/about' }
+        { name: 'settings-about', path: '/api/v1/settings/about' },
+        {
+            name: 'request',
+            path: '/api/v1/request?take=20',
+            // Requests name who made them, which is identity, not a secret.
+            anonymise: body => {
+                const page = body as { results?: Row[] };
+                return Array.isArray(page.results)
+                    ? {
+                          ...page,
+                          results: page.results.map((r, i) => ({
+                              ...r,
+                              requestedBy: anonymiseSeerrUser((r.requestedBy ?? {}) as Row, i)
+                          }))
+                      }
+                    : body;
+            }
+        },
+        { name: 'search', path: '/api/v1/search?query=matrix' },
+        { name: 'discover-movies', path: '/api/v1/discover/movies' }
     ],
     sabnzbd: [
         { name: 'version', path: '/api?mode=version&output=json' },
@@ -260,12 +337,24 @@ for (const [id, service] of Object.entries(config.services) as [ServiceId, Confi
     const dir = join('test', 'fixtures', id);
     await mkdir(dir, { recursive: true });
 
+    // Fixtures captured for this service so far, so an endpoint needing an id
+    // can take a real one rather than inventing a 404.
+    const soFar = new Map<string, unknown>();
+
     for (const endpoint of ENDPOINTS[id]) {
+        const path = typeof endpoint.path === 'function' ? endpoint.path(soFar) : endpoint.path;
+        if (path === undefined) {
+            console.warn(`skipped  ${id}/${endpoint.name}: needs an id from an endpoint that did not capture`);
+            skipped += 1;
+            continue;
+        }
+
         try {
             const raw =
                 endpoint.body === undefined
-                    ? await http.get<unknown>(endpoint.path)
-                    : await http.post<unknown>(endpoint.path, endpoint.body);
+                    ? await http.get<unknown>(path)
+                    : await http.post<unknown>(path, endpoint.body);
+            soFar.set(endpoint.name, raw);
 
             // Anonymise identity first, then redact credentials — so a value
             // the anonymiser rewrites is still checked for leaked secrets.

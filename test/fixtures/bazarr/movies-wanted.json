@@ -1,0 +1,508 @@
+{
+  "data": [
+    {
+      "title": "Ol' Dirty Bastard: A Tale of Two Dirtys",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        },
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1147,
+      "sceneName": "Ol.Dirty.Bastard.A.Tale.of.Two.Dirtys.2024.1080p.AMZN.WEB-DL.DDP2.0.H.264-Kitsune",
+      "tags": [
+        "huntarr-upgrade"
+      ]
+    },
+    {
+      "title": "The Cut",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1192,
+      "sceneName": "The.Cut.2024.GERMAN.DTSHDD.DL.2160p.HDR.DV.WEB.H265-MGE",
+      "tags": [
+        "huntarr-missing",
+        "huntarr-processed"
+      ]
+    },
+    {
+      "title": "Money Electric: The Bitcoin Mystery",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1211,
+      "sceneName": "Money.Electric.the.Bitcoin.Mystery.2024.REPACK.1080p.AMZN.WEB-DL.DDP5.1.H.264-FLUX",
+      "tags": [
+        "huntarr-upgrade"
+      ]
+    },
+    {
+      "title": "The Odyssey",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1275,
+      "sceneName": "The.Odyssey.2026.iNTERNAL.1080p.WEB-DL.AAC.x264-LuCY",
+      "tags": [
+        "huntarr-missing",
+        "huntarr-processed"
+      ]
+    },
+    {
+      "title": "Avicii - I'm Tim",
+      "missing_subtitles": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1286,
+      "sceneName": "Avicii.Im.Tim.2024.1080p.NF.WEB-DL.DDP.5.1.H.264-TeamSyndicate",
+      "tags": [
+        "huntarr-upgrade"
+      ]
+    },
+    {
+      "title": "Evil Dead Burn",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1352,
+      "sceneName": "Evil.Dead.Burn.2026.2160p.iT.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-XDMovies-com",
+      "tags": [
+        "huntarr-missing",
+        "huntarr-processed"
+      ]
+    },
+    {
+      "title": "Dream Eater",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1391,
+      "sceneName": "Dream.Eater.2025.1080p.AMZN.WEB-DL.DDP2.0.H.264-FLUX",
+      "tags": [
+        "huntarr-missing",
+        "huntarr-upgrade"
+      ]
+    },
+    {
+      "title": "Love Me Dead",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        },
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1396,
+      "sceneName": "Love.Me.Dead.2024.1080p.BluRay.DD+5.1.x264-SPHD",
+      "tags": [
+        "huntarr-missing"
+      ]
+    },
+    {
+      "title": "In Whose Name?",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1403,
+      "sceneName": "In.Whose.Name.2025.1080p.AMZN.WEB-DL.DDP5.1.H.264-vase",
+      "tags": [
+        "huntarr-missing",
+        "huntarr-upgrade"
+      ]
+    },
+    {
+      "title": "Revenge",
+      "missing_subtitles": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1437,
+      "sceneName": "Wraak.2025.DUTCH.1080p.WEB.h264-TRIPEL  Wraak 2025",
+      "tags": [
+        "huntarr-missing"
+      ]
+    },
+    {
+      "title": "Good Boy",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1445,
+      "sceneName": "Good.Boy.2025.2160p.iT.WEB-DL.DTS-HD.MA.5.1.DV.HDR.H.265-BTBN",
+      "tags": [
+        "huntarr-missing"
+      ]
+    },
+    {
+      "title": "V/H/S/Halloween",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1449,
+      "sceneName": "V.H.S.Halloween.2025.1080p.BluRay.DDP.5.1.x264-j3rico",
+      "tags": [
+        "huntarr-upgrade"
+      ]
+    },
+    {
+      "title": "R.L. Stine's Pumpkinhead",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1458,
+      "sceneName": "R.L.Stines.Pumpkinhead.2025.1080p.AMZN.WEB-DL.MULTi.DDP2.0.H.264-END",
+      "tags": [
+        "huntarr-missing",
+        "huntarr-upgrade"
+      ]
+    },
+    {
+      "title": "Unbanked",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        },
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1466,
+      "sceneName": "Unbanked.2025.1080p.AMZN.WEB-DL.DDP2.0.H.264-FLUX",
+      "tags": []
+    },
+    {
+      "title": "Shelby Oaks",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1488,
+      "sceneName": "Shelby.Oaks.2024.2160p.AMZN.WEB-DL.DDP5.1.H.265-FLUX",
+      "tags": []
+    },
+    {
+      "title": "The Death of Robin Hood",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1514,
+      "sceneName": "The.Death.of.Robin.Hood.2026.2160p.AMZN.WEB-DL.DDP5.1.Atmos.H.265-SCOPE",
+      "tags": []
+    },
+    {
+      "title": "Bone Lake",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1517,
+      "sceneName": "Bone.Lake.2025.NORDiC.2160p.WEB-DL.H.265.DDP5.1-ADDICTION",
+      "tags": []
+    },
+    {
+      "title": "NFT: Cursed Images",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1570,
+      "sceneName": "www.UIndex.org    -    NFT.Cursed.Images.2026.1080p.WEB.H264-OUTPOST31",
+      "tags": []
+    },
+    {
+      "title": "Eye for an Eye",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1577,
+      "sceneName": "Eye.for.an.Eye.aka.Night.Terror.2025.1080p.AMZN.WEB-DL.DDP5.1.H.264-KyoGo",
+      "tags": []
+    },
+    {
+      "title": "Ghost Train",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1589,
+      "sceneName": "Ghost Train 2024 1080p BluRay DDP5 1 x264-ZoroSenpai",
+      "tags": []
+    },
+    {
+      "title": "Good Boy",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1603,
+      "sceneName": "Heel.2025.1080p.BluRay.DD+5.1.x264-playHD",
+      "tags": []
+    },
+    {
+      "title": "Fukushima: A Nuclear Nightmare",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1604,
+      "sceneName": "Fukushima.A.Nuclear.Nightmare.2026.1080p.AMZN.WEB-DL.DD+5.1.H.264-playWEB",
+      "tags": []
+    },
+    {
+      "title": "Bodycam",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1608,
+      "sceneName": "Bodycam.2025.GERMAN.DL.2160p.WEB.H265-MGE",
+      "tags": []
+    },
+    {
+      "title": "My Mom Jayne",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1609,
+      "sceneName": "My.Mom.Jayne.2025.2160p.MAX.WEB-DL.DD+5.1.H.265-playWEB",
+      "tags": []
+    },
+    {
+      "title": "Leviticus",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1645,
+      "sceneName": "Leviticus.2026.2160p.AMZN.WEB-DL.DDP5.1.H.265-SCOPE",
+      "tags": []
+    },
+    {
+      "title": "Night of the Reaper",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1648,
+      "sceneName": "Night.of.the.Reaper.2025.1080p.BluRay.DDP.5.1.x264-j3rico",
+      "tags": []
+    },
+    {
+      "title": "Summerween",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1655,
+      "sceneName": "Summerween.2026.1080p.AMZN.WEB-DL.DD+5.1.H.264-BobDobbs",
+      "tags": []
+    },
+    {
+      "title": "#MissingCouple",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1663,
+      "sceneName": "MissingCouple.2024.1080p.WEB.H264-OUTPOST31",
+      "tags": []
+    },
+    {
+      "title": "Black Box",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1665,
+      "sceneName": "Black.Box.2026.1080p.AMZN.WEB-DL.DDP5.1.H.264-BYNDR",
+      "tags": []
+    },
+    {
+      "title": "Saccharine",
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "radarrId": 1666,
+      "sceneName": "Saccharine.2026.2160p.AMZN.WEB-DL.DDP5.1.H.265-SCOPE",
+      "tags": []
+    }
+  ],
+  "total": 30
+}

@@ -1,0 +1,409 @@
+{
+  "page": 1,
+  "pageSize": 20,
+  "sortKey": "date",
+  "sortDirection": "descending",
+  "totalRecords": 26899,
+  "records": [
+    {
+      "indexerId": 21,
+      "date": "2026-08-05T15:42:31Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "49",
+        "query": "",
+        "queryType": "movie",
+        "categories": "2000,2020",
+        "source": "Radarr",
+        "host": "homelab",
+        "queryResults": "75",
+        "url": "https://nyaa.si/?f=0&c=0_0&s=id&o=desc&p=2",
+        "cached": "0"
+      },
+      "id": 5812318
+    },
+    {
+      "indexerId": 21,
+      "date": "2026-08-05T15:42:31Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "63",
+        "query": "",
+        "queryType": "movie",
+        "categories": "2000,2020",
+        "source": "Radarr",
+        "host": "homelab",
+        "queryResults": "75",
+        "url": "https://nyaa.si/?f=0&c=0_0&s=id&o=desc",
+        "cached": "0"
+      },
+      "id": 5812317
+    },
+    {
+      "indexerId": 34,
+      "date": "2026-08-05T15:42:29Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "824",
+        "query": "",
+        "queryType": "search",
+        "categories": "2000,2010,2020,2030,2040,2045,2050,2060",
+        "source": "Radarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "http://service.example.test:8383/newznab/api?t=search&extended=1&cat=2010,2020,2030,2040,2045,2050,2060,2000&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812316
+    },
+    {
+      "indexerId": 9,
+      "date": "2026-08-05T15:42:29Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "259",
+        "query": "",
+        "queryType": "search",
+        "categories": "2000,2050,2060,2070,2010,2040,2030,2045",
+        "source": "Radarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "https://drunkenslug.com/api?t=search&extended=1&cat=2050,2060,2070,2010,2040,2999,2030,2045,2000&apikey=c129d3b49636bd4924aca6ba4ec50d18&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812315
+    },
+    {
+      "indexerId": 8,
+      "date": "2026-08-05T15:42:29Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "115",
+        "query": "",
+        "queryType": "search",
+        "categories": "2000,2060,2050,2010,2040,2030,2045",
+        "source": "Radarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "https://api.althub.co.za/api?t=search&extended=1&cat=2060,2050,2010,2040,2020,2030,2045,2000&apikey=b2f3d61f497df7f079343d321824bc6c&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812314
+    },
+    {
+      "indexerId": 20,
+      "date": "2026-08-05T15:42:29Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "41",
+        "query": "",
+        "queryType": "movie",
+        "categories": "2000,2020,2040,2060",
+        "source": "Radarr",
+        "host": "homelab",
+        "queryResults": "50",
+        "url": "https://apibay.org/precompiled/data_top100_recent.json",
+        "cached": "0"
+      },
+      "id": 5812313
+    },
+    {
+      "indexerId": 21,
+      "date": "2026-08-05T15:39:02Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "51",
+        "query": "",
+        "queryType": "tvsearch",
+        "categories": "5000,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "75",
+        "url": "https://nyaa.si/?f=0&c=0_0&s=id&o=desc&p=2",
+        "cached": "0"
+      },
+      "id": 5812312
+    },
+    {
+      "indexerId": 21,
+      "date": "2026-08-05T15:39:02Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "133",
+        "query": "",
+        "queryType": "tvsearch",
+        "categories": "5000,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "75",
+        "url": "https://nyaa.si/?f=0&c=0_0&s=id&o=desc",
+        "cached": "0"
+      },
+      "id": 5812311
+    },
+    {
+      "indexerId": 34,
+      "date": "2026-08-05T15:39:01Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "818",
+        "query": "",
+        "queryType": "search",
+        "categories": "5000,5020,5030,5040,5045,5050,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "http://service.example.test:8383/newznab/api?t=search&extended=1&cat=5020,5030,5040,5045,5050,5060,5070,5080,5000&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812310
+    },
+    {
+      "indexerId": 9,
+      "date": "2026-08-05T15:39:01Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "155",
+        "query": "",
+        "queryType": "search",
+        "categories": "5000,5020,5040,5030,5045,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "https://drunkenslug.com/api?t=search&extended=1&cat=5070,5080,5020,5040,5999,5030,5060,5045,5000&apikey=c129d3b49636bd4924aca6ba4ec50d18&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812309
+    },
+    {
+      "indexerId": 8,
+      "date": "2026-08-05T15:39:01Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "253",
+        "query": "",
+        "queryType": "search",
+        "categories": "5000,5020,5040,5050,5030,5045,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "https://api.althub.co.za/api?t=search&extended=1&cat=5070,5080,5020,5040,5050,5030,5060,5045,5000&apikey=b2f3d61f497df7f079343d321824bc6c&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812308
+    },
+    {
+      "indexerId": 20,
+      "date": "2026-08-05T15:39:00Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "100",
+        "query": "",
+        "queryType": "tvsearch",
+        "categories": "5000,5050,5040",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "50",
+        "url": "https://apibay.org/precompiled/data_top100_recent.json",
+        "cached": "0"
+      },
+      "id": 5812307
+    },
+    {
+      "indexerId": 21,
+      "date": "2026-08-05T15:23:32Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "50",
+        "query": "",
+        "queryType": "tvsearch",
+        "categories": "5000,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "75",
+        "url": "https://nyaa.si/?f=0&c=0_0&s=id&o=desc&p=2",
+        "cached": "0"
+      },
+      "id": 5812306
+    },
+    {
+      "indexerId": 21,
+      "date": "2026-08-05T15:23:32Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "141",
+        "query": "",
+        "queryType": "tvsearch",
+        "categories": "5000,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "75",
+        "url": "https://nyaa.si/?f=0&c=0_0&s=id&o=desc",
+        "cached": "0"
+      },
+      "id": 5812305
+    },
+    {
+      "indexerId": 34,
+      "date": "2026-08-05T15:23:31Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "824",
+        "query": "",
+        "queryType": "search",
+        "categories": "5000,5020,5030,5040,5045,5050,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "http://service.example.test:8383/newznab/api?t=search&extended=1&cat=5020,5030,5040,5045,5050,5060,5070,5080,5000&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812304
+    },
+    {
+      "indexerId": 9,
+      "date": "2026-08-05T15:23:30Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "350",
+        "query": "",
+        "queryType": "search",
+        "categories": "5000,5020,5040,5030,5045,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "https://drunkenslug.com/api?t=search&extended=1&cat=5070,5080,5020,5040,5999,5030,5060,5045,5000&apikey=c129d3b49636bd4924aca6ba4ec50d18&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812303
+    },
+    {
+      "indexerId": 8,
+      "date": "2026-08-05T15:23:30Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "263",
+        "query": "",
+        "queryType": "search",
+        "categories": "5000,5020,5040,5050,5030,5045,5070",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "100",
+        "url": "https://api.althub.co.za/api?t=search&extended=1&cat=5070,5080,5020,5040,5050,5030,5060,5045,5000&apikey=b2f3d61f497df7f079343d321824bc6c&limit=100&offset=0",
+        "cached": "0"
+      },
+      "id": 5812302
+    },
+    {
+      "indexerId": 20,
+      "date": "2026-08-05T15:23:30Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "104",
+        "query": "",
+        "queryType": "tvsearch",
+        "categories": "5000,5050,5040",
+        "source": "Sonarr",
+        "host": "homelab",
+        "queryResults": "50",
+        "url": "https://apibay.org/precompiled/data_top100_recent.json",
+        "cached": "0"
+      },
+      "id": 5812301
+    },
+    {
+      "indexerId": 21,
+      "date": "2026-08-05T15:12:01Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "25",
+        "query": "",
+        "queryType": "movie",
+        "categories": "2000,2020",
+        "source": "Radarr",
+        "host": "homelab",
+        "queryResults": "75",
+        "url": "https://nyaa.si/?f=0&c=0_0&s=id&o=desc&p=2",
+        "cached": "0"
+      },
+      "id": 5812300
+    },
+    {
+      "indexerId": 21,
+      "date": "2026-08-05T15:12:01Z",
+      "successful": true,
+      "eventType": "indexerRss",
+      "data": {
+        "limit": "100",
+        "offset": "0",
+        "elapsedTime": "54",
+        "query": "",
+        "queryType": "movie",
+        "categories": "2000,2020",
+        "source": "Radarr",
+        "host": "homelab",
+        "queryResults": "75",
+        "url": "https://nyaa.si/?f=0&c=0_0&s=id&o=desc",
+        "cached": "0"
+      },
+      "id": 5812299
+    }
+  ]
+}

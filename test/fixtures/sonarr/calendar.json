@@ -1,0 +1,19 @@
+[
+  {
+    "seriesId": 638,
+    "tvdbId": 11593743,
+    "episodeFileId": 13598,
+    "seasonNumber": 1,
+    "episodeNumber": 5,
+    "title": "Are We Bad People?",
+    "airDate": "2026-08-05",
+    "airDateUtc": "2026-08-05T04:00:00Z",
+    "runtime": 41,
+    "overview": "On the run again, Lucky makes a lucrative discovery. Agent Rand devises a plan.",
+    "hasFile": true,
+    "monitored": true,
+    "absoluteEpisodeNumber": 5,
+    "unverifiedSceneNumbering": false,
+    "id": 19920
+  }
+]

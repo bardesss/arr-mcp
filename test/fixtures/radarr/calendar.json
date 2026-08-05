@@ -1,0 +1,108 @@
+[
+  {
+    "title": "Ice Cream Man",
+    "originalTitle": "Ice Cream Man",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1445,
+        "title": "Eli Roth's Ice Cream Man",
+        "id": 9320
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1445,
+        "title": "O Sorveteiro",
+        "id": 9573
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1445,
+        "title": "El Heladero, Dulce Sabor A Muerte",
+        "id": 9585
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1445,
+        "title": "Zmrzlinář",
+        "id": 9675
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1445,
+        "title": "หวานเย็น เข็นมาเชือด",
+        "id": 9871
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "ice cream man",
+    "sizeOnDisk": 0,
+    "status": "inCinemas",
+    "overview": "Een idyllisch zomerdorp ontspoort wanneer een sinistere ijscoman kinderen traktaties geeft met bloederige gevolgen.",
+    "inCinemas": "2026-08-05T00:00:00Z",
+    "releaseDate": "2026-08-05T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/c987gxFjXqYOxZEZKcTkS1ONTWH.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/75pK9Dj1CheZFItgld9TVvb2P4x.jpg"
+      }
+    ],
+    "website": "https://www.iconicreleasing.com/events/ice-cream-man/",
+    "year": 2026,
+    "youTubeTrailerId": "BjtVXWa3tWI",
+    "studio": "The Horror Section",
+    "path": "/storage/movies/Ice Cream Man (2026) [tmdbid-1477712]",
+    "qualityProfileId": 8,
+    "hasFile": false,
+    "movieFileId": 0,
+    "monitored": true,
+    "minimumAvailability": "announced",
+    "isAvailable": true,
+    "folderName": "/storage/movies/Ice Cream Man (2026) [tmdbid-1477712]",
+    "runtime": 86,
+    "cleanTitle": "icecreamman",
+    "imdbId": "tt36893729",
+    "tmdbId": 1477712,
+    "titleSlug": "1477712",
+    "certification": "NR",
+    "genres": [
+      "Horror",
+      "Thriller",
+      "Comedy"
+    ],
+    "keywords": [
+      "gore",
+      "ice cream",
+      "ice cream man  ",
+      "murder",
+      "serial killer",
+      "summer",
+      "town"
+    ],
+    "tags": [],
+    "added": "2026-01-18T18:57:21Z",
+    "ratings": {
+      "tmdb": {
+        "votes": 5,
+        "value": 3.2,
+        "type": "user"
+      }
+    },
+    "popularity": 23.0792,
+    "lastSearchTime": "2026-07-04T05:34:44Z",
+    "statistics": {
+      "movieFileCount": 0,
+      "sizeOnDisk": 0,
+      "releaseGroups": []
+    },
+    "id": 1547
+  }
+]

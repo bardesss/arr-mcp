@@ -1,0 +1,19 @@
+{
+  "data": [
+    {
+      "name": "gestdown",
+      "status": "Good",
+      "retry": "-"
+    },
+    {
+      "name": "opensubtitlescom",
+      "status": "Good",
+      "retry": "-"
+    },
+    {
+      "name": "yifysubtitles",
+      "status": "Good",
+      "retry": "-"
+    }
+  ]
+}

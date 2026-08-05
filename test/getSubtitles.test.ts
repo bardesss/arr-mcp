@@ -31,8 +31,9 @@ const EPISODES = {
             sonarrEpisodeId: 88,
             seriesTitle: 'Some Show',
             episodeTitle: 'Pilot',
-            season: 1,
-            episode: 1,
+            // Bazarr combines the position into one string; there are no
+            // separate season/episode fields. Confirmed against a live 1.6.0.
+            episode_number: '1x1',
             sceneName: 'Some.Show.S01E01-GROUP',
             missing_subtitles: [{ name: 'Dutch', code2: 'nl', forced: true, hi: false }]
         }
@@ -41,7 +42,8 @@ const EPISODES = {
 
 const PROVIDERS = {
     data: [
-        { name: 'opensubtitlescom', status: 'good', retry: 'End of information' },
+        // A live Bazarr returns "Good" with a capital G, and "-" for no retry.
+        { name: 'opensubtitlescom', status: 'Good', retry: '-' },
         { name: 'podnapisi', status: 'Throttled: 429 Too Many Requests', retry: '2026-08-05T18:00:00Z' }
     ]
 };

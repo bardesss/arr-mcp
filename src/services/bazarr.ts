@@ -27,16 +27,28 @@ type Envelope<T> = { data?: T };
 type RawStatus = { bazarr_version?: string };
 type RawHealth = { object?: string; issue?: string };
 type RawMissing = { name?: string; code2?: string; forced?: boolean; hi?: boolean };
-type RawWantedMovie = { radarrId?: number; title?: string; sceneName?: string; missing_subtitles?: RawMissing[] };
+type RawWantedMovie = { radarrId?: number; title?: string; sceneName?: string | null; missing_subtitles?: RawMissing[] };
 type RawWantedEpisode = {
     sonarrEpisodeId?: number;
     seriesTitle?: string;
     episodeTitle?: string;
-    season?: number;
-    episode?: number;
-    sceneName?: string;
+    /** Combined, as `"5x2"` — Bazarr has no separate season/episode fields. */
+    episode_number?: string;
+    sceneName?: string | null;
     missing_subtitles?: RawMissing[];
 };
+
+/**
+ * Bazarr reports the position as a single `"5x2"` string rather than separate
+ * numbers, confirmed against a live Bazarr 1.6.0. Reading `season` and
+ * `episode` — which is what this adapter did first — silently returned nothing
+ * for every episode.
+ */
+function parseEpisodeNumber(value: string | undefined): { season?: number; episode?: number } {
+    const match = /^(\d+)x(\d+)$/.exec(value ?? '');
+    if (match === null) return {};
+    return { season: Number(match[1]), episode: Number(match[2]) };
+}
 type RawProvider = { name?: string; status?: string; retry?: string };
 
 export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, SubtitleCapable {
@@ -103,45 +115,55 @@ export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, Subtit
                 kind: 'movie' as const,
                 id: m.radarrId,
                 title: fence('title', m.title ?? ''),
-                ...(m.sceneName === undefined ? {} : { releaseName: fence('sceneName', m.sceneName) }),
+                ...(typeof m.sceneName === 'string' ? { releaseName: fence('sceneName', m.sceneName) } : {}),
                 missing: (m.missing_subtitles ?? []).map(language)
             }));
 
         const episodeGaps: SubtitleGap[] = (episodes.data ?? [])
             .filter((e): e is RawWantedEpisode & { sonarrEpisodeId: number } => typeof e.sonarrEpisodeId === 'number')
-            .map(e => ({
-                service: this.id,
-                kind: 'episode' as const,
-                id: e.sonarrEpisodeId,
-                title: fence('seriesTitle', e.seriesTitle ?? ''),
-                ...(e.episodeTitle === undefined ? {} : { episodeTitle: fence('episodeTitle', e.episodeTitle) }),
-                ...(e.season === undefined ? {} : { season: e.season }),
-                ...(e.episode === undefined ? {} : { episode: e.episode }),
-                ...(e.sceneName === undefined ? {} : { releaseName: fence('sceneName', e.sceneName) }),
-                missing: (e.missing_subtitles ?? []).map(language)
-            }));
+            .map(e => {
+                const { season, episode } = parseEpisodeNumber(e.episode_number);
+                return {
+                    service: this.id,
+                    kind: 'episode' as const,
+                    id: e.sonarrEpisodeId,
+                    title: fence('seriesTitle', e.seriesTitle ?? ''),
+                    ...(e.episodeTitle === undefined ? {} : { episodeTitle: fence('episodeTitle', e.episodeTitle) }),
+                    ...(season === undefined ? {} : { season }),
+                    ...(episode === undefined ? {} : { episode }),
+                    ...(typeof e.sceneName === 'string' ? { releaseName: fence('sceneName', e.sceneName) } : {}),
+                    missing: (e.missing_subtitles ?? []).map(language)
+                };
+            });
 
         return [...movieGaps, ...episodeGaps];
     }
 
     /**
-     * §12's "provider state". Bazarr reports a healthy provider as
-     * `status: "good"` and an unhealthy one with the provider's own error text,
-     * so `healthy` is derived here rather than making every caller know that
+     * §12's "provider state". Bazarr reports a healthy provider as `status:
+     * "Good"` and an unhealthy one with the provider's own error text, so
+     * `healthy` is derived here rather than making every caller know that
      * string. The status text is provider-supplied and therefore fenced.
      *
-     * `retry` is the literal "End of information" when nothing is scheduled —
-     * treating that as a timestamp would put a sentence into a date field and
-     * a model would read it as a time.
+     * **Compared case-insensitively.** A live Bazarr 1.6.0 returns `"Good"`
+     * with a capital G; an exact lowercase match — which is what this did
+     * first — reported every healthy provider as broken.
+     *
+     * `retry` carries a sentinel when nothing is scheduled: `"-"` on the
+     * instance captured, `"End of information"` on others seen in the wild.
+     * Either would land a sentence in a date field for a model to read as a
+     * time, so both are treated as absent.
      */
     async getProviders(): Promise<SubtitleProvider[]> {
         const body = await this.#http.get<Envelope<RawProvider[]>>('/api/providers');
+        const NO_RETRY = new Set(['-', 'end of information', '']);
 
         return (body.data ?? [])
             .filter((p): p is RawProvider & { name: string } => typeof p.name === 'string')
             .map(p => {
-                const healthy = p.status === 'good';
-                const retry = p.retry !== undefined && p.retry !== 'End of information' ? p.retry : undefined;
+                const healthy = (p.status ?? '').toLowerCase() === 'good';
+                const retry =
+                    p.retry !== undefined && !NO_RETRY.has(p.retry.trim().toLowerCase()) ? p.retry : undefined;
                 return {
                     service: this.id,
                     name: p.name,

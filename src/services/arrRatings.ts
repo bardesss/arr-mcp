@@ -19,3 +19,21 @@ export function flattenRatings(raw: Record<string, RawRating> | undefined): Reco
     }
     return Object.keys(out).length === 0 ? undefined : out;
 }
+
+/**
+ * **Sonarr's shape is not Radarr's**, resolved against a live Sonarr 4.0.19
+ * during the Phase 2 capture run — which is what §21.2 had been waiting for.
+ *
+ * Radarr:  `{ tmdb: { votes, value, type }, imdb: {...}, … }` — per source.
+ * Sonarr:  `{ votes: 164018, value: 8.3 }` — one flat rating, no source key.
+ *
+ * Passing Sonarr's through `flattenRatings` treats `votes` and `value` as
+ * *source names*, reporting a rating source called "votes" worth 164018. The
+ * single rating is labelled `tvdb` because that is where Sonarr sources series
+ * metadata from — design spec §7 relies on the same fact when it excludes a
+ * direct TVDB client as duplicated effort.
+ */
+export function flattenSeriesRating(raw: RawRating | undefined): Record<string, number> | undefined {
+    if (typeof raw?.value !== 'number' || raw.value <= 0) return undefined;
+    return { tvdb: raw.value };
+}

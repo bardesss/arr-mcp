@@ -43,6 +43,13 @@ const isDangerous = (codePoint: number): boolean =>
     DANGEROUS_RANGES.some(([low, high]) => codePoint >= low && codePoint <= high);
 
 export function stripDangerous(value: string): string {
+    // Defensive against a non-string despite the type. This function is the
+    // one place every untrusted value passes through, and a service returning
+    // null where its own docs say string should cost that one field, not the
+    // whole tool. It happened: 69 of 502 Bazarr episodes carry `sceneName:
+    // null`, and the crash took down get_subtitles entirely.
+    if (typeof value !== 'string') return '';
+
     let out = '';
     // Iterating the string yields whole code points, so astral characters are
     // not split into surrogates and mistaken for something else.
@@ -63,7 +70,7 @@ export function stripDangerous(value: string): string {
  * read what the indexer actually said.
  */
 export function fenceText(value: string, source: { service: ServiceId; field: string }): string {
-    if (value === '') return '';
+    if (typeof value !== 'string' || value === '') return '';
 
     let clean = stripDangerous(value).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
     if (clean.length > FENCE_MAX_LENGTH) {

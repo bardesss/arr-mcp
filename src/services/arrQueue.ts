@@ -115,3 +115,12 @@ export function readSonarrCalendar(episodes: RawCalendarEpisode[], service: Serv
 
 export const calendarPath = (range: { start: Date; end: Date }): string =>
     `/api/v3/calendar?start=${range.start.toISOString()}&end=${range.end.toISOString()}`;
+
+/**
+ * Sonarr omits the series object from calendar rows unless asked, so
+ * `seriesTitle` came back empty for every episode — an episode calendar that
+ * cannot say which series an episode belongs to is close to useless. Confirmed
+ * against a live Sonarr 4.0.19 during the Phase 2 capture run.
+ */
+export const sonarrCalendarPath = (range: { start: Date; end: Date }): string =>
+    `${calendarPath(range)}&includeSeries=true`;

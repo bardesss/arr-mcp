@@ -187,8 +187,26 @@ export class JellyfinAdapter
         return [...nowPlaying, ...resuming];
     }
 
+    /**
+     * `/Items?ids=…`, not `/Items/{id}` — the latter answers **400 Error
+     * processing request** on a live 10.11.11, and the per-user form
+     * `/Users/{userId}/Items/{id}` would drag an identity into a call that has
+     * no business needing one.
+     *
+     * `Fields` is required for anything beyond the summary: without it there
+     * are no provider ids, no path and no media sources.
+     */
     async getMediaDetails(id: string): Promise<MediaDetails> {
-        const item = await this.#http.get<RawItemDetail>(`/Items/${encodeURIComponent(id)}`);
+        const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
+            `/Items?ids=${encodeURIComponent(id)}&Fields=ProviderIds,Path,MediaSources,Overview`
+        );
+        const item = page.Items?.[0];
+        if (item === undefined) {
+            throw new ServiceError('NotFound', this.id, `no item with id ${id}`, {
+                remedy: 'Check the id came from a Jellyfin search rather than another service.'
+            });
+        }
+
         const tmdb = numericId(item.ProviderIds?.Tmdb);
         const tvdb = numericId(item.ProviderIds?.Tvdb);
 
@@ -218,8 +236,12 @@ export class JellyfinAdapter
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'library') return [];
 
+        // `Fields=ProviderIds` is not optional decoration: Jellyfin omits
+        // ProviderIds from search results entirely without it, confirmed
+        // against a live 10.11.11. Every hit came back with no external ids at
+        // all — which is precisely what Phase 3's resolver joins on.
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
-            `/Items?searchTerm=${encodeURIComponent(query)}&Recursive=true&IncludeItemTypes=Movie,Series`
+            `/Items?searchTerm=${encodeURIComponent(query)}&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds`
         );
 
         return (page.Items ?? [])

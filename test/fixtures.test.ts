@@ -21,6 +21,18 @@ const SECRET_KEY = /^(api_?key|apikey|token|access_?token|auth_?token|password|p
 const LONG_OPAQUE = /^[A-Za-z0-9+/=_-]{40,}$/;
 
 /**
+ * Repeated separators are the signature of a slug or a delimited list, not a
+ * credential. Real captures turned up `titleSlug`
+ * ("the-fellowship-of-the-ring-2001") and a subtitle language list
+ * ("eng/dut/fre/…"), both long enough to trip the pattern above.
+ *
+ * A token is a contiguous run: `dGhpcyBpcyBhIHRlc3Q=` has no separator
+ * repeated three times, while anything human-readable and delimited does.
+ */
+const looksDelimited = (value: string): boolean =>
+    ['-', '/', '_', '.', ' ', ','].some(sep => value.split(sep).length > 3);
+
+/**
  * Words that legitimately end a key holding a long opaque value: identifiers,
  * content hashes and commit SHAs. Real captures turned up `avatarETag`,
  * `commitTag` and `PrimaryImageTag`, none of which a `(^|_)word$` pattern
@@ -40,7 +52,12 @@ const ID_WORDS = new Set([
     'fingerprint',
     'imdbid',
     'tvdbid',
-    'tmdbid'
+    'tmdbid',
+    // `cleanTitle` is Radarr's normalised title — punctuation and spaces
+    // stripped — which is contiguous and long enough to look exactly like a
+    // token. A field named *title or *slug is not a credential.
+    'title',
+    'slug'
 ]);
 
 /** Last word of a key, splitting snake_case, kebab-case and camelCase alike. */
@@ -67,7 +84,13 @@ export function scan(file: string, node: unknown, path = '$', out: Finding[] = [
             if (SECRET_KEY.test(key) && value !== REDACTED && value !== null && value !== '') {
                 out.push({ file, path: here, reason: `secret-named key holds ${JSON.stringify(value)}` });
             }
-            if (typeof value === 'string' && !isIdKey(key) && value !== REDACTED && LONG_OPAQUE.test(value)) {
+            if (
+                typeof value === 'string' &&
+                !isIdKey(key) &&
+                value !== REDACTED &&
+                LONG_OPAQUE.test(value) &&
+                !looksDelimited(value)
+            ) {
                 out.push({ file, path: here, reason: 'long opaque value that is not an id-named field' });
             }
             scan(file, value, here, out);
@@ -124,6 +147,16 @@ describe('the guard itself', () => {
 
     it('still flags a long value under a key with no id-ish word in it', () => {
         expect(scan('t', { avatarThing: 'd'.repeat(64) })).toHaveLength(1);
+    });
+
+    it('does not flag a slug or a delimited list, which are long but not opaque', () => {
+        // Both came out of a real capture.
+        expect(scan('t', { titleSlug: 'the-lord-of-the-rings-the-fellowship-of-the-ring-2001' })).toEqual([]);
+        expect(scan('t', { subtitles: 'eng/dut/fre/ger/spa/ita/por/rus/jpn/kor/chi' })).toEqual([]);
+    });
+
+    it('still flags a contiguous token of the same length', () => {
+        expect(scan('t', { blob: 'dGhpc2lzYXZlcnlsb25nb3BhcXVldG9rZW52YWx1ZQ==' })).toHaveLength(1);
     });
 
     it('does not let an id-ish suffix excuse a secret-named key', () => {

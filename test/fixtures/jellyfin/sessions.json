@@ -1,0 +1,120 @@
+[
+  {
+    "PlayState": {
+      "CanSeek": false,
+      "IsPaused": false,
+      "IsMuted": false,
+      "RepeatMode": "RepeatNone",
+      "PlaybackOrder": "Default"
+    },
+    "AdditionalUsers": [],
+    "Capabilities": {
+      "PlayableMediaTypes": [],
+      "SupportedCommands": [],
+      "SupportsMediaControl": false,
+      "SupportsPersistentIdentifier": true
+    },
+    "RemoteEndPoint": "192.0.2.10",
+    "PlayableMediaTypes": [],
+    "Id": "6e11f4671a8112764aa77802f01add4d",
+    "UserId": "472c0639eaa641ebadd06d9d5107b730",
+    "UserName": "Bardesss",
+    "Client": "Seerr",
+    "LastActivityDate": "2026-08-05T13:03:30.3254646Z",
+    "LastPlaybackCheckIn": "0001-01-01T00:00:00.0000000Z",
+    "DeviceName": "Seerr",
+    "DeviceId": "BOT_seerr",
+    "ApplicationVersion": "3.4.1",
+    "IsActive": true,
+    "SupportsMediaControl": false,
+    "SupportsRemoteControl": false,
+    "NowPlayingQueue": [],
+    "NowPlayingQueueFullItems": [],
+    "HasCustomDeviceName": false,
+    "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+    "UserPrimaryImageTag": "f7c65cf77a8de80a682c04391acc3eb9",
+    "SupportedCommands": []
+  },
+  {
+    "PlayState": {
+      "CanSeek": false,
+      "IsPaused": false,
+      "IsMuted": false,
+      "RepeatMode": "RepeatNone",
+      "PlaybackOrder": "Default"
+    },
+    "AdditionalUsers": [],
+    "Capabilities": {
+      "PlayableMediaTypes": [
+        "Video"
+      ],
+      "SupportedCommands": [
+        "DisplayMessage",
+        "SendString"
+      ],
+      "SupportsMediaControl": true,
+      "SupportsPersistentIdentifier": true
+    },
+    "RemoteEndPoint": "192.0.2.10",
+    "PlayableMediaTypes": [
+      "Video"
+    ],
+    "Id": "507cc4e1d598bb0951c5a8ed96f9bddf",
+    "UserId": "472c0639eaa641ebadd06d9d5107b730",
+    "UserName": "Bardesss",
+    "Client": "Wholphin",
+    "LastActivityDate": "2026-08-03T20:00:45.2411219Z",
+    "LastPlaybackCheckIn": "2026-08-03T20:00:43.7000329Z",
+    "DeviceName": "Tv in woonkamer",
+    "DeviceId": "5a6a16bb480a6e39",
+    "ApplicationVersion": "1.0.3-0-gf2287a85",
+    "IsActive": true,
+    "SupportsMediaControl": false,
+    "SupportsRemoteControl": false,
+    "NowPlayingQueue": [],
+    "NowPlayingQueueFullItems": [],
+    "HasCustomDeviceName": false,
+    "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+    "UserPrimaryImageTag": "f7c65cf77a8de80a682c04391acc3eb9",
+    "SupportedCommands": [
+      "DisplayMessage",
+      "SendString"
+    ]
+  },
+  {
+    "PlayState": {
+      "CanSeek": false,
+      "IsPaused": false,
+      "IsMuted": false,
+      "RepeatMode": "RepeatNone",
+      "PlaybackOrder": "Default"
+    },
+    "AdditionalUsers": [],
+    "Capabilities": {
+      "PlayableMediaTypes": [],
+      "SupportedCommands": [],
+      "SupportsMediaControl": false,
+      "SupportsPersistentIdentifier": true
+    },
+    "RemoteEndPoint": "192.0.2.10",
+    "PlayableMediaTypes": [],
+    "Id": "4026078820be22e06717c30772c86378",
+    "UserId": "472c0639eaa641ebadd06d9d5107b730",
+    "UserName": "Bardesss",
+    "Client": "Home Assistant",
+    "LastActivityDate": "2026-08-02T20:44:31.4458623Z",
+    "LastPlaybackCheckIn": "0001-01-01T00:00:00.0000000Z",
+    "DeviceName": "'Thuis'",
+    "DeviceId": "54f96ea1b35167348cfcbc39c2fd578e",
+    "ApplicationVersion": "2026.7.4",
+    "IsActive": true,
+    "SupportsMediaControl": false,
+    "SupportsRemoteControl": false,
+    "NowPlayingQueue": [],
+    "NowPlayingQueueFullItems": [],
+    "HasCustomDeviceName": false,
+    "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+    "UserPrimaryImageTag": "f7c65cf77a8de80a682c04391acc3eb9",
+    "SupportedCommands": []
+  }
+]
