@@ -1,29 +1,42 @@
 import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
-import { ServiceError, classifyFetchError, classifyHttpStatus } from '../core/errors.ts';
-import { logger } from '../core/logger.ts';
-import type { ArrAdapter, ConnectionDiagnosis, DiskSpace, HealthCheck } from './types.ts';
+import { apiKeyHeader } from '../core/auth.ts';
+import { ServiceError } from '../core/errors.ts';
+import { ServiceHttp } from '../core/http.ts';
+import {
+    diagnoseConnection,
+    type ConnectionDiagnosis,
+    type DiskSpace,
+    type DiskSpaceCapable,
+    type HealthCheck,
+    type HealthCheckCapable,
+    type ScanState,
+    type ScanStateCapable,
+    type ServiceAdapter
+} from './types.ts';
 
-/** Minimal hand-written shapes; replaced by generated types in Phase 2. */
-type SystemStatus = { appName?: string; version?: string; instanceName?: string };
+/** Hand-written until Task 4 replaces them with generated types. */
+type RawStatus = { appName?: string; version?: string; instanceName?: string };
+type RawDiskSpace = { path?: string; label?: string; freeSpace?: number; totalSpace?: number };
+type RawHealthCheck = { source?: string; type?: string; message?: string };
+type RawTask = { taskName?: string; lastExecution?: string };
 
-const CIRCUIT_THRESHOLD = 5;
-const CIRCUIT_COOLDOWN_MS = 60_000;
+/**
+ * Task names whose last execution stands in for "when did the library last get
+ * looked at". Confirmed against a live instance during the capture run — if the
+ * real taskName does not match, this pattern changes and nothing else does.
+ */
+const REFRESH_TASKS = /refresh|rescan/i;
 
-export class RadarrAdapter implements ArrAdapter {
+export class RadarrAdapter implements ServiceAdapter, DiskSpaceCapable, HealthCheckCapable, ScanStateCapable {
     readonly id: ServiceId = 'radarr';
-
-    readonly #config: KeyedServiceConfig;
-    readonly #fetch: typeof fetch;
-    #consecutiveFailures = 0;
-    #openedAt: number | undefined;
+    readonly #http: ServiceHttp;
 
     constructor(config: KeyedServiceConfig, fetchImpl: typeof fetch = fetch) {
-        this.#config = config;
-        this.#fetch = fetchImpl;
+        this.#http = new ServiceHttp('radarr', config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
     }
 
     async getVersion(): Promise<string> {
-        const status = await this.#get<SystemStatus>('/api/v3/system/status');
+        const status = await this.#http.get<RawStatus>('/api/v3/system/status');
         if (!status.version) {
             throw new ServiceError('UpstreamError', this.id, 'system/status returned no version field');
         }
@@ -31,125 +44,42 @@ export class RadarrAdapter implements ArrAdapter {
     }
 
     async getDiskSpace(): Promise<DiskSpace[]> {
-        return this.#get<DiskSpace[]>('/api/v3/diskspace');
+        const rows = await this.#http.get<RawDiskSpace[]>('/api/v3/diskspace');
+        return rows.map(r => ({
+            service: this.id,
+            ...(r.path === undefined ? {} : { path: r.path }),
+            label: r.label ?? '',
+            freeSpace: r.freeSpace ?? 0,
+            ...(r.totalSpace === undefined ? {} : { totalSpace: r.totalSpace })
+        }));
     }
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        const all = await this.#get<HealthCheck[]>('/api/v3/health');
+        const all = await this.#http.get<RawHealthCheck[]>('/api/v3/health');
         // Radarr generally returns only entries worth surfacing, but some
         // versions include `ok` rows — filter rather than trust.
-        return all.filter(c => c.type !== 'ok');
+        return all
+            .filter(c => c.type !== 'ok')
+            .map(c => ({
+                service: this.id,
+                source: c.source ?? 'unknown',
+                type: c.type ?? 'warning',
+                message: c.message ?? ''
+            }));
+    }
+
+    async getScanState(): Promise<ScanState> {
+        const tasks = await this.#http.get<RawTask[]>('/api/v3/system/task');
+        const latest = tasks
+            .filter(t => typeof t.taskName === 'string' && REFRESH_TASKS.test(t.taskName))
+            .map(t => t.lastExecution)
+            .filter((v): v is string => typeof v === 'string')
+            .sort()
+            .at(-1);
+        return { service: this.id, ...(latest === undefined ? {} : { lastCompleted: latest }) };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        const started = performance.now();
-        try {
-            const status = await this.#get<SystemStatus>('/api/v3/system/status');
-            const diagnosis: ConnectionDiagnosis = {
-                ok: true,
-                service: this.id,
-                latency_ms: Math.round(performance.now() - started)
-            };
-            if (status.version) diagnosis.version = status.version;
-            return diagnosis;
-        } catch (err) {
-            const se =
-                err instanceof ServiceError
-                    ? err
-                    : new ServiceError('UpstreamError', this.id, (err as Error).message ?? 'unknown', { cause: err });
-            const error: ConnectionDiagnosis['error'] = { kind: se.kind, detail: se.detail };
-            if (se.remedy !== undefined) error.remedy = se.remedy;
-            return {
-                ok: false,
-                service: this.id,
-                latency_ms: Math.round(performance.now() - started),
-                error
-            };
-        }
-    }
-
-    // --- internals ---
-
-    #circuitOpen(): boolean {
-        if (this.#openedAt === undefined) return false;
-        if (Date.now() - this.#openedAt >= CIRCUIT_COOLDOWN_MS) {
-            // Half-open: allow a single trial request through. Leaving the
-            // failure count one below the threshold means one more failure
-            // re-opens the circuit immediately.
-            this.#openedAt = undefined;
-            this.#consecutiveFailures = CIRCUIT_THRESHOLD - 1;
-            return false;
-        }
-        return true;
-    }
-
-    #recordSuccess(): void {
-        this.#consecutiveFailures = 0;
-        this.#openedAt = undefined;
-    }
-
-    #recordFailure(): void {
-        this.#consecutiveFailures += 1;
-        if (this.#consecutiveFailures >= CIRCUIT_THRESHOLD && this.#openedAt === undefined) {
-            this.#openedAt = Date.now();
-            logger.warn({ service: this.id }, 'circuit breaker opened after consecutive failures');
-        }
-    }
-
-    /** Reads retry once on timeout; writes never auto-retry (design spec §15). */
-    async #get<T>(path: string): Promise<T> {
-        if (this.#circuitOpen()) {
-            throw new ServiceError(
-                'Unreachable',
-                this.id,
-                `circuit breaker is open after ${CIRCUIT_THRESHOLD} consecutive failures`,
-                { remedy: `Not retried for ${CIRCUIT_COOLDOWN_MS / 1000}s. Fix the service, then try again.` }
-            );
-        }
-
-        try {
-            const result = await this.#attempt<T>(path);
-            this.#recordSuccess();
-            return result;
-        } catch (err) {
-            if (err instanceof ServiceError && err.kind === 'Timeout') {
-                try {
-                    const result = await this.#attempt<T>(path);
-                    this.#recordSuccess();
-                    return result;
-                } catch (retryErr) {
-                    this.#recordFailure();
-                    throw retryErr;
-                }
-            }
-            this.#recordFailure();
-            throw err;
-        }
-    }
-
-    async #attempt<T>(path: string): Promise<T> {
-        const url = new URL(path, this.#config.url).toString();
-        const signal = AbortSignal.timeout(this.#config.timeout_ms);
-
-        let response: Response;
-        try {
-            response = await this.#fetch(url, {
-                signal,
-                headers: { 'X-Api-Key': this.#config.api_key, Accept: 'application/json' }
-            });
-        } catch (err) {
-            throw classifyFetchError(err, this.id, url);
-        }
-
-        const httpError = classifyHttpStatus(response.status, this.id, url);
-        if (httpError) throw httpError;
-
-        try {
-            return (await response.json()) as T;
-        } catch (err) {
-            throw new ServiceError('UpstreamError', this.id, `response from ${path} was not valid JSON`, {
-                cause: err
-            });
-        }
+        return diagnoseConnection(this.id, () => this.getVersion());
     }
 }

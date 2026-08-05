@@ -1,9 +1,19 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it } from 'vitest';
-import type { ArrAdapter, ConnectionDiagnosis, DiskSpace, HealthCheck, ServiceAdapter } from '../src/services/types.ts';
+import type {
+    ConnectionDiagnosis,
+    DiskSpace,
+    DiskSpaceCapable,
+    HealthCheck,
+    HealthCheckCapable,
+    ServiceAdapter
+} from '../src/services/types.ts';
 import { buildStackHealth, registerStackHealth } from '../src/tools/stackHealth.ts';
 
-function fakeArr(overrides: Partial<ArrAdapter> & { diagnosis: ConnectionDiagnosis }): ArrAdapter {
+/** What `ArrAdapter` used to name, now spelled as the capabilities it is. */
+type ArrLike = ServiceAdapter & DiskSpaceCapable & HealthCheckCapable;
+
+function fakeArr(overrides: Partial<ArrLike> & { diagnosis: ConnectionDiagnosis }): ArrLike {
     return {
         id: 'radarr',
         testConnection: async () => overrides.diagnosis,
@@ -41,7 +51,7 @@ describe('stack_health', () => {
     });
 
     it('still returns what it gathered when one adapter throws outright', async () => {
-        const exploding: ArrAdapter = {
+        const exploding: ArrLike = {
             id: 'radarr',
             testConnection: async () => {
                 throw new Error('unexpected');
@@ -100,12 +110,14 @@ describe('stack_health', () => {
 
     it('honours the truncation contract on disks and failures', async () => {
         const disks: DiskSpace[] = Array.from({ length: 7 }, (_, i) => ({
+            service: 'radarr',
             path: `/mnt/${i}`,
             label: `d${i}`,
             freeSpace: 1,
             totalSpace: 2
         }));
         const failures: HealthCheck[] = Array.from({ length: 4 }, (_, i) => ({
+            service: 'radarr',
             source: `S${i}`,
             type: 'warning',
             message: 'm'
@@ -127,7 +139,9 @@ describe('stack_health', () => {
     });
 
     it('omits disk detail at minimal but keeps the counts truthful', async () => {
-        const disks: DiskSpace[] = [{ path: '/movies', label: 'movies', freeSpace: 1, totalSpace: 2 }];
+        const disks: DiskSpace[] = [
+            { service: 'radarr', path: '/movies', label: 'movies', freeSpace: 1, totalSpace: 2 }
+        ];
         const result = await buildStackHealth([fakeArr({ diagnosis: healthy, getDiskSpace: async () => disks })], {
             detail: 'minimal',
             limit: 50
@@ -157,6 +171,19 @@ describe('stack_health', () => {
         expect(result.services).toEqual([]);
         expect(result.degraded).toEqual([]);
         expect(result.disks).toEqual({ items: [], total: 0, returned: 0, truncated: false });
+    });
+
+    it('includes a capability-less service in the diagnosis list without degrading it', async () => {
+        const bare: ServiceAdapter = {
+            id: 'sabnzbd',
+            getVersion: async () => '4.5.0',
+            testConnection: async () => ({ ok: true, service: 'sabnzbd', latency_ms: 1, version: '4.5.0' })
+        };
+        const result = await buildStackHealth([bare], std);
+
+        expect(result.services.map(s => s.service)).toContain('sabnzbd');
+        expect(result.degraded).toEqual([]);
+        expect(result.disks.total).toBe(0);
     });
 
     it('registers without throwing', () => {
