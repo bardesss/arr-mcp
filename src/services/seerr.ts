@@ -6,12 +6,25 @@ import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
+    type DiscoverCapable,
     type MediaRequest,
     type RequestStatus,
+    type SearchCapable,
+    type SearchHit,
+    type SearchSource,
     type ServiceAdapter,
     type ServiceUser,
     type UserDirectoryCapable
 } from './types.ts';
+
+type RawSearchResult = {
+    id?: number;
+    mediaType?: string;
+    title?: string;
+    name?: string;
+    releaseDate?: string;
+    firstAirDate?: string;
+};
 
 type RawStatus = { version?: string; commitTag?: string };
 type RawRequest = {
@@ -46,7 +59,7 @@ type RawUserPage = { results?: RawUser[] };
  */
 const nameOf = (u: RawUser): string | undefined => u.displayName ?? u.username ?? u.email?.split('@')[0];
 
-export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable {
+export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable, SearchCapable, DiscoverCapable {
     readonly id: ServiceId = 'seerr';
     readonly #http: ServiceHttp;
 
@@ -95,6 +108,64 @@ export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable {
             // SEERR_FILTERS_SERVER_SIDE can never silently widen what a user sees.
             .filter(r => opts.user === undefined || r.requestedBy.toLowerCase() === opts.user.name.toLowerCase())
             .filter(r => opts.status === undefined || r.status === opts.status);
+    }
+
+    #toHit(r: RawSearchResult & { id: number }, kind: 'movie' | 'series'): SearchHit {
+        const date = r.releaseDate ?? r.firstAirDate;
+        return {
+            service: this.id,
+            source: 'discover',
+            kind,
+            id: String(r.id),
+            title: fenceText(r.title ?? r.name ?? '', { service: this.id, field: 'title' }),
+            ...(date === undefined ? {} : { year: Number(date.slice(0, 4)) }),
+            ids: { tmdb: r.id }
+        };
+    }
+
+    async search(query: string, source: SearchSource): Promise<SearchHit[]> {
+        if (source !== 'discover') return [];
+
+        const page = await this.#http.get<{ results?: RawSearchResult[] }>(
+            `/api/v1/search?query=${encodeURIComponent(query)}`
+        );
+
+        return (page.results ?? [])
+            .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
+            .map(r => this.#toHit(r, r.mediaType === 'tv' ? 'series' : 'movie'));
+    }
+
+    /**
+     * Seerr's discover is TMDB-backed, so the rating floor is applied by TMDB
+     * rather than by us. Design spec §7 defers rating filters over your *own*
+     * library to the IMDb dataset — that is get_library in Phase 3, not this.
+     */
+    async discover(opts: {
+        mediaType: 'movie' | 'tv';
+        genre?: string;
+        year?: number;
+        minRating?: number;
+    }): Promise<SearchHit[]> {
+        const params = new URLSearchParams();
+        if (opts.genre !== undefined) params.set('genre', opts.genre);
+        if (opts.minRating !== undefined) params.set('voteAverageGte', String(opts.minRating));
+        if (opts.year !== undefined) {
+            const [gte, lte] =
+                opts.mediaType === 'movie'
+                    ? ['primaryReleaseDateGte', 'primaryReleaseDateLte']
+                    : ['firstAirDateGte', 'firstAirDateLte'];
+            params.set(gte, `${opts.year}-01-01`);
+            params.set(lte, `${opts.year}-12-31`);
+        }
+
+        const endpoint = opts.mediaType === 'movie' ? 'movies' : 'tv';
+        const page = await this.#http.get<{ results?: RawSearchResult[] }>(
+            `/api/v1/discover/${endpoint}?${params.toString()}`
+        );
+
+        return (page.results ?? [])
+            .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
+            .map(r => this.#toHit(r, opts.mediaType === 'tv' ? 'series' : 'movie'));
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

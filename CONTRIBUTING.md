@@ -85,6 +85,14 @@ classification — belong to `ServiceHttp` and must not be reimplemented in an
 adapter. If a service needs behaviour `ServiceHttp` does not have, that is a
 change to `ServiceHttp`, so every service gets it.
 
+### If your service returns free text
+
+Release names, overviews, file paths and user notes must be passed through
+`fenceText` **in the adapter**, at the point the value enters our types — not in
+a tool, where one forgotten field is a silent hole. `test/injection.test.ts`
+asserts the fence holds; add a case there if your service can return something
+the existing ones do not cover.
+
 **Match on stable identifiers, not on display strings.** Both scan-state
 implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task

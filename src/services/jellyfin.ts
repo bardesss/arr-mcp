@@ -6,9 +6,14 @@ import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
+    type MediaDetailCapable,
+    type MediaDetails,
     type PlaybackEntry,
     type ScanState,
     type ScanStateCapable,
+    type SearchCapable,
+    type SearchHit,
+    type SearchSource,
     type ServiceAdapter,
     type ServiceUser,
     type UserDirectoryCapable
@@ -63,7 +68,31 @@ const TICKS_PER_SECOND = 10_000_000;
 const ticksToSeconds = (ticks: number | undefined): number | undefined =>
     typeof ticks === 'number' ? Math.round(ticks / TICKS_PER_SECOND) : undefined;
 
-export class JellyfinAdapter implements ServiceAdapter, ScanStateCapable, UserDirectoryCapable {
+type RawItemDetail = {
+    Id?: string;
+    Name?: string;
+    ProductionYear?: number;
+    Overview?: string;
+    Path?: string;
+    Type?: string;
+    ProviderIds?: { Tmdb?: string; Tvdb?: string; Imdb?: string };
+    MediaSources?: { Size?: number }[];
+};
+
+/**
+ * Jellyfin stores external ids as **strings** while Radarr and Sonarr use
+ * numbers. Phase 3's identity resolver joins on tmdbId and tvdbId, so a string
+ * here would silently fail every join — convert at the boundary.
+ */
+const numericId = (value: string | undefined): number | undefined => {
+    if (value === undefined) return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+export class JellyfinAdapter
+    implements ServiceAdapter, ScanStateCapable, UserDirectoryCapable, MediaDetailCapable, SearchCapable
+{
     readonly id: ServiceId = 'jellyfin';
     readonly #http: ServiceHttp;
 
@@ -156,6 +185,62 @@ export class JellyfinAdapter implements ServiceAdapter, ScanStateCapable, UserDi
         }));
 
         return [...nowPlaying, ...resuming];
+    }
+
+    async getMediaDetails(id: string): Promise<MediaDetails> {
+        const item = await this.#http.get<RawItemDetail>(`/Items/${encodeURIComponent(id)}`);
+        const tmdb = numericId(item.ProviderIds?.Tmdb);
+        const tvdb = numericId(item.ProviderIds?.Tvdb);
+
+        return {
+            service: this.id,
+            kind: 'item',
+            id,
+            title: fenceText(item.Name ?? '', { service: this.id, field: 'Name' }),
+            ...(item.ProductionYear === undefined ? {} : { year: item.ProductionYear }),
+            ...(item.Overview === undefined
+                ? {}
+                : { overview: fenceText(item.Overview, { service: this.id, field: 'Overview' }) }),
+            ...(item.MediaSources?.[0]?.Size === undefined ? {} : { sizeBytes: item.MediaSources[0].Size }),
+            ...(item.Path === undefined ? {} : { path: fenceText(item.Path, { service: this.id, field: 'Path' }) }),
+            ids: {
+                ...(tmdb === undefined ? {} : { tmdb }),
+                ...(tvdb === undefined ? {} : { tvdb }),
+                ...(item.ProviderIds?.Imdb === undefined ? {} : { imdb: item.ProviderIds.Imdb })
+            }
+        };
+    }
+
+    /**
+     * Jellyfin is the only service that knows what has actually been *watched*,
+     * which is the gap design spec §12 says upstream never closed.
+     */
+    async search(query: string, source: SearchSource): Promise<SearchHit[]> {
+        if (source !== 'library') return [];
+
+        const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
+            `/Items?searchTerm=${encodeURIComponent(query)}&Recursive=true&IncludeItemTypes=Movie,Series`
+        );
+
+        return (page.Items ?? [])
+            .filter((i): i is RawItemDetail & { Id: string } => typeof i.Id === 'string')
+            .map(i => {
+                const tmdb = numericId(i.ProviderIds?.Tmdb);
+                const tvdb = numericId(i.ProviderIds?.Tvdb);
+                return {
+                    service: this.id,
+                    source: 'library' as const,
+                    kind: i.Type === 'Series' ? ('series' as const) : ('item' as const),
+                    id: i.Id,
+                    title: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
+                    ...(i.ProductionYear === undefined ? {} : { year: i.ProductionYear }),
+                    ids: {
+                        ...(tmdb === undefined ? {} : { tmdb }),
+                        ...(tvdb === undefined ? {} : { tvdb }),
+                        ...(i.ProviderIds?.Imdb === undefined ? {} : { imdb: i.ProviderIds.Imdb })
+                    }
+                };
+            });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

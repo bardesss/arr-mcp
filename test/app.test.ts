@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
+import { TOOL_NAMES } from '../src/tools/register.ts';
 
 const TOKEN = 'a'.repeat(64);
 const WRONG = 'b'.repeat(64);
@@ -143,16 +144,37 @@ describe('DNS rebinding protection', () => {
 });
 
 describe('the advertised tool surface', () => {
-    it('exposes exactly one tool in Phase 1', async () => {
+    const listTools = async (): Promise<{ name: string; description?: string }[]> => {
         const res = await app().request(
             'http://localhost:6060/mcp',
             rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
         );
         const body = await res.text();
         const payload = JSON.parse(body.slice(body.indexOf('{'), body.lastIndexOf('}') + 1)) as {
-            result: { tools: { name: string }[] };
+            result: { tools: { name: string; description?: string }[] };
         };
+        return payload.result.tools;
+    };
 
-        expect(payload.result.tools.map(t => t.name)).toEqual(['stack_health']);
+    /**
+     * Design spec §18: the tool surface is the public API, and renaming one
+     * breaks users' saved prompts **silently** — the model stops finding the
+     * tool rather than raising an error. This asserts the exact set, so any
+     * change to it has to be deliberate enough to edit a test.
+     */
+    it('exposes exactly the eleven tools of the frozen surface', async () => {
+        expect((await listTools()).map(t => t.name).sort()).toEqual([...TOOL_NAMES].sort());
+    });
+
+    it('registers every tool even when its service is not configured', async () => {
+        // Nothing is configured in this test app. Hiding a tool would make the
+        // surface depend on config, so a model that learned a tool exists must
+        // not find it missing after an edit.
+        expect(await listTools()).toHaveLength(TOOL_NAMES.length);
+    });
+
+    it('gives every tool a description, which is the only documentation a model reads', async () => {
+        const undocumented = (await listTools()).filter(t => (t.description ?? '').length < 40);
+        expect(undocumented.map(t => t.name)).toEqual([]);
     });
 });
