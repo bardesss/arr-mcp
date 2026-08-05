@@ -1,4 +1,4 @@
-import type { ServiceConfig, ServiceId } from '../config/schema.ts';
+import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { ServiceError, classifyFetchError, classifyHttpStatus } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import type { ArrAdapter, ConnectionDiagnosis, DiskSpace, HealthCheck } from './types.ts';
@@ -12,12 +12,12 @@ const CIRCUIT_COOLDOWN_MS = 60_000;
 export class RadarrAdapter implements ArrAdapter {
     readonly id: ServiceId = 'radarr';
 
-    readonly #config: ServiceConfig;
+    readonly #config: KeyedServiceConfig;
     readonly #fetch: typeof fetch;
     #consecutiveFailures = 0;
     #openedAt: number | undefined;
 
-    constructor(config: ServiceConfig, fetchImpl: typeof fetch = fetch) {
+    constructor(config: KeyedServiceConfig, fetchImpl: typeof fetch = fetch) {
         this.#config = config;
         this.#fetch = fetchImpl;
     }

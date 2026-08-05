@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ServiceConfig } from '../src/config/schema.ts';
+import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 
-const config: ServiceConfig = {
+const config: KeyedServiceConfig = {
     url: 'http://192.168.1.20:7878',
     api_key: 'test-key',
     timeout_ms: 10_000,

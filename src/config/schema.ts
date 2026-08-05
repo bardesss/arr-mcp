@@ -23,17 +23,83 @@ const PermissionsSchema = z
     })
     .default({ safe_write: false, destructive: false });
 
-const ServiceConfigSchema = z.object({
-    url: z
-        .url()
-        .refine(u => u.startsWith('http://') || u.startsWith('https://'), {
-            message: 'must be an http:// or https:// URL'
-        }),
-    api_key: z.string().min(1, 'api_key must not be empty'),
+const UrlSchema = z.url().refine(u => u.startsWith('http://') || u.startsWith('https://'), {
+    message: 'must be an http:// or https:// URL'
+});
+
+/**
+ * Shared by all eight. Every concrete schema below is a *strict* object, so a
+ * misspelled key fails at startup instead of being silently dropped — which is
+ * the difference between "my timeout setting does nothing" taking a minute to
+ * diagnose or an afternoon.
+ */
+const BaseServiceShape = {
+    url: UrlSchema,
     timeout_ms: z.number().int().positive().default(10_000),
     permissions: PermissionsSchema
+};
+
+const ApiKeyShape = { api_key: z.string().min(1, 'api_key must not be empty') };
+
+/** Radarr, Sonarr, Prowlarr, Bazarr, SABnzbd — an API key and nothing more. */
+const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape });
+export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
+
+/**
+ * What ServiceHttp needs from any service, whatever its auth shape. Derived
+ * rather than parsed from its own schema — nothing ever validates against this
+ * alone, and a schema with no parser is a schema that drifts.
+ */
+export type BaseServiceConfig = Pick<KeyedServiceConfig, 'url' | 'timeout_ms' | 'permissions'>;
+
+/**
+ * Jellyfin and Seerr only (design spec §9) — the two services with their own
+ * user concepts.
+ *
+ * `default_user` is optional on purpose: configuring a service purely so it
+ * appears in stack_health is legitimate, and guessing an identity is the silent
+ * mismatch §14 warns about. A per-user tool called with nothing configured
+ * fails naming this key.
+ */
+const MultiUserServiceSchema = z.strictObject({
+    ...BaseServiceShape,
+    ...ApiKeyShape,
+    default_user: z.string().min(1).optional(),
+    allow_other_users: z.boolean().default(false)
 });
-export type ServiceConfig = z.infer<typeof ServiceConfigSchema>;
+export type MultiUserServiceConfig = z.infer<typeof MultiUserServiceSchema>;
+
+/**
+ * Transmission's RPC has no API key — HTTP Basic auth plus an
+ * `X-Transmission-Session-Id` handshake. Both credential parts are optional
+ * because LAN instances are commonly unauthenticated.
+ */
+const TransmissionServiceSchema = z.strictObject({
+    ...BaseServiceShape,
+    username: z.string().min(1).optional(),
+    password: z.string().optional()
+});
+export type TransmissionServiceConfig = z.infer<typeof TransmissionServiceSchema>;
+
+export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | TransmissionServiceConfig;
+
+/**
+ * Strict as well, so an unknown service id is an error rather than a key that
+ * silently vanishes. Someone adding `plex:` should be told it is unsupported,
+ * not left wondering why nothing happened.
+ */
+const ServicesSchema = z
+    .strictObject({
+        radarr: KeyedServiceSchema.optional(),
+        sonarr: KeyedServiceSchema.optional(),
+        prowlarr: KeyedServiceSchema.optional(),
+        bazarr: KeyedServiceSchema.optional(),
+        sabnzbd: KeyedServiceSchema.optional(),
+        jellyfin: MultiUserServiceSchema.optional(),
+        seerr: MultiUserServiceSchema.optional(),
+        transmission: TransmissionServiceSchema.optional()
+    })
+    .default({});
 
 export const ConfigSchema = z.object({
     // Required, not optional: loadConfig always injects a generated token
@@ -50,6 +116,6 @@ export const ConfigSchema = z.object({
          */
         allowed_hosts: z.array(z.string()).default([])
     }),
-    services: z.partialRecord(ServiceIdSchema, ServiceConfigSchema).default({})
+    services: ServicesSchema
 });
 export type Config = z.infer<typeof ConfigSchema>;
