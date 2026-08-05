@@ -1,0 +1,214 @@
+{
+  "Items": [
+    {
+      "Name": "A Complete Unknown",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "38881160b1c9750a09767324d764237c",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2024-12-24T23:00:00.0000000Z",
+      "CriticRating": 82,
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "CommunityRating": 7.096,
+      "RunTimeTicks": 84472920000,
+      "ProductionYear": 2024,
+      "IsFolder": false,
+      "Type": "Movie",
+      "VideoType": "VideoFile",
+      "ImageTags": {
+        "Thumb": "64d4132beb9fce6b7c21cf9d69b0f90f",
+        "Primary": "ea41ca7f0908e06b41c0edcf8dcfe383",
+        "Logo": "fa9974a2b5561ffcabfbae7d6e1f1e89"
+      },
+      "BackdropImageTags": [
+        "55013b1b030b631f783bcebbe609b65b"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "55013b1b030b631f783bcebbe609b65b": "WFAJ1VRj0#kCnOR*$fNHS$aexZt6I;f+xaM{oJt7t7e-WBo#oeRj"
+        },
+        "Thumb": {
+          "64d4132beb9fce6b7c21cf9d69b0f90f": "WmJRXC00D%t7ofxuaeRPkCozayWBf6WBofxuWBRP%MRjRjf6f6of"
+        },
+        "Primary": {
+          "ea41ca7f0908e06b41c0edcf8dcfe383": "ddHn{S00RjxuM{WBkCM|IUa}%Mt7t7t7V@RjM{WVofjZ"
+        },
+        "Logo": {
+          "fa9974a2b5561ffcabfbae7d6e1f1e89": "NHM@ZR9F004nIUM{Rj-;t7%M-;%M%2RjRjWBofWB"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "A House of Dynamite",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "7b4504793efb3a1b08f4ee6577d96812",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2025-10-01T22:00:00.0000000Z",
+      "CriticRating": 84,
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "CommunityRating": 6.45,
+      "RunTimeTicks": 69041250000,
+      "ProductionYear": 2025,
+      "IsFolder": false,
+      "Type": "Movie",
+      "VideoType": "VideoFile",
+      "ImageTags": {
+        "Primary": "eb79f97cac721d151461fb7552b44214",
+        "Logo": "935fd14a9440f41e41457a86a8b0307a",
+        "Thumb": "1b537e047fbf913144ad52ed1bbf9c7f"
+      },
+      "BackdropImageTags": [
+        "a84ccd05234289598f9b859f6fbc61f0"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "a84ccd05234289598f9b859f6fbc61f0": "W79*0^v31$?vmSPB:PX8Dj%f-pMeR5yXZ$VFt,iw%MxatRv#kWS4"
+        },
+        "Primary": {
+          "eb79f97cac721d151461fb7552b44214": "dbBq3oMwS~k?.TVrX8k=pJV?ent7#RRjadni#SV[V@en"
+        },
+        "Logo": {
+          "935fd14a9440f41e41457a86a8b0307a": "HLTSUAt7fQt7fQt7fQt7fQ~qj[fQj[fQj[fQj[fQ"
+        },
+        "Thumb": {
+          "1b537e047fbf913144ad52ed1bbf9c7f": "WMAA2dUu%NWnIocE?wH=tln$Rio~PU9sbww{nOxbt6I;s:oLV@s:"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "A Knight of the Seven Kingdoms",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "758c1038643b7fcfebc2b0cd6bec9d40",
+      "PremiereDate": "2026-01-17T23:00:00.0000000Z",
+      "OfficialRating": "TV-MA",
+      "ChannelId": null,
+      "RunTimeTicks": 19800000000,
+      "ProductionYear": 2026,
+      "IsFolder": true,
+      "Type": "Series",
+      "Status": "Continuing",
+      "AirTime": "22:00",
+      "AirDays": [
+        "Sunday"
+      ],
+      "ImageTags": {
+        "Logo": "bbea966fd32bf2796f5bad20432c4f12",
+        "Primary": "27fd19e8c05b0b9f543aa58c1e0e082f",
+        "Banner": "2adeb9b3b4dd08579979f97d3e8d4023"
+      },
+      "BackdropImageTags": [
+        "782d83eeb122f909a2dc76b97781e0a7"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "782d83eeb122f909a2dc76b97781e0a7": "WsHCM:V[oz-;oftQ~qadWWxukBofIVRjRjRkWBWBD%M|j[ayRkWB"
+        },
+        "Logo": {
+          "bbea966fd32bf2796f5bad20432c4f12": "OASY{q%MxuxuRjWBM{?bWBj[t7j[WBj[~qayofWBt7xufQ"
+        },
+        "Primary": {
+          "27fd19e8c05b0b9f543aa58c1e0e082f": "dkGI$5IBbFt7~pM{RkkCD*j@WBRj9FWCt7RjM{WBxuoe"
+        },
+        "Banner": {
+          "2adeb9b3b4dd08579979f97d3e8d4023": "HaMtsvROD*D*M{R*WXM|My_NWAM{M{WBWCWBayWB"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    },
+    {
+      "Name": "A Widow's Game",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "95c9274cb0ee5830c8239cb3fb473bcc",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2025-05-29T00:00:00.0000000Z",
+      "OfficialRating": "R",
+      "ChannelId": null,
+      "CommunityRating": 6.2,
+      "RunTimeTicks": 73274240000,
+      "ProductionYear": 2025,
+      "IsFolder": false,
+      "Type": "Movie",
+      "VideoType": "VideoFile",
+      "ImageTags": {
+        "Logo": "21e69e5d915cf1fb4bb4403afe2859b0",
+        "Thumb": "5b990eed5c244f2b8d867167633face9",
+        "Primary": "d216e761ced0afcb1045382458e6c3a4"
+      },
+      "BackdropImageTags": [
+        "06182bb89bb71ff12acf3d09067b6fb6"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "06182bb89bb71ff12acf3d09067b6fb6": "WE9701599u~AE2NH%LoeEMxZxDE3NHxYkCIp$%WVs;Rkj[s.R+t6"
+        },
+        "Logo": {
+          "21e69e5d915cf1fb4bb4403afe2859b0": "HOQmCr%MD%9FWBM{D%t7j[~qt7IURjt7IUM{ofj["
+        },
+        "Thumb": {
+          "5b990eed5c244f2b8d867167633face9": "WCA,UoET0f~9I[X9IAMxJC%1em9bX9xaWVIp%1WX?bogRjocf,xt"
+        },
+        "Primary": {
+          "d216e761ced0afcb1045382458e6c3a4": "dODlK69v0g%2$y%0E3NHNexYodIqxaR+j[azV?ofWroJ"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "American Murder: Laci Peterson",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "e8211d1f87a7b235a84010f81a4f10b9",
+      "PremiereDate": "2024-08-13T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 31800000000,
+      "ProductionYear": 2024,
+      "IsFolder": true,
+      "Type": "Series",
+      "Status": "Ended",
+      "AirTime": "03:00",
+      "AirDays": [
+        "Wednesday"
+      ],
+      "ImageTags": {
+        "Banner": "1c0be2a752a4e670bba4e4c44fabd86c",
+        "Thumb": "5392e40a3b097afa79084d31be4dbe4e",
+        "Primary": "6c85c34d25338f3943c8292a04f363ed",
+        "Logo": "614fdc6bbf0304a48d0dc94dc34d37b9"
+      },
+      "BackdropImageTags": [
+        "b5492e5c2b4b392f481787c25b78fbd3"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "b5492e5c2b4b392f481787c25b78fbd3": "WPDw8K_3xux]oytRIqM{M|RkWCaz4TWBt7V@WBWB.8t7fPj[f6kC"
+        },
+        "Banner": {
+          "1c0be2a752a4e670bba4e4c44fabd86c": "HEB3EPyWo|}]GD=}nh4:vh~X%MkC%3o|xbWAIoVs"
+        },
+        "Thumb": {
+          "5392e40a3b097afa79084d31be4dbe4e": "WKFPvl_2R%%MxuR*01IUV[RjR*M|8_xu%MWAM{xayDs:WBW;WBtR"
+        },
+        "Primary": {
+          "6c85c34d25338f3943c8292a04f363ed": "dUDc:g%Mxu%MI;aeafbb01WBaeNG?IkCozs:nORjR*o0"
+        },
+        "Logo": {
+          "614fdc6bbf0304a48d0dc94dc34d37b9": "HqOC{mNGkWt7ODR*R*RjR*HXa|NGRjNukCWpofW;"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "EndDate": "2024-01-13T23:08:00.0000000Z"
+    }
+  ],
+  "TotalRecordCount": 195,
+  "StartIndex": 0
+}

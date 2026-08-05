@@ -35,7 +35,15 @@ type RawHistoryRecord = {
     indexerId?: number;
     date?: string;
     successful?: boolean;
-    data?: { query?: string; reason?: string };
+    eventType?: string;
+    /**
+     * Confirmed against a live Prowlarr 2.0.5: this carries `limit`, `offset`,
+     * `elapsedTime`, `query`, `queryType`, `categories`, `source`, `host`,
+     * `queryResults`, `url` and `cached` — and **no `reason` field**. The
+     * adapter read `data.reason` first and would have reported every rejection
+     * as "no reason given".
+     */
+    data?: { query?: string; reason?: string; source?: string; queryType?: string };
 };
 type RawRelease = {
     guid?: string;
@@ -138,9 +146,15 @@ export class ProwlarrAdapter implements ServiceAdapter, HealthCheckCapable, Inde
      * The failed half of Prowlarr's history — §12's "recent rejections", which
      * is a different thing from the rejection *counts* above.
      *
-     * Both the reason and the query are indexer-supplied: the reason is a
-     * message the indexer wrote, and the query echoes back text that reached
-     * it. Both are fenced.
+     * **Prowlarr does not record why a query failed.** The history payload has
+     * no reason field, so the best available answer is what kind of request it
+     * was and which application asked. The *indexer's* own explanation lives on
+     * `indexerstatus.mostRecentFailure`, which `getIndexers` already surfaces —
+     * between the two, "which queries failed" and "what the indexer said" are
+     * both answerable, just not from one endpoint.
+     *
+     * The query text is indexer-adjacent — it echoes back what reached the
+     * indexer — so it is fenced along with the reason.
      */
     async getRecentRejections(limit: number): Promise<IndexerRejection[]> {
         const [history, indexers] = await Promise.all([
@@ -156,14 +170,24 @@ export class ProwlarrAdapter implements ServiceAdapter, HealthCheckCapable, Inde
         return (history.records ?? [])
             .filter(r => r.successful === false)
             .filter((r): r is RawHistoryRecord & { date: string } => typeof r.date === 'string')
-            .map(r => ({
-                indexer: nameOf(r.indexerId),
-                at: r.date,
-                reason: fenceText(r.data?.reason ?? 'no reason given', { service: this.id, field: 'reason' }),
-                ...(r.data?.query === undefined
-                    ? {}
-                    : { query: fenceText(r.data.query, { service: this.id, field: 'query' }) })
-            }));
+            .map(r => {
+                const described =
+                    r.data?.reason ??
+                    [r.eventType, r.data?.source === undefined ? undefined : `requested by ${r.data.source}`]
+                        .filter(Boolean)
+                        .join(', ');
+                return {
+                    indexer: nameOf(r.indexerId),
+                    at: r.date,
+                    reason: fenceText(described === '' ? 'failed, no reason recorded' : described, {
+                        service: this.id,
+                        field: 'reason'
+                    }),
+                    ...(r.data?.query
+                        ? { query: fenceText(r.data.query, { service: this.id, field: 'query' }) }
+                        : {})
+                };
+            });
     }
 
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {

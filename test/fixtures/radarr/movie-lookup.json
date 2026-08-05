@@ -1,0 +1,1899 @@
+[
+  {
+    "title": "The Matrix",
+    "originalTitle": "The Matrix",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "เพาะพันธุ์มนุษย์เหนือโลก"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Μάτριξ"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "매트릭스"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "廿二世紀殺人網絡"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "廿二世紀殺人網絡"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "22世紀網絡"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "廿二世紀殺人網絡"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "駭客任務"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Մատրիցա"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Матрыца"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix",
+    "status": "released",
+    "overview": "De computerhacker Neo komt er achter dat het leven op aarde niets meer is dan een computersimulatie, opgezet door machines om de mensheid in bedwang te houden. Hij wordt door enkele vrijheidsstrijders uit deze \"Matrix\" gehaald.",
+    "inCinemas": "1999-03-31T00:00:00Z",
+    "physicalRelease": "1999-11-25T00:00:00Z",
+    "digitalRelease": "2001-03-19T00:00:00Z",
+    "releaseDate": "1999-03-31T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/340a5ffa546ac99b1ece2707e097751a01b38629541829fdc3707147980d764b/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/b5e2693ff477100dabb93752b61e0bc4d3c1816fb3b00f3c541d42433d57da29/tlm8UkiQsitc8rSuIAscQDCnP8d.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/tlm8UkiQsitc8rSuIAscQDCnP8d.jpg"
+      }
+    ],
+    "website": "http://www.warnerbros.com/matrix",
+    "remotePoster": "https://image.tmdb.org/t/p/original/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg",
+    "year": 1999,
+    "youTubeTrailerId": "FVI84Dfx2-I",
+    "studio": "Village Roadshow Pictures",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 136,
+    "cleanTitle": "thematrix",
+    "imdbId": "tt0133093",
+    "tmdbId": 603,
+    "titleSlug": "603",
+    "folder": "The Matrix (1999) [tmdbid-603]",
+    "certification": "R",
+    "genres": [
+      "Action",
+      "Science Fiction"
+    ],
+    "keywords": [
+      "allegory",
+      "artificial intelligence (a.i.)",
+      "chosen one",
+      "cyberpunk",
+      "dystopia",
+      "fortune teller",
+      "gnosticism",
+      "insurgence",
+      "man vs machine",
+      "martial arts",
+      "philosophy",
+      "prophecy",
+      "saving the world",
+      "simulated reality "
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 2265276,
+        "value": 8.7,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 28339,
+        "value": 8.253,
+        "type": "user"
+      },
+      "metacritic": {
+        "votes": 0,
+        "value": 73,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 83,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 54916,
+        "value": 8.78249,
+        "type": "user"
+      }
+    },
+    "collection": {
+      "title": "The Matrix Collection",
+      "tmdbId": 2344
+    },
+    "popularity": 48.6068
+  },
+  {
+    "title": "The Matrix Revolutions",
+    "originalTitle": "The Matrix Revolutions",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix 3"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix Revolutions: The IMAX Experience"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Матрица: Революция"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "黑客帝国3"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix 3"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Μάτριξ 3"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "매트릭스 3: 레볼루션"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "22世紀殺人網絡3：驚變世紀"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "22世紀殺人網絡：驚變世紀"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "廿二世紀殺人網絡3：驚變世紀"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix revolutions",
+    "status": "released",
+    "overview": "Terwijl het een kwestie van uren is voor de machines Zion binnen zullen dringen moeten Trinity en Morpheus op zoek naar Neo, die gevangen zit in een wereld tussen de Matrix en de echte wereld. Wanneer het gevecht tussen de machines en de bewoners van Zion begint probeert Neo definitief af te rekenen met Agent Smith.",
+    "inCinemas": "2003-11-05T00:00:00Z",
+    "physicalRelease": "2004-04-02T00:00:00Z",
+    "digitalRelease": "2003-11-05T00:00:00Z",
+    "releaseDate": "2003-11-05T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/a1e7662817294ce27bcb10b737980a48a40a892f16c7ab6be8ea16f1b136e1cf/bkkS61w94ZVMNVd8KEyyJl2tnY5.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/bkkS61w94ZVMNVd8KEyyJl2tnY5.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/d6ddef7402503fefb078ec5896ed03ce0f26f77dba00c2ef1b138e69ab50c117/kJYPag1YrA4PsXIftFdq3QEaanV.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/kJYPag1YrA4PsXIftFdq3QEaanV.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/bkkS61w94ZVMNVd8KEyyJl2tnY5.jpg",
+    "year": 2003,
+    "youTubeTrailerId": "hMbexEPAOQI",
+    "studio": "Village Roadshow Pictures",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 129,
+    "cleanTitle": "thematrixrevolutions",
+    "imdbId": "tt0242653",
+    "tmdbId": 605,
+    "titleSlug": "605",
+    "folder": "The Matrix Revolutions (2003) [tmdbid-605]",
+    "certification": "R",
+    "genres": [
+      "Adventure",
+      "Action",
+      "Thriller",
+      "Science Fiction"
+    ],
+    "keywords": [
+      "action hero",
+      "allegory",
+      "artificial intelligence (a.i.)",
+      "christ allegory",
+      "computer",
+      "computer virus",
+      "cyberpunk",
+      "dreams",
+      "dying and death",
+      "dystopia",
+      "excited",
+      "fight",
+      "flying",
+      "fortune teller",
+      "future",
+      "gnosticism",
+      "hero",
+      "key",
+      "killer robot",
+      "kung fu",
+      "machine town",
+      "man vs machine",
+      "martial arts",
+      "mission",
+      "philosophical",
+      "philosophy",
+      "precognition",
+      "pretentious",
+      "rescue",
+      "saving the world",
+      "sequel",
+      "subway",
+      "sun",
+      "sunlight",
+      "super computer",
+      "temple",
+      "truth",
+      "underground world",
+      "virtual reality",
+      "ying yang"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 577174,
+        "value": 6.7,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 10921,
+        "value": 6.755,
+        "type": "user"
+      },
+      "metacritic": {
+        "votes": 0,
+        "value": 47,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 33,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 20870,
+        "value": 7.16703,
+        "type": "user"
+      }
+    },
+    "collection": {
+      "title": "The Matrix Collection",
+      "tmdbId": 2344
+    },
+    "popularity": 10.0179
+  },
+  {
+    "title": "The Matrix Reloaded",
+    "originalTitle": "The Matrix Reloaded",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix 2"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix Reloaded: The IMAX Experience"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix Recargado"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Матрица: Перезагрузка"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "黑客帝国2"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix 2"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Μάτριξ 2"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "매트릭스 2: 리로디드"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "22世紀殺人網絡2：決戰未來"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "廿二世紀殺人網絡2：決戰未來"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix reloaded",
+    "status": "released",
+    "overview": "De machines hebben de locatie van Zion, de laatste menselijke stad, gevonden. De enige hoop voor de rebellen is The Keymaker, een man met toegang tot alle deuren naar de machinewereld. Hij wordt echter bewaakt door The Twins, een gedreadlocked duo dat kan verdwijnen en verschijnen als geesten. Agent Smith kan zich inmiddels als een virus in The Matrix vermenigvuldigen, wat de zoektocht voor Neo, Trinity en Morpheus bemoeilijkt.",
+    "inCinemas": "2003-05-15T00:00:00Z",
+    "physicalRelease": "2003-10-10T00:00:00Z",
+    "digitalRelease": "2003-05-16T00:00:00Z",
+    "releaseDate": "2003-05-15T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/710e5cf4f839ff10cd9645c4cf4af888a4c2ef1cc941a1357ec92b81bb1d3bf4/aA5qHS0FbSXO8PxcxUIHbDrJyuh.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/aA5qHS0FbSXO8PxcxUIHbDrJyuh.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/a1af350b473f2558866e3b9df5b134c828a9a05e6d69b4d31db05b2d1dc86e5c/ihOJcrorpDQtHTzIOrobbOhpJsj.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/ihOJcrorpDQtHTzIOrobbOhpJsj.jpg"
+      }
+    ],
+    "website": "https://www.warnerbros.com/movies/matrix-reloaded",
+    "remotePoster": "https://image.tmdb.org/t/p/original/aA5qHS0FbSXO8PxcxUIHbDrJyuh.jpg",
+    "year": 2003,
+    "youTubeTrailerId": "zmYE3tg26Qc",
+    "studio": "Village Roadshow Pictures",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 138,
+    "cleanTitle": "thematrixreloaded",
+    "imdbId": "tt0234215",
+    "tmdbId": 604,
+    "titleSlug": "604",
+    "folder": "The Matrix Reloaded (2003) [tmdbid-604]",
+    "certification": "R",
+    "genres": [
+      "Adventure",
+      "Action",
+      "Thriller",
+      "Science Fiction"
+    ],
+    "keywords": [
+      "action hero",
+      "allegory",
+      "artificial intelligence (a.i.)",
+      "car crash",
+      "computer",
+      "computer virus",
+      "cyberpunk",
+      "defiant",
+      "dreams",
+      "dying and death",
+      "dystopia",
+      "fight",
+      "fortune teller",
+      "future",
+      "gnosticism",
+      "grand",
+      "hero",
+      "key",
+      "kung fu",
+      "man vs machine",
+      "martial arts",
+      "mission",
+      "oracle",
+      "plato",
+      "precognition",
+      "prophecy",
+      "rave",
+      "sardonic",
+      "saving the world",
+      "sequel",
+      "simulation",
+      "truth",
+      "underground world",
+      "virtual reality"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 672845,
+        "value": 7.2,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 12083,
+        "value": 7.082,
+        "type": "user"
+      },
+      "metacritic": {
+        "votes": 0,
+        "value": 62,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 74,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 24439,
+        "value": 7.55767,
+        "type": "user"
+      }
+    },
+    "collection": {
+      "title": "The Matrix Collection",
+      "tmdbId": 2344
+    },
+    "popularity": 9.1272
+  },
+  {
+    "title": "The Matrix Resurrections",
+    "originalTitle": "The Matrix Resurrections",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix 4"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Матриця 4"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "매트릭스: 리저렉션"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix 4"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Матрицата: Възкресения"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "駭客任務：復活"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix 4 Resurrections"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "黑客帝国：矩阵重启"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Mátrix - Feltámadások"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "22 世紀殺人網絡 復活次元"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix: Ανάσταση"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Матрица: Воскрешение"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix IV: Resurrections"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Project Ice Cream"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "マトリックス レザレクションズ：2021"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "22世紀殺人網絡 復活次元"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "22世紀殺人網絡4 復活次元"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "黑客帝国4"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "廿二世紀殺人網絡4：復活次元"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix resurrections",
+    "status": "released",
+    "overview": "Neo zit weer gevangen in de wereld van de Matrix, maar is zich hiervan niet bewust. Hij neemt de blauwe pil in en gaat naar een therapeut. Hierin komt verandering wanneer een man Neo's leven binnenstapt om hem duidelijk te maken dat zijn realiteit nep is. Zijn leven blijkt niet meer dan een droombeeld.",
+    "inCinemas": "2021-12-16T00:00:00Z",
+    "physicalRelease": "2022-03-08T00:00:00Z",
+    "digitalRelease": "2021-12-22T00:00:00Z",
+    "releaseDate": "2021-12-16T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/291e64d855b38c2afe34b0ba70aa7a2b405390f47124717f20ee37f3852970fa/8c4a8kE7PizaGQQnditMmI1xbRp.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/8c4a8kE7PizaGQQnditMmI1xbRp.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/feabce939cd98401d83981b29d8150a5f8a1a7e67c96adf8ea127f1caa405589/eNI7PtK6DEYgZmHWP9gQNuff8pv.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/eNI7PtK6DEYgZmHWP9gQNuff8pv.jpg"
+      }
+    ],
+    "website": "https://www.whatisthematrix.com",
+    "remotePoster": "https://image.tmdb.org/t/p/original/8c4a8kE7PizaGQQnditMmI1xbRp.jpg",
+    "year": 2021,
+    "youTubeTrailerId": "nNpvWBuTfrc",
+    "studio": "Warner Bros. Pictures",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 148,
+    "cleanTitle": "thematrixresurrections",
+    "imdbId": "tt10838180",
+    "tmdbId": 624860,
+    "titleSlug": "624860",
+    "folder": "The Matrix Resurrections (2021) [tmdbid-624860]",
+    "certification": "R",
+    "genres": [
+      "Science Fiction",
+      "Action",
+      "Adventure"
+    ],
+    "keywords": [
+      "aftercreditsstinger",
+      "artificial intelligence (a.i.)",
+      "computer",
+      "cyberpunk",
+      "dream world",
+      "dystopia",
+      "future",
+      "gnosticism",
+      "grand",
+      "man vs machine",
+      "philosophical",
+      "prophecy",
+      "sequel",
+      "sincere",
+      "underground world",
+      "virtual reality"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 304919,
+        "value": 5.6,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 6589,
+        "value": 6.324,
+        "type": "user"
+      },
+      "metacritic": {
+        "votes": 0,
+        "value": 63,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 63,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 20332,
+        "value": 6.12271,
+        "type": "user"
+      }
+    },
+    "collection": {
+      "title": "The Matrix Collection",
+      "tmdbId": 2344
+    },
+    "popularity": 10.0607
+  },
+  {
+    "title": "アミテージ・ザ・サード POLY-MATRIX",
+    "originalTitle": "アミテージ・ザ・サード POLY-MATRIX",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Armitage III Poly-Matrix"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "アミテージザサード polymatrix",
+    "status": "released",
+    "overview": "Politieman Ross Sylibus wordt naar een kolonie op Mars gestuurd om uit te zoeken waarom vrouwen worden vermoord door een psychopaat genaamd D'Anclaude. Hierbij wordt hij bijgestaan door Naomi Armitage die meer van de slachtoffers schijnt te weten.",
+    "inCinemas": "1996-06-25T00:00:00Z",
+    "physicalRelease": "1996-06-25T00:00:00Z",
+    "releaseDate": "1996-06-25T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/0ef97d6410eaf9236dc4c03451e24b2003feac78d523a6f8299e90bcb617aff7/7sUCRdjGe7VggDCGIHywfguYdAK.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/7sUCRdjGe7VggDCGIHywfguYdAK.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/3c3ed4169c1f29627f6323edc2199b78feb44d57979b259cb2fb3dc3b8a28915/sxuGFodklW2heRH5lx6AlP0R75E.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/sxuGFodklW2heRH5lx6AlP0R75E.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/7sUCRdjGe7VggDCGIHywfguYdAK.jpg",
+    "year": 1996,
+    "youTubeTrailerId": "iXKAsybyIRw",
+    "studio": "Anime International Company",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 92,
+    "cleanTitle": "armitageiiipolymatrix",
+    "imdbId": "tt0109151",
+    "tmdbId": 33322,
+    "titleSlug": "33322",
+    "folder": "Armitage III Poly Matrix (1996) [tmdbid-33322]",
+    "genres": [
+      "Animation",
+      "Science Fiction",
+      "Thriller"
+    ],
+    "keywords": [
+      "android",
+      "cyberpunk",
+      "mars"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 2010,
+        "value": 6.7,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 71,
+        "value": 6.5,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 101,
+        "value": 6.94059,
+        "type": "user"
+      }
+    },
+    "collection": {
+      "title": "Armitage III Collection",
+      "tmdbId": 182371
+    },
+    "popularity": 3.2463
+  },
+  {
+    "title": "The Matrix: Generation",
+    "originalTitle": "Matrix génération",
+    "originalLanguage": {
+      "id": 2,
+      "name": "French"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix generation",
+    "status": "released",
+    "overview": "After the 1999 premiere of the first Matrix movie, it became a pop culture phenomenon. A special documentary about the Matrix saga and its prophetic aspects.",
+    "digitalRelease": "2023-12-13T00:00:00Z",
+    "releaseDate": "2023-12-13T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/2cd4bddf04810fd38f232b03f91c364b6339e548f12df97f93bb8ff73624a2bf/53McB8R9RUBxfINRxWaPwUMtL5Q.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/53McB8R9RUBxfINRxWaPwUMtL5Q.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/4e74e332b1b0feff942e840ad5b774a441573ec6ef8710791c420b6e46c197d2/2P3FyI9ZTe9duRIGpGPiDC3mQMf.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/2P3FyI9ZTe9duRIGpGPiDC3mQMf.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/53McB8R9RUBxfINRxWaPwUMtL5Q.jpg",
+    "year": 2023,
+    "youTubeTrailerId": "",
+    "studio": "Bellota Films",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 52,
+    "cleanTitle": "thematrixgeneration",
+    "imdbId": "tt30849138",
+    "tmdbId": 1217455,
+    "titleSlug": "1217455",
+    "folder": "The Matrix Generation (2023) [tmdbid-1217455]",
+    "genres": [
+      "Documentary",
+      "TV Movie"
+    ],
+    "keywords": [
+      "based on movie",
+      "cultural change",
+      "cultural identity",
+      "cultural revolution",
+      "movie fan",
+      "observational documentary",
+      "phenomenon",
+      "pop culture",
+      "social & cultural documentary",
+      "social control",
+      "social critique",
+      "social issues"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 361,
+        "value": 6.3,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 24,
+        "value": 6.9,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 39,
+        "value": 6.74359,
+        "type": "user"
+      }
+    },
+    "popularity": 2.0819
+  },
+  {
+    "title": "Sexual Matrix",
+    "originalTitle": "Sexual Matrix",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Sex Files: Sexual Matrix"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "sexual matrix",
+    "status": "released",
+    "overview": "Een professor die een machine ontwerpt om de stoutste fantasieën te vervullen. Om de ontdekking te perfectioneren, voerde hij, daarbij geholpen door zijn zeer aansprekende assistent, tests uit op verschillende onderwerpen.",
+    "inCinemas": "2000-04-01T00:00:00Z",
+    "releaseDate": "2000-04-01T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/5b6d3739ee368587c14e3b5ba001f7cbd822784cba7fa2c5b3f9076234c34849/vmhBIPKyYCWlp2PrIIc6EXZlP9Z.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/vmhBIPKyYCWlp2PrIIc6EXZlP9Z.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/vmhBIPKyYCWlp2PrIIc6EXZlP9Z.jpg",
+    "year": 2000,
+    "youTubeTrailerId": "wbOW_JS1wUw",
+    "studio": "Oranton Ltd.",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 79,
+    "cleanTitle": "sexualmatrix",
+    "imdbId": "tt0224086",
+    "tmdbId": 51767,
+    "titleSlug": "51767",
+    "folder": "Sexual Matrix (2000) [tmdbid-51767]",
+    "certification": "R",
+    "genres": [
+      "Science Fiction",
+      "Romance"
+    ],
+    "keywords": [
+      "softcore",
+      "virtual reality"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 233,
+        "value": 3.8,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 23,
+        "value": 6.413,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 26,
+        "value": 4.69231,
+        "type": "user"
+      }
+    },
+    "collection": {
+      "title": "The Sex Files",
+      "tmdbId": 432207
+    },
+    "popularity": 0.8389
+  },
+  {
+    "title": "The Matrix Revisited",
+    "originalTitle": "The Matrix Revisited",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix - Os Segredos da Produção"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix Revisited"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix Revisited"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "The Matrix Revisited"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix: Descubre lo increíble"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Возвращаясь к матрице"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix. Rückblicke, Einblicke, Ausblicke"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix revisited",
+    "status": "released",
+    "overview": "In 1999 werd het film kijkend publiek getrakteerd op The Matrix, een science-fiction film die geregisseerd werd door de jonge broers Andy en Larry Wachowski. The Matrix is een echte genre-topper: een zeer verrassende, intelligente, visueel prachtige, spectaculaire film, die vrijwel iedere zelf respecterende liefhebber van het genre dan ook (meerdere malen) gezien zal hebben. De DVD-versie van The Matrix staat bekend als één van de eerste schijfjes die liet zien waartoe het medium in staat is en geldt dan ook nog steeds als referentiemateriaal op beeld- en geluidsgebied. Ook wat extra’s betreft was de DVD redelijk uitgebreid, maar toch werden bepaalde zaken te kort of zelfs helemaal niet belicht. Maar dat is nu met The Matrix Revisited verleden tijd...",
+    "physicalRelease": "2001-11-19T00:00:00Z",
+    "releaseDate": "2001-11-19T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/33527fbb28104fa7dc6b21ccd17474d7b67020632ef7deaa851b135ac91a2ea3/8yxSztoc5sqZiGuKcFuVOh65B6Y.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/8yxSztoc5sqZiGuKcFuVOh65B6Y.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/e2c2d73dd585c629519be5a8e6300f67f1ce901a7ec653650ea2af1873168b03/lBdXACywnLwKUZmZkZ87djDQBeV.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/lBdXACywnLwKUZmZkZ87djDQBeV.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/8yxSztoc5sqZiGuKcFuVOh65B6Y.jpg",
+    "year": 2001,
+    "youTubeTrailerId": "52GlGQkt3NM",
+    "studio": "Warner Bros. Pictures",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 123,
+    "cleanTitle": "thematrixrevisited",
+    "imdbId": "tt0295432",
+    "tmdbId": 14543,
+    "titleSlug": "14543",
+    "folder": "The Matrix Revisited (2001) [tmdbid-14543]",
+    "genres": [
+      "Documentary"
+    ],
+    "keywords": [
+      "behind the scenes",
+      "fan culture",
+      "making of",
+      "visual effect"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 4227,
+        "value": 7.4,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 209,
+        "value": 6.88,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 71,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 352,
+        "value": 7.50852,
+        "type": "user"
+      }
+    },
+    "popularity": 1.6878
+  },
+  {
+    "title": "アミテージ・ザ・サード DUAL-MATRIX",
+    "originalTitle": "アミテージ・ザ・サード DUAL-MATRIX",
+    "originalLanguage": {
+      "id": 8,
+      "name": "Japanese"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Armitage 3 Dual Matrix"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Armitage 02 Armitage - Dual Matrix"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Armitage III Dual-Matrix"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "극장판 아미테이지 더 서드 - 듀얼 매트릭스"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "아미테이지 더 서드 극장판: 듀얼 매트릭스"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Armitage III - Dual Matrix"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Armitage III Dual Matrix"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Armitage III, Dual Matrix"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "アミテージ・ザ・サード"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "アミテージザサード dualmatrix",
+    "status": "released",
+    "overview": "Vijf jaar na de OAV series, leven Third serie robot Naomi Armitage en haar man Ross Sylibus nu vreedzaam op Mars met hun dochter, tot een een groepering het geheim wil achterhalen van de Third mogelijkheden om kinderen te baren.",
+    "inCinemas": "2002-03-22T00:00:00Z",
+    "physicalRelease": "2002-06-25T00:00:00Z",
+    "releaseDate": "2002-03-22T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/296f9cd7f78e3d5941acdd66b9699c7e2f9e9c0f774a19c3f8e8fd4f290d14ca/tmila2EqReVL2Tz8HBvRGIjdI9N.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/tmila2EqReVL2Tz8HBvRGIjdI9N.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/11ff6499c584c36514de5af3c6f6862da3c386b322585e6c5d11e2f2c6c2dad7/eJQcM8hukxWv8HcNLl7L6LKKswY.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/eJQcM8hukxWv8HcNLl7L6LKKswY.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/tmila2EqReVL2Tz8HBvRGIjdI9N.jpg",
+    "year": 2002,
+    "youTubeTrailerId": "GOVNJ4JgJIw",
+    "studio": "Pioneer LDC",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 90,
+    "cleanTitle": "armitagedualmatrix",
+    "imdbId": "tt0303678",
+    "tmdbId": 21769,
+    "titleSlug": "21769",
+    "folder": "Armitage Dual Matrix (2002) [tmdbid-21769]",
+    "genres": [
+      "Thriller",
+      "Action",
+      "Animation",
+      "Science Fiction",
+      "Adventure"
+    ],
+    "keywords": [
+      "cyberpunk",
+      "robot",
+      "sequel",
+      "toddler"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 1338,
+        "value": 6.3,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 59,
+        "value": 6.458,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 72,
+        "value": 6.84722,
+        "type": "user"
+      }
+    },
+    "collection": {
+      "title": "Armitage III Collection",
+      "tmdbId": 182371
+    },
+    "popularity": 3.0824
+  },
+  {
+    "title": "Dinosaur Matrix",
+    "originalTitle": "Dinosaur Matrix",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "dinosaur matrix",
+    "status": "announced",
+    "overview": "A method by which drawings can be enlarged on a grid.",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/2de0c4f7ebb6d33b9f72069c911595d2b491350303e719bc25b3ebf5ab329c2b/22AwsGF9PXc2cq72kH9P3mNzHGY.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/22AwsGF9PXc2cq72kH9P3mNzHGY.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/22AwsGF9PXc2cq72kH9P3mNzHGY.jpg",
+    "year": 1985,
+    "youTubeTrailerId": "",
+    "studio": "",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 1,
+    "cleanTitle": "dinosaurmatrix",
+    "imdbId": "tt2998356",
+    "tmdbId": 790345,
+    "titleSlug": "790345",
+    "folder": "Dinosaur Matrix (1985) [tmdbid-790345]",
+    "genres": [
+      "Animation"
+    ],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "tmdb": {
+        "votes": 0,
+        "value": 0,
+        "type": "user"
+      }
+    },
+    "popularity": 0.5947
+  },
+  {
+    "title": "Matrix Dream Maze",
+    "originalTitle": "矩阵·梦迷宫",
+    "originalLanguage": {
+      "id": 10,
+      "name": "Chinese"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix dream maze",
+    "status": "released",
+    "overview": "Legend has it that people who meet the dream demon are trapped there forever.",
+    "inCinemas": "2023-06-29T00:00:00Z",
+    "releaseDate": "2023-06-29T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/dc2271a345759dc151f246c20e6477c8df4fc839e93a973fd389534cc1b128fd/3OJJzgNQhY4t0dSuKTXUDg591uu.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/3OJJzgNQhY4t0dSuKTXUDg591uu.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/3OJJzgNQhY4t0dSuKTXUDg591uu.jpg",
+    "year": 2023,
+    "youTubeTrailerId": "",
+    "studio": "",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 0,
+    "cleanTitle": "matrixdreammaze",
+    "tmdbId": 1142175,
+    "titleSlug": "1142175",
+    "folder": "Matrix Dream Maze (2023) [tmdbid-1142175]",
+    "genres": [],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "tmdb": {
+        "votes": 2,
+        "value": 5.5,
+        "type": "user"
+      }
+    },
+    "popularity": 0.6598
+  },
+  {
+    "title": "Matrix",
+    "originalTitle": "Matrix",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Матрица"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix I"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Matrix"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix",
+    "status": "released",
+    "overview": "A piece of abstract cinema by John Whitney. A series squares follow a 3-dimensional track, each one with a slight delay after the other.",
+    "inCinemas": "1971-05-18T00:00:00Z",
+    "releaseDate": "1971-05-18T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/1c3e8486f32bc2c4d49d0c8ebe269d59f8b8bdd16fbe2f2e3169c4a7ce9a8c78/wwGvUPEM6MRiXv3gRNaVUlUCHiT.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/wwGvUPEM6MRiXv3gRNaVUlUCHiT.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/46f8bf9d200e9cd79e8705fdb6af30ba0b0f5fcf9c122cecd534dc88a5fe3cf5/2JCUdkC84MWnRQzOEMDO2i37tZy.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/2JCUdkC84MWnRQzOEMDO2i37tZy.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/wwGvUPEM6MRiXv3gRNaVUlUCHiT.jpg",
+    "year": 1971,
+    "youTubeTrailerId": "",
+    "studio": "",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 6,
+    "cleanTitle": "matrix",
+    "imdbId": "tt5968306",
+    "tmdbId": 411948,
+    "titleSlug": "411948",
+    "folder": "Matrix (1971) [tmdbid-411948]",
+    "genres": [
+      "Animation"
+    ],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 57,
+        "value": 6.8,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 3,
+        "value": 7.3,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 3,
+        "value": 6,
+        "type": "user"
+      }
+    },
+    "popularity": 0.6934
+  },
+  {
+    "title": "Buhera mátrix",
+    "originalTitle": "Buhera mátrix",
+    "originalLanguage": {
+      "id": 22,
+      "name": "Hungarian"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "buhera mátrix",
+    "status": "released",
+    "overview": "Geri’s life flashes before him in the “Buhera Matrix,” a cringe-worthy slideshow of childhood photos from Pioneer camp to prom night. He relives the absurd clash between Mickey Mouse and socialist youth rituals, debates the perfect horse-chestnut hole size and survives the notorious fruit-game initiation. As the disastrous graduation and its Bavarian-style sacrifices cap off his painfully vivid memories, the film spins forward through Hungary’s late-20th-and-early-21st-century history through the eyes of a ’70s-born generation.",
+    "inCinemas": "2007-03-29T00:00:00Z",
+    "releaseDate": "2007-03-29T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/41f3c5c645674507eeed5383a1c20e176e00b437a408414ae46eee43085a9cb9/mSA91zntAssOuzGiakE3foA1MM0.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/mSA91zntAssOuzGiakE3foA1MM0.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/6a35db6e7d707539725f2fe141b1a04c3af65b3a56078c759f2730e88a30e547/eCJ7a1ndfdkfkziDAA2OvOsNbsz.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/eCJ7a1ndfdkfkziDAA2OvOsNbsz.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/mSA91zntAssOuzGiakE3foA1MM0.jpg",
+    "year": 2007,
+    "youTubeTrailerId": "",
+    "studio": "",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 81,
+    "cleanTitle": "buheramatrix",
+    "imdbId": "tt0970173",
+    "tmdbId": 141225,
+    "titleSlug": "141225",
+    "folder": "Buhera matrix (2007) [tmdbid-141225]",
+    "genres": [
+      "Comedy"
+    ],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 507,
+        "value": 6.1,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 4,
+        "value": 6.125,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 7,
+        "value": 8.14286,
+        "type": "user"
+      }
+    },
+    "popularity": 2.883
+  },
+  {
+    "title": "Matrix",
+    "originalTitle": "Matrix",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix",
+    "status": "released",
+    "overview": "Abstract art film made for gallery exhibition.",
+    "inCinemas": "1973-09-06T00:00:00Z",
+    "releaseDate": "1973-09-06T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/c8217d3502e87929041b048451fb9c0c7a6588d25cdcf7bdd16b7f7d68c5791e/wx2s9xYeC6uP2auuuVg99yl4RpU.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/wx2s9xYeC6uP2auuuVg99yl4RpU.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/wx2s9xYeC6uP2auuuVg99yl4RpU.jpg",
+    "year": 1973,
+    "youTubeTrailerId": "",
+    "studio": "",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 18,
+    "cleanTitle": "matrix",
+    "tmdbId": 373223,
+    "titleSlug": "373223",
+    "folder": "Matrix (1973) [tmdbid-373223]",
+    "genres": [],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "tmdb": {
+        "votes": 22,
+        "value": 6.4,
+        "type": "user"
+      }
+    },
+    "popularity": 0.7572
+  },
+  {
+    "title": "Matrix",
+    "originalTitle": "Matrix",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix",
+    "status": "released",
+    "overview": "\"MATRIX is a flicker film which utilizes 81 still photographs of my wife's head. It is a film dependent upon variation of intense light changes by calculated combinations of black and white frame alternations with exposure changes. Throughout, the light intensity rises and falls as the head rotates in varying directions within a 360 degree frontal area.\" — James Cagle",
+    "inCinemas": "1973-01-01T00:00:00Z",
+    "releaseDate": "1973-01-01T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/8ebf50f05cc8a0ff3212d0c5f8c1cab8860232b9291ee91239f12dc9993cb021/frDqG8rmqKUg4HzQ604LZo8VLHB.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/frDqG8rmqKUg4HzQ604LZo8VLHB.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/frDqG8rmqKUg4HzQ604LZo8VLHB.jpg",
+    "year": 1973,
+    "youTubeTrailerId": "",
+    "studio": "",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 8,
+    "cleanTitle": "matrix",
+    "tmdbId": 775293,
+    "titleSlug": "775293",
+    "folder": "Matrix (1973) [tmdbid-775293]",
+    "genres": [],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "tmdb": {
+        "votes": 25,
+        "value": 6.8,
+        "type": "user"
+      }
+    },
+    "popularity": 0.1012
+  },
+  {
+    "title": "Chess Boxing Matrix",
+    "originalTitle": "小俠龍捲風",
+    "originalLanguage": {
+      "id": 10,
+      "name": "Chinese"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Xiao xia long juan feng"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Fo men xiao jiang shi"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Vampire Strikes Back"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Chivalric Tornado"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Jiang shi zhuo yao"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "Labyrinth of Death"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "佛門小殭屍"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "佛门小僵尸"
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 0,
+        "title": "天魔僵尸"
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "chess boxing matrix",
+    "status": "released",
+    "overview": "Action packed vampire kung fu movie produced by Joseph Kuo. Jack Long portrays a fighting Taoist priest, who helps with the aid of his disciples to reunite a baby vampire with his parents from the \"King of Evil\", who has captured the young hopper to enhance his own powers.",
+    "inCinemas": "1988-12-09T00:00:00Z",
+    "releaseDate": "1988-12-09T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/314b9d024011172e7e3bcadd78d1d46bbdecf1dc47684dac950b00afd358c022/iq8zeotrIDwjViRgnISwEwHJQ87.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/iq8zeotrIDwjViRgnISwEwHJQ87.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/iq8zeotrIDwjViRgnISwEwHJQ87.jpg",
+    "year": 1988,
+    "youTubeTrailerId": "",
+    "studio": "Chun Hua Film & Television Production Company",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 88,
+    "cleanTitle": "chessboxingmatrix",
+    "imdbId": "tt0095399",
+    "tmdbId": 107392,
+    "titleSlug": "107392",
+    "folder": "Chess Boxing Matrix (1988) [tmdbid-107392]",
+    "genres": [
+      "Action",
+      "Adventure",
+      "Horror",
+      "Fantasy"
+    ],
+    "keywords": [
+      "kung fu",
+      "vampire"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 27,
+        "value": 5,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 10,
+        "value": 6.85,
+        "type": "user"
+      }
+    },
+    "popularity": 0.8499
+  },
+  {
+    "title": "Matrix",
+    "originalTitle": "Matrix",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix",
+    "status": "released",
+    "overview": "The film is composed of receding planes in a landscape: a back garden and the houses beyond. The wooden lattice fence, visible in the image, marks the border between enclosed and open, private and public space, and forms both a fulcrum for the work and a formal grid by which the shots are framed and organised.",
+    "inCinemas": "1998-12-31T00:00:00Z",
+    "releaseDate": "1998-12-31T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/36a4a05decfa9e0ad52ee332ff0547dbc366abe84054f6fb61ca6aaebcec0d64/AfFD10ZqEx2vkxM2yvRZkybsGB7.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/AfFD10ZqEx2vkxM2yvRZkybsGB7.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/AfFD10ZqEx2vkxM2yvRZkybsGB7.jpg",
+    "year": 1998,
+    "youTubeTrailerId": "",
+    "studio": "",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 7,
+    "cleanTitle": "matrix",
+    "tmdbId": 555879,
+    "titleSlug": "555879",
+    "folder": "Matrix (1998) [tmdbid-555879]",
+    "genres": [],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "tmdb": {
+        "votes": 51,
+        "value": 7.1,
+        "type": "user"
+      }
+    },
+    "popularity": 0.2829
+  },
+  {
+    "title": "The Matrix Recalibrated",
+    "originalTitle": "The Matrix Recalibrated",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "matrix recalibrated",
+    "status": "released",
+    "overview": "The making of Matrix Revolutions, The (2003) is briefly touched on here in this documentary. Interviews with various cast and crew members inform us how they were affected by the deaths of Gloria Foster and Aaliyah, and also delve into the making of the visual effects that takes up a lot of screen time. Written by Rhyl Donnelly",
+    "physicalRelease": "2004-04-06T00:00:00Z",
+    "releaseDate": "2004-04-06T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/6bad84f57773fa72035add2adde5afe50b616c43ecbf43e32ea2aca6d910f8c6/gRni1Q651AZPnLqZczmahiIxG0s.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/gRni1Q651AZPnLqZczmahiIxG0s.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/gRni1Q651AZPnLqZczmahiIxG0s.jpg",
+    "year": 2004,
+    "youTubeTrailerId": "",
+    "studio": "Warner Bros. Pictures",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 27,
+    "cleanTitle": "thematrixrecalibrated",
+    "imdbId": "tt0410519",
+    "tmdbId": 221495,
+    "titleSlug": "221495",
+    "folder": "The Matrix Recalibrated (2004) [tmdbid-221495]",
+    "certification": "NR",
+    "genres": [
+      "Documentary",
+      "Science Fiction"
+    ],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 4977,
+        "value": 7.5,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 57,
+        "value": 6.904,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 45,
+        "value": 7.42222,
+        "type": "user"
+      }
+    },
+    "popularity": 1.2207
+  },
+  {
+    "title": "Making \"The Matrix\"",
+    "originalTitle": "Making \"The Matrix\"",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "making the matrix",
+    "status": "released",
+    "overview": "A promotional making-of documentary for the film The Matrix (1999) that devotes its time to explaining the digital and practical effects contained in the film. This is very interesting, seeing as how they're giving away the cinematic secrets that they created solely for the this movie, that have now been spoofed and referenced in countless other films.",
+    "physicalRelease": "1999-09-21T00:00:00Z",
+    "releaseDate": "1999-09-21T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/693e887acc20165b6508ea4f0bcad343a889d1fbe04b59099fbd4d05de6868fd/m2yIfRJYwpCgHON1Ig1pNKMWTxp.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/m2yIfRJYwpCgHON1Ig1pNKMWTxp.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/9ace19ad321877b7646d7703cf265b0f896c685d3ba254e2de7cdd85bf3b1054/4FuxMYW1E1LHqSkWov2YwaziID3.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/4FuxMYW1E1LHqSkWov2YwaziID3.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/m2yIfRJYwpCgHON1Ig1pNKMWTxp.jpg",
+    "year": 1999,
+    "youTubeTrailerId": "",
+    "studio": "Eric Matthies Productions",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 26,
+    "cleanTitle": "makingmatrix",
+    "imdbId": "tt0365467",
+    "tmdbId": 684431,
+    "titleSlug": "684431",
+    "folder": "Making The Matrix (1999) [tmdbid-684431]",
+    "genres": [
+      "Documentary"
+    ],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "imdb": {
+        "votes": 14373,
+        "value": 8.6,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 51,
+        "value": 7.314,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 93,
+        "value": 7.94624,
+        "type": "user"
+      }
+    },
+    "popularity": 0.9817
+  },
+  {
+    "title": "Die Luther Matrix",
+    "originalTitle": "Die Luther Matrix",
+    "originalLanguage": {
+      "id": 4,
+      "name": "German"
+    },
+    "alternateTitles": [],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "die luther matrix",
+    "status": "released",
+    "overview": "What connects a modern-day whistleblower with Martin Luther? Documentary and sophisticated crime entertainment merge in \"The Luther Matrix\" to create an exciting docu-thriller. Using historical locations and interviews with renowned Luther experts, a crime story is woven around a whistleblower in the Federal Chancellery and current assessments of and about Martin Luther are given.",
+    "digitalRelease": "2017-04-11T00:00:00Z",
+    "releaseDate": "2017-04-11T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCoverProxy/ca1227132528e8d19f901ffaa40a03a27a83f772e789e8e143e0a3a6f4345f03/7RFxQOYXPgqBY0E2yuDqkTT2Y0z.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/7RFxQOYXPgqBY0E2yuDqkTT2Y0z.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCoverProxy/3de867009b0c92258a2037971fde12c9e1b0833bbf75740cd488f11e84b50996/n6ta4FMNdZojoLTwe4cUMN5eqwS.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/n6ta4FMNdZojoLTwe4cUMN5eqwS.jpg"
+      }
+    ],
+    "website": "",
+    "remotePoster": "https://image.tmdb.org/t/p/original/7RFxQOYXPgqBY0E2yuDqkTT2Y0z.jpg",
+    "year": 2017,
+    "youTubeTrailerId": "",
+    "studio": "ARD",
+    "qualityProfileId": 0,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "tba",
+    "isAvailable": true,
+    "folderName": "",
+    "runtime": 90,
+    "cleanTitle": "dieluthermatrix",
+    "tmdbId": 452828,
+    "titleSlug": "452828",
+    "folder": "Die Luther Matrix (2017) [tmdbid-452828]",
+    "genres": [
+      "Thriller",
+      "History"
+    ],
+    "keywords": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "tmdb": {
+        "votes": 1,
+        "value": 4,
+        "type": "user"
+      }
+    },
+    "popularity": 0.3251
+  }
+]

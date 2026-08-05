@@ -1,0 +1,113 @@
+{
+  "indexers": [
+    {
+      "indexerId": 20,
+      "indexerName": "The Pirate Bay",
+      "averageResponseTime": 203,
+      "averageGrabResponseTime": 0,
+      "numberOfQueries": 91,
+      "numberOfGrabs": 1,
+      "numberOfRssQueries": 4195,
+      "numberOfAuthQueries": 0,
+      "numberOfFailedQueries": 0,
+      "numberOfFailedGrabs": 0,
+      "numberOfFailedRssQueries": 21,
+      "numberOfFailedAuthQueries": 0
+    },
+    {
+      "indexerId": 9,
+      "indexerName": "DrunkenSlug",
+      "averageResponseTime": 286,
+      "averageGrabResponseTime": 0,
+      "numberOfQueries": 60,
+      "numberOfGrabs": 86,
+      "numberOfRssQueries": 4352,
+      "numberOfAuthQueries": 0,
+      "numberOfFailedQueries": 0,
+      "numberOfFailedGrabs": 0,
+      "numberOfFailedRssQueries": 2,
+      "numberOfFailedAuthQueries": 0
+    },
+    {
+      "indexerId": 8,
+      "indexerName": "altHUB",
+      "averageResponseTime": 241,
+      "averageGrabResponseTime": 0,
+      "numberOfQueries": 112,
+      "numberOfGrabs": 67,
+      "numberOfRssQueries": 4535,
+      "numberOfAuthQueries": 0,
+      "numberOfFailedQueries": 0,
+      "numberOfFailedGrabs": 0,
+      "numberOfFailedRssQueries": 0,
+      "numberOfFailedAuthQueries": 0
+    },
+    {
+      "indexerId": 34,
+      "indexerName": "Spotarr",
+      "averageResponseTime": 818,
+      "averageGrabResponseTime": 0,
+      "numberOfQueries": 126,
+      "numberOfGrabs": 4,
+      "numberOfRssQueries": 4478,
+      "numberOfAuthQueries": 0,
+      "numberOfFailedQueries": 0,
+      "numberOfFailedGrabs": 0,
+      "numberOfFailedRssQueries": 0,
+      "numberOfFailedAuthQueries": 0
+    },
+    {
+      "indexerId": 21,
+      "indexerName": "Nyaa.si",
+      "averageResponseTime": 226,
+      "averageGrabResponseTime": 0,
+      "numberOfQueries": 150,
+      "numberOfGrabs": 0,
+      "numberOfRssQueries": 8642,
+      "numberOfAuthQueries": 0,
+      "numberOfFailedQueries": 0,
+      "numberOfFailedGrabs": 0,
+      "numberOfFailedRssQueries": 4,
+      "numberOfFailedAuthQueries": 0
+    }
+  ],
+  "userAgents": [
+    {
+      "userAgent": "Sonarr",
+      "numberOfQueries": 17846,
+      "numberOfGrabs": 123
+    },
+    {
+      "userAgent": "Radarr",
+      "numberOfQueries": 8827,
+      "numberOfGrabs": 34
+    },
+    {
+      "userAgent": "Prowlarr",
+      "numberOfQueries": 38,
+      "numberOfGrabs": 0
+    },
+    {
+      "userAgent": "Other",
+      "numberOfQueries": 30,
+      "numberOfGrabs": 1
+    }
+  ],
+  "hosts": [
+    {
+      "host": "homelab",
+      "numberOfQueries": 26703,
+      "numberOfGrabs": 158
+    },
+    {
+      "host": "192.0.2.10",
+      "numberOfQueries": 3,
+      "numberOfGrabs": 0
+    },
+    {
+      "host": "192.0.2.10",
+      "numberOfQueries": 35,
+      "numberOfGrabs": 0
+    }
+  ]
+}

@@ -2,19 +2,19 @@
   {
     "path": "/",
     "label": "",
-    "freeSpace": 154013331456,
+    "freeSpace": 154006482944,
     "totalSpace": 244466741248
   },
   {
     "path": "/config",
     "label": "",
-    "freeSpace": 154013331456,
+    "freeSpace": 154006482944,
     "totalSpace": 244466741248
   },
   {
     "path": "/storage",
     "label": "",
-    "freeSpace": 5059419340800,
+    "freeSpace": 5059419324416,
     "totalSpace": 11904377847808
   }
 ]

@@ -32,6 +32,59 @@ async function rootJsonFiles(): Promise<string[]> {
  */
 const isStrictJson = (name: string) => !name.startsWith('tsconfig');
 
+/**
+ * Sequences that appear when UTF-8 is read as Latin-1 and written back — the
+ * signature of a tool that guessed the encoding. `—` becomes `â€"`, `é`
+ * becomes `Ã©`. Twice during Phase 2 a PowerShell `Set-Content -Encoding utf8`
+ * did exactly this to a source file, and nothing caught it: the code still
+ * compiled, the tests still passed, and only the comments were wrong.
+ */
+const MOJIBAKE = /Ã.|â€|Â[^\s]/;
+
+/**
+ * This file is skipped by the mojibake scan below: it has to contain the
+ * corrupted sequences in order to test for them. Everything else is fair game.
+ */
+const SELF = 'encoding.test.ts';
+
+async function sourceFiles(dir: string, out: string[] = []): Promise<string[]> {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+        if (entry.name === 'generated' || entry.name === 'node_modules' || entry.name === SELF) continue;
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) await sourceFiles(path, out);
+        else if (/\.(ts|mjs)$/.test(entry.name)) out.push(path);
+    }
+    return out;
+}
+
+describe('source file encoding', () => {
+    it('has no byte order mark in any source file', async () => {
+        const offenders: string[] = [];
+        for (const dir of ['src', 'test', 'scripts']) {
+            for (const file of await sourceFiles(join(ROOT, dir))) {
+                if ((await readFile(file, 'utf8')).startsWith(BOM)) offenders.push(file);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('has no mojibake from a tool that guessed the encoding', async () => {
+        const offenders: string[] = [];
+        for (const dir of ['src', 'test', 'scripts']) {
+            for (const file of await sourceFiles(join(ROOT, dir))) {
+                if (MOJIBAKE.test(await readFile(file, 'utf8'))) offenders.push(file);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('detects the corruption it is looking for', () => {
+        // The exact damage seen: an em-dash round-tripped through Latin-1.
+        expect(MOJIBAKE.test('never by pattern â€” for the same reason')).toBe(true);
+        expect(MOJIBAKE.test('never by pattern — for the same reason')).toBe(false);
+    });
+});
+
 describe('repository JSON encoding', () => {
     it('finds the config files it is supposed to be guarding', async () => {
         const files = await rootJsonFiles();

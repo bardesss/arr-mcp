@@ -1,0 +1,68 @@
+{
+  "title": "Blade",
+  "originalTitle": "Blade",
+  "originalLanguage": {
+    "id": 1,
+    "name": "English"
+  },
+  "alternateTitles": [],
+  "secondaryYearSourceId": 0,
+  "sortTitle": "blade",
+  "sizeOnDisk": 0,
+  "status": "announced",
+  "overview": "An upcoming film set in the Marvel Cinematic Universe (MCU) based on the Marvel Comics character of the same name. Plot TBA.",
+  "images": [
+    {
+      "coverType": "poster",
+      "url": "/MediaCover/340/poster.jpg?lastWrite=639090695202144206",
+      "remoteUrl": "https://image.tmdb.org/t/p/original/qctzZ0LmG88k2DGqNMFTUW2wXo2.jpg"
+    },
+    {
+      "coverType": "fanart",
+      "url": "/MediaCover/340/fanart.jpg?lastWrite=639090695202584207",
+      "remoteUrl": "https://image.tmdb.org/t/p/original/hFtJz4TvoiJJcw2ZOMdhK22aU9P.jpg"
+    }
+  ],
+  "website": "https://www.marvel.com/movies/blade",
+  "year": 0,
+  "youTubeTrailerId": "",
+  "studio": "Marvel Studios",
+  "path": "/storage/movies/Blade ()",
+  "qualityProfileId": 8,
+  "hasFile": false,
+  "movieFileId": 0,
+  "monitored": true,
+  "minimumAvailability": "announced",
+  "isAvailable": true,
+  "folderName": "/storage/movies/Blade ()",
+  "runtime": 0,
+  "cleanTitle": "blade",
+  "imdbId": "tt10671440",
+  "tmdbId": 617127,
+  "titleSlug": "617127",
+  "rootFolderPath": "/storage/movies",
+  "genres": [
+    "Fantasy"
+  ],
+  "keywords": [],
+  "tags": [
+    1,
+    2
+  ],
+  "added": "2021-09-24T16:04:10Z",
+  "ratings": {
+    "tmdb": {
+      "votes": 0,
+      "value": 0,
+      "type": "user"
+    }
+  },
+  "popularity": 2.505,
+  "lastSearchTime": "2026-04-06T07:26:21Z",
+  "statistics": {
+    "movieFileCount": 0,
+    "sizeOnDisk": 0,
+    "releaseGroups": []
+  },
+  "id": 340
+}

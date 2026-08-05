@@ -17,7 +17,7 @@
     "default-trackers": "",
     "dht-enabled": true,
     "download-dir": "/storage/downloads/complete",
-    "download-dir-free-space": 5059419340800,
+    "download-dir-free-space": 5059419324416,
     "download-queue-enabled": true,
     "download-queue-size": 5,
     "encryption": "preferred",

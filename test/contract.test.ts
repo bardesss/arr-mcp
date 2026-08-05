@@ -88,7 +88,15 @@ const CONTRACTS: Record<string, ServiceContract> = {
         dependencies: [
             { path: '/api/v3/system/status', method: 'get', fixture: 'test/fixtures/radarr/system-status.json', fields: ['version'] },
             { path: '/api/v3/diskspace', method: 'get', fixture: 'test/fixtures/radarr/diskspace.json', fields: ['path', 'label', 'freeSpace', 'totalSpace'] },
-            { path: '/api/v3/system/task', method: 'get', fixture: 'test/fixtures/radarr/system-task.json', fields: ['taskName', 'lastExecution'] }
+            { path: '/api/v3/system/task', method: 'get', fixture: 'test/fixtures/radarr/system-task.json', fields: ['taskName', 'lastExecution'] },
+            { fixture: 'test/fixtures/radarr/calendar.json', fields: ['id', 'title', 'hasFile', 'monitored'] },
+            {
+                fixture: 'test/fixtures/radarr/movie.json',
+                fields: ['id', 'title', 'year', 'monitored', 'hasFile', 'tmdbId', 'ratings']
+            },
+            { fixture: 'test/fixtures/radarr/movie-lookup.json', fields: ['title', 'tmdbId'] }
+            // No `queue` entry: the queue was empty at capture time, and an
+            // empty array confirms nothing. Add it when something is downloading.
         ]
     },
     sonarr: {
@@ -96,13 +104,42 @@ const CONTRACTS: Record<string, ServiceContract> = {
         dependencies: [
             { path: '/api/v3/system/status', method: 'get', fixture: 'test/fixtures/sonarr/system-status.json', fields: ['version'] },
             { path: '/api/v3/diskspace', method: 'get', fixture: 'test/fixtures/sonarr/diskspace.json', fields: ['path', 'label', 'freeSpace', 'totalSpace'] },
-            { path: '/api/v3/system/task', method: 'get', fixture: 'test/fixtures/sonarr/system-task.json', fields: ['taskName', 'lastExecution'] }
+            { path: '/api/v3/system/task', method: 'get', fixture: 'test/fixtures/sonarr/system-task.json', fields: ['taskName', 'lastExecution'] },
+            {
+                fixture: 'test/fixtures/sonarr/calendar.json',
+                fields: ['id', 'title', 'seasonNumber', 'episodeNumber', 'airDateUtc', 'hasFile', 'monitored']
+            },
+            {
+                // `ratings` here is flat — { votes, value } — not Radarr's
+                // per-source map. §21.2, resolved by the capture run.
+                fixture: 'test/fixtures/sonarr/series.json',
+                fields: ['id', 'title', 'monitored', 'tvdbId', 'ratings', 'statistics']
+            },
+            {
+                fixture: 'test/fixtures/sonarr/episode.json',
+                fields: ['id', 'seasonNumber', 'episodeNumber', 'title', 'hasFile', 'monitored']
+            },
+            { fixture: 'test/fixtures/sonarr/series-lookup.json', fields: ['title', 'tvdbId'] }
         ]
     },
     prowlarr: {
         spec: 'specs/prowlarr.json',
         dependencies: [
-            { path: '/api/v1/system/status', method: 'get', fixture: 'test/fixtures/prowlarr/system-status.json', fields: ['version'] }
+            { path: '/api/v1/system/status', method: 'get', fixture: 'test/fixtures/prowlarr/system-status.json', fields: ['version'] },
+            {
+                fixture: 'test/fixtures/prowlarr/indexer.json',
+                fields: ['id', 'name', 'enable', 'protocol', 'priority']
+            },
+            {
+                // Records carry `successful` and `data`, but `data` has **no
+                // reason field** — the adapter describes the event instead.
+                fixture: 'test/fixtures/prowlarr/history.json',
+                fields: ['records']
+            },
+            { fixture: 'test/fixtures/prowlarr/indexerstats.json', fields: ['indexers'] }
+            // No `search` entry: the capture used a deliberately unmatchable
+            // query, so no release shape was recorded. Publishing real release
+            // names to catch this would cost more than it is worth.
         ]
     },
     // No spec: Jellyfin's is vendored, but the adapter uses local narrow types,
@@ -111,17 +148,35 @@ const CONTRACTS: Record<string, ServiceContract> = {
         dependencies: [
             { fixture: 'test/fixtures/jellyfin/system-info.json', fields: ['Version'] },
             { fixture: 'test/fixtures/jellyfin/users.json', fields: ['Id', 'Name'] },
-            { fixture: 'test/fixtures/jellyfin/scheduled-tasks.json', fields: ['Key', 'State', 'LastExecutionResult'] }
+            { fixture: 'test/fixtures/jellyfin/scheduled-tasks.json', fields: ['Key', 'State', 'LastExecutionResult'] },
+            { fixture: 'test/fixtures/jellyfin/sessions.json', fields: ['UserId', 'PlayState'] },
+            { fixture: 'test/fixtures/jellyfin/items-search.json', fields: ['Items'] }
         ]
     },
     seerr: {
         dependencies: [
             { fixture: 'test/fixtures/seerr/status.json', fields: ['version'] },
-            { fixture: 'test/fixtures/seerr/user.json', fields: ['results'] }
+            { fixture: 'test/fixtures/seerr/user.json', fields: ['results'] },
+            { fixture: 'test/fixtures/seerr/request.json', fields: ['results'] },
+            { fixture: 'test/fixtures/seerr/discover-movies.json', fields: ['results'] }
         ]
     },
     bazarr: {
-        dependencies: [{ fixture: 'test/fixtures/bazarr/system-status.json', fields: ['data.bazarr_version'] }]
+        dependencies: [
+            { fixture: 'test/fixtures/bazarr/system-status.json', fields: ['data.bazarr_version'] },
+            // `status` is "Good" with a capital G; `retry` is "-" when idle.
+            { fixture: 'test/fixtures/bazarr/providers.json', fields: ['data.name', 'data.status', 'data.retry'] },
+            {
+                fixture: 'test/fixtures/bazarr/movies-wanted.json',
+                fields: ['data.radarrId', 'data.title', 'data.sceneName', 'data.missing_subtitles']
+            },
+            {
+                // `episode_number` is a combined "5x2" string — there are no
+                // separate season and episode fields.
+                fixture: 'test/fixtures/bazarr/episodes-wanted.json',
+                fields: ['data.sonarrEpisodeId', 'data.seriesTitle', 'data.episode_number', 'data.missing_subtitles']
+            }
+        ]
     },
     sabnzbd: {
         dependencies: [

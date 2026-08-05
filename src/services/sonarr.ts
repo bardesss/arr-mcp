@@ -4,8 +4,8 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
-import { calendarPath, readArrQueue, readSonarrCalendar } from './arrQueue.ts';
-import { flattenRatings, type RawRating } from './arrRatings.ts';
+import { readArrQueue, readSonarrCalendar, sonarrCalendarPath } from './arrQueue.ts';
+import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import type { components } from './generated/sonarr.ts';
 import {
     diagnoseConnection,
@@ -37,7 +37,8 @@ type RawSeries = {
     path?: string;
     tvdbId?: number;
     imdbId?: string;
-    ratings?: Record<string, RawRating>;
+    /** Flat, unlike Radarr's per-source map — see `flattenSeriesRating`. */
+    ratings?: RawRating;
     statistics?: { sizeOnDisk?: number; episodeFileCount?: number };
 };
 
@@ -130,13 +131,13 @@ export class SonarrAdapter
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(calendarPath(range));
+        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(range));
         return readSonarrCalendar(episodes, this.id);
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {
         const s = await this.#http.get<RawSeries>(`/api/v3/series/${encodeURIComponent(id)}`);
-        const ratings = flattenRatings(s.ratings);
+        const ratings = flattenSeriesRating(s.ratings);
 
         const base: MediaDetails = {
             service: this.id,
