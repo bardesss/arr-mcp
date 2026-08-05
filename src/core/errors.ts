@@ -84,9 +84,34 @@ function safeHost(url: string): string {
     }
 }
 
+/**
+ * The only signal a 404 carries about *why* is the path it was for. Every
+ * real by-id endpoint in this codebase (Radarr `/api/v3/movie/{id}`, Sonarr
+ * `/api/v3/series/{id}`) ends the path in a bare integer; every collection or
+ * status endpoint (`/api/v3/movie`, `/api/v3/system/status`) ends in a plain
+ * word. A trailing segment that is neither — a GUID, a hash, a slug — is
+ * genuinely ambiguous from the path alone, so it gets a remedy that says so
+ * instead of confidently guessing one cause.
+ */
+function classifyNotFoundPath(pathname: string): 'item' | 'collection' | 'ambiguous' {
+    const last = pathname.split('/').filter(Boolean).at(-1);
+    if (last === undefined) return 'collection';
+    if (/^\d+$/.test(last)) return 'item';
+    if (/^[A-Za-z]+$/.test(last)) return 'collection';
+    return 'ambiguous';
+}
+
+const NOT_FOUND_REMEDY: Record<ReturnType<typeof classifyNotFoundPath>, string> = {
+    item: 'This id does not exist at that service — verify it (e.g. via search) rather than a guess, before assuming the base URL is wrong.',
+    collection: 'Wrong base path — check the URL does not include a trailing path or reverse-proxy prefix.',
+    ambiguous:
+        'Could not tell from the URL alone whether this is a missing id or a wrong base path — verify the id is correct, and separately that the URL has no trailing path or reverse-proxy prefix.'
+};
+
 export function classifyHttpStatus(status: number, service: ServiceId, url: string): ServiceError | undefined {
     if (status < 400) return undefined;
-    const at = `HTTP ${status} at ${safePath(url)}`;
+    const pathname = safePath(url);
+    const at = `HTTP ${status} at ${pathname}`;
 
     if (status === 401 || status === 403) {
         return new ServiceError('AuthFailed', service, at, {
@@ -95,7 +120,7 @@ export function classifyHttpStatus(status: number, service: ServiceId, url: stri
     }
     if (status === 404) {
         return new ServiceError('NotFound', service, at, {
-            remedy: 'Wrong base path — check the URL does not include a trailing path or reverse-proxy prefix.'
+            remedy: NOT_FOUND_REMEDY[classifyNotFoundPath(pathname)]
         });
     }
     if (status === 429) {

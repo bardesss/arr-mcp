@@ -227,4 +227,42 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
         expect(result.isError).toBe(true);
         expect(result.content?.[0]?.text).toMatch(/API key is wrong/i);
     });
+
+    /**
+     * The reported bug, reproduced end to end: a request for a Radarr id that
+     * does not exist. Confirmed live against the published 0.3.1 container as
+     * `radarr not found: HTTP 404 at /api/v3/movie/999999` with no remedy at
+     * all. With both fixes in, the model is told a remedy, and the right one —
+     * a missing id, not a misconfigured base URL.
+     */
+    it('tells the model to check the id, not the base URL, for a 404 on a nonexistent Radarr id', async () => {
+        const notFound: typeof fetch = async () =>
+            new Response(JSON.stringify({ message: 'NotFound' }), {
+                status: 404,
+                headers: { 'content-type': 'application/json' }
+            });
+        const withRadarr = buildApp({ config, adapters: [new RadarrAdapter(radarrConfig, notFound)] });
+
+        const callTool = {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: {
+                name: 'get_media_details',
+                arguments: { service: 'radarr', id: '999999', detail: 'standard', limit: 50 }
+            }
+        };
+        const res = await withRadarr.request(
+            'http://localhost:6060/mcp',
+            rpc(callTool, { Authorization: `Bearer ${TOKEN}` })
+        );
+
+        const payload = await rpcPayload(res);
+        const result = payload.result as { isError?: boolean; content?: { type: string; text: string }[] };
+        const text = result.content?.[0]?.text ?? '';
+        expect(result.isError).toBe(true);
+        expect(text).toContain('HTTP 404 at /api/v3/movie/999999');
+        expect(text).not.toMatch(/base path/i);
+        expect(text).toMatch(/id/i);
+    });
 });
