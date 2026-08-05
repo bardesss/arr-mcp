@@ -1,0 +1,109 @@
+name: Bug report
+description: Something in arr-mcp behaves incorrectly
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Two fields below matter more than the rest:
+        **which versions you are running**, and **logs**.
+
+        arr-mcp talks to eight services whose APIs change independently, so a
+        report without versions usually cannot be reproduced.
+
+  - type: input
+    id: arr-mcp-version
+    attributes:
+      label: arr-mcp version
+      description: The image tag you pulled, or `git rev-parse --short HEAD` if running from source.
+      placeholder: '0.2.0'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running it?
+      options:
+        - Docker image (ghcr.io/bardesss/arr-mcp)
+        - Docker Compose
+        - From source (node)
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: services
+    attributes:
+      label: Which services are involved?
+      description: Tick every service the failing request touches. Tick nothing if the problem is in arr-mcp itself.
+      options:
+        - label: Radarr
+        - label: Sonarr
+        - label: Prowlarr
+        - label: Bazarr
+        - label: Jellyfin
+        - label: Seerr
+        - label: SABnzbd
+        - label: Transmission
+
+  - type: input
+    id: service-versions
+    attributes:
+      label: Service version(s)
+      description: >-
+        The version of each service you ticked above. Found in that service's
+        own Settings or System page.
+      placeholder: 'Radarr 6.3.0.10514, Jellyfin 10.11.2'
+    validations:
+      required: true
+
+  - type: input
+    id: mcp-client
+    attributes:
+      label: MCP client
+      description: Which client was calling arr-mcp, and its version, if the problem involves a tool call.
+      placeholder: 'Claude Code 2.1.0'
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the tool you called and the arguments, if applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant output from `docker logs arr-mcp`, or the terminal if running from source.
+
+        **Redact before pasting.** arr-mcp logs are JSON and normally contain no
+        secrets, but two things do appear in them:
+
+        - On **first run only**, the generated bearer token is printed so you
+          can find it (`use this bearer token for /mcp`). Anyone with that token
+          can reach your `/mcp` endpoint. Remove that line.
+        - Service URLs may include internal hostnames you would rather not
+          publish.
+
+        Never paste the contents of `config/config.yaml` — it holds the bearer
+        token and every service API key.
+      render: shell
+
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed the bearer token and any API keys from the logs above.
+          required: true

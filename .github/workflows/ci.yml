@@ -26,26 +26,15 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
-  # Catches Dockerfile rot on every PR. Skips cleanly until the Dockerfile
-  # exists (Task 8 of the Phase 1 plan) rather than reporting a red build for
-  # a file nobody has written yet.
+  # Catches Dockerfile rot on every PR. The probe that let this job skip before
+  # a Dockerfile existed is gone: `docker` is now a required status check, so a
+  # missing Dockerfile must fail rather than skip green.
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Check for a Dockerfile
-        id: probe
-        run: |
-          if [ -f Dockerfile ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Dockerfile yet — skipping the image build."
-          fi
       - uses: docker/setup-buildx-action@v3
-        if: steps.probe.outputs.present == 'true'
       - name: Build image (no push)
-        if: steps.probe.outputs.present == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
