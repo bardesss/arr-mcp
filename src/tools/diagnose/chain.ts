@@ -38,6 +38,19 @@ export type Evidence = {
      * about a service the user does not run.
      */
     jellyfinConfigured: boolean;
+    /**
+     * Library-read reachability (item 8's `LibraryLoader`/`LibraryIndex`
+     * build) — kept separate from `degraded`, below, which is *probe*
+     * reachability (this module's own scan/indexer/queue/seerr/explicit-id
+     * calls). A service can fail one without the other: Jellyfin's
+     * `getScanState` failing must not erase a library read that succeeded
+     * (`libraryStep` would otherwise discard the flagship `library` verdict
+     * over an unrelated endpoint), and a Radarr *library* read failing must
+     * not make `queueStep` believe every configured queue is unknown when
+     * they all answered in full. Only `libraryStep` reads this array; every
+     * other step reads `degraded`.
+     */
+    libraryDegraded: readonly ServiceId[];
     degraded: ServiceId[];
 };
 
@@ -235,7 +248,7 @@ const QUEUE_FAULT_REMEDY =
 const QUEUE_IMPORT_REMEDY =
     'The download finished but has not been imported yet — check Radarr/Sonarr’s activity/history for why, then trigger the import manually if it did not run on its own.';
 
-/** The download-client services `queue` evidence can come from — used to fold `degraded` into "could not fully look" the same way `library`/`scan` already do (N8). */
+/** The download-client services `queue` evidence can come from — used to fold `degraded` into "could not fully look" the same way `scan`/`indexers` already do (N8). */
 const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'sabnzbd', 'transmission'];
 
 type QueueResult = { step: Step; remedy?: string };
@@ -246,8 +259,13 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 
     const { items, partial } = ev.queue;
     // A service already named in `degraded` is unreachable even if the
-    // collector's per-stage `partial` list did not separately say so (N8) —
-    // the same reachability signal `libraryStep`/`scanStep` read for Jellyfin.
+    // collector's per-stage `partial` list did not separately say so (N8).
+    // Deliberately `degraded` (probe reachability), not `libraryDegraded`
+    // (item 2 of the whole-phase review): Radarr/Sonarr's *library* read
+    // failing must not make this stage believe their *queue* probe failed
+    // too — the two used to share one array, so a Radarr library-read
+    // failure alone made this stage report unknown even when every
+    // configured download client had answered in full.
     const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => QUEUE_SERVICES.includes(s))])];
     const mine = items.filter(q => mentions(q.title, item));
 
@@ -313,8 +331,12 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 function indexerStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.prowlarrConfigured) return SKIPPED('indexers', 'No indexer manager is configured.');
     if (ev.degraded.includes('prowlarr')) {
-        // Same reachability signal `libraryStep` reads for Jellyfin — closes
-        // the gap where only library/scan consulted `degraded` (N8).
+        // `degraded` is probe reachability (item 2 of the whole-phase
+        // review) — the same array `scanStep`/`queueStep` read, and correctly
+        // so here: Prowlarr contributes no library-read half, so there is no
+        // `libraryDegraded` signal for it to consult instead (N8's original
+        // point still holds — a service's own probe failing must count even
+        // when `rejections` happens to be defined from a stale read).
         return { stage: 'indexers', service: 'prowlarr', status: 'unknown', detail: 'Prowlarr could not be reached.' };
     }
     if (ev.rejections === undefined) return { stage: 'indexers', service: 'prowlarr', status: 'unknown', detail: 'Prowlarr could not be reached.' };
@@ -333,8 +355,14 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
 
 function libraryStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.jellyfinConfigured) return SKIPPED('library', 'Jellyfin is not configured.');
-    if (ev.degraded.includes('jellyfin')) {
+    if (ev.libraryDegraded.includes('jellyfin')) {
         // Never "it is not in Jellyfin" when Jellyfin was not asked (§6.1).
+        // Reads `libraryDegraded`, not `degraded` (item 2 of the whole-phase
+        // review): a failed scan probe belongs to `degraded` and must not
+        // land here — this stage is about the library *read*, and item.presence
+        // alone is not enough of a guard (item 1's `unknown` looks the same
+        // as "no evidence at all" to the check below, but `hasFile` is still
+        // real *arr data this module must not reinterpret as a Jellyfin gap).
         return { stage: 'library', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its library was not checked.' };
     }
     if (item.presence === 'both' || item.presence === 'jellyfin_only') {
@@ -354,9 +382,12 @@ function libraryStep(ev: Evidence, item: MergedItem): Step {
 function scanStep(ev: Evidence): Step {
     if (!ev.jellyfinConfigured) return SKIPPED('scan', 'Jellyfin is not configured.');
     if (ev.degraded.includes('jellyfin')) {
-        // Same reachability signal `libraryStep` reads — a Jellyfin that could
-        // not be asked about its library could not be asked about its scan
-        // state either, and the two should not be able to disagree about that.
+        // `degraded` here is specifically the `getScanState` probe (item 2 of
+        // the whole-phase review) — deliberately *not* `libraryDegraded`,
+        // which `libraryStep` reads instead. The two used to share one array,
+        // so a failed scan probe silently erased a library read that
+        // succeeded; they are independent endpoints and are allowed to
+        // disagree about which of them Jellyfin actually answered.
         return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its scan state was not checked.' };
     }
     if (ev.scan === undefined) return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin’s scan state could not be read.' };
@@ -425,6 +456,16 @@ const queueAside = (queueResult: QueueResult): string =>
         ? ''
         : ` (Also: ${queueResult.step.detail} This does not block the file already on disk, but may be worth checking.)`;
 
+/**
+ * The top-level `Diagnosis.degraded` a caller sees, and the input to the
+ * `resolve` verdict's own certainty below, are both "everything this
+ * diagnosis could not fully check" — the union of probe reachability and
+ * library-read reachability (item 2 of the whole-phase review keeps those
+ * two arrays separate for the *per-stage* checks above, which each care
+ * about only one; nothing downstream of this point needs that distinction).
+ */
+const allDegraded = (ev: Evidence): ServiceId[] => [...new Set([...ev.degraded, ...ev.libraryDegraded])].sort();
+
 export function buildChain(query: string, ev: Evidence): Diagnosis {
     const steps: Step[] = [];
 
@@ -440,10 +481,11 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
                 summary: `Nothing in your stack matches "${query}".`,
                 remedy: REMEDIES.resolve as string,
                 // Not knowing about it and not being able to look are different
-                // answers, and a degraded library service means the second.
-                certain: ev.degraded.length === 0
+                // answers, and a degraded library service means the second —
+                // whether the library read itself failed or a diagnose probe did.
+                certain: allDegraded(ev).length === 0
             },
-            degraded: ev.degraded
+            degraded: allDegraded(ev)
         };
     }
 
@@ -580,7 +622,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
             resolved: resolvedOf(item),
             steps,
             verdict: { stage: 'playable', summary, certain },
-            degraded: ev.degraded
+            degraded: allDegraded(ev)
         };
     }
 
@@ -606,7 +648,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
             ...(remedy === undefined ? {} : { remedy }),
             certain
         },
-        degraded: ev.degraded
+        degraded: allDegraded(ev)
     };
 }
 

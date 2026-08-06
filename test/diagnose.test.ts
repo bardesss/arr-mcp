@@ -344,6 +344,86 @@ describe('diagnose', () => {
         expect(evidence.scan).toBeUndefined();
     });
 
+    // --- Item 2 of the whole-phase review: library-read reachability must
+    // not be conflated with diagnose's own probe reachability. ---
+
+    it('does not let a failing Jellyfin scan probe erase a library read that succeeded', async () => {
+        // Reproduction: getScanState failing used to push 'jellyfin' into the
+        // same flat `degraded` array the library read's own failures used,
+        // so libraryStep read it as "the library was not checked" even
+        // though the library read (listUserLibrary, via the loader) never
+        // failed at all — discarding the flagship `library` verdict.
+        const FILM_WITH_FILE: IndexInput = {
+            kind: 'movie',
+            title: '<<untrusted:radarr.title>>Some Film<</untrusted>>',
+            year: 2026,
+            ids: { tmdb: 550 },
+            acquisition: { service: 'radarr', monitored: true, hasFile: true }
+        };
+        const jellyfin = stub('jellyfin', {
+            listUserLibrary: async () => [],
+            getScanState: async () => {
+                throw new ServiceError('Unreachable', 'jellyfin', 'connection refused');
+            },
+            listUsers: async () => [{ id: 'u1', name: 'Someone' }]
+        }) as unknown as ServiceAdapter & UserDirectoryCapable;
+        const adapters = [stub('radarr', { listLibrary: async () => [FILM_WITH_FILE], getQueue: async () => [] }), jellyfin];
+        const identity = new IdentityResolver(jellyfin, { default_user: 'Someone', allow_other_users: false });
+
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, identity) }, { query: 'some film' });
+
+        // Jellyfin's library read genuinely succeeded and genuinely does not
+        // have this item (empty listUserLibrary) — a real broken import, with
+        // its own status and remedy. Before this fix, the failed scan probe
+        // made libraryStep read `ev.degraded` (which the scan probe failure
+        // also populated) and report status: 'unknown', detail: "Jellyfin
+        // could not be reached, so its library was not checked" — a false
+        // statement that also discarded this remedy.
+        expect(d.steps.find(s => s.stage === 'library')).toMatchObject({
+            status: 'blocked',
+            detail: expect.stringContaining('cannot see')
+        });
+        expect(d.verdict.stage).toBe('library');
+        expect(d.verdict.remedy).toMatch(/jellyfin library scan/i);
+        // The scan probe itself did fail, and separately, legitimately, still
+        // costs certainty here (a running scan could explain a transient
+        // library gap) — this fix is about the `library` stage's own status
+        // and remedy, not about retracting certainty for an unrelated reason.
+        expect(d.steps.find(s => s.stage === 'scan')).toMatchObject({ status: 'unknown' });
+        expect(d.verdict.certain).toBe(false);
+    });
+
+    it('does not let a failing Radarr library read erase a queue that answered in full', async () => {
+        // Reproduction: a Radarr `listLibrary` failure used to land in the
+        // same flat `degraded` array `queueStep` consulted for "which
+        // download clients could not be fully checked", so the queue stage
+        // reported unknown even though every configured queue (here, just
+        // sabnzbd) answered completely.
+        const SERIES: IndexInput = {
+            kind: 'series',
+            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            ids: { tvdb: 700 },
+            acquisition: { service: 'sonarr', monitored: true, hasFile: false }
+        };
+        const adapters = [
+            stub('radarr', {
+                listLibrary: async () => {
+                    throw new ServiceError('Unreachable', 'radarr', 'connection refused');
+                }
+            }),
+            stub('sonarr', { listLibrary: async () => [SERIES] }),
+            stub('sabnzbd', { getQueue: async () => [] })
+        ];
+
+        const d = await buildDiagnose(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'a series' }
+        );
+
+        expect(d.steps.find(s => s.stage === 'queue')).toMatchObject({ status: 'skipped' });
+        expect(d.degraded).toContain('radarr');
+    });
+
     it('propagates an identity refusal as a thrown error rather than a degraded stage', async () => {
         // §9's gate: naming a user other than the configured default without
         // allow_other_users must reach the caller as a refusal, not as "the

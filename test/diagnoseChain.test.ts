@@ -56,6 +56,7 @@ const healthy = (over: Partial<Evidence> = {}): Evidence => ({
     prowlarrConfigured: true,
     scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
     jellyfinConfigured: true,
+    libraryDegraded: [],
     degraded: [],
     ...over
 });
@@ -370,6 +371,7 @@ describe('buildChain — certainty', () => {
             prowlarrConfigured: true,
             scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
             jellyfinConfigured: true,
+            libraryDegraded: [],
             degraded: ['seerr']
         });
 
@@ -381,11 +383,13 @@ describe('buildChain — certainty', () => {
     it('is uncertain about a playable verdict, and hedges the claim rather than asserting Jellyfin availability (C2)', () => {
         // §6.1 / C2: certain: false must not just ride along under an
         // unqualified positive claim. Reproduced with the shape review found
-        // it with: library unreachable, presence arr_only.
+        // it with: library unreachable, presence arr_only. `libraryDegraded`
+        // (item 2), not `degraded` — this is a library-read failure, and
+        // `libraryStep` reads only `libraryDegraded` now.
         const d = buildChain('some film', {
             ...healthy(),
             item: item({ presence: 'arr_only', playback: undefined }),
-            degraded: ['jellyfin']
+            libraryDegraded: ['jellyfin']
         });
 
         expect(d.verdict.stage).toBe('playable');
@@ -419,19 +423,38 @@ describe('buildChain — certainty', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
-            degraded: ['jellyfin']
+            libraryDegraded: ['jellyfin']
         });
         expect(d.verdict.stage).toBe('file');
         expect(d.verdict.certain).toBe(true);
     });
 
-    it('never claims playable while a stage is unknown', () => {
-        const d = buildChain('some film', { ...healthy(), scan: undefined, degraded: ['jellyfin'] });
+    it('never claims playable while the library stage itself is unknown', () => {
+        // `libraryDegraded`, not `degraded`: this is the stage that actually
+        // bears on "is it playable", so its own uncertainty must retract the
+        // claim.
+        const d = buildChain('some film', { ...healthy(), scan: undefined, libraryDegraded: ['jellyfin'] });
         if (d.verdict.stage === 'playable') expect(d.verdict.certain).toBe(false);
+    });
+
+    it('stays certain about a playable verdict when only an unrelated scan probe failed (item 2)', () => {
+        // Reproduction: a failed `getScanState` used to erase a library read
+        // that succeeded, because both fed the same flat `degraded` array —
+        // here `presence: 'both'` is itself the library evidence (Jellyfin's
+        // own playback data, from the same load), and a probe failure on a
+        // different endpoint entirely must not retract certainty about it.
+        const d = buildChain('some film', { ...healthy(), scan: undefined, degraded: ['jellyfin'] });
+        expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
+        expect(stepFor(d, 'library')?.status).toBe('ok');
+        expect(stepFor(d, 'scan')?.status).toBe('unknown');
     });
 
     it('is uncertain about a resolve failure when a library service was down', () => {
         // "We do not have it" and "we could not look" are different answers.
+        // `libraryDegraded`, not `degraded`: this models the library *read*
+        // itself failing (item 2 of the whole-phase review), which is exactly
+        // what leaves an item unresolved here — the top-level certainty check
+        // must fold both arrays together, not just `degraded`.
         const d = buildChain('some film', {
             item: undefined,
             request: null,
@@ -441,9 +464,11 @@ describe('buildChain — certainty', () => {
             prowlarrConfigured: true,
             scan: undefined,
             jellyfinConfigured: true,
-            degraded: ['radarr']
+            libraryDegraded: ['radarr'],
+            degraded: []
         });
         expect(d.verdict).toMatchObject({ stage: 'resolve', certain: false });
+        expect(d.degraded).toEqual(['radarr']);
     });
 });
 
@@ -985,9 +1010,10 @@ describe('buildChain — a queue fault does not outrank an already-playable file
 
 describe('buildChain — degraded is read the same way for every stage (N8)', () => {
     it('reports indexers as unreachable when Prowlarr is named in degraded, even if rejections happens to be present', () => {
-        // `libraryStep`/`scanStep` already treat `degraded` as authoritative
-        // over their own dedicated field; `indexerStep` used to only ever
-        // consult `ev.rejections === undefined`.
+        // `scanStep`/`queueStep` already treat `degraded` (probe reachability
+        // — item 2 keeps it separate from `libraryStep`'s `libraryDegraded`)
+        // as authoritative over their own dedicated field; `indexerStep` used
+        // to only ever consult `ev.rejections === undefined`.
         const d = buildChain('some film', {
             ...healthy(),
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),

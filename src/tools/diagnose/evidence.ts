@@ -45,13 +45,21 @@ async function probe<T>(id: ServiceId, degraded: ServiceId[], fn: () => Promise<
 async function resolveItem(
     deps: DiagnoseDeps,
     target: DiagnoseTarget,
-    degraded: ServiceId[]
+    degraded: ServiceId[],
+    libraryDegraded: ServiceId[]
 ): Promise<MergedItem | undefined> {
     // §9's gate lives in the loader's identity resolver, and a refusal
     // propagates out of diagnose rather than becoming a degraded stage — this
     // call is deliberately not wrapped in `probe`.
     const snapshot = await deps.library.load(target.user);
-    for (const id of snapshot.degraded) if (!degraded.includes(id)) degraded.push(id);
+    // Library-read reachability, not probe reachability — kept in its own
+    // array rather than folded into `degraded` (item 2 of the whole-phase
+    // review). A Jellyfin `getScanState` probe failing below must not make
+    // `libraryStep` believe the *library read* failed too, and a Radarr
+    // *library* read failing here must not make `queueStep` believe Radarr's
+    // *queue* probe failed — each stage now reads only the reachability
+    // signal that actually applies to it.
+    for (const id of snapshot.degraded) if (!libraryDegraded.includes(id)) libraryDegraded.push(id);
 
     // The explicit id wins: it is unambiguous and a title is not.
     if (target.service !== undefined && target.id !== undefined) {
@@ -125,7 +133,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     }
 
     const degraded: ServiceId[] = [];
-    const item = await resolveItem(deps, target, degraded);
+    const libraryDegraded: ServiceId[] = [];
+    const item = await resolveItem(deps, target, degraded, libraryDegraded);
 
     // Structural, not `instanceof SeerrAdapter`: every other capability here
     // (queue, indexers, scan, media details) is checked the same way, and
@@ -214,6 +223,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     }
 
     degraded.sort();
+    libraryDegraded.sort();
     return {
         item,
         request,
@@ -223,6 +233,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         prowlarrConfigured,
         scan,
         jellyfinConfigured,
+        libraryDegraded,
         degraded
     };
 }
