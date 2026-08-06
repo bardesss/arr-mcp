@@ -45,12 +45,22 @@ export type MediaDetailsQuery = {
  * would read as "the item does not exist".
  */
 export async function buildResolvedMediaDetails(loader: LibraryLoader, query: string): Promise<MergedItem> {
-    const { index } = await loader.load();
+    const { index, degraded } = await loader.load();
     const [best] = index.search(query);
 
     if (best === undefined) {
+        // `diagnose` (via its own `resolve` step) and `get_library` both hedge
+        // this exact claim across a degraded load; this is the third consumer
+        // of the same `LibraryLoader` snapshot, and answering confidently
+        // across the same hole is not a different situation. Named services,
+        // not just "something failed" — a model deciding whether to retry
+        // needs to know which ones.
+        const hedge =
+            degraded.length === 0
+                ? ''
+                : ` ${degraded.join(', ')} could not be reached, so this may be incomplete rather than a real absence.`;
         throw new Error(
-            `Nothing in your library matches "${query}". Try search_media, which also looks at what you do not have yet.`
+            `Nothing in your library matches "${query}".${hedge} Try search_media, which also looks at what you do not have yet.`
         );
     }
     return best;

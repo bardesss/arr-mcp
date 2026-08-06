@@ -435,6 +435,32 @@ describe('get_media_details', () => {
         );
     });
 
+    it('names the degraded services and hedges the claim rather than answering confidently across an outage (item 4)', async () => {
+        // buildResolvedMediaDetails is the third consumer of LibraryLoader's
+        // snapshot — diagnose's resolve step and get_library already hedge
+        // this exact claim across a degraded load; this one used to destructure
+        // only `{ index }` and drop `degraded` entirely, so "Radarr is
+        // unreachable" and "this title genuinely does not exist" produced the
+        // identical, unqualified message.
+        const brokenLoader = new LibraryLoader(
+            [
+                {
+                    id: 'radarr',
+                    testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                    getVersion: async () => '1.0.0',
+                    listLibrary: async () => {
+                        throw new Error('down');
+                    }
+                } as unknown as ServiceAdapter
+            ],
+            undefined
+        );
+
+        await expect(resolveMediaDetails([], brokenLoader, { ...query, query: 'zzzz' })).rejects.toThrow(
+            /nothing in your library matches.*radarr could not be reached/is
+        );
+    });
+
     it('keeps the explicit form, which is how you inspect one side of a join', async () => {
         const result = await resolveMediaDetails([detailRadarr], loader(), {
             ...query,
