@@ -59,25 +59,44 @@ export class LibraryLoader {
      * to propagate or degrade turns on the error's *kind*, not on whether a
      * user was named — naming someone must not turn a plain Jellyfin outage
      * into a hard failure of the whole library read; the *arr half is still
-     * worth returning:
+     * worth returning. Three distinct meanings, three distinct outcomes
+     * (whole-phase review item 5 — this is the one place all three have to
+     * stay apart):
      *
-     * - `AuthFailed` always propagates — the model must not retry a refusal.
-     * - `NotFound` propagates only when a user was explicitly requested: the
-     *   caller named someone who does not exist, and degrading would silently
-     *   answer as if nobody had asked. Unrequested, `NotFound` means "no
-     *   default user is configured," a configuration gap that still degrades.
+     * - `AuthFailed` — the named user was refused (`allow_other_users` is
+     *   false and it wasn't the default). Always propagates: the model must
+     *   not retry a refusal.
+     * - `NotFound` — either nobody was named and no `default_user` is
+     *   configured, or the name in play (named or default) does not exist in
+     *   Jellyfin's own directory. Always propagates now, regardless of
+     *   `requested`: both are configuration errors with an actionable remedy
+     *   already attached (`IdentityResolver` names the exact config key), and
+     *   `src/config/schema.ts` documents that a per-user tool called with
+     *   nothing configured *fails naming that key* — degrading here instead
+     *   silently swallowed the remedy and reported "jellyfin could not be
+     *   reached" forever, indistinguishable from a real, transient outage,
+     *   while `stack_health` kept calling Jellyfin healthy. This is also what
+     *   used to make item 1's `unknown`-when-ungathered collapse permanent
+     *   rather than transient on such a stack: nothing about the failure ever
+     *   changes, so it never stops being ungathered.
+     *   Previously this propagated only when `requested !== undefined` (a
+     *   user was explicitly named) — the no-`default_user`-configured case
+     *   degraded silently. That distinction is gone: both are the same kind
+     *   of error (a config key that needs setting), so both surface the same
+     *   way. This must not be confused with `AuthFailed` above, which is a
+     *   different, narrower thing — a *configured* default exists, someone
+     *   asked to be answered as somebody else, and it was refused. That is
+     *   never a configuration gap and must never degrade.
      * - Everything else — `Unreachable`, `Timeout`, `UpstreamError`, and any
-     *   non-`ServiceError` — degrades regardless of whether a user was named.
+     *   non-`ServiceError` — degrades regardless of whether a user was named:
+     *   a real reachability problem, not a configuration one.
      */
     async #resolveUser(requested: string | undefined): Promise<ServiceUser | undefined> {
         if (this.#identity === undefined) return undefined;
         try {
             return await this.#identity.resolve(requested);
         } catch (err) {
-            if (err instanceof ServiceError) {
-                if (err.kind === 'AuthFailed') throw err;
-                if (err.kind === 'NotFound' && requested !== undefined) throw err;
-            }
+            if (err instanceof ServiceError && (err.kind === 'AuthFailed' || err.kind === 'NotFound')) throw err;
             logger.warn(
                 { service: 'jellyfin', err },
                 'jellyfin identity unavailable; building the library without watch state'
