@@ -9,29 +9,49 @@
  *
  *     ARR_MCP_CONFIG_DIR=./config npm run integration
  *
- * Credential handling: this script reads a live config with real API keys.
- * It never prints a value out of that config — only tool names, counts,
- * latencies, and each tool's own summary line (titles, ids and pass/fail
- * text, never a key, token or service URL).
+ * Calls go through `buildApp` (`src/app.ts`) — the same `McpServer` and the
+ * same `tools/call` JSON-RPC dispatch a real MCP client hits — driven
+ * in-process via Hono's `app.request()`, exactly as `test/app.test.ts`
+ * already does. No listening port, but no hand-rolled reimplementation of
+ * the SDK's own argument parsing/defaulting and error-to-`isError` wrapping
+ * either: an earlier version of this script called each tool's handler
+ * directly against a stub `registerTool`, which meant every one of those
+ * behaviours had to be reproduced by hand to get a truthful result — and one
+ * (schema defaults) was missed on the first pass. Going through the real
+ * dispatch removes that whole class of drift.
+ *
+ * Credential handling: this script reads a live config with real API keys
+ * and sends the real bearer token as `Authorization` on every call. It never
+ * prints a header, a key, or a token. It does print each tool's own summary
+ * line, which normally contains only titles, ids and counts — except that a
+ * live connectivity failure's message deliberately embeds the failing
+ * service's *host* (`classifyFetchError` in `src/core/errors.ts`, by
+ * design — a model diagnosing a dead connection needs to know where it
+ * failed). That is fine for the tool's real caller, but not for this
+ * script's stricter promise never to print a service URL, so every printed
+ * line — pass or fail — is passed through `redactHosts` first.
  */
-import type { McpServer } from '@modelcontextprotocol/server';
-import * as z from 'zod/v4';
 import { loadConfig } from '../src/config/load.ts';
 import { buildAdapters } from '../src/services/registry.ts';
-import { buildToolContext, registerAllTools, TOOL_NAMES } from '../src/tools/register.ts';
+import { buildApp } from '../src/app.ts';
+import { TOOL_NAMES } from '../src/tools/register.ts';
+import { hostsOf, redactHosts } from './lib/redact.ts';
 
 type ToolName = (typeof TOOL_NAMES)[number];
 type Case = { tool: ToolName; args: Record<string, unknown> };
-type ToolResult = { content?: { text?: string }[]; structuredContent?: unknown };
+type ToolCallResult = { isError?: boolean; content?: { type: string; text?: string }[]; structuredContent?: unknown };
 
 /**
  * Arguments chosen to exercise the path a user actually takes, not the
  * cheapest one. `detail: 'full'` on at least one call per tool, because that
  * is the level whose extra fields are the ones adapters get wrong.
  *
- * get_library gets three calls — its documented filters (§5: presence,
+ * get_library gets several calls — its documented filters (§5: presence,
  * min_rating, kind) each take a different code path through the join, and a
- * fixture-only test would never exercise more than one of them for real.
+ * fixture-only test would never exercise more than one of them for real. The
+ * metacritic/rottenTomatoes pair is a standing regression case: those two
+ * sources arrive on a 0-100 scale while `min_rating` is documented 0-10, and
+ * before that was fixed they matched every rated film regardless of score.
  */
 const CASES: Case[] = [
     { tool: 'stack_health', args: { detail: 'full' } },
@@ -50,10 +70,6 @@ const CASES: Case[] = [
     { tool: 'get_library', args: { presence: 'arr_only', limit: 10 } },
     { tool: 'get_library', args: { min_rating: 8, limit: 5 } },
     { tool: 'get_library', args: { kind: 'movie', limit: 5 } },
-    // A regression guard for the cross-source rating scale defect: metacritic
-    // and rottenTomatoes arrive on a 0-100 scale, everything else on 0-10.
-    // Before the fix these two returned every rated film — "rated at all"
-    // silently read as "rated 8+".
     { tool: 'get_library', args: { min_rating: 8, rating_source: 'metacritic', limit: 5 } },
     { tool: 'get_library', args: { min_rating: 8, rating_source: 'rottenTomatoes', limit: 5 } },
     { tool: 'get_media_details', args: { query: 'the' } },
@@ -64,45 +80,18 @@ const CASES: Case[] = [
 ];
 
 // Same env var src/index.ts uses, so this reads the config the container
-// does. The default differs from src/index.ts's `/config`, though: that
-// default is right for the container, where the volume is always mounted
-// there, but wrong for a maintainer running this from a checkout — `/config`
-// resolves outside the repo entirely (on Windows, to a different drive root).
-// `./config` is the local-checkout default the capture script already
-// established under its own env var, so this follows that convention rather
-// than the container one.
+// does — but a different default. src/index.ts defaults to `/config`, which
+// is right for the container, where the volume is always mounted there; it
+// is wrong for a maintainer running this from a checkout, where `/config`
+// resolves outside the repo entirely (on Windows, to a different drive
+// root). `./config` matches capture-fixtures.ts's own local-checkout
+// default, under its own env var, for the same reason.
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? './config';
 const { config } = await loadConfig(CONFIG_DIR);
 
 const adapters = buildAdapters(config);
-const context = buildToolContext(adapters, config);
-
-/**
- * Registering against a recording stub is what lets this call the handlers
- * directly, without an MCP client or a listening port. The real server
- * parses every call's arguments through the tool's own `inputSchema` before
- * the handler ever sees them — that is where a `detail`/`limit` default
- * (`standard`/`50`) actually gets applied. Skipping that step here would
- * make every case that omits an optional field fail silently: `applyLimit`
- * fed a genuinely undefined limit returns zero items, which is precisely the
- * false "0 of N" this script exists to tell apart from a real one. So the
- * stub captures each tool's schema alongside its handler and parses through
- * it before every call, the same as a real client would.
- */
-type Registered = { schema: z.ZodTypeAny; handler: (args: Record<string, unknown>) => Promise<ToolResult> };
-const handlers = new Map<string, Registered>();
-const server = {
-    registerTool: (
-        name: string,
-        meta: { inputSchema?: z.ZodTypeAny },
-        handler: (a: Record<string, unknown>) => Promise<ToolResult>
-    ) => {
-        if (meta.inputSchema === undefined) throw new Error(`${name} registered with no inputSchema`);
-        handlers.set(name, { schema: meta.inputSchema, handler });
-    }
-};
-
-registerAllTools(server as unknown as McpServer, context);
+const app = buildApp({ config, adapters });
+const hosts = hostsOf(config);
 
 const missing = TOOL_NAMES.filter(name => !CASES.some(c => c.tool === name));
 if (missing.length > 0) {
@@ -112,36 +101,78 @@ if (missing.length > 0) {
     process.exitCode = 1;
 }
 
+let nextId = 1;
+
+/**
+ * One `tools/call` JSON-RPC request, in-process through Hono — no listening
+ * port. Throws on any transport- or protocol-level failure (a non-2xx HTTP
+ * status, an unparsable body, or a JSON-RPC `error`); a tool-level failure is
+ * not one of these — it comes back as a normal 200 with `isError: true`,
+ * which the caller inspects.
+ */
+async function callTool(name: string, args: Record<string, unknown>): Promise<ToolCallResult> {
+    const res = await app.request('http://localhost:6060/mcp', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+            Authorization: `Bearer ${config.auth.bearer_token}`
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method: 'tools/call', params: { name, arguments: args } })
+    });
+
+    const text = await res.text();
+    if (!res.ok) throw new Error(`transport error: HTTP ${res.status}`);
+
+    // The SDK may frame the body as SSE rather than plain JSON; the payload
+    // is always the one top-level JSON object in it. Same approach
+    // test/app.test.ts's rpcPayload() uses.
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('transport error: no JSON-RPC payload in the response body');
+
+    const payload = JSON.parse(text.slice(start, end + 1)) as { result?: ToolCallResult; error?: { message?: string } };
+    if (payload.error !== undefined) throw new Error(`protocol error: ${payload.error.message ?? 'unnamed'}`);
+    if (payload.result === undefined) throw new Error('protocol error: no result in the response');
+    return payload.result;
+}
+
 let passes = 0;
 let failures = 0;
 
 /** Runs one case, printing PASS/FAIL with latency and the tool's own summary line. */
-async function run(tool: string, args: Record<string, unknown>, note?: string): Promise<ToolResult | undefined> {
+async function run(tool: string, args: Record<string, unknown>, note?: string): Promise<ToolCallResult | undefined> {
     const label = `${tool} ${JSON.stringify(args)}${note === undefined ? '' : ` — ${note}`}`;
-    const registered = handlers.get(tool);
-    if (registered === undefined) {
-        console.error(`FAIL ${label} — not registered`);
-        failures += 1;
-        return undefined;
-    }
-
     const started = performance.now();
+
     try {
-        const parsed = registered.schema.parse(args) as Record<string, unknown>;
-        const result = await registered.handler(parsed);
+        const result = await callTool(tool, args);
         const ms = Math.round(performance.now() - started);
-        console.log(`PASS ${label} (${ms}ms) — ${result.content?.[0]?.text ?? ''}`);
+        const text = redactHosts(result.content?.[0]?.text ?? '', hosts);
+
+        if (result.isError === true) {
+            console.error(`FAIL ${label} (${ms}ms) — ${text}`);
+            failures += 1;
+            return undefined;
+        }
+        console.log(`PASS ${label} (${ms}ms) — ${text}`);
         passes += 1;
         return result;
     } catch (err) {
-        console.error(`FAIL ${label} — ${(err as Error).message}`);
+        // Latency here is exactly as diagnostic as on a pass: it tells apart a
+        // fast validation error from a multi-second timeout. Hosts get
+        // redacted here too — this is where classifyFetchError's Timeout/
+        // Unreachable message (which embeds one by design) would otherwise
+        // reach the terminal unfiltered.
+        const ms = Math.round(performance.now() - started);
+        console.error(`FAIL ${label} (${ms}ms) — ${redactHosts((err as Error).message, hosts)}`);
         failures += 1;
         return undefined;
     }
 }
 
-let libraryResult: ToolResult | undefined;
-let searchResult: ToolResult | undefined;
+let libraryResult: ToolCallResult | undefined;
+let searchResult: ToolCallResult | undefined;
 
 for (const { tool, args } of CASES) {
     const result = await run(tool, args);
@@ -154,7 +185,7 @@ for (const { tool, args } of CASES) {
  * single generic query does not exercise the chain the way a maintainer
  * actually would: a title that resolves, one that plainly does not, an
  * explicit service+id (the form get_media_details hands back for a join that
- * looks wrong), and — when the library actually has one — an item Present on
+ * looks wrong), and — when the library actually has one — an item present on
  * one side and not the other, which is the case diagnose exists to explain.
  */
 type LibraryItemLike = { title?: unknown; presence?: unknown };
@@ -194,4 +225,10 @@ if (brokenTitle !== undefined) {
 }
 
 console.log(`\n${passes}/${passes + failures} calls succeeded.`);
+if (missing.length > 0) {
+    // Repeated here, not just at the top: a maintainer skimming only the last
+    // line — the one that matters most — must not be able to miss this even
+    // though the exit code (already set above) reflects it either way.
+    console.error(`No case covers: ${missing.join(', ')} — exit code reflects this even though every call above passed.`);
+}
 process.exitCode = failures > 0 ? 1 : process.exitCode;

@@ -15,6 +15,7 @@ import { loadConfig } from '../src/config/load.ts';
 import type { Config, ServiceId } from '../src/config/schema.ts';
 import { apiKeyHeader, embyToken, queryParamKey, transmissionRpc, type AuthStrategy } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
+import { hostsOf, redactHosts } from './lib/redact.ts';
 
 const REDACTED = '__REDACTED__';
 
@@ -310,29 +311,11 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
 
 const ANONYMOUS_HOST = 'service.example.test';
 
-/**
- * Every host the user configured — hostname and host:port both, longest first
- * so `10.0.0.1:7878` is replaced before the bare `10.0.0.1` inside it.
- *
- * Substituting the configured values exactly, rather than pattern-matching for
- * anything IP-shaped, means no false positives: an *arr version like
- * `6.3.0.10514` is four dot-separated numbers and would match a naive IPv4
- * regex.
- */
-function hostsOf(config: Config): string[] {
-    const out = new Set<string>();
-    for (const service of Object.values(config.services)) {
-        if (service === undefined) continue;
-        try {
-            const url = new URL((service as { url: string }).url);
-            out.add(url.host);
-            out.add(url.hostname);
-        } catch {
-            // A url that does not parse cannot appear in a response either.
-        }
-    }
-    return [...out].sort((a, b) => b.length - a.length);
-}
+// `hostsOf` is shared with `integration.ts` (`scripts/lib/redact.ts`) — both
+// scripts need the same "every host the user configured" list, one to
+// anonymise fixture files, the other to keep a live error message off the
+// terminal, and a second hand-written copy is exactly the kind of drift this
+// phase exists to eliminate.
 
 /** Every configured credential, so the post-write scan can look for them exactly. */
 function secretsOf(config: Config): string[] {
@@ -439,7 +422,13 @@ for (const [id, service] of Object.entries(config.services) as [ServiceId, Confi
         } catch (err) {
             // A missing endpoint is information, not a failure: it tells us the
             // service does not have that capability. Record and continue.
-            console.warn(`skipped  ${id}/${endpoint.name}: ${(err as Error).message}`);
+            //
+            // `classifyFetchError` (src/core/errors.ts) deliberately embeds the
+            // host in a Timeout/Unreachable ServiceError's own `.message` — the
+            // fixture-writing path below never sees that (it redacts hosts out
+            // of *captured response bodies*), but this line prints the error
+            // itself, straight to the terminal, unredacted otherwise.
+            console.warn(`skipped  ${id}/${endpoint.name}: ${redactHosts((err as Error).message, hosts)}`);
             skipped += 1;
         }
     }
