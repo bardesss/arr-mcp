@@ -361,7 +361,9 @@ function redact(node: unknown, secrets: string[], hosts: string[]): unknown {
 }
 
 const configDir = process.env.ARR_MCP_CAPTURE_CONFIG ?? './config';
-const { config } = await loadConfig(configDir);
+// `persist: false` — capturing fixtures reads the user's config; it must never
+// write to the file holding their credentials.
+const { config } = await loadConfig(configDir, { persist: false });
 const secrets = secretsOf(config);
 const hosts = hostsOf(config);
 

@@ -6,7 +6,54 @@ import { ConfigSchema } from '../src/config/schema.ts';
 import { loadConfig } from '../src/config/load.ts';
 
 const freshDir = () => mkdtemp(join(tmpdir(), 'arr-mcp-cfg-'));
-const AUTH = { bearer_token: 'a'.repeat(64) };
+/**
+ * A literal hash rather than `hashPassword('…')`: scrypt is deliberately slow
+ * (~50ms), and paying that in every schema test would add seconds to the suite
+ * to prove something `session.test.ts` already proves properly.
+ */
+const AUTH = { bearer_token: 'a'.repeat(64), password_hash: 'scrypt$00$11' };
+
+describe('reading without writing', () => {
+    /**
+     * The maintainer scripts load this file only to reach the services it
+     * names. A read must not have side effects on the user's credentials.
+     *
+     * Before `persist: false` existed, `npm run integration` against a config
+     * predating the config UI silently backfilled a `password_hash` into it —
+     * generating a password the script never printed, so nobody could ever
+     * know it. It happened to a real config.
+     */
+    it('leaves a config missing the new credentials completely untouched', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        const original = `auth:\n  bearer_token: ${'c'.repeat(64)}\nservices:\n  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n`;
+        await writeFile(path, original, 'utf8');
+
+        const { config } = await loadConfig(dir, { persist: false });
+
+        // In memory it is complete, so the schema is satisfied…
+        expect(config.auth.password_hash.length).toBeGreaterThan(0);
+        // …and on disk nothing moved.
+        expect(await readFile(path, 'utf8')).toBe(original);
+    });
+
+    it('still backfills and persists when asked to', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(path, `auth:\n  bearer_token: ${'d'.repeat(64)}\nservices: {}\n`, 'utf8');
+
+        const { generated } = await loadConfig(dir);
+
+        expect(generated.password).toBeTypeOf('string');
+        expect(await readFile(path, 'utf8')).toContain('password_hash');
+    });
+
+    // A script pointed at the wrong directory should say so, not create one.
+    it('refuses to invent a config directory when reading only', async () => {
+        const dir = await freshDir();
+        await expect(loadConfig(join(dir, 'nope'), { persist: false })).rejects.toThrow(/no config\.yaml/);
+    });
+});
 
 describe('ConfigSchema', () => {
     it('defaults both permission tiers to off for a newly added service', () => {

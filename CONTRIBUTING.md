@@ -154,6 +154,37 @@ data: files on disk, a request's history, a blocklist entry. When unsure, it is
 `destructive`; the cost of over-classifying is one config flag, and the cost of
 under-classifying is someone's library.
 
+## Working on the config UI
+
+Server rendered from `src/web/`, no build step and no framework. `tsc` does not
+emit non-TypeScript files, so **assets live in modules, not in a `public/`
+directory** — a static file would work in development and be silently missing
+from the Docker image.
+
+Three rules, each of which exists because breaking it is quiet rather than
+loud:
+
+- **Every interpolation goes through `html`/`esc`.** Release names from public
+  indexers reach the log table and the audit view, and they are the most
+  attacker-controllable strings in the system (§11). `raw()` is the only escape
+  hatch and has to be written on purpose.
+- **The live log stream is JSON, and the client builds rows with
+  `textContent`.** Not `innerHTML`. Everything else on the page is
+  server-rendered through the escaping template, which is sound — but that one
+  surface carries indexer text on a timer, and building nodes makes an XSS
+  impossible rather than merely unlikely.
+- **A secret is never rendered back.** API keys, the Transmission password and
+  the UI password all render as empty fields meaning *unchanged*. That is also
+  why an empty field can never mean "clear this" — clearing is expressed by
+  switching the service off.
+
+Anything a config change can invalidate belongs in `core/runtime.ts`, behind
+the snapshot swap, and is read **per request** rather than captured when the
+app is built. Capturing it is what made a restart necessary before. Two things
+deliberately live outside the snapshot and survive a reload: confirmation
+tokens, because a write handshake spans two calls, and sessions, because a
+config edit must not log you out of the page you are editing from.
+
 ## Vendored API specs
 
 `specs/*.json` are upstream OpenAPI documents, refreshed by `npm run specs:fetch`
