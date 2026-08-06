@@ -413,6 +413,110 @@ await expectError(
     'DRY RUN ONLY — expects the refuse-to-guess path, with the profiles listed'
 );
 
+/**
+ * The config UI, against the same live stack.
+ *
+ * The tool cases above prove the adapters; nothing in them touches `/ui`, so
+ * before this a UI regression reached a release with a green script — the
+ * shape of failure that put seven defects into 0.3.0. These are read-only:
+ * they sign in, render every page against real services, and never save, so
+ * running this cannot change a maintainer's configuration.
+ */
+async function checkUi(): Promise<void> {
+    console.log('\n--- config UI ---');
+    let cookie = '';
+
+    const fetchUi = async (path: string, init: RequestInit = {}): Promise<Response> => {
+        const res = await app.request(`http://localhost:6060${path}`, {
+            redirect: 'manual',
+            ...init,
+            headers: { ...(init.headers ?? {}), ...(cookie === '' ? {} : { cookie }) }
+        });
+        const set = res.headers.get('set-cookie');
+        if (set !== null) cookie = set.split(';')[0] ?? '';
+        return res;
+    };
+
+    const check = async (label: string, run: () => Promise<boolean>): Promise<void> => {
+        const started = performance.now();
+        try {
+            const ok = await run();
+            const ms = Math.round(performance.now() - started);
+            if (ok) {
+                console.log(`PASS ui ${label} (${ms}ms)`);
+                passes += 1;
+            } else {
+                console.error(`FAIL ui ${label} (${ms}ms)`);
+                failures += 1;
+            }
+        } catch (err) {
+            console.error(`FAIL ui ${label} — ${redactHosts((err as Error).message, hosts)}`);
+            failures += 1;
+        }
+    };
+
+    await check('redirects an anonymous visitor to the login page', async () => {
+        const res = await fetchUi('/ui');
+        return res.status === 302 && res.headers.get('location') === '/ui/login';
+    });
+
+    await check('renders the login page', async () => {
+        const res = await fetchUi('/ui/login');
+        return res.status === 200 && (await res.text()).includes('Sign in');
+    });
+
+    // The password is only knowable on the run that generated it, so this
+    // signs in against a hash it sets itself rather than asking for one.
+    const password = 'integration-only-not-persisted';
+    const { hashPassword } = await import('../src/core/session.ts');
+    const uiConfig = { ...config, auth: { ...config.auth, password_hash: hashPassword(password) } };
+    const uiRuntime = Runtime.fromConfig(uiConfig, WriteAudit.ephemeral(), { configDir: CONFIG_DIR });
+    const uiApp = buildApp({ runtime: uiRuntime, audit: WriteAudit.ephemeral(), logs: LogStore.ephemeral() });
+
+    cookie = '';
+    const signIn = await uiApp.request('http://localhost:6060/ui/login', {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ username: uiConfig.auth.username, password }).toString()
+    });
+    cookie = (signIn.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+
+    const authed = async (path: string): Promise<Response> =>
+        uiApp.request(`http://localhost:6060${path}`, { headers: { cookie }, redirect: 'manual' });
+
+    await check('signs in', async () => signIn.status === 302 && cookie.startsWith('arr_mcp_session='));
+
+    // The one that needs a live stack: every service tested for real.
+    await check('dashboard renders live diagnoses for every service', async () => {
+        const res = await authed('/ui');
+        const body = await res.text();
+        return res.status === 200 && config.services !== undefined
+            ? Object.keys(config.services).every(id => body.includes(id))
+            : false;
+    });
+
+    for (const [label, path] of [
+        ['configuration page renders', '/ui/config'],
+        ['logs page renders', '/ui/logs?stream=all'],
+        ['problems stream renders', '/ui/logs?stream=problems'],
+        ['by-service stream renders', '/ui/logs?stream=service'],
+        ['write audit renders', '/ui/audit']
+    ] as const) {
+        await check(label, async () => (await authed(path)).status === 200);
+    }
+
+    await check('no API key is ever rendered into the configuration form', async () => {
+        const body = await (await authed('/ui/config')).text();
+        const keys = Object.values(config.services)
+            .map(s => (s as { api_key?: string } | undefined)?.api_key)
+            .filter((k): k is string => typeof k === 'string' && k.length > 0);
+        return keys.length > 0 && keys.every(k => !body.includes(k));
+    });
+}
+
+await checkUi();
+
 console.log(`\n${passes}/${passes + failures} calls succeeded.`);
 if (missing.length > 0) {
     // Repeated here, not just at the top: a maintainer skimming only the last

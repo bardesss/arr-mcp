@@ -302,6 +302,73 @@ describe('saving configuration', () => {
     });
 });
 
+describe('allowed_hosts', () => {
+    const get = (host: string) => call('/healthz', { headers: { host } });
+
+    it('accepts any Host when nothing is pinned', async () => {
+        expect((await get('192.168.1.50:6060')).status).toBe(200);
+    });
+
+    // The whole reason this moved out of the adapter: pinning from the config
+    // UI must apply at once, or a security setting appears to have worked when
+    // it has not.
+    it('applies a pinned host immediately, with no restart', async () => {
+        await signIn();
+        await call(
+            '/ui/config',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
+        );
+
+        expect((await get('arr.example.com')).status).toBe(200);
+        expect((await get('evil.example.com')).status).toBe(403);
+    });
+
+    // A pinned bare hostname must not stop working because the browser sent a
+    // port, which is what every browser does.
+    it('matches a pinned bare hostname when the request carries a port', async () => {
+        await signIn();
+        await call(
+            '/ui/config',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
+        );
+
+        expect((await get('arr.example.com:6060')).status).toBe(200);
+    });
+
+    /**
+     * The lockout the README warns about, demonstrated.
+     *
+     * Once a host is pinned, the config page is only reachable *through that
+     * host* — so the browser you pinned from stops working if you pinned the
+     * wrong name. Undoing it therefore has to come from an allowed Host, which
+     * is why the second save below sets the header explicitly. From a real
+     * browser with no matching name, the only way back is editing config.yaml.
+     */
+    it('locks out an unlisted host, and can be undone from a listed one', async () => {
+        await signIn();
+        await call(
+            '/ui/config',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
+        );
+        expect((await get('other.example.com')).status).toBe(403);
+
+        // Even the config page itself is unreachable from an unlisted host.
+        expect((await call('/ui/config', { headers: { host: 'other.example.com' } })).status).toBe(403);
+
+        const page = await (await call('/ui/config', { headers: { host: 'arr.example.com' } })).text();
+        const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+        await call('/ui/config', {
+            ...form({ csrf, 'auth.username': 'admin', 'auth.allowed_hosts': '' }),
+            headers: {
+                'content-type': 'application/x-www-form-urlencoded',
+                host: 'arr.example.com'
+            }
+        });
+
+        expect((await get('other.example.com')).status).toBe(200);
+    });
+});
+
 describe('logs and audit', () => {
     it('serves log rows as JSON', async () => {
         logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 'hello', service: 'radarr' }));
@@ -311,25 +378,61 @@ describe('logs and audit', () => {
         expect(body.rows.some(r => r.msg === 'hello')).toBe(true);
     });
 
-    it('filters the log stream by service', async () => {
-        logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 'r', service: 'radarr' }));
-        logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 's', service: 'sonarr' }));
-        await signIn();
+    const seedLogs = () => {
+        logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 'radarr-info', service: 'radarr' }));
+        logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 'sonarr-info', service: 'sonarr' }));
+        logs.write(JSON.stringify({ level: 50, time: Date.now(), msg: 'sonarr-error', service: 'sonarr' }));
+    };
 
-        const body = (await (await call('/ui/logs.json?service=sonarr&level=10')).json()) as {
-            rows: { msg: string }[];
-        };
-        expect(body.rows.map(r => r.msg)).toEqual(['s']);
+    const streamRows = async (query: string): Promise<string[]> => {
+        const body = (await (await call(`/ui/logs.json${query}`)).json()) as { rows: { msg: string }[] };
+        return body.rows.map(r => r.msg).sort();
+    };
+
+    // The three streams `logger.ts` has promised since Phase 1.
+    it('the "all" stream returns everything', async () => {
+        seedLogs();
+        await signIn();
+        expect(await streamRows('?stream=all')).toEqual(['radarr-info', 'sonarr-error', 'sonarr-info']);
+    });
+
+    it('the "problems" stream returns only warnings and errors', async () => {
+        seedLogs();
+        await signIn();
+        expect(await streamRows('?stream=problems')).toEqual(['sonarr-error']);
+    });
+
+    it('the "by service" stream returns one service at every level', async () => {
+        seedLogs();
+        await signIn();
+        expect(await streamRows('?stream=service&service=sonarr')).toEqual(['sonarr-error', 'sonarr-info']);
+    });
+
+    // Picking a service and then switching to Problems must not keep filtering.
+    it('ignores a service on a stream that is not the by-service one', async () => {
+        seedLogs();
+        await signIn();
+        expect(await streamRows('?stream=all&service=sonarr')).toHaveLength(3);
+    });
+
+    it('falls back to the first service that logged, so the tab is never blank', async () => {
+        seedLogs();
+        await signIn();
+        expect(await streamRows('?stream=service')).toEqual(['radarr-info']);
+    });
+
+    it('falls back to the all stream when asked for one that does not exist', async () => {
+        seedLogs();
+        await signIn();
+        expect(await streamRows('?stream=nonsense')).toHaveLength(3);
     });
 
     it('ignores a service filter that is not a real service id', async () => {
-        logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 'r', service: 'radarr' }));
+        seedLogs();
         await signIn();
-
-        const body = (await (await call('/ui/logs.json?service=%27%20OR%201=1--&level=10')).json()) as {
-            rows: unknown[];
-        };
-        expect(body.rows.length).toBeGreaterThan(0);
+        const rows = await streamRows('?stream=service&service=%27%20OR%201=1--');
+        // Falls back to the first real service rather than reaching the store.
+        expect(rows).toEqual(['radarr-info']);
     });
 
     it('renders the audit page', async () => {

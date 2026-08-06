@@ -20,17 +20,14 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
   broken and what to do about it, and read the logs and the write audit — no
   hand-edited YAML, no restart.
 
-> ### Status: 0.5 — writes, opt-in and previewed
+> ### Status: 0.6 — a config page that diagnoses
 >
-> Six write tools behind per-service permission tiers, each previewing exactly
-> what it would do before it does it, and recording every attempt — applied,
-> refused or failed — in an audit trail. `get_library` and `diagnose` from 0.4
-> still do the correlation work. See [the roadmap](#roadmap).
->
-> **On `main`, ahead of the 0.5 tag:** the [config UI](#config-ui) — a
-> dashboard, connection tests that diagnose rather than pass or fail, log
-> streams, the write audit, and configuration editing that applies without a
-> restart. Released images tagged `0.5` still need hand-edited YAML.
+> Add your services from a browser and see what is broken and why: connection
+> tests report the same `kind`, `detail` and `remedy` the tools do, rather than
+> a red cross you then have to investigate. Saving applies immediately, with no
+> restart. Log streams and the write audit are on the same page. The writes
+> from 0.5 and the correlation from 0.4 are unchanged underneath.
+> See [the roadmap](#roadmap).
 
 ## Services
 
@@ -205,7 +202,7 @@ none, **it refuses and lists them** rather than picking:
 ```yaml
 services:
   arr-mcp:
-    image: ghcr.io/bardesss/arr-mcp:0.5
+    image: ghcr.io/bardesss/arr-mcp:0.6
     ports: ['6060:6060']
     volumes: ['./config:/config']
     environment:
@@ -263,9 +260,14 @@ from Radarr/Sonarr alone.
 A misspelled key, an unknown service, or an `api_key` on Transmission fails at
 startup with the offending field named, rather than being silently ignored.
 
-Changes saved from the config UI take effect immediately. A change you make by
-hand-editing the file still needs a restart, because nothing is watching the
-file — the UI reloads because it knows it just wrote.
+Changes saved from the config UI take effect immediately — every field,
+including `allowed_hosts`. A change you make by hand-editing the file still
+needs a restart, because nothing is watching the file; the UI reloads because
+it knows it just wrote.
+
+One thing to be careful with: pinning `allowed_hosts` applies at once, so a
+wrong hostname locks you out of the page you would fix it from. Recover by
+editing `config.yaml` by hand and restarting.
 
 ## Config UI
 
@@ -273,15 +275,18 @@ file — the UI reloads because it knows it just wrote.
 
 | Page | What it is for |
 | --- | --- |
-| Dashboard | Every service tested live, with the bearer token for your MCP client |
+| Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and the bearer token for your MCP client |
 | Configuration | Add, edit and remove services; change credentials |
-| Logs | The last few thousand lines, filtered by level and by service |
+| Logs | Three streams — all activity, problems only, or one service |
 | Write audit | Every write attempt — applied, previewed, refused or failed |
 
 **Connection tests diagnose rather than pass or fail.** A service that is down
 says what is wrong and what to do about it — the same `kind`, `detail` and
 `remedy` the MCP tools return — instead of showing a red cross you then have to
-investigate.
+investigate. The dashboard answers the same four questions `stack_health` does,
+from the same code: is it reachable, is anything reporting a problem, is a disk
+filling up, and when did each library last finish a scan. A stale scan is the
+usual reason something downloaded is still not playable.
 
 **Secrets never come back out.** API keys, the Transmission password and the UI
 password all render as empty fields meaning *unchanged*, so a saved page or a
@@ -307,7 +312,7 @@ Put it behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 | 0.3 | The remaining seven service adapters and ten read tools |
 | 0.4 | Cross-service correlation: identity resolver, three-way library join, `diagnose` |
 | 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation |
-| 0.6 | Web config page: dashboard, diagnosing connection tests, log streams, config editing with hot reload — on `main`, unreleased |
+| 0.6 | Web config page: dashboard, diagnosing connection tests, log streams, config editing with hot reload |
 | 0.7 → 1.0 | Metadata providers, MCP resources and prompts |
 
 Each version is a self-contained, shippable slice — the goal is that 0.4 already

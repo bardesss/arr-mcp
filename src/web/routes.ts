@@ -3,7 +3,7 @@ import { saveConfig } from '../config/save.ts';
 import { ServiceIdSchema, type Config, type ServiceId } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
-import { LEVELS, type LogStore } from '../core/logs.ts';
+import type { LogStore } from '../core/logs.ts';
 import type { Runtime } from '../core/runtime.ts';
 import {
     clearedSessionCookie,
@@ -15,9 +15,18 @@ import {
     SESSION_TTL_MS,
     verifyPassword
 } from '../core/session.ts';
+import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
 import { configPage, SERVICE_IDS } from './configPage.ts';
-import { auditPage, dashboardPage, loginPage, logsPage, type AuditRow } from './pages.ts';
+import {
+    auditPage,
+    dashboardPage,
+    loginPage,
+    logsPage,
+    LOG_STREAMS,
+    type AuditRow,
+    type LogStreamKey
+} from './pages.ts';
 
 export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; name: string; version: string };
 
@@ -85,18 +94,26 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (guard(c) === undefined) return c.redirect('/ui/login', 302);
 
         const snapshot = runtime.current;
-        // Live, in parallel: a dashboard showing cached status is a dashboard
-        // that tells you a dead service is fine. `testConnection` never throws
-        // (services/types.ts), so one unreachable service cannot fail the page.
-        const diagnoses = await Promise.all(snapshot.adapters.map(a => a.testConnection()));
+
+        // Gathered through `buildStackHealth`, the same function `stack_health`
+        // answers from, rather than by calling the adapters again here. Two
+        // implementations of "is the stack healthy" is how the page and the
+        // tool come to disagree — the same reason §8 keeps one library join.
+        // It is live, not cached: a dashboard showing cached status is one
+        // that tells you a dead service is fine, and it degrades rather than
+        // failing when a service is unreachable.
+        const health = await buildStackHealth(snapshot.adapters, { detail: 'full', limit: 50 });
         const rows = audit.recent(500) as { outcome: string }[];
 
         return c.html(
             dashboardPage({
                 version,
-                diagnoses,
+                diagnoses: health.services,
                 configured: snapshot.adapters.map(a => a.id),
                 bearerToken: snapshot.config.auth.bearer_token,
+                disks: health.disks.items,
+                failures: health.failures.items,
+                scans: health.scans,
                 writeCounts: {
                     applied: rows.filter(r => r.outcome === 'applied').length,
                     denied: rows.filter(r => r.outcome === 'denied').length,
@@ -111,16 +128,16 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.get('/ui/logs', c => {
         if (guard(c) === undefined) return c.redirect('/ui/login', 302);
 
-        const { minLevel, service } = logQuery(c);
-        const stream = `/ui/logs.json?level=${minLevel}&service=${encodeURIComponent(service ?? '')}`;
+        const { stream, minLevel, service } = logQuery(c, logs);
+        const url = `/ui/logs.json?stream=${stream}&service=${encodeURIComponent(service ?? '')}`;
 
         return c.html(
             logsPage({
                 version,
                 services: logs.services(),
                 selectedService: service ?? '',
-                minLevel,
-                streamUrl: stream,
+                stream,
+                streamUrl: url,
                 rows: logs.recent({ minLevel, service, limit: 300 })
             })
         );
@@ -131,7 +148,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.get('/ui/logs.json', c => {
         if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401);
 
-        const { minLevel, service } = logQuery(c);
+        const { minLevel, service } = logQuery(c, logs);
         return c.json({ rows: logs.recent({ minLevel, service, limit: 300 }) }, 200, NO_STORE);
     });
 
@@ -225,15 +242,36 @@ function sessionOf(c: Context, runtime: Runtime): string | undefined {
     return runtime.sessions.verify(token).valid ? token : undefined;
 }
 
-function logQuery(c: Context): { minLevel: number; service: ServiceId | undefined } {
-    const level = Number(c.req.query('level'));
-    const raw = c.req.query('service') ?? '';
-    const parsed = ServiceIdSchema.safeParse(raw);
+/**
+ * Resolves which of the three streams was asked for, and what that means as a
+ * query.
+ *
+ * The service filter is parsed through `ServiceIdSchema`, so an unknown value
+ * becomes "no filter" rather than reaching the store — the ids are a closed
+ * set, and validating against it costs nothing.
+ *
+ * The "by service" stream with no service chosen defaults to the first that
+ * has actually logged, so the tab is never a blank page with a dropdown.
+ */
+function logQuery(
+    c: Context,
+    logs: LogStore
+): { stream: LogStreamKey; minLevel: number; service: ServiceId | undefined } {
+    const requested = c.req.query('stream') ?? 'all';
+    const stream = LOG_STREAMS.find(s => s.key === requested) ?? LOG_STREAMS[0];
 
-    return {
-        minLevel: Number.isFinite(level) && level > 0 ? level : LEVELS.info,
-        service: parsed.success ? parsed.data : undefined
-    };
+    const parsed = ServiceIdSchema.safeParse(c.req.query('service') ?? '');
+    let service = parsed.success ? parsed.data : undefined;
+
+    if (stream.key === 'service' && service === undefined) {
+        const first = ServiceIdSchema.safeParse(logs.services()[0] ?? '');
+        service = first.success ? first.data : undefined;
+    }
+    // Only the by-service stream filters by service; picking one and then
+    // switching to Problems must not silently keep filtering.
+    if (stream.key !== 'service') service = undefined;
+
+    return { stream: stream.key, minLevel: stream.minLevel, service };
 }
 
 /**

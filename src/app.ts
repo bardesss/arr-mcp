@@ -46,21 +46,37 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     // We bind 0.0.0.0 because the container must be reachable across the LAN,
     // which drops the SDK's default localhost Host/Origin validation.
     //
-    // `allowedHosts` must be OMITTED, not empty, when the user has pinned no
-    // hostnames: the adapter gates the middleware on `if (allowedHosts)`, and
-    // `[]` is truthy — so passing an empty array installs validation with an
-    // empty allow-list and rejects *every* request with 403. Authentication is
-    // what protects us here; Host pinning is an extra a reverse-proxy user can
-    // opt into.
+    // `allowedHosts` is deliberately NOT passed to the adapter, even though it
+    // accepts one. The adapter installs its middleware when the app is
+    // constructed, which would freeze the value at build time — so pinning a
+    // hostname from the config UI would silently do nothing until a restart,
+    // and that is the one kind of security setting that must never appear to
+    // have applied when it has not.
     //
-    // Read once, at build time, unlike everything else: the Hono adapter
-    // installs this middleware when the app is constructed, so a reload cannot
-    // change it. Pinning hostnames therefore still needs a restart, which is
-    // documented — it is a transport concern, not a service one.
-    const allowedHosts = runtime.config.auth.allowed_hosts;
-    const app = createMcpHonoApp({
-        host: '0.0.0.0',
-        ...(allowedHosts.length > 0 ? { allowedHosts } : {})
+    // Validating here instead means the list is read from the runtime on every
+    // request, like the bearer token, and takes effect the moment it is saved.
+    const app = createMcpHonoApp({ host: '0.0.0.0' });
+
+    /**
+     * An empty list means "accept any Host", which is the right default for a
+     * LAN container reached by IP — and the reason the adapter's own option
+     * could not be used naively: it gates on `if (allowedHosts)`, and `[]` is
+     * truthy, so an empty array installed validation with an empty allow-list
+     * and rejected *every* request with 403. A container that rejects 100% of
+     * traffic looks healthy until someone uses it.
+     */
+    app.use('*', async (c, next) => {
+        const allowed = runtime.config.auth.allowed_hosts;
+        if (allowed.length === 0) return next();
+
+        // Compared without the port: a pinned `arr.example.com` should not stop
+        // working because the browser sent `arr.example.com:6060`.
+        const host = (c.req.header('host') ?? '').toLowerCase();
+        const bare = host.split(':')[0] ?? '';
+        if (allowed.some(a => a.toLowerCase() === host || a.toLowerCase() === bare)) return next();
+
+        logger.warn({ host, ip: c.req.header('x-forwarded-for') ?? 'unknown' }, 'rejected request with an unlisted Host');
+        return c.text('forbidden: Host not allowed', 403);
     });
 
     app.get('/healthz', c => c.json({ status: 'ok', name: NAME, version: VERSION }));
