@@ -160,4 +160,40 @@ describe('LibraryLoader', () => {
         expect(snapshot.index.size()).toBe(0);
         expect(snapshot.degraded).toEqual([]);
     });
+
+    // Whole-phase review, item 1: presence must not assert arr_only across a
+    // Jellyfin half this loader knows it never gathered — degraded or
+    // unconfigured alike. Reproduced against LibraryLoader (not just
+    // LibraryIndex directly) because it is this class that has to notice.
+    describe('presence honesty when Jellyfin cannot contribute (item 1)', () => {
+        it('reports every *arr item as unknown, not arr_only, when Jellyfin is configured but degraded', async () => {
+            const broken = stub('jellyfin', {
+                listUserLibrary: async () => {
+                    throw new ServiceError('Unreachable', 'jellyfin', 'connection refused');
+                }
+            });
+            const snapshot = await new LibraryLoader([radarr(), broken], identity(someone)).load();
+
+            expect(snapshot.degraded).toEqual(['jellyfin']);
+            expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('unknown');
+        });
+
+        it('reports every *arr item as unknown, not arr_only, when Jellyfin is not configured at all', async () => {
+            // No jellyfin adapter at all — get_library's arr_only claim ("Jellyfin
+            // cannot see it") would be nonsensical here: there is no Jellyfin.
+            const snapshot = await new LibraryLoader([radarr()], undefined).load();
+
+            expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('unknown');
+        });
+
+        it('still reports arr_only when Jellyfin is configured and healthy — the fix must not blunt the real signal', async () => {
+            const snapshot = await new LibraryLoader(
+                [radarr(), jellyfin({ Someone: [] })],
+                identity(someone)
+            ).load();
+
+            expect(snapshot.degraded).toEqual([]);
+            expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('arr_only');
+        });
+    });
 });

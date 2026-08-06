@@ -105,6 +105,16 @@ export class LibraryLoader {
         }
 
         const { items, degraded, counts } = await gather(sources);
-        return { index: LibraryIndex.build(items), degraded, counts };
+
+        // `LibraryIndex` cannot tell "Jellyfin looked and found nothing" from
+        // "Jellyfin was never gathered" on its own (resolver.ts's
+        // `BuildOptions` doc) — this is the one place that knows which,
+        // because it owns the fetch. Gathered means both configured (a
+        // `jellyfin` source was even pushed above) *and* successful (its id
+        // is not in `degraded` — covering an outright fetch failure and the
+        // synthetic no-user-resolved rejection above alike).
+        const jellyfinGathered = jellyfin !== undefined && !degraded.includes(jellyfin.id);
+
+        return { index: LibraryIndex.build(items, { jellyfinGathered }), degraded, counts };
     }
 }
