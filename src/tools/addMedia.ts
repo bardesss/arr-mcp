@@ -46,14 +46,25 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId): S
 /**
  * Resolves one of several options, or refuses in a way that can be acted on.
  *
- * The refusal lists what is available. A model told only "ambiguous" has to
- * guess or give up; a model handed the four profile names can ask the user
- * which, or pick the one they already mentioned.
+ * Exact matches are tried first and, crucially, a **loose match that is
+ * ambiguous is a refusal, not a coin toss**. Two live failures shaped this:
+ *
+ * - Asking for quality profile `8` selected `HD-1080p` (id 4), because the
+ *   old single predicate `id === requested || name.includes(requested)` let
+ *   the *name* branch fire on the digit: "hd-1080p" contains "8". A film was
+ *   added and a 1080p release grabbed against an explicit request for 2160p.
+ *   A numeric request now only ever matches an id.
+ * - `2160p Balanced` is a prefix of `2160p Balanced NL`, so a substring match
+ *   silently picked whichever came first.
+ *
+ * Both are the same failure the "several, none named" refusal below exists to
+ * prevent — a guess presented as a decision — and both are worse for arriving
+ * while looking like the tool had understood.
  */
 function chooseOne<T>(
     options: readonly T[],
     requested: string | undefined,
-    matches: (option: T, requested: string) => boolean,
+    match: { exact: (option: T, requested: string) => boolean; loose: (option: T, requested: string) => boolean },
     describe: (option: T) => string,
     what: string,
     service: ServiceId
@@ -65,13 +76,23 @@ function chooseOne<T>(
     }
 
     if (requested !== undefined) {
-        const found = options.find(o => matches(o, requested));
-        if (found === undefined) {
+        const exact = options.filter(o => match.exact(o, requested));
+        if (exact.length === 1) return exact[0]!;
+
+        // Only consulted when nothing matched exactly, so an exact name can
+        // never be beaten by another option that merely contains it.
+        const loose = exact.length === 0 ? options.filter(o => match.loose(o, requested)) : exact;
+        if (loose.length === 1) return loose[0]!;
+
+        if (loose.length === 0) {
             throw new ServiceError('NotFound', service, `no ${what} on ${service} matches "${requested}"`, {
                 remedy: `Available: ${options.map(describe).join('; ')}.`
             });
         }
-        return found;
+
+        throw new ServiceError('NotFound', service, `"${requested}" matches more than one ${what} on ${service}`, {
+            remedy: `Be exact — it matches: ${loose.map(describe).join('; ')}. Naming the id is unambiguous.`
+        });
     }
 
     // Exactly one is not a choice, so making it silently is not a guess.
@@ -82,12 +103,26 @@ function chooseOne<T>(
     });
 }
 
+/** A request made entirely of digits is an id and nothing else. Without this,
+ *  "8" matches the *name* "HD-1080p". */
+const isNumeric = (value: string) => /^\d+$/.test(value);
+
 const GIB = 1024 ** 3;
 const freeSpace = (folder: RootFolder): string =>
     folder.freeSpaceBytes === undefined ? 'free space unknown' : `${(folder.freeSpaceBytes / GIB).toFixed(0)} GB free`;
 
-const profileMatches = (p: QualityProfile, requested: string): boolean =>
-    String(p.id) === requested || p.name.toLowerCase().includes(requested.toLowerCase());
+const PROFILE_MATCH = {
+    exact: (p: QualityProfile, requested: string): boolean =>
+        String(p.id) === requested || p.name.toLowerCase() === requested.toLowerCase(),
+    // A numeric request is an id, full stop — never a substring of a name.
+    loose: (p: QualityProfile, requested: string): boolean =>
+        !isNumeric(requested) && p.name.toLowerCase().includes(requested.toLowerCase())
+};
+
+const FOLDER_MATCH = {
+    exact: (f: RootFolder, requested: string): boolean => f.path.toLowerCase() === requested.toLowerCase(),
+    loose: (f: RootFolder, requested: string): boolean => f.path.toLowerCase().includes(requested.toLowerCase())
+};
 
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     registerWriteTool(server, context, {
@@ -146,8 +181,8 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             const profile = chooseOne(
                 profiles,
                 quality_profile,
-                profileMatches,
-                p => `${p.name} (id ${p.id})`,
+                PROFILE_MATCH,
+                p => `${p.display} (id ${p.id})`,
                 'quality profile',
                 service
             );
@@ -155,14 +190,14 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             const folder = chooseOne(
                 folders,
                 root_folder,
-                (f, requested) => f.path.toLowerCase().includes(requested.toLowerCase()),
+                FOLDER_MATCH,
                 f => `${f.display} (${freeSpace(f)})`,
                 'root folder',
                 service
             );
 
             const effects = [
-                `Adds ${label} to ${service} under ${folder.display} (${freeSpace(folder)}), quality profile ${profile.name}.`,
+                `Adds ${label} to ${service} under ${folder.display} (${freeSpace(folder)}), quality profile ${profile.display} (id ${profile.id}).`,
                 monitored
                     ? 'Monitors it, so it will be grabbed when a matching release appears.'
                     : 'Adds it unmonitored, so nothing will be grabbed until you monitor it.'

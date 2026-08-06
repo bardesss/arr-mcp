@@ -333,7 +333,15 @@ export interface QueueRemoveCapable {
 export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>
     typeof (a as Partial<QueueRemoveCapable>).removeQueueItem === 'function';
 
-export type QualityProfile = { id: number; name: string };
+/**
+ * `name` raw and `display` fenced, for the same reason `RootFolder` splits its
+ * path — and discovered the same way, by a match that could never succeed.
+ * `add_media` matches a requested profile against `name`; comparing against
+ * the fenced form meant an exact-name match was structurally impossible, so
+ * every name request fell through to substring matching, which is ambiguous
+ * exactly where precision matters most.
+ */
+export type QualityProfile = { id: number; name: string; display: string };
 
 /**
  * Two forms of the same string, deliberately.
