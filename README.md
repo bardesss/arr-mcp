@@ -27,8 +27,8 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
 >
 > **On `main`, ahead of the 0.4 tag:** writes, as described under
 > [Writes](#writes) — permission tiers, `dry_run`, confirmation tokens and the
-> audit trail, with `trigger_search`, `remove_queue_item` and `delete_media`.
-> Released images tagged `0.4` are still read-only.
+> audit trail, with five write tools covering searches, the download queue,
+> media and Seerr requests. Released images tagged `0.4` are still read-only.
 
 ## Services
 
@@ -56,6 +56,8 @@ All eight are supported as of 0.3.
 | `trigger_search` | Go look for this again |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `delete_media` | Remove this film or series, optionally from disk |
+| `respond_to_request` | Approve or decline what someone asked for |
+| `delete_request` | Drop a request record entirely |
 
 Every tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
 `limit`, and reports `{ total, returned, truncated }` — a truncated answer
@@ -70,7 +72,7 @@ only — a series has no series-level quality, and Sonarr carries one flat
 TVDB rating rather than per-source scores. Asking either of series returns a
 refusal explaining why, not an empty list.
 
-The first thirteen are reads. The last three write, and are gated as described
+The first thirteen are reads. The last five write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded
 either way.
 
@@ -118,8 +120,16 @@ a film but refuses to re-monitor it.
 | Tool | Tier | Needs |
 | --- | --- | --- |
 | `trigger_search` | safe | `safe_write` |
+| `respond_to_request` | safe | `safe_write` |
 | `remove_queue_item` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
+| `delete_request` | destructive | `destructive` |
+
+Approving and declining a request are one tool and deleting one is another,
+because that is where the tier boundary falls: a verdict can be reversed, a
+deleted record cannot. `delete_request` removes the *request*, never the media —
+anything already downloaded stays on disk, and the preview says so before you
+confirm rather than after.
 
 `remove_queue_item` is destructive rather than safe because it deletes partial
 data, and because `blocklist: true` durably teaches Radarr or Sonarr to refuse a

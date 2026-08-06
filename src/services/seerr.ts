@@ -3,12 +3,15 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import { logger } from '../core/logger.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
     type DiscoverCapable,
     type MediaRequest,
+    type RequestManageCapable,
     type RequestStatus,
+    type RequestVerdict,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
@@ -27,6 +30,13 @@ type RawSearchResult = {
 };
 
 type RawStatus = { version?: string; commitTag?: string };
+
+/**
+ * `/movie/{tmdbId}` and `/tv/{tmdbId}` in one shape. Upstream names the title
+ * differently per media type — `title`/`releaseDate` for films, `name`/
+ * `firstAirDate` for series — so both spellings are read.
+ */
+type RawMediaDetails = { title?: string; name?: string; releaseDate?: string; firstAirDate?: string };
 type RawRequest = {
     id?: number;
     status?: number;
@@ -55,6 +65,23 @@ const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 
  */
 const SEERR_FILTERS_SERVER_SIDE = true;
 
+/**
+ * A release year, or nothing.
+ *
+ * `Number(''.slice(0, 4))` is **0**, not NaN, so a `Number.isFinite` guard
+ * happily lets it through — which is how a live preview came out reading
+ * "The Origin of Hide and Seek (0)". Seerr returns an empty `releaseDate` for
+ * anything TMDB has no date for, which on a real instance is common. Requiring
+ * four leading digits and a plausible value is what makes the absent case
+ * absent rather than zero.
+ */
+const yearOf = (date: string | undefined): number | undefined => {
+    if (date === undefined || !/^\d{4}/.test(date)) return undefined;
+    const year = Number(date.slice(0, 4));
+    // 1878 is the first motion picture; anything below is a data error, not a film.
+    return year >= 1878 ? year : undefined;
+};
+
 /** Narrowed through a typed helper: an inline ternary widens this to `string`. */
 const mediaTypeOf = (value: string | undefined): MediaRequest['mediaType'] =>
     value === 'movie' || value === 'tv' ? value : 'unknown';
@@ -68,7 +95,9 @@ type RawUserPage = { results?: RawUser[] };
  */
 const nameOf = (u: RawUser): string | undefined => u.displayName ?? u.username ?? u.email?.split('@')[0];
 
-export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable, SearchCapable, DiscoverCapable {
+export class SeerrAdapter
+    implements ServiceAdapter, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable
+{
     readonly id: ServiceId = 'seerr';
     readonly #http: ServiceHttp;
 
@@ -100,22 +129,7 @@ export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable, Searc
 
         return (page.results ?? [])
             .filter((r): r is RawRequest & { id: number } => typeof r.id === 'number')
-            .map(r => ({
-                service: this.id,
-                id: r.id,
-                status: STATUS[r.status ?? -1] ?? ('unknown' as const),
-                mediaType: mediaTypeOf(r.media?.mediaType),
-                ...(r.media?.tmdbId === undefined ? {} : { tmdbId: r.media.tmdbId }),
-                // Seerr's MediaInfo carries tvdbId nullable (specs/seerr.json):
-                // populated for tv media, always null for movies. Matching the
-                // movie fixture, which carries the key present but null.
-                ...(r.media?.tvdbId === undefined || r.media?.tvdbId === null ? {} : { tvdbId: r.media.tvdbId }),
-                ...(r.media?.title === undefined
-                    ? {}
-                    : { title: fenceText(r.media.title, { service: this.id, field: 'title' }) }),
-                requestedBy: nameOf(r.requestedBy ?? {}) ?? 'unknown',
-                ...(r.createdAt === undefined ? {} : { requestedAt: r.createdAt })
-            }))
+            .map(r => this.#toRequest(r))
             // The in-memory user filter runs unconditionally, even when the
             // server filtered too. It costs nothing, and it means flipping
             // SEERR_FILTERS_SERVER_SIDE can never silently widen what a user sees.
@@ -123,15 +137,117 @@ export class SeerrAdapter implements ServiceAdapter, UserDirectoryCapable, Searc
             .filter(r => opts.status === undefined || r.status === opts.status);
     }
 
+    /**
+     * Shared by the read above and the write below, so a request reported by
+     * `get_requests` and the same request reported back by `respond_to_request`
+     * cannot disagree about their own shape.
+     */
+    #toRequest(r: RawRequest & { id: number }): MediaRequest {
+        return {
+            service: this.id,
+            id: r.id,
+            status: STATUS[r.status ?? -1] ?? ('unknown' as const),
+            mediaType: mediaTypeOf(r.media?.mediaType),
+            ...(r.media?.tmdbId === undefined ? {} : { tmdbId: r.media.tmdbId }),
+            // Seerr's MediaInfo carries tvdbId nullable (specs/seerr.json):
+            // populated for tv media, always null for movies. Matching the
+            // movie fixture, which carries the key present but null.
+            ...(r.media?.tvdbId === undefined || r.media?.tvdbId === null ? {} : { tvdbId: r.media.tvdbId }),
+            ...(r.media?.title === undefined
+                ? {}
+                : { title: fenceText(r.media.title, { service: this.id, field: 'title' }) }),
+            requestedBy: nameOf(r.requestedBy ?? {}) ?? 'unknown',
+            ...(r.createdAt === undefined ? {} : { requestedAt: r.createdAt })
+        };
+    }
+
+    /**
+     * Approving is what actually sets a download in motion: Seerr hands the
+     * request to Radarr or Sonarr, which searches and grabs. It is still the
+     * `safe` tier because the state is reversible from Seerr's own UI and by
+     * this same call — but `respond_to_request`'s preview says what it will
+     * cost, because "approve" reads much cheaper than it is.
+     */
+    async respondToRequest(id: string, verdict: RequestVerdict): Promise<MediaRequest> {
+        const requestId = Number(id);
+        if (!Number.isInteger(requestId)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a Seerr request id`, {
+                remedy: 'Seerr request ids are integers. Take one from get_requests.'
+            });
+        }
+
+        // Seerr wants a POST with no meaningful body; it rejects one with no
+        // content-type at all, so an empty object is sent rather than nothing.
+        const updated = await this.#http.post<RawRequest>(`/api/v1/request/${requestId}/${verdict}`, {});
+
+        // The response is the updated request. If it comes back without an id
+        // we cannot honestly report what it became, and saying "approved"
+        // anyway would be a claim we did not verify.
+        if (typeof updated.id !== 'number') {
+            throw new ServiceError('UpstreamError', this.id, `${verdict} returned no request in its response`, {
+                remedy: 'The change may still have been applied — call get_requests to check before retrying.'
+            });
+        }
+        return this.#toRequest(updated as RawRequest & { id: number });
+    }
+
+    /**
+     * One extra call, made only by the write previews and deliberately **not**
+     * by `getRequests`: a 500-row request list would mean 500 lookups, while a
+     * preview concerns exactly one request and is the place a real title is
+     * worth paying for.
+     *
+     * Movies and series answer on different paths with differently-named title
+     * fields — `title`/`releaseDate` against `name`/`firstAirDate` — which is
+     * why this cannot be one generic fetch.
+     */
+    async describeRequestMedia(request: MediaRequest): Promise<{ title: string; year?: number } | undefined> {
+        if (request.tmdbId === undefined || request.mediaType === 'unknown') return undefined;
+
+        const path = request.mediaType === 'movie' ? `/api/v1/movie/${request.tmdbId}` : `/api/v1/tv/${request.tmdbId}`;
+
+        try {
+            const raw = await this.#http.get<RawMediaDetails>(path);
+            const title = raw.title ?? raw.name;
+            if (title === undefined || title === '') return undefined;
+
+            const year = yearOf(raw.releaseDate ?? raw.firstAirDate);
+
+            return {
+                title: fenceText(title, { service: this.id, field: 'title' }),
+                ...(year === undefined ? {} : { year })
+            };
+        } catch (err) {
+            // Degrades rather than propagating: a lookup failure must not stop
+            // someone deleting a request. The preview says the title is
+            // unavailable instead of inventing one.
+            logger.warn({ service: this.id, err, request: request.id }, 'could not resolve a title for a request');
+            return undefined;
+        }
+    }
+
+    async deleteRequest(id: string): Promise<void> {
+        const requestId = Number(id);
+        if (!Number.isInteger(requestId)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a Seerr request id`, {
+                remedy: 'Seerr request ids are integers. Take one from get_requests.'
+            });
+        }
+        await this.#http.delete(`/api/v1/request/${requestId}`);
+    }
+
     #toHit(r: RawSearchResult & { id: number }, kind: 'movie' | 'series'): SearchHit {
-        const date = r.releaseDate ?? r.firstAirDate;
+        // Same `yearOf` as the request lookup, and for the same reason: this
+        // path had the identical bug, so an undated title in search_media or
+        // discover_media has been reporting `year: 0` since 0.3.
+        const year = yearOf(r.releaseDate ?? r.firstAirDate);
         return {
             service: this.id,
             source: 'discover',
             kind,
             id: String(r.id),
             title: fenceText(r.title ?? r.name ?? '', { service: this.id, field: 'title' }),
-            ...(date === undefined ? {} : { year: Number(date.slice(0, 4)) }),
+            ...(year === undefined ? {} : { year }),
             ids: { tmdb: r.id }
         };
     }

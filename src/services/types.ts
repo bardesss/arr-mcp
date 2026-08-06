@@ -334,6 +334,39 @@ export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRe
     typeof (a as Partial<QueueRemoveCapable>).removeQueueItem === 'function';
 
 /**
+ * The two reversible verdicts on a request. Deliberately not including
+ * "delete": approving and declining move a request between states it can be
+ * moved back out of, and deleting destroys the record. That difference is a
+ * permission tier, so it is also a different capability method and a different
+ * tool.
+ */
+export type RequestVerdict = 'approve' | 'decline';
+
+export interface RequestManageCapable {
+    /** Returns the request as it stands afterwards, so the caller can report
+     *  what it became rather than what it asked for. */
+    respondToRequest(id: string, verdict: RequestVerdict): Promise<MediaRequest>;
+    deleteRequest(id: string): Promise<void>;
+    /**
+     * Resolves a human title for a request.
+     *
+     * Needed because Seerr's `/api/v1/request` payload carries **no title at
+     * all** — its `media` object is ids and service metadata only, confirmed
+     * against a live Seerr 3.4.1 and against the recorded fixture. So
+     * `MediaRequest.title` is undefined for every real request, and a write
+     * preview built from it alone says "request 19", which is not something
+     * anyone can meaningfully approve.
+     *
+     * Resolves undefined rather than throwing: a title lookup that fails must
+     * not block a user from deleting a request.
+     */
+    describeRequestMedia(request: MediaRequest): Promise<{ title: string; year?: number } | undefined>;
+}
+
+export const hasRequestManage = (a: ServiceAdapter): a is ServiceAdapter & RequestManageCapable =>
+    typeof (a as Partial<RequestManageCapable>).respondToRequest === 'function';
+
+/**
  * A whole-library read, shaped for the identity resolver rather than for a
  * tool. Phase 3 joins three of these into one index; nothing else consumes it.
  */

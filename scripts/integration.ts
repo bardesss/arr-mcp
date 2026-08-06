@@ -103,7 +103,13 @@ const hosts = hostsOf(config);
  * needs a real id would either fail the check forever or, worse, be given a
  * made-up id just to satisfy it.
  */
-const DYNAMIC_TOOLS: ToolName[] = ['trigger_search', 'remove_queue_item', 'delete_media'];
+const DYNAMIC_TOOLS: ToolName[] = [
+    'trigger_search',
+    'remove_queue_item',
+    'delete_media',
+    'respond_to_request',
+    'delete_request'
+];
 
 const missing = TOOL_NAMES.filter(
     name => !CASES.some(c => c.tool === name) && !DYNAMIC_TOOLS.includes(name)
@@ -188,12 +194,14 @@ async function run(tool: string, args: Record<string, unknown>, note?: string): 
 let libraryResult: ToolCallResult | undefined;
 let searchResult: ToolCallResult | undefined;
 let queueResult: ToolCallResult | undefined;
+let requestsResult: ToolCallResult | undefined;
 
 for (const { tool, args } of CASES) {
     const result = await run(tool, args);
     if (tool === 'get_library' && args.detail === 'standard') libraryResult = result;
     if (tool === 'search_media') searchResult = result;
     if (tool === 'get_queue') queueResult = result;
+    if (tool === 'get_requests') requestsResult = result;
 }
 
 /**
@@ -308,6 +316,30 @@ if (typeof queueItem?.service === 'string' && queueItem.id !== undefined) {
     // Routine, not a failure: a healthy stack with nothing downloading has an
     // empty queue most of the time.
     console.log('SKIP remove_queue_item — the queue is empty, so there is no real item to preview against.');
+}
+
+/**
+ * The Seerr pair, dry run only for the same reason as the two above —
+ * approving a request really does start a download, and deleting one really
+ * does destroy the record.
+ */
+const request = (requestsResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
+    | { id?: unknown }
+    | undefined;
+
+if (request?.id !== undefined) {
+    await run(
+        'respond_to_request',
+        { id: String(request.id), verdict: 'approve', dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+    await run(
+        'delete_request',
+        { id: String(request.id), dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    console.log('SKIP respond_to_request and delete_request — get_requests returned nothing to preview against.');
 }
 
 console.log(`\n${passes}/${passes + failures} calls succeeded.`);
