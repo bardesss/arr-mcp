@@ -443,18 +443,39 @@ function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepSt
  * a real, active failure is over-correction in the other direction (N7): it
  * is worth a mention, just not the verdict.
  *
- * The wording asserts a file already exists — true only when `fileIsOk`, so
- * callers gate this on that before including it. Without the gate, a
- * `request`/`managed` verdict for something with genuinely no file yet
- * (`monitored: false` *and* `hasFile: false`, with an unrelated queue row
- * happening to fault) would read "…is not monitored. (Also: Download
- * failed… This does not block the file already on disk…)" — asserting a
- * file that was never confirmed to exist.
+ * The wording changes on `fileIsOk`, rather than being suppressed by it
+ * (whole-phase review, item 3's second symptom). A `request`/`managed`
+ * verdict with genuinely no file yet (`monitored: false` *and*
+ * `hasFile: false`) and a faulted queue row used to go silent about that
+ * fault entirely — "…is not monitored." with a "turn monitoring on" remedy
+ * that is not just incomplete but actively wrong, while the real cause
+ * (`queueResult.step.detail`, e.g. "Download failed: news server refused")
+ * sat discarded. `fileIsOk` still decides *which sentence*: true asserts a
+ * file already exists ("does not block the file already on disk"), which
+ * would be a fabricated claim when there is no file — false instead flags
+ * the fault as the plausible actual cause of the verdict above it.
  */
-const queueAside = (queueResult: QueueResult): string =>
-    queueResult.remedy === undefined || queueResult.step.status !== 'blocked'
-        ? ''
-        : ` (Also: ${queueResult.step.detail} This does not block the file already on disk, but may be worth checking.)`;
+const queueAside = (queueResult: QueueResult, fileIsOk: boolean): string => {
+    if (queueResult.remedy === undefined || queueResult.step.status !== 'blocked') return '';
+    return fileIsOk
+        ? ` (Also: ${queueResult.step.detail} This does not block the file already on disk, but may be worth checking.)`
+        : ` (Also: ${queueResult.step.detail} There is no file on disk yet, so this may be the actual cause — worth checking before assuming the remedy above will fix it.)`;
+};
+
+/**
+ * The known one-line hedge (ledgered at Task 5, applied here at the
+ * whole-phase review): evidence genuinely cannot distinguish "an ended
+ * series, deliberately left unmonitored" or "a stale declined request" from
+ * "an ongoing series, accidentally unmonitored" — there is no correctness fix
+ * for that, only this disclosure. It fires only for `request`/`managed`
+ * verdicts on a series with a confirmed file already visible in Jellyfin:
+ * `excludeRequestManaged` already keeps a movie in this situation out of
+ * `request`/`managed` entirely (residual C1), so a movie can never reach this
+ * sentence, and "episodes you do not have yet" is always literally accurate
+ * here.
+ */
+const SERIES_FILE_VISIBLE_HEDGE =
+    ' (A file is already on disk and visible in Jellyfin — this may only affect episodes you do not have yet.)';
 
 /**
  * The top-level `Diagnosis.degraded` a caller sees, and the input to the
@@ -535,6 +556,11 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // why playback fails when the file is sitting right there. From this
     // point on only Jellyfin's visibility of that file matters.
     const fileIsOk = byStage.get('file')?.status === 'ok';
+    const libStep = byStage.get('library');
+    // The guard for `SERIES_FILE_VISIBLE_HEDGE`, below: a file confirmed on
+    // disk *and* confirmed visible in Jellyfin, independent of which verdict
+    // stage the file/library steps themselves ended up producing.
+    const libraryConfirmedOk = fileIsOk && libStep?.status === 'ok';
     // `fileIsOk` means something different for a series than for a movie.
     // A movie's `hasFile` is unambiguous: this exact file is or is not on
     // disk. A series' `hasFile` (`sonarr.ts`: `episodeFileCount > 0`) is
@@ -596,16 +622,14 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     const caveat = certain
         ? ''
         : ` Could not check: ${[...new Set(unchecked.map(s => byStage.get(s)?.service ?? s))].join(', ')}.`;
-    // Gated on `fileIsOk`, not on which stage ended up as the verdict: the
-    // sentence claims a file exists, so it must only appear when one was
-    // actually confirmed — true regardless of whether that confirmed file
-    // then made request/managed moot (`excludeRequestManaged`) or not (the
-    // series case above, where `request`/`managed` can still be the verdict
-    // even with a file on disk).
-    const aside = fileIsOk ? queueAside(queueResult) : '';
+    // `fileIsOk` still decides which of the two `queueAside` sentences
+    // applies (see its own doc comment) — it no longer decides whether one
+    // appears at all. A confirmed file is what lets the true wording say
+    // "does not block the file already on disk"; its absence gets the
+    // "may be the actual cause" wording instead, not silence.
+    const aside = queueAside(queueResult, fileIsOk);
 
     if (verdictStage === undefined) {
-        const libStep = byStage.get('library');
         // The positive claim "is available in Jellyfin and playable" is only
         // honest when `library` itself said `ok` — read the step, not just
         // whether Jellyfin is configured (C2): `certain: false` alone does
@@ -637,6 +661,16 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // headline), so `aside` only ever adds information here for a
     // non-queue verdict — same guard as the playable branch above.
     const summaryAside = blocking.stage === 'queue' ? '' : aside;
+    // Item 3's first symptom: a `request`/`managed` verdict outranking a
+    // library that is genuinely, confirmedly fine (`libraryConfirmedOk`) used
+    // to leave that fact sitting unmentioned in `steps`, nowhere in the
+    // summary a caller actually reads. Only `request`/`managed` — `file`,
+    // `queue`, `indexers`, `library` and `scan` are all cases where `library`
+    // is either not yet meaningful or is already the point.
+    const hedge =
+        libraryConfirmedOk && (blocking.stage === 'request' || blocking.stage === 'managed')
+            ? SERIES_FILE_VISIBLE_HEDGE
+            : '';
 
     return {
         query,
@@ -644,7 +678,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
         steps,
         verdict: {
             stage: blocking.stage,
-            summary: `${blocking.detail}${caveat}${summaryAside}`,
+            summary: `${blocking.detail}${caveat}${hedge}${summaryAside}`,
             ...(remedy === undefined ? {} : { remedy }),
             certain
         },

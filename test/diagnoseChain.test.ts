@@ -833,6 +833,45 @@ describe('buildChain — a series file signal is ambiguous, so request/managed s
         expect(d.verdict.remedy).toMatch(/monitor/i);
     });
 
+    it('hedges the managed verdict when a confirmed file is sitting right there, visible in Jellyfin (item 3, "the known hedge")', () => {
+        // Task 5's known, deliberately-deferred gap: evidence genuinely
+        // cannot distinguish "an ended show, deliberately unmonitored" from
+        // "an ongoing show, accidentally unmonitored" — no correctness fix
+        // exists, only this one-line disclosure. Before this fix, a complete,
+        // deliberately-unmonitored series verdicted `managed`, `certain:
+        // true`, remedy "turn monitoring on", while `library` sat at `ok` in
+        // the same `steps` array, unmentioned anywhere the caller reads.
+        const d = buildChain('some show', {
+            ...healthy(),
+            item: seriesOnDisk({ acquisition: { service: 'sonarr', monitored: false, hasFile: true } })
+        });
+        expect(stepFor(d, 'library')).toMatchObject({ status: 'ok' });
+        expect(d.verdict.summary).toMatch(/already on disk and visible in jellyfin/i);
+        expect(d.verdict.summary).toMatch(/episodes you do not have yet/i);
+    });
+
+    it('does not hedge the request verdict when the library step is not actually ok (degraded)', () => {
+        // The hedge asserts Jellyfin actually confirmed visibility — it must
+        // not fire merely because a file exists.
+        const d = buildChain('some show', {
+            ...healthy(),
+            item: seriesOnDisk(),
+            request: { status: 'pending' },
+            libraryDegraded: ['jellyfin']
+        });
+        expect(d.verdict.stage).toBe('request');
+        expect(d.verdict.summary).not.toMatch(/already on disk and visible in jellyfin/i);
+    });
+
+    it('does not hedge a movie in the identical shape — excludeRequestManaged already keeps it out of managed/request entirely', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: false, hasFile: true } })
+        });
+        expect(d.verdict.stage).not.toBe('managed');
+        expect(d.verdict.summary).not.toMatch(/already on disk and visible in jellyfin/i);
+    });
+
     it('blames the pending request — not "playable" — when seasons 1-4 are on disk and the season 5 request is pending', () => {
         const d = buildChain('some show', {
             ...healthy(),
@@ -874,7 +913,7 @@ describe('buildChain — a series file signal is ambiguous, so request/managed s
     });
 });
 
-describe('buildChain — the queue aside only appears once a file is actually confirmed (round 3)', () => {
+describe('buildChain — the queue aside is reworded, not suppressed, when there is genuinely no file yet (round 3 / whole-phase review item 3)', () => {
     it('does not claim a file already exists in the aside when managed is blocked and there genuinely is no file yet', () => {
         // Round 2's aside was gated on `blocking.stage !== 'queue'` alone,
         // not on whether a file had been confirmed at all — so a `managed`
@@ -882,7 +921,12 @@ describe('buildChain — the queue aside only appears once a file is actually co
         // row that happens to fault, produced: "radarr has it, but it is
         // not monitored. (Also: Download failed: unpack failed. This does
         // not block the file already on disk…)" — asserting a file that was
-        // never confirmed to exist.
+        // never confirmed to exist. Round 3 fixed that by suppressing the
+        // aside entirely whenever there is no file — which the whole-phase
+        // review found goes too far in the other direction (see the next
+        // test): the fault itself is real, current information, and
+        // `queueResult.step.detail` — here the actual cause — must not be
+        // silently discarded along with the false claim.
         const d = buildChain('some film', {
             ...healthy(),
             item: item({ acquisition: { service: 'radarr', monitored: false, hasFile: false } }),
@@ -900,7 +944,39 @@ describe('buildChain — the queue aside only appears once a file is actually co
             }
         });
         expect(d.verdict.stage).toBe('managed');
-        expect(d.verdict.summary).not.toMatch(/already on disk/i);
+        expect(d.verdict.summary).not.toMatch(/does not block the file already on disk/i);
+    });
+
+    it('still surfaces the queue fault detail — reworded, not dropped — when managed is blocked and there is no file yet', () => {
+        // Item 3's second symptom, reproduced verbatim: unmonitored, no file,
+        // a queue row reading "Download failed: news server refused" used to
+        // yield "radarr has it, but it is not monitored." with remedy "turn
+        // monitoring on" — an actively wrong remedy (turning monitoring back
+        // on does nothing about a failed grab) — while the real cause sat in
+        // `queueResult.step.detail`, entirely discarded by the old
+        // `fileIsOk ? queueAside(...) : ''` gate.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: { service: 'radarr', monitored: false, hasFile: false } }),
+            queue: {
+                items: [
+                    {
+                        service: 'sabnzbd',
+                        id: '1',
+                        title: queueTitle('sabnzbd', 'Some.Film.2026'),
+                        status: 'failed',
+                        errorMessage: 'news server refused'
+                    }
+                ],
+                partial: []
+            }
+        });
+        expect(d.verdict.stage).toBe('managed');
+        expect(d.verdict.remedy).toMatch(/monitor/i);
+        // The wrong-remedy risk is exactly why this must be visible: the real
+        // cause, right next to a remedy that will not fix it.
+        expect(d.verdict.summary).toMatch(/news server refused/i);
+        expect(d.verdict.summary).toMatch(/no file on disk yet/i);
     });
 });
 
