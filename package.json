@@ -21,7 +21,8 @@
     "test:watch": "vitest",
     "specs:fetch": "bash scripts/fetch-specs.sh",
     "codegen": "node scripts/codegen.mjs",
-    "capture": "node scripts/capture-fixtures.ts"
+    "capture": "node scripts/capture-fixtures.ts",
+    "integration": "node scripts/integration.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.0",

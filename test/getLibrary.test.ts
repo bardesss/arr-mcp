@@ -173,6 +173,61 @@ describe('get_library rating filtering', () => {
     });
 });
 
+describe('get_library rating filtering — cross-source scale', () => {
+    // `min_rating` is documented 0-10 for every source, but Radarr/Sonarr pass
+    // Rotten Tomatoes and Metacritic through on their site's native 0-100
+    // scale — nothing upstream rescales them. A raw comparison against a 0-10
+    // threshold makes "rated at all" read as "rated 8+" for those two sources:
+    // a real library measured 136 of 136 metacritic-rated films and 121 of 121
+    // rottenTomatoes-rated films "passing" an 8+ filter.
+    it('fails a metacritic film below min_rating once rescaled off its 0-100 scale (64 -> 6.4)', async () => {
+        const items = [film({ ids: { tmdb: 1 }, ratings: { metacritic: 64 } })];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, min_rating: 8, rating_source: 'metacritic' });
+        expect(result.total).toBe(0);
+    });
+
+    it('passes a metacritic film at/above min_rating once rescaled (95 -> 9.5)', async () => {
+        const items = [film({ ids: { tmdb: 1 }, ratings: { metacritic: 95 } })];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, min_rating: 8, rating_source: 'metacritic' });
+        expect(result.total).toBe(1);
+    });
+
+    it('rescales rottenTomatoes the same way, and keeps the native-scale value in the response', async () => {
+        const items = [
+            film({ ids: { tmdb: 1 }, ratings: { rottenTomatoes: 82 } }), // 8.2, passes
+            film({ ids: { tmdb: 2 }, ratings: { rottenTomatoes: 64 } }) // 6.4, fails
+        ];
+        const result = await buildGetLibrary(loaderOf(items), {
+            ...base,
+            min_rating: 8,
+            rating_source: 'rottenTomatoes'
+        });
+        expect(result.total).toBe(1);
+        // The stored/returned value stays on Rotten Tomatoes' own 0-100 scale —
+        // rescaling is for the comparison only, not the reported number.
+        expect(result.items[0]?.ratings?.rottenTomatoes).toBe(82);
+    });
+
+    it('leaves an imdb comparison unchanged — it was already 0-10', async () => {
+        const items = [
+            film({ ids: { tmdb: 1 }, ratings: { imdb: 8.5 } }),
+            film({ ids: { tmdb: 2 }, ratings: { imdb: 7.9 } })
+        ];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, min_rating: 8, rating_source: 'imdb' });
+        expect(result.total).toBe(1);
+    });
+
+    it('does not change rated/unrated coverage counts — coverage is presence, not magnitude', async () => {
+        const items = [
+            film({ ids: { tmdb: 1 }, ratings: { metacritic: 64 } }),
+            film({ ids: { tmdb: 2 }, ratings: { metacritic: 95 } }),
+            film({ ids: { tmdb: 3 } })
+        ];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, min_rating: 8, rating_source: 'metacritic' });
+        expect(result.ratingCoverage).toEqual({ source: 'metacritic', rated: 2, unrated: 1 });
+    });
+});
+
 describe('get_library shaping', () => {
     it('truncates honestly', async () => {
         const many = repeat(film(), 120).map((f, i) => ({ ...f, ids: { tmdb: i + 1 } }));

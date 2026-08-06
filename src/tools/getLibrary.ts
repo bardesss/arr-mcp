@@ -14,6 +14,38 @@ export type RatingSource = (typeof RATING_SOURCES)[number];
 /** Films only. `tvdb` is Sonarr's flat value and belongs to series alone (§21.2). */
 const FILM_SOURCES: readonly RatingSource[] = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes'];
 
+/**
+ * The scale each source's raw value arrives on. `min_rating` is documented as
+ * 0–10 for every source, but Radarr/Sonarr pass Metacritic and Rotten Tomatoes
+ * through on their own site's native 0–100 scale, and nothing upstream of
+ * this filter rescales them — `flattenRatings`/`toMergedRatings`
+ * (`src/services/arrRatings.ts`) store exactly what the *arr reported.
+ *
+ * Comparing a raw 64 or 82 against an 0–10 `min_rating` threshold makes
+ * "rated at all" read as "rated 8+" for those two sources: measured against a
+ * real library, an 8+ filter matched 136 of 136 metacritic-rated films and
+ * 121 of 121 rottenTomatoes-rated ones. The next source to add here needs to
+ * see this decision, which is why it is a named table rather than a `/ 10` at
+ * the comparison site below.
+ */
+const RATING_SCALE_MAX: Record<RatingSource, number> = {
+    imdb: 10,
+    tmdb: 10,
+    trakt: 10,
+    tvdb: 10,
+    metacritic: 100,
+    rottenTomatoes: 100
+};
+
+/**
+ * `value`, as reported on `source`'s native scale, rescaled to the 0–10 scale
+ * `min_rating` is documented in — for comparison only. The stored/returned
+ * rating keeps its native scale (a displayed `6.4` would read worse than `64`
+ * for a site whose own UI has always shown out of 100), so this is called at
+ * the filter comparison, never at the point a rating is read into a response.
+ */
+const toTenPointScale = (source: RatingSource, value: number): number => (value / RATING_SCALE_MAX[source]) * 10;
+
 export type LibraryQuery = {
     detail: DetailLevel;
     limit: number;
@@ -132,7 +164,9 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     // unrated" answer the question the caller actually asked.
     const source = opts.rating_source ?? bestCoveredSource(filtered, opts.kind);
     const rated = filtered.filter(i => ratingOf(i, source) !== undefined);
-    const matching = rated.filter(i => (ratingOf(i, source) as number) >= (opts.min_rating as number));
+    const matching = rated.filter(
+        i => toTenPointScale(source, ratingOf(i, source) as number) >= (opts.min_rating as number)
+    );
 
     const shaped = applyLimit(matching, opts.limit);
     return {
@@ -158,7 +192,14 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                 watched: z.boolean().optional().describe('Jellyfin watch state. Items Jellyfin has never seen count as unwatched.'),
                 watched_by: UserSchema,
                 quality: z.string().min(1).optional().describe('Films only.'),
-                min_rating: z.number().min(0).max(10).optional(),
+                min_rating: z
+                    .number()
+                    .min(0)
+                    .max(10)
+                    .optional()
+                    .describe(
+                        'Always 0-10, regardless of source. Metacritic and Rotten Tomatoes are reported in the response on their native 0-100 scale, but rescaled to 0-10 for this comparison.'
+                    ),
                 rating_source: z
                     .enum(RATING_SOURCES)
                     .optional()
