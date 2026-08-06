@@ -50,6 +50,12 @@ const CASES: Case[] = [
     { tool: 'get_library', args: { presence: 'arr_only', limit: 10 } },
     { tool: 'get_library', args: { min_rating: 8, limit: 5 } },
     { tool: 'get_library', args: { kind: 'movie', limit: 5 } },
+    // A regression guard for the cross-source rating scale defect: metacritic
+    // and rottenTomatoes arrive on a 0-100 scale, everything else on 0-10.
+    // Before the fix these two returned every rated film — "rated at all"
+    // silently read as "rated 8+".
+    { tool: 'get_library', args: { min_rating: 8, rating_source: 'metacritic', limit: 5 } },
+    { tool: 'get_library', args: { min_rating: 8, rating_source: 'rottenTomatoes', limit: 5 } },
     { tool: 'get_media_details', args: { query: 'the' } },
     { tool: 'search_media', args: { query: 'the', source: 'library', detail: 'full', limit: 10 } },
     { tool: 'lookup_media', args: { query: 'matrix' } },
