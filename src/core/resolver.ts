@@ -36,21 +36,48 @@ export type MergedItem = {
     ratings?: MergedRatings;
     /**
      * §8's diagnostic payload. `arr_only` **with a file** means a broken
-     * Jellyfin import; `jellyfin_only` means media nothing is managing.
-     * Neither is visible from any single service.
+     * Jellyfin import — but only when Jellyfin actually answered: `arr_only`
+     * is what an *arr-managed item looks like whether Jellyfin found nothing
+     * *or was never asked at all*, and asserting the former across the latter
+     * is exactly the collapse the whole-phase review found (§8's central
+     * constraint: "empty is looked and found nothing; undefined is could not
+     * look" applied one layer too shallow). `jellyfin_only` means media
+     * nothing is managing. Neither is visible from any single service.
      *
-     * `unknown` covers a record with **neither** half of evidence — no
-     * `acquisition` and no `playback`. Real adapter data never produces one
-     * (every input contributes at least one side of the join), but the type
-     * does not forbid it, and the alternative — falling through to
-     * `jellyfin_only` — would assert Jellyfin evidence for a record that was
-     * never seen there. `arr_only` is equally wrong for the same reason.
+     * `unknown` covers two distinct shortfalls, deliberately not split
+     * further (`build`'s `BuildOptions` documents why a caller cannot even
+     * tell them apart from the input alone): a record with **neither** half
+     * of evidence at all, and an *arr-only record whose Jellyfin half was
+     * never gathered for this build — degraded, or never configured. Real
+     * *arr adapter data always contributes `acquisition`, so the
+     * neither-half case never happens on its own; what does happen, and what
+     * this state exists to stop, is a degraded or unconfigured Jellyfin
+     * making `LibraryIndex.build` fabricate `arr_only` — and with it a false
+     * "Jellyfin cannot see this file" — for every item in the library.
      * `unknown` is the only answer that does not fabricate a source.
      */
     presence: 'both' | 'arr_only' | 'jellyfin_only' | 'unknown';
 };
 
 export type IndexInput = Omit<MergedItem, 'presence'>;
+
+export type BuildOptions = {
+    /**
+     * Whether Jellyfin's half of *this* build was actually gathered —
+     * configured *and* read without error. Defaults to `true`, so a caller
+     * that does not pass it keeps `build`'s original behaviour (every
+     * existing call site but one).
+     *
+     * `LibraryIndex` has no way to tell "Jellyfin looked and this item is
+     * genuinely absent" from "Jellyfin was never asked" on its own: both
+     * arrive here as an `IndexInput` with `acquisition` set and `playback`
+     * unset — the join is symmetric, and an unset field carries no reason.
+     * `LibraryLoader` is the one caller that knows which case it is (it owns
+     * the fetch that did or did not happen), and passes it in rather than
+     * `LibraryIndex` guessing.
+     */
+    jellyfinGathered?: boolean;
+};
 
 /**
  * Namespaced so a film with tmdb 550 never merges with a series carrying
@@ -96,7 +123,8 @@ export class LibraryIndex {
         this.#byKey = byKey;
     }
 
-    static build(inputs: readonly IndexInput[]): LibraryIndex {
+    static build(inputs: readonly IndexInput[], opts: BuildOptions = {}): LibraryIndex {
+        const jellyfinGathered = opts.jellyfinGathered ?? true;
         const byKey = new Map<string, MergedItem>();
         const items: MergedItem[] = [];
 
@@ -167,7 +195,15 @@ export class LibraryIndex {
                 item.acquisition !== undefined && item.playback !== undefined
                     ? 'both'
                     : item.acquisition !== undefined
-                      ? 'arr_only'
+                      ? // `arr_only` claims Jellyfin looked and found nothing —
+                        // a claim this build cannot make when Jellyfin's half
+                        // was never gathered at all (degraded, or never
+                        // configured). `unknown` is the honest answer for the
+                        // whole build in that case, not just for the items
+                        // that happen to lack acquisition too.
+                        jellyfinGathered
+                          ? 'arr_only'
+                          : 'unknown'
                       : item.playback !== undefined
                         ? 'jellyfin_only'
                         : 'unknown';

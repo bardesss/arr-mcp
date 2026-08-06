@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LibraryIndex, type IndexInput } from '../src/core/resolver.ts';
+import type { IdentityResolver } from '../src/core/identity.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { buildGetLibrary } from '../src/tools/getLibrary.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
@@ -14,8 +15,27 @@ const stub = (id: 'radarr' | 'sonarr', items: IndexInput[]): ServiceAdapter =>
         listLibrary: async () => items
     }) as unknown as ServiceAdapter;
 
+/**
+ * A healthy, empty Jellyfin contributor — present so these fixtures' *arr
+ * items are genuinely `arr_only` (Jellyfin answered and does not have them),
+ * not merely `unknown` because Jellyfin was never configured (item 1 of the
+ * whole-phase review: `LibraryIndex` must not report `arr_only` across a
+ * Jellyfin half it never gathered, and "never configured" is one way that
+ * happens). Most filters in this file do not care either way, but the ones
+ * that assert `presence` directly would otherwise pass for the wrong reason.
+ */
+const jellyfinStub = (): ServiceAdapter =>
+    ({
+        id: 'jellyfin',
+        testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
+        getVersion: async () => '10.0.0',
+        listUserLibrary: async () => []
+    }) as unknown as ServiceAdapter;
+
+const healthyJellyfinIdentity = { resolve: async () => ({ id: 'u1', name: 'Someone' }) } as unknown as IdentityResolver;
+
 const loaderOf = (items: IndexInput[], id: 'radarr' | 'sonarr' = 'radarr') =>
-    new LibraryLoader([stub(id, items)], undefined);
+    new LibraryLoader([stub(id, items), jellyfinStub()], healthyJellyfinIdentity);
 
 const film = (over: Partial<IndexInput> = {}): IndexInput => ({
     kind: 'movie',
@@ -62,6 +82,9 @@ describe('get_library filters', () => {
     it('filters by presence, the question no single service can answer', async () => {
         const items = [film(), { ...film({ ids: { tmdb: 2 } }), playback: { user: 'Someone', watched: true } }];
         const result = await buildGetLibrary(loaderOf(items), { ...base, presence: 'arr_only' });
+        // Not just `.every()`, which an empty result would also satisfy —
+        // this pins that the filter actually kept the one arr_only item.
+        expect(result.total).toBe(1);
         expect(result.items.every(i => i.presence === 'arr_only')).toBe(true);
     });
 

@@ -183,7 +183,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
         'get_library',
         {
             description:
-                'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you: `arr_only` with a file means Jellyfin cannot see a file the *arr believes is on disk, and `jellyfin_only` means media nothing is managing. Two limits: `quality` applies to films only (a series’ quality is per-episode), and series carry one flat TVDB rating rather than per-source ratings. A rating filter also reports how much of the library that source actually covers.',
+                'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. Two limits: `quality` applies to films only (a series’ quality is per-episode), and series carry one flat TVDB rating rather than per-source ratings. A rating filter also reports how much of the library that source actually covers.',
             inputSchema: z.object({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.'),
                 year: z.number().int().optional(),
@@ -205,9 +205,11 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                     .optional()
                     .describe('Defaults to whichever source covers the most of your library. `tvdb` is series-only.'),
                 presence: z
-                    .enum(['both', 'arr_only', 'jellyfin_only'])
+                    .enum(['both', 'arr_only', 'jellyfin_only', 'unknown'])
                     .optional()
-                    .describe('both / arr_only (possible broken import) / jellyfin_only (unmanaged media).'),
+                    .describe(
+                        'both / arr_only (possible broken import) / jellyfin_only (unmanaged media) / unknown (Jellyfin degraded or unconfigured — arr_only cannot be asserted).'
+                    ),
                 detail: DetailSchema,
                 limit: LimitSchema
             })

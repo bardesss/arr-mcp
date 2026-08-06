@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
+import type { IdentityResolver } from '../src/core/identity.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
@@ -389,6 +390,12 @@ describe('get_media_details', () => {
         acquisition: { service: 'radarr' as const, monitored: true, hasFile: true }
     };
 
+    // A healthy, empty Jellyfin contributor so RESOLVED is genuinely
+    // `arr_only` (Jellyfin answered and does not have it) rather than
+    // `unknown` because Jellyfin was never configured (item 1 of the
+    // whole-phase review: presence must not fabricate arr_only across a
+    // Jellyfin half that was never gathered — and that applies just as much
+    // to a fixture that leaves Jellyfin out as to a real degraded one).
     const loader = () =>
         new LibraryLoader(
             [
@@ -397,9 +404,15 @@ describe('get_media_details', () => {
                     testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
                     getVersion: async () => '1.0.0',
                     listLibrary: async () => [RESOLVED]
+                } as unknown as ServiceAdapter,
+                {
+                    id: 'jellyfin',
+                    testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
+                    getVersion: async () => '10.0.0',
+                    listUserLibrary: async () => []
                 } as unknown as ServiceAdapter
             ],
-            undefined
+            { resolve: async () => ({ id: 'u1', name: 'Someone' }) } as unknown as IdentityResolver
         );
 
     const query = { detail: 'standard' as const, limit: 50 };
@@ -419,6 +432,32 @@ describe('get_media_details', () => {
         // success reads as "the item does not exist".
         await expect(resolveMediaDetails([], loader(), { ...query, query: 'zzzz' })).rejects.toThrow(
             /nothing in your library matches/i
+        );
+    });
+
+    it('names the degraded services and hedges the claim rather than answering confidently across an outage (item 4)', async () => {
+        // buildResolvedMediaDetails is the third consumer of LibraryLoader's
+        // snapshot — diagnose's resolve step and get_library already hedge
+        // this exact claim across a degraded load; this one used to destructure
+        // only `{ index }` and drop `degraded` entirely, so "Radarr is
+        // unreachable" and "this title genuinely does not exist" produced the
+        // identical, unqualified message.
+        const brokenLoader = new LibraryLoader(
+            [
+                {
+                    id: 'radarr',
+                    testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                    getVersion: async () => '1.0.0',
+                    listLibrary: async () => {
+                        throw new Error('down');
+                    }
+                } as unknown as ServiceAdapter
+            ],
+            undefined
+        );
+
+        await expect(resolveMediaDetails([], brokenLoader, { ...query, query: 'zzzz' })).rejects.toThrow(
+            /nothing in your library matches.*radarr could not be reached/is
         );
     });
 

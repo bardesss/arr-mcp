@@ -116,7 +116,7 @@ services:
   jellyfin:
     url: http://192.168.1.20:8096
     api_key: "…"
-    default_user: "you"      # whose watched state `watched` means
+    default_user: "you"      # required if jellyfin is configured — see below
   transmission:
     url: http://192.168.1.20:9091
     username: "…"            # Transmission has no API key
@@ -126,6 +126,14 @@ services:
 All eight are supported: `radarr`, `sonarr`, `prowlarr`, `bazarr`, `jellyfin`,
 `seerr`, `sabnzbd`, `transmission`. Configure only what you run — anything you
 leave out is simply absent, not broken.
+
+If `jellyfin` is configured, `default_user` is required, not optional flavour:
+`get_library`, `get_media_details` (its title-query form) and `diagnose` all
+join Radarr/Sonarr against Jellyfin's per-user watch state, and without a
+resolvable user they fail outright, naming `default_user` and how to set it,
+rather than silently answering as if Jellyfin were not there. Leaving
+`jellyfin` out of `config.yaml` entirely is still fine — those tools just work
+from Radarr/Sonarr alone.
 
 A misspelled key, an unknown service, or an `api_key` on Transmission fails at
 startup with the offending field named, rather than being silently ignored.

@@ -45,12 +45,22 @@ export type MediaDetailsQuery = {
  * would read as "the item does not exist".
  */
 export async function buildResolvedMediaDetails(loader: LibraryLoader, query: string): Promise<MergedItem> {
-    const { index } = await loader.load();
+    const { index, degraded } = await loader.load();
     const [best] = index.search(query);
 
     if (best === undefined) {
+        // `diagnose` (via its own `resolve` step) and `get_library` both hedge
+        // this exact claim across a degraded load; this is the third consumer
+        // of the same `LibraryLoader` snapshot, and answering confidently
+        // across the same hole is not a different situation. Named services,
+        // not just "something failed" — a model deciding whether to retry
+        // needs to know which ones.
+        const hedge =
+            degraded.length === 0
+                ? ''
+                : ` ${degraded.join(', ')} could not be reached, so this may be incomplete rather than a real absence.`;
         throw new Error(
-            `Nothing in your library matches "${query}". Try search_media, which also looks at what you do not have yet.`
+            `Nothing in your library matches "${query}".${hedge} Try search_media, which also looks at what you do not have yet.`
         );
     }
     return best;
@@ -96,7 +106,7 @@ export function registerGetMediaDetails(
         'get_media_details',
         {
             description:
-                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong. A series at detail: full also returns its episodes.',
+                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full also returns its episodes.',
             inputSchema: z.object({
                 query: z.string().min(1).optional().describe('A title. Resolved through the library index.'),
                 service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
@@ -114,9 +124,15 @@ export function registerGetMediaDetails(
                 limit
             });
 
+            // `unknown` is not a place something is "present in" — it is the
+            // absence of a confident answer (item 1 of the whole-phase
+            // review), so it gets its own phrasing rather than reading as
+            // "present in: unknown."
             const summary =
                 'presence' in result
-                    ? `${result.kind}, present in: ${result.presence}.`
+                    ? result.presence === 'unknown'
+                        ? `${result.kind}, presence could not be determined.`
+                        : `${result.kind}, present in: ${result.presence}.`
                     : `${result.kind} from ${result.service}` +
                       (result.episodeCount === undefined
                           ? '.'

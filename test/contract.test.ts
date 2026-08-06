@@ -26,9 +26,8 @@ type Dependency = {
 
 type ServiceContract = { spec?: string; dependencies: Dependency[] };
 
-/** Does the recorded response actually carry this dotted path? */
-export function fixtureHasField(fixture: unknown, dotted: string): boolean {
-    const sample = Array.isArray(fixture) ? fixture[0] : fixture;
+/** Does one sample (never itself an array — see `fixtureHasField`) carry this dotted path? */
+function sampleHasField(sample: unknown, dotted: string): boolean {
     if (sample === undefined || sample === null) return false;
 
     let node: unknown = sample;
@@ -38,6 +37,25 @@ export function fixtureHasField(fixture: unknown, dotted: string): boolean {
         node = (here as Record<string, unknown>)[part];
     }
     return true;
+}
+
+/**
+ * Does the recorded response actually carry this dotted path?
+ *
+ * A top-level array checks *every* element, not just the first: a field a
+ * real service only ever populates on some rows (Radarr's `movieFile`, only
+ * present once a movie actually has one) would otherwise never be
+ * contractable at all against a whole-library fixture whose first movie
+ * happens to have none — a check that appears to pass or fail is not the
+ * same as a check that actually exercises the field (whole-phase review item
+ * 6: "a path that passes for the wrong reason guards nothing"). Interior
+ * arrays reached partway through a dotted path (e.g. Jellyfin's nested
+ * `Items`) still use only their first element, matching what every existing
+ * contract entry already relies on.
+ */
+export function fixtureHasField(fixture: unknown, dotted: string): boolean {
+    const samples = Array.isArray(fixture) ? fixture : [fixture];
+    return samples.some(sample => sampleHasField(sample, dotted));
 }
 
 const deref = (spec: Record<string, unknown>, node: unknown): unknown => {
@@ -91,8 +109,28 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { path: '/api/v3/system/task', method: 'get', fixture: 'test/fixtures/radarr/system-task.json', fields: ['taskName', 'lastExecution'] },
             { fixture: 'test/fixtures/radarr/calendar.json', fields: ['id', 'title', 'hasFile', 'monitored'] },
             {
+                // `movieFile.size` and `movieFile.quality.quality.name` are
+                // only ever present on a row that actually has a file — the
+                // whole-library fixture's first movie does not, so these are
+                // only assertable at all because `fixtureHasField` now checks
+                // every element, not just the first. They feed
+                // `acquisition.sizeBytes`/`acquisition.quality`, and
+                // `get_library`'s `quality` filter runs on the latter — an
+                // upstream rename would silently make that filter match
+                // nothing, with a green suite, if these went uncontracted.
                 fixture: 'test/fixtures/radarr/movie.json',
-                fields: ['id', 'title', 'year', 'monitored', 'hasFile', 'tmdbId', 'ratings', 'genres']
+                fields: [
+                    'id',
+                    'title',
+                    'year',
+                    'monitored',
+                    'hasFile',
+                    'tmdbId',
+                    'ratings',
+                    'genres',
+                    'movieFile.size',
+                    'movieFile.quality.quality.name'
+                ]
             },
             { fixture: 'test/fixtures/radarr/movie-lookup.json', fields: ['title', 'tmdbId'] }
             // No `queue` entry: the queue was empty at capture time, and an
@@ -118,8 +156,23 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // stands in for it. Without this entry an upstream rename
                 // would make every series report hasFile: false with a green
                 // suite: the bare `statistics` key would still resolve.
+                // `statistics.sizeOnDisk` feeds `acquisition.sizeBytes`,
+                // displayed by get_library/get_media_details — uncontracted
+                // before this phase turned display text into a filter input
+                // elsewhere in this same object (`statistics.episodeFileCount`,
+                // just above).
                 fixture: 'test/fixtures/sonarr/series.json',
-                fields: ['id', 'title', 'monitored', 'tvdbId', 'ratings', 'statistics', 'statistics.episodeFileCount', 'genres']
+                fields: [
+                    'id',
+                    'title',
+                    'monitored',
+                    'tvdbId',
+                    'ratings',
+                    'statistics',
+                    'statistics.episodeFileCount',
+                    'statistics.sizeOnDisk',
+                    'genres'
+                ]
             },
             {
                 fixture: 'test/fixtures/sonarr/episode.json',
@@ -168,8 +221,23 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // `Items.Genres` is read by listUserLibrary and fenced into
                 // the merged item's genre list — omitted here, an upstream
                 // rename would silently make every item report no genres.
+                //
+                // The bare `Items.UserData` entry only asserts the container
+                // exists — `listUserLibrary` reads the two sub-fields below
+                // directly, and `get_library`'s `watched` filter runs on both,
+                // so a rename to either would silently make that filter match
+                // nothing with a green suite.
                 fixture: 'test/fixtures/jellyfin/items-library.json',
-                fields: ['Items.Id', 'Items.Name', 'Items.Type', 'Items.ProviderIds', 'Items.UserData', 'Items.Genres']
+                fields: [
+                    'Items.Id',
+                    'Items.Name',
+                    'Items.Type',
+                    'Items.ProviderIds',
+                    'Items.UserData',
+                    'Items.UserData.Played',
+                    'Items.UserData.PlayCount',
+                    'Items.Genres'
+                ]
             }
         ]
     },
@@ -274,5 +342,17 @@ describe('fixtureHasField', () => {
     it('treats an empty array as unable to confirm, not as confirmed', () => {
         // This is why the health dependencies are absent rather than passing.
         expect(fixtureHasField([], 'anything')).toBe(false);
+    });
+
+    // Whole-phase review item 6: a field a real service only populates on
+    // some rows (Radarr's movieFile, present only once a movie has a file)
+    // must still be contractable against a whole-library array fixture whose
+    // first element happens not to carry it.
+    it('finds a field present on a later element, not just the first, of an array response', () => {
+        expect(fixtureHasField([{ hasFile: false }, { hasFile: true, movieFile: { size: 1 } }], 'movieFile.size')).toBe(true);
+    });
+
+    it('still reports false when no element of the array carries the field, not just the first', () => {
+        expect(fixtureHasField([{ a: 1 }, { a: 2 }, { a: 3 }], 'movieFile.size')).toBe(false);
     });
 });

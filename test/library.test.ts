@@ -125,14 +125,46 @@ describe('LibraryLoader', () => {
         await expect(loader.load('Someone Else')).rejects.toThrow(/not permitted/);
     });
 
-    it('builds the *arr half alone when no Jellyfin user is configured', async () => {
+    // Whole-phase review item 5: no-user-configured is a configuration error
+    // with an actionable remedy, not a reachability problem — src/config/schema.ts
+    // documents that "a per-user tool called with nothing configured fails
+    // naming this key." Before this fix, #resolveUser only propagated NotFound
+    // when `requested !== undefined`, so this exact case (nobody named,
+    // nothing configured) degraded silently and permanently: every call
+    // reported "jellyfin could not be reached" forever, indistinguishable
+    // from a real, self-healing outage, while stack_health kept calling
+    // Jellyfin healthy.
+    it('fails naming default_user, rather than degrading forever, when no Jellyfin user is configured and none was requested', async () => {
         const noDefault = identity(
-            new ServiceError('NotFound', 'jellyfin', 'no user was named and none is configured')
+            new ServiceError('NotFound', 'jellyfin', 'no user was named and none is configured', {
+                remedy: 'Set services.jellyfin.default_user in config.yaml, or pass a user explicitly.'
+            })
         );
-        const snapshot = await new LibraryLoader([radarr(), jellyfin({})], noDefault).load();
+        const loader = new LibraryLoader([radarr(), jellyfin({})], noDefault);
+        await expect(loader.load()).rejects.toThrow(/default_user/);
+    });
 
-        expect(snapshot.index.size()).toBe(1);
-        expect(snapshot.degraded).toEqual(['jellyfin']);
+    it('fails naming default_user the same way when a configured default_user does not match any real Jellyfin user', async () => {
+        // A different NotFound path through IdentityResolver.resolve (not
+        // #authorize): `default_user` is configured, but is a typo or a
+        // deleted account, so the directory lookup itself comes up empty.
+        // `requested` (the argument to #resolveUser) is still undefined here
+        // — nobody named anyone, the *default* was used internally — so this
+        // is the other case the old `requested !== undefined` check missed.
+        const badDefault = identity(new ServiceError('NotFound', 'jellyfin', 'no user named "Bartsu"'));
+        const loader = new LibraryLoader([radarr(), jellyfin({})], badDefault);
+        await expect(loader.load()).rejects.toThrow(/no user named/);
+    });
+
+    it('still propagates AuthFailed rather than degrading — a refusal is not a configuration gap', async () => {
+        // Guards the boundary the two tests above sit next to: AuthFailed and
+        // NotFound must not collapse into the same handling just because both
+        // now propagate. AuthFailed means a *configured* default exists and a
+        // different user was asked for and refused — never a case for
+        // "set default_user", and never a case for degrading either.
+        const refused = identity(new ServiceError('AuthFailed', 'jellyfin', 'not permitted to query as "Someone Else"'));
+        const loader = new LibraryLoader([radarr(), jellyfin({})], refused);
+        await expect(loader.load('Someone Else')).rejects.toThrow(/not permitted/);
     });
 
     it('degrades rather than fails when Jellyfin is unreachable, even with a user named', async () => {
@@ -159,5 +191,41 @@ describe('LibraryLoader', () => {
         const snapshot = await new LibraryLoader([], undefined).load();
         expect(snapshot.index.size()).toBe(0);
         expect(snapshot.degraded).toEqual([]);
+    });
+
+    // Whole-phase review, item 1: presence must not assert arr_only across a
+    // Jellyfin half this loader knows it never gathered — degraded or
+    // unconfigured alike. Reproduced against LibraryLoader (not just
+    // LibraryIndex directly) because it is this class that has to notice.
+    describe('presence honesty when Jellyfin cannot contribute (item 1)', () => {
+        it('reports every *arr item as unknown, not arr_only, when Jellyfin is configured but degraded', async () => {
+            const broken = stub('jellyfin', {
+                listUserLibrary: async () => {
+                    throw new ServiceError('Unreachable', 'jellyfin', 'connection refused');
+                }
+            });
+            const snapshot = await new LibraryLoader([radarr(), broken], identity(someone)).load();
+
+            expect(snapshot.degraded).toEqual(['jellyfin']);
+            expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('unknown');
+        });
+
+        it('reports every *arr item as unknown, not arr_only, when Jellyfin is not configured at all', async () => {
+            // No jellyfin adapter at all — get_library's arr_only claim ("Jellyfin
+            // cannot see it") would be nonsensical here: there is no Jellyfin.
+            const snapshot = await new LibraryLoader([radarr()], undefined).load();
+
+            expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('unknown');
+        });
+
+        it('still reports arr_only when Jellyfin is configured and healthy — the fix must not blunt the real signal', async () => {
+            const snapshot = await new LibraryLoader(
+                [radarr(), jellyfin({ Someone: [] })],
+                identity(someone)
+            ).load();
+
+            expect(snapshot.degraded).toEqual([]);
+            expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('arr_only');
+        });
     });
 });
