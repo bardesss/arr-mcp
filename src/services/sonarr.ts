@@ -24,9 +24,11 @@ import {
     type QueueItem,
     type ScanState,
     type ScanStateCapable,
+    type CommandHandle,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
+    type SearchTriggerCapable,
     type ServiceAdapter
 } from './types.ts';
 
@@ -59,6 +61,7 @@ type RawStatus = components['schemas']['SystemResource'];
 type RawDiskSpace = components['schemas']['DiskSpaceResource'];
 type RawHealthCheck = components['schemas']['HealthResource'];
 type RawTask = components['schemas']['TaskResource'];
+type RawCommand = components['schemas']['CommandResource'];
 
 /**
  * The task that rescans the series library, confirmed against a live Sonarr
@@ -82,7 +85,8 @@ export class SonarrAdapter
         CalendarCapable,
         MediaDetailCapable,
         SearchCapable,
-        LibraryCapable
+        LibraryCapable,
+        SearchTriggerCapable
 {
     readonly id: ServiceId = 'sonarr';
     readonly #http: ServiceHttp;
@@ -137,6 +141,38 @@ export class SonarrAdapter
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
         const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(range));
         return readSonarrCalendar(episodes, this.id);
+    }
+
+    /**
+     * Radarr's counterpart, with the one asymmetry upstream insists on:
+     * `SeriesSearch` takes a bare `seriesId`, not an array, where Radarr's
+     * `MoviesSearch` takes `movieIds: []`. Passing Radarr's shape here is
+     * accepted and searches nothing.
+     *
+     * Whole-series scope is deliberate for this first slice: per-episode search
+     * is a different command (`EpisodeSearch`) keyed on episode ids, and
+     * conflating the two behind one argument is how a model asking for one
+     * episode triggers a season-wide grab.
+     */
+    async triggerSearch(id: string): Promise<CommandHandle> {
+        const seriesId = Number(id);
+        if (!Number.isInteger(seriesId)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a Sonarr series id`, {
+                remedy: 'Sonarr series ids are integers. Get one from get_media_details or get_library.'
+            });
+        }
+
+        const command = await this.#http.post<RawCommand>('/api/v3/command', {
+            name: 'SeriesSearch',
+            seriesId
+        });
+
+        return {
+            service: this.id,
+            commandId: command.id ?? 0,
+            name: command.name ?? 'SeriesSearch',
+            ...(typeof command.status === 'string' ? { status: command.status } : {})
+        };
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {

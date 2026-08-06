@@ -22,9 +22,11 @@ import {
     type QueueItem,
     type ScanState,
     type ScanStateCapable,
+    type CommandHandle,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
+    type SearchTriggerCapable,
     type ServiceAdapter
 } from './types.ts';
 
@@ -53,6 +55,7 @@ type RawStatus = components['schemas']['SystemResource'];
 type RawDiskSpace = components['schemas']['DiskSpaceResource'];
 type RawHealthCheck = components['schemas']['HealthResource'];
 type RawTask = components['schemas']['TaskResource'];
+type RawCommand = components['schemas']['CommandResource'];
 
 /**
  * The task that actually rescans the film library, confirmed against a live
@@ -78,7 +81,8 @@ export class RadarrAdapter
         CalendarCapable,
         MediaDetailCapable,
         SearchCapable,
-        LibraryCapable
+        LibraryCapable,
+        SearchTriggerCapable
 {
     readonly id: ServiceId = 'radarr';
     readonly #http: ServiceHttp;
@@ -167,6 +171,38 @@ export class RadarrAdapter
                 ...(m.imdbId === undefined ? {} : { imdb: m.imdbId })
             },
             ...(ratings === undefined ? {} : { ratings })
+        };
+    }
+
+    /**
+     * The first write in the codebase, and the only one Phase 4 ships at the
+     * `safe` tier: it asks Radarr to look for releases for a film it already
+     * tracks. Nothing is deleted, nothing is added, and the worst outcome is a
+     * grab the user did not want — which the queue tools can then undo.
+     *
+     * The id is coerced to a number rather than interpolated: `movieIds` is a
+     * JSON array of integers, and a string there is silently accepted by Radarr
+     * and matches nothing, which would report a successful search that never
+     * ran.
+     */
+    async triggerSearch(id: string): Promise<CommandHandle> {
+        const movieId = Number(id);
+        if (!Number.isInteger(movieId)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a Radarr movie id`, {
+                remedy: 'Radarr movie ids are integers. Get one from get_media_details or get_library.'
+            });
+        }
+
+        const command = await this.#http.post<RawCommand>('/api/v3/command', {
+            name: 'MoviesSearch',
+            movieIds: [movieId]
+        });
+
+        return {
+            service: this.id,
+            commandId: command.id ?? 0,
+            name: command.name ?? 'MoviesSearch',
+            ...(typeof command.status === 'string' ? { status: command.status } : {})
         };
     }
 

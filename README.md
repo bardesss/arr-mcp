@@ -13,8 +13,9 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
 - **Tool output is treated as untrusted data, never instruction.** Release names
   from public indexers are attacker-controllable and flow straight into model
   context; arr-mcp fences them.
-- **Reads only.** Writes arrive in 0.5, behind per-service permission toggles
-  that default off, and per-call confirmation even then.
+- **Writes are opt-in, previewed, and recorded.** Every write is off until you
+  turn it on per service, shows you exactly what it would do before it does it,
+  and lands in an audit trail either way.
 
 > ### Status: 0.4 — correlation across the stack
 >
@@ -23,6 +24,11 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
 > instead of service by service. `diagnose` walks the whole chain from request
 > to playable and names the first thing that explains a gap, even with
 > services down. See [the roadmap](#roadmap).
+>
+> **On `main`, ahead of the 0.4 tag:** the write foundation described under
+> [Writes](#writes) — permission tiers, `dry_run`, confirmation tokens, the
+> audit trail — plus the first write tool, `trigger_search`. Released images
+> tagged `0.4` are still read-only.
 
 ## Services
 
@@ -47,6 +53,7 @@ All eight are supported as of 0.3.
 | `get_requests` | What has been requested, and what is still pending |
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
+| `trigger_search` | Go look for this again — the one write in 0.5 so far |
 
 Every tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
 `limit`, and reports `{ total, returned, truncated }` — a truncated answer
@@ -61,8 +68,8 @@ only — a series has no series-level quality, and Sonarr carries one flat
 TVDB rating rather than per-source scores. Asking either of series returns a
 refusal explaining why, not an empty list.
 
-Reads only. Writes arrive in 0.5, behind per-service permission toggles and
-per-call confirmation.
+Every tool except `trigger_search` is a read. See [Writes](#writes) for how that
+one — and every write after it — is gated.
 
 ### Why is this not playable?
 
@@ -85,6 +92,60 @@ that actually tells you what to do next.
 It also works with services down. Any step it could not check sets
 `certain: false` and the summary names what was missed, because a confident
 verdict across a hole is worse than no verdict.
+
+## Writes
+
+Nothing writes to your stack until you say so, per service:
+
+```yaml
+services:
+  radarr:
+    url: http://192.168.1.20:7878
+    api_key: "…"
+    permissions:
+      safe_write: true       # monitor, trigger a search — reversible
+      destructive: false     # delete files, remove requests — not
+```
+
+Both default to **false**. A service you add by hand-editing YAML acquires no
+write access by doing so. The tiers are ordered: `destructive: true` implies
+`safe_write`, so you never have to reason about a config that permits deleting
+a film but refuses to re-monitor it.
+
+A write tool called without a confirmation token **does not write**. It resolves
+the target, reports exactly what it would do, and hands back a token:
+
+```
+trigger_search { service: "radarr", id: "5" }
+```
+
+> Not applied yet. Ask radarr to search for releases for Alien (1979).
+>
+> - Queues a movie search on radarr for Alien (1979).
+> - May grab and start downloading a release, which will appear in get_queue.
+>
+> To apply this, call trigger_search again with the same arguments plus
+> `confirm` set to the token in `confirm_token`.
+
+Tokens are single-use, expire after five minutes, and are cryptographically
+bound to the exact operation and arguments previewed — a token issued for one
+film cannot be replayed against another. Restarting arr-mcp invalidates any
+outstanding ones.
+
+`dry_run: true` is the separate, terminal form: it describes the effect and
+issues no token at all, so it can never turn into a write. It works even with
+the tier switched off, and tells you which key you would need to set — that is
+how you answer *"what would this do?"* without granting anything first.
+
+Every attempt — applied, previewed, refused, dry run, or failed mid-flight —
+is recorded in `config/audit.db` beside your `config.yaml`, with the resolved
+target and the arguments. If that file cannot be written, writes are refused
+rather than proceeding unrecorded; reads are unaffected.
+
+Write tools take `service` and `id`, never a title. Titles are resolved fuzzily,
+which is fine when the cost of being wrong is a wrong answer and not fine when
+it is an action against the wrong film — use `get_media_details` or
+`get_library` to get an id first.
 
 ## Quick start
 
@@ -123,6 +184,9 @@ services:
     password: "…"
 ```
 
+Each service also takes an optional `permissions` block — both flags default to
+false, so the config above is read-only. See [Writes](#writes).
+
 All eight are supported: `radarr`, `sonarr`, `prowlarr`, `bazarr`, `jellyfin`,
 `seerr`, `sabnzbd`, `transmission`. Configure only what you run — anything you
 leave out is simply absent, not broken.
@@ -148,7 +212,7 @@ container** to pick up changes.
 | 0.1 / 0.2 | Walking skeleton: stateless MCP transport, bearer auth, Radarr, `stack_health` |
 | 0.3 | The remaining seven service adapters and ten read tools |
 | 0.4 | Cross-service correlation: identity resolver, three-way library join, `diagnose` |
-| 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation |
+| 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation — foundation and `trigger_search` on `main` |
 | 0.6 | Web config page: dashboard, diagnosing connection tests, log streams |
 | 0.7 → 1.0 | Metadata providers, MCP resources and prompts |
 

@@ -275,6 +275,24 @@ export interface SearchCapable {
 export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapable =>
     typeof (a as Partial<SearchCapable>).search === 'function';
 
+// --- Phase 4 write capabilities ---
+
+/**
+ * What the *arrs hand back when told to do something: a queued command, not a
+ * result. The search itself runs asynchronously, which is why `trigger_search`
+ * reports "asked Radarr to search" rather than "found a release" — claiming the
+ * latter would be a confident lie about work that has not happened yet.
+ */
+export type CommandHandle = { service: ServiceId; commandId: number; name: string; status?: string };
+
+export interface SearchTriggerCapable {
+    /** Asks the service to look for releases for one item it already tracks. */
+    triggerSearch(id: string): Promise<CommandHandle>;
+}
+
+export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & SearchTriggerCapable =>
+    typeof (a as Partial<SearchTriggerCapable>).triggerSearch === 'function';
+
 /**
  * A whole-library read, shaped for the identity resolver rather than for a
  * tool. Phase 3 joins three of these into one index; nothing else consumes it.

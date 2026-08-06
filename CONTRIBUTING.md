@@ -118,6 +118,42 @@ Three of the eight services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
+## Adding a write tool
+
+Write tools are **not** registered like read tools. Use `registerWriteTool`
+(`src/tools/write.ts`) and supply only two callbacks:
+
+- `plan(args)` — resolves the arguments into a `WritePlan`: the concrete
+  `target` id, a one-sentence `summary`, and an itemised `effects` list. It must
+  not mutate anything. Set `noop: true` when there is nothing to do, and the
+  harness skips the confirmation rather than asking the user to approve a
+  no-op.
+- `apply(plan, args)` — performs the write. It is reached only after the
+  permission tier passed, a valid single-use confirmation token was presented,
+  and an audit row was opened.
+
+The four §10 guarantees — the tier check, `dry_run`, the audit trail, the
+confirmation handshake — are properties of the harness, not of your tool. Do not
+reimplement any of them, and do not call an adapter's write method from `plan`:
+the preview phase must be incapable of mutating, and it is, because the harness
+simply does not invoke `apply`.
+
+`src/tools/triggerSearch.ts` is the worked example. Note two things it does that
+yours should:
+
+- **`service` is derived from the arguments**, not fixed, for a tool spanning
+  more than one service. A fixed id would check Sonarr writes against Radarr's
+  `permissions` block.
+- **It takes `service` + `id`, never a title.** Fuzzy title resolution is fine
+  when a wrong match costs a wrong answer; it is not fine when it costs an
+  action against the wrong item.
+
+Pick the tier by what an undo costs. `safe` is anything the service can reverse
+— monitor, unmonitor, trigger a search. `destructive` is anything that loses
+data: files on disk, a request's history, a blocklist entry. When unsure, it is
+`destructive`; the cost of over-classifying is one config flag, and the cost of
+under-classifying is someone's library.
+
 ## Vendored API specs
 
 `specs/*.json` are upstream OpenAPI documents, refreshed by `npm run specs:fetch`
