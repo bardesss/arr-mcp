@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/bardesss/arr-mcp/compare/v0.5.1...v0.6.0) (2026-08-06)
+
+
+### Features
+
+* add the config UI, with hot reload ([#54](https://github.com/bardesss/arr-mcp/issues/54)) ([0c972b9](https://github.com/bardesss/arr-mcp/commit/0c972b91e97b2f6143ec67e3d9c0f78a2e1ee21a))
+
 ## [0.5.1](https://github.com/bardesss/arr-mcp/compare/v0.5.0...v0.5.1) (2026-08-06)
 
 
