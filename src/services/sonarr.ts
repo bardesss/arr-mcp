@@ -5,7 +5,7 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
 import type { IndexInput } from '../core/resolver.ts';
-import { readArrQueue, readSonarrCalendar, sonarrCalendarPath } from './arrQueue.ts';
+import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import type { components } from './generated/sonarr.ts';
 import {
@@ -25,6 +25,10 @@ import {
     type ScanState,
     type ScanStateCapable,
     type CommandHandle,
+    type DeleteMediaOptions,
+    type MediaDeleteCapable,
+    type QueueRemoveCapable,
+    type RemoveQueueOptions,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
@@ -86,7 +90,9 @@ export class SonarrAdapter
         MediaDetailCapable,
         SearchCapable,
         LibraryCapable,
-        SearchTriggerCapable
+        SearchTriggerCapable,
+        QueueRemoveCapable,
+        MediaDeleteCapable
 {
     readonly id: ServiceId = 'sonarr';
     readonly #http: ServiceHttp;
@@ -136,6 +142,18 @@ export class SonarrAdapter
 
     async getQueue(): Promise<QueueItem[]> {
         return readArrQueue(this.#http, this.id);
+    }
+
+    readonly supportsBlocklist = true;
+
+    async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
+        return removeArrQueueItem(this.#http, this.id, id, opts);
+    }
+
+    /** Deletes the whole series. Sonarr has no per-episode delete on this path,
+     *  which is why `delete_media` refuses to pretend otherwise. */
+    async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
+        return deleteArrMedia(this.#http, this.id, 'series', id, opts);
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {

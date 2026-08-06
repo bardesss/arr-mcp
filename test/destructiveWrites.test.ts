@@ -1,0 +1,429 @@
+import { describe, expect, it, vi } from 'vitest';
+import * as z from 'zod/v4';
+import type { AnyServiceConfig, KeyedServiceConfig, ServiceId, TransmissionServiceConfig } from '../src/config/schema.ts';
+import { WriteAudit } from '../src/core/audit.ts';
+import { ConfirmTokens } from '../src/core/confirm.ts';
+import { ServiceError } from '../src/core/errors.ts';
+import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { RadarrAdapter } from '../src/services/radarr.ts';
+import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
+import { SonarrAdapter } from '../src/services/sonarr.ts';
+import { TransmissionAdapter } from '../src/services/transmission.ts';
+import type { ServiceAdapter } from '../src/services/types.ts';
+import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
+import type { LibraryLoader } from '../src/tools/library.ts';
+import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
+import type { WriteToolResult } from '../src/tools/write.ts';
+import { jsonResponse } from './helpers/serve.ts';
+
+const keyed = (port: number): KeyedServiceConfig => ({
+    url: `http://192.0.2.10:${port}`,
+    api_key: 'k',
+    timeout_ms: 10_000,
+    permissions: { safe_write: false, destructive: false }
+});
+
+const transmissionConfig: TransmissionServiceConfig = {
+    url: 'http://192.0.2.10:9091',
+    timeout_ms: 10_000,
+    permissions: { safe_write: false, destructive: false }
+};
+
+const tiered = (safe_write: boolean, destructive: boolean): AnyServiceConfig =>
+    ({ ...keyed(7878), permissions: { safe_write, destructive } }) as AnyServiceConfig;
+
+/**
+ * Records method, path, query and body. For a destructive write the exact query
+ * string *is* the behaviour — `deleteFiles=false` and an omitted `deleteFiles`
+ * are different outcomes on disk.
+ */
+function recordingFetch(routes: Record<string, unknown>, opts: { emptyBody?: boolean } = {}) {
+    const sent: { path: string; search: string; method: string; body: unknown }[] = [];
+    const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        const method = init?.method ?? 'GET';
+        sent.push({
+            path: url.pathname,
+            search: url.search,
+            method,
+            body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
+        });
+
+        if (method === 'DELETE') {
+            // What Radarr and Sonarr actually answer: 200 with nothing in it.
+            return opts.emptyBody === false ? jsonResponse({}) : new Response('', { status: 200 });
+        }
+        if (url.pathname in routes) return jsonResponse(routes[url.pathname]);
+        if (`${url.pathname}${url.search}` in routes) return jsonResponse(routes[`${url.pathname}${url.search}`]);
+        return jsonResponse({ message: 'not found' }, 404);
+    }) as unknown as typeof fetch;
+
+    return { impl, sent };
+}
+
+const MOVIE = { id: 412, title: 'Alien', year: 1979, monitored: true, hasFile: true, movieFile: { size: 25_900_000_000 } };
+const SERIES = { id: 7, title: 'Alien: Earth', year: 2025, monitored: true, statistics: { sizeOnDisk: 3_000_000_000, episodeFileCount: 8 } };
+
+const ARR_QUEUE = {
+    records: [{ id: 91, title: 'Alien.1979.2160p-GROUP', status: 'stalled', size: 1000, sizeleft: 900 }]
+};
+
+// --- adapters ------------------------------------------------------------
+
+describe('deleting media', () => {
+    it('sends both flags explicitly rather than relying on Radarr defaults', async () => {
+        const { impl, sent } = recordingFetch({});
+        await new RadarrAdapter(keyed(7878), impl).deleteMedia('412', {
+            deleteFiles: false,
+            addImportExclusion: false
+        });
+
+        const del = sent.find(s => s.method === 'DELETE');
+        expect(del?.path).toBe('/api/v3/movie/412');
+        expect(del?.search).toContain('deleteFiles=false');
+        expect(del?.search).toContain('addImportExclusion=false');
+    });
+
+    it('deletes files when asked', async () => {
+        const { impl, sent } = recordingFetch({});
+        await new RadarrAdapter(keyed(7878), impl).deleteMedia('412', {
+            deleteFiles: true,
+            addImportExclusion: true
+        });
+
+        const del = sent.find(s => s.method === 'DELETE');
+        expect(del?.search).toContain('deleteFiles=true');
+        expect(del?.search).toContain('addImportExclusion=true');
+    });
+
+    it('uses series, not movie, on Sonarr', async () => {
+        const { impl, sent } = recordingFetch({});
+        await new SonarrAdapter(keyed(8989), impl).deleteMedia('7', { deleteFiles: true, addImportExclusion: false });
+        expect(sent.find(s => s.method === 'DELETE')?.path).toBe('/api/v3/series/7');
+    });
+
+    // The empty-body case: routing a delete through the JSON parse would turn
+    // every successful deletion into "response was not valid JSON".
+    it('succeeds on the empty 200 the arrs actually return', async () => {
+        const { impl } = recordingFetch({});
+        await expect(
+            new RadarrAdapter(keyed(7878), impl).deleteMedia('412', { deleteFiles: false, addImportExclusion: false })
+        ).resolves.toBeUndefined();
+    });
+
+    it('refuses a non-numeric id rather than issuing a delete into the dark', async () => {
+        const { impl, sent } = recordingFetch({});
+        await expect(
+            new RadarrAdapter(keyed(7878), impl).deleteMedia('Alien', { deleteFiles: true, addImportExclusion: false })
+        ).rejects.toThrow(ServiceError);
+        expect(sent.filter(s => s.method === 'DELETE')).toHaveLength(0);
+    });
+});
+
+describe('removing a queue item', () => {
+    it('sends removeFromClient explicitly, because Radarr defaults it to true', async () => {
+        const { impl, sent } = recordingFetch({});
+        await new RadarrAdapter(keyed(7878), impl).removeQueueItem('91', {
+            removeFromClient: false,
+            blocklist: false
+        });
+
+        const del = sent.find(s => s.method === 'DELETE');
+        expect(del?.path).toBe('/api/v3/queue/91');
+        expect(del?.search).toContain('removeFromClient=false');
+        expect(del?.search).toContain('blocklist=false');
+    });
+
+    it('blocklists when asked, on Sonarr too', async () => {
+        const { impl, sent } = recordingFetch({});
+        await new SonarrAdapter(keyed(8989), impl).removeQueueItem('91', {
+            removeFromClient: true,
+            blocklist: true
+        });
+        expect(sent.find(s => s.method === 'DELETE')?.search).toContain('blocklist=true');
+    });
+
+    it('deletes from SABnzbd by nzo_id, on the mode/name query SABnzbd expects', async () => {
+        const seen: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            seen.push(new URL(input instanceof Request ? input.url : String(input)).search);
+            return jsonResponse({ status: true });
+        }) as unknown as typeof fetch;
+
+        await new SabnzbdAdapter(keyed(8080), impl).removeQueueItem('SABnzbd_nzo_ab12', {
+            removeFromClient: true,
+            blocklist: false
+        });
+
+        expect(seen[0]).toContain('mode=queue');
+        expect(seen[0]).toContain('name=delete');
+        expect(seen[0]).toContain('value=SABnzbd_nzo_ab12');
+        // del_files is what actually removes the partial download.
+        expect(seen[0]).toContain('del_files=1');
+    });
+
+    it('leaves SABnzbd partial data alone when removeFromClient is false', async () => {
+        const seen: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            seen.push(new URL(input instanceof Request ? input.url : String(input)).search);
+            return jsonResponse({ status: true });
+        }) as unknown as typeof fetch;
+
+        await new SabnzbdAdapter(keyed(8080), impl).removeQueueItem('SABnzbd_nzo_ab12', {
+            removeFromClient: false,
+            blocklist: false
+        });
+        expect(seen[0]).toContain('del_files=0');
+    });
+
+    // SABnzbd answers 200 with {"status": false} for an id it does not have.
+    // Trusting the status line would report a deletion that never happened.
+    it('treats SABnzbd status:false as a failure, not a success', async () => {
+        const impl = (async () =>
+            jsonResponse({ status: false, error: 'nzo_id not found' })) as unknown as typeof fetch;
+
+        await expect(
+            new SabnzbdAdapter(keyed(8080), impl).removeQueueItem('nope', {
+                removeFromClient: true,
+                blocklist: false
+            })
+        ).rejects.toThrow(/refused/);
+    });
+
+    it('accepts SABnzbd status:true', async () => {
+        const impl = (async () => jsonResponse({ status: true })) as unknown as typeof fetch;
+        await expect(
+            new SabnzbdAdapter(keyed(8080), impl).removeQueueItem('SABnzbd_nzo_ab12', {
+                removeFromClient: true,
+                blocklist: false
+            })
+        ).resolves.toBeUndefined();
+    });
+
+    it('maps removeFromClient to Transmission delete-local-data', async () => {
+        const { impl, sent } = recordingFetch({});
+        const impl2 = (async (input: string | URL | Request, init?: RequestInit) => {
+            await impl(input, init);
+            return jsonResponse({ result: 'success' });
+        }) as unknown as typeof fetch;
+
+        await new TransmissionAdapter(transmissionConfig, impl2).removeQueueItem('3', {
+            removeFromClient: true,
+            blocklist: false
+        });
+
+        const rpc = sent.find(s => s.method === 'POST')?.body as {
+            method: string;
+            arguments: Record<string, unknown>;
+        };
+        expect(rpc.method).toBe('torrent-remove');
+        expect(rpc.arguments).toEqual({ ids: [3], 'delete-local-data': true });
+    });
+
+    // Transmission reports failure as HTTP 200 with a non-success result.
+    it('treats a non-success Transmission result as a failure', async () => {
+        const impl = (async () => jsonResponse({ result: 'invalid argument' })) as unknown as typeof fetch;
+        await expect(
+            new TransmissionAdapter(transmissionConfig, impl).removeQueueItem('3', {
+                removeFromClient: true,
+                blocklist: false
+            })
+        ).rejects.toThrow(/torrent-remove failed/);
+    });
+});
+
+// --- the tools -----------------------------------------------------------
+
+type Call = (args: Record<string, unknown>) => Promise<{
+    content: { type: 'text'; text: string }[];
+    structuredContent: WriteToolResult;
+}>;
+
+function harness(
+    register: typeof registerDeleteMedia,
+    opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}
+) {
+    const radarr = recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE });
+    const sonarr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
+
+    const adapters = opts.adapters ?? [
+        new RadarrAdapter(keyed(7878), radarr.impl),
+        new SonarrAdapter(keyed(8989), sonarr.impl)
+    ];
+
+    let call: Call = () => Promise.reject(new Error('not registered'));
+    const server = {
+        registerTool(_n: string, config: { inputSchema: z.ZodObject }, handler: Call) {
+            call = args => handler(config.inputSchema.parse(args) as Record<string, unknown>);
+        }
+    };
+
+    const invalidate = vi.fn();
+    const audit = WriteAudit.ephemeral();
+    register(
+        server as never,
+        {
+            permissions: permissionSourceFrom(
+                opts.permissions ?? { radarr: tiered(false, true), sonarr: tiered(false, true) }
+            ),
+            confirm: new ConfirmTokens(),
+            audit,
+            library: { invalidate } as unknown as LibraryLoader
+        },
+        adapters
+    );
+
+    return { call: (a: Record<string, unknown>) => call(a), radarr, sonarr, audit, invalidate };
+}
+
+describe('delete_media', () => {
+    it('names the film and the size on disk, not the id', async () => {
+        const h = harness(registerDeleteMedia);
+        const { structuredContent } = await h.call({ service: 'radarr', id: '412', delete_files: true, dry_run: true });
+
+        expect(structuredContent.summary).toContain('Alien');
+        expect(structuredContent.summary).toContain('24.1 GB');
+        expect(structuredContent.tier).toBe('destructive');
+    });
+
+    it('says plainly that files stay when delete_files is false', async () => {
+        const h = harness(registerDeleteMedia);
+        const { structuredContent } = await h.call({ service: 'radarr', id: '412', dry_run: true });
+        expect(structuredContent.effects.join(' ')).toContain('Leaves the files on disk');
+    });
+
+    it('warns that a Sonarr delete takes the whole series', async () => {
+        const h = harness(registerDeleteMedia);
+        const { structuredContent } = await h.call({ service: 'sonarr', id: '7', delete_files: true, dry_run: true });
+        expect(structuredContent.effects.join(' ')).toContain('every episode');
+    });
+
+    it('deletes nothing on a dry run', async () => {
+        const h = harness(registerDeleteMedia);
+        await h.call({ service: 'radarr', id: '412', delete_files: true, dry_run: true });
+        expect(h.radarr.sent.filter(s => s.method === 'DELETE')).toHaveLength(0);
+    });
+
+    it('deletes nothing on an unconfirmed call', async () => {
+        const h = harness(registerDeleteMedia);
+        const first = await h.call({ service: 'radarr', id: '412', delete_files: true });
+        expect(first.structuredContent.applied).toBe(false);
+        expect(h.radarr.sent.filter(s => s.method === 'DELETE')).toHaveLength(0);
+    });
+
+    it('deletes once confirmed', async () => {
+        const h = harness(registerDeleteMedia);
+        const first = await h.call({ service: 'radarr', id: '412', delete_files: true });
+        const second = await h.call({
+            service: 'radarr',
+            id: '412',
+            delete_files: true,
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(h.radarr.sent.find(s => s.method === 'DELETE')?.search).toContain('deleteFiles=true');
+        expect(h.invalidate).toHaveBeenCalledTimes(1);
+    });
+
+    // The token commits to the flags, so escalating after the preview fails.
+    it('will not let a token previewed without delete_files be used to wipe the disk', async () => {
+        const h = harness(registerDeleteMedia);
+        const preview = await h.call({ service: 'radarr', id: '412', delete_files: false });
+
+        const escalated = await h.call({
+            service: 'radarr',
+            id: '412',
+            delete_files: true,
+            confirm: preview.structuredContent.confirm_token
+        });
+
+        expect(escalated.structuredContent.applied).toBe(false);
+        expect(escalated.structuredContent.confirm_error).toContain('different operation');
+        expect(h.radarr.sent.filter(s => s.method === 'DELETE')).toHaveLength(0);
+    });
+
+    // safe_write must not reach a destructive tool.
+    it('is refused by safe_write alone', async () => {
+        const h = harness(registerDeleteMedia, { permissions: { radarr: tiered(true, false) } });
+        await expect(h.call({ service: 'radarr', id: '412' })).rejects.toThrow(
+            /services\.radarr\.permissions\.destructive: true/
+        );
+        expect(h.radarr.sent.filter(s => s.method === 'DELETE')).toHaveLength(0);
+    });
+
+    it('records the deletion in the audit trail with its arguments', async () => {
+        const h = harness(registerDeleteMedia);
+        const first = await h.call({ service: 'radarr', id: '412', delete_files: true });
+        await h.call({
+            service: 'radarr',
+            id: '412',
+            delete_files: true,
+            confirm: first.structuredContent.confirm_token
+        });
+
+        const rows = h.audit.recent() as { outcome: string; target: string; args: string }[];
+        expect(rows[0]?.outcome).toBe('applied');
+        expect(rows[0]?.target).toBe('radarr:412');
+        expect(JSON.parse(rows[0]?.args ?? '{}')).toMatchObject({ deleteFiles: true });
+    });
+});
+
+describe('remove_queue_item', () => {
+    it('names the release and its current status', async () => {
+        const h = harness(registerRemoveQueueItem);
+        const { structuredContent } = await h.call({ service: 'radarr', id: '91', dry_run: true });
+
+        expect(structuredContent.summary).toContain('Alien.1979.2160p-GROUP');
+        expect(structuredContent.summary).toContain('stalled');
+    });
+
+    it('fails legibly when the id is no longer in the queue', async () => {
+        const h = harness(registerRemoveQueueItem);
+        await expect(h.call({ service: 'radarr', id: '999', dry_run: true })).rejects.toThrow(
+            /nothing in radarr's queue has id/
+        );
+    });
+
+    it('removes once confirmed, deleting partial data by default', async () => {
+        const h = harness(registerRemoveQueueItem);
+        const first = await h.call({ service: 'radarr', id: '91' });
+        await h.call({ service: 'radarr', id: '91', confirm: first.structuredContent.confirm_token });
+
+        const del = h.radarr.sent.find(s => s.method === 'DELETE');
+        expect(del?.path).toBe('/api/v3/queue/91');
+        expect(del?.search).toContain('removeFromClient=true');
+    });
+
+    it('says the blocklist flag is ignored on a service that has none', async () => {
+        const sabQueue = {
+            queue: { slots: [{ nzo_id: 'SABnzbd_nzo_ab12', filename: 'Alien.1979-GROUP', status: 'Downloading' }] }
+        };
+        const sab = recordingFetch({});
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            await sab.impl(input, init);
+            return jsonResponse(sabQueue);
+        }) as unknown as typeof fetch;
+
+        const h = harness(registerRemoveQueueItem, {
+            adapters: [new SabnzbdAdapter(keyed(8080), impl)],
+            permissions: { sabnzbd: tiered(false, true) }
+        });
+
+        const { structuredContent } = await h.call({
+            service: 'sabnzbd',
+            id: 'SABnzbd_nzo_ab12',
+            blocklist: true,
+            dry_run: true
+        });
+
+        expect(structuredContent.effects.join(' ')).toContain('has no blocklist of its own');
+    });
+
+    it('is refused by safe_write alone', async () => {
+        const h = harness(registerRemoveQueueItem, { permissions: { radarr: tiered(true, false) } });
+        await expect(h.call({ service: 'radarr', id: '91' })).rejects.toThrow(
+            /services\.radarr\.permissions\.destructive: true/
+        );
+    });
+});

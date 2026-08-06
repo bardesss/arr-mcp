@@ -25,10 +25,10 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
 > to playable and names the first thing that explains a gap, even with
 > services down. See [the roadmap](#roadmap).
 >
-> **On `main`, ahead of the 0.4 tag:** the write foundation described under
-> [Writes](#writes) — permission tiers, `dry_run`, confirmation tokens, the
-> audit trail — plus the first write tool, `trigger_search`. Released images
-> tagged `0.4` are still read-only.
+> **On `main`, ahead of the 0.4 tag:** writes, as described under
+> [Writes](#writes) — permission tiers, `dry_run`, confirmation tokens and the
+> audit trail, with `trigger_search`, `remove_queue_item` and `delete_media`.
+> Released images tagged `0.4` are still read-only.
 
 ## Services
 
@@ -53,7 +53,9 @@ All eight are supported as of 0.3.
 | `get_requests` | What has been requested, and what is still pending |
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
-| `trigger_search` | Go look for this again — the one write in 0.5 so far |
+| `trigger_search` | Go look for this again |
+| `remove_queue_item` | Get rid of this stuck or wrong download |
+| `delete_media` | Remove this film or series, optionally from disk |
 
 Every tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
 `limit`, and reports `{ total, returned, truncated }` — a truncated answer
@@ -68,8 +70,9 @@ only — a series has no series-level quality, and Sonarr carries one flat
 TVDB rating rather than per-source scores. Asking either of series returns a
 refusal explaining why, not an empty list.
 
-Every tool except `trigger_search` is a read. See [Writes](#writes) for how that
-one — and every write after it — is gated.
+The first thirteen are reads. The last three write, and are gated as described
+under [Writes](#writes) — off by default, previewed before they act, recorded
+either way.
 
 ### Why is this not playable?
 
@@ -112,6 +115,19 @@ write access by doing so. The tiers are ordered: `destructive: true` implies
 `safe_write`, so you never have to reason about a config that permits deleting
 a film but refuses to re-monitor it.
 
+| Tool | Tier | Needs |
+| --- | --- | --- |
+| `trigger_search` | safe | `safe_write` |
+| `remove_queue_item` | destructive | `destructive` |
+| `delete_media` | destructive | `destructive` |
+
+`remove_queue_item` is destructive rather than safe because it deletes partial
+data, and because `blocklist: true` durably teaches Radarr or Sonarr to refuse a
+release — which is hard to notice and hard to undo months later, when the same
+film mysteriously never grabs. SABnzbd and Transmission have no blocklist of
+their own; ask for one there and the preview tells you it is being ignored
+rather than silently accepting a flag that does nothing.
+
 A write tool called without a confirmation token **does not write**. It resolves
 the target, reports exactly what it would do, and hands back a token:
 
@@ -129,8 +145,22 @@ trigger_search { service: "radarr", id: "5" }
 
 Tokens are single-use, expire after five minutes, and are cryptographically
 bound to the exact operation and arguments previewed — a token issued for one
-film cannot be replayed against another. Restarting arr-mcp invalidates any
-outstanding ones.
+film cannot be replayed against another, and a token from a `delete_media`
+preview that left files on disk cannot be used to wipe them. Restarting arr-mcp
+invalidates any outstanding ones.
+
+A destructive preview says what it costs in the units that matter:
+
+```
+delete_media { service: "radarr", id: "1535", delete_files: true }
+```
+
+> Not applied yet. Delete They Will Kill You (2026) from radarr, deleting
+> 18.8 GB from disk.
+>
+> - Deletes 18.8 GB from disk. This cannot be undone.
+> - Removes They Will Kill You (2026) from radarr, along with its monitoring
+>   and history.
 
 `dry_run: true` is the separate, terminal form: it describes the effect and
 issues no token at all, so it can never turn into a write. It works even with
@@ -212,7 +242,7 @@ container** to pick up changes.
 | 0.1 / 0.2 | Walking skeleton: stateless MCP transport, bearer auth, Radarr, `stack_health` |
 | 0.3 | The remaining seven service adapters and ten read tools |
 | 0.4 | Cross-service correlation: identity resolver, three-way library join, `diagnose` |
-| 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation — foundation and `trigger_search` on `main` |
+| 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation — on `main`, unreleased |
 | 0.6 | Web config page: dashboard, diagnosing connection tests, log streams |
 | 0.7 → 1.0 | Metadata providers, MCP resources and prompts |
 

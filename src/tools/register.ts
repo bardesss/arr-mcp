@@ -7,6 +7,7 @@ import { permissionSourceFrom } from '../core/permissions.ts';
 import { JellyfinAdapter } from '../services/jellyfin.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import { hasIndexers, hasSubtitles, type ServiceAdapter } from '../services/types.ts';
+import { registerDeleteMedia } from './deleteMedia.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
 import { registerGetCalendar } from './getCalendar.ts';
@@ -19,6 +20,7 @@ import { registerGetRequests } from './getRequests.ts';
 import { registerGetSubtitles } from './getSubtitles.ts';
 import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
+import { registerRemoveQueueItem } from './removeQueueItem.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerStackHealth } from './stackHealth.ts';
 import { registerTriggerSearch } from './triggerSearch.ts';
@@ -112,6 +114,8 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     // trigger_search — it refuses, naming the key to set, which is a far better
     // answer than a tool the model was told about and cannot find.
     registerTriggerSearch(server, write, adapters);
+    registerRemoveQueueItem(server, write, adapters);
+    registerDeleteMedia(server, write, adapters);
 }
 
 /** The tool surface, frozen. §18: renaming one breaks users' saved prompts. */
@@ -129,5 +133,7 @@ export const TOOL_NAMES = [
     'search_media',
     'lookup_media',
     'discover_media',
-    'trigger_search'
+    'trigger_search',
+    'remove_queue_item',
+    'delete_media'
 ] as const;

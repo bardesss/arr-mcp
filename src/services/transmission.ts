@@ -10,6 +10,8 @@ import {
     type DiskSpaceCapable,
     type QueueCapable,
     type QueueItem,
+    type QueueRemoveCapable,
+    type RemoveQueueOptions,
     type ServiceAdapter
 } from './types.ts';
 
@@ -48,7 +50,7 @@ const TORRENT_STATUS: Record<number, string> = {
     6: 'seeding'
 };
 
-export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable {
+export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable {
     readonly id: ServiceId = 'transmission';
     readonly #http: ServiceHttp;
 
@@ -114,6 +116,36 @@ export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, Qu
                     ? { errorMessage: fenceText(t.errorString, { service: this.id, field: 'errorString' }) }
                     : {})
             }));
+    }
+
+    /** Transmission has no blocklist of grabbed releases — that is an *arr concept. */
+    readonly supportsBlocklist = false;
+
+    /**
+     * `delete-local-data` is the destructive half, and it maps to
+     * `removeFromClient`: leaving it false removes the torrent but keeps what
+     * has already downloaded, which is the recoverable choice.
+     *
+     * Like every Transmission call, a failure arrives as HTTP 200 with a
+     * `result` other than "success", so the body is what says whether the
+     * torrent was actually removed.
+     */
+    async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
+        const torrentId = Number(id);
+        if (!Number.isInteger(torrentId)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a Transmission torrent id`, {
+                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
+            });
+        }
+
+        const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
+            method: 'torrent-remove',
+            arguments: { ids: [torrentId], 'delete-local-data': opts.removeFromClient }
+        });
+
+        if (body.result !== 'success') {
+            throw new ServiceError('UpstreamError', this.id, `torrent-remove failed: ${body.result ?? 'no result field'}`);
+        }
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

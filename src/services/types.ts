@@ -294,6 +294,46 @@ export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & Searc
     typeof (a as Partial<SearchTriggerCapable>).triggerSearch === 'function';
 
 /**
+ * Both flags default to the *least* destructive reading at every layer — the
+ * tool schema, the adapter signature and the service call — so a caller that
+ * forgets one deletes less than they asked for rather than more.
+ */
+export type DeleteMediaOptions = {
+    /** Delete the files from disk, not just the entry from the *arr's database. */
+    deleteFiles: boolean;
+    /** Also add an import exclusion, so it is never re-imported automatically. */
+    addImportExclusion: boolean;
+};
+
+export interface MediaDeleteCapable {
+    deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void>;
+}
+
+export const hasMediaDelete = (a: ServiceAdapter): a is ServiceAdapter & MediaDeleteCapable =>
+    typeof (a as Partial<MediaDeleteCapable>).deleteMedia === 'function';
+
+export type RemoveQueueOptions = {
+    /** Also tell the download client to drop it, and delete partial data. */
+    removeFromClient: boolean;
+    /**
+     * Blocklist the release so the *arr will not grab it again. Meaningless on
+     * SABnzbd and Transmission, which have no blocklist of their own — the
+     * adapters there ignore it, and `remove_queue_item` says so in the preview
+     * rather than silently accepting a flag that does nothing.
+     */
+    blocklist: boolean;
+};
+
+export interface QueueRemoveCapable {
+    removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void>;
+    /** True when this service can actually honour `blocklist`. */
+    readonly supportsBlocklist: boolean;
+}
+
+export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>
+    typeof (a as Partial<QueueRemoveCapable>).removeQueueItem === 'function';
+
+/**
  * A whole-library read, shaped for the identity resolver rather than for a
  * tool. Phase 3 joins three of these into one index; nothing else consumes it.
  */
