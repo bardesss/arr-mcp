@@ -155,6 +155,13 @@ when `TOOL_NAMES` gains a tool no case covers, so a new tool cannot ship
 uncalled — which is exactly how 0.3.0 shipped a `get_subtitles` that crashed
 on the first real request.
 
+It also renders every config UI page against the live stack, signs in, and
+asserts that no API key reaches the configuration form. Those cases are
+read-only and never save, so running the script cannot change your
+configuration — and since 0.6 it never writes to `config.yaml` at all
+(`loadConfig(dir, { persist: false })`). Before that it silently backfilled a
+generated password into a real config, one that nothing ever printed.
+
 ## Recapture fixtures when an adapter starts reading a new endpoint
 
 `test/fixtures/` is what the contract tests check against, so an endpoint with

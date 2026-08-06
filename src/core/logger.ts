@@ -44,8 +44,14 @@ export const logger = pino(
         level: process.env.LOG_LEVEL ?? 'info',
         // `app`, not `service`: `service` belongs to the media service a log
         // line is about (radarr, sonarr, …), which is what the config UI's
-        // per-service log stream filters on. Binding both to `service` emits a
+        // "By service" stream filters on. Binding both to `service` emits a
         // duplicate JSON key and silently loses one of them.
+        //
+        // This file used to promise "three log streams" from a design spec
+        // that is not in this repository, so nothing could check the claim.
+        // The three that exist are defined in `web/pages.ts` as LOG_STREAMS —
+        // all activity, problems, and one service — chosen from what this
+        // logger actually binds rather than from the unavailable spec.
         base: { app: 'arr-mcp' },
         serializers: {
             // pino's default `err` serializer spreads every own enumerable

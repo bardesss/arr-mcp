@@ -1,6 +1,6 @@
 import type { ServiceId } from '../config/schema.ts';
 import type { LogRow } from '../core/logs.ts';
-import type { ConnectionDiagnosis } from '../services/types.ts';
+import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
 
 /**
@@ -102,6 +102,9 @@ export function dashboardPage(opts: {
     configured: ServiceId[];
     bearerToken: string;
     writeCounts: { applied: number; denied: number; total: number };
+    disks: DiskSpace[];
+    failures: HealthCheck[];
+    scans: ScanState[];
 }): string {
     const cards =
         opts.diagnoses.length === 0
@@ -130,11 +133,83 @@ export function dashboardPage(opts: {
                   )}
               </div>`;
 
+    /**
+     * The four things `stack_health` answers, on the page rather than only
+     * through a tool. Reachability alone is a dashboard that calls a service
+     * healthy while its disk is full and its library has not been scanned for
+     * a day — which is exactly the gap `diagnose` exists to explain after the
+     * fact.
+     */
+    const problems =
+        opts.failures.length === 0
+            ? html`<p class="note">Nothing is reporting a problem.</p>`
+            : html`<table>
+                  <thead><tr><th>Service</th><th>Source</th><th>Type</th><th>Message</th></tr></thead>
+                  <tbody>
+                      ${opts.failures.map(
+                          f => html`<tr>
+                              <td>${f.service}</td>
+                              <td>${f.source}</td>
+                              <td>${f.type}</td>
+                              <td>${f.message}</td>
+                          </tr>`
+                      )}
+                  </tbody>
+              </table>`;
+
+    const disks =
+        opts.disks.length === 0
+            ? html`<p class="note">No service reported disk space.</p>`
+            : html`<table>
+                  <thead><tr><th>Service</th><th>Location</th><th>Free</th><th>Total</th></tr></thead>
+                  <tbody>
+                      ${opts.disks.map(
+                          d => html`<tr>
+                              <td>${d.service}</td>
+                              <td class="mono">${d.path ?? d.label}</td>
+                              <td>${humanBytes(d.freeSpace)}</td>
+                              <td>${d.totalSpace === undefined ? '—' : humanBytes(d.totalSpace)}</td>
+                          </tr>`
+                      )}
+                  </tbody>
+              </table>`;
+
+    const scans =
+        opts.scans.length === 0
+            ? html`<p class="note">No service reported a library scan.</p>`
+            : html`<table>
+                  <thead><tr><th>Service</th><th>Last completed</th><th>Running now</th></tr></thead>
+                  <tbody>
+                      ${opts.scans.map(
+                          s => html`<tr>
+                              <td>${s.service}</td>
+                              <td class="mono">${s.lastCompleted === undefined ? 'unknown' : shortTime(s.lastCompleted)}</td>
+                              <td>${s.running === true ? 'yes' : 'no'}</td>
+                          </tr>`
+                      )}
+                  </tbody>
+              </table>`;
+
     const body = html`<h2>Services</h2>
         <p class="note">
             Tested live, just now. A failure shows what to fix rather than only that it failed.
         </p>
         ${cards}
+
+        <h2>Problems</h2>
+        <div class="panel">${problems}</div>
+
+        <h2>Disk space</h2>
+        <div class="panel">${disks}</div>
+
+        <h2>Library scans</h2>
+        <div class="panel">
+            <p class="note">
+                A library that has not been scanned recently is the usual reason something downloaded is
+                still not playable.
+            </p>
+            ${scans}
+        </div>
 
         <h2>MCP endpoint</h2>
         <div class="panel">
@@ -165,20 +240,81 @@ export function dashboardPage(opts: {
     return layout({ title: 'Dashboard', nav: 'dashboard', version: opts.version, body });
 }
 
+/**
+ * The three streams.
+ *
+ * `logger.ts` has promised "the config UI's three log streams" since Phase 1,
+ * and the design spec that named them is not in this repository — so these are
+ * the three the code can actually support, chosen from what the logger already
+ * binds: everything, only what is wrong, and one service at a time. They are
+ * named tabs rather than a level dropdown because "show me what is broken" is
+ * a question, and picking `40` from a list of numbers is an implementation
+ * detail leaking into the page.
+ */
+export const LOG_STREAMS = [
+    { key: 'all', label: 'All activity', minLevel: 10, hint: 'Everything the server has logged.' },
+    {
+        key: 'problems',
+        label: 'Problems',
+        minLevel: 40,
+        hint: 'Warnings and errors only — what to read first when something is wrong.'
+    },
+    {
+        key: 'service',
+        label: 'By service',
+        minLevel: 10,
+        hint: 'Everything logged about one service, whichever level it was logged at.'
+    }
+] as const;
+
+export type LogStreamKey = (typeof LOG_STREAMS)[number]['key'];
+
 export function logsPage(opts: {
     version: string;
     services: string[];
     selectedService: string;
-    minLevel: number;
+    stream: LogStreamKey;
     streamUrl: string;
     rows: LogRow[];
 }): string {
-    const levels: [number, string][] = [
-        [10, 'Everything'],
-        [30, 'Info and above'],
-        [40, 'Warnings and errors'],
-        [50, 'Errors only']
-    ];
+    const active = LOG_STREAMS.find(s => s.key === opts.stream) ?? LOG_STREAMS[0];
+
+    const tabs = html`<nav style="margin-bottom:.75rem">
+        ${LOG_STREAMS.map(
+            s =>
+                html`<a
+                    href="/ui/logs?stream=${s.key}${s.key === 'service' && opts.selectedService !== ''
+                        ? raw(`&service=${encodeURIComponent(opts.selectedService)}`)
+                        : raw('')}"
+                    class="${s.key === opts.stream ? 'on' : ''}"
+                    >${s.label}</a
+                >`
+        )}
+    </nav>`;
+
+    const picker =
+        opts.stream !== 'service'
+            ? raw('')
+            : html`<form class="inline" method="get" action="/ui/logs">
+                  <input type="hidden" name="stream" value="service">
+                  <div>
+                      <label for="service">Service</label>
+                      <select id="service" name="service">
+                          ${opts.services.length === 0
+                              ? html`<option value="">nothing logged yet</option>`
+                              : opts.services.map(
+                                    s =>
+                                        html`<option
+                                            value="${s}"
+                                            ${s === opts.selectedService ? raw('selected') : raw('')}
+                                        >
+                                            ${s}
+                                        </option>`
+                                )}
+                      </select>
+                  </div>
+                  <button type="submit">Show</button>
+              </form>`;
 
     const body = html`<h2>Logs</h2>
         <p class="note">
@@ -186,33 +322,13 @@ export function logsPage(opts: {
             <span class="mono">docker logs</span>.
         </p>
 
-        <form class="inline" method="get" action="/ui/logs">
-            <div>
-                <label for="level">Level</label>
-                <select id="level" name="level">
-                    ${levels.map(
-                        ([value, label]) =>
-                            html`<option value="${value}" ${value === opts.minLevel ? raw('selected') : raw('')}>
-                                ${label}
-                            </option>`
-                    )}
-                </select>
-            </div>
-            <div>
-                <label for="service">Service</label>
-                <select id="service" name="service">
-                    <option value="">All services</option>
-                    ${opts.services.map(
-                        s =>
-                            html`<option value="${s}" ${s === opts.selectedService ? raw('selected') : raw('')}>
-                                ${s}
-                            </option>`
-                    )}
-                </select>
-            </div>
-            <button type="submit">Apply</button>
-            <label class="row" style="margin:0"><input type="checkbox" id="follow" checked> Auto-refresh</label>
-        </form>
+        ${tabs}
+        <p class="note">${active.hint}</p>
+        ${picker}
+
+        <label class="row" style="margin:0 0 .75rem">
+            <input type="checkbox" id="follow" checked> Auto-refresh
+        </label>
 
         <div class="scroll" id="log-stream" data-url="${opts.streamUrl}">${logTable(opts.rows)}</div>`;
 

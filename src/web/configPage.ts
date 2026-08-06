@@ -184,7 +184,7 @@ export function configPage(opts: {
                 name: 'auth.allowed_hosts',
                 label: 'Allowed hosts (comma separated)',
                 value: opts.config.auth.allowed_hosts.join(', '),
-                note: 'Leave empty to accept any Host — right for a LAN container reached by IP. Changing this one needs a restart.'
+                note: 'Leave empty to accept any Host — right for a LAN container reached by IP. Applies immediately; pin the wrong name and you will lock yourself out until you edit config.yaml by hand.'
             })}
         </fieldset>
 
