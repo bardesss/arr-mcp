@@ -213,12 +213,17 @@ describe('diagnose', () => {
         );
     });
 
-    it('Finding B: a tmdb-less series with Seerr configured reports "could not determine", not "no request", and loses certainty', async () => {
+    it('Finding B, repaired by Task 7: a tvdb-only series with Seerr configured is now checked directly, not reported as "could not determine"', async () => {
         // SonarrAdapter.listLibrary never emits a tmdb id — only tvdb/imdb.
-        // Without Jellyfin to supply one, every series diagnosis on a
-        // Sonarr+Seerr stack used to read the missing tmdb id as "looked and
-        // found nothing" (request: null), silently hiding a pending request
-        // and reporting a confident, wrong remedy ("Trigger a search…").
+        // Without Jellyfin to supply a tmdb id, every series diagnosis on a
+        // Sonarr+Seerr stack used to read the missing tmdb id as "could not
+        // determine" (status: 'unknown', certain: false) — a retraction, not
+        // a real answer, even when Seerr had genuinely been asked.
+        //
+        // Seerr's request payload carries a tvdbId too (MediaInfo.tvdbId,
+        // confirmed against the vendored OpenAPI spec), so the matcher in
+        // evidence.ts now falls back to it. With no matching request at all,
+        // the diagnosis can now confidently say so instead of retracting.
         const SERIES_NO_TMDB: IndexInput = {
             kind: 'series',
             title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
@@ -236,10 +241,41 @@ describe('diagnose', () => {
         );
 
         expect(d.steps.find(s => s.stage === 'request')).toMatchObject({
-            status: 'unknown',
-            detail: 'Could not determine whether this was requested.'
+            status: 'skipped',
+            detail: 'No request recorded — not everything arrives through Seerr.'
         });
-        expect(d.verdict.certain).toBe(false);
+        expect(d.verdict.certain).toBe(true);
+    });
+
+    it('matches a Seerr request on tvdb id alone, closing the gap Finding B documented', async () => {
+        // The other half of the repair: a pending request keyed only by
+        // tvdbId (as every Sonarr series request is, absent a tmdb id) must
+        // actually be found, not just correctly reported absent.
+        const SERIES_NO_TMDB: IndexInput = {
+            kind: 'series',
+            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            ids: { tvdb: 700 },
+            acquisition: { service: 'sonarr', monitored: true, hasFile: false }
+        };
+        const adapters = [
+            stub('sonarr', { listLibrary: async () => [SERIES_NO_TMDB] }),
+            stub('seerr', {
+                getRequests: async () => [
+                    { service: 'seerr', id: 1, status: 'pending', mediaType: 'tv', tvdbId: 700, requestedBy: 'Someone' }
+                ]
+            })
+        ];
+
+        const d = await buildDiagnose(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'a series' }
+        );
+
+        expect(d.verdict.stage).toBe('request');
+        expect(d.steps.find(s => s.stage === 'request')).toMatchObject({
+            status: 'blocked',
+            detail: 'The request is still awaiting approval.'
+        });
     });
 
     it('collects a partially-read queue as {items, partial}, not undefined, when only some clients answer', async () => {

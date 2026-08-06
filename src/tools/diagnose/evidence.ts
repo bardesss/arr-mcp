@@ -176,12 +176,16 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     }
 
     /**
-     * Matched on tmdbId, never on title. Title is only optionally present on
-     * a Seerr request (`MediaRequest['title']` is `?`), and even when it is,
-     * a fuzzy match is far more fragile than the strong, structured id
-     * already used for §8's whole join — so tmdbId is the right key
-     * regardless of whether this particular request happened to carry a
-     * title.
+     * Matched on tmdbId, falling back to tvdbId, never on title. Title is
+     * only optionally present on a Seerr request (`MediaRequest['title']` is
+     * `?`), and even when it is, a fuzzy match is far more fragile than the
+     * strong, structured ids already used for §8's whole join.
+     *
+     * tmdbId is tried first because it is the id both movies and series can
+     * carry; tvdbId is the fallback that closes Task 7's Finding B —
+     * `SonarrAdapter.listLibrary` never emits `tmdb`, only `tvdb`, so without
+     * this fallback a Sonarr+Seerr stack with no Jellyfin could never match a
+     * series request at all.
      *
      * The requester's name is deliberately not carried into the evidence. The
      * status answers the question, and naming who asked exposes another
@@ -194,16 +198,18 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         request = null; // no Seerr configured
     } else if (item === undefined) {
         request = null; // nothing resolved to match against
-    } else if (item.ids.tmdb === undefined) {
-        // Seerr answered, but this item carries no tmdb id to match on — e.g.
-        // a Sonarr series (`SonarrAdapter.listLibrary` never emits `tmdb`)
-        // whose Jellyfin counterpart is absent, unreachable, or was never
-        // mapped to TMDB. `undefined` means "could not determine", not
+    } else if (item.ids.tmdb === undefined && item.ids.tvdb === undefined) {
+        // Seerr answered, but this item carries neither id to match on — e.g.
+        // a Sonarr series whose Jellyfin counterpart is absent, unreachable,
+        // or was never mapped, and whose own record from Sonarr carries no
+        // tvdb id either. `undefined` means "could not determine", not
         // "looked and found nothing" — a real pending request must not be
         // reported as no request at all just because the join has a gap.
         request = undefined;
     } else {
-        const match = requests.find(r => r.tmdbId === item.ids.tmdb);
+        const match =
+            (item.ids.tmdb === undefined ? undefined : requests.find(r => r.tmdbId === item.ids.tmdb)) ??
+            (item.ids.tvdb === undefined ? undefined : requests.find(r => r.tvdbId === item.ids.tvdb));
         request = match === undefined ? null : { status: match.status };
     }
 
