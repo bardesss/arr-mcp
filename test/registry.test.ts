@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { buildAdapters } from '../src/services/registry.ts';
 
-const AUTH = { bearer_token: 'a'.repeat(64) };
+const AUTH = { bearer_token: 'a'.repeat(64), password_hash: 'scrypt$00$11' };
 const keyed = (port: number) => ({ url: `http://h:${port}`, api_key: 'k' });
 
 describe('buildAdapters', () => {

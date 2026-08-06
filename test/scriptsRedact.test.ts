@@ -7,7 +7,7 @@ const TOKEN = 'a'.repeat(64);
 
 const configWith = (url: string) =>
     ConfigSchema.parse({
-        auth: { bearer_token: TOKEN },
+        auth: { bearer_token: TOKEN, password_hash: 'scrypt$00$11' },
         services: { radarr: { url, api_key: 'k' } }
     });
 

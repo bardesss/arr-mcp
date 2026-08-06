@@ -32,9 +32,10 @@
  * line — pass or fail — is passed through `redactHosts` first.
  */
 import { loadConfig } from '../src/config/load.ts';
-import { buildAdapters } from '../src/services/registry.ts';
 import { buildApp } from '../src/app.ts';
 import { WriteAudit } from '../src/core/audit.ts';
+import { LogStore } from '../src/core/logs.ts';
+import { Runtime } from '../src/core/runtime.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { hostsOf, redactHosts } from './lib/redact.ts';
 
@@ -88,12 +89,18 @@ const CASES: Case[] = [
 // root). `./config` matches capture-fixtures.ts's own local-checkout
 // default, under its own env var, for the same reason.
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? './config';
-const { config } = await loadConfig(CONFIG_DIR);
+// `persist: false` — a smoke run reads the user's config; it must never write
+// to the file holding their credentials.
+const { config } = await loadConfig(CONFIG_DIR, { persist: false });
 
-const adapters = buildAdapters(config);
 // Ephemeral on purpose: this script is a maintainer smoke run, and its dry-run
-// probes are not events the user's own audit trail should be cluttered with.
-const app = buildApp({ config, adapters, audit: WriteAudit.ephemeral() });
+// probes are not events the user's own audit trail — or log ring buffer —
+// should be cluttered with.
+const app = buildApp({
+    runtime: Runtime.fromConfig(config, WriteAudit.ephemeral(), { configDir: CONFIG_DIR }),
+    audit: WriteAudit.ephemeral(),
+    logs: LogStore.ephemeral()
+});
 const hosts = hostsOf(config);
 
 /**

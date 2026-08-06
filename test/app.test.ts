@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { ConfigSchema } from '../src/config/schema.ts';
+import { ConfigSchema, type Config } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
+import { LogStore } from '../src/core/logs.ts';
+import { Runtime } from '../src/core/runtime.ts';
+import { hashPassword } from '../src/core/session.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
+import type { ServiceAdapter } from '../src/services/types.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 
 const TOKEN = 'a'.repeat(64);
@@ -11,8 +15,22 @@ const WRONG = 'b'.repeat(64);
 /** In-memory, so these tests never touch a config directory. */
 const audit = () => WriteAudit.ephemeral();
 
-const config = ConfigSchema.parse({ auth: { bearer_token: TOKEN }, services: {} });
-const app = () => buildApp({ config, adapters: [], audit: audit() });
+const configWith = (over: Record<string, unknown> = {}): Config =>
+    ConfigSchema.parse({
+        auth: { bearer_token: TOKEN, password_hash: hashPassword('unused-here'), ...over },
+        services: {}
+    });
+
+const config = configWith();
+
+const appWith = (cfg: Config, adapters: readonly ServiceAdapter[] = []) =>
+    buildApp({
+        runtime: Runtime.fromConfig(cfg, audit(), { adapters }),
+        audit: audit(),
+        logs: LogStore.ephemeral()
+    });
+
+const app = () => appWith(config);
 
 const rpc = (body: unknown, headers: Record<string, string> = {}) => ({
     method: 'POST',
@@ -131,14 +149,7 @@ describe('DNS rebinding protection', () => {
     });
 
     it('rejects a foreign Host once hostnames are pinned', async () => {
-        const pinned = buildApp({
-            config: ConfigSchema.parse({
-                auth: { bearer_token: TOKEN, allowed_hosts: ['arr.example.com'] },
-                services: {}
-            }),
-            adapters: [],
-            audit: audit()
-        });
+        const pinned = appWith(configWith({ allowed_hosts: ['arr.example.com'] }));
 
         // Hono's synthetic request helper does not derive a Host header from
         // the URL, so set it explicitly — the validator reads the header, not
@@ -214,11 +225,7 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
                 status: 401,
                 headers: { 'content-type': 'application/json' }
             });
-        const withRadarr = buildApp({
-            config,
-            adapters: [new RadarrAdapter(radarrConfig, unauthorized)],
-            audit: audit()
-        });
+        const withRadarr = appWith(config, [new RadarrAdapter(radarrConfig, unauthorized)]);
 
         const callTool = {
             jsonrpc: '2.0',
@@ -250,11 +257,7 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
                 status: 404,
                 headers: { 'content-type': 'application/json' }
             });
-        const withRadarr = buildApp({
-            config,
-            adapters: [new RadarrAdapter(radarrConfig, notFound)],
-            audit: audit()
-        });
+        const withRadarr = appWith(config, [new RadarrAdapter(radarrConfig, notFound)]);
 
         const callTool = {
             jsonrpc: '2.0',

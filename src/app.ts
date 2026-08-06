@@ -2,11 +2,12 @@ import { createMcpHonoApp } from '@modelcontextprotocol/hono';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import type { Context } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
-import type { Config } from './config/schema.ts';
 import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
-import type { ServiceAdapter } from './services/types.ts';
-import { buildToolContext, registerAllTools } from './tools/register.ts';
+import type { LogStore } from './core/logs.ts';
+import type { Runtime } from './core/runtime.ts';
+import { registerAllTools } from './tools/register.ts';
+import { registerWebRoutes } from './web/routes.ts';
 
 const NAME = 'arr-mcp';
 const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
@@ -24,22 +25,21 @@ function tokenMatches(presented: string, expected: string): boolean {
     return timingSafeEqual(a, b);
 }
 
-export function buildApp(opts: { config: Config; adapters: readonly ServiceAdapter[]; audit: WriteAudit }) {
-    const { config, adapters, audit } = opts;
-
-    // Built once, outside the per-request factory: the identity resolvers cache
-    // each service's user directory, and rebuilding them per request would
-    // refetch it on every tool call. The write context has a second, harder
-    // reason — its confirmation tokens must outlive a single request or the
-    // preview/confirm handshake could never complete.
-    const toolContext = buildToolContext(adapters, config, audit);
+export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore }) {
+    const { runtime, audit, logs } = opts;
 
     // The factory runs once per request, so every call gets a fresh McpServer.
     // This is what keeps the transport stateless (design spec §5) — do not
     // hoist the server out of the closure.
+    //
+    // `runtime.current` is read here, per request, rather than captured when
+    // the app is built: that is what lets a config change take effect without
+    // a restart. Reading it once into `snapshot` also means a call that starts
+    // before a reload finishes against the configuration it began with.
     const handler = createMcpHandler(() => {
+        const snapshot = runtime.current;
         const server = new McpServer({ name: NAME, version: VERSION });
-        registerAllTools(server, toolContext);
+        registerAllTools(server, snapshot.tools);
         return server;
     });
 
@@ -52,7 +52,12 @@ export function buildApp(opts: { config: Config; adapters: readonly ServiceAdapt
     // empty allow-list and rejects *every* request with 403. Authentication is
     // what protects us here; Host pinning is an extra a reverse-proxy user can
     // opt into.
-    const allowedHosts = config.auth.allowed_hosts;
+    //
+    // Read once, at build time, unlike everything else: the Hono adapter
+    // installs this middleware when the app is constructed, so a reload cannot
+    // change it. Pinning hostnames therefore still needs a restart, which is
+    // documented — it is a transport concern, not a service one.
+    const allowedHosts = runtime.config.auth.allowed_hosts;
     const app = createMcpHonoApp({
         host: '0.0.0.0',
         ...(allowedHosts.length > 0 ? { allowedHosts } : {})
@@ -60,11 +65,15 @@ export function buildApp(opts: { config: Config; adapters: readonly ServiceAdapt
 
     app.get('/healthz', c => c.json({ status: 'ok', name: NAME, version: VERSION }));
 
+    registerWebRoutes(app, { runtime, audit, logs, name: NAME, version: VERSION });
+
     app.all('/mcp', async (c: Context) => {
         const header = c.req.header('Authorization') ?? '';
         const [scheme, presented] = header.split(' ');
 
-        if (scheme !== 'Bearer' || !presented || !tokenMatches(presented, config.auth.bearer_token)) {
+        // From the runtime, not a captured value, so rotating the token in the
+        // config UI takes effect on the very next request.
+        if (scheme !== 'Bearer' || !presented || !tokenMatches(presented, runtime.config.auth.bearer_token)) {
             logger.warn(
                 { path: '/mcp', ip: c.req.header('x-forwarded-for') ?? 'unknown' },
                 'rejected unauthenticated MCP request'

@@ -16,20 +16,21 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
 - **Writes are opt-in, previewed, and recorded.** Every write is off until you
   turn it on per service, shows you exactly what it would do before it does it,
   and lands in an audit trail either way.
+- **A config page that diagnoses.** Add services from a browser, see what is
+  broken and what to do about it, and read the logs and the write audit — no
+  hand-edited YAML, no restart.
 
-> ### Status: 0.4 — correlation across the stack
+> ### Status: 0.5 — writes, opt-in and previewed
 >
-> `get_library` joins Radarr, Sonarr and Jellyfin into one record per title, on
-> shared external ids — presence, ratings and watch state answered together
-> instead of service by service. `diagnose` walks the whole chain from request
-> to playable and names the first thing that explains a gap, even with
-> services down. See [the roadmap](#roadmap).
+> Six write tools behind per-service permission tiers, each previewing exactly
+> what it would do before it does it, and recording every attempt — applied,
+> refused or failed — in an audit trail. `get_library` and `diagnose` from 0.4
+> still do the correlation work. See [the roadmap](#roadmap).
 >
-> **On `main`, ahead of the 0.4 tag:** writes, as described under
-> [Writes](#writes) — permission tiers, `dry_run`, confirmation tokens and the
-> audit trail, with six write tools covering searches, the download queue,
-> adding and removing media, and Seerr requests. Released images tagged `0.4`
-> are still read-only.
+> **On `main`, ahead of the 0.5 tag:** the [config UI](#config-ui) — a
+> dashboard, connection tests that diagnose rather than pass or fail, log
+> streams, the write audit, and configuration editing that applies without a
+> restart. Released images tagged `0.5` still need hand-edited YAML.
 
 ## Services
 
@@ -204,7 +205,7 @@ none, **it refuses and lists them** rather than picking:
 ```yaml
 services:
   arr-mcp:
-    image: ghcr.io/bardesss/arr-mcp:0.4
+    image: ghcr.io/bardesss/arr-mcp:0.5
     ports: ['6060:6060']
     volumes: ['./config:/config']
     environment:
@@ -217,9 +218,17 @@ services:
 Tags are `X.Y.Z`, `X.Y`, `X` and `latest` for releases, plus `main` for
 bleeding edge. Pin a minor while the tool surface is still moving.
 
-On first start, `config/config.yaml` is created and **the bearer token for the
-MCP endpoint is printed to the container log** — `docker logs arr-mcp`. Add
-your services to that file:
+On first start, `config/config.yaml` is created and **the config UI password
+and the MCP bearer token are printed once to the container log** —
+`docker logs arr-mcp`. The password is not stored anywhere and will not be
+shown again; only a hash of it is kept.
+
+Then open **`http://<host>:6060/ui`**, sign in, and add your services from the
+Configuration page. Saving applies immediately — no restart. The bearer token
+your MCP client needs is on the dashboard, so you only need the log once.
+
+Everything the UI does is still just `config.yaml`, and editing it by hand
+remains supported:
 
 ```yaml
 services:
@@ -254,8 +263,41 @@ from Radarr/Sonarr alone.
 A misspelled key, an unknown service, or an `api_key` on Transmission fails at
 startup with the offending field named, rather than being silently ignored.
 
-Until the config UI arrives in 0.6, edit the file by hand and **restart the
-container** to pick up changes.
+Changes saved from the config UI take effect immediately. A change you make by
+hand-editing the file still needs a restart, because nothing is watching the
+file — the UI reloads because it knows it just wrote.
+
+## Config UI
+
+`http://<host>:6060/ui`
+
+| Page | What it is for |
+| --- | --- |
+| Dashboard | Every service tested live, with the bearer token for your MCP client |
+| Configuration | Add, edit and remove services; change credentials |
+| Logs | The last few thousand lines, filtered by level and by service |
+| Write audit | Every write attempt — applied, previewed, refused or failed |
+
+**Connection tests diagnose rather than pass or fail.** A service that is down
+says what is wrong and what to do about it — the same `kind`, `detail` and
+`remedy` the MCP tools return — instead of showing a red cross you then have to
+investigate.
+
+**Secrets never come back out.** API keys, the Transmission password and the UI
+password all render as empty fields meaning *unchanged*, so a saved page or a
+screenshot cannot carry them. The bearer token is the deliberate exception —
+handing it to your MCP client is the point — and it is masked until you ask.
+
+**Logs are a ring buffer**, kept beside your config and capped, so a chatty
+service cannot fill the disk. Full history stays in `docker logs`.
+
+Sign-in is a username and password, generated on first run alongside the bearer
+token. If you lose the password, delete the `password_hash` line from
+`config.yaml` and restart — a new one is generated and printed.
+
+The UI is served over plain http on your LAN, like the services it manages.
+Put it behind a reverse proxy with TLS if it needs to leave the LAN, and pin
+`allowed_hosts` if you do.
 
 ## Roadmap
 
@@ -264,8 +306,8 @@ container** to pick up changes.
 | 0.1 / 0.2 | Walking skeleton: stateless MCP transport, bearer auth, Radarr, `stack_health` |
 | 0.3 | The remaining seven service adapters and ten read tools |
 | 0.4 | Cross-service correlation: identity resolver, three-way library join, `diagnose` |
-| 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation — on `main`, unreleased |
-| 0.6 | Web config page: dashboard, diagnosing connection tests, log streams |
+| 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation |
+| 0.6 | Web config page: dashboard, diagnosing connection tests, log streams, config editing with hot reload — on `main`, unreleased |
 | 0.7 → 1.0 | Metadata providers, MCP resources and prompts |
 
 Each version is a self-contained, shippable slice — the goal is that 0.4 already

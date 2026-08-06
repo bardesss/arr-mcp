@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { Config } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
-import { ConfirmTokens } from '../core/confirm.ts';
+import type { ConfirmTokens } from '../core/confirm.ts';
 import { IdentityResolver } from '../core/identity.ts';
 import { permissionSourceFrom } from '../core/permissions.ts';
 import { JellyfinAdapter } from '../services/jellyfin.ts';
@@ -47,10 +47,16 @@ export type ToolContext = {
     write: WriteContext;
 };
 
+/**
+ * `confirm` is supplied rather than created here: it outlives a config reload
+ * on purpose (see `core/runtime.ts`), because a confirmation handshake spans
+ * two calls and a config edit between them must not silently invalidate it.
+ */
 export function buildToolContext(
     adapters: readonly ServiceAdapter[],
     config: Config,
-    audit: WriteAudit
+    audit: WriteAudit,
+    confirm: ConfirmTokens
 ): ToolContext {
     const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
@@ -75,7 +81,7 @@ export function buildToolContext(
             // must answer from the file, so an adapter cannot widen its own
             // permissions by reporting a capability it was never granted.
             permissions: permissionSourceFrom(config.services),
-            confirm: new ConfirmTokens(),
+            confirm,
             audit,
             library
         }
