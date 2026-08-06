@@ -6,13 +6,15 @@ Ask questions no single service can answer. *"Why isn't the film I requested on
 Tuesday showing up in Jellyfin?"* spans Seerr, Radarr, Prowlarr, SABnzbd and
 Jellyfin. arr-mcp correlates them and gives you the causal chain.
 
-- **A web config page** that diagnoses connections instead of printing
-  pass/fail, and shows live logs while you debug.
+- **`diagnose` answers what no single service can.** It walks the whole
+  chain — requested, managed, monitored, downloaded, indexed, imported,
+  scanned — and names the first thing that explains why something isn't
+  playable, even with a service down.
 - **Tool output is treated as untrusted data, never instruction.** Release names
   from public indexers are attacker-controllable and flow straight into model
   context; arr-mcp fences them.
-- **Safe by default.** Deletion is off until you deliberately enable it, and
-  then still asks per call.
+- **Reads only.** Writes arrive in 0.5, behind per-service permission toggles
+  that default off, and per-call confirmation even then.
 
 > ### Status: 0.4 — correlation across the stack
 >
@@ -53,6 +55,11 @@ could not reach, and how many results each contributed, so a long answer from
 one service can never silently hide another. `diagnose` takes a title, or an
 exact `service` plus `id`, and returns a verdict rather than a list — see
 below.
+
+`get_library`'s `quality` filter and its per-source rating filters are films
+only — a series has no series-level quality, and Sonarr carries one flat
+TVDB rating rather than per-source scores. Asking either of series returns a
+refusal explaining why, not an empty list.
 
 Reads only. Writes arrive in 0.5, behind per-service permission toggles and
 per-call confirmation.
@@ -195,7 +202,6 @@ is free software maintained largely by volunteers:
 | [Zod](https://zod.dev) | config validation and tool input schemas |
 | [Pino](https://getpino.io) | logging |
 | [Vitest](https://vitest.dev) | tests |
-| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | the log ring buffer and write audit |
 | [yaml](https://eemeli.org/yaml/) | reading `config.yaml` |
 | [TypeScript](https://www.typescriptlang.org) | the language |
 
