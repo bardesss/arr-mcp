@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/bardesss/arr-mcp/compare/v0.5.0...v0.5.1) (2026-08-06)
+
+
+### Bug Fixes
+
+* stop add_media picking a quality profile nobody asked for ([#50](https://github.com/bardesss/arr-mcp/issues/50)) ([9e20303](https://github.com/bardesss/arr-mcp/commit/9e20303689c5bf644e54cd7577ab042d770ac130))
+
 ## [0.5.0](https://github.com/bardesss/arr-mcp/compare/v0.4.0...v0.5.0) (2026-08-06)
 
 
