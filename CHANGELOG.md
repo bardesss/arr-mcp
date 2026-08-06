@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0](https://github.com/bardesss/arr-mcp/compare/v0.4.0...v0.5.0) (2026-08-06)
+
+
+### Features
+
+* add add_media, the last of Phase 4's writes ([#49](https://github.com/bardesss/arr-mcp/issues/49)) ([c7cf733](https://github.com/bardesss/arr-mcp/commit/c7cf7330d146016ca882f00dee941228e38541f5))
+* add the destructive writes, and the DELETE the arrs actually answer ([#47](https://github.com/bardesss/arr-mcp/issues/47)) ([537a2a6](https://github.com/bardesss/arr-mcp/commit/537a2a6fb6ed055bf3bbcad4f9683ecff6b702ed))
+* add the write foundation and trigger_search ([#45](https://github.com/bardesss/arr-mcp/issues/45)) ([260fc1f](https://github.com/bardesss/arr-mcp/commit/260fc1f2f73997cabc63daab877168cae46fb7c5))
+* manage Seerr requests, and give their previews a title to show ([#48](https://github.com/bardesss/arr-mcp/issues/48)) ([3f88cd2](https://github.com/bardesss/arr-mcp/commit/3f88cd2c3d71bcbbe9f306404de05a71f9f2119d))
+
 ## [0.4.0](https://github.com/bardesss/arr-mcp/compare/v0.3.1...v0.4.0) (2026-08-06)
 
 
