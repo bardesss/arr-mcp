@@ -18,6 +18,44 @@ bleeding edge. Nothing else. The release workflow fails the job when a release
 computes no version tag — a release that publishes only `latest` is a silent
 policy violation, and it has happened once.
 
+## If the release PR is BLOCKED with nothing failing
+
+`main` requires the `check` and `docker` status checks, with `enforce_admins:
+true` — so nobody merges without them, including you. If the release PR shows
+`mergeable: MERGEABLE` but `mergeStateStatus: BLOCKED`, and its checks section
+is **empty rather than red**, the runs are waiting for approval:
+
+```bash
+gh run list --branch release-please--branches--main--components--arr-mcp
+```
+
+A column of `action_required` runs at `0s` confirms it — queued, never started.
+Approve the newest one in the Actions tab, or:
+
+```bash
+gh api repos/bardesss/arr-mcp/actions/runs/<id>/approve --method POST
+```
+
+Approve it **after** the last feature PR merges. Every merge makes
+release-please push again, which supersedes the run you just approved.
+
+This is what gated 0.4.0 and 0.5.0. The cause was `release.yml` calling
+release-please without a `token:`, so it fell back to `GITHUB_TOKEN` and opened
+the PR as `app/github-actions`, whose workflow runs are approval-gated.
+
+**The permanent fix is a `RELEASE_PLEASE_TOKEN` secret**, which the workflow now
+prefers. Until it exists the workflow still works — it falls back to
+`GITHUB_TOKEN` — and every release keeps needing that manual approval. To set it
+up: create a fine-grained PAT scoped to this repository with **Contents:
+read/write** and **Pull requests: read/write**, then
+
+```bash
+gh secret set RELEASE_PLEASE_TOKEN --repo bardesss/arr-mcp   # paste at the prompt
+```
+
+Set it interactively, never as a shell argument — an argument lands in shell
+history.
+
 ## Check `main` contains what you think it does
 
 **Before merging the release PR.** A release PR describes the commits on `main`
