@@ -124,9 +124,15 @@ export function registerGetMediaDetails(
                 limit
             });
 
+            // `unknown` is not a place something is "present in" — it is the
+            // absence of a confident answer (item 1 of the whole-phase
+            // review), so it gets its own phrasing rather than reading as
+            // "present in: unknown."
             const summary =
                 'presence' in result
-                    ? `${result.kind}, present in: ${result.presence}.`
+                    ? result.presence === 'unknown'
+                        ? `${result.kind}, presence could not be determined.`
+                        : `${result.kind}, present in: ${result.presence}.`
                     : `${result.kind} from ${result.service}` +
                       (result.episodeCount === undefined
                           ? '.'

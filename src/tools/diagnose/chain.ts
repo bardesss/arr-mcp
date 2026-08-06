@@ -51,7 +51,7 @@ export type Evidence = {
      * other step reads `degraded`.
      */
     libraryDegraded: readonly ServiceId[];
-    degraded: ServiceId[];
+    degraded: readonly ServiceId[];
 };
 
 export type Diagnosis = {
