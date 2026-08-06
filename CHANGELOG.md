@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.0](https://github.com/bardesss/arr-mcp/compare/v0.3.1...v0.4.0) (2026-08-06)
+
+
+### Features
+
+* add a single-flight TTL cache ([#26](https://github.com/bardesss/arr-mcp/issues/26)) ([dd683b1](https://github.com/bardesss/arr-mcp/commit/dd683b1d624d902df00d7a6bcfe70d6c9c73e9d2))
+* add diagnose, the tool the project exists for ([#40](https://github.com/bardesss/arr-mcp/issues/40)) ([d61f98d](https://github.com/bardesss/arr-mcp/commit/d61f98d27e0c0d08044db383a4a8306113023cef))
+* add get_library, the three-way join ([#36](https://github.com/bardesss/arr-mcp/issues/36)) ([0ad7257](https://github.com/bardesss/arr-mcp/commit/0ad725798a4e4687da40ea2663481ba3d0432057))
+* add the cached library loader ([#35](https://github.com/bardesss/arr-mcp/issues/35)) ([f2883d3](https://github.com/bardesss/arr-mcp/commit/f2883d3f4ed0b7e8aed0eaf5dfdbda18b5c038b0))
+* add the diagnosis chain ([#39](https://github.com/bardesss/arr-mcp/issues/39)) ([8476512](https://github.com/bardesss/arr-mcp/commit/847651255e79b14141d4d2edf26c9fde7a447b8c))
+* add the identity resolver and library index ([#29](https://github.com/bardesss/arr-mcp/issues/29)) ([024c048](https://github.com/bardesss/arr-mcp/commit/024c048ff61d73700e0ce71cce8ba60723f57f5d))
+* read whole libraries from Radarr, Sonarr and Jellyfin ([#34](https://github.com/bardesss/arr-mcp/issues/34)) ([f92246d](https://github.com/bardesss/arr-mcp/commit/f92246d8b1bf86c1ee4ad1a8b2a3384dabc869be))
+
+
+### Bug Fixes
+
+* capture Jellyfin search the way the adapter actually calls it ([#30](https://github.com/bardesss/arr-mcp/issues/30)) ([323e6fd](https://github.com/bardesss/arr-mcp/commit/323e6fde087c640d04227ad2981727a2eac47deb))
+* close the findings from Phase 3a's whole-phase review ([#33](https://github.com/bardesss/arr-mcp/issues/33)) ([6f47a1e](https://github.com/bardesss/arr-mcp/commit/6f47a1ef7fda8220ad44508c130290e10c0bd215))
+* close the findings from Phase 3b's whole-phase review ([#44](https://github.com/bardesss/arr-mcp/issues/44)) ([8450eda](https://github.com/bardesss/arr-mcp/commit/8450edadeb98b3a1b1ed9398e746fc6ee0856d60))
+* let a failure tell the model what to do about it ([#38](https://github.com/bardesss/arr-mcp/issues/38)) ([4426e17](https://github.com/bardesss/arr-mcp/commit/4426e17a0e183b81cf798f41d9ec8afb2c6889b4))
+* produce VersionUnsupported, which nothing could reach ([#31](https://github.com/bardesss/arr-mcp/issues/31)) ([74fb832](https://github.com/bardesss/arr-mcp/commit/74fb8321de556576063c62d34bf900e109a48bcd))
+* settle §21.4 and let a Sonarr series match its Seerr request ([#41](https://github.com/bardesss/arr-mcp/issues/41)) ([caf98f7](https://github.com/bardesss/arr-mcp/commit/caf98f710791d6989419b4bf785a08f06800a45b))
+
 ## [0.3.1](https://github.com/bardesss/arr-mcp/compare/v0.3.0...v0.3.1) (2026-08-05)
 
 
