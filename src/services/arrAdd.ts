@@ -75,7 +75,11 @@ export async function readQualityProfiles(http: ServiceHttp, service: ServiceId)
     const rows = await http.get<RawProfile[]>('/api/v3/qualityprofile');
     return rows
         .filter((p): p is RawProfile & { id: number } => typeof p.id === 'number')
-        .map(p => ({ id: p.id, name: fenceText(p.name ?? `profile ${p.id}`, { service, field: 'name' }) }));
+        .map(p => {
+            const name = p.name ?? `profile ${p.id}`;
+            // Raw for matching, fenced for prose — see QualityProfile.
+            return { id: p.id, name, display: fenceText(name, { service, field: 'name' }) };
+        });
 }
 
 export async function readRootFolders(http: ServiceHttp, service: ServiceId): Promise<RootFolder[]> {

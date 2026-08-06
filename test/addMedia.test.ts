@@ -194,6 +194,68 @@ describe('add_media choosing a profile and folder', () => {
         expect(structuredContent.effects.join(' ')).toContain('Ultra-HD');
     });
 
+    /**
+     * The live regression, and the most expensive bug in this phase.
+     *
+     * Asking for profile id 8 selected HD-1080p (id 4), because the old
+     * predicate let the name branch fire on a digit — "hd-1080p" contains "8".
+     * A real film was added and a 1080p release grabbed against an explicit
+     * request for 2160p, with the preview stating the wrong profile in prose
+     * that read entirely plausible.
+     */
+    it('treats a numeric request as an id only, never as part of a name', async () => {
+        const h = harness({
+            profiles: [
+                { id: 4, name: 'HD-1080p' },
+                { id: 8, name: '2160p Balanced' }
+            ]
+        });
+
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            external_id: '603',
+            quality_profile: '8',
+            dry_run: true
+        });
+
+        expect(structuredContent.effects.join(' ')).toContain('2160p Balanced');
+        expect(structuredContent.effects.join(' ')).not.toContain('HD-1080p');
+    });
+
+    // "2160p Balanced" is a prefix of "2160p Balanced NL".
+    it('refuses an ambiguous name rather than taking whichever comes first', async () => {
+        const h = harness({
+            profiles: [
+                { id: 8, name: '2160p Balanced' },
+                { id: 12, name: '2160p Balanced NL' }
+            ]
+        });
+
+        await expect(
+            h.call({ service: 'radarr', external_id: '603', quality_profile: 'Balanced', dry_run: true })
+        ).rejects.toThrow(/matches more than one/);
+    });
+
+    it('lets an exact name win over an option that merely contains it', async () => {
+        const h = harness({
+            profiles: [
+                { id: 8, name: '2160p Balanced' },
+                { id: 12, name: '2160p Balanced NL' }
+            ]
+        });
+
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            external_id: '603',
+            quality_profile: '2160p Balanced',
+            dry_run: true
+        });
+
+        const effects = structuredContent.effects.join(' ');
+        expect(effects).toContain('2160p Balanced');
+        expect(effects).not.toContain('NL');
+    });
+
     it('accepts a profile by id', async () => {
         const h = harness({ profiles: MANY_PROFILES });
         const { structuredContent } = await h.call({
