@@ -70,7 +70,8 @@ A phase that ships without its README change is not finished.
 
 - [ ] `git log --oneline origin/main` contains everything you think the release does
 - [ ] `docker run` the published tag against a real stack, not just the build
-- [ ] An MCP client lists the expected tool count and **calls every one of them**
+- [ ] `npm run integration` — calls every tool against a real stack and fails
+      if any tool has no case at all
 - [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected
 
 Calling every tool matters more than it sounds. Adapters are tested against
@@ -78,6 +79,11 @@ recorded fixtures, which prove the mapping and nothing else. Every defect that
 reached 0.3.0 — a null field crashing a tool, a query parameter that has to be
 asked for, an endpoint that answers 400 — was invisible to 396 passing tests
 and obvious within seconds of a real call.
+
+`npm run integration` is the mechanical form of "call every tool". It fails
+when `TOOL_NAMES` gains a tool no case covers, so a new tool cannot ship
+uncalled — which is exactly how 0.3.0 shipped a `get_subtitles` that crashed
+on the first real request.
 
 ## Recapture fixtures when an adapter starts reading a new endpoint
 
