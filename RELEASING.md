@@ -39,15 +39,47 @@ gh api repos/bardesss/arr-mcp/actions/runs/<id>/approve --method POST
 Approve it **after** the last feature PR merges. Every merge makes
 release-please push again, which supersedes the run you just approved.
 
-This is what gated 0.4.0 and 0.5.0. The cause was `release.yml` calling
-release-please without a `token:`, so it fell back to `GITHUB_TOKEN` and opened
-the PR as `app/github-actions`, whose workflow runs are approval-gated.
+This gated 0.4.0 and 0.5.0 — fourteen zero-second runs between them, and both
+releases only merged because one run was approved by hand.
 
-**The permanent fix is a `RELEASE_PLEASE_TOKEN` secret**, which the workflow now
-prefers. Until it exists the workflow still works — it falls back to
-`GITHUB_TOKEN` — and every release keeps needing that manual approval. To set it
-up: create a fine-grained PAT scoped to this repository with **Contents:
-read/write** and **Pull requests: read/write**, then
+### What is actually known, and what is not
+
+The mechanism is clear: `release.yml` called release-please without a `token:`,
+so it fell back to `GITHUB_TOKEN` and opened the PR as `app/github-actions`,
+whose workflow runs land in `action_required`.
+
+What is **not** explained is why the gate came and went:
+
+```
+0.3.0, 0.3.1   success ~1m          no gate at all
+0.4.0          11 × action_required 0s, then success once approved
+0.5.0           3 × action_required 0s, then success once approved
+0.5.1          success 50s          no gated run, nothing approved
+```
+
+0.5.1's CI ran unassisted at 12:11 on 2026-08-06 — **before** the
+`RELEASE_PLEASE_TOKEN` secret existed (12:29) and before the `token:` line
+merged (12:31). So the approval state had already cleared on its own, most
+likely because approving a run stops GitHub gating that actor. Neither the
+switch-on around 2026-08-05 17:47 nor the switch-off is visible in any API this
+project can query.
+
+**Treat the token as insurance, not a proven cure.** It removes the dependency
+on an approval state nobody can see or explain, and it is inert otherwise:
+`${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}` changes nothing
+when the secret is absent, because an unset secret is the empty string. It has
+never been observed fixing a gated release, because no release has been gated
+since it landed.
+
+The `gh run list` check above is the part that has actually earned its place —
+it turns "the release PR is mysteriously stuck" into a one-command answer.
+
+### Maintaining the secret
+
+It is a fine-grained PAT scoped to this repository, with **Contents:
+read/write** and **Pull requests: read/write**. Fine-grained PATs expire, and
+when this one does the `||` fallback quietly reverts to `GITHUB_TOKEN` — no
+error, just the old symptom possibly returning. To replace it:
 
 ```bash
 gh secret set RELEASE_PLEASE_TOKEN --repo bardesss/arr-mcp   # paste at the prompt
