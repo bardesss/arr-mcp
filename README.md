@@ -6,20 +6,23 @@ Ask questions no single service can answer. *"Why isn't the film I requested on
 Tuesday showing up in Jellyfin?"* spans Seerr, Radarr, Prowlarr, SABnzbd and
 Jellyfin. arr-mcp correlates them and gives you the causal chain.
 
-- **A web config page** that diagnoses connections instead of printing
-  pass/fail, and shows live logs while you debug.
+- **`diagnose` answers what no single service can.** It walks the whole
+  chain — requested, managed, monitored, downloaded, indexed, imported,
+  scanned — and names the first thing that explains why something isn't
+  playable, even with a service down.
 - **Tool output is treated as untrusted data, never instruction.** Release names
   from public indexers are attacker-controllable and flow straight into model
   context; arr-mcp fences them.
-- **Safe by default.** Deletion is off until you deliberately enable it, and
-  then still asks per call.
+- **Reads only.** Writes arrive in 0.5, behind per-service permission toggles
+  that default off, and per-call confirmation even then.
 
-> ### Status: 0.3 — all eight services
+> ### Status: 0.4 — correlation across the stack
 >
-> Every service reachable, with `stack_health` reporting versions, disk space,
-> failing checks and library scan staleness across the whole stack. The read
-> tools that answer questions about your library land in the same release; the
-> cross-service `diagnose` arrives in 0.4. See [the roadmap](#roadmap).
+> `get_library` joins Radarr, Sonarr and Jellyfin into one record per title, on
+> shared external ids — presence, ratings and watch state answered together
+> instead of service by service. `diagnose` walks the whole chain from request
+> to playable and names the first thing that explains a gap, even with
+> services down. See [the roadmap](#roadmap).
 
 ## Services
 
@@ -31,9 +34,11 @@ All eight are supported as of 0.3.
 
 | Tool | Answers |
 | --- | --- |
+| `diagnose` | Why is this not playable? |
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
 | `search_media` | What do I have, what exists, what can I get? |
 | `get_media_details` | Everything about one item |
+| `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
 | `get_queue` | What is downloading, across all four download paths |
 | `get_calendar` | What is due, and what just aired |
 | `get_subtitles` | What is missing subtitles, and which providers are throttled |
@@ -43,21 +48,50 @@ All eight are supported as of 0.3.
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 
-Every tool takes `detail` (`minimal`/`standard`/`full`) and `limit`, and reports
-`{ total, returned, truncated }` — a truncated answer always says so. Tools
-spanning several services also report which ones they could not reach, and how
-many results each contributed, so a long answer from one service can never
-silently hide another.
+Every tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
+`limit`, and reports `{ total, returned, truncated }` — a truncated answer
+always says so. Tools spanning several services also report which ones they
+could not reach, and how many results each contributed, so a long answer from
+one service can never silently hide another. `diagnose` takes a title, or an
+exact `service` plus `id`, and returns a verdict rather than a list — see
+below.
+
+`get_library`'s `quality` filter and its per-source rating filters are films
+only — a series has no series-level quality, and Sonarr carries one flat
+TVDB rating rather than per-source scores. Asking either of series returns a
+refusal explaining why, not an empty list.
 
 Reads only. Writes arrive in 0.5, behind per-service permission toggles and
 per-call confirmation.
+
+### Why is this not playable?
+
+```
+diagnose { query: "Blade" }
+```
+
+> No file on disk yet. Trigger a search in Radarr or Sonarr — nothing is
+> downloading and no indexer reported a failure.
+
+`diagnose` walks the whole chain — requested, managed, monitored, downloaded,
+indexed, imported, scanned — and names the first thing that explains the
+absence, with what to do about it. No single service can answer this on its
+own: `get_library`'s `presence: arr_only` alone would only suggest Jellyfin
+hasn't seen a file the *arr believes exists; `diagnose` checked further and
+found Radarr itself has no file yet, and that neither the download queue nor
+an indexer rejection explains why — which is the real answer, and the one
+that actually tells you what to do next.
+
+It also works with services down. Any step it could not check sets
+`certain: false` and the summary names what was missed, because a confident
+verdict across a hole is worse than no verdict.
 
 ## Quick start
 
 ```yaml
 services:
   arr-mcp:
-    image: ghcr.io/bardesss/arr-mcp:0.3
+    image: ghcr.io/bardesss/arr-mcp:0.4
     ports: ['6060:6060']
     volumes: ['./config:/config']
     environment:
@@ -168,7 +202,6 @@ is free software maintained largely by volunteers:
 | [Zod](https://zod.dev) | config validation and tool input schemas |
 | [Pino](https://getpino.io) | logging |
 | [Vitest](https://vitest.dev) | tests |
-| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | the log ring buffer and write audit |
 | [yaml](https://eemeli.org/yaml/) | reading `config.yaml` |
 | [TypeScript](https://www.typescriptlang.org) | the language |
 
