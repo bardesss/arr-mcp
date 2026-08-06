@@ -20,6 +20,7 @@ import { registerGetRequests } from './getRequests.ts';
 import { registerGetSubtitles } from './getSubtitles.ts';
 import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
+import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
 import { registerRemoveQueueItem } from './removeQueueItem.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerStackHealth } from './stackHealth.ts';
@@ -116,6 +117,8 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerTriggerSearch(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
+    registerRespondToRequest(server, write, adapters);
+    registerDeleteRequest(server, write, adapters);
 }
 
 /** The tool surface, frozen. §18: renaming one breaks users' saved prompts. */
@@ -135,5 +138,7 @@ export const TOOL_NAMES = [
     'discover_media',
     'trigger_search',
     'remove_queue_item',
-    'delete_media'
+    'delete_media',
+    'respond_to_request',
+    'delete_request'
 ] as const;
