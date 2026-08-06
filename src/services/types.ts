@@ -333,6 +333,49 @@ export interface QueueRemoveCapable {
 export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>
     typeof (a as Partial<QueueRemoveCapable>).removeQueueItem === 'function';
 
+export type QualityProfile = { id: number; name: string };
+
+/**
+ * Two forms of the same string, deliberately.
+ *
+ * `path` is exactly what the service reported and is what gets posted back —
+ * a fenced string is not a directory, and sending one would create a library
+ * folder literally named `<<untrusted:radarr.path>>/movies<</untrusted>>`.
+ * `display` is the fenced form for prose that reaches model context. Keeping
+ * both is what stops anyone having to un-fence a value, which `fenceText` is
+ * deliberately not reversible for.
+ */
+export type RootFolder = { path: string; display: string; freeSpaceBytes?: number };
+
+/** What an external id resolves to, and whether the service already has it. */
+export type AddCandidate = {
+    title: string;
+    year?: number;
+    /** The service's own id when it is already in the library. Radarr and
+     *  Sonarr both report `id: 0` on a lookup for something not yet added,
+     *  which is how "already there" is told apart from "new". */
+    existingId?: number;
+};
+
+export type AddMediaOptions = {
+    externalId: string;
+    qualityProfileId: number;
+    rootFolderPath: string;
+    monitored: boolean;
+    searchNow: boolean;
+};
+
+export interface MediaAddCapable {
+    listQualityProfiles(): Promise<QualityProfile[]>;
+    listRootFolders(): Promise<RootFolder[]>;
+    /** Resolves the external id — TMDB for Radarr, TVDB for Sonarr. */
+    lookupForAdd(externalId: string): Promise<AddCandidate>;
+    addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }>;
+}
+
+export const hasMediaAdd = (a: ServiceAdapter): a is ServiceAdapter & MediaAddCapable =>
+    typeof (a as Partial<MediaAddCapable>).addMedia === 'function';
+
 /**
  * The two reversible verdicts on a request. Deliberately not including
  * "delete": approving and declining move a request between states it can be

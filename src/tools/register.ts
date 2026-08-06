@@ -7,6 +7,7 @@ import { permissionSourceFrom } from '../core/permissions.ts';
 import { JellyfinAdapter } from '../services/jellyfin.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import { hasIndexers, hasSubtitles, type ServiceAdapter } from '../services/types.ts';
+import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteMedia } from './deleteMedia.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
@@ -119,6 +120,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerDeleteMedia(server, write, adapters);
     registerRespondToRequest(server, write, adapters);
     registerDeleteRequest(server, write, adapters);
+    registerAddMedia(server, write, adapters);
 }
 
 /** The tool surface, frozen. §18: renaming one breaks users' saved prompts. */
@@ -140,5 +142,6 @@ export const TOOL_NAMES = [
     'remove_queue_item',
     'delete_media',
     'respond_to_request',
-    'delete_request'
+    'delete_request',
+    'add_media'
 ] as const;

@@ -27,8 +27,9 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
 >
 > **On `main`, ahead of the 0.4 tag:** writes, as described under
 > [Writes](#writes) — permission tiers, `dry_run`, confirmation tokens and the
-> audit trail, with five write tools covering searches, the download queue,
-> media and Seerr requests. Released images tagged `0.4` are still read-only.
+> audit trail, with six write tools covering searches, the download queue,
+> adding and removing media, and Seerr requests. Released images tagged `0.4`
+> are still read-only.
 
 ## Services
 
@@ -58,6 +59,7 @@ All eight are supported as of 0.3.
 | `delete_media` | Remove this film or series, optionally from disk |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
+| `add_media` | Add this film or series and start looking for it |
 
 Every tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
 `limit`, and reports `{ total, returned, truncated }` — a truncated answer
@@ -72,7 +74,7 @@ only — a series has no series-level quality, and Sonarr carries one flat
 TVDB rating rather than per-source scores. Asking either of series returns a
 refusal explaining why, not an empty list.
 
-The first thirteen are reads. The last five write, and are gated as described
+The first thirteen are reads. The last six write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded
 either way.
 
@@ -121,6 +123,7 @@ a film but refuses to re-monitor it.
 | --- | --- | --- |
 | `trigger_search` | safe | `safe_write` |
 | `respond_to_request` | safe | `safe_write` |
+| `add_media` | safe | `safe_write` |
 | `remove_queue_item` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
@@ -185,7 +188,16 @@ rather than proceeding unrecorded; reads are unaffected.
 Write tools take `service` and `id`, never a title. Titles are resolved fuzzily,
 which is fine when the cost of being wrong is a wrong answer and not fine when
 it is an action against the wrong film — use `get_media_details` or
-`get_library` to get an id first.
+`get_library` to get an id first. `add_media` takes an external id instead:
+TMDB for Radarr, TVDB for Sonarr, both returned by `lookup_media` under `ids`.
+
+`add_media` also needs a quality profile and a root folder. If your service has
+exactly one of each, it uses them without asking. If it has several and you name
+none, **it refuses and lists them** rather than picking:
+
+> radarr has several quality profiles and none was named — Name one —
+> available: Any (id 1); HD-1080p (id 4); HD-2160p (id 5); … Not guessing,
+> because the wrong one is not obvious until the download finishes.
 
 ## Quick start
 

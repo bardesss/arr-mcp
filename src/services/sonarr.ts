@@ -5,6 +5,7 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
 import type { IndexInput } from '../core/resolver.ts';
+import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import type { components } from './generated/sonarr.ts';
@@ -24,10 +25,15 @@ import {
     type QueueItem,
     type ScanState,
     type ScanStateCapable,
+    type AddCandidate,
+    type AddMediaOptions,
     type CommandHandle,
     type DeleteMediaOptions,
+    type MediaAddCapable,
     type MediaDeleteCapable,
+    type QualityProfile,
     type QueueRemoveCapable,
+    type RootFolder,
     type RemoveQueueOptions,
     type SearchCapable,
     type SearchHit,
@@ -92,7 +98,8 @@ export class SonarrAdapter
         LibraryCapable,
         SearchTriggerCapable,
         QueueRemoveCapable,
-        MediaDeleteCapable
+        MediaDeleteCapable,
+        MediaAddCapable
 {
     readonly id: ServiceId = 'sonarr';
     readonly #http: ServiceHttp;
@@ -154,6 +161,23 @@ export class SonarrAdapter
      *  which is why `delete_media` refuses to pretend otherwise. */
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
         return deleteArrMedia(this.#http, this.id, 'series', id, opts);
+    }
+
+    async listQualityProfiles(): Promise<QualityProfile[]> {
+        return readQualityProfiles(this.#http, this.id);
+    }
+
+    async listRootFolders(): Promise<RootFolder[]> {
+        return readRootFolders(this.#http, this.id);
+    }
+
+    /** Sonarr resolves by TVDB id, not TMDB — Radarr's id will match nothing. */
+    async lookupForAdd(externalId: string): Promise<AddCandidate> {
+        return lookupArrForAdd(this.#http, this.id, SONARR_ADD, externalId);
+    }
+
+    async addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }> {
+        return addArrMedia(this.#http, this.id, SONARR_ADD, opts);
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {

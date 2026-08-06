@@ -57,25 +57,40 @@ async function sourceFiles(dir: string, out: string[] = []): Promise<string[]> {
     return out;
 }
 
+/**
+ * Every source file, read once and concurrently, shared by both scans below.
+ *
+ * It used to be a serial `await readFile` inside a loop, run twice — once per
+ * scan. That is ~180 sequential round trips, which was comfortable at Phase 3
+ * and started intermittently blowing vitest's 5s default timeout once Phase 4
+ * added enough files, but *only* under the full suite, where every other test
+ * file is competing for the same disk. A gate that fails on a busy machine
+ * rather than on a real BOM is a gate people learn to re-run rather than read.
+ */
+let cached: Promise<{ file: string; text: string }[]> | undefined;
+
+const allSources = async (): Promise<{ file: string; text: string }[]> => {
+    cached ??= (async () => {
+        const files = (await Promise.all(['src', 'test', 'scripts'].map(d => sourceFiles(join(ROOT, d))))).flat();
+        return Promise.all(files.map(async file => ({ file, text: await readFile(file, 'utf8') })));
+    })();
+    return cached;
+};
+
 describe('source file encoding', () => {
     it('has no byte order mark in any source file', async () => {
-        const offenders: string[] = [];
-        for (const dir of ['src', 'test', 'scripts']) {
-            for (const file of await sourceFiles(join(ROOT, dir))) {
-                if ((await readFile(file, 'utf8')).startsWith(BOM)) offenders.push(file);
-            }
-        }
+        const offenders = (await allSources()).filter(s => s.text.startsWith(BOM)).map(s => s.file);
         expect(offenders).toEqual([]);
     });
 
     it('has no mojibake from a tool that guessed the encoding', async () => {
-        const offenders: string[] = [];
-        for (const dir of ['src', 'test', 'scripts']) {
-            for (const file of await sourceFiles(join(ROOT, dir))) {
-                if (MOJIBAKE.test(await readFile(file, 'utf8'))) offenders.push(file);
-            }
-        }
+        const offenders = (await allSources()).filter(s => MOJIBAKE.test(s.text)).map(s => s.file);
         expect(offenders).toEqual([]);
+    });
+
+    // The scans above are only meaningful if they actually saw the tree.
+    it('scanned a plausible number of source files', async () => {
+        expect((await allSources()).length).toBeGreaterThan(50);
     });
 
     it('detects the corruption it is looking for', () => {

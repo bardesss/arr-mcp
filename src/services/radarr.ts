@@ -4,6 +4,7 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
+import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders } from './arrAdd.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
 import {
@@ -22,10 +23,15 @@ import {
     type QueueItem,
     type ScanState,
     type ScanStateCapable,
+    type AddCandidate,
+    type AddMediaOptions,
     type CommandHandle,
     type DeleteMediaOptions,
+    type MediaAddCapable,
     type MediaDeleteCapable,
+    type QualityProfile,
     type QueueRemoveCapable,
+    type RootFolder,
     type RemoveQueueOptions,
     type SearchCapable,
     type SearchHit,
@@ -88,7 +94,8 @@ export class RadarrAdapter
         LibraryCapable,
         SearchTriggerCapable,
         QueueRemoveCapable,
-        MediaDeleteCapable
+        MediaDeleteCapable,
+        MediaAddCapable
 {
     readonly id: ServiceId = 'radarr';
     readonly #http: ServiceHttp;
@@ -155,6 +162,23 @@ export class RadarrAdapter
 
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
         return deleteArrMedia(this.#http, this.id, 'movie', id, opts);
+    }
+
+    async listQualityProfiles(): Promise<QualityProfile[]> {
+        return readQualityProfiles(this.#http, this.id);
+    }
+
+    async listRootFolders(): Promise<RootFolder[]> {
+        return readRootFolders(this.#http, this.id);
+    }
+
+    /** Radarr resolves by TMDB id; a TVDB id will simply match nothing. */
+    async lookupForAdd(externalId: string): Promise<AddCandidate> {
+        return lookupArrForAdd(this.#http, this.id, RADARR_ADD, externalId);
+    }
+
+    async addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }> {
+        return addArrMedia(this.#http, this.id, RADARR_ADD, opts);
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
