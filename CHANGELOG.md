@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/bardesss/arr-mcp/compare/v0.6.0...v0.6.1) (2026-08-06)
+
+
+### Bug Fixes
+
+* close the gaps the config UI shipped with ([#56](https://github.com/bardesss/arr-mcp/issues/56)) ([8f92c30](https://github.com/bardesss/arr-mcp/commit/8f92c3029b253ebf5eae9631ba2fa35ad2a349df))
+
 ## [0.6.0](https://github.com/bardesss/arr-mcp/compare/v0.5.1...v0.6.0) (2026-08-06)
 
 
