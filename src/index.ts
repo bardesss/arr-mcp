@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { buildApp } from './app.ts';
 import { loadConfig } from './config/load.ts';
+import { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import { buildAdapters } from './services/registry.ts';
 
@@ -17,6 +18,11 @@ if (created) {
 
 const adapters = buildAdapters(config);
 
+// Opened at startup, not lazily on the first write: a config volume that
+// cannot hold the audit trail should be a loud failure now, while someone is
+// watching `docker logs`, rather than the first time they ask for a deletion.
+const audit = WriteAudit.open(CONFIG_DIR);
+
 if (adapters.length === 0) {
     logger.warn(
         { config: `${CONFIG_DIR}/config.yaml` },
@@ -24,6 +30,6 @@ if (adapters.length === 0) {
     );
 }
 
-serve({ fetch: buildApp({ config, adapters }).fetch, port: PORT, hostname: '0.0.0.0' }, info => {
+serve({ fetch: buildApp({ config, adapters, audit }).fetch, port: PORT, hostname: '0.0.0.0' }, info => {
     logger.info({ port: info.port, adapters: adapters.map(a => a.id) }, 'arr-mcp listening');
 });

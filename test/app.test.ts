@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
+import { WriteAudit } from '../src/core/audit.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 
 const TOKEN = 'a'.repeat(64);
 const WRONG = 'b'.repeat(64);
 
+/** In-memory, so these tests never touch a config directory. */
+const audit = () => WriteAudit.ephemeral();
+
 const config = ConfigSchema.parse({ auth: { bearer_token: TOKEN }, services: {} });
-const app = () => buildApp({ config, adapters: [] });
+const app = () => buildApp({ config, adapters: [], audit: audit() });
 
 const rpc = (body: unknown, headers: Record<string, string> = {}) => ({
     method: 'POST',
@@ -132,7 +136,8 @@ describe('DNS rebinding protection', () => {
                 auth: { bearer_token: TOKEN, allowed_hosts: ['arr.example.com'] },
                 services: {}
             }),
-            adapters: []
+            adapters: [],
+            audit: audit()
         });
 
         // Hono's synthetic request helper does not derive a Host header from
@@ -209,7 +214,11 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
                 status: 401,
                 headers: { 'content-type': 'application/json' }
             });
-        const withRadarr = buildApp({ config, adapters: [new RadarrAdapter(radarrConfig, unauthorized)] });
+        const withRadarr = buildApp({
+            config,
+            adapters: [new RadarrAdapter(radarrConfig, unauthorized)],
+            audit: audit()
+        });
 
         const callTool = {
             jsonrpc: '2.0',
@@ -241,7 +250,11 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
                 status: 404,
                 headers: { 'content-type': 'application/json' }
             });
-        const withRadarr = buildApp({ config, adapters: [new RadarrAdapter(radarrConfig, notFound)] });
+        const withRadarr = buildApp({
+            config,
+            adapters: [new RadarrAdapter(radarrConfig, notFound)],
+            audit: audit()
+        });
 
         const callTool = {
             jsonrpc: '2.0',

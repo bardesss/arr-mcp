@@ -34,6 +34,7 @@
 import { loadConfig } from '../src/config/load.ts';
 import { buildAdapters } from '../src/services/registry.ts';
 import { buildApp } from '../src/app.ts';
+import { WriteAudit } from '../src/core/audit.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { hostsOf, redactHosts } from './lib/redact.ts';
 
@@ -90,10 +91,23 @@ const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? './config';
 const { config } = await loadConfig(CONFIG_DIR);
 
 const adapters = buildAdapters(config);
-const app = buildApp({ config, adapters });
+// Ephemeral on purpose: this script is a maintainer smoke run, and its dry-run
+// probes are not events the user's own audit trail should be cluttered with.
+const app = buildApp({ config, adapters, audit: WriteAudit.ephemeral() });
 const hosts = hostsOf(config);
 
-const missing = TOOL_NAMES.filter(name => !CASES.some(c => c.tool === name));
+/**
+ * Tools the dynamic section below drives rather than the static CASES table,
+ * because their arguments have to come from an earlier call's result. Listed
+ * here so the coverage check counts them — without this, adding a tool that
+ * needs a real id would either fail the check forever or, worse, be given a
+ * made-up id just to satisfy it.
+ */
+const DYNAMIC_TOOLS: ToolName[] = ['trigger_search'];
+
+const missing = TOOL_NAMES.filter(
+    name => !CASES.some(c => c.tool === name) && !DYNAMIC_TOOLS.includes(name)
+);
 if (missing.length > 0) {
     // Counting tools is not calling them — the check RELEASING.md added after
     // 0.3.0, made mechanical.
@@ -203,9 +217,18 @@ const existingTitle = typeof completeItem?.title === 'string' ? completeItem.tit
 const brokenItem = libraryItems.find(i => i.presence === 'arr_only' || i.presence === 'jellyfin_only');
 const brokenTitle = typeof brokenItem?.title === 'string' ? brokenItem.title : undefined;
 
-const searchHit = (searchResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
-    | SearchHitLike
-    | undefined;
+const searchHits = ((searchResult?.structuredContent as { items?: unknown[] } | undefined)?.items ??
+    []) as SearchHitLike[];
+const searchHit = searchHits[0];
+
+/**
+ * `diagnose` accepts a service+id from any of the eight, so it takes items[0]
+ * above. `trigger_search` reaches only Radarr and Sonarr, and the first library
+ * hit is routinely a Jellyfin one — taking items[0] for both made the run fail
+ * on a tool that was behaving correctly, which is a script bug that would
+ * otherwise recur on every stack whose search happens to rank Jellyfin first.
+ */
+const searchableHit = searchHits.find(h => h.service === 'radarr' || h.service === 'sonarr');
 
 if (existingTitle !== undefined) {
     await run('diagnose', { query: existingTitle }, 'a title that exists');
@@ -222,6 +245,27 @@ if (brokenTitle !== undefined) {
     await run('diagnose', { query: brokenTitle }, 'presence disagrees between services — genuinely broken');
 } else {
     console.log('SKIP diagnose "genuinely broken" case — no arr_only/jellyfin_only item in the sampled library.');
+}
+
+/**
+ * The one write tool, exercised **only as a dry run**. That is the whole reason
+ * a dry run is not permission-gated: this covers the real path — resolve the
+ * id, read the item back from the live service, describe the effect, report the
+ * permission verdict — against a maintainer's actual stack without needing
+ * write permission enabled and without touching anything.
+ *
+ * A live confirm/apply case is deliberately absent. It would queue a real
+ * search on a real Radarr on every run, and the failure mode of getting that
+ * wrong is a stack grabbing releases nobody asked for.
+ */
+if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+    await run(
+        'trigger_search',
+        { service: searchableHit.service, id: String(searchableHit.id), dry_run: true },
+        'dry run only — never applied from this script'
+    );
+} else {
+    console.log('SKIP trigger_search — search_media returned no Radarr or Sonarr hit to take a service+id from.');
 }
 
 console.log(`\n${passes}/${passes + failures} calls succeeded.`);

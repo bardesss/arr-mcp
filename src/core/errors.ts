@@ -7,6 +7,7 @@ export type ServiceErrorKind =
     | 'RateLimited'
     | 'Timeout'
     | 'VersionUnsupported'
+    | 'PermissionDenied'
     | 'UpstreamError';
 
 const PROSE: Record<ServiceErrorKind, string> = {
@@ -16,6 +17,11 @@ const PROSE: Record<ServiceErrorKind, string> = {
     RateLimited: 'rate limited',
     Timeout: 'timed out',
     VersionUnsupported: 'version unsupported',
+    // The only kind that is not a fault of the service. It reads as
+    // "radarr permission denied: destructive writes are disabled for radarr",
+    // which is repetitive but keeps every error one shape — and the service
+    // name is what tells the model *whose* config to change.
+    PermissionDenied: 'permission denied',
     UpstreamError: 'upstream error'
 };
 

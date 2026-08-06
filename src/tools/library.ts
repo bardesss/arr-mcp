@@ -55,6 +55,23 @@ export class LibraryLoader {
     }
 
     /**
+     * §16's write-invalidation seam, and the reason `TtlCache.invalidate`
+     * existed unused until now. Called after a successful write, so the next
+     * `get_library` reflects the change rather than up to five minutes of a
+     * library that no longer exists.
+     *
+     * Clears every entry rather than one key: this cache holds nothing but
+     * library snapshots, and a Radarr write invalidates *every* user's
+     * snapshot, not just the writer's — the keys are per Jellyfin user, and the
+     * film that was just deleted is gone from all of them. Recomputing a
+     * household's worth of snapshots costs one library read each; serving a
+     * stale one costs a wrong answer.
+     */
+    invalidate(): void {
+        this.#cache.clear();
+    }
+
+    /**
      * Returns undefined when there is no Jellyfin half to fetch. The decision
      * to propagate or degrade turns on the error's *kind*, not on whether a
      * user was named — naming someone must not turn a plain Jellyfin outage

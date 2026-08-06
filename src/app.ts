@@ -3,6 +3,7 @@ import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import type { Context } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import type { Config } from './config/schema.ts';
+import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { ServiceAdapter } from './services/types.ts';
 import { buildToolContext, registerAllTools } from './tools/register.ts';
@@ -23,13 +24,15 @@ function tokenMatches(presented: string, expected: string): boolean {
     return timingSafeEqual(a, b);
 }
 
-export function buildApp(opts: { config: Config; adapters: readonly ServiceAdapter[] }) {
-    const { config, adapters } = opts;
+export function buildApp(opts: { config: Config; adapters: readonly ServiceAdapter[]; audit: WriteAudit }) {
+    const { config, adapters, audit } = opts;
 
     // Built once, outside the per-request factory: the identity resolvers cache
     // each service's user directory, and rebuilding them per request would
-    // refetch it on every tool call.
-    const toolContext = buildToolContext(adapters, config);
+    // refetch it on every tool call. The write context has a second, harder
+    // reason — its confirmation tokens must outlive a single request or the
+    // preview/confirm handshake could never complete.
+    const toolContext = buildToolContext(adapters, config, audit);
 
     // The factory runs once per request, so every call gets a fresh McpServer.
     // This is what keeps the transport stateless (design spec §5) — do not
