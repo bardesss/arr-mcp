@@ -1,7 +1,8 @@
 import type { ServiceId } from '../config/schema.ts';
+import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import type { CalendarEntry, QueueItem } from './types.ts';
+import type { CalendarEntry, DeleteMediaOptions, QueueItem, RemoveQueueOptions } from './types.ts';
 
 /**
  * Radarr and Sonarr share a framework, so their queue and calendar responses
@@ -47,6 +48,53 @@ export async function readArrQueue(http: ServiceHttp, service: ServiceId): Promi
                 ...(r.errorMessage ? { errorMessage: fenceText(r.errorMessage, { service, field: 'errorMessage' }) } : {})
             };
         });
+}
+
+/**
+ * Shared for the same reason the read above is: Radarr and Sonarr expose the
+ * identical `DELETE /api/v3/queue/{id}` with the identical two flags. Writing
+ * it twice is how the two drift into disagreeing about what `blocklist` means.
+ */
+export async function removeArrQueueItem(
+    http: ServiceHttp,
+    service: ServiceId,
+    id: string,
+    opts: RemoveQueueOptions
+): Promise<void> {
+    const numeric = Number(id);
+    if (!Number.isInteger(numeric)) {
+        throw new ServiceError('NotFound', service, `"${id}" is not a ${service} queue id`, {
+            remedy: 'Queue ids are integers on Radarr and Sonarr. Take one from get_queue.'
+        });
+    }
+
+    // Both flags are serialised explicitly rather than omitted when false:
+    // Radarr defaults `removeFromClient` to true, so leaving it out on a
+    // remove-from-*arr-only request would also wipe it from the download
+    // client — the opposite of what was asked for.
+    await http.delete(
+        `/api/v3/queue/${numeric}?removeFromClient=${String(opts.removeFromClient)}&blocklist=${String(opts.blocklist)}`
+    );
+}
+
+/** Radarr's `/movie/{id}`, Sonarr's `/series/{id}` — same flags, different noun. */
+export async function deleteArrMedia(
+    http: ServiceHttp,
+    service: ServiceId,
+    resource: 'movie' | 'series',
+    id: string,
+    opts: DeleteMediaOptions
+): Promise<void> {
+    const numeric = Number(id);
+    if (!Number.isInteger(numeric)) {
+        throw new ServiceError('NotFound', service, `"${id}" is not a ${service} ${resource} id`, {
+            remedy: `${service} ids are integers. Get one from get_media_details or get_library.`
+        });
+    }
+
+    await http.delete(
+        `/api/v3/${resource}/${numeric}?deleteFiles=${String(opts.deleteFiles)}&addImportExclusion=${String(opts.addImportExclusion)}`
+    );
 }
 
 type RawCalendarMovie = {

@@ -4,7 +4,7 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
-import { calendarPath, readArrQueue, readRadarrCalendar } from './arrQueue.ts';
+import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
 import {
     diagnoseConnection,
@@ -23,6 +23,10 @@ import {
     type ScanState,
     type ScanStateCapable,
     type CommandHandle,
+    type DeleteMediaOptions,
+    type MediaDeleteCapable,
+    type QueueRemoveCapable,
+    type RemoveQueueOptions,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
@@ -82,7 +86,9 @@ export class RadarrAdapter
         MediaDetailCapable,
         SearchCapable,
         LibraryCapable,
-        SearchTriggerCapable
+        SearchTriggerCapable,
+        QueueRemoveCapable,
+        MediaDeleteCapable
 {
     readonly id: ServiceId = 'radarr';
     readonly #http: ServiceHttp;
@@ -139,6 +145,16 @@ export class RadarrAdapter
 
     async getQueue(): Promise<QueueItem[]> {
         return readArrQueue(this.#http, this.id);
+    }
+
+    readonly supportsBlocklist = true;
+
+    async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
+        return removeArrQueueItem(this.#http, this.id, id, opts);
+    }
+
+    async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
+        return deleteArrMedia(this.#http, this.id, 'movie', id, opts);
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {

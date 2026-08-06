@@ -103,7 +103,7 @@ const hosts = hostsOf(config);
  * needs a real id would either fail the check forever or, worse, be given a
  * made-up id just to satisfy it.
  */
-const DYNAMIC_TOOLS: ToolName[] = ['trigger_search'];
+const DYNAMIC_TOOLS: ToolName[] = ['trigger_search', 'remove_queue_item', 'delete_media'];
 
 const missing = TOOL_NAMES.filter(
     name => !CASES.some(c => c.tool === name) && !DYNAMIC_TOOLS.includes(name)
@@ -187,11 +187,13 @@ async function run(tool: string, args: Record<string, unknown>, note?: string): 
 
 let libraryResult: ToolCallResult | undefined;
 let searchResult: ToolCallResult | undefined;
+let queueResult: ToolCallResult | undefined;
 
 for (const { tool, args } of CASES) {
     const result = await run(tool, args);
     if (tool === 'get_library' && args.detail === 'standard') libraryResult = result;
     if (tool === 'search_media') searchResult = result;
+    if (tool === 'get_queue') queueResult = result;
 }
 
 /**
@@ -266,6 +268,46 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
     );
 } else {
     console.log('SKIP trigger_search — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+}
+
+/**
+ * The destructive pair, **dry run only, without exception**.
+ *
+ * These two are the reason `dry_run` exists as a terminal form rather than as
+ * the first half of the handshake. A live case here would delete a maintainer's
+ * film or wipe a partial download on every run, and no amount of care in a
+ * script makes that an acceptable default. The dry run still exercises
+ * everything worth exercising against a real service: the id resolves, the item
+ * is read back, the effect is described from real data (including the real size
+ * on disk), and the permission verdict is reported.
+ *
+ * If you want to test the apply path, do it by hand against something you are
+ * willing to lose.
+ */
+if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+    await run(
+        'delete_media',
+        { service: searchableHit.service, id: String(searchableHit.id), delete_files: true, dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    console.log('SKIP delete_media — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+}
+
+const queueItem = (queueResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
+    | { service?: unknown; id?: unknown }
+    | undefined;
+
+if (typeof queueItem?.service === 'string' && queueItem.id !== undefined) {
+    await run(
+        'remove_queue_item',
+        { service: queueItem.service, id: String(queueItem.id), blocklist: true, dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    // Routine, not a failure: a healthy stack with nothing downloading has an
+    // empty queue most of the time.
+    console.log('SKIP remove_queue_item — the queue is empty, so there is no real item to preview against.');
 }
 
 console.log(`\n${passes}/${passes + failures} calls succeeded.`);

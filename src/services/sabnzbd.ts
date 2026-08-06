@@ -10,6 +10,8 @@ import {
     type DiskSpaceCapable,
     type QueueCapable,
     type QueueItem,
+    type QueueRemoveCapable,
+    type RemoveQueueOptions,
     type ServiceAdapter
 } from './types.ts';
 
@@ -67,7 +69,7 @@ const gigabytesToBytes = (value: string | undefined): number | undefined => {
     return Number.isFinite(parsed) ? Math.round(parsed * BYTES_PER_GB) : undefined;
 };
 
-export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable {
+export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable {
     readonly id: ServiceId = 'sabnzbd';
     readonly #http: ServiceHttp;
 
@@ -134,6 +136,31 @@ export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCa
                     ...(eta === undefined ? {} : { etaSeconds: eta })
                 };
             });
+    }
+
+    /** SABnzbd has no blocklist — that lives in the *arr that queued the grab. */
+    readonly supportsBlocklist = false;
+
+    /**
+     * A write over GET, because that is SABnzbd's entire API — every mode,
+     * read or write, is a query parameter on `/api`. It answers
+     * `{"status": true}` on success and, notably, **also 200 with
+     * `{"status": false}`** for an nzo_id it does not have, so the body has to
+     * be checked. Trusting the status line would report a deletion that never
+     * happened.
+     */
+    async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
+        const body = await this.#http.get<{ status?: boolean; error?: string }>(
+            `/api?mode=queue&name=delete&value=${encodeURIComponent(id)}&del_files=${opts.removeFromClient ? 1 : 0}&output=json`
+        );
+
+        if (body.status !== true) {
+            throw new ServiceError('UpstreamError', this.id, `queue delete of ${id} was refused`, {
+                remedy:
+                    body.error ??
+                    'SABnzbd reported no failure reason. Check the item is still in the queue — take a current id from get_queue.'
+            });
+        }
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
