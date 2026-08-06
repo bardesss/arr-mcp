@@ -108,7 +108,8 @@ const DYNAMIC_TOOLS: ToolName[] = [
     'remove_queue_item',
     'delete_media',
     'respond_to_request',
-    'delete_request'
+    'delete_request',
+    'add_media'
 ];
 
 const missing = TOOL_NAMES.filter(
@@ -191,6 +192,46 @@ async function run(tool: string, args: Record<string, unknown>, note?: string): 
     }
 }
 
+/**
+ * Runs a case whose *correct* outcome is a refusal, and passes only when the
+ * refusal is the expected one.
+ *
+ * Some behaviour is only worth confirming as a failure — a tool that declines
+ * to guess between nine quality profiles is working, and asserting that with
+ * `run` would paint a green stack red. Asserting on the message, not merely on
+ * "it errored", is what keeps this from passing for the wrong reason: an
+ * unreachable service also errors.
+ */
+async function expectError(
+    tool: string,
+    args: Record<string, unknown>,
+    expected: RegExp,
+    note: string
+): Promise<void> {
+    const label = `${tool} ${JSON.stringify(args)} — ${note}`;
+    const started = performance.now();
+
+    try {
+        const result = await callTool(tool, args);
+        const ms = Math.round(performance.now() - started);
+        const text = redactHosts(result.content?.[0]?.text ?? '', hosts);
+
+        if (result.isError === true && expected.test(text)) {
+            console.log(`PASS ${label} (${ms}ms) — refused as expected: ${text}`);
+            passes += 1;
+            return;
+        }
+        console.error(
+            `FAIL ${label} (${ms}ms) — ${result.isError === true ? `wrong refusal: ${text}` : `expected a refusal, got: ${text}`}`
+        );
+        failures += 1;
+    } catch (err) {
+        const ms = Math.round(performance.now() - started);
+        console.error(`FAIL ${label} (${ms}ms) — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+}
+
 let libraryResult: ToolCallResult | undefined;
 let searchResult: ToolCallResult | undefined;
 let queueResult: ToolCallResult | undefined;
@@ -212,7 +253,7 @@ for (const { tool, args } of CASES) {
  * looks wrong), and — when the library actually has one — an item present on
  * one side and not the other, which is the case diagnose exists to explain.
  */
-type LibraryItemLike = { title?: unknown; presence?: unknown };
+type LibraryItemLike = { title?: unknown; presence?: unknown; kind?: unknown; ids?: { tmdb?: number } };
 type SearchHitLike = { service?: unknown; id?: unknown };
 
 const libraryItems = ((libraryResult?.structuredContent as { items?: unknown[] } | undefined)?.items ??
@@ -341,6 +382,29 @@ if (request?.id !== undefined) {
 } else {
     console.log('SKIP respond_to_request and delete_request — get_requests returned nothing to preview against.');
 }
+
+/**
+ * add_media, dry run only — it would otherwise add a film to a maintainer's
+ * Radarr and start downloading it on every run.
+ *
+ * A **fixed, known-good** TMDB id rather than one taken from the library. The
+ * first version of this case used a library item's own tmdbId and failed,
+ * because a film in the library had been removed from TMDB upstream — Radarr
+ * answers `[]` for it, correctly, and the case went red for a real-world data
+ * condition rather than a defect. 603 is The Matrix, which is not going
+ * anywhere.
+ *
+ * No quality profile is named on purpose, so this exercises the refusal path:
+ * a real stack has nine profiles, and the tool declining to guess between them
+ * — while listing them — is the behaviour most worth confirming against live
+ * data. `expectError` is what makes that a pass rather than a red line.
+ */
+await expectError(
+    'add_media',
+    { service: 'radarr', external_id: '603', dry_run: true },
+    /several quality profiles|Name one/,
+    'DRY RUN ONLY — expects the refuse-to-guess path, with the profiles listed'
+);
 
 console.log(`\n${passes}/${passes + failures} calls succeeded.`);
 if (missing.length > 0) {
