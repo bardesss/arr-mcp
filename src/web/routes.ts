@@ -18,6 +18,7 @@ import {
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
 import { configPage, SERVICE_IDS } from './configPage.ts';
+import { mcpEndpoint } from './origin.ts';
 import {
     auditPage,
     dashboardPage,
@@ -172,6 +173,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 diagnoses: health.services,
                 configured: snapshot.adapters.map(a => a.id),
                 bearerToken: snapshot.config.auth.bearer_token,
+                mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
                 disks: health.disks.items,
                 failures: health.failures.items,
                 scans: health.scans,

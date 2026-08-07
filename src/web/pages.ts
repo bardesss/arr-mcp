@@ -146,6 +146,8 @@ export function dashboardPage(opts: {
     diagnoses: ConnectionDiagnosis[];
     configured: string[];
     bearerToken: string;
+    /** Absent when the request carried no usable `Host` — see `origin.ts`. */
+    mcpUrl?: string | undefined;
     writeCounts: { applied: number; denied: number; total: number };
     disks: DiskSpace[];
     failures: HealthCheck[];
@@ -259,14 +261,35 @@ export function dashboardPage(opts: {
         <h2>MCP endpoint</h2>
         <div class="panel">
             <p class="note">
-                Point your MCP client at <span class="mono">/mcp</span> on this host and give it this bearer
-                token. This page is the only place it is shown — it is never written to a log.
+                Point your MCP client at this URL and give it the bearer token. This page is the
+                only place the token is shown — it is never written to a log.
             </p>
+            ${opts.mcpUrl === undefined
+                ? html`<p class="note">
+                      Use <span class="mono">/mcp</span> on this host — the address you reached this
+                      page on.
+                  </p>`
+                : html`<div class="token">
+                      <input id="mcp-url" type="text" value="${opts.mcpUrl}" readonly>
+                      <button class="ghost" type="button" data-copy="mcp-url">Copy</button>
+                  </div>`}
             <div class="token">
                 <input id="bearer" type="password" value="${opts.bearerToken}" readonly>
                 <button class="ghost" type="button" data-reveal="bearer">Show</button>
                 <button class="ghost" type="button" data-copy="bearer">Copy</button>
             </div>
+            ${opts.mcpUrl === undefined
+                ? raw('')
+                : html`<div class="row" style="margin-top:.75rem">
+                          <button class="ghost" type="button" data-copy-config="mcp-config">
+                              Copy client config
+                          </button>
+                          <span class="note" style="margin:0">Ready to paste — includes the token.</span>
+                      </div>
+                      <!-- Filled in by the browser at click time, never by the server: rendering
+                           the token here would undo the masked field above it, and a screenshot
+                           of this page would carry it. -->
+                      <textarea id="mcp-config" class="mono" rows="9" readonly hidden></textarea>`}
         </div>
 
         <h2>Writes</h2>

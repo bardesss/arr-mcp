@@ -98,8 +98,9 @@ button:hover { filter: brightness(1.1); }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; margin: 0 0 1rem; }
 legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
 .svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
-.token { display: flex; gap: .5rem; align-items: center; }
+.token { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
 .token input { flex: 1; font-family: var(--mono); font-size: .8rem; }
+#mcp-config { width: 100%; margin-top: .6rem; font-size: .78rem; white-space: pre; }
 `;
 
 /**
@@ -108,6 +109,22 @@ legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
  * Everything else is a form post and a server render.
  */
 export const JS = `
+// Say what actually happened. The clipboard write below fails on every plain
+// http origin, and reporting "Copied" for a fallback that only selected the
+// text is how someone pastes the wrong thing and blames the field.
+const flash = (btn, text) => {
+  if (btn.dataset.label === undefined) btn.dataset.label = btn.textContent.trim();
+  btn.textContent = text;
+  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+};
+
+const selectIn = (el) => {
+  el.hidden = false;
+  el.removeAttribute('readonly');
+  el.select();
+  el.setAttribute('readonly', '');
+};
+
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-copy]');
   if (!btn) return;
@@ -115,16 +132,49 @@ document.addEventListener('click', async (e) => {
   if (!input) return;
   try {
     await navigator.clipboard.writeText(input.value);
+    flash(btn, 'Copied');
   } catch {
     // Clipboard API needs a secure context, and this is deliberately served
     // over http on a LAN — so fall back to selecting the text for the user.
-    input.removeAttribute('readonly');
-    input.select();
-    input.setAttribute('readonly', '');
+    selectIn(input);
+    flash(btn, 'Selected — copy it');
   }
-  const original = btn.textContent;
-  btn.textContent = 'Copied';
-  setTimeout(() => { btn.textContent = original; }, 1200);
+});
+
+// The client config is assembled here, in the browser, and never rendered by
+// the server. The token is masked three lines above it on the page; putting the
+// same value into the HTML as readable JSON would quietly undo that, and a
+// screenshot of the dashboard would carry a working credential.
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-copy-config]');
+  if (!btn) return;
+  const box = document.getElementById(btn.dataset.copyConfig);
+  const url = document.getElementById('mcp-url');
+  const token = document.getElementById('bearer');
+  if (!box || !url || !token) return;
+
+  const config = JSON.stringify({
+    mcpServers: {
+      'arr-mcp': {
+        type: 'http',
+        url: url.value,
+        headers: { Authorization: 'Bearer ' + token.value }
+      }
+    }
+  }, null, 2);
+
+  try {
+    await navigator.clipboard.writeText(config);
+    flash(btn, 'Copied');
+  } catch {
+    // No clipboard on http, and unlike the fields above there is nothing
+    // already on screen to select — so fill the textarea now and reveal it.
+    // That puts the token on screen, which is acceptable only because it takes
+    // an explicit click on a button that says it copies credentials.
+    box.value = config;
+    selectIn(box);
+    flash(btn, 'Selected — copy it');
+  }
 });
 
 // Reveal a secret only on request, so a screenshot or a shoulder does not
