@@ -98,6 +98,19 @@ button:hover { filter: brightness(1.1); }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; margin: 0 0 1rem; }
 legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
 .svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
+/* What type=password used to do, minus the part that made every password
+   manager fill the card as a login form. Chrome, Edge and Safari have had the
+   prefixed property for years; Firefox since 116. Where it is unsupported the
+   field is a plain text input, which is the honest failure — the server never
+   renders a secret into it, so nothing is ever on screen that was not just
+   typed. */
+.secret { -webkit-text-security: disc; }
+dialog {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 0; max-width: 560px; width: calc(100% - 2rem);
+}
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; overflow: auto; }
 .token { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
 .token input { flex: 1; font-family: var(--mono); font-size: .8rem; }
 #mcp-config { width: 100%; margin-top: .6rem; font-size: .78rem; white-space: pre; }
@@ -188,6 +201,39 @@ document.addEventListener('click', (e) => {
   input.type = hidden ? 'text' : 'password';
   btn.textContent = hidden ? 'Hide' : 'Show';
 });
+
+// The add form: a dialog opened by a button, with fields that follow the
+// service picker. Both are enhancements — with scripting off the <noscript>
+// rule in pages.ts styles the dialog back into the page and every field shows,
+// which is the form exactly as it was before either of these existed.
+const addService = document.getElementById('add-service');
+if (addService) {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-open]');
+    if (!btn) return;
+    const dialog = document.getElementById(btn.dataset.open);
+    if (dialog && !dialog.open) dialog.showModal();
+  });
+
+  // A refused add re-renders the page with the dialog open, which to a browser
+  // with no script means "inline". Reopen it as the modal it was when posted,
+  // so the error at the top and the form it is about are on screen together.
+  if (addService.open) {
+    addService.close();
+    addService.showModal();
+  }
+
+  const picker = document.getElementById('add.type');
+  if (picker) {
+    const follow = () => {
+      for (const el of addService.querySelectorAll('[data-only]')) {
+        el.hidden = !el.dataset.only.split(' ').includes(picker.value);
+      }
+    };
+    picker.addEventListener('change', follow);
+    follow();
+  }
+}
 
 // The log stream polls JSON and builds rows with textContent — never
 // innerHTML.

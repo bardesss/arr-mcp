@@ -45,12 +45,24 @@ export function layout(opts: {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(opts.title)} · arr-mcp</title>
-<link rel="stylesheet" href="/ui/app.css">
+<!-- Version-stamped because the assets are served with an hour of cache: without
+     it, an upgrade leaves a browser holding the previous app.js against the new
+     page for up to an hour, which is how a button that opens a dialog becomes a
+     button that does nothing. -->
+<link rel="stylesheet" href="/ui/app.css?v=${encodeURIComponent(opts.version)}">
+<!-- The add form lives in a dialog element that app.js opens. With no script there is
+     nothing to open it, so it is styled back into the flow as the plain panel it
+     used to be: every field visible, the server still validating, and the two
+     controls that would need scripting taken away. -->
+<noscript><style>
+dialog { display: block; position: static; max-width: none; width: auto; margin: 0 0 1rem; }
+[data-open], dialog .close { display: none; }
+</style></noscript>
 </head>
 <body>
 <header><h1>arr-mcp <span>${esc(opts.version)}</span></h1>${nav}</header>
 <main>${message}${opts.body}</main>
-<script src="/ui/app.js" defer></script>
+<script src="/ui/app.js?v=${encodeURIComponent(opts.version)}" defer></script>
 </body>
 </html>`;
 }

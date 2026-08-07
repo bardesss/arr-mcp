@@ -20,13 +20,15 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
   broken and what to do about it, and read the logs and the write audit — no
   hand-edited YAML, no restart.
 
-> ### Status: 0.6 — a config page that diagnoses
+> ### Status: 0.7 — one library across many instances
 >
-> Add your services from a browser and see what is broken and why: connection
-> tests report the same `kind`, `detail` and `remedy` the tools do, rather than
-> a red cross you then have to investigate. Saving applies immediately, with no
-> restart. Log streams and the write audit are on the same page. The writes
-> from 0.5 and the correlation from 0.4 are unchanged underneath.
+> Run an HD and a 4K Radarr and read them as one library, or name the instance
+> you mean and write to exactly that one. The configuration page is built around
+> instances to match: a card each, added from a dialog that asks only what the
+> service needs, and tested before you save rather than after. Connection tests
+> still report the same `kind`, `detail` and `remedy` the tools do, rather than a
+> red cross you then have to investigate. The writes from 0.5 and the
+> correlation from 0.4 are unchanged underneath.
 > See [the roadmap](#roadmap).
 
 ## Services
@@ -220,7 +222,7 @@ services:
 ```
 
 Tags are `X.Y.Z`, `X.Y`, `X` and `latest` for releases, plus `main` for
-bleeding edge. Pin a minor — `:0.6` — if you would rather approve each new tool
+bleeding edge. Pin a minor — `:0.7` — if you would rather approve each new tool
 surface yourself.
 
 ### First run
@@ -241,8 +243,8 @@ setup form rather than a sign-in: choose a username and a password of at least
 > home LAN that is a walk from the terminal to the browser; behind a port
 > forward it is a race with the internet.
 
-**3. Add your services** on the Configuration page: switch one on, paste its URL
-and API key, save. Saving applies immediately; there is no restart. Nothing is
+**3. Add your services** on the Configuration page: **Add a service**, pick it,
+paste its URL and API key, save. Saving applies immediately; there is no restart. Nothing is
 configured until you do this, and a fresh install with no services answers
 nothing — that is expected, not a fault.
 
@@ -357,7 +359,7 @@ tier.
 | Page | What it is for |
 | --- | --- |
 | Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and the bearer token for your MCP client |
-| Configuration | Add, edit and remove service instances one at a time; change credentials |
+| Configuration | Add, edit, test and remove service instances one at a time; change credentials |
 | Logs | Three streams — all activity, problems only, or one service |
 | Write audit | Every write attempt — applied, previewed, refused or failed |
 
@@ -374,6 +376,12 @@ password all render as empty fields meaning *unchanged*, so a saved page or a
 screenshot cannot carry them. The bearer token is the deliberate exception —
 handing it to your MCP client is the point — and it is masked until you ask.
 
+**Your password manager leaves the Configuration page alone.** None of its
+fields is a `password` input, because that is the one thing that makes a browser
+read a card as a login form and refill the URL and API key on every load. They
+are masked in CSS instead, and carry each manager's own opt-out attribute. The
+sign-in page is untouched — that one *should* be filled.
+
 **The dashboard gives you the whole MCP connection.** It shows the endpoint as
 an absolute URL, built from the address you reached the page on — so it is
 already correct behind a reverse proxy, and there is nothing to assemble by
@@ -383,9 +391,28 @@ at the moment you click, never rendered into the page, so the screenshot
 property above still holds.
 
 **The Configuration page starts empty.** It shows a card per instance you have
-actually configured, in alphabetical order, and one **Add** form — not eight
-blank fieldsets for services you do not run. Each card saves on its own, so
-editing your 4K Radarr cannot disturb the HD one.
+actually configured, in alphabetical order, and an **Add a service** button —
+not eight blank fieldsets for services you do not run. Each card saves on its
+own, so editing your 4K Radarr cannot disturb the HD one.
+
+**Add a service** opens a dialog that only asks what the service needs: pick
+Transmission and it wants a username and password, pick anything else and it
+wants an API key. Services that can only have one instance drop out of the list
+once you have that one, so the picker never offers a choice that ends in
+"already configured". With scripting off the dialog is the plain form it used to
+be, every field showing, and the server still refuses what does not make sense.
+
+**Test** on a card tries the URL and key *as they are on screen*, saved or not,
+and tells you what came back — reachable and how fast, or what is wrong and what
+to do about it. Nothing is written to disk, so it is safe to try a URL you are
+unsure of. A blank key still means unchanged, so testing a card you have not
+touched tests what is already configured.
+
+**Jellyfin and Seerr suggest their own users.** The default-user field is backed
+by the real list, fetched from the service when the page loads, so the name you
+save is one the service actually knows rather than one you typed from memory. If
+the service does not answer, the field stays a plain text box and says so — you
+can always configure a service that is currently down.
 
 Adding a second Radarr, Sonarr or Bazarr asks you to name the one you already
 have, and says why: the name becomes part of the id, and that id is the

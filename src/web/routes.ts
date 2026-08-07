@@ -15,6 +15,8 @@ import {
     SESSION_TTL_MS,
     verifyPassword
 } from '../core/session.ts';
+import { buildAdapters } from '../services/registry.ts';
+import { hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
 import { addInstance, removeInstance, updateInstance, type InstanceFields } from '../config/mutate.ts';
@@ -225,10 +227,52 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     // --- configuration --------------------------------------------------
 
-    app.get('/ui/config', c => {
+    /**
+     * Who each user-aware service says its users are, for the default-user
+     * field to suggest.
+     *
+     * Capped well below any service's own timeout on purpose. This is the page
+     * you open *because* something is unreachable, and a Jellyfin that is down
+     * must cost a moment, not the ten seconds its own client would wait. A
+     * service that misses the cap is simply absent from the result, which the
+     * card renders as a plain text field saying so — never as an empty dropdown
+     * that reads like "this service has no users".
+     */
+    const USER_LOOKUP_MS = 2500;
+
+    const usersByInstance = async (): Promise<Record<string, readonly string[]>> => {
+        const found: Record<string, readonly string[]> = {};
+
+        await Promise.all(
+            runtime.current.adapters.filter(hasUserDirectory).map(async adapter => {
+                try {
+                    const users = await Promise.race([
+                        adapter.listUsers(),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error('timed out')), USER_LOOKUP_MS).unref()
+                        )
+                    ]);
+                    found[adapter.id] = users.map(u => u.name);
+                } catch (err) {
+                    logger.warn({ service: adapter.id, err }, 'could not list users for the configuration page');
+                }
+            })
+        );
+
+        return found;
+    };
+
+    app.get('/ui/config', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
-        return c.html(configPage({ version, config: runtime.config, csrf: runtime.sessions.csrfFor(session) }));
+        return c.html(
+            configPage({
+                version,
+                config: runtime.config,
+                csrf: runtime.sessions.csrfFor(session),
+                users: await usersByInstance()
+            })
+        );
     });
 
     /**
@@ -242,13 +286,21 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const configMutation =
         (
             what: string,
-            next: (form: Record<string, unknown>) => Config | { ask: string }
+            next: (form: Record<string, unknown>) => Config | { ask: string },
+            /** The add form is a dialog, so a refusal has to bring it back — a
+             *  message about a form nobody can see explains nothing. */
+            reopensAdd = false
         ): ((c: Context) => Promise<Response>) =>
         async (c: Context) => {
             const session = guard(c);
             if (session === undefined) return c.redirect(entry(), 302);
 
-            const render = (
+            // Asks the services who their users are on the way out, the same as
+            // a plain page load: a save that dropped the suggestions would have
+            // the card claim the service went quiet when nothing of the sort
+            // happened, and a save that changed a Jellyfin key is exactly when
+            // the list is worth refreshing.
+            const render = async (
                 message: { kind: 'ok' | 'err'; text: string } | undefined,
                 status: 200 | 400 | 403,
                 confirming?: string
@@ -258,7 +310,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         version,
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(session),
+                        users: await usersByInstance(),
                         ...(confirming === undefined ? {} : { confirmingRemoval: confirming }),
+                        ...(reopensAdd && status !== 200 ? { openAdd: true } : {}),
                         ...(message === undefined ? {} : { message })
                     }),
                     status
@@ -308,7 +362,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 ...(renameExistingTo === '' ? {} : { renameExistingTo }),
                 fields: instanceFieldsFrom(form)
             });
-        })
+        }, true)
     );
 
     app.post(
@@ -334,6 +388,59 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         '/ui/config/access',
         configMutation('Access settings saved.', form => buildAuthConfig(runtime.config, form))
     );
+
+    /**
+     * Test one instance — against the fields as they stand, not as they are
+     * saved.
+     *
+     * "Save it and see if the dashboard goes green" is the loop this replaces,
+     * and it is a bad one: it writes a URL you already suspect is wrong, and it
+     * answers on a different page. So the candidate config is built exactly as
+     * a save would build it, validated, and thrown away — nothing reaches disk,
+     * and a blank credential still means *unchanged*, so testing a card you
+     * have not touched tests what is already configured.
+     *
+     * Not a `configMutation`, despite the shape: that helper's whole contract
+     * is that it ends in `saveConfig`.
+     */
+    app.post('/ui/config/test', async c => {
+        const session = guard(c);
+        if (session === undefined) return c.redirect(entry(), 302);
+
+        const render = async (status: 200 | 400 | 403, extra: Partial<Parameters<typeof configPage>[0]>) =>
+            c.html(
+                configPage({
+                    version,
+                    config: runtime.config,
+                    csrf: runtime.sessions.csrfFor(session),
+                    users: await usersByInstance(),
+                    ...extra
+                }),
+                status
+            );
+
+        const form = await c.req.parseBody();
+        if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
+            logger.warn({ ip: ipOf(c) }, 'rejected a connection test with a bad CSRF token');
+            return render(403, { message: { kind: 'err', text: 'That form was stale. Reload the page and try again.' } });
+        }
+
+        const id = str(form.instance);
+        try {
+            const candidate = updateInstance(runtime.config, id, instanceFieldsFrom(form));
+            const adapter = buildAdapters(candidate).find(a => a.id === id);
+            if (adapter === undefined) throw new Error(`${id} is not configured.`);
+
+            const diagnosis = await adapter.testConnection();
+            logger.info({ ip: ipOf(c), service: id, ok: diagnosis.ok }, 'connection tested from the config UI');
+            return render(200, { tested: { instance: id, diagnosis } });
+        } catch (err) {
+            // A config that will not even build — a URL that is not a URL, a
+            // timeout that is not a number. testConnection never gets to run,
+            // so the message is the validation one, which names the field.
+            return render(400, { message: { kind: 'err', text: (err as Error).message } });
+        }
+    });
 }
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
