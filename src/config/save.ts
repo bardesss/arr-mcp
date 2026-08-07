@@ -35,7 +35,12 @@ export async function saveConfig(configDir: string, next: Config): Promise<void>
 
     doc.setIn(['auth', 'bearer_token'], value.auth.bearer_token);
     doc.setIn(['auth', 'username'], value.auth.username);
-    doc.setIn(['auth', 'password_hash'], value.auth.password_hash);
+    // Deleted rather than set when absent: `setIn` with `undefined` writes a
+    // null-valued key, and a config carrying `password_hash: null` reads back
+    // as claimed-with-an-empty-hash — an instance nobody can sign in to, and
+    // one the setup page will not rescue because it no longer looks unclaimed.
+    if (value.auth.password_hash === undefined) doc.deleteIn(['auth', 'password_hash']);
+    else doc.setIn(['auth', 'password_hash'], value.auth.password_hash);
     doc.setIn(['auth', 'allowed_hosts'], value.auth.allowed_hosts);
 
     // Services are replaced wholesale rather than merged key by key: a service

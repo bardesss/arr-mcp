@@ -225,33 +225,30 @@ surface yourself.
 
 ### First run
 
-**1. Start it, then read the log once.** On first start `config/config.yaml` is
-created and two generated credentials are printed — the config UI password and
-the MCP bearer token:
+**1. Start it and open `http://<host>:6060`** — the bare host, no path. There is
+nothing to read out of the container log.
 
 ```console
-$ docker compose up -d && docker compose logs arr-mcp
-config UI credentials — this password is not stored and will not be shown again
-    username: admin  password: ……
-bearer token for /mcp — also shown in the config UI
-    token: ……
-first run — sign in to the config UI to add services
+$ docker compose up -d
 ```
 
-Only a hash of the password is kept, so **this is the only time you will see
-it.** The bearer token you can always read again from the dashboard; the
-password you cannot — if you lose it, see [Config UI](#config-ui) for the reset.
+**2. Claim it.** Nobody has set this instance up yet, so the first page is a
+setup form rather than a sign-in: choose a username and a password of at least
+12 characters. You land on the dashboard already signed in.
 
-**2. Open `http://<host>:6060`** — the bare host, no path — and sign in with
-that username and password.
+> Do this **before** exposing the port. Until the instance is claimed, whoever
+> loads that page first owns it — and it holds every service's API key. On a
+> home LAN that is a walk from the terminal to the browser; behind a port
+> forward it is a race with the internet.
 
 **3. Add your services** on the Configuration page: switch one on, paste its URL
 and API key, save. Saving applies immediately; there is no restart. Nothing is
 configured until you do this, and a fresh install with no services answers
 nothing — that is expected, not a fault.
 
-**4. Point your MCP client at `http://<host>:6060/mcp`** using the bearer token
-shown on the dashboard.
+Your MCP client goes to `http://<host>:6060/mcp`, with the bearer token shown on
+the dashboard. No password is ever written to a log, so `docker logs` is for
+diagnosing the container, not for retrieving credentials.
 
 Everything the UI does is still just `config.yaml`, and editing it by hand
 remains supported:
@@ -325,9 +322,12 @@ handing it to your MCP client is the point — and it is masked until you ask.
 **Logs are a ring buffer**, kept beside your config and capped, so a chatty
 service cannot fill the disk. Full history stays in `docker logs`.
 
-Sign-in is a username and password, generated on first run alongside the bearer
-token. If you lose the password, delete the `password_hash` line from
-`config.yaml` and restart — a new one is generated and printed.
+Sign-in is a username and password you choose the first time you open the UI.
+Only a scrypt hash is stored, so the password cannot be recovered — but it can
+be replaced: delete the `password_hash` line from `config.yaml` and restart, and
+the setup page comes back exactly as it does on a fresh install. An instance
+with no `password_hash` is *unclaimed*, and every page redirects to setup until
+someone claims it.
 
 The UI is served over plain http on your LAN, like the services it manages.
 Put it behind a reverse proxy with TLS if it needs to leave the LAN, and pin

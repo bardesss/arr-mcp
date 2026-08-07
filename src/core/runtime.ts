@@ -57,10 +57,8 @@ export class Runtime {
     }
 
     static async start(configDir: string, audit: WriteAudit): Promise<{ runtime: Runtime; created: boolean }> {
-        const { config, created, generated } = await loadConfig(configDir);
-        const runtime = new Runtime(configDir, audit, config);
-        runtime.printCredentials(generated);
-        return { runtime, created };
+        const { config, created } = await loadConfig(configDir);
+        return { runtime: new Runtime(configDir, audit, config), created };
     }
 
     /**
@@ -119,19 +117,6 @@ export class Runtime {
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');
     }
 
-    /** Printed once, on the run that generates them — the password cannot be
-     *  recovered afterwards, only replaced. */
-    printCredentials(generated: { bearerToken?: string; password?: string; username?: string }): void {
-        if (generated.password !== undefined) {
-            logger.info(
-                { username: generated.username ?? 'admin', password: generated.password },
-                'config UI credentials — this password is not stored and will not be shown again'
-            );
-        }
-        if (generated.bearerToken !== undefined) {
-            logger.info({ token: generated.bearerToken }, 'bearer token for /mcp — also shown in the config UI');
-        }
-    }
 }
 
 function buildSnapshot(config: Config, audit: WriteAudit, confirm: ConfirmTokens): RuntimeSnapshot {

@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
-import { generatePassword, hashPassword } from '../core/session.ts';
 import { ConfigSchema, type Config } from './schema.ts';
 
 const FILENAME = 'config.yaml';
@@ -12,21 +11,25 @@ const FILENAME = 'config.yaml';
 const generateToken = (): string => randomBytes(32).toString('hex');
 
 /**
- * Credentials created on a run, returned so `index.ts` can print them once.
+ * Credentials created on a run.
  *
- * The password is deliberately not stored anywhere — only its hash reaches
- * `config.yaml` — so this is the only moment it exists in a form anyone can
- * read. That is why it travels back out of `loadConfig` rather than being
- * logged from in here: the loader should not decide what gets printed.
+ * Only the bearer token, which has no interactive path: a config without one
+ * has no working `/mcp` and no way to obtain one, so it must be generated. A
+ * password does have an interactive path — the setup page — so the loader
+ * never invents one, and no secret here is ever passed to the logger.
  */
-export type GeneratedCredentials = { bearerToken?: string; password?: string; username?: string };
+export type GeneratedCredentials = { bearerToken?: string };
 
-/** Written on first run so the knobs are discoverable without reading docs. */
-const seedConfig = (password: string) => ({
+/**
+ * Written on first run so the knobs are discoverable without reading docs.
+ *
+ * No `password_hash`: a fresh install is *unclaimed*, and the config UI serves
+ * its setup page until someone chooses a password in the browser.
+ */
+const seedConfig = () => ({
     auth: {
         bearer_token: generateToken(),
         username: 'admin',
-        password_hash: hashPassword(password),
         allowed_hosts: [] as string[]
     },
     services: {}
@@ -43,10 +46,9 @@ const seedConfig = (password: string) => ({
  * The maintainer scripts load this file only to reach the services it names,
  * and a read must not have side effects on the user's credentials. Before this
  * existed, running `npm run integration` against a config predating the config
- * UI silently backfilled a `password_hash` into it — generating a password
- * that the script never printed, so nobody could ever know it. Missing
- * credentials are still synthesised in memory, because the schema requires
- * them and a script has no business failing over a field it does not use.
+ * UI silently backfilled credentials into it. A missing bearer token is still
+ * synthesised in memory, because the schema requires it and a script has no
+ * business failing over a field it does not use.
  */
 export async function loadConfig(
     configDir: string,
@@ -69,15 +71,14 @@ export async function loadConfig(
                 `no config.yaml in ${configDir} — start arr-mcp once to create one, or point ARR_MCP_CONFIG_DIR at an existing config directory.`
             );
         }
-        const password = generatePassword();
-        const seeded = seedConfig(password);
+        const seeded = seedConfig();
         // 0o600: the file holds the bearer token and every service API key.
         await writeFile(path, stringify(seeded), { mode: 0o600 });
-        logger.info({ path }, 'created config.yaml with generated credentials');
+        logger.info({ path }, 'created config.yaml — no password set yet');
         return {
             config: ConfigSchema.parse(seeded),
             created: true,
-            generated: { bearerToken: seeded.auth.bearer_token, password, username: 'admin' }
+            generated: { bearerToken: seeded.auth.bearer_token }
         };
     }
 
@@ -96,28 +97,22 @@ export async function loadConfig(
     const auth = (obj.auth ?? {}) as { bearer_token?: string; password_hash?: string; username?: string };
     const generated: GeneratedCredentials = {};
 
-    // Backfill rather than refuse to start: someone who deleted a credential,
-    // or hand-wrote a config without one, should get a working server and be
-    // told where the replacement came from. Deleting `password_hash` is also
-    // the documented way to ask for a new password when you have lost it, so
-    // this path is a feature, not only a repair.
+    // The bearer token is backfilled rather than refused because it has no
+    // interactive path: a config missing one has no working /mcp, and no way
+    // to get a working one.
+    //
+    // `password_hash` is deliberately *not* backfilled. Its absence means
+    // unclaimed, which the config UI resolves in the browser — repairing it
+    // here would claim the instance on the user's behalf with a password
+    // nobody would ever see. Deleting the line is the documented way to ask
+    // for a new password, and this is what makes that work.
     if (!auth.bearer_token) {
         auth.bearer_token = generateToken();
         generated.bearerToken = auth.bearer_token;
-    }
-    if (!auth.password_hash) {
-        const password = generatePassword();
-        auth.password_hash = hashPassword(password);
-        auth.username ??= 'admin';
-        generated.password = password;
-        generated.username = auth.username;
-    }
-
-    if (generated.bearerToken !== undefined || generated.password !== undefined) {
         obj.auth = auth;
         if (persist) {
             await writeFile(path, stringify(obj), { mode: 0o600 });
-            logger.warn({ path }, 'config.yaml was missing a credential; generated one');
+            logger.warn({ path }, 'config.yaml was missing its bearer token; generated one');
         }
     }
 

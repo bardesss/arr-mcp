@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { loadConfig } from '../src/config/load.ts';
+import { saveConfig } from '../src/config/save.ts';
 
 const freshDir = () => mkdtemp(join(tmpdir(), 'arr-mcp-cfg-'));
 /**
@@ -31,21 +32,39 @@ describe('reading without writing', () => {
 
         const { config } = await loadConfig(dir, { persist: false });
 
-        // In memory it is complete, so the schema is satisfied…
-        expect(config.auth.password_hash.length).toBeGreaterThan(0);
+        // Unclaimed in memory, because inventing a password is precisely the
+        // side effect this test exists to prevent…
+        expect(config.auth.password_hash).toBeUndefined();
         // …and on disk nothing moved.
         expect(await readFile(path, 'utf8')).toBe(original);
     });
 
-    it('still backfills and persists when asked to', async () => {
+    /**
+     * The inverse of what this test used to assert. Backfilling a generated
+     * password was how a missing hash got repaired; now a missing hash is a
+     * state — unclaimed — and repairing it would claim the instance on the
+     * user's behalf with a password only the log ever saw.
+     */
+    it('never invents a password, even when persisting', async () => {
         const dir = await freshDir();
         const path = join(dir, 'config.yaml');
         await writeFile(path, `auth:\n  bearer_token: ${'d'.repeat(64)}\nservices: {}\n`, 'utf8');
 
+        const { config } = await loadConfig(dir);
+
+        expect(config.auth.password_hash).toBeUndefined();
+        expect(await readFile(path, 'utf8')).not.toContain('password_hash');
+    });
+
+    it('still backfills a missing bearer token, which has no interactive path', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(path, 'auth: {}\nservices: {}\n', 'utf8');
+
         const { generated } = await loadConfig(dir);
 
-        expect(generated.password).toBeTypeOf('string');
-        expect(await readFile(path, 'utf8')).toContain('password_hash');
+        expect(generated.bearerToken).toHaveLength(64);
+        expect(await readFile(path, 'utf8')).toContain('bearer_token');
     });
 
     // A script pointed at the wrong directory should say so, not create one.
@@ -103,6 +122,37 @@ describe('ConfigSchema', () => {
             services: { plex: { url: 'http://h:32400', api_key: 'k' } }
         });
         expect(result.success).toBe(false);
+    });
+});
+
+describe('an unclaimed config', () => {
+    it('parses a config with no password_hash', () => {
+        const parsed = ConfigSchema.parse({
+            auth: { bearer_token: 'a'.repeat(64) },
+            services: {}
+        });
+        expect(parsed.auth.password_hash).toBeUndefined();
+    });
+
+    /**
+     * `setIn` with `undefined` writes a null-valued key, which reads back as a
+     * *claimed* instance holding an empty hash — one nobody can sign in to and
+     * that the setup page will not rescue, because it no longer looks
+     * unclaimed. The only step in the unclaimed change the types do not catch.
+     */
+    it('omits password_hash from the file rather than writing a null', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(path, `auth:\n  bearer_token: ${'e'.repeat(64)}\nservices: {}\n`, 'utf8');
+
+        await saveConfig(
+            dir,
+            ConfigSchema.parse({ auth: { bearer_token: 'e'.repeat(64) }, services: {} })
+        );
+
+        const written = await readFile(path, 'utf8');
+        expect(written).not.toContain('password_hash');
+        expect(written).not.toContain('null');
     });
 });
 
