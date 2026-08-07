@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.0](https://github.com/bardesss/arr-mcp/compare/v0.6.3...v0.7.0) (2026-08-07)
+
+
+### Features
+
+* give every service instance its own identity ([#64](https://github.com/bardesss/arr-mcp/issues/64)) ([f829819](https://github.com/bardesss/arr-mcp/commit/f8298198bb7b4bfb52fe1f286e8fbeb023c5560b))
+* let tools name which instance, and merge reads across them ([#66](https://github.com/bardesss/arr-mcp/issues/66)) ([55e65d4](https://github.com/bardesss/arr-mcp/commit/55e65d40ac42fd8d0c47f2501a236fc9ee725a46))
+* rebuild the configuration page around instances ([#67](https://github.com/bardesss/arr-mcp/issues/67)) ([28f0e5f](https://github.com/bardesss/arr-mcp/commit/28f0e5f15490163d97cd1df366cc2cd696172341))
+
 ## [0.6.3](https://github.com/bardesss/arr-mcp/compare/v0.6.2...v0.6.3) (2026-08-07)
 
 
