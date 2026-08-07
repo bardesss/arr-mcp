@@ -27,6 +27,32 @@ let app: ReturnType<typeof buildApp>;
 let logs: LogStore;
 let audit: WriteAudit;
 
+/**
+ * The same fixture as `seed`, minus `password_hash` — an *unclaimed* instance,
+ * which is what a fresh install looks like before anyone visits it.
+ *
+ * The two `close()` calls come first because `beforeEach` has already opened a
+ * claimed fixture by the time this runs, and `afterEach` only closes the latest
+ * pair; without them every unclaimed test leaks a log and an audit handle.
+ */
+const seedUnclaimed = async () => {
+    logs.close();
+    audit.close();
+
+    dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
+    await writeFile(
+        join(dir, 'config.yaml'),
+        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices: {}\n`,
+        'utf8'
+    );
+
+    const { config } = await loadConfig(dir);
+    audit = WriteAudit.ephemeral();
+    logs = LogStore.ephemeral();
+    runtime = Runtime.fromConfig(config, audit, { configDir: dir });
+    app = buildApp({ runtime, audit, logs });
+};
+
 const seed = async (extra = '') => {
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
     await writeFile(
@@ -366,6 +392,96 @@ describe('allowed_hosts', () => {
         });
 
         expect((await get('other.example.com')).status).toBe(200);
+    });
+});
+
+/**
+ * These call `app.request` directly rather than the `call` helper above: `call`
+ * reads and writes the module-level `cookie`, which is never reset between
+ * tests, so a signed-in test earlier in the file would poison the `set-cookie`
+ * assertions here.
+ */
+describe('an unclaimed instance', () => {
+    const claim = (body: Record<string, string>) =>
+        app.request('http://localhost:6060/ui/setup', form(body));
+
+    const GOOD = { username: 'me', password: 'correct-horse-battery', confirm: 'correct-horse-battery' };
+
+    beforeEach(async () => {
+        await seedUnclaimed();
+    });
+
+    it('sends every UI route to the setup page', async () => {
+        for (const path of ['/', '/ui', '/ui/login', '/ui/logs', '/ui/audit', '/ui/config']) {
+            const res = await app.request(`http://localhost:6060${path}`);
+            expect(res.status, path).toBe(302);
+            expect(res.headers.get('location'), path).toBe('/ui/setup');
+        }
+    });
+
+    it('serves the setup page rather than a login form', async () => {
+        const body = await (await app.request('http://localhost:6060/ui/setup')).text();
+        expect(body).toContain('Claim this instance');
+    });
+
+    it('claims on the first post, and signs that person in', async () => {
+        const res = await claim(GOOD);
+
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui');
+        expect(res.headers.get('set-cookie')).toContain('arr_mcp_session=');
+        expect(runtime.config.auth.username).toBe('me');
+        expect(runtime.config.auth.password_hash).toBeTypeOf('string');
+    });
+
+    it('refuses a second claim, leaving the first owner in place', async () => {
+        await claim(GOOD);
+        const second = await claim({
+            username: 'attacker',
+            password: 'another-long-one',
+            confirm: 'another-long-one'
+        });
+
+        expect(second.status).toBe(302);
+        expect(second.headers.get('location')).toBe('/ui/login');
+        expect(second.headers.get('set-cookie')).toBeNull();
+        expect(runtime.config.auth.username).toBe('me');
+    });
+
+    it.each([
+        ['a short password', { username: 'me', password: 'short', confirm: 'short' }],
+        ['a mismatched confirmation', { username: 'me', password: 'correct-horse-battery', confirm: 'nope-not-that' }],
+        ['a blank username', { username: '   ', password: 'correct-horse-battery', confirm: 'correct-horse-battery' }]
+    ])('rejects %s without claiming', async (_label, body) => {
+        const res = await claim(body);
+
+        expect(res.status).toBe(400);
+        expect(res.headers.get('set-cookie')).toBeNull();
+        expect(runtime.config.auth.password_hash).toBeUndefined();
+    });
+
+    it('survives a restart as an unclaimed instance rather than repairing itself', async () => {
+        const { config } = await loadConfig(dir);
+        expect(config.auth.password_hash).toBeUndefined();
+    });
+});
+
+describe('a claimed instance', () => {
+    it('will not serve the setup page', async () => {
+        const res = await app.request('http://localhost:6060/ui/setup');
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/login');
+    });
+
+    it('will not let a post to setup overwrite the password', async () => {
+        const before = runtime.config.auth.password_hash;
+        const res = await app.request(
+            'http://localhost:6060/ui/setup',
+            form({ username: 'attacker', password: 'another-long-one', confirm: 'another-long-one' })
+        );
+
+        expect(res.status).toBe(302);
+        expect(runtime.config.auth.password_hash).toBe(before);
     });
 });
 

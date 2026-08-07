@@ -23,10 +23,15 @@ import {
     dashboardPage,
     loginPage,
     logsPage,
+    setupPage,
     LOG_STREAMS,
     type AuditRow,
     type LogStreamKey
 } from './pages.ts';
+
+/** Length only, no character-class rules: the classes push people towards
+ *  `Password1!` and buy nothing a longer passphrase does not. */
+const MIN_PASSWORD = 12;
 
 export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; name: string; version: string };
 
@@ -49,14 +54,65 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.get('/ui/app.css', c => c.body(CSS, 200, { 'content-type': 'text/css; charset=utf-8', ...CACHE }));
     app.get('/ui/app.js', c => c.body(JS, 200, { 'content-type': 'text/javascript; charset=utf-8', ...CACHE }));
 
+    // --- setup ----------------------------------------------------------
+    //
+    // An instance with no `password_hash` is *unclaimed*: nothing has been set
+    // up yet, so there is no password any sign-in could satisfy. Every UI route
+    // funnels here until someone claims it.
+
+    const unclaimed = (): boolean => runtime.config.auth.password_hash === undefined;
+    const entry = (): string => (unclaimed() ? '/ui/setup' : '/ui/login');
+
+    app.get('/ui/setup', c => {
+        if (!unclaimed()) return c.redirect('/ui/login', 302);
+        return c.html(setupPage({ version }));
+    });
+
+    /**
+     * No CSRF token on this form, deliberately.
+     *
+     * There is no session to bind one to, and forging a claim against an
+     * unclaimed instance gets an attacker precisely what loading the page
+     * directly would have got them. Every other form in this file keeps its
+     * token, because every other form acts on an instance someone owns.
+     */
+    app.post('/ui/setup', async c => {
+        if (!unclaimed()) return c.redirect('/ui/login', 302);
+
+        const body = await c.req.parseBody();
+        const username = str(body.username).trim();
+        const password = str(body.password);
+
+        const reject = (text: string) => c.html(setupPage({ version, error: text }), 400);
+        if (username === '') return reject('Choose a username.');
+        if (password.length < MIN_PASSWORD) return reject(`Use a password of at least ${MIN_PASSWORD} characters.`);
+        if (password !== str(body.confirm)) return reject('Those two passwords do not match.');
+
+        // Single-threaded through the await below, so no second request can
+        // interleave between the `unclaimed()` check above and the write.
+        await saveConfig(runtime.configDir, {
+            ...runtime.config,
+            auth: { ...runtime.config.auth, username, password_hash: hashPassword(password) }
+        });
+        await runtime.reload();
+
+        const token = runtime.sessions.issue();
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
+        logger.info({ ip: ipOf(c), username }, 'config UI claimed');
+        return c.redirect('/ui', 302);
+    });
+
     // --- login ----------------------------------------------------------
 
     app.get('/ui/login', c => {
+        if (unclaimed()) return c.redirect('/ui/setup', 302);
         if (sessionOf(c, runtime) !== undefined) return c.redirect('/ui', 302);
         return c.html(loginPage({ version }));
     });
 
     app.post('/ui/login', async c => {
+        if (unclaimed()) return c.redirect('/ui/setup', 302);
+
         const form = await c.req.parseBody();
         const username = str(form.username);
         const password = str(form.password);
@@ -65,8 +121,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // One message for both wrong-username and wrong-password, and the
         // password check runs either way: a login form that answers faster for
         // an unknown user tells an attacker which names exist.
+        //
+        // The hash is present by the time we get here, but the type no longer
+        // proves it, and a missing hash must never read as a valid login.
         const nameOk = username === auth.username;
-        const passOk = verifyPassword(password, auth.password_hash);
+        const passOk = auth.password_hash !== undefined && verifyPassword(password, auth.password_hash);
 
         if (!nameOk || !passOk) {
             logger.warn({ ip: ipOf(c), username }, 'rejected config UI sign-in');
@@ -86,12 +145,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     // --- everything below requires a session ----------------------------
 
-    const guard = (c: Context): string | undefined => sessionOf(c, runtime);
+    // Unclaimed counts as "no session" regardless of what cookie was presented:
+    // a session predating a credential reset must not outlive it.
+    const guard = (c: Context): string | undefined => (unclaimed() ? undefined : sessionOf(c, runtime));
 
-    app.get('/', c => c.redirect(guard(c) === undefined ? '/ui/login' : '/ui', 302));
+    app.get('/', c => c.redirect(guard(c) === undefined ? entry() : '/ui', 302));
 
     app.get('/ui', async c => {
-        if (guard(c) === undefined) return c.redirect('/ui/login', 302);
+        if (guard(c) === undefined) return c.redirect(entry(), 302);
 
         const snapshot = runtime.current;
 
@@ -126,7 +187,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // --- logs -----------------------------------------------------------
 
     app.get('/ui/logs', c => {
-        if (guard(c) === undefined) return c.redirect('/ui/login', 302);
+        if (guard(c) === undefined) return c.redirect(entry(), 302);
 
         const { stream, minLevel, service } = logQuery(c, logs);
         const url = `/ui/logs.json?stream=${stream}&service=${encodeURIComponent(service ?? '')}`;
@@ -155,7 +216,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // --- write audit ----------------------------------------------------
 
     app.get('/ui/audit', c => {
-        if (guard(c) === undefined) return c.redirect('/ui/login', 302);
+        if (guard(c) === undefined) return c.redirect(entry(), 302);
         return c.html(auditPage({ version, rows: audit.recent(300) as AuditRow[] }));
     });
 
@@ -163,13 +224,13 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.get('/ui/config', c => {
         const session = guard(c);
-        if (session === undefined) return c.redirect('/ui/login', 302);
+        if (session === undefined) return c.redirect(entry(), 302);
         return c.html(configPage({ version, config: runtime.config, csrf: runtime.sessions.csrfFor(session) }));
     });
 
     app.post('/ui/config', async c => {
         const session = guard(c);
-        if (session === undefined) return c.redirect('/ui/login', 302);
+        if (session === undefined) return c.redirect(entry(), 302);
 
         const form = await c.req.parseBody();
         if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
@@ -333,13 +394,23 @@ export function buildConfig(current: Config, form: Record<string, unknown>): Con
         .map(h => h.trim())
         .filter(h => h !== '');
 
+    // Refused rather than carried forward as `undefined`. Since `password_hash`
+    // became optional this assignment type-checks either way, so nothing but
+    // this guard stops a blank password field on a config save from writing a
+    // config with no hash — silently un-claiming a live instance and handing it
+    // to whoever loads /ui/setup next.
+    const carriedHash = password === '' ? current.auth.password_hash : hashPassword(password);
+    if (carriedHash === undefined) {
+        throw new Error('This instance has no password set yet. Reload the page and set one up.');
+    }
+
     return {
         auth: {
             bearer_token: on(form['auth.rotate_token'])
                 ? generateBearerToken()
                 : current.auth.bearer_token,
             username: username === '' ? current.auth.username : username,
-            password_hash: password === '' ? current.auth.password_hash : hashPassword(password),
+            password_hash: carriedHash,
             allowed_hosts: hosts
         },
         services: services as Config['services']

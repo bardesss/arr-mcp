@@ -56,13 +56,59 @@ export function layout(opts: {
 </html>`;
 }
 
+/**
+ * Shown until someone claims the instance — a fresh install has no password at
+ * all, so there is nothing a login form could accept.
+ *
+ * No `nav`: there is nowhere else to go yet, and a sign-out button on a page
+ * with no session is nonsense. The warning is not decoration — between the
+ * container starting and this form being submitted, the instance belongs to
+ * whoever reaches it first.
+ */
+export function setupPage(opts: { version: string; error?: string | undefined }): string {
+    const body = html`<div class="login">
+        <div class="panel">
+            <h2>Set up arr-mcp</h2>
+            <p class="note">
+                Nobody has claimed this instance yet. Choose a username and password — until you
+                do, anyone who reaches this page can claim it instead.
+            </p>
+            <form method="post" action="/ui/setup">
+                <div class="field">
+                    <label for="username">Username</label>
+                    <input id="username" name="username" value="admin" autocomplete="username" autofocus required>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="new-password"
+                           minlength="12" required>
+                </div>
+                <div class="field">
+                    <label for="confirm">Confirm password</label>
+                    <input id="confirm" name="confirm" type="password" autocomplete="new-password"
+                           minlength="12" required>
+                </div>
+                <button type="submit">Claim this instance</button>
+            </form>
+        </div>
+    </div>`;
+
+    return layout({
+        title: 'Set up',
+        version: opts.version,
+        body,
+        ...(opts.error === undefined ? {} : { message: { kind: 'err' as const, text: opts.error } })
+    });
+}
+
 export function loginPage(opts: { version: string; error?: string | undefined }): string {
     const body = html`<div class="login">
         <div class="panel">
             <h2>Sign in</h2>
             <p class="note">
-                The password was printed to the container log on first start —
-                <span class="mono">docker logs arr-mcp</span>.
+                Lost the password? Delete the <span class="mono">password_hash</span> line from
+                <span class="mono">config.yaml</span> and restart — you will be offered the setup
+                page again, the same as a fresh install.
             </p>
             <form method="post" action="/ui/login">
                 <div class="field">
@@ -215,7 +261,7 @@ export function dashboardPage(opts: {
         <div class="panel">
             <p class="note">
                 Point your MCP client at <span class="mono">/mcp</span> on this host and give it this bearer
-                token. It is the same token printed on first start.
+                token. This page is the only place it is shown — it is never written to a log.
             </p>
             <div class="token">
                 <input id="bearer" type="password" value="${opts.bearerToken}" readonly>

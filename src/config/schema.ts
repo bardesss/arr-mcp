@@ -112,17 +112,19 @@ export const ConfigSchema = z.object({
          *  a random username helps nobody and is one more thing to look up. */
         username: z.string().min(1).default('admin'),
         /**
-         * scrypt hash of the UI password, `scrypt$salt$hash`. Required for the
-         * same reason `bearer_token` is: loadConfig always injects one before
-         * parsing, so the only way it is missing is a hand-edited file that
-         * deleted it — which must fail loudly rather than default to something
-         * that lets anyone in.
+         * scrypt hash of the UI password, `scrypt$salt$hash`.
          *
-         * The password itself is never stored. It is printed once, on the run
-         * that generates it, and cannot be recovered afterwards — deleting
-         * this line is how you ask for a new one.
+         * Optional, unlike `bearer_token`, and the difference is the whole
+         * design: absent means **unclaimed**, and the config UI serves its
+         * setup page instead of a login form until someone chooses a password
+         * in the browser. A bearer token has no interactive path, so a missing
+         * one must be generated; a password does, so one is never invented.
+         *
+         * Deleting this line is how you ask for a new password, and it puts
+         * the instance on exactly the path a fresh install takes. The password
+         * itself is never stored and never logged.
          */
-        password_hash: z.string().min(1),
+        password_hash: z.string().min(1).optional(),
         /**
          * Hostnames the MCP endpoint may be reached on, for the SDK's DNS
          * rebinding protection. Empty means "accept any Host", which is the

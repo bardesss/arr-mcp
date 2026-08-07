@@ -20,13 +20,17 @@ attachLogStore(logs);
 // watching `docker logs`, rather than the first time they ask for a deletion.
 const audit = WriteAudit.open(CONFIG_DIR);
 
-const { runtime, created } = await Runtime.start(CONFIG_DIR, audit);
+const { runtime } = await Runtime.start(CONFIG_DIR, audit);
 
-if (created) {
-    logger.info({ config: `${CONFIG_DIR}/config.yaml` }, 'first run — sign in to the config UI to add services');
-}
-
-if (runtime.current.adapters.length === 0) {
+if (runtime.config.auth.password_hash === undefined) {
+    // Deliberately the loudest line at startup: until someone claims it, this
+    // instance belongs to whoever loads the page first. No credential is
+    // printed here or anywhere else — the password is chosen in the browser.
+    logger.warn(
+        { port: PORT },
+        `arr-mcp is not set up yet — open http://<host>:${PORT} to choose a username and password`
+    );
+} else if (runtime.current.adapters.length === 0) {
     logger.warn(
         { config: `${CONFIG_DIR}/config.yaml` },
         'no services configured — add them in the config UI, or edit config.yaml'

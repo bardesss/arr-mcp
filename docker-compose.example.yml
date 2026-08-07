@@ -14,10 +14,9 @@ services:
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:6060/healthz']
 
-# On first start the config UI password and the MCP bearer token are printed
-# once to the log — the password is only ever shown here:
-#
-#   docker compose logs arr-mcp
-#
-# Then open http://<host>:6060, sign in, and add your services from the
+# Nothing to read out of the log. Start it, open http://<host>:6060, and choose
+# a username and password on the setup page — then add your services from the
 # Configuration page. Saving applies immediately; no restart.
+#
+# Claim it before exposing the port: until you do, whoever loads that page
+# first owns the instance.
