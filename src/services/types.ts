@@ -9,14 +9,27 @@ import { assertVersionSupported } from './versions.ts';
  */
 export type ConnectionDiagnosis = {
     ok: boolean;
-    service: ServiceId;
+    service: string;
     latency_ms: number;
     version?: string;
     error?: { kind: ServiceErrorKind; detail: string; remedy?: string };
 };
 
 export interface ServiceAdapter {
-    readonly id: ServiceId;
+    /**
+     * `radarr` for a single instance, `radarr/4k` for a named one. This is the
+     * identity everything human-facing uses — audit rows, log filters, error
+     * messages, merged read output.
+     */
+    readonly id: string;
+    /**
+     * What kind of service this is. **Capability dispatch keys on this, never
+     * on `id`**, which is the whole reason the two are separate: with two
+     * Radarrs, `id === 'radarr'` stops being a question with one answer.
+     */
+    readonly type: ServiceId;
+    /** The instance name, absent when there is only one. */
+    readonly instance?: string | undefined;
     testConnection(): Promise<ConnectionDiagnosis>;
     getVersion(): Promise<string>;
 }
@@ -27,7 +40,7 @@ export interface ServiceAdapter {
  * who reported it is not actionable.
  */
 export type DiskSpace = {
-    service: ServiceId;
+    service: string;
     /** Optional: omitted below `detail: full`, where paths are the longest
      *  strings in the response and rarely what the question was about. */
     path?: string;
@@ -37,10 +50,10 @@ export type DiskSpace = {
     totalSpace?: number;
 };
 
-export type HealthCheck = { service: ServiceId; source: string; type: string; message: string };
+export type HealthCheck = { service: string; source: string; type: string; message: string };
 
 /** Library scan staleness, the fourth thing design spec §12 asks stack_health for. */
-export type ScanState = { service: ServiceId; lastCompleted?: string; running?: boolean };
+export type ScanState = { service: string; lastCompleted?: string; running?: boolean };
 
 export interface DiskSpaceCapable {
     getDiskSpace(): Promise<DiskSpace[]>;
@@ -74,7 +87,7 @@ export const hasScanState = (a: ServiceAdapter): a is ServiceAdapter & ScanState
 // --- Phase 2b read-tool capabilities ---
 
 export type IndexerSummary = {
-    service: ServiceId;
+    service: string;
     id: number;
     name: string;
     enabled: boolean;
@@ -103,7 +116,7 @@ export const hasIndexers = (a: ServiceAdapter): a is ServiceAdapter & IndexerCap
 export type MissingLanguage = { name: string; code2: string; forced: boolean; hearingImpaired: boolean };
 
 export type SubtitleGap = {
-    service: ServiceId;
+    service: string;
     kind: 'movie' | 'episode';
     id: number;
     title: string;
@@ -119,7 +132,7 @@ export type SubtitleGap = {
  * whether Bazarr is currently able to do anything about it.
  */
 export type SubtitleProvider = {
-    service: ServiceId;
+    service: string;
     name: string;
     healthy: boolean;
     /** The provider's own words, present only when unhealthy. */
@@ -136,7 +149,7 @@ export const hasSubtitles = (a: ServiceAdapter): a is ServiceAdapter & SubtitleC
     typeof (a as Partial<SubtitleCapable>).getMissingSubtitles === 'function';
 
 export type QueueItem = {
-    service: ServiceId;
+    service: string;
     id: string;
     title: string;
     status: string;
@@ -155,7 +168,7 @@ export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable 
     typeof (a as Partial<QueueCapable>).getQueue === 'function';
 
 export type CalendarEntry = {
-    service: ServiceId;
+    service: string;
     kind: 'movie' | 'episode';
     id: number;
     title: string;
@@ -176,7 +189,7 @@ export const hasCalendar = (a: ServiceAdapter): a is ServiceAdapter & CalendarCa
     typeof (a as Partial<CalendarCapable>).getCalendar === 'function';
 
 export type PlaybackEntry = {
-    service: ServiceId;
+    service: string;
     kind: 'now_playing' | 'resume';
     itemId: string;
     title: string;
@@ -194,7 +207,7 @@ export type PlaybackEntry = {
 export type RequestStatus = 'pending' | 'approved' | 'declined';
 
 export type MediaRequest = {
-    service: ServiceId;
+    service: string;
     id: number;
     status: RequestStatus | 'unknown';
     mediaType: 'movie' | 'tv' | 'unknown';
@@ -223,7 +236,7 @@ export type EpisodeSummary = {
 };
 
 export type MediaDetails = {
-    service: ServiceId;
+    service: string;
     kind: 'movie' | 'series' | 'item';
     id: string;
     title: string;
@@ -252,7 +265,7 @@ export const hasMediaDetails = (a: ServiceAdapter): a is ServiceAdapter & MediaD
 export type SearchSource = 'library' | 'discover' | 'indexers';
 
 export type SearchHit = {
-    service: ServiceId;
+    service: string;
     source: SearchSource;
     kind: 'movie' | 'series' | 'item' | 'release';
     id: string;
@@ -283,7 +296,7 @@ export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapabl
  * reports "asked Radarr to search" rather than "found a release" — claiming the
  * latter would be a confident lie about work that has not happened yet.
  */
-export type CommandHandle = { service: ServiceId; commandId: number; name: string; status?: string };
+export type CommandHandle = { service: string; commandId: number; name: string; status?: string };
 
 export interface SearchTriggerCapable {
     /** Asks the service to look for releases for one item it already tracks. */
@@ -455,7 +468,8 @@ export interface DiscoverCapable {
  * implementation to test rather than eight to audit.
  */
 export async function diagnoseConnection(
-    id: ServiceId,
+    id: string,
+    type: ServiceId,
     probe: () => Promise<string | undefined>
 ): Promise<ConnectionDiagnosis> {
     const started = performance.now();
@@ -465,7 +479,7 @@ export async function diagnoseConnection(
         // failure. Checked here rather than in each adapter, so no adapter can
         // forget — and after the probe, so an unreachable service reports being
         // unreachable rather than being the wrong version.
-        if (version !== undefined) assertVersionSupported(id, version);
+        if (version !== undefined) assertVersionSupported(type, version);
 
         const diagnosis: ConnectionDiagnosis = {
             ok: true,

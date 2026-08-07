@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3';
 import type { Database as Db } from 'better-sqlite3';
 import { join } from 'node:path';
-import type { ServiceId } from '../config/schema.ts';
 import type { WriteTier } from './permissions.ts';
 import { logger } from './logger.ts';
 
@@ -41,7 +40,7 @@ export type WriteOutcome =
 
 export type AuditRecord = {
     tool: string;
-    service: ServiceId;
+    service: string;
     operation: string;
     tier: WriteTier;
     target: string;

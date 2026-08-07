@@ -1,3 +1,4 @@
+import { listInstances } from '../config/instances.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { Config } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
@@ -80,7 +81,7 @@ export function buildToolContext(
             // From `config.services` directly, not from the adapters: the gate
             // must answer from the file, so an adapter cannot widen its own
             // permissions by reporting a capability it was never granted.
-            permissions: permissionSourceFrom(config.services),
+            permissions: permissionSourceFrom(listInstances(config)),
             confirm,
             audit,
             library

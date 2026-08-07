@@ -342,7 +342,8 @@ Put it behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 | 0.4 | Cross-service correlation: identity resolver, three-way library join, `diagnose` |
 | 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation |
 | 0.6 | Web config page: dashboard, diagnosing connection tests, log streams, config editing with hot reload |
-| 0.7 → 1.0 | Metadata providers, MCP resources and prompts |
+| 0.7 | Multiple Radarr, Sonarr and Bazarr instances — an HD and a 4K stack read as one library |
+| 0.8 → 1.0 | Metadata providers, MCP resources and prompts |
 
 Each version is a self-contained, shippable slice — the goal is that 0.4 already
 answers questions no individual service can, with 0.5–0.7 making it complete.

@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { ServiceId } from '../config/schema.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
 import type { ServiceAdapter, SubtitleCapable, SubtitleGap, SubtitleProvider } from '../services/types.ts';
@@ -10,7 +9,7 @@ export type GetSubtitlesResult = {
     total: number;
     returned: number;
     truncated: boolean;
-    degraded: ServiceId[];
+    degraded: string[];
     /**
      * Not run through applyLimit: a Bazarr install has a dozen providers at
      * most, and wrapping a list that cannot truncate in a truncation contract

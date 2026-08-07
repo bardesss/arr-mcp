@@ -6,7 +6,7 @@ import type { IndexerRejection, QueueItem, RequestStatus, ScanState } from '../.
 export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan';
 export type StepStatus = 'ok' | 'blocked' | 'unknown' | 'skipped';
 
-export type Step = { stage: Stage; service?: ServiceId; status: StepStatus; detail: string };
+export type Step = { stage: Stage; service?: string; status: StepStatus; detail: string };
 
 /**
  * `undefined` and `null` mean different things throughout, and the distinction
@@ -25,7 +25,7 @@ export type Evidence = {
      * client *did* return — including the stalled row that was the actual
      * cause. `undefined` still means every configured client failed.
      */
-    queue: { items: QueueItem[]; partial: ServiceId[] } | undefined;
+    queue: { items: QueueItem[]; partial: string[] } | undefined;
     /** Analogue of `jellyfinConfigured`, below: no download client at all, not merely unreachable. */
     queueConfigured: boolean;
     rejections: IndexerRejection[] | undefined;
@@ -50,8 +50,8 @@ export type Evidence = {
      * they all answered in full. Only `libraryStep` reads this array; every
      * other step reads `degraded`.
      */
-    libraryDegraded: readonly ServiceId[];
-    degraded: readonly ServiceId[];
+    libraryDegraded: readonly string[];
+    degraded: readonly string[];
 };
 
 export type Diagnosis = {
@@ -59,7 +59,7 @@ export type Diagnosis = {
     resolved?: { title: string; year?: number; kind: 'movie' | 'series'; ids: MergedItem['ids'] };
     steps: Step[];
     verdict: { stage: Stage | 'playable'; summary: string; remedy?: string; certain: boolean };
-    degraded: ServiceId[];
+    degraded: string[];
 };
 
 /** Reported in this order — it is the order the pipeline actually runs in. */
@@ -266,7 +266,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     // too — the two used to share one array, so a Radarr library-read
     // failure alone made this stage report unknown even when every
     // configured download client had answered in full.
-    const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => QUEUE_SERVICES.includes(s))])];
+    const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => QUEUE_SERVICES.some(t => s === t || s.startsWith(`${t}/`)))])];
     const mine = items.filter(q => mentions(q.title, item));
 
     if (mine.length === 0) {
@@ -485,7 +485,7 @@ const SERIES_FILE_VISIBLE_HEDGE =
  * two arrays separate for the *per-stage* checks above, which each care
  * about only one; nothing downstream of this point needs that distinction).
  */
-const allDegraded = (ev: Evidence): ServiceId[] => [...new Set([...ev.degraded, ...ev.libraryDegraded])].sort();
+const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...ev.libraryDegraded])].sort();
 
 export function buildChain(query: string, ev: Evidence): Diagnosis {
     const steps: Step[] = [];

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { ServiceId } from '../src/config/schema.ts';
 import { fenceText } from '../src/core/fence.ts';
 import { LibraryIndex, type ExternalIds, type IndexInput, type MergedItem } from '../src/core/resolver.ts';
 import { unfenced } from '../src/core/titleMatch.ts';
@@ -10,7 +9,7 @@ import { unfenced } from '../src/core/titleMatch.ts';
 // bug (fixed alongside these factories) hide from every existing test.
 // These factories fence too, so the merge and search tests below exercise
 // what the resolver actually receives.
-const fenceArr = (title: string, service: ServiceId = 'radarr'): string => fenceText(title, { service, field: 'title' });
+const fenceArr = (title: string, service: string = 'radarr'): string => fenceText(title, { service, field: 'title' });
 const fenceJelly = (title: string): string => fenceText(title, { service: 'jellyfin', field: 'Name' });
 
 /** Strips the fence so a test can assert against the human-readable title. */

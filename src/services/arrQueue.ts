@@ -1,4 +1,3 @@
-import type { ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
@@ -30,7 +29,7 @@ export function parseTimeleft(value: string | undefined): number | undefined {
     return Number(days) * 86_400 + parts[0]! * 3600 + parts[1]! * 60 + parts[2]!;
 }
 
-export async function readArrQueue(http: ServiceHttp, service: ServiceId): Promise<QueueItem[]> {
+export async function readArrQueue(http: ServiceHttp, service: string): Promise<QueueItem[]> {
     const page = await http.get<RawQueuePage>('/api/v3/queue');
     return (page.records ?? [])
         .filter((r): r is RawQueueRecord & { id: number } => typeof r.id === 'number')
@@ -57,7 +56,7 @@ export async function readArrQueue(http: ServiceHttp, service: ServiceId): Promi
  */
 export async function removeArrQueueItem(
     http: ServiceHttp,
-    service: ServiceId,
+    service: string,
     id: string,
     opts: RemoveQueueOptions
 ): Promise<void> {
@@ -80,7 +79,7 @@ export async function removeArrQueueItem(
 /** Radarr's `/movie/{id}`, Sonarr's `/series/{id}` — same flags, different noun. */
 export async function deleteArrMedia(
     http: ServiceHttp,
-    service: ServiceId,
+    service: string,
     resource: 'movie' | 'series',
     id: string,
     opts: DeleteMediaOptions
@@ -112,7 +111,7 @@ type RawCalendarMovie = {
  * actually watch it: digital, then physical, then cinema. A row with none of
  * the three is dropped — an undated calendar entry is noise.
  */
-export function readRadarrCalendar(movies: RawCalendarMovie[], service: ServiceId): CalendarEntry[] {
+export function readRadarrCalendar(movies: RawCalendarMovie[], service: string): CalendarEntry[] {
     return movies
         .filter((m): m is RawCalendarMovie & { id: number } => typeof m.id === 'number')
         .map(m => ({ m, date: m.digitalRelease ?? m.physicalRelease ?? m.inCinemas }))
@@ -139,7 +138,7 @@ type RawCalendarEpisode = {
     series?: { title?: string };
 };
 
-export function readSonarrCalendar(episodes: RawCalendarEpisode[], service: ServiceId): CalendarEntry[] {
+export function readSonarrCalendar(episodes: RawCalendarEpisode[], service: string): CalendarEntry[] {
     return episodes
         .filter(
             (e): e is RawCalendarEpisode & { id: number; airDateUtc: string } =>

@@ -1,4 +1,5 @@
-import type { AnyServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ServiceInstance } from '../config/instances.ts';
+import type { AnyServiceConfig } from '../config/schema.ts';
 import { ServiceError } from './errors.ts';
 
 /**
@@ -35,14 +36,22 @@ export type PermissionVerdict =
  * permissions by reporting a capability it was never granted.
  */
 export type PermissionSource = {
-    get(service: ServiceId): AnyServiceConfig | undefined;
+    /** Keyed by instance id — `radarr` or `radarr/4k`, never the bare type. */
+    get(instance: string): AnyServiceConfig | undefined;
 };
 
-/** The property type is written out rather than as `Partial<Record<…>>` so it
- *  accepts `config.services` under `exactOptionalPropertyTypes`, where an
- *  explicitly-`undefined` key and a missing one are different types. */
-export function permissionSourceFrom(services: { [K in ServiceId]?: AnyServiceConfig | undefined }): PermissionSource {
-    return { get: service => services[service] };
+/**
+ * Keyed per instance, which is a feature rather than a consequence: safe writes
+ * on the HD Radarr and nothing on the 4K one is a policy people actually want,
+ * and a source keyed by service type cannot express it.
+ *
+ * Takes the flattened instance list rather than `config.services` so the
+ * one-or-many shape is already resolved. Doing it here as well would be a second
+ * place that could disagree about what `radarr/4k` means.
+ */
+export function permissionSourceFrom(instances: readonly ServiceInstance[]): PermissionSource {
+    const byId = new Map(instances.map(i => [i.id, i.config]));
+    return { get: instance => byId.get(instance) };
 }
 
 /**
@@ -51,7 +60,7 @@ export function permissionSourceFrom(services: { [K in ServiceId]?: AnyServiceCo
  * a dry run reports it as part of the preview without failing (see
  * `src/tools/write.ts` for why a dry run is not gated).
  */
-export function checkPermission(source: PermissionSource, service: ServiceId, tier: WriteTier): PermissionVerdict {
+export function checkPermission(source: PermissionSource, service: string, tier: WriteTier): PermissionVerdict {
     const config = source.get(service);
 
     if (config === undefined) {
@@ -83,7 +92,7 @@ export function checkPermission(source: PermissionSource, service: ServiceId, ti
  * refusal reaches the model as a sentence naming the exact YAML key to change
  * rather than as a bare "forbidden" it would then have to guess about.
  */
-export function assertPermitted(source: PermissionSource, service: ServiceId, tier: WriteTier): void {
+export function assertPermitted(source: PermissionSource, service: string, tier: WriteTier): void {
     const verdict = checkPermission(source, service, tier);
     if (verdict.allowed) return;
 

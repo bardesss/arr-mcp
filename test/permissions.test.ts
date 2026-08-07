@@ -1,3 +1,4 @@
+import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it } from 'vitest';
 import type { AnyServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
@@ -11,7 +12,7 @@ const service = (safe_write: boolean, destructive: boolean): AnyServiceConfig =>
         permissions: { safe_write, destructive }
     }) as AnyServiceConfig;
 
-const sourceFor = (permissions: Partial<Record<ServiceId, AnyServiceConfig>>) => permissionSourceFrom(permissions);
+const sourceFor = (permissions: Partial<Record<ServiceId, AnyServiceConfig>>) => permissionSourceFrom(instancesOf(permissions));
 
 describe('permission tiers', () => {
     it('refuses both tiers by default — nothing but a deliberate edit grants a write', () => {

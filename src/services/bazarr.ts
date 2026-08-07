@@ -1,4 +1,5 @@
-import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import { instanceId } from '../config/instances.ts';
+import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -52,14 +53,18 @@ function parseEpisodeNumber(value: string | undefined): { season?: number; episo
 type RawProvider = { name?: string; status?: string; retry?: string };
 
 export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, SubtitleCapable {
-    readonly id: ServiceId = 'bazarr';
+    readonly type: ServiceId = 'bazarr';
+    readonly instance: string | undefined;
+    readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: KeyedServiceConfig, fetchImpl: typeof fetch = fetch) {
+    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+        this.instance = config.name;
+        this.id = instanceId('bazarr', config.name);
         // Bazarr spells the header X-API-KEY, not X-Api-Key. Header names are
         // case-insensitive per RFC 9110, so this is cosmetic — but it matches
         // Bazarr's own documentation, which is what a reader will compare to.
-        this.#http = new ServiceHttp('bazarr', config, apiKeyHeader('X-API-KEY', config.api_key), fetchImpl);
+        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-API-KEY', config.api_key), fetchImpl);
     }
 
     async getVersion(): Promise<string> {
@@ -177,6 +182,6 @@ export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, Subtit
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 }

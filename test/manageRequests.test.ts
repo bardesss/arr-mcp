@@ -1,3 +1,4 @@
+import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, MultiUserServiceConfig, ServiceId } from '../src/config/schema.ts';
@@ -108,7 +109,7 @@ function harness(
     register(
         server as never,
         {
-            permissions: permissionSourceFrom(opts.permissions ?? { seerr: tiered(false, true) }),
+            permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { seerr: tiered(false, true) })),
             confirm: new ConfirmTokens(),
             audit,
             library: { invalidate } as unknown as LibraryLoader

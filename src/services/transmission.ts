@@ -51,7 +51,8 @@ const TORRENT_STATUS: Record<number, string> = {
 };
 
 export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable {
-    readonly id: ServiceId = 'transmission';
+    readonly type: ServiceId = 'transmission';
+    readonly id: string = 'transmission';
     readonly #http: ServiceHttp;
 
     constructor(config: TransmissionServiceConfig, fetchImpl: typeof fetch = fetch) {
@@ -149,7 +150,7 @@ export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, Qu
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 
     /**

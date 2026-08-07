@@ -1,4 +1,3 @@
-import type { ServiceId } from '../config/schema.ts';
 import { RANK_NONE, rankTitle, unfenced } from './titleMatch.ts';
 
 export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string };
@@ -31,7 +30,7 @@ export type MergedItem = {
      */
     genres?: string[];
     ids: ExternalIds;
-    acquisition?: { service: ServiceId; monitored: boolean; hasFile: boolean; quality?: string; sizeBytes?: number };
+    acquisition?: { service: string; monitored: boolean; hasFile: boolean; quality?: string; sizeBytes?: number };
     playback?: { user: string; watched: boolean; playCount?: number; lastPlayed?: string };
     ratings?: MergedRatings;
     /**

@@ -28,6 +28,7 @@ const directory = (users = USERS) => {
     const listUsers = vi.fn(async () => users);
     const adapter: ServiceAdapter & UserDirectoryCapable = {
         id: 'jellyfin',
+        type: 'jellyfin',
         getVersion: async () => '10.11.2',
         testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
         listUsers
@@ -107,6 +108,7 @@ describe('IdentityResolver', () => {
         let calls = 0;
         const adapter: ServiceAdapter & UserDirectoryCapable = {
             id: 'jellyfin',
+            type: 'jellyfin',
             getVersion: async () => '10.11.2',
             testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
             listUsers: async () => {

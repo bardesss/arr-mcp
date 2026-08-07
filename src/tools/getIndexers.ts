@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { ServiceId } from '../config/schema.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
 import type { IndexerCapable, IndexerRejection, IndexerSummary, ServiceAdapter } from '../services/types.ts';
@@ -10,7 +9,7 @@ export type GetIndexersResult = {
     total: number;
     returned: number;
     truncated: boolean;
-    degraded: ServiceId[];
+    degraded: string[];
     /** §12's "recent rejections". Present only at detail: full. */
     recentRejections?: IndexerRejection[];
 };

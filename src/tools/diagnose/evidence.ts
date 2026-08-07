@@ -32,7 +32,7 @@ const RECENT_REJECTION_LIMIT = 50;
  * `degraded`. That is the shape the chain reads: undefined is "could not
  * look", and it is what stops a verdict being confident across a hole (§6.1).
  */
-async function probe<T>(id: ServiceId, degraded: ServiceId[], fn: () => Promise<T>): Promise<T | undefined> {
+async function probe<T>(id: string, degraded: string[], fn: () => Promise<T>): Promise<T | undefined> {
     try {
         return await fn();
     } catch (err) {
@@ -45,8 +45,8 @@ async function probe<T>(id: ServiceId, degraded: ServiceId[], fn: () => Promise<
 async function resolveItem(
     deps: DiagnoseDeps,
     target: DiagnoseTarget,
-    degraded: ServiceId[],
-    libraryDegraded: ServiceId[]
+    degraded: string[],
+    libraryDegraded: string[]
 ): Promise<MergedItem | undefined> {
     // §9's gate lives in the loader's identity resolver, and a refusal
     // propagates out of diagnose rather than becoming a degraded stage — this
@@ -132,7 +132,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         throw new Error('Name either a query (a title) or both service and id.');
     }
 
-    const degraded: ServiceId[] = [];
+    const degraded: string[] = [];
     const libraryDegraded: ServiceId[] = [];
     const item = await resolveItem(deps, target, degraded, libraryDegraded);
 
