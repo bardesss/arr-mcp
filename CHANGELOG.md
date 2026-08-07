@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/bardesss/arr-mcp/compare/v0.6.2...v0.6.3) (2026-08-07)
+
+
+### Features
+
+* show the MCP endpoint and a copyable client config on the dashboard ([#61](https://github.com/bardesss/arr-mcp/issues/61)) ([476cb6c](https://github.com/bardesss/arr-mcp/commit/476cb6ccf53a68ef95a40fcc101bbd5f641b20a5))
+
 ## [0.6.2](https://github.com/bardesss/arr-mcp/compare/v0.6.1...v0.6.2) (2026-08-07)
 
 
