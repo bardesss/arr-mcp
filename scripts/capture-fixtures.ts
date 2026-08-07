@@ -9,6 +9,7 @@
  * secrets-only by decision (Phase 2 design §7): real titles, usernames, LAN
  * addresses and mount paths are published.
  */
+import { listInstances } from '../src/config/instances.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadConfig } from '../src/config/load.ts';
@@ -375,8 +376,21 @@ if (secrets.length === 0) {
 let captured = 0;
 let skipped = 0;
 
-for (const [id, service] of Object.entries(config.services) as [ServiceId, Config['services'][ServiceId]][]) {
-    if (service === undefined) continue;
+// One instance per service type. Fixtures are recorded per service, not per
+// instance — `test/fixtures/radarr` describes what a Radarr says, and an HD and
+// a 4K instance answer the same shapes — so capturing both would mean the
+// second silently overwrote the first.
+const capturedTypes = new Set<ServiceId>();
+
+for (const instance of listInstances(config)) {
+    if (capturedTypes.has(instance.type)) {
+        console.log(`  skipping ${instance.id}: already captured ${instance.type}`);
+        continue;
+    }
+    capturedTypes.add(instance.type);
+
+    const id = instance.type;
+    const service = instance.config;
 
     const http = new ServiceHttp(id, service, strategyFor(id, service));
     const dir = join('test', 'fixtures', id);

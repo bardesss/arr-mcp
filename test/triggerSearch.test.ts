@@ -1,3 +1,4 @@
+import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
@@ -115,7 +116,7 @@ function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfi
     registerTriggerSearch(
         server as never,
         {
-            permissions: permissionSourceFrom(opts.permissions ?? { radarr: permissive(true), sonarr: permissive(true) }),
+            permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: permissive(true), sonarr: permissive(true) })),
             confirm: new ConfirmTokens(),
             audit: WriteAudit.ephemeral(),
             library: { invalidate } as unknown as LibraryLoader

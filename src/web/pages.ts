@@ -1,4 +1,3 @@
-import type { ServiceId } from '../config/schema.ts';
 import type { LogRow } from '../core/logs.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
@@ -145,7 +144,7 @@ const statusDot = (d: ConnectionDiagnosis): SafeHtml =>
 export function dashboardPage(opts: {
     version: string;
     diagnoses: ConnectionDiagnosis[];
-    configured: ServiceId[];
+    configured: string[];
     bearerToken: string;
     /** Absent when the request carried no usable `Host` — see `origin.ts`. */
     mcpUrl?: string | undefined;

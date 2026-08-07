@@ -1,3 +1,4 @@
+import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
@@ -105,7 +106,7 @@ function harness(
     registerAddMedia(
         server as never,
         {
-            permissions: permissionSourceFrom(opts.permissions ?? { radarr: tiered(true), sonarr: tiered(true) }),
+            permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: tiered(true), sonarr: tiered(true) })),
             confirm: new ConfirmTokens(),
             audit,
             library: { invalidate } as unknown as LibraryLoader

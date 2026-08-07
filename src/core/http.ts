@@ -1,4 +1,4 @@
-import type { BaseServiceConfig, ServiceId } from '../config/schema.ts';
+import type { BaseServiceConfig } from '../config/schema.ts';
 import type { AuthStrategy } from './auth.ts';
 import { ServiceError, classifyFetchError, classifyHttpStatus } from './errors.ts';
 import { logger } from './logger.ts';
@@ -12,7 +12,7 @@ export const CIRCUIT_COOLDOWN_MS = 60_000;
  * a checkable property of the stack rather than a property of Radarr.
  */
 export class ServiceHttp {
-    readonly #id: ServiceId;
+    readonly #id: string;
     readonly #baseUrl: string;
     readonly #timeoutMs: number;
     readonly #auth: AuthStrategy;
@@ -21,7 +21,7 @@ export class ServiceHttp {
     #consecutiveFailures = 0;
     #openedAt: number | undefined;
 
-    constructor(id: ServiceId, config: BaseServiceConfig, auth: AuthStrategy, fetchImpl: typeof fetch = fetch) {
+    constructor(id: string, config: BaseServiceConfig, auth: AuthStrategy, fetchImpl: typeof fetch = fetch) {
         this.#id = id;
         this.#baseUrl = config.url;
         this.#timeoutMs = config.timeout_ms;

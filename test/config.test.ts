@@ -1,3 +1,4 @@
+import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -5,6 +6,10 @@ import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { saveConfig } from '../src/config/save.ts';
+
+/** The list form makes each service key a union; every assertion here is
+ *  about the single form, so this narrows once rather than at each call. */
+const single = (value: unknown): KeyedServiceConfig | undefined => value as KeyedServiceConfig | undefined;
 
 const freshDir = () => mkdtemp(join(tmpdir(), 'arr-mcp-cfg-'));
 /**
@@ -80,7 +85,7 @@ describe('ConfigSchema', () => {
             auth: AUTH,
             services: { radarr: { url: 'http://192.168.1.20:7878', api_key: 'k' } }
         });
-        expect(parsed.services.radarr?.permissions).toEqual({ safe_write: false, destructive: false });
+        expect(single(parsed.services.radarr)?.permissions).toEqual({ safe_write: false, destructive: false });
     });
 
     it('defaults the per-service timeout to 10 seconds', () => {
@@ -88,7 +93,7 @@ describe('ConfigSchema', () => {
             auth: AUTH,
             services: { radarr: { url: 'http://h:7878', api_key: 'k' } }
         });
-        expect(parsed.services.radarr?.timeout_ms).toBe(10_000);
+        expect(single(parsed.services.radarr)?.timeout_ms).toBe(10_000);
     });
 
     it('defaults allowed_hosts to an empty list', () => {
@@ -234,8 +239,8 @@ describe('per-service config shapes', () => {
             auth: AUTH,
             services: { radarr: { url: 'http://192.168.1.20:7878', api_key: 'k' } }
         });
-        expect(parsed.services.radarr?.timeout_ms).toBe(10_000);
-        expect(parsed.services.radarr?.permissions).toEqual({ safe_write: false, destructive: false });
+        expect(single(parsed.services.radarr)?.timeout_ms).toBe(10_000);
+        expect(single(parsed.services.radarr)?.permissions).toEqual({ safe_write: false, destructive: false });
     });
 
     it('accepts all eight services configured at once', () => {
@@ -340,7 +345,7 @@ describe('loadConfig', () => {
         const { config, created } = await loadConfig(dir);
         expect(created).toBe(false);
         expect(config.auth.allowed_hosts).toEqual(['arr.example.com']);
-        expect(config.services.radarr?.permissions.safe_write).toBe(true);
-        expect(config.services.radarr?.permissions.destructive).toBe(false);
+        expect(single(config.services.radarr)?.permissions.safe_write).toBe(true);
+        expect(single(config.services.radarr)?.permissions.destructive).toBe(false);
     });
 });

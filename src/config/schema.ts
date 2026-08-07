@@ -46,6 +46,80 @@ const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape 
 export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
 
 /**
+ * Which services may appear more than once.
+ *
+ * Quality tiers are the reason anyone runs two of something: an HD and a 4K
+ * Radarr, the matching Sonarrs, and a Bazarr per stack because Bazarr connects
+ * to exactly one Radarr and one Sonarr.
+ *
+ * The other five are deliberately single. Prowlarr feeds every *arr from one
+ * place and Seerr connects to your instances itself, so a second one is not a
+ * tier — and more to the point, `register.ts` selects those with a `.find`.
+ * Admitting a shape the code then degrades on is worse than refusing it, so the
+ * schema refuses it.
+ */
+export const MULTI_INSTANCE: readonly ServiceId[] = ['bazarr', 'radarr', 'sonarr'];
+
+/**
+ * Goes into the qualified id (`radarr/4k`), which reaches audit rows, log
+ * filters and eventually a tool parameter — so a `/` in here would make the id
+ * ambiguous, and a space would make it unquotable in half the places it lands.
+ */
+const InstanceNameSchema = z
+    .string()
+    .min(1)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'must be letters, digits, dashes or underscores, starting with one');
+
+const NamedKeyedServiceSchema = z.strictObject({
+    ...BaseServiceShape,
+    ...ApiKeyShape,
+    name: InstanceNameSchema
+});
+
+/**
+ * The list form. Names are compared case-insensitively because `4K` and `4k`
+ * naming two different Radarrs is a typo every time, never an intention.
+ */
+const InstanceListSchema = z
+    .array(NamedKeyedServiceSchema)
+    .min(1, 'list at least one instance, or use a single block instead of a list')
+    .superRefine((list, ctx) => {
+        const seen = new Map<string, number>();
+        list.forEach((entry, index) => {
+            const key = entry.name.toLowerCase();
+            const first = seen.get(key);
+            if (first !== undefined) {
+                ctx.addIssue({
+                    code: 'custom',
+                    message: `duplicate instance name "${entry.name}" — already used by entry ${first + 1}`,
+                    path: [index, 'name']
+                });
+                return;
+            }
+            seen.set(key, index);
+        });
+    });
+
+/**
+ * One block, as before, or a list of named ones. A union rather than a new key,
+ * so every config that parses today parses unchanged — there is no migration
+ * and no upgrade step, the same reasoning that made `password_hash` optional.
+ */
+const MultiInstanceServiceSchema = z.union([KeyedServiceSchema, InstanceListSchema]);
+export type NamedKeyedServiceConfig = z.infer<typeof NamedKeyedServiceSchema>;
+export type MultiInstanceServiceConfig = z.infer<typeof MultiInstanceServiceSchema>;
+
+/**
+ * A service config as an adapter receives it: the same shape, plus the name
+ * that distinguishes it when several are configured.
+ *
+ * Carrying the name *in the config* rather than as a constructor argument is
+ * what keeps this change from touching eight constructor signatures and every
+ * test that builds an adapter by hand. The single form simply has no `name`.
+ */
+export type Instanced<T> = T & { readonly name?: string | undefined };
+
+/**
  * What ServiceHttp needs from any service, whatever its auth shape. Derived
  * rather than parsed from its own schema — nothing ever validates against this
  * alone, and a schema with no parser is a schema that drifts.
@@ -84,20 +158,39 @@ export type TransmissionServiceConfig = z.infer<typeof TransmissionServiceSchema
 export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | TransmissionServiceConfig;
 
 /**
+ * Refuses a list, and says which services take one.
+ *
+ * Without this the reader gets zod's `expected object, received array`, which
+ * is true but does not answer the question they actually have — they have just
+ * seen a list work under `radarr` and reasonably tried it here.
+ */
+const singleOnly = <T extends z.ZodType>(schema: T) =>
+    z
+        .unknown()
+        .superRefine((value, ctx) => {
+            if (!Array.isArray(value)) return;
+            ctx.addIssue({
+                code: 'custom',
+                message: `only ${MULTI_INSTANCE.join(', ')} can be a list of instances — give this service a single block`
+            });
+        })
+        .pipe(schema);
+
+/**
  * Strict as well, so an unknown service id is an error rather than a key that
  * silently vanishes. Someone adding `plex:` should be told it is unsupported,
  * not left wondering why nothing happened.
  */
 const ServicesSchema = z
     .strictObject({
-        radarr: KeyedServiceSchema.optional(),
-        sonarr: KeyedServiceSchema.optional(),
-        prowlarr: KeyedServiceSchema.optional(),
-        bazarr: KeyedServiceSchema.optional(),
-        sabnzbd: KeyedServiceSchema.optional(),
-        jellyfin: MultiUserServiceSchema.optional(),
-        seerr: MultiUserServiceSchema.optional(),
-        transmission: TransmissionServiceSchema.optional()
+        radarr: MultiInstanceServiceSchema.optional(),
+        sonarr: MultiInstanceServiceSchema.optional(),
+        bazarr: MultiInstanceServiceSchema.optional(),
+        prowlarr: singleOnly(KeyedServiceSchema).optional(),
+        sabnzbd: singleOnly(KeyedServiceSchema).optional(),
+        jellyfin: singleOnly(MultiUserServiceSchema).optional(),
+        seerr: singleOnly(MultiUserServiceSchema).optional(),
+        transmission: singleOnly(TransmissionServiceSchema).optional()
     })
     .default({});
 

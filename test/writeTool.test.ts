@@ -1,3 +1,4 @@
+import { instancesOf } from './helpers/instances.ts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, ServiceId } from '../src/config/schema.ts';
@@ -71,7 +72,7 @@ function buildHarness(
     registerWriteTool(
         server,
         {
-            permissions: permissionSourceFrom(opts.permissions ?? { radarr: service(false, true) }),
+            permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: service(false, true) })),
             confirm,
             audit,
             library: { invalidate } as unknown as LibraryLoader

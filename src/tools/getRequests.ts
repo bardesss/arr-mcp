@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { ServiceId } from '../config/schema.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
@@ -13,7 +12,7 @@ export type GetRequestsResult = {
     total: number;
     returned: number;
     truncated: boolean;
-    degraded: ServiceId[];
+    degraded: string[];
 };
 
 const StatusSchema = z

@@ -70,7 +70,8 @@ const gigabytesToBytes = (value: string | undefined): number | undefined => {
 };
 
 export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable {
-    readonly id: ServiceId = 'sabnzbd';
+    readonly type: ServiceId = 'sabnzbd';
+    readonly id: string = 'sabnzbd';
     readonly #http: ServiceHttp;
 
     constructor(config: KeyedServiceConfig, fetchImpl: typeof fetch = fetch) {
@@ -164,6 +165,6 @@ export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCa
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 }

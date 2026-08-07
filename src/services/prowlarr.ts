@@ -64,7 +64,8 @@ type RawRelease = {
  * It is also API v1, not v3 — Prowlarr never had a v3 like its siblings.
  */
 export class ProwlarrAdapter implements ServiceAdapter, HealthCheckCapable, IndexerCapable, SearchCapable {
-    readonly id: ServiceId = 'prowlarr';
+    readonly type: ServiceId = 'prowlarr';
+    readonly id: string = 'prowlarr';
     readonly #http: ServiceHttp;
 
     constructor(config: KeyedServiceConfig, fetchImpl: typeof fetch = fetch) {
@@ -214,6 +215,6 @@ export class ProwlarrAdapter implements ServiceAdapter, HealthCheckCapable, Inde
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 }

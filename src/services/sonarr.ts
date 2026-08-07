@@ -1,4 +1,5 @@
-import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import { instanceId } from '../config/instances.ts';
+import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -101,11 +102,15 @@ export class SonarrAdapter
         MediaDeleteCapable,
         MediaAddCapable
 {
-    readonly id: ServiceId = 'sonarr';
+    readonly type: ServiceId = 'sonarr';
+    readonly instance: string | undefined;
+    readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: KeyedServiceConfig, fetchImpl: typeof fetch = fetch) {
-        this.#http = new ServiceHttp('sonarr', config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
+    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+        this.instance = config.name;
+        this.id = instanceId('sonarr', config.name);
+        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
     }
 
     async getVersion(): Promise<string> {
@@ -332,6 +337,6 @@ export class SonarrAdapter
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 }

@@ -103,7 +103,8 @@ export class JellyfinAdapter
         SearchCapable,
         UserLibraryCapable
 {
-    readonly id: ServiceId = 'jellyfin';
+    readonly type: ServiceId = 'jellyfin';
+    readonly id: string = 'jellyfin';
     readonly #http: ServiceHttp;
 
     constructor(config: MultiUserServiceConfig, fetchImpl: typeof fetch = fetch) {
@@ -314,6 +315,6 @@ export class JellyfinAdapter
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 }

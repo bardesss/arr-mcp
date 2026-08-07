@@ -1,4 +1,3 @@
-import type { ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
@@ -71,7 +70,7 @@ type RawProfile = { id?: number; name?: string };
 type RawRootFolder = { path?: string; freeSpace?: number };
 type RawLookup = { id?: number; title?: string; year?: number };
 
-export async function readQualityProfiles(http: ServiceHttp, service: ServiceId): Promise<QualityProfile[]> {
+export async function readQualityProfiles(http: ServiceHttp, service: string): Promise<QualityProfile[]> {
     const rows = await http.get<RawProfile[]>('/api/v3/qualityprofile');
     return rows
         .filter((p): p is RawProfile & { id: number } => typeof p.id === 'number')
@@ -82,7 +81,7 @@ export async function readQualityProfiles(http: ServiceHttp, service: ServiceId)
         });
 }
 
-export async function readRootFolders(http: ServiceHttp, service: ServiceId): Promise<RootFolder[]> {
+export async function readRootFolders(http: ServiceHttp, service: string): Promise<RootFolder[]> {
     const rows = await http.get<RawRootFolder[]>('/api/v3/rootfolder');
     return rows
         .filter((r): r is RawRootFolder & { path: string } => typeof r.path === 'string' && r.path !== '')
@@ -104,7 +103,7 @@ export async function readRootFolders(http: ServiceHttp, service: ServiceId): Pr
  */
 async function lookupRaw(
     http: ServiceHttp,
-    service: ServiceId,
+    service: string,
     shape: ArrAddShape,
     externalId: string
 ): Promise<{ raw: RawLookup; candidate: AddCandidate }> {
@@ -137,7 +136,7 @@ async function lookupRaw(
 
 export async function lookupArrForAdd(
     http: ServiceHttp,
-    service: ServiceId,
+    service: string,
     shape: ArrAddShape,
     externalId: string
 ): Promise<AddCandidate> {
@@ -146,7 +145,7 @@ export async function lookupArrForAdd(
 
 export async function addArrMedia(
     http: ServiceHttp,
-    service: ServiceId,
+    service: string,
     shape: ArrAddShape,
     opts: AddMediaOptions
 ): Promise<{ id: number; title: string }> {

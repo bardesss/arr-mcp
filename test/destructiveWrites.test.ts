@@ -1,3 +1,4 @@
+import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, KeyedServiceConfig, ServiceId, TransmissionServiceConfig } from '../src/config/schema.ts';
@@ -264,7 +265,7 @@ function harness(
         server as never,
         {
             permissions: permissionSourceFrom(
-                opts.permissions ?? { radarr: tiered(false, true), sonarr: tiered(false, true) }
+                instancesOf(opts.permissions ?? { radarr: tiered(false, true), sonarr: tiered(false, true) })
             ),
             confirm: new ConfirmTokens(),
             audit,

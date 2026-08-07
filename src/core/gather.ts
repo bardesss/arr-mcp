@@ -1,13 +1,12 @@
-import type { ServiceId } from '../config/schema.ts';
 import { logger } from './logger.ts';
 
-export type Source<T> = { id: ServiceId; fetch: () => Promise<T[]> };
+export type Source<T> = { id: string; fetch: () => Promise<T[]> };
 
 export type Gathered<T> = {
     items: T[];
-    degraded: ServiceId[];
+    degraded: string[];
     /** Pre-truncation contribution per service. Absent means the source failed. */
-    counts: Partial<Record<ServiceId, number>>;
+    counts: Record<string, number>;
 };
 
 /**
@@ -30,8 +29,8 @@ export async function gather<T>(sources: readonly Source<T>[]): Promise<Gathered
     const settled = await Promise.allSettled(sources.map(s => s.fetch()));
 
     const items: T[] = [];
-    const degraded: ServiceId[] = [];
-    const counts: Partial<Record<ServiceId, number>> = {};
+    const degraded: string[] = [];
+    const counts: Record<string, number> = {};
 
     settled.forEach((result, index) => {
         const id = sources[index]?.id;

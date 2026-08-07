@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
@@ -27,7 +26,7 @@ export type StackHealthResult = {
      * in a truncation contract is noise in every response.
      */
     scans: ScanState[];
-    degraded: ServiceId[];
+    degraded: string[];
 };
 
 /**
@@ -79,12 +78,12 @@ export async function buildStackHealth(
     opts: { detail: DetailLevel; limit: number }
 ): Promise<StackHealthResult> {
     const services: ConnectionDiagnosis[] = [];
-    const degraded: ServiceId[] = [];
+    const degraded: string[] = [];
     const disks: DiskSpace[] = [];
     const failures: HealthCheck[] = [];
     const scans: ScanState[] = [];
 
-    const markDegraded = (id: ServiceId) => {
+    const markDegraded = (id: string) => {
         if (!degraded.includes(id)) degraded.push(id);
     };
 

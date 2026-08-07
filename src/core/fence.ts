@@ -1,4 +1,3 @@
-import type { ServiceId } from '../config/schema.ts';
 
 /**
  * Design spec §11: everything a service returns is untrusted data, never
@@ -69,7 +68,7 @@ export function stripDangerous(value: string): string {
  * Escaping, not censoring: the words survive verbatim, so the model can still
  * read what the indexer actually said.
  */
-export function fenceText(value: string, source: { service: ServiceId; field: string }): string {
+export function fenceText(value: string, source: { service: string; field: string }): string {
     if (typeof value !== 'string' || value === '') return '';
 
     let clean = stripDangerous(value).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');

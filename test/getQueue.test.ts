@@ -143,6 +143,7 @@ describe('get_queue', () => {
     it('ignores adapters that have no queue at all', async () => {
         const bare: ServiceAdapter = {
             id: 'prowlarr',
+            type: 'prowlarr',
             getVersion: async () => '2.0.0',
             testConnection: async () => ({ ok: true, service: 'prowlarr', latency_ms: 1 })
         };

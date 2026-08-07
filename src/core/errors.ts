@@ -1,4 +1,3 @@
-import type { ServiceId } from '../config/schema.ts';
 
 export type ServiceErrorKind =
     | 'Unreachable'
@@ -25,7 +24,7 @@ const PROSE: Record<ServiceErrorKind, string> = {
     UpstreamError: 'upstream error'
 };
 
-function formatServiceError(kind: ServiceErrorKind, service: ServiceId, detail: string, remedy?: string): string {
+function formatServiceError(kind: ServiceErrorKind, service: string, detail: string, remedy?: string): string {
     const base = `${service} ${PROSE[kind]}: ${detail}`;
     return remedy ? `${base} — ${remedy}` : base;
 }
@@ -42,13 +41,13 @@ function formatServiceError(kind: ServiceErrorKind, service: ServiceId, detail: 
  */
 export class ServiceError extends Error {
     readonly kind: ServiceErrorKind;
-    readonly service: ServiceId;
+    readonly service: string;
     readonly detail: string;
     readonly remedy: string | undefined;
 
     constructor(
         kind: ServiceErrorKind,
-        service: ServiceId,
+        service: string,
         detail: string,
         opts?: { remedy?: string; cause?: unknown }
     ) {
@@ -137,7 +136,7 @@ const NOT_FOUND_REMEDY: Record<ReturnType<typeof classifyNotFoundPath>, string> 
         'Could not tell from the URL alone whether this is a missing id or a wrong base path — verify the id is correct, and separately that the URL has no trailing path or reverse-proxy prefix.'
 };
 
-export function classifyHttpStatus(status: number, service: ServiceId, url: string): ServiceError | undefined {
+export function classifyHttpStatus(status: number, service: string, url: string): ServiceError | undefined {
     if (status < 400) return undefined;
     const pathname = safePath(url);
     const at = `HTTP ${status} at ${pathname}`;
@@ -166,7 +165,7 @@ const TLS_CODES = new Set([
     'ERR_TLS_CERT_ALTNAME_INVALID'
 ]);
 
-export function classifyFetchError(err: unknown, service: ServiceId, url: string): ServiceError {
+export function classifyFetchError(err: unknown, service: string, url: string): ServiceError {
     const e = (err ?? {}) as {
         name?: string;
         code?: string;

@@ -17,6 +17,7 @@ type ArrLike = ServiceAdapter & DiskSpaceCapable & HealthCheckCapable;
 function fakeArr(overrides: Partial<ArrLike> & { diagnosis: ConnectionDiagnosis }): ArrLike {
     return {
         id: 'radarr',
+        type: 'radarr',
         testConnection: async () => overrides.diagnosis,
         getVersion: async () => overrides.diagnosis.version ?? '0',
         getDiskSpace: overrides.getDiskSpace ?? (async () => []),
@@ -54,6 +55,7 @@ describe('stack_health', () => {
     it('still returns what it gathered when one adapter throws outright', async () => {
         const exploding: ArrLike = {
             id: 'radarr',
+            type: 'radarr',
             testConnection: async () => {
                 throw new Error('unexpected');
             },
@@ -184,6 +186,7 @@ describe('stack_health', () => {
     it('returns a stable service order regardless of which adapter resolves first', async () => {
         const slowSonarr: ServiceAdapter = {
             id: 'sonarr',
+            type: 'sonarr',
             getVersion: async () => '4',
             testConnection: async () => {
                 await new Promise(r => setTimeout(r, 10));
@@ -206,6 +209,7 @@ describe('stack_health', () => {
     it('includes a capability-less service in the diagnosis list without degrading it', async () => {
         const bare: ServiceAdapter = {
             id: 'sabnzbd',
+            type: 'sabnzbd',
             getVersion: async () => '4.5.0',
             testConnection: async () => ({ ok: true, service: 'sabnzbd', latency_ms: 1, version: '4.5.0' })
         };
@@ -219,6 +223,7 @@ describe('stack_health', () => {
     it('collects scan state from services that report it', async () => {
         const scanner: ServiceAdapter & { getScanState: () => Promise<ScanState> } = {
             id: 'jellyfin',
+            type: 'jellyfin',
             getVersion: async () => '10.11.11',
             testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
             getScanState: async () => ({
@@ -235,6 +240,7 @@ describe('stack_health', () => {
     it('degrades rather than failing when a scan-state read throws', async () => {
         const broken: ServiceAdapter & { getScanState: () => Promise<ScanState> } = {
             id: 'jellyfin',
+            type: 'jellyfin',
             getVersion: async () => '10.11.11',
             testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
             getScanState: async () => {

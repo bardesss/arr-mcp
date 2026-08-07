@@ -9,7 +9,7 @@ import { hasLibrary, hasUserLibrary, type ServiceAdapter, type ServiceUser } fro
 
 export type LibrarySnapshot = {
     index: LibraryIndex;
-    degraded: ServiceId[];
+    degraded: string[];
     counts: Partial<Record<ServiceId, number>>;
 };
 

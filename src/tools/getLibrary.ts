@@ -66,7 +66,7 @@ export type GetLibraryResult = {
     total: number;
     returned: number;
     truncated: boolean;
-    degraded: ServiceId[];
+    degraded: string[];
     counts: Partial<Record<ServiceId, number>>;
     ratingCoverage?: { source: RatingSource; rated: number; unrated: number };
 };

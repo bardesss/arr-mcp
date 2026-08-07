@@ -98,7 +98,8 @@ const nameOf = (u: RawUser): string | undefined => u.displayName ?? u.username ?
 export class SeerrAdapter
     implements ServiceAdapter, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable
 {
-    readonly id: ServiceId = 'seerr';
+    readonly type: ServiceId = 'seerr';
+    readonly id: string = 'seerr';
     readonly #http: ServiceHttp;
 
     constructor(config: MultiUserServiceConfig, fetchImpl: typeof fetch = fetch) {
@@ -298,6 +299,6 @@ export class SeerrAdapter
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 }
