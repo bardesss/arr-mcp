@@ -357,7 +357,7 @@ tier.
 | Page | What it is for |
 | --- | --- |
 | Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and the bearer token for your MCP client |
-| Configuration | Add, edit and remove services; change credentials |
+| Configuration | Add, edit and remove service instances one at a time; change credentials |
 | Logs | Three streams — all activity, problems only, or one service |
 | Write audit | Every write attempt — applied, previewed, refused or failed |
 
@@ -381,6 +381,17 @@ hand. **Copy client config** puts a ready-to-paste JSON block on your clipboard
 with the endpoint and token filled in. That block is assembled in your browser
 at the moment you click, never rendered into the page, so the screenshot
 property above still holds.
+
+**The Configuration page starts empty.** It shows a card per instance you have
+actually configured, in alphabetical order, and one **Add** form — not eight
+blank fieldsets for services you do not run. Each card saves on its own, so
+editing your 4K Radarr cannot disturb the HD one.
+
+Adding a second Radarr, Sonarr or Bazarr asks you to name the one you already
+have, and says why: the name becomes part of the id, and that id is the
+permission key, the audit column, and what your agent passes. Removing an
+instance asks once before it goes, because its API key is not recovered by
+re-adding it.
 
 **Logs are a ring buffer**, kept beside your config and capped, so a chatty
 service cannot fill the disk. Full history stays in `docker logs`.

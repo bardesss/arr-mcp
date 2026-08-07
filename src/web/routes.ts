@@ -17,7 +17,8 @@ import {
 } from '../core/session.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
-import { configPage, SERVICE_IDS } from './configPage.ts';
+import { addInstance, removeInstance, updateInstance, type InstanceFields } from '../config/mutate.ts';
+import { configPage } from './configPage.ts';
 import { mcpEndpoint } from './origin.ts';
 import {
     auditPage,
@@ -230,67 +231,109 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         return c.html(configPage({ version, config: runtime.config, csrf: runtime.sessions.csrfFor(session) }));
     });
 
-    app.post('/ui/config', async c => {
-        const session = guard(c);
-        if (session === undefined) return c.redirect(entry(), 302);
+    /**
+     * The four config mutations share everything except the one line that
+     * decides what the next config is, so they share a handler.
+     *
+     * `render` carries the `confirmingRemoval` id through, which is what makes
+     * the two-step remove work without JavaScript: the first post returns the
+     * page with that card asking, and the second carries `confirm`.
+     */
+    const configMutation =
+        (
+            what: string,
+            next: (form: Record<string, unknown>) => Config | { ask: string }
+        ): ((c: Context) => Promise<Response>) =>
+        async (c: Context) => {
+            const session = guard(c);
+            if (session === undefined) return c.redirect(entry(), 302);
 
-        const form = await c.req.parseBody();
-        if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
-            logger.warn({ ip: ipOf(c) }, 'rejected config save with a bad CSRF token');
-            return c.html(
-                configPage({
-                    version,
-                    config: runtime.config,
-                    csrf: runtime.sessions.csrfFor(session),
-                    message: { kind: 'err', text: 'That form was stale. Reload the page and try again.' }
-                }),
-                403
-            );
-        }
+            const render = (
+                message: { kind: 'ok' | 'err'; text: string } | undefined,
+                status: 200 | 400 | 403,
+                confirming?: string
+            ) =>
+                c.html(
+                    configPage({
+                        version,
+                        config: runtime.config,
+                        csrf: runtime.sessions.csrfFor(session),
+                        ...(confirming === undefined ? {} : { confirmingRemoval: confirming }),
+                        ...(message === undefined ? {} : { message })
+                    }),
+                    status
+                );
 
-        let next: Config;
-        try {
-            next = buildConfig(runtime.config, form);
-        } catch (err) {
-            return c.html(
-                configPage({
-                    version,
-                    config: runtime.config,
-                    csrf: runtime.sessions.csrfFor(session),
-                    message: { kind: 'err', text: (err as Error).message }
-                }),
-                400
-            );
-        }
+            const form = await c.req.parseBody();
+            if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
+                logger.warn({ ip: ipOf(c) }, 'rejected config save with a bad CSRF token');
+                return render({ kind: 'err', text: 'That form was stale. Reload the page and try again.' }, 403);
+            }
 
-        try {
-            await saveConfig(runtime.configDir, next);
-            await runtime.reload();
-        } catch (err) {
-            // The file is written atomically and validated first, so reaching
-            // here means the config on disk is still the working one.
-            logger.error({ err }, 'config save failed');
-            return c.html(
-                configPage({
-                    version,
-                    config: runtime.config,
-                    csrf: runtime.sessions.csrfFor(session),
-                    message: { kind: 'err', text: (err as Error).message }
-                }),
-                400
-            );
-        }
+            let updated: Config;
+            try {
+                const result = next(form);
+                // Not an error: the removal is waiting for a second click.
+                if ('ask' in result) return render(undefined, 200, result.ask);
+                updated = result;
+            } catch (err) {
+                return render({ kind: 'err', text: (err as Error).message }, 400);
+            }
 
-        logger.info({ ip: ipOf(c) }, 'configuration saved from the config UI');
-        return c.html(
-            configPage({
-                version,
-                config: runtime.config,
-                csrf: runtime.sessions.csrfFor(session),
-                message: { kind: 'ok', text: 'Saved and applied. No restart needed.' }
-            })
-        );
-    });
+            try {
+                await saveConfig(runtime.configDir, updated);
+                await runtime.reload();
+            } catch (err) {
+                // The file is written atomically and validated first, so
+                // reaching here means the config on disk is still the working
+                // one.
+                logger.error({ err }, 'config save failed');
+                return render({ kind: 'err', text: (err as Error).message }, 400);
+            }
+
+            logger.info({ ip: ipOf(c), what }, 'configuration saved from the config UI');
+            return render({ kind: 'ok', text: `${what} Applied immediately; no restart needed.` }, 200);
+        };
+
+    app.post(
+        '/ui/config/add',
+        configMutation('Added.', form => {
+            const type = ServiceIdSchema.parse(str(form.type));
+            const name = str(form.name).trim();
+            const renameExistingTo = str(form.rename_existing_to).trim();
+
+            return addInstance(runtime.config, {
+                type,
+                ...(name === '' ? {} : { name }),
+                ...(renameExistingTo === '' ? {} : { renameExistingTo }),
+                fields: instanceFieldsFrom(form)
+            });
+        })
+    );
+
+    app.post(
+        '/ui/config/save',
+        configMutation('Saved.', form =>
+            updateInstance(runtime.config, str(form.instance), instanceFieldsFrom(form))
+        )
+    );
+
+    app.post(
+        '/ui/config/remove',
+        configMutation('Removed.', form => {
+            const instance = str(form.instance);
+            // Server-side rather than a `confirm()` call: with scripting
+            // unavailable a JS confirmation would delete silently on the first
+            // click, which is the failure a confirmation exists to prevent.
+            if (str(form.confirm) !== 'yes') return { ask: instance };
+            return removeInstance(runtime.config, instance);
+        })
+    );
+
+    app.post(
+        '/ui/config/access',
+        configMutation('Access settings saved.', form => buildAuthConfig(runtime.config, form))
+    );
 }
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
@@ -338,57 +381,40 @@ function logQuery(
 }
 
 /**
- * Form fields into a `Config`, carrying forward every secret the form did not
- * set.
+ * The instance fields a card's form carries.
  *
- * A blank secret means "unchanged", never "clear" — the page never renders a
+ * Bare names, because each card is its own form — there is no `svc.<id>.`
+ * prefix to parse any more, and with instance ids containing a `/` there is no
+ * sensible prefix to invent.
+ *
+ * A blank credential means "unchanged", never "clear": the page never renders a
  * secret back, so blank is what an untouched field always looks like. Clearing
- * is expressed by switching the service off, which is unambiguous.
+ * is expressed by removing the instance, which is unambiguous and confirmed.
  */
-export function buildConfig(current: Config, form: Record<string, unknown>): Config {
-    const services: Record<string, unknown> = {};
+export function instanceFieldsFrom(form: Record<string, unknown>): InstanceFields {
+    const timeout = Number(str(form.timeout_ms));
 
-    for (const id of SERVICE_IDS) {
-        if (!on(form[`svc.${id}.enabled`])) continue;
+    return {
+        url: str(form.url).trim(),
+        api_key: str(form.api_key).trim(),
+        username: str(form.username).trim(),
+        password: str(form.password),
+        default_user: str(form.default_user).trim(),
+        allow_other_users: on(form.allow_other_users),
+        ...(Number.isFinite(timeout) && timeout > 0 ? { timeout_ms: Math.trunc(timeout) } : {}),
+        safe_write: on(form.safe_write),
+        destructive: on(form.destructive)
+    };
+}
 
-        const existing = (current.services as Record<string, Record<string, unknown> | undefined>)[id];
-        const url = str(form[`svc.${id}.url`]).trim();
-        if (url === '') throw new Error(`${id} is switched on but has no URL.`);
-
-        const timeout = Number(str(form[`svc.${id}.timeout_ms`]));
-        const service: Record<string, unknown> = {
-            url,
-            timeout_ms: Number.isFinite(timeout) && timeout > 0 ? Math.trunc(timeout) : 10_000,
-            permissions: {
-                safe_write: on(form[`svc.${id}.safe_write`]),
-                destructive: on(form[`svc.${id}.destructive`])
-            }
-        };
-
-        if (id === 'transmission') {
-            const username = str(form[`svc.${id}.username`]).trim();
-            if (username !== '') service.username = username;
-            const password = str(form[`svc.${id}.password`]);
-            const carried = password === '' ? existing?.password : password;
-            if (typeof carried === 'string' && carried !== '') service.password = carried;
-        } else {
-            const key = str(form[`svc.${id}.api_key`]).trim();
-            const carried = key === '' ? existing?.api_key : key;
-            if (typeof carried !== 'string' || carried === '') {
-                throw new Error(`${id} is switched on but has no API key.`);
-            }
-            service.api_key = carried;
-        }
-
-        if (id === 'jellyfin' || id === 'seerr') {
-            const user = str(form[`svc.${id}.default_user`]).trim();
-            if (user !== '') service.default_user = user;
-            service.allow_other_users = on(form[`svc.${id}.allow_other_users`]);
-        }
-
-        services[id] = service;
-    }
-
+/**
+ * The `auth` half of the old `buildConfig`, unchanged in behaviour.
+ *
+ * The services half is gone: instances are added, edited and removed one at a
+ * time through `src/config/mutate.ts`, so nothing rebuilds all eight services
+ * from one form any more.
+ */
+export function buildAuthConfig(current: Config, form: Record<string, unknown>): Config {
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
     const hosts = str(form['auth.allowed_hosts'])
@@ -415,6 +441,6 @@ export function buildConfig(current: Config, form: Record<string, unknown>): Con
             password_hash: carriedHash,
             allowed_hosts: hosts
         },
-        services: services as Config['services']
+        services: current.services
     };
 }
