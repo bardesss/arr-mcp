@@ -106,7 +106,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerDiagnose(server, { adapters, library });
     registerStackHealth(server, adapters);
     registerGetIndexers(server, adapters.find(hasIndexers));
-    registerGetSubtitles(server, adapters.find(hasSubtitles));
+    registerGetSubtitles(server, adapters.filter(hasSubtitles));
     registerGetQueue(server, adapters);
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, jellyfin, jellyfinIdentity);

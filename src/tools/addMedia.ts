@@ -1,3 +1,4 @@
+import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
@@ -28,13 +29,12 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * cheaper than it is.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId): ServiceAdapter & MediaAddCapable => {
-    const adapter = adapters.find(a => a.id === service);
-    if (adapter === undefined) {
-        throw new ServiceError('NotFound', service, `${service} is not configured`, {
-            remedy: `Add a services.${service} block to config.yaml and restart, or name a configured service.`
-        });
-    }
+const findAdapter = (
+    adapters: readonly ServiceAdapter[],
+    service: ServiceId,
+    instance?: string
+): ServiceAdapter & MediaAddCapable => {
+    const adapter = resolveInstance(adapters, service, instance);
     if (!hasMediaAdd(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot add media`, {
             remedy: 'Only radarr (films, by TMDB id) and sonarr (series, by TVDB id) can.'
@@ -131,6 +131,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             'Adds a film to Radarr or a series to Sonarr and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr takes a TVDB id — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes. Previews by default — call again with the returned `confirm` token to actually add it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr for a film, sonarr for a series.'),
+            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             external_id: z
                 .string()
                 .min(1)
@@ -149,12 +150,15 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 .default(true)
                 .describe('Start searching immediately. Defaults to true — set false to add without downloading yet.')
         }),
-        service: ({ service }) => service,
+        // The resolved instance id, not the bare type: permissions are granted per
+        // instance, so checking `radarr` against a config that only grants
+        // `radarr/hd` would deny a permitted write — or worse, the reverse.
+        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
         operation: 'add_media',
         tier: 'safe',
 
-        async plan({ service, external_id, quality_profile, root_folder, monitored, search_now }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service);
+        async plan({ service, instance, external_id, quality_profile, root_folder, monitored, search_now }): Promise<WritePlan> {
+            const adapter = findAdapter(adapters, service, instance);
 
             // All three reads together: they are independent, and a preview
             // that takes three sequential round trips on a LAN service is
@@ -228,7 +232,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             };
         },
 
-        async apply(plan, { service }) {
+        async apply(plan, { service, instance }) {
             const a = plan.args as {
                 externalId: string;
                 qualityProfileId: number;
@@ -241,7 +245,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             // re-running `chooseOne` here could land on a different profile if
             // one was added in between, and the token guaranteed the one that
             // was previewed.
-            return findAdapter(adapters, service).addMedia({
+            return findAdapter(adapters, service, instance).addMedia({
                 externalId: a.externalId,
                 qualityProfileId: a.qualityProfileId,
                 rootFolderPath: a.rootFolderPath,

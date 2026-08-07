@@ -1,3 +1,4 @@
+import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
@@ -14,12 +15,12 @@ import type { LibraryLoader } from './library.ts';
  */
 export async function buildGetMediaDetails(
     adapters: readonly ServiceAdapter[],
-    opts: { service: ServiceId; id: string; detail: DetailLevel; limit: number }
+    opts: { service: ServiceId; instance?: string | undefined; id: string; detail: DetailLevel; limit: number }
 ): Promise<MediaDetails> {
-    const adapter = adapters.find(a => a.id === opts.service);
-    if (adapter === undefined || !hasMediaDetails(adapter)) {
-        throw new ServiceError('NotFound', opts.service, `${opts.service} is not configured`, {
-            remedy: `Add services.${opts.service} to config.yaml, or name a configured service.`
+    const adapter = resolveInstance(adapters, opts.service, opts.instance);
+    if (!hasMediaDetails(adapter)) {
+        throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no media details to return`, {
+            remedy: 'Only radarr, sonarr and jellyfin can answer get_media_details.'
         });
     }
 
@@ -32,6 +33,7 @@ export async function buildGetMediaDetails(
 export type MediaDetailsQuery = {
     query?: string;
     service?: ServiceId;
+    instance?: string | undefined;
     id?: string;
     detail: DetailLevel;
     limit: number;
@@ -82,6 +84,7 @@ export async function resolveMediaDetails(
     if (opts.service !== undefined && opts.id !== undefined) {
         return buildGetMediaDetails(adapters, {
             service: opts.service,
+            ...(opts.instance === undefined ? {} : { instance: opts.instance }),
             id: opts.id,
             detail: opts.detail,
             limit: opts.limit
@@ -110,15 +113,17 @@ export function registerGetMediaDetails(
             inputSchema: z.object({
                 query: z.string().min(1).optional().describe('A title. Resolved through the library index.'),
                 service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
+                instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 id: z.string().min(1).optional().describe("The item's id within that service."),
                 detail: DetailSchema,
                 limit: LimitSchema
             })
         },
-        async ({ query, service, id, detail, limit }) => {
+        async ({ query, service, instance, id, detail, limit }) => {
             const result = await resolveMediaDetails(adapters, loader, {
                 ...(query === undefined ? {} : { query }),
                 ...(service === undefined ? {} : { service }),
+                ...(instance === undefined ? {} : { instance }),
                 ...(id === undefined ? {} : { id }),
                 detail,
                 limit

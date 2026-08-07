@@ -58,13 +58,13 @@ const adapter = (r: Record<string, unknown> = routes) => new BazarrAdapter(confi
 
 describe('get_subtitles', () => {
     it('returns movie and episode gaps together', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'full', limit: 50 });
         expect(result.items.map(i => i.kind).sort()).toEqual(['episode', 'movie']);
         expect(result.total).toBe(2);
     });
 
     it('maps a movie gap field for field', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'full', limit: 50 });
         expect(result.items.find(i => i.kind === 'movie')).toMatchObject({
             service: 'bazarr',
             kind: 'movie',
@@ -74,14 +74,14 @@ describe('get_subtitles', () => {
     });
 
     it('maps an episode gap including season and episode numbers', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'full', limit: 50 });
         const episode = result.items.find(i => i.kind === 'episode');
         expect(episode).toMatchObject({ id: 88, season: 1, episode: 1 });
         expect(episode?.missing[0]?.forced).toBe(true);
     });
 
     it('fences the release name, and a release name cannot escape its fence', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'full', limit: 50 });
         const movie = result.items.find(i => i.kind === 'movie');
 
         expect(movie?.releaseName).toContain('<<untrusted:bazarr.sceneName>>');
@@ -89,19 +89,19 @@ describe('get_subtitles', () => {
     });
 
     it('fences titles too, because Bazarr echoes names from the *arr metadata', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'full', limit: 50 });
         expect(result.items.every(i => i.title.startsWith('<<untrusted:bazarr.'))).toBe(true);
     });
 
     it('drops release names and per-language detail at detail: minimal', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'minimal', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'minimal', limit: 50 });
         const movie = result.items.find(i => i.kind === 'movie');
         expect(movie?.releaseName).toBeUndefined();
         expect(movie?.missing).toEqual([]);
     });
 
     it('degrades when one endpoint is down', async () => {
-        const result = await buildGetSubtitles(adapter({ '/api/movies/wanted': MOVIES }), {
+        const result = await buildGetSubtitles([adapter({ '/api/movies/wanted': MOVIES })], {
             detail: 'standard',
             limit: 50
         });
@@ -111,7 +111,7 @@ describe('get_subtitles', () => {
 
     it('reports truncation honestly', async () => {
         const many = { data: repeat(MOVIES.data[0]!, 300) };
-        const result = await buildGetSubtitles(adapter({ ...routes, '/api/movies/wanted': many }), {
+        const result = await buildGetSubtitles([adapter({ ...routes, '/api/movies/wanted': many })], {
             detail: 'standard',
             limit: 50
         });
@@ -119,7 +119,7 @@ describe('get_subtitles', () => {
     });
 
     it('returns an empty result when Bazarr is not configured', async () => {
-        expect(await buildGetSubtitles(undefined, { detail: 'standard', limit: 50 })).toMatchObject({
+        expect(await buildGetSubtitles([], { detail: 'standard', limit: 50 })).toMatchObject({
             items: [],
             total: 0,
             degraded: []
@@ -127,7 +127,7 @@ describe('get_subtitles', () => {
     });
 
     it('reports provider state, which is what explains why subtitles are missing', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'standard', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'standard', limit: 50 });
         expect(result.providers).toEqual([
             { service: 'bazarr', name: 'opensubtitlescom', healthy: true },
             {
@@ -141,18 +141,18 @@ describe('get_subtitles', () => {
     });
 
     it('treats "End of information" as no retry time rather than a date', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'standard', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'standard', limit: 50 });
         expect(result.providers?.[0]?.retryAt).toBeUndefined();
     });
 
     it('omits provider state at detail: minimal', async () => {
-        const result = await buildGetSubtitles(adapter(), { detail: 'minimal', limit: 50 });
+        const result = await buildGetSubtitles([adapter()], { detail: 'minimal', limit: 50 });
         expect(result.providers).toBeUndefined();
     });
 
     it('still returns subtitle gaps when the providers endpoint is unavailable', async () => {
         const noProviders = { '/api/movies/wanted': MOVIES, '/api/episodes/wanted': EPISODES };
-        const result = await buildGetSubtitles(adapter(noProviders), { detail: 'standard', limit: 50 });
+        const result = await buildGetSubtitles([adapter(noProviders)], { detail: 'standard', limit: 50 });
 
         expect(result.items).toHaveLength(2);
         expect(result.providers).toBeUndefined();
@@ -163,7 +163,7 @@ describe('get_subtitles', () => {
         // 500 missing subtitles is realistic for a large library, unlike 500
         // indexers — so the default level is the one that has to be cheap.
         const many = { data: repeat(MOVIES.data[0]!, 500) };
-        const result = await buildGetSubtitles(adapter({ ...routes, '/api/movies/wanted': many }), {
+        const result = await buildGetSubtitles([adapter({ ...routes, '/api/movies/wanted': many })], {
             detail: 'standard',
             limit: 500
         });
@@ -176,7 +176,7 @@ describe('get_subtitles', () => {
         // inherent to §11 and is the reason `standard` is the default; this
         // ceiling exists to catch a regression, not to bless the number.
         const many = { data: repeat(MOVIES.data[0]!, 500) };
-        const result = await buildGetSubtitles(adapter({ ...routes, '/api/movies/wanted': many }), {
+        const result = await buildGetSubtitles([adapter({ ...routes, '/api/movies/wanted': many })], {
             detail: 'full',
             limit: 500
         });

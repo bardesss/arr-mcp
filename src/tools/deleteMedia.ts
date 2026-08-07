@@ -1,3 +1,4 @@
+import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
@@ -24,13 +25,8 @@ function humanSize(bytes: number | undefined): string | undefined {
     return bytes >= GIB ? `${(bytes / GIB).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId) => {
-    const adapter = adapters.find(a => a.id === service);
-    if (adapter === undefined) {
-        throw new ServiceError('NotFound', service, `${service} is not configured`, {
-            remedy: `Add a services.${service} block to config.yaml and restart, or name a configured service.`
-        });
-    }
+const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
+    const adapter = resolveInstance(adapters, service, instance);
     if (!hasMediaDelete(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no media to delete`, {
             remedy: 'Only radarr and sonarr manage media that delete_media can remove.'
@@ -50,6 +46,7 @@ export function registerDeleteMedia(
             'Removes a film from Radarr or a whole series from Sonarr, optionally deleting its files from disk. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: get those from get_media_details or get_library first. Sonarr deletes the entire series; there is no per-episode form. Previews by default — call again with the returned `confirm` token to actually delete.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr or sonarr.'),
+            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
             delete_files: z
                 .boolean()
@@ -64,12 +61,15 @@ export function registerDeleteMedia(
                     'Also add an import exclusion so it is never re-added automatically. Defaults to false.'
                 )
         }),
-        service: ({ service }) => service,
+        // The resolved instance id, not the bare type: permissions are granted per
+        // instance, so checking `radarr` against a config that only grants
+        // `radarr/hd` would deny a permitted write — or worse, the reverse.
+        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
         operation: 'delete_media',
         tier: 'destructive',
 
-        async plan({ service, id, delete_files, add_import_exclusion }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service);
+        async plan({ service, instance, id, delete_files, add_import_exclusion }): Promise<WritePlan> {
+            const adapter = findAdapter(adapters, service, instance);
             if (!hasMediaDetails(adapter)) {
                 throw new ServiceError('NotFound', service, `${service} cannot describe its own items`);
             }
@@ -117,8 +117,8 @@ export function registerDeleteMedia(
             };
         },
 
-        async apply(_plan, { service, id, delete_files, add_import_exclusion }) {
-            await findAdapter(adapters, service).deleteMedia(id, {
+        async apply(_plan, { service, instance, id, delete_files, add_import_exclusion }) {
+            await findAdapter(adapters, service, instance).deleteMedia(id, {
                 deleteFiles: delete_files,
                 addImportExclusion: add_import_exclusion
             });
