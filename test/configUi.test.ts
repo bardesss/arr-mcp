@@ -178,6 +178,38 @@ describe('secrets', () => {
     });
 });
 
+describe('MCP endpoint', () => {
+    it('shows the endpoint built from the host the browser reached it on', async () => {
+        await signIn();
+        expect(await (await call('/ui')).text()).toContain('http://localhost:6060/mcp');
+    });
+
+    it('renders an https endpoint behind a TLS-terminating proxy', async () => {
+        await signIn();
+        const page = await (await call('/ui', { headers: { 'x-forwarded-proto': 'https' } })).text();
+        expect(page).toContain('https://localhost:6060/mcp');
+        expect(page).not.toContain('http://localhost:6060/mcp');
+    });
+
+    /**
+     * The regression guard for the whole design. The client config is assembled
+     * in the browser precisely so the token is in the HTML exactly once, inside
+     * the masked field — a future change that server-renders the JSON would put
+     * a live credential into readable text and into any screenshot of the page,
+     * and this is what would catch it.
+     */
+    it('ships the config textarea empty, leaving the token in the masked field alone', async () => {
+        await signIn();
+        const page = await (await call('/ui')).text();
+
+        expect(page).toContain('data-copy-config="mcp-config"');
+        expect(page).toContain('<textarea id="mcp-config"');
+        expect(page).toContain('></textarea>');
+        expect(page.split(BEARER).length - 1).toBe(1);
+    });
+
+});
+
 describe('saving configuration', () => {
     it('refuses a forged CSRF token', async () => {
         await signIn();
