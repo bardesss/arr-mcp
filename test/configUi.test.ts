@@ -210,51 +210,36 @@ describe('MCP endpoint', () => {
 
 });
 
-describe('saving configuration', () => {
+describe('adding an instance', () => {
+    const addForm = (over: Record<string, string> = {}) => ({
+        type: 'radarr',
+        url: 'http://192.0.2.10:7878',
+        api_key: 'k',
+        ...over
+    });
+
     it('refuses a forged CSRF token', async () => {
         await signIn();
-        const res = await call('/ui/config', form({ csrf: 'forged', 'svc.radarr.enabled': 'on' }));
+        const res = await call('/ui/config/add', form({ csrf: 'forged', ...addForm() }));
         expect(res.status).toBe(403);
     });
 
-    it('refuses a service switched on with no URL', async () => {
+    it('refuses an instance with no URL', async () => {
         await signIn();
-        const res = await call(
-            '/ui/config',
-            form({ csrf: await csrfFrom(), 'svc.radarr.enabled': 'on', 'svc.radarr.url': '' })
-        );
+        const res = await call('/ui/config/add', form({ csrf: await csrfFrom(), ...addForm({ url: '' }) }));
         expect(res.status).toBe(400);
-        expect(await res.text()).toContain('no URL');
     });
 
-    it('refuses a service switched on with no API key', async () => {
+    it('refuses an instance with no API key', async () => {
         await signIn();
-        const res = await call(
-            '/ui/config',
-            form({
-                csrf: await csrfFrom(),
-                'svc.radarr.enabled': 'on',
-                'svc.radarr.url': 'http://192.0.2.10:7878',
-                'svc.radarr.api_key': ''
-            })
-        );
+        const res = await call('/ui/config/add', form({ csrf: await csrfFrom(), ...addForm({ api_key: '' }) }));
         expect(res.status).toBe(400);
-        expect(await res.text()).toContain('no API key');
     });
 
-    it('writes the service to disk', async () => {
+    it('writes the instance to disk', async () => {
         await signIn();
-        await call(
-            '/ui/config',
-            form({
-                csrf: await csrfFrom(),
-                'svc.radarr.enabled': 'on',
-                'svc.radarr.url': 'http://192.0.2.10:7878',
-                'svc.radarr.api_key': 'k',
-                'svc.radarr.timeout_ms': '4000',
-                'auth.username': 'admin'
-            })
-        );
+        const r = await call('/ui/config/add', form({ csrf: await csrfFrom(), ...addForm({ timeout_ms: '4000' }) }));
+        if (r.status !== 200) { const t = await r.text(); console.error('MSG', /class="msg[^"]*">([^<]*)</.exec(t)?.[1]); }
 
         const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
         expect(onDisk).toContain('192.0.2.10:7878');
@@ -267,33 +252,88 @@ describe('saving configuration', () => {
         await signIn();
         expect(runtime.current.adapters).toHaveLength(0);
 
-        await call(
-            '/ui/config',
-            form({
-                csrf: await csrfFrom(),
-                'svc.radarr.enabled': 'on',
-                'svc.radarr.url': 'http://192.0.2.10:7878',
-                'svc.radarr.api_key': 'k',
-                'auth.username': 'admin'
-            })
-        );
+        await call('/ui/config/add', form({ csrf: await csrfFrom(), ...addForm() }));
 
         expect(runtime.current.adapters.map(a => a.id)).toEqual(['radarr']);
     });
 
+    /**
+     * The rename that adding a second instance forces. That id is the
+     * permission key, the audit column and what the agent passes, so it is
+     * never changed without the user having said what to change it to.
+     */
+    it('refuses a second instance unless the existing one is named too', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const res = await call(
+            '/ui/config/add',
+            form({ csrf: await csrfFrom(), ...addForm({ name: '4k', url: 'http://192.0.2.11:7878' }) })
+        );
+
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('naming the one you already have');
+        expect(runtime.current.adapters.map(a => a.id)).toEqual(['radarr']);
+    });
+
+    it('renames the existing instance when told what to call it', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        await call(
+            '/ui/config/add',
+            form({
+                csrf: await csrfFrom(),
+                ...addForm({ name: '4k', rename_existing_to: 'hd', url: 'http://192.0.2.11:7878' })
+            })
+        );
+
+        expect(runtime.current.adapters.map(a => a.id)).toEqual(['radarr/4k', 'radarr/hd']);
+    });
+
+    it('refuses a second instance of a service that may only have one', async () => {
+        await seed('  prowlarr:\n    url: http://192.0.2.10:9696\n    api_key: k\n');
+        await signIn();
+
+        const res = await call(
+            '/ui/config/add',
+            form({ csrf: await csrfFrom(), ...addForm({ type: 'prowlarr', name: 'second' }) })
+        );
+        expect(res.status).toBe(400);
+    });
+});
+
+describe('the configuration page', () => {
+    it('shows an empty state rather than eight blank fieldsets', async () => {
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        expect(page).toContain('Nothing is configured yet');
+        expect(page).not.toContain('name="instance"');
+    });
+
+    it('lists configured instances alphabetically by id', async () => {
+        await seed(
+            '  sonarr:\n    url: http://192.0.2.10:8989\n    api_key: k\n' +
+                '  radarr:\n  - name: hd\n    url: http://192.0.2.10:7878\n    api_key: k\n' +
+                '  - name: 4k\n    url: http://192.0.2.11:7878\n    api_key: k\n'
+        );
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        const order = [...page.matchAll(/name="instance" value="([^"]+)"/g)].map(m => m[1]);
+        expect(order).toEqual(['radarr/4k', 'radarr/hd', 'sonarr']);
+    });
+});
+
+describe('saving an instance', () => {
     it('keeps an existing key when the field is left blank', async () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: keep-me\n');
         await signIn();
 
         await call(
-            '/ui/config',
-            form({
-                csrf: await csrfFrom(),
-                'svc.radarr.enabled': 'on',
-                'svc.radarr.url': 'http://192.0.2.10:9999',
-                'svc.radarr.api_key': '',
-                'auth.username': 'admin'
-            })
+            '/ui/config/save',
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:9999', api_key: '' })
         );
 
         const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
@@ -301,22 +341,90 @@ describe('saving configuration', () => {
         expect(onDisk).toContain('192.0.2.10:9999');
     });
 
-    it('removes a service that was switched off', async () => {
+    it('leaves every other instance untouched', async () => {
+        await seed(
+            '  radarr:\n  - name: hd\n    url: http://192.0.2.10:7878\n    api_key: hd-key\n' +
+                '  - name: 4k\n    url: http://192.0.2.11:7878\n    api_key: fourk-key\n'
+        );
+        await signIn();
+
+        await call(
+            '/ui/config/save',
+            form({ csrf: await csrfFrom(), instance: 'radarr/4k', url: 'http://192.0.2.99:7878' })
+        );
+
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(onDisk).toContain('hd-key');
+        expect(onDisk).toContain('fourk-key');
+        expect(onDisk).toContain('192.0.2.10:7878');
+        expect(onDisk).toContain('192.0.2.99:7878');
+    });
+});
+
+describe('removing an instance', () => {
+    const seedTwo = () =>
+        seed(
+            '  radarr:\n  - name: hd\n    url: http://192.0.2.10:7878\n    api_key: k\n' +
+                '  - name: 4k\n    url: http://192.0.2.11:7878\n    api_key: k\n'
+        );
+
+    /**
+     * Server-side rather than a `confirm()` call. With scripting unavailable a
+     * JS confirmation would delete on the first click, which is precisely the
+     * failure a confirmation exists to prevent.
+     */
+    it('removes nothing on the first click, and asks', async () => {
+        await seedTwo();
+        await signIn();
+
+        const res = await call('/ui/config/remove', form({ csrf: await csrfFrom(), instance: 'radarr/4k' }));
+
+        expect(res.status).toBe(200);
+        expect(await res.text()).toContain('Yes, remove radarr/4k');
+        expect(runtime.current.adapters.map(a => a.id)).toEqual(['radarr/4k', 'radarr/hd']);
+    });
+
+    it('removes exactly one once confirmed', async () => {
+        await seedTwo();
+        await signIn();
+
+        await call('/ui/config/remove', form({ csrf: await csrfFrom(), instance: 'radarr/4k', confirm: 'yes' }));
+
+        expect(runtime.current.adapters.map(a => a.id)).toEqual(['radarr/hd']);
+    });
+
+    // Collapsing `radarr/hd` back to `radarr` would be a second silent rename,
+    // undoing the one the user was explicitly asked to approve.
+    it('leaves the last instance named rather than collapsing it', async () => {
+        await seedTwo();
+        await signIn();
+
+        await call('/ui/config/remove', form({ csrf: await csrfFrom(), instance: 'radarr/4k', confirm: 'yes' }));
+
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('name: hd');
+    });
+
+    it('removes the service entirely when its last instance goes', async () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
         await signIn();
 
-        await call('/ui/config', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
+        await call('/ui/config/remove', form({ csrf: await csrfFrom(), instance: 'radarr', confirm: 'yes' }));
 
         expect(runtime.current.adapters).toHaveLength(0);
         expect(await readFile(join(dir, 'config.yaml'), 'utf8')).not.toContain('192.0.2.10');
     });
+});
 
+describe('access settings', () => {
     it('rotates the bearer token only when asked', async () => {
         await signIn();
-        await call('/ui/config', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
+        await call('/ui/config/access', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
         expect(runtime.config.auth.bearer_token).toBe(BEARER);
 
-        await call('/ui/config', form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.rotate_token': 'on' }));
+        await call(
+            '/ui/config/access',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.rotate_token': 'on' })
+        );
         expect(runtime.config.auth.bearer_token).not.toBe(BEARER);
         expect(runtime.config.auth.bearer_token).toMatch(/^[0-9a-f]{64}$/);
     });
@@ -325,7 +433,10 @@ describe('saving configuration', () => {
     // or the old token keeps working until a restart.
     it('makes a rotated token effective immediately on /mcp', async () => {
         await signIn();
-        await call('/ui/config', form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.rotate_token': 'on' }));
+        await call(
+            '/ui/config/access',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.rotate_token': 'on' })
+        );
 
         const res = await app.request('http://localhost:6060/mcp', {
             method: 'POST',
@@ -339,10 +450,19 @@ describe('saving configuration', () => {
         expect(res.status).toBe(401);
     });
 
+    it('does not disturb configured services', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        await call('/ui/config/access', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
+
+        expect(runtime.current.adapters.map(a => a.id)).toEqual(['radarr']);
+    });
+
     it('changes the password, and the old one stops working', async () => {
         await signIn();
         await call(
-            '/ui/config',
+            '/ui/config/access',
             form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password' })
         );
 
@@ -353,7 +473,7 @@ describe('saving configuration', () => {
 
     it('leaves the password alone when the field is blank', async () => {
         await signIn();
-        await call('/ui/config', form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': '' }));
+        await call('/ui/config/access', form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': '' }));
 
         cookie = '';
         expect((await call('/ui/login', form({ username: 'admin', password: PASSWORD }))).status).toBe(302);
@@ -373,7 +493,7 @@ describe('allowed_hosts', () => {
     it('applies a pinned host immediately, with no restart', async () => {
         await signIn();
         await call(
-            '/ui/config',
+            '/ui/config/access',
             form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
         );
 
@@ -386,7 +506,7 @@ describe('allowed_hosts', () => {
     it('matches a pinned bare hostname when the request carries a port', async () => {
         await signIn();
         await call(
-            '/ui/config',
+            '/ui/config/access',
             form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
         );
 
@@ -405,7 +525,7 @@ describe('allowed_hosts', () => {
     it('locks out an unlisted host, and can be undone from a listed one', async () => {
         await signIn();
         await call(
-            '/ui/config',
+            '/ui/config/access',
             form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
         );
         expect((await get('other.example.com')).status).toBe(403);
@@ -415,7 +535,7 @@ describe('allowed_hosts', () => {
 
         const page = await (await call('/ui/config', { headers: { host: 'arr.example.com' } })).text();
         const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
-        await call('/ui/config', {
+        await call('/ui/config/access', {
             ...form({ csrf, 'auth.username': 'admin', 'auth.allowed_hosts': '' }),
             headers: {
                 'content-type': 'application/x-www-form-urlencoded',
