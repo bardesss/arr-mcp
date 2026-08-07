@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/bardesss/arr-mcp/compare/v0.7.0...v0.7.1) (2026-08-07)
+
+
+### Features
+
+* add from a dialog, test before saving, and stop the autofill ([#68](https://github.com/bardesss/arr-mcp/issues/68)) ([89df581](https://github.com/bardesss/arr-mcp/commit/89df581ff256257efee0b5cf95c311c348f76d53))
+
 ## [0.7.0](https://github.com/bardesss/arr-mcp/compare/v0.6.3...v0.7.0) (2026-08-07)
 
 
