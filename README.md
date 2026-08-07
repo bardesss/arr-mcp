@@ -319,6 +319,14 @@ password all render as empty fields meaning *unchanged*, so a saved page or a
 screenshot cannot carry them. The bearer token is the deliberate exception —
 handing it to your MCP client is the point — and it is masked until you ask.
 
+**The dashboard gives you the whole MCP connection.** It shows the endpoint as
+an absolute URL, built from the address you reached the page on — so it is
+already correct behind a reverse proxy, and there is nothing to assemble by
+hand. **Copy client config** puts a ready-to-paste JSON block on your clipboard
+with the endpoint and token filled in. That block is assembled in your browser
+at the moment you click, never rendered into the page, so the screenshot
+property above still holds.
+
 **Logs are a ring buffer**, kept beside your config and capped, so a chatty
 service cannot fill the disk. Full history stays in `docker logs`.
 
