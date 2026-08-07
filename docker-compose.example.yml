@@ -2,8 +2,10 @@ services:
   arr-mcp:
     image: ghcr.io/bardesss/arr-mcp:latest
     container_name: arr-mcp
-    ports: ['6060:6060']
-    volumes: ['./config:/config']
+    ports: 
+      - 6060:6060
+    volumes:
+      - ./config:/config
     environment:
       - PUID=1000
       - PGID=1000
@@ -12,9 +14,10 @@ services:
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:6060/healthz']
 
-# On first start, read the generated bearer token out of the log:
+# On first start the config UI password and the MCP bearer token are printed
+# once to the log — the password is only ever shown here:
 #
-#   docker compose logs arr-mcp | grep 'first run'
+#   docker compose logs arr-mcp
 #
-# then add your services to ./config/config.yaml and restart. Hot-reload
-# arrives with the config UI in 0.5; until then a restart is required.
+# Then open http://<host>:6060, sign in, and add your services from the
+# Configuration page. Saving applies immediately; no restart.
