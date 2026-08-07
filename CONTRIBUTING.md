@@ -49,9 +49,20 @@ reads them to decide the next version and to write `CHANGELOG.md`.
 | Prefix | Effect on version |
 | --- | --- |
 | `fix:` | patch |
-| `feat:` | minor |
+| `feat:` | patch while on 0.x, minor after 1.0 |
 | `feat!:` or a `BREAKING CHANGE:` footer | minor while on 0.x, major after 1.0 |
 | `chore:`, `docs:`, `ci:`, `test:`, `refactor:` | none |
+
+**Minor versions are reserved for phases while we are pre-1.0.** `0.6`, `0.7`
+and so on each mark a phase from the roadmap, not an individual feature — that
+is what the roadmap table in the README is numbering. A feature therefore lands
+as a patch (`0.6.3`, `0.6.4`), and the minor is cut deliberately when the phase
+is complete, with a `Release-As: 0.7.0` footer on the last commit of the phase.
+
+This is what `bump-patch-for-minor-pre-major` in `release-please-config.json`
+does, and it is the reason it is on. Without it a single `feat:` consumes the
+next phase number: a one-panel dashboard change proposed `0.7.0` and would have
+taken the number Phase 7 is meant to carry.
 
 ## The tool surface is the public API
 
