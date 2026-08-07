@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/bardesss/arr-mcp/compare/v0.6.1...v0.6.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* set up arr-mcp in the browser instead of the container log ([#59](https://github.com/bardesss/arr-mcp/issues/59)) ([d66b240](https://github.com/bardesss/arr-mcp/commit/d66b240a26a1ef323a4306550a0aeadc19a19edd))
+
 ## [0.6.1](https://github.com/bardesss/arr-mcp/compare/v0.6.0...v0.6.1) (2026-08-06)
 
 
