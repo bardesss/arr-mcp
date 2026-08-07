@@ -36,6 +36,6 @@ if (runtime.current.adapters.length === 0) {
 serve({ fetch: buildApp({ runtime, audit, logs }).fetch, port: PORT, hostname: '0.0.0.0' }, info => {
     logger.info(
         { port: info.port, adapters: runtime.current.adapters.map(a => a.id) },
-        'arr-mcp listening — config UI at /ui'
+        `arr-mcp listening — open the config UI at http://<host>:${info.port}`
     );
 });

@@ -199,30 +199,59 @@ none, **it refuses and lists them** rather than picking:
 
 ## Quick start
 
+Also in the repo as [`docker-compose.example.yml`](docker-compose.example.yml).
+
 ```yaml
 services:
   arr-mcp:
-    image: ghcr.io/bardesss/arr-mcp:0.6
-    ports: ['6060:6060']
-    volumes: ['./config:/config']
+    image: ghcr.io/bardesss/arr-mcp:latest
+    container_name: arr-mcp
+    ports:
+      - 6060:6060
+    volumes:
+      - ./config:/config
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Amsterdam
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:6060/healthz']
 ```
 
 Tags are `X.Y.Z`, `X.Y`, `X` and `latest` for releases, plus `main` for
-bleeding edge. Pin a minor while the tool surface is still moving.
+bleeding edge. Pin a minor — `:0.6` — if you would rather approve each new tool
+surface yourself.
 
-On first start, `config/config.yaml` is created and **the config UI password
-and the MCP bearer token are printed once to the container log** —
-`docker logs arr-mcp`. The password is not stored anywhere and will not be
-shown again; only a hash of it is kept.
+### First run
 
-Then open **`http://<host>:6060/ui`**, sign in, and add your services from the
-Configuration page. Saving applies immediately — no restart. The bearer token
-your MCP client needs is on the dashboard, so you only need the log once.
+**1. Start it, then read the log once.** On first start `config/config.yaml` is
+created and two generated credentials are printed — the config UI password and
+the MCP bearer token:
+
+```console
+$ docker compose up -d && docker compose logs arr-mcp
+config UI credentials — this password is not stored and will not be shown again
+    username: admin  password: ……
+bearer token for /mcp — also shown in the config UI
+    token: ……
+first run — sign in to the config UI to add services
+```
+
+Only a hash of the password is kept, so **this is the only time you will see
+it.** The bearer token you can always read again from the dashboard; the
+password you cannot — if you lose it, see [Config UI](#config-ui) for the reset.
+
+**2. Open `http://<host>:6060`** — the bare host, no path — and sign in with
+that username and password.
+
+**3. Add your services** on the Configuration page: switch one on, paste its URL
+and API key, save. Saving applies immediately; there is no restart. Nothing is
+configured until you do this, and a fresh install with no services answers
+nothing — that is expected, not a fault.
+
+**4. Point your MCP client at `http://<host>:6060/mcp`** using the bearer token
+shown on the dashboard.
 
 Everything the UI does is still just `config.yaml`, and editing it by hand
 remains supported:
@@ -271,7 +300,7 @@ editing `config.yaml` by hand and restarting.
 
 ## Config UI
 
-`http://<host>:6060/ui`
+`http://<host>:6060`
 
 | Page | What it is for |
 | --- | --- |
