@@ -1,12 +1,13 @@
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import { MULTI_INSTANCE, ServiceIdSchema, type Config, type ServiceId } from '../config/schema.ts';
+import type { ConnectionDiagnosis } from '../services/types.ts';
 import { html, raw, type SafeHtml } from './html.ts';
 import { layout } from './pages.ts';
 
 /**
  * The configuration page: one card per configured instance, and nothing else.
  *
- * Two rules shape it.
+ * Three rules shape it.
  *
  * **A secret is never rendered back.** API keys, the Transmission password and
  * the UI password all render as empty fields meaning "unchanged", so a saved
@@ -19,6 +20,15 @@ import { layout } from './pages.ts';
  * every save. With instances that prefix would have to carry `radarr/4k`. A form
  * per card means bare field names, and a save that touches exactly the instance
  * it came from rather than rewriting seven others that happened to be on screen.
+ *
+ * **Nothing here is `type="password"`.** That one attribute is what makes a
+ * browser, and every password-manager extension, read a card as a login form:
+ * a text input for the username, a password input below it. They then filled
+ * the URL with a saved username and the key with a saved password on every
+ * single load, so editing a timeout meant re-pasting both. `autocomplete="off"`
+ * does not stop it — it is ignored for exactly these fields, deliberately. So
+ * the secrets are masked in CSS instead (`IGNORE`, and `.secret` in
+ * `assets.ts`), which leaves nothing for the heuristics to find.
  */
 
 export const SERVICE_IDS = ServiceIdSchema.options;
@@ -30,7 +40,8 @@ export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].s
 /** Which extra fields each service actually has, so a card matches the schema
  *  rather than showing eight identical boxes. */
 const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'seerr']);
-const NO_API_KEY: ReadonlySet<string> = new Set(['transmission']);
+const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission'];
+const NO_API_KEY: ReadonlySet<string> = new Set(NO_API_KEY_IDS);
 
 type AnyService = {
     url: string;
@@ -43,6 +54,22 @@ type AnyService = {
     password?: string;
 };
 
+/**
+ * Every way of saying "do not fill this in" that anything actually reads.
+ *
+ * `autocomplete="off"` is first because it is the standard one, and last
+ * because on its own it does nothing here: Chrome and every major extension
+ * ignore it for fields they have decided are credentials. The rest are each
+ * vendor's own opt-out, which they do honour. Dashlane reads `data-form-type`
+ * off the form rather than the input, so that one is on the `<form>` tags.
+ */
+const IGNORE = raw(
+    'autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore'
+);
+
+/** Goes on every form on this page, alongside `IGNORE` on every input. */
+const IGNORE_FORM = raw('autocomplete="off" data-form-type="other"');
+
 const field = (opts: {
     id: string;
     name: string;
@@ -51,16 +78,34 @@ const field = (opts: {
     type?: string;
     placeholder?: string;
     note?: string;
-}): SafeHtml => html`<div class="field">
+    /** A credential: masked by `.secret` in CSS rather than by `type="password"`,
+     *  which is the attribute that invites the autofill in the first place. */
+    secret?: boolean;
+    /** The service types this field belongs to. The add dialog's picker hides it
+     *  for every other type; without scripting it simply stays visible. */
+    only?: readonly string[];
+    /** Suggestions from the service itself. A `<datalist>` rather than a
+     *  `<select>` on purpose: the service is often unreachable at exactly the
+     *  moment you are configuring it, and a dropdown with nothing in it would
+     *  make the field unfillable until it came back. */
+    suggestions?: readonly string[];
+}): SafeHtml => html`<div class="field"${
+    opts.only === undefined ? raw('') : html` data-only="${opts.only.join(' ')}"`
+}>
     <label for="${opts.id}">${opts.label}</label>
     <input
         id="${opts.id}"
-        name="${opts.name}"
-        type="${opts.type ?? 'text'}"
+        ${opts.secret === true ? raw('class="secret" ') : raw('')}name="${opts.name}"
+        type="${opts.secret === true ? 'text' : (opts.type ?? 'text')}"
         value="${opts.value ?? ''}"
         placeholder="${opts.placeholder ?? ''}"
-        autocomplete="off"
+        ${opts.suggestions === undefined ? raw('') : html`list="${opts.id}.options" `}${IGNORE}
     >
+    ${opts.suggestions === undefined
+        ? raw('')
+        : html`<datalist id="${opts.id}.options">
+              ${opts.suggestions.map(value => html`<option value="${value}"></option>`)}
+          </datalist>`}
     ${opts.note === undefined ? raw('') : html`<p class="note">${opts.note}</p>`}
 </div>`;
 
@@ -69,8 +114,33 @@ const checkbox = (id: string, name: string, label: string, checked: boolean): Sa
         <input type="checkbox" id="${id}" name="${name}" ${checked ? raw('checked') : raw('')}> ${label}
     </label>`;
 
+/**
+ * What to say about the default user, which depends on whether the service was
+ * able to tell us who its users are.
+ *
+ * `undefined` and `[]` are different answers: the first is "we could not ask",
+ * which is worth saying because the empty suggestion list is otherwise
+ * indistinguishable from a service with no users at all.
+ */
+function defaultUserNote(type: string, users: readonly string[] | undefined): string {
+    const purpose =
+        type === 'jellyfin'
+            ? 'Required if Jellyfin is configured — get_library, get_media_details and diagnose all need it.'
+            : 'Optional.';
+
+    if (users === undefined) {
+        return `${purpose} ${type} did not answer when asked who its users are, so there is nothing to pick from — type the name.`;
+    }
+    if (users.length === 0) return `${purpose} ${type} reports no users yet.`;
+    return `${purpose} Pick one of the ${users.length} users ${type} reported, or type another.`;
+}
+
 /** The credential and identity fields a given service actually has. */
-function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
+function serviceFields(
+    instance: ServiceInstance,
+    prefix: string,
+    users: readonly string[] | undefined
+): SafeHtml {
     const type = instance.type;
     const service = instance.config as AnyService;
 
@@ -80,7 +150,7 @@ function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
               id: `${prefix}.password`,
               name: 'password',
               label: 'Password',
-              type: 'password',
+              secret: true,
               placeholder: 'unchanged',
               note: 'Leave blank to keep the current password.'
           })}`
@@ -88,7 +158,7 @@ function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
               id: `${prefix}.api_key`,
               name: 'api_key',
               label: 'API key',
-              type: 'password',
+              secret: true,
               placeholder: 'unchanged',
               note: 'Leave blank to keep the current key.'
           })}
@@ -98,10 +168,8 @@ function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
               name: 'default_user',
               label: 'Default user',
               value: service.default_user ?? '',
-              note:
-                  type === 'jellyfin'
-                      ? 'Required if Jellyfin is configured — get_library, get_media_details and diagnose all need it.'
-                      : 'Optional.'
+              ...(users === undefined ? {} : { suggestions: users }),
+              note: defaultUserNote(type, users)
           })}
           ${checkbox(
               `${prefix}.allow_other_users`,
@@ -112,12 +180,38 @@ function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
         : raw('')}`;
 }
 
-function instanceCard(instance: ServiceInstance, csrf: string, confirming: string | undefined): SafeHtml {
+/**
+ * The result of a **Test**, in the card that asked for it.
+ *
+ * `testConnection` already returns kind, detail and remedy, which is why the
+ * dashboard shows a diagnosis rather than a tick — the same reasoning applies
+ * here, and more so: this is the page you are on *because* something is wrong.
+ */
+function testResult(d: ConnectionDiagnosis): SafeHtml {
+    if (d.ok) {
+        return html`<div class="msg ok" style="margin:.75rem 0 0">
+            Reachable in ${d.latency_ms} ms${d.version === undefined ? raw('') : html` — version ${d.version}`}. Not
+            saved yet: this tested the fields as they are on screen.
+        </div>`;
+    }
+
+    return html`<div class="msg err" style="margin:.75rem 0 0">
+        ${d.error?.detail ?? 'Unreachable.'}${d.error?.remedy === undefined ? raw('') : html`\n${d.error.remedy}`}
+    </div>`;
+}
+
+function instanceCard(
+    instance: ServiceInstance,
+    csrf: string,
+    confirming: string | undefined,
+    users: readonly string[] | undefined,
+    tested: ConnectionDiagnosis | undefined
+): SafeHtml {
     const service = instance.config as AnyService;
     const p = `svc.${instance.id}`;
     const pendingRemoval = confirming === instance.id;
 
-    return html`<form method="post" action="/ui/config/save" class="panel">
+    return html`<form method="post" action="/ui/config/save" class="panel" ${IGNORE_FORM}>
         <input type="hidden" name="csrf" value="${csrf}">
         <input type="hidden" name="instance" value="${instance.id}">
 
@@ -126,7 +220,7 @@ function instanceCard(instance: ServiceInstance, csrf: string, confirming: strin
         </h3>
 
         ${field({ id: `${p}.url`, name: 'url', label: 'URL', value: service.url })}
-        ${serviceFields(instance, p)}
+        ${serviceFields(instance, p, users)}
         ${field({ id: `${p}.timeout_ms`, name: 'timeout_ms', label: 'Timeout (ms)', type: 'number', value: service.timeout_ms })}
 
         <p class="note" style="margin-top:.75rem">Writes — both off by default, and granted per instance.</p>
@@ -140,6 +234,12 @@ function instanceCard(instance: ServiceInstance, csrf: string, confirming: strin
 
         <div class="row" style="margin-top:1rem">
             <button type="submit">Save</button>
+            <!-- Tests the fields as they stand, saved or not: the question this
+                 button answers is "is this URL and key right", which is worth
+                 asking *before* writing it to disk. A blank key still means
+                 unchanged, so testing a card you have not touched tests what is
+                 already configured. -->
+            <button type="submit" formaction="/ui/config/test" formnovalidate class="ghost">Test</button>
             ${pendingRemoval
                 ? html`<button type="submit" formaction="/ui/config/remove" name="confirm" value="yes" class="ghost">
                           Yes, remove ${instance.id}
@@ -152,75 +252,118 @@ function instanceCard(instance: ServiceInstance, csrf: string, confirming: strin
                   means fetching the key from the service again. Save or reload to cancel.
               </p>`
             : raw('')}
+        ${tested === undefined ? raw('') : testResult(tested)}
     </form>`;
 }
 
 /**
- * The add form.
+ * The add form, in a dialog behind a button.
  *
- * Every field is always shown rather than revealed by the service picker,
- * because doing that without JavaScript is not possible and this page keeps its
- * JavaScript to the two behaviours that genuinely need it. The server validates
- * and answers with the specific thing to do — those messages are written for
- * exactly this.
+ * It used to sit under the cards with every field showing at once, because
+ * following the service picker needs scripting and this page keeps its
+ * JavaScript to what genuinely needs it. That is still the rule — it is just no
+ * longer a reason to make everyone read four fields that do not apply to them.
+ * Both behaviours here are enhancements: `data-only` says which types a field
+ * belongs to and the picker hides the rest, and the dialog is opened by
+ * `showModal()`. With scripting off, a `<noscript>` rule in `layout` styles the
+ * dialog back into the page and every field shows — exactly the form as it was.
+ *
+ * The server still validates either way, and answers with the specific thing to
+ * do; those messages are written for a reader who saw everything at once.
  */
-function addForm(config: Config, csrf: string): SafeHtml {
+function addDialog(config: Config, csrf: string, open: boolean): SafeHtml {
     const instances = listInstances(config);
     const configured = new Set(instances.map(i => i.type));
 
+    /** A service that cannot have a second instance and already has one is not
+     *  a choice — offering it only to answer "already configured" wastes the
+     *  click. The three multi-instance types are always here, so this list is
+     *  never empty. */
+    const offerable = SERVICE_IDS_ALPHABETICAL.filter(
+        id => MULTI_INSTANCE.includes(id) || !configured.has(id)
+    );
+
+    const keyed = offerable.filter(id => !NO_API_KEY.has(id));
     const needsName = MULTI_INSTANCE.filter(t => configured.has(t));
     const unnamedSingle = MULTI_INSTANCE.filter(t =>
         instances.some(i => i.type === t && i.name === undefined)
     );
 
-    return html`<form method="post" action="/ui/config/add" class="panel">
-        <input type="hidden" name="csrf" value="${csrf}">
-        <h3 style="margin:0 0 .75rem">Add a service</h3>
+    return html`<dialog id="add-service"${open ? raw(' open') : raw('')}>
+        <form method="post" action="/ui/config/add" class="panel" ${IGNORE_FORM}>
+            <input type="hidden" name="csrf" value="${csrf}">
+            <h3 style="margin:0 0 .75rem">Add a service</h3>
 
-        <div class="field">
-            <label for="add.type">Service</label>
-            <select id="add.type" name="type">
-                ${SERVICE_IDS_ALPHABETICAL.map(id => html`<option value="${id}">${id}</option>`)}
-            </select>
-        </div>
+            <div class="field">
+                <label for="add.type">Service</label>
+                <select id="add.type" name="type">
+                    ${offerable.map(id => html`<option value="${id}">${id}</option>`)}
+                </select>
+                ${offerable.length === SERVICE_IDS.length
+                    ? raw('')
+                    : html`<p class="note">
+                          Already configured, and limited to one instance:
+                          <span class="mono">${SERVICE_IDS_ALPHABETICAL.filter(
+                              id => !offerable.includes(id)
+                          ).join(', ')}</span>. Edit those on the card above.
+                      </p>`}
+            </div>
 
-        ${field({ id: 'add.url', name: 'url', label: 'URL', placeholder: 'http://192.168.1.20:7878' })}
-        ${field({
-            id: 'add.api_key',
-            name: 'api_key',
-            label: 'API key',
-            type: 'password',
-            note: "From the service's Settings → General page. Leave blank for Transmission, which uses a username and password."
-        })}
-        ${field({ id: 'add.username', name: 'username', label: 'Username (Transmission only, optional)' })}
-        ${field({ id: 'add.password', name: 'password', label: 'Password (Transmission only)', type: 'password' })}
+            ${field({ id: 'add.url', name: 'url', label: 'URL', placeholder: 'http://192.168.1.20:7878' })}
+            ${field({
+                id: 'add.api_key',
+                name: 'api_key',
+                label: 'API key',
+                secret: true,
+                only: keyed,
+                note: "From the service's Settings → General page."
+            })}
+            ${offerable.length === keyed.length
+                ? raw('')
+                : html`${field({
+                      id: 'add.username',
+                      name: 'username',
+                      label: 'Username (optional)',
+                      only: NO_API_KEY_IDS
+                  })}
+                  ${field({
+                      id: 'add.password',
+                      name: 'password',
+                      label: 'Password',
+                      secret: true,
+                      only: NO_API_KEY_IDS
+                  })}`}
 
-        ${needsName.length === 0
-            ? raw('')
-            : html`<div class="field">
-                      <label for="add.name">Instance name</label>
-                      <input id="add.name" name="name" type="text" placeholder="4k" autocomplete="off">
-                      <p class="note">
-                          Required when a service already has one:
-                          <span class="mono">${needsName.join(', ')}</span>. It becomes part of the id, as
-                          <span class="mono">radarr/4k</span>.
-                      </p>
-                  </div>`}
+            ${needsName.length === 0
+                ? raw('')
+                : field({
+                      id: 'add.name',
+                      name: 'name',
+                      label: 'Instance name',
+                      placeholder: '4k',
+                      only: needsName,
+                      note: 'Required, because this service already has an instance. It becomes part of the id, as radarr/4k.'
+                  })}
 
-        ${unnamedSingle.length === 0
-            ? raw('')
-            : html`<div class="field">
-                      <label for="add.rename_existing_to">Name for the existing instance</label>
-                      <input id="add.rename_existing_to" name="rename_existing_to" type="text" placeholder="hd" autocomplete="off">
-                      <p class="note">
-                          Adding a second <span class="mono">${unnamedSingle.join(' or ')}</span> means naming the one
-                          you already have. Its permissions move with it, and any saved prompt naming the bare service
-                          will start asking which instance you meant.
-                      </p>
-                  </div>`}
+            ${unnamedSingle.length === 0
+                ? raw('')
+                : field({
+                      id: 'add.rename_existing_to',
+                      name: 'rename_existing_to',
+                      label: 'Name for the existing instance',
+                      placeholder: 'hd',
+                      only: unnamedSingle,
+                      note: 'Adding a second one means naming the one you already have. Its permissions move with it, and any saved prompt naming the bare service will start asking which instance you meant.'
+                  })}
 
-        <div class="row" style="margin-top:1rem"><button type="submit">Add</button></div>
-    </form>`;
+            <div class="row" style="margin-top:1rem">
+                <button type="submit">Add</button>
+                <!-- Native: closes the dialog without posting, no script involved.
+                     Hidden with scripting off, where the dialog is the page. -->
+                <button type="submit" formmethod="dialog" formnovalidate class="ghost close">Cancel</button>
+            </div>
+        </form>
+    </dialog>`;
 }
 
 export function configPage(opts: {
@@ -229,27 +372,41 @@ export function configPage(opts: {
     csrf: string;
     /** The instance whose Remove button was pressed but not yet confirmed. */
     confirmingRemoval?: string | undefined;
+    /** Set when an add was refused: the message and the form it is about have to
+     *  arrive together, or the dialog has swallowed the reason. */
+    openAdd?: boolean;
+    /** Per instance id, the users that instance reported. An absent id means it
+     *  was not asked or did not answer — which the card says out loud. */
+    users?: Record<string, readonly string[]>;
+    /** The one instance whose Test button was pressed, and what came back. */
+    tested?: { instance: string; diagnosis: ConnectionDiagnosis } | undefined;
     message?: { kind: 'ok' | 'err'; text: string } | undefined;
 }): string {
     const instances = listInstances(opts.config);
 
     const body = html`<h2>Services</h2>
-        ${instances.length === 0
-            ? html`<div class="panel">
-                  <p class="note" style="margin:0">
-                      Nothing is configured yet. Add the services you run — anything you leave out is simply absent,
-                      not broken. Saving applies immediately; there is no restart.
-                  </p>
-              </div>`
-            : html`<p class="note">
-                      Saving applies immediately — no restart. Each instance is saved on its own.
-                  </p>
-                  ${instances.map(i => instanceCard(i, opts.csrf, opts.confirmingRemoval))}`}
+        <div class="row" style="margin-bottom:1rem">
+            <button type="button" data-open="add-service">Add a service</button>
+            <span class="note" style="margin:0">
+                ${instances.length === 0
+                    ? raw('Nothing is configured yet — anything you leave out is simply absent, not broken.')
+                    : raw('Saving applies immediately — no restart. Each instance is saved on its own.')}
+            </span>
+        </div>
 
-        ${addForm(opts.config, opts.csrf)}
+        ${instances.map(i =>
+            instanceCard(
+                i,
+                opts.csrf,
+                opts.confirmingRemoval,
+                opts.users?.[i.id],
+                opts.tested?.instance === i.id ? opts.tested.diagnosis : undefined
+            )
+        )}
+        ${addDialog(opts.config, opts.csrf, opts.openAdd === true)}
 
         <h2>Access</h2>
-        <form method="post" action="/ui/config/access">
+        <form method="post" action="/ui/config/access" ${IGNORE_FORM}>
             <input type="hidden" name="csrf" value="${opts.csrf}">
             <fieldset>
                 <legend>Config UI</legend>
@@ -258,7 +415,7 @@ export function configPage(opts: {
                     id: 'auth.password',
                     name: 'auth.password',
                     label: 'New password',
-                    type: 'password',
+                    secret: true,
                     placeholder: 'unchanged',
                     note: 'Leave blank to keep the current password. Only a hash is stored — it cannot be read back.'
                 })}

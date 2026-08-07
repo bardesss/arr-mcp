@@ -178,6 +178,61 @@ describe('secrets', () => {
     });
 });
 
+/**
+ * Every field on this page already carried `autocomplete="off"`, and it made no
+ * difference: a card is a form holding a URL text input followed by a password
+ * input, which is exactly what browsers and manager extensions recognise as a
+ * login form — so on every load the URL field was overwritten with the saved
+ * username and the key field with the saved password. `autocomplete="off"` is
+ * ignored for credential fields on purpose, by all of them.
+ *
+ * The fix is structural rather than a request: this page has no password input
+ * for anything to recognise. These tests are the guard on that.
+ */
+describe('password managers', () => {
+    const BOTH_KINDS =
+        '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n' +
+        '  transmission:\n    url: http://192.0.2.11:9091\n    username: t\n    password: p\n';
+
+    it('renders no password input anywhere on the configuration page', async () => {
+        await seed(BOTH_KINDS);
+        await signIn();
+
+        expect(await (await call('/ui/config')).text()).not.toContain('type="password"');
+    });
+
+    it('masks the secret fields all the same', async () => {
+        await seed(BOTH_KINDS);
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        for (const name of ['api_key', 'password', 'auth.password']) {
+            expect(page).toMatch(new RegExp(`class="secret"[^>]*name="${name.replace('.', '\\.')}"`));
+        }
+    });
+
+    it('opts every field out for the managers that honour an attribute', async () => {
+        await seed(BOTH_KINDS);
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        for (const attr of ['data-1p-ignore', 'data-lpignore="true"', 'data-bwignore', 'data-protonpass-ignore']) {
+            expect(page).toContain(attr);
+        }
+        // Dashlane reads it off the form, so it has to be there too.
+        expect(page).toContain('data-form-type="other"');
+    });
+
+    /** The one form on the site a manager *should* fill, left alone. */
+    it('leaves the sign-in form fillable', async () => {
+        cookie = '';
+        const page = await (await call('/ui/login')).text();
+
+        expect(page).toContain('autocomplete="current-password"');
+        expect(page).toContain('type="password"');
+    });
+});
+
 describe('MCP endpoint', () => {
     it('shows the endpoint built from the host the browser reached it on', async () => {
         await signIn();
@@ -323,6 +378,249 @@ describe('the configuration page', () => {
 
         const order = [...page.matchAll(/name="instance" value="([^"]+)"/g)].map(m => m[1]);
         expect(order).toEqual(['radarr/4k', 'radarr/hd', 'sonarr']);
+    });
+});
+
+/**
+ * The add form is a dialog opened by a button, and its fields follow the picker
+ * — both of which need scripting. Neither may become a requirement: with
+ * scripting off the dialog is styled back into the flow and every field shows,
+ * which is exactly the page as it was before, and the server still refuses what
+ * does not make sense.
+ */
+describe('the add dialog', () => {
+    it('is opened by a button rather than sitting under the cards', async () => {
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        expect(page).toContain('data-open="add-service"');
+        expect(page).toContain('<dialog id="add-service"');
+        expect(page).toContain('action="/ui/config/add"');
+    });
+
+    it('falls back to an inline form when scripting is off', async () => {
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        expect(page).toContain('<noscript>');
+        expect(page).toMatch(/<noscript><style>[^<]*dialog\b/);
+    });
+
+    it('says which service each field belongs to, so the picker can hide the rest', async () => {
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        // Transmission is the one service with no API key, and the only one
+        // with a username and password.
+        const apiKey = /data-only="([^"]*)"[^>]*>\s*<label for="add\.api_key"/.exec(page)?.[1] ?? '';
+        expect(apiKey.split(' ')).not.toContain('transmission');
+        expect(apiKey.split(' ')).toContain('radarr');
+
+        for (const field of ['username', 'password']) {
+            const only = new RegExp(`data-only="([^"]*)"[^>]*>\\s*<label for="add\\.${field}"`).exec(page)?.[1];
+            expect(only).toBe('transmission');
+        }
+    });
+
+    /** Offering a service that can only have one instance, when it already has
+     *  one, is a click whose only outcome is "already configured". */
+    it('drops a configured single-instance service from the picker', async () => {
+        await seed(
+            '  prowlarr:\n    url: http://192.0.2.10:9696\n    api_key: k\n' +
+                '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n'
+        );
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
+        expect(offered).not.toContain('prowlarr');
+        // Radarr takes more than one, so it stays.
+        expect(offered).toContain('radarr');
+        expect(page).toContain('Already configured, and limited to one instance');
+    });
+
+    it('offers a name only for the services that already have an instance', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        const only = /data-only="([^"]*)"[^>]*>\s*<label for="add\.name"/.exec(page)?.[1];
+        expect(only).toBe('radarr');
+    });
+
+    /** A rejected add re-renders the page; the message and the form it is about
+     *  have to arrive together, or the dialog has swallowed the reason. */
+    it('comes back open when the add was refused', async () => {
+        await signIn();
+        const res = await call('/ui/config/add', form({ csrf: await csrfFrom(), type: 'radarr', url: '', api_key: 'k' }));
+
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('<dialog id="add-service" open');
+    });
+
+    it('stays shut after a save that worked', async () => {
+        await signIn();
+        const res = await call(
+            '/ui/config/add',
+            form({ csrf: await csrfFrom(), type: 'radarr', url: 'http://192.0.2.10:7878', api_key: 'k' })
+        );
+
+        expect(res.status).toBe(200);
+        expect(await res.text()).not.toContain('<dialog id="add-service" open');
+    });
+});
+
+/**
+ * `default_user` is a name the service already knows, and typing it from memory
+ * is how you get a Jellyfin that answers every library question with "no such
+ * user". So the field suggests the real ones — as a datalist rather than a
+ * dropdown, because the service is often unreachable at exactly the moment you
+ * are configuring it and an empty dropdown would make the field unfillable.
+ */
+describe('the default user field', () => {
+    const JELLYFIN = '  jellyfin:\n    url: http://192.0.2.10:8096\n    api_key: k\n    default_user: me\n';
+
+    const withUsers = (names: string[]) => {
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            if (String(input).includes('/Users')) {
+                return new Response(JSON.stringify(names.map((Name, i) => ({ Id: `id-${i}`, Name }))), {
+                    headers: { 'content-type': 'application/json' }
+                });
+            }
+            return new Response('{}', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+    };
+
+    const realFetch = globalThis.fetch;
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    // The mock goes in before `seed`, because that is when the adapters are
+    // built and each one captures the `fetch` it will use.
+    it('suggests the users the service reported', async () => {
+        withUsers(['bartus', 'guest']);
+        await seed(JELLYFIN);
+        await signIn();
+
+        const page = await (await call('/ui/config')).text();
+
+        expect(page).toContain('<datalist id="svc.jellyfin.default_user.options">');
+        expect(page).toContain('<option value="bartus">');
+        expect(page).toContain('<option value="guest">');
+        expect(page).toContain('Pick one of the 2 users jellyfin reported');
+    });
+
+    /** The field has to stay usable when the service is down — that is most of
+     *  why anyone opens this page. */
+    it('falls back to a typeable field when the service does not answer', async () => {
+        globalThis.fetch = (async () => {
+            throw new Error('connection refused');
+        }) as typeof fetch;
+        await seed(JELLYFIN);
+        await signIn();
+
+        const page = await (await call('/ui/config')).text();
+
+        expect(page).not.toContain('<datalist');
+        expect(page).toContain('did not answer when asked who its users are');
+        // Still an editable field holding what is configured.
+        expect(page).toContain('name="default_user"');
+        expect(page).toContain('value="me"');
+    });
+
+    it('says so when the service reports no users at all', async () => {
+        withUsers([]);
+        await seed(JELLYFIN);
+        await signIn();
+
+        expect(await (await call('/ui/config')).text()).toContain('jellyfin reports no users yet');
+    });
+});
+
+/**
+ * The loop this replaces is "save it and see if the dashboard goes green",
+ * which writes a URL you already suspect is wrong and answers on another page.
+ */
+describe('testing a connection', () => {
+    const RADARR = '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: saved-key\n';
+    const realFetch = globalThis.fetch;
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    it('reports a service that answers', async () => {
+        await seed(RADARR);
+        globalThis.fetch = (async () =>
+            new Response(JSON.stringify({ version: '5.1.0' }), {
+                headers: { 'content-type': 'application/json' }
+            })) as typeof fetch;
+        await signIn();
+
+        const res = await call(
+            '/ui/config/test',
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '' })
+        );
+
+        expect(res.status).toBe(200);
+        expect(await res.text()).toContain('Reachable in');
+    });
+
+    it('reports what is wrong, and what to do, when it does not', async () => {
+        await seed(RADARR);
+        globalThis.fetch = (async () => new Response('nope', { status: 401 })) as typeof fetch;
+        await signIn();
+
+        const res = await call(
+            '/ui/config/test',
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: 'wrong' })
+        );
+
+        expect(res.status).toBe(200);
+        expect(await res.text()).toContain('msg err');
+    });
+
+    /** The whole point: it must be safe to test a URL you have not committed to. */
+    it('writes nothing to disk, whatever the answer', async () => {
+        await seed(RADARR);
+        globalThis.fetch = (async () =>
+            new Response(JSON.stringify({ version: '5.1.0' }), {
+                headers: { 'content-type': 'application/json' }
+            })) as typeof fetch;
+        await signIn();
+
+        await call(
+            '/ui/config/test',
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.99:7878', api_key: 'typed-key' })
+        );
+
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(onDisk).toContain('192.0.2.10:7878');
+        expect(onDisk).not.toContain('192.0.2.99');
+        expect(onDisk).toContain('saved-key');
+        expect(onDisk).not.toContain('typed-key');
+    });
+
+    it('refuses a forged CSRF token', async () => {
+        await seed(RADARR);
+        await signIn();
+
+        const res = await call('/ui/config/test', form({ csrf: 'forged', instance: 'radarr' }));
+        expect(res.status).toBe(403);
+    });
+
+    it('answers with the validation message when the fields cannot even be built', async () => {
+        await seed(RADARR);
+        await signIn();
+
+        const res = await call(
+            '/ui/config/test',
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'not-a-url' })
+        );
+
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('msg err');
     });
 });
 
