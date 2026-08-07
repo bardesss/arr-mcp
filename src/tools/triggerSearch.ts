@@ -1,3 +1,4 @@
+import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
@@ -16,13 +17,8 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * user could have seen before the write, not one this tool invented.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId) => {
-    const adapter = adapters.find(a => a.id === service);
-    if (adapter === undefined) {
-        throw new ServiceError('NotFound', service, `${service} is not configured`, {
-            remedy: `Add a services.${service} block to config.yaml and restart, or name a configured service.`
-        });
-    }
+const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
+    const adapter = resolveInstance(adapters, service, instance);
     if (!hasSearchTrigger(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot be told to search`, {
             remedy: 'Only radarr and sonarr support trigger_search.'
@@ -42,16 +38,20 @@ export function registerTriggerSearch(
             'Asks Radarr or Sonarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: get those from get_media_details or get_library first. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr or sonarr.'),
+            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The item's id within that service, as an integer string.")
         }),
         // The permission check follows the argument, so enabling `safe_write`
         // on Radarr does not quietly enable it on Sonarr.
-        service: ({ service }) => service,
+        // The resolved instance id, not the bare type: permissions are granted per
+        // instance, so checking `radarr` against a config that only grants
+        // `radarr/hd` would deny a permitted write — or worse, the reverse.
+        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
         operation: 'trigger_search',
         tier: 'safe',
 
-        async plan({ service, id }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service);
+        async plan({ service, instance, id }): Promise<WritePlan> {
+            const adapter = findAdapter(adapters, service, instance);
 
             // A read before the write, for two reasons: it fails early and
             // legibly if the id does not exist ("Radarr has no movie 9999"
@@ -89,8 +89,8 @@ export function registerTriggerSearch(
             };
         },
 
-        async apply(_plan, { service, id }) {
-            return findAdapter(adapters, service).triggerSearch(id);
+        async apply(_plan, { service, instance, id }) {
+            return findAdapter(adapters, service, instance).triggerSearch(id);
         }
     });
 }

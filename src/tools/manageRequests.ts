@@ -24,7 +24,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  */
 
 const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & RequestManageCapable => {
-    const adapter = adapters.find(a => a.id === 'seerr');
+    const adapter = adapters.find(a => a.type === 'seerr');
     if (adapter === undefined) {
         throw new ServiceError('NotFound', 'seerr', 'seerr is not configured', {
             remedy: 'Add a services.seerr block to config.yaml and restart. Requests live in Seerr, not in Radarr or Sonarr.'
@@ -43,7 +43,7 @@ const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Req
  * as a bare 404.
  */
 async function findRequest(adapters: readonly ServiceAdapter[], id: string): Promise<MediaRequest> {
-    const adapter = adapters.find(a => a.id === 'seerr');
+    const adapter = adapters.find(a => a.type === 'seerr');
     if (adapter === undefined || !hasRequests(adapter)) {
         throw new ServiceError('NotFound', 'seerr', 'seerr is not configured', {
             remedy: 'Add a services.seerr block to config.yaml and restart.'
@@ -70,7 +70,7 @@ async function findRequest(adapters: readonly ServiceAdapter[], id: string): Pro
  * quietly presenting a bare id as though that were the whole story.
  */
 async function describe(adapters: readonly ServiceAdapter[], request: MediaRequest): Promise<string> {
-    const adapter = adapters.find(a => a.id === 'seerr');
+    const adapter = adapters.find(a => a.type === 'seerr');
     const media =
         adapter !== undefined && hasRequestManage(adapter)
             ? await adapter.describeRequestMedia(request)

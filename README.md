@@ -295,6 +295,61 @@ One thing to be careful with: pinning `allowed_hosts` applies at once, so a
 wrong hostname locks you out of the page you would fix it from. Recover by
 editing `config.yaml` by hand and restarting.
 
+### Multiple Radarr, Sonarr and Bazarr instances
+
+Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
+both. Give each one a name:
+
+```yaml
+services:
+  radarr:
+    - name: hd
+      url: http://192.168.1.20:7878
+      api_key: "…"
+    - name: 4k
+      url: http://192.168.1.20:7879
+      api_key: "…"
+  bazarr:                    # one per stack — Bazarr takes a single *arr of each
+    - name: hd
+      url: http://192.168.1.20:6767
+      api_key: "…"
+    - name: 4k
+      url: http://192.168.1.20:6768
+      api_key: "…"
+  sonarr:                    # one instance needs no name and no list
+    url: http://192.168.1.20:8989
+    api_key: "…"
+```
+
+**Reads span every instance.** `stack_health` reports each separately, and a
+library question answers from all of them at once — which is the whole point of
+running a second one. Every row says which instance it came from, as
+`radarr/4k`.
+
+**Writes name one.** Adding a film with two Radarrs configured and no `instance`
+is refused, and the refusal lists the names rather than guessing — a 4K release
+landing in the HD instance is only discovered once the download has finished.
+
+```
+add_media { service: "radarr", external_id: "550" }
+```
+
+> radarr has 2 instances configured, so "radarr" alone does not say which —
+> pass `instance` with one of: "4k", "hd".
+
+That means **adding a second instance changes how existing prompts behave**:
+requests that used to be unambiguous start asking which instance you meant. That
+is deliberate, and it only affects writes.
+
+**Permissions are per instance**, so `safe_write` on `hd` and nothing on `4k` is
+a configuration you can express — each entry carries its own `permissions`
+block.
+
+Only Radarr, Sonarr and Bazarr take a list. The other five are one each:
+Prowlarr feeds every *arr from one place, Seerr connects to your instances
+itself, and a second download client is a different kind of setup from a quality
+tier.
+
 ## Config UI
 
 `http://<host>:6060`

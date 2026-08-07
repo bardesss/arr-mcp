@@ -28,42 +28,69 @@ const project = (g: SubtitleGap, detail: DetailLevel): SubtitleGap => {
     return { service: g.service, kind: g.kind, id: g.id, title: g.title, missing: [] };
 };
 
+/**
+ * Every configured Bazarr, merged.
+ *
+ * Bazarr connects to a single Radarr and a single Sonarr, so an HD + 4K *arr
+ * pair implies one Bazarr per stack. Reading from only the first would hide
+ * subtitle state for half the library — the same failure multiple instances
+ * exist to remove, so this is a read that spans them rather than one that asks
+ * which to look in.
+ *
+ * One instance failing degrades to a named entry and the others still answer.
+ * A partial subtitle list that says which Bazarr is missing is useful; one that
+ * silently drops half is not.
+ */
 export async function buildGetSubtitles(
-    adapter: (ServiceAdapter & SubtitleCapable) | undefined,
+    adapters: readonly (ServiceAdapter & SubtitleCapable)[],
     opts: { detail: DetailLevel; limit: number }
 ): Promise<GetSubtitlesResult> {
-    if (adapter === undefined) {
+    if (adapters.length === 0) {
         return { items: [], total: 0, returned: 0, truncated: false, degraded: [] };
     }
 
-    let gaps: SubtitleGap[];
-    try {
-        gaps = await adapter.getMissingSubtitles();
-    } catch (err) {
-        logger.warn({ service: adapter.id, err }, 'subtitle read failed; degrading');
-        return { items: [], total: 0, returned: 0, truncated: false, degraded: [adapter.id] };
-    }
+    const gaps: SubtitleGap[] = [];
+    const providers: SubtitleProvider[] = [];
+    const degraded: string[] = [];
+    let sawProviders = false;
 
-    // Provider state is fetched alongside and never allowed to fail the call.
-    let providers: SubtitleProvider[] | undefined;
-    if (opts.detail !== 'minimal') {
-        try {
-            providers = await adapter.getProviders();
-        } catch (err) {
-            logger.warn({ service: adapter.id, err }, 'provider state unavailable; omitting');
-        }
-    }
+    await Promise.all(
+        adapters.map(async adapter => {
+            try {
+                gaps.push(...(await adapter.getMissingSubtitles()));
+            } catch (err) {
+                logger.warn({ service: adapter.id, err }, 'subtitle read failed; degrading');
+                degraded.push(adapter.id);
+                return;
+            }
 
-    const shaped = applyLimit(gaps, opts.limit);
+            // Provider state is fetched alongside and never allowed to fail the
+            // call — an instance that answered its gaps still contributed them.
+            if (opts.detail === 'minimal') return;
+            try {
+                providers.push(...(await adapter.getProviders()));
+                sawProviders = true;
+            } catch (err) {
+                logger.warn({ service: adapter.id, err }, 'provider state unavailable; omitting');
+            }
+        })
+    );
+
+    // Sorted so two instances produce a stable order rather than whichever
+    // answered first, which would make the output differ run to run.
+    const shaped = applyLimit(
+        gaps.sort((a, b) => a.service.localeCompare(b.service) || a.title.localeCompare(b.title)),
+        opts.limit
+    );
     return {
         ...shaped,
         items: shaped.items.map(g => project(g, opts.detail)),
-        degraded: [],
-        ...(providers === undefined ? {} : { providers })
+        degraded: degraded.sort(),
+        ...(sawProviders ? { providers } : {})
     };
 }
 
-export function registerGetSubtitles(server: McpServer, adapter: (ServiceAdapter & SubtitleCapable) | undefined): void {
+export function registerGetSubtitles(server: McpServer, adapters: readonly (ServiceAdapter & SubtitleCapable)[]): void {
     server.registerTool(
         'get_subtitles',
         {
@@ -72,11 +99,11 @@ export function registerGetSubtitles(server: McpServer, adapter: (ServiceAdapter
             inputSchema: z.object({ detail: DetailSchema, limit: LimitSchema })
         },
         async ({ detail, limit }) => {
-            const result = await buildGetSubtitles(adapter, { detail, limit });
+            const result = await buildGetSubtitles(adapters, { detail, limit });
             const unhealthy = (result.providers ?? []).filter(p => !p.healthy).length;
             const summary =
                 result.degraded.length > 0
-                    ? 'Bazarr could not be reached; no subtitle information available.'
+                    ? `Bazarr could not be reached (${result.degraded.join(', ')}); subtitle information may be incomplete.`
                     : `${result.returned} of ${result.total} item(s) missing subtitles` +
                       (unhealthy > 0 ? `; ${unhealthy} provider(s) unavailable.` : '.');
 

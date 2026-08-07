@@ -1,3 +1,4 @@
+import type { ServiceInstance } from '../src/config/instances.ts';
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
@@ -88,6 +89,8 @@ type Call = (args: Record<string, unknown>) => Promise<{
 function harness(
     opts: Parameters<typeof stack>[0] & {
         permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
+        /** Named instances, for the tests that are about which instance a write hits. */
+        instances?: ServiceInstance[];
         adapters?: ServiceAdapter[];
     } = {}
 ) {
@@ -106,7 +109,9 @@ function harness(
     registerAddMedia(
         server as never,
         {
-            permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: tiered(true), sonarr: tiered(true) })),
+            permissions: permissionSourceFrom(
+                opts.instances ?? instancesOf(opts.permissions ?? { radarr: tiered(true), sonarr: tiered(true) })
+            ),
             confirm: new ConfirmTokens(),
             audit,
             library: { invalidate } as unknown as LibraryLoader
@@ -479,5 +484,75 @@ describe('add_media on Sonarr', () => {
         await expect(h.call({ service: 'radarr', external_id: '999999999', dry_run: true })).rejects.toThrow(
             /Radarr takes TMDB, Sonarr takes TVDB/
         );
+    });
+});
+
+/**
+ * Permissions are granted per instance, and the write gate has to look up the
+ * *resolved* instance id rather than the bare service type.
+ *
+ * This is unit-tested rather than verified against a live server because
+ * `registerWriteTool` runs `plan()` before `checkPermission` — `plan` reads
+ * quality profiles and root folders from the service, so against an unreachable
+ * host the call fails at the network before the permission gate is ever
+ * reached. A live check therefore cannot see this, and getting it wrong would
+ * mean either denying a permitted write or, far worse, permitting a denied one.
+ */
+describe('add_media across two Radarr instances', () => {
+    const bothInstances = (hdSafeWrite: boolean, fourKSafeWrite: boolean): ServiceInstance[] => [
+        { id: 'radarr/hd', type: 'radarr', name: 'hd', config: tiered(hdSafeWrite) },
+        { id: 'radarr/4k', type: 'radarr', name: '4k', config: tiered(fourKSafeWrite) }
+    ];
+
+    const twoRadarrs = (impl: typeof fetch): ServiceAdapter[] => [
+        new RadarrAdapter({ ...keyed(7878), name: 'hd' }, impl),
+        new RadarrAdapter({ ...keyed(7879), name: '4k' }, impl)
+    ];
+
+    it('refuses to guess which Radarr, and names both', async () => {
+        const s = stack();
+        const h = harness({ adapters: twoRadarrs(s.impl), instances: bothInstances(true, true) });
+
+        await expect(h.call({ service: 'radarr', external_id: '550' })).rejects.toThrow(/2 instances/);
+    });
+
+    it('checks the permission of the instance actually named, not the service', async () => {
+        const s = stack();
+        const opts = { adapters: twoRadarrs(s.impl), instances: bothInstances(true, false) };
+
+        const allowed = await harness(opts).call({ service: 'radarr', instance: 'hd', external_id: '550' });
+        expect(allowed.structuredContent.permission.allowed).toBe(true);
+        expect(allowed.structuredContent.service).toBe('radarr/hd');
+
+        // A denied live write throws rather than returning a verdict — the
+        // refusal is the result.
+        await expect(
+            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '550', confirm: 'x' })
+        ).rejects.toThrow(/disabled for radarr\/4k/);
+    });
+
+    /**
+     * `services.radarr/4k.permissions` is the string an id-shaped remedy builds,
+     * and it names a key that cannot exist — a named instance lives inside a
+     * list. Someone following it would edit nothing, the write would stay
+     * refused, and the remedy would look broken rather than misread.
+     */
+    it('points at a YAML path that exists for a named instance', async () => {
+        const s = stack();
+        const opts = { adapters: twoRadarrs(s.impl), instances: bothInstances(true, false) };
+
+        await expect(
+            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '550', confirm: 'x' })
+        ).rejects.toThrow(/`name: 4k` entry under `services.radarr`/);
+    });
+
+    it('names the instance in the audit row, so two Radarrs stay distinguishable', async () => {
+        const s = stack();
+        const h = harness({ adapters: twoRadarrs(s.impl), instances: bothInstances(true, true) });
+
+        await h.call({ service: 'radarr', instance: '4k', external_id: '550' });
+
+        const [row] = h.audit.recent(1) as { service: string }[];
+        expect(row?.service).toBe('radarr/4k');
     });
 });

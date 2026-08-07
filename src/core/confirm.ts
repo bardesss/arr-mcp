@@ -1,5 +1,4 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { ServiceId } from '../config/schema.ts';
 import type { Clock } from './cache.ts';
 import type { WriteTier } from './permissions.ts';
 
@@ -44,7 +43,7 @@ const MAX_CONSUMED = 10_000;
  */
 export type WriteIntent = {
     tool: string;
-    service: ServiceId;
+    service: string;
     tier: WriteTier;
     /** The adapter-level verb, e.g. `delete_movie`. Distinct from `tool` because
      *  one tool may reach more than one operation. */

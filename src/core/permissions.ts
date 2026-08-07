@@ -60,15 +60,36 @@ export function permissionSourceFrom(instances: readonly ServiceInstance[]): Per
  * a dry run reports it as part of the preview without failing (see
  * `src/tools/write.ts` for why a dry run is not gated).
  */
+/**
+ * Where to set a permission, in the reader's actual config file.
+ *
+ * A named instance lives inside a list, so `services.radarr/4k.permissions` —
+ * the obvious string to build from the id — names a key that does not exist and
+ * cannot be created. Someone following it edits nothing and the write stays
+ * refused, which is a worse failure than a vague message: it looks like the
+ * remedy did not work.
+ */
+function permissionPath(instance: string, tier: WriteTier): string {
+    const slash = instance.indexOf('/');
+    if (slash === -1) {
+        return `\`services.${instance}.permissions.${TIER_KEY[tier]}: true\``;
+    }
+
+    const type = instance.slice(0, slash);
+    const name = instance.slice(slash + 1);
+    return `\`permissions.${TIER_KEY[tier]}: true\` on the \`name: ${name}\` entry under \`services.${type}\``;
+}
+
 export function checkPermission(source: PermissionSource, service: string, tier: WriteTier): PermissionVerdict {
     const config = source.get(service);
 
     if (config === undefined) {
+        const type = service.split('/')[0] ?? service;
         return {
             allowed: false,
             tier,
             reason: `${service} is not configured`,
-            remedy: `Add a \`services.${service}\` block to config.yaml and restart. Writes additionally need \`services.${service}.permissions.${TIER_KEY[tier]}: true\`.`
+            remedy: `Add a \`services.${type}\` block to config.yaml and restart. Writes additionally need ${permissionPath(service, tier)}.`
         };
     }
 
@@ -83,7 +104,7 @@ export function checkPermission(source: PermissionSource, service: string, tier:
         allowed: false,
         tier,
         reason: `${tier} writes are disabled for ${service}`,
-        remedy: `Set \`services.${service}.permissions.${TIER_KEY[tier]}: true\` in config.yaml and restart arr-mcp. This is off by default; nothing but a deliberate edit turns it on.`
+        remedy: `Set ${permissionPath(service, tier)} in config.yaml and restart arr-mcp. This is off by default; nothing but a deliberate edit turns it on.`
     };
 }
 

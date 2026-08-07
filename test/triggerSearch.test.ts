@@ -193,6 +193,7 @@ describe('trigger_search', () => {
         // refusals with two different remedies.
         const jellyfin = {
             id: 'jellyfin' as ServiceId,
+            type: 'jellyfin' as ServiceId,
             testConnection: () => Promise.reject(new Error('unused')),
             getVersion: () => Promise.resolve('10.8.0')
         } as unknown as ServiceAdapter;

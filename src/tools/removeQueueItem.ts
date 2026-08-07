@@ -1,3 +1,4 @@
+import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
@@ -16,13 +17,8 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * mysteriously never grabs.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId) => {
-    const adapter = adapters.find(a => a.id === service);
-    if (adapter === undefined) {
-        throw new ServiceError('NotFound', service, `${service} is not configured`, {
-            remedy: `Add a services.${service} block to config.yaml and restart, or name a configured service.`
-        });
-    }
+const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
+    const adapter = resolveInstance(adapters, service, instance);
     if (!hasQueueRemove(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no download queue`, {
             remedy: 'Queue items live on radarr, sonarr, sabnzbd and transmission. Take a service and id from get_queue.'
@@ -42,6 +38,7 @@ export function registerRemoveQueueItem(
             'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, SABnzbd and Transmission; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr and Sonarr only, blocklists the release so it will not be grabbed again. Previews by default — call again with the returned `confirm` token to actually remove it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr, sonarr, sabnzbd or transmission.'),
+            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
             remove_from_client: z
                 .boolean()
@@ -56,12 +53,15 @@ export function registerRemoveQueueItem(
                     'Blocklist the release so it is not grabbed again. Radarr and Sonarr only; ignored elsewhere. Defaults to false.'
                 )
         }),
-        service: ({ service }) => service,
+        // The resolved instance id, not the bare type: permissions are granted per
+        // instance, so checking `radarr` against a config that only grants
+        // `radarr/hd` would deny a permitted write — or worse, the reverse.
+        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
         operation: 'remove_queue_item',
         tier: 'destructive',
 
-        async plan({ service, id, remove_from_client, blocklist }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service);
+        async plan({ service, instance, id, remove_from_client, blocklist }): Promise<WritePlan> {
+            const adapter = findAdapter(adapters, service, instance);
 
             // Read the live queue so the preview names the release rather than
             // an opaque id, and so an id that has already finished downloading
@@ -110,8 +110,8 @@ export function registerRemoveQueueItem(
             };
         },
 
-        async apply(_plan, { service, id, remove_from_client, blocklist }) {
-            const adapter = findAdapter(adapters, service);
+        async apply(_plan, { service, instance, id, remove_from_client, blocklist }) {
+            const adapter = findAdapter(adapters, service, instance);
             await adapter.removeQueueItem(id, {
                 removeFromClient: remove_from_client,
                 blocklist: blocklist && adapter.supportsBlocklist

@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { ServiceId } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import type { ConfirmTokens, WriteIntent } from '../core/confirm.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -65,7 +64,7 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
      * it would check Sonarr writes against Radarr's `permissions` block, so
      * enabling one service would quietly enable the other.
      */
-    service: ServiceId | ((args: z.infer<Schema>) => ServiceId);
+    service: string | ((args: z.infer<Schema>) => string);
     /** The adapter-level verb, e.g. `delete_movie`; one tool may reach several. */
     operation: string;
     tier: WriteTier;
@@ -99,7 +98,7 @@ export type WriteToolResult = {
     applied: boolean;
     dry_run: boolean;
     tool: string;
-    service: ServiceId;
+    service: string;
     operation: string;
     tier: WriteTier;
     target: string;
