@@ -173,12 +173,22 @@ describe('get_library rating filtering', () => {
         expect((await buildGetLibrary(loaderOf(rated), base)).ratingCoverage).toBeUndefined();
     });
 
-    it('refuses a per-source rating filter on series', async () => {
-        // §21.2: Sonarr's rating is one flat TVDB value. Returning an empty
-        // list here would read as "no such series exist".
+    /**
+     * Was: *any* per-source filter on a series was refused, because §21.2's
+     * flat TVDB value was the only rating one could carry. 0.8's IMDb dataset
+     * makes `imdb` reachable for a series, so the refusal narrowed to the
+     * sources that still have no path to one. The reason it exists is
+     * unchanged — an empty list would read as "no such series exist".
+     */
+    it('refuses a per-source rating filter a series still cannot have', async () => {
         await expect(
-            buildGetLibrary(loaderOf([film()]), { ...base, kind: 'series', min_rating: 8, rating_source: 'imdb' })
-        ).rejects.toThrow(/flat TVDB/);
+            buildGetLibrary(loaderOf([film()]), {
+                ...base,
+                kind: 'series',
+                min_rating: 8,
+                rating_source: 'rottenTomatoes'
+            })
+        ).rejects.toThrow(/applies to films only/);
     });
 
     it('allows a tvdb-sourced rating filter on series', async () => {
@@ -306,5 +316,95 @@ describe('get_library shaping', () => {
         const many = repeat(film(), 500).map((f, i) => ({ ...f, ids: { tmdb: i + 1 } }));
         const result = await buildGetLibrary(loaderOf(many), { ...base, limit: 500 });
         expectWithinBudget(result, 60_000);
+    });
+});
+
+/**
+ * A series could not carry an IMDb rating before 0.8, and `get_library` said
+ * so in three places at once: the guard refused the filter, the default source
+ * was hard-coded to `tvdb`, and the tool description told the model series
+ * carry one flat TVDB rating. None of that was wrong — it accurately described
+ * a stack where Sonarr was the only possible source. The IMDb dataset is what
+ * makes it false.
+ */
+const series = (over: Partial<IndexInput> = {}): IndexInput =>
+    film({
+        kind: 'series',
+        title: 'Some Series',
+        ids: { tvdb: 81189, imdb: 'tt0903747' },
+        acquisition: { service: 'sonarr', monitored: true, hasFile: true },
+        ...over
+    });
+
+describe('series ratings, once the dataset can supply them', () => {
+    it('no longer refuses rating_source: imdb for a series', async () => {
+        await expect(
+            buildGetLibrary(loaderOf([series()], 'sonarr'), { ...base, kind: 'series', rating_source: 'imdb' })
+        ).resolves.toBeDefined();
+    });
+
+    /** The other documented limit is untouched: a series' quality really is
+     *  per-episode, and no dataset changes that. */
+    it('still refuses quality for a series', async () => {
+        await expect(
+            buildGetLibrary(loaderOf([series()], 'sonarr'), { ...base, kind: 'series', quality: 'bluray-1080p' })
+        ).rejects.toThrow('quality applies to films only');
+    });
+
+    it('still refuses a source a series genuinely cannot have', async () => {
+        await expect(
+            buildGetLibrary(loaderOf([series()], 'sonarr'), { ...base, kind: 'series', rating_source: 'metacritic' })
+        ).rejects.toThrow('applies to films only');
+    });
+
+    /** New, and the other half of the relaxed guard: Radarr never reports a
+     *  TVDB rating, so asking for one on a film matched nothing silently. */
+    it('refuses tvdb for a film', async () => {
+        await expect(
+            buildGetLibrary(loaderOf([film()]), { ...base, kind: 'movie', rating_source: 'tvdb' })
+        ).rejects.toThrow('applies to series only');
+    });
+
+    /**
+     * `tvdb` stays the default for a series even though `imdb` is now
+     * reachable. Changing it would silently re-scale every saved prompt's
+     * `min_rating` against a different source — the exact silent break
+     * CONTRIBUTING warns about for the tool surface.
+     */
+    it('still defaults a series query to tvdb', async () => {
+        const result = await buildGetLibrary(loaderOf([series({ ratings: { tvdb: 8.8 } })], 'sonarr'), {
+            ...base,
+            kind: 'series',
+            min_rating: 1
+        });
+        expect(result.ratingCoverage?.source).toBe('tvdb');
+    });
+
+    it('reports coverage against imdb when imdb was asked for', async () => {
+        const items = [
+            series({ ratings: { imdb: 9.5 } }),
+            series({ title: 'Unrated', ids: { tvdb: 1, imdb: 'tt0000001' } })
+        ];
+        const result = await buildGetLibrary(loaderOf(items, 'sonarr'), {
+            ...base,
+            kind: 'series',
+            rating_source: 'imdb',
+            min_rating: 1
+        });
+        expect(result.ratingCoverage).toMatchObject({ source: 'imdb', rated: 1, unrated: 1 });
+    });
+
+    it('filters a series by its IMDb rating', async () => {
+        const items = [
+            series({ title: 'Great', ratings: { imdb: 9.5 } }),
+            series({ title: 'Poor', ids: { tvdb: 2, imdb: 'tt0000002' }, ratings: { imdb: 4.0 } })
+        ];
+        const result = await buildGetLibrary(loaderOf(items, 'sonarr'), {
+            ...base,
+            kind: 'series',
+            rating_source: 'imdb',
+            min_rating: 8
+        });
+        expect(result.items.map(i => i.title)).toEqual(['Great']);
     });
 });
