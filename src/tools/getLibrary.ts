@@ -60,9 +60,22 @@ const RATING_SCALE_MAX: Record<RatingSource, number> = {
  */
 const toTenPointScale = (source: RatingSource, value: number): number => (value / RATING_SCALE_MAX[source]) * 10;
 
+/**
+ * §4.3. A superlative cannot be answered by a filter: with more items than
+ * `limit`, the best-rated may simply not be in the window, and the model then
+ * answers confidently from whatever fifty it was handed.
+ *
+ * `added` is deliberately absent. `MergedItem` carries no added date, and a
+ * sort option that silently does nothing is worse than one that was never
+ * offered — it can be added later as a minor without breaking anything.
+ */
+export const SORT_FIELDS = ['rating', 'year', 'title'] as const;
+export type SortField = (typeof SORT_FIELDS)[number];
+
 export type LibraryQuery = {
     detail: DetailLevel;
     limit: number;
+    sort?: SortField;
     kind?: 'movie' | 'series';
     year?: number;
     genre?: string;
@@ -145,6 +158,31 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
     }
 }
 
+/**
+ * Ordering, applied **before** `applyLimit` — ordering after truncation is the
+ * same bug wearing a parameter.
+ *
+ * A rating sort assumes unrated items have already been removed by the caller,
+ * which is what `needsRating` below guarantees. They are excluded rather than
+ * ranked as zero: sorted to the bottom, an item nobody has rated is
+ * indistinguishable from one rated 0.4, and `ratingCoverage.unrated` is what
+ * states how many were set aside.
+ *
+ * `localeCompare` rather than `<`, so "Ålesund" sorts where a reader expects
+ * rather than after "Zulu", and `unfenced` because a title reaching here still
+ * carries its untrusted-value fence.
+ */
+function applySort(items: readonly MergedItem[], sort: SortField, source: RatingSource): MergedItem[] {
+    const sorted = [...items];
+
+    if (sort === 'title') return sorted.sort((a, b) => unfenced(a.title).localeCompare(unfenced(b.title)));
+    // Descending: the newest and the best rated are what a superlative asks
+    // for, and nobody asks for their worst film first.
+    if (sort === 'year') return sorted.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+
+    return sorted.sort((a, b) => (ratingOf(b, source) ?? 0) - (ratingOf(a, source) ?? 0));
+}
+
 const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
     if (detail === 'full') return item;
     if (detail === 'minimal') {
@@ -186,8 +224,21 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         return true;
     });
 
-    if (opts.min_rating === undefined) {
-        const shaped = applyLimit(filtered, opts.limit);
+    /**
+     * A rating is in play for a `min_rating` filter *or* a `sort: 'rating'` —
+     * and the second is why this is not simply `min_rating !== undefined`.
+     * Sorting by rating drops unrated items, so it owes the caller the same
+     * coverage count a filter does. Without this, "the ten best rated" would
+     * quietly leave out everything unrated and report nothing about it, which
+     * is the exact silent omission `ratingCoverage` was built to prevent.
+     */
+    const needsRating = opts.min_rating !== undefined || opts.sort === 'rating';
+
+    if (!needsRating) {
+        // `bestCoveredSource` is never consulted here: no rating is read, so
+        // computing one would be work whose result is discarded.
+        const ordered = opts.sort === undefined ? filtered : applySort(filtered, opts.sort, 'imdb');
+        const shaped = applyLimit(ordered, opts.limit);
         return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
     }
 
@@ -196,11 +247,18 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     // unrated" answer the question the caller actually asked.
     const source = opts.rating_source ?? bestCoveredSource(filtered, opts.kind);
     const rated = filtered.filter(i => ratingOf(i, source) !== undefined);
-    const matching = rated.filter(
-        i => toTenPointScale(source, ratingOf(i, source) as number) >= (opts.min_rating as number)
-    );
+    // Bound to a local so the narrowing survives into the closure — inside the
+    // callback, `opts.min_rating` is a property read TypeScript cannot prove
+    // has not changed.
+    const floor = opts.min_rating;
+    const matching =
+        floor === undefined
+            ? rated
+            : rated.filter(i => toTenPointScale(source, ratingOf(i, source) as number) >= floor);
 
-    const shaped = applyLimit(matching, opts.limit);
+    const ordered = opts.sort === undefined ? matching : applySort(matching, opts.sort, source);
+    const shaped = applyLimit(ordered, opts.limit);
+
     return {
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
@@ -241,6 +299,12 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                     .optional()
                     .describe(
                         'both / arr_only (possible broken import) / jellyfin_only (unmanaged media) / unknown (Jellyfin degraded or unconfigured — arr_only cannot be asserted).'
+                    ),
+                sort: z
+                    .enum(SORT_FIELDS)
+                    .optional()
+                    .describe(
+                        'Order the results *before* `limit` is applied — which is what makes "the best rated" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
                     ),
                 detail: DetailSchema,
                 limit: LimitSchema

@@ -408,3 +408,95 @@ describe('series ratings, once the dataset can supply them', () => {
         expect(result.items.map(i => i.title)).toEqual(['Great']);
     });
 });
+
+/**
+ * A superlative cannot be answered by a filter. With more items than `limit`,
+ * "the best rated" is answered from an arbitrary window — and the model then
+ * reports it confidently, wrong in a way that looks exactly like being right.
+ */
+const rated = (title: string, imdb: number, over: Partial<IndexInput> = {}): IndexInput =>
+    film({ title, ids: { tmdb: title.length * 977 + Math.round(imdb * 10) }, ratings: { imdb }, ...over });
+
+describe('ordering', () => {
+    it('orders before truncating, so the top result survives the limit', async () => {
+        const many = [
+            rated('Worst', 1.0),
+            ...Array.from({ length: 60 }, (_, i) => film({ title: `Mid ${i}`, ids: { tmdb: 90_000 + i }, ratings: { imdb: 5 } })),
+            rated('Best', 9.9)
+        ];
+
+        const result = await buildGetLibrary(loaderOf(many), {
+            ...base,
+            rating_source: 'imdb',
+            sort: 'rating',
+            limit: 10
+        });
+
+        expect(result.items[0]?.title).toBe('Best');
+        expect(result.returned).toBe(10);
+        expect(result.truncated).toBe(true);
+    });
+
+    /**
+     * An unrated item sorted to the bottom is indistinguishable from a badly
+     * rated one, so a rating sort drops them — and must then say how many, or
+     * it is exactly the silent omission `ratingCoverage` exists to prevent.
+     * Note there is no `min_rating` here: coverage has to appear for a sort
+     * alone.
+     */
+    it('excludes unrated items from a rating sort and reports how many', async () => {
+        const items = [rated('Rated', 8.0), film({ title: 'Unrated', ids: { tmdb: 999 } })];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, rating_source: 'imdb', sort: 'rating' });
+
+        expect(result.items.map(i => i.title)).toEqual(['Rated']);
+        expect(result.ratingCoverage).toMatchObject({ source: 'imdb', rated: 1, unrated: 1 });
+    });
+
+    it('sorts title ascending and year descending', async () => {
+        const named = [film({ title: 'Zulu', ids: { tmdb: 1 } }), film({ title: 'Alien', ids: { tmdb: 2 } })];
+        expect((await buildGetLibrary(loaderOf(named), { ...base, sort: 'title' })).items.map(i => i.title)).toEqual([
+            'Alien',
+            'Zulu'
+        ]);
+
+        const years = [film({ year: 1979, ids: { tmdb: 3 } }), film({ year: 2015, ids: { tmdb: 4 } })];
+        expect((await buildGetLibrary(loaderOf(years), { ...base, sort: 'year' })).items.map(i => i.year)).toEqual([
+            2015, 1979
+        ]);
+    });
+
+    it('leaves order untouched when sort is not asked for', async () => {
+        const named = [film({ title: 'Zulu', ids: { tmdb: 1 } }), film({ title: 'Alien', ids: { tmdb: 2 } })];
+        const result = await buildGetLibrary(loaderOf(named), base);
+        expect(result.items.map(i => i.title)).toEqual(['Zulu', 'Alien']);
+    });
+
+    it('omits coverage for a sort that has nothing to do with ratings', async () => {
+        const named = [film({ title: 'Zulu', ids: { tmdb: 1 } })];
+        expect((await buildGetLibrary(loaderOf(named), { ...base, sort: 'title' })).ratingCoverage).toBeUndefined();
+    });
+
+    /** The acceptance test for the whole phase. */
+    it('answers "which unwatched series is best rated"', async () => {
+        const items = [
+            series({
+                title: 'Seen',
+                ids: { tvdb: 11, imdb: 'tt0000011' },
+                ratings: { imdb: 9.9 },
+                playback: { user: 'u1', watched: true }
+            }),
+            series({ title: 'Unseen', ids: { tvdb: 12, imdb: 'tt0000012' }, ratings: { imdb: 8.4 } })
+        ];
+
+        const result = await buildGetLibrary(loaderOf(items, 'sonarr'), {
+            ...base,
+            kind: 'series',
+            watched: false,
+            rating_source: 'imdb',
+            sort: 'rating',
+            limit: 10
+        });
+
+        expect(result.items.map(i => i.title)).toEqual(['Unseen']);
+    });
+});
