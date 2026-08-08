@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.3](https://github.com/bardesss/arr-mcp/compare/v0.7.2...v0.7.3) (2026-08-08)
+
+
+### Bug Fixes
+
+* group disks that differ only by a service's reporting precision ([#72](https://github.com/bardesss/arr-mcp/issues/72)) ([42733d7](https://github.com/bardesss/arr-mcp/commit/42733d741ba3003ff8b8c350eda8f149d140da58))
+
 ## [0.7.2](https://github.com/bardesss/arr-mcp/compare/v0.7.1...v0.7.2) (2026-08-08)
 
 
