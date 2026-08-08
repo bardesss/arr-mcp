@@ -57,7 +57,7 @@ type RawRelease = {
 /**
  * Prowlarr manages indexers, not files, and exposes no diskspace endpoint —
  * `/api/v1/diskspace` returns 404, confirmed against a live instance during the
- * Phase 2a capture run. It is therefore deliberately not `DiskSpaceCapable`:
+ * a live capture. It is therefore deliberately not `DiskSpaceCapable`:
  * a method with no fixture is a method stack_health would call and nothing
  * would have tested.
  *
@@ -144,7 +144,7 @@ export class ProwlarrAdapter implements ServiceAdapter, HealthCheckCapable, Inde
     }
 
     /**
-     * The failed half of Prowlarr's history — §12's "recent rejections", which
+     * The failed half of Prowlarr's history — the "recent rejections", which
      * is a different thing from the rejection *counts* above.
      *
      * **Prowlarr does not record why a query failed.** The history payload has

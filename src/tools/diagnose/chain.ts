@@ -10,7 +10,7 @@ export type Step = { stage: Stage; service?: string; status: StepStatus; detail:
 
 /**
  * `undefined` and `null` mean different things throughout, and the distinction
- * is the whole of §6.1: **undefined is "could not look", null is "looked and
+ * is the whole of **undefined is "could not look", null is "looked and
  * found nothing"**. Collapsing them is how a diagnosis becomes confidently
  * wrong about a service that was down.
  */
@@ -18,12 +18,10 @@ export type Evidence = {
     item: MergedItem | undefined;
     request: { status: RequestStatus | 'unknown' } | null | undefined;
     /**
-     * A multi-service stage: `items` is whatever the collector actually read
-     * (from however many of Radarr/Sonarr/SABnzbd/Transmission answered),
-     * `partial` names the ones that didn't. A single unreachable client used
-     * to erase the whole stage to `undefined`, discarding rows another
-     * client *did* return — including the stalled row that was the actual
-     * cause. `undefined` still means every configured client failed.
+     * `items` is what the collector actually read, `partial` names the clients
+     * that did not answer. One unreachable client used to erase the whole stage,
+     * discarding rows another client did return — including the stalled row that
+     * was the cause. `undefined` still means every client failed.
      */
     queue: { items: QueueItem[]; partial: string[] } | undefined;
     /** Analogue of `jellyfinConfigured`, below: no download client at all, not merely unreachable. */
@@ -39,16 +37,11 @@ export type Evidence = {
      */
     jellyfinConfigured: boolean;
     /**
-     * Library-read reachability (item 8's `LibraryLoader`/`LibraryIndex`
-     * build) — kept separate from `degraded`, below, which is *probe*
-     * reachability (this module's own scan/indexer/queue/seerr/explicit-id
-     * calls). A service can fail one without the other: Jellyfin's
-     * `getScanState` failing must not erase a library read that succeeded
-     * (`libraryStep` would otherwise discard the flagship `library` verdict
-     * over an unrelated endpoint), and a Radarr *library* read failing must
-     * not make `queueStep` believe every configured queue is unknown when
-     * they all answered in full. Only `libraryStep` reads this array; every
-     * other step reads `degraded`.
+     * Library-read reachability, separate from `degraded` below, which is
+     * *probe* reachability. A service can fail one without the other: a failing
+     * Jellyfin `getScanState` must not erase a library read that succeeded, and
+     * a failing Radarr library read must not make `queueStep` call every queue
+     * unknown. Only `libraryStep` reads this; every other step reads `degraded`.
      */
     libraryDegraded: readonly string[];
     degraded: readonly string[];
@@ -76,7 +69,10 @@ const DISPLAY_ORDER: readonly Stage[] = [
 
 const SKIPPED = (stage: Stage, detail: string): Step => ({ stage, status: 'skipped', detail });
 
-/** Splits on runs of non-alphanumerics, exactly the way a release name's dots/dashes/spaces are treated — both sides of `mentions()` must tokenise identically, or a title survives round-tripping through `normaliseTitle`'s punctuation-*deletion* differently than a haystack split on the same punctuation (N3). */
+/** Splits on runs of non-alphanumerics, the way a release name's dots and
+ *  dashes are. Both sides of `mentions` must tokenise identically, or
+ *  `normaliseTitle` deleting punctuation and a haystack splitting on it never
+ *  produce the same tokens. */
 const tokenize = (value: string): string[] =>
     value
         .toLowerCase()
@@ -92,46 +88,38 @@ const titleWords = (item: MergedItem): string[] => {
 };
 
 /**
- * Whether a release name (a queue row's title, a rejection's query) plausibly
- * refers to `item`.
+ * Whether a release name plausibly refers to `item`. Three failure modes it
+ * guards against, each of which has happened:
  *
- * Three failure modes this specifically guards against:
- * - **Substring matching.** "Alien" is a substring of "Aliens", and "Dune" of
- *   "Dune.Part.Two" — different films. Matching whole, tokenised words closes
- *   the first; a differing year in the haystack closes the second (title
- *   match without a contradicting year is still allowed — an ambiguous
- *   release name is more useful reported than silently dropped).
- * - **A length filter that starves short titles.** "Up", "Se7en" and "Top
- *   Gun" have no word over three characters; a filter that drops short words
- *   (the original approach) leaves nothing to match *anything*. All words
- *   count, however short.
- * - **Punctuation deletion vs. punctuation splitting (N3, a round-1
- *   regression).** `normaliseTitle` *deletes* intra-word punctuation
- *   ("Spider-Man" → "spiderman"), while a release name is naturally *split*
- *   on the same characters ("Spider.Man.2002" → "spider", "man", "2002").
- *   Deleting on one side and splitting on the other means neither ever
- *   produces the same tokens: `tokenize` splits both sides identically.
+ * - **Substring matching.** "Alien" is inside "Aliens", "Dune" inside
+ *   "Dune.Part.Two". Whole tokenised words close the first; a contradicting
+ *   year closes the second.
+ * - **A length filter starves short titles.** "Up", "Se7en" and "Top Gun" have
+ *   no word over three characters, so dropping short words left nothing to
+ *   match. Every word counts, however short.
+ * - **Deleting punctuation on one side, splitting on the other.**
+ *   `normaliseTitle` deletes it ("Spider-Man" → "spiderman") while a release
+ *   name splits on it ("Spider.Man.2002" → spider, man, 2002), so neither ever
+ *   produced the same tokens. `tokenize` splits both sides identically.
  */
 const mentions = (haystack: string, item: MergedItem): boolean => {
     const words = titleWords(item);
     if (words.length === 0) return false;
 
-    // Same asymmetry class as N3: the needle is unfenced before tokenising,
-    // so the haystack must be too — otherwise `<<untrusted:service.field>>`
-    // itself, the service id and the field name become haystack tokens.
+    // The needle is unfenced before tokenising, so the haystack must be too —
+    // otherwise the fence markers themselves become haystack tokens.
     const hayWords = tokenize(unfenced(haystack));
     const haySet = new Set(hayWords);
     if (!words.every(w => haySet.has(w))) return false;
 
-    // A series release's year is an episode's air year/date, not the series'
-    // start year — "The.Simpsons.S32E01.2020" is not a mismatch just because
-    // the show started in 1989 (N4). Skip the guard entirely for series.
+    // A series release's year is the episode's, not the show's start year:
+    // "The.Simpsons.S32E01.2020" is no mismatch for a show that began in 1989.
+    // Skip the guard entirely for series.
     if (item.kind !== 'series' && item.year !== undefined) {
-        // A token that is itself part of the title ("2049" in "Blade Runner
-        // 2049", "1917" as a whole title, "2001" in "2001: A Space Odyssey")
-        // must not be read as *the release's* year — it is already accounted
-        // for by the word match above. Only a year-shaped token that is not
-        // one of the title's own words is a candidate (N4).
+        // A year inside the title itself — "2049", "1917", "2001" — is not
+        // *the release's* year, and the word match above already accounted for
+        // it. Only a year-shaped token that is not one of the title's own
+        // words counts.
         const wordSet = new Set(words);
         const yearInHay = hayWords.find(w => /^(19|20)\d{2}$/.test(w) && !wordSet.has(w));
         if (yearInHay !== undefined && Number(yearInHay) !== item.year) return false;
@@ -172,21 +160,16 @@ function requestStep(ev: Evidence): Step {
 }
 
 /**
- * Explicit, not a regex over free text: `/stall|fail|error|paused/i` reads
- * `completed` — a download waiting on Radarr/Sonarr to import it, which *is*
- * the broken import this phase exists to surface — as "still downloading",
- * because the word "complete" contains none of those substrings. It misreads
- * `downloadClientUnavailable`, and Radarr/Sonarr's own `warning`/`delay`, the
- * same way. Status vocabulary is collected from what the adapters actually
- * emit: Radarr/Sonarr's queue (`queued`, `paused`, `downloading`, `completed`,
- * `failed`, `warning`, `delay`, `downloadClientUnavailable`), Transmission's
- * RPC spec, and SABnzbd's slot status, all lowercased before matching here.
+ * An explicit set, not a regex over free text. `/stall|fail|error|paused/i`
+ * reads `completed` — a download waiting to be imported, which is exactly the
+ * broken import this tool exists to surface — as "still downloading", because
+ * "complete" contains none of those substrings. It misreads
+ * `downloadClientUnavailable` and `warning`/`delay` the same way.
  *
- * `seeding` / `queued to seed` (Transmission) mean the torrent itself
- * finished — the file is fully on disk, same as Radarr/Sonarr's `completed`
- * — so they classify as import-pending, not active (N5). `propagating`
- * (SABnzbd, the file is being finalised/verified post-download — healthy)
- * stays active (N6).
+ * The vocabulary is what the adapters actually emit, lowercased. `seeding` and
+ * `queued to seed` mean the file is fully on disk, so they are import-pending
+ * rather than active; `propagating` is SABnzbd finalising a healthy download,
+ * so it stays active.
  */
 const QUEUE_ACTIVE = new Set([
     'downloading',
@@ -207,18 +190,13 @@ const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'queued to seed'])
 type QueueClass = 'active' | 'importPending' | 'fault' | 'indeterminate';
 
 /**
- * Anything not explicitly recognised as active or import-pending is a fault
- * — that includes real faults like `failed`/`paused`/`stalled`/`warning`,
- * and anything this module has never seen before — silence is not evidence
- * of health.
+ * Anything not recognised as active or import-pending is a fault, including
+ * statuses this module has never seen: silence is not evidence of health.
  *
- * One exception (N6, by I5's own reasoning): the literal string `"unknown"`
- * is not a status a download client actually reports — it is *this repo's
- * own adapters'* fallback (`SabnzbdAdapter`'s `s.status ?? 'unknown'`,
- * `TransmissionAdapter`'s `TORRENT_STATUS[...] ?? 'unknown'`) for a status
- * code they could not map. That is the service answering with something
- * this module cannot classify — `indeterminate`, not a fault, exactly as an
- * indeterminate Seerr request status is `unknown`, not silently `ok` (I5).
+ * One exception. The literal `"unknown"` is not something a download client
+ * reports — it is our own adapters' fallback for a status code they could not
+ * map. That is the service saying something unclassifiable, so it is
+ * `indeterminate` rather than a fault.
  */
 function classifyQueueStatus(item: QueueItem): QueueClass {
     if (item.errorMessage !== undefined) return 'fault';
@@ -248,7 +226,8 @@ const QUEUE_FAULT_REMEDY =
 const QUEUE_IMPORT_REMEDY =
     'The download finished but has not been imported yet — check Radarr/Sonarr’s activity/history for why, then trigger the import manually if it did not run on its own.';
 
-/** The download-client services `queue` evidence can come from — used to fold `degraded` into "could not fully look" the same way `scan`/`indexers` already do (N8). */
+/** The download clients `queue` evidence can come from, so `degraded` folds
+ *  into "could not fully look" the way `scan` and `indexers` already do. */
 const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'sabnzbd', 'transmission'];
 
 type QueueResult = { step: Step; remedy?: string };
@@ -258,14 +237,11 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     if (ev.queue === undefined) return { step: { stage: 'queue', status: 'unknown', detail: 'No download client could be reached.' } };
 
     const { items, partial } = ev.queue;
-    // A service already named in `degraded` is unreachable even if the
-    // collector's per-stage `partial` list did not separately say so (N8).
-    // Deliberately `degraded` (probe reachability), not `libraryDegraded`
-    // (item 2 of the whole-phase review): Radarr/Sonarr's *library* read
-    // failing must not make this stage believe their *queue* probe failed
-    // too — the two used to share one array, so a Radarr library-read
-    // failure alone made this stage report unknown even when every
-    // configured download client had answered in full.
+    // A service in `degraded` is unreachable even if the per-stage `partial`
+    // list did not say so. Deliberately `degraded` (probe reachability), not
+    // `libraryDegraded`: the two once shared one array, so a Radarr
+    // library-read failure alone made this stage report unknown even when
+    // every download client had answered in full.
     const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => QUEUE_SERVICES.some(t => s === t || s.startsWith(`${t}/`)))])];
     const mine = items.filter(q => mentions(q.title, item));
 
@@ -311,7 +287,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
         // the adapter that read it knows what its status means — reported
         // as could-not-fully-classify, not silently folded into "active"
         // (which would claim progress this module has no basis for) or
-        // "fault" (which would claim a problem it cannot name) (N6).
+        // "fault", which would claim a problem it cannot name.
         return {
             step: {
                 stage: 'queue',
@@ -331,11 +307,11 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 function indexerStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.prowlarrConfigured) return SKIPPED('indexers', 'No indexer manager is configured.');
     if (ev.degraded.includes('prowlarr')) {
-        // `degraded` is probe reachability (item 2 of the whole-phase
-        // review) — the same array `scanStep`/`queueStep` read, and correctly
+        // `degraded` is probe reachability — the same array
+        // `scanStep`/`queueStep` read, and correctly
         // so here: Prowlarr contributes no library-read half, so there is no
-        // `libraryDegraded` signal for it to consult instead (N8's original
-        // point still holds — a service's own probe failing must count even
+        // `libraryDegraded` signal for it to consult instead — a service's
+        // own probe failing must count even
         // when `rejections` happens to be defined from a stale read).
         return { stage: 'indexers', service: 'prowlarr', status: 'unknown', detail: 'Prowlarr could not be reached.' };
     }
@@ -356,11 +332,11 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
 function libraryStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.jellyfinConfigured) return SKIPPED('library', 'Jellyfin is not configured.');
     if (ev.libraryDegraded.includes('jellyfin')) {
-        // Never "it is not in Jellyfin" when Jellyfin was not asked (§6.1).
-        // Reads `libraryDegraded`, not `degraded` (item 2 of the whole-phase
-        // review): a failed scan probe belongs to `degraded` and must not
+        // Never "it is not in Jellyfin" when Jellyfin was not asked.
+        // Reads `libraryDegraded`, not `degraded`: a failed scan probe
+        // belongs to `degraded` and must not
         // land here — this stage is about the library *read*, and item.presence
-        // alone is not enough of a guard (item 1's `unknown` looks the same
+        // alone is not enough of a guard (`unknown` looks the same
         // as "no evidence at all" to the check below, but `hasFile` is still
         // real *arr data this module must not reinterpret as a Jellyfin gap).
         return { stage: 'library', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its library was not checked.' };
@@ -382,8 +358,8 @@ function libraryStep(ev: Evidence, item: MergedItem): Step {
 function scanStep(ev: Evidence): Step {
     if (!ev.jellyfinConfigured) return SKIPPED('scan', 'Jellyfin is not configured.');
     if (ev.degraded.includes('jellyfin')) {
-        // `degraded` here is specifically the `getScanState` probe (item 2 of
-        // the whole-phase review) — deliberately *not* `libraryDegraded`,
+        // `degraded` here is specifically the `getScanState` probe —
+        // deliberately *not* `libraryDegraded`,
         // which `libraryStep` reads instead. The two used to share one array,
         // so a failed scan probe silently erased a library read that
         // succeeded; they are independent endpoints and are allowed to
@@ -409,19 +385,14 @@ const REMEDIES: Partial<Record<Stage, string>> = {
 };
 
 /**
- * `file`'s remedy used to assert "no indexer reported a failure" and "nothing
- * is downloading" unconditionally — a claim about Prowlarr or a download
- * client even when the stack runs neither, *or* when it runs both but
- * neither answered (N2: the summary's own caveat says "Could not check:
- * queue, prowlarr" right next to a remedy asserting they were checked).
+ * The remedy must not claim a service was checked when it was not. It once
+ * asserted "no indexer reported a failure" unconditionally — printed directly
+ * beneath the summary's own "Could not check: queue, prowlarr".
  *
- * `StepStatus: 'skipped'` alone cannot tell "not configured" apart from
- * "configured, reachable, and genuinely found nothing" — `queueStep`/
- * `indexerStep` return the same status for both, with only their `detail`
- * text differing. So the *configured* flags decide "not configured", and
- * `status === 'unknown'` (only reachable when configured) decides
- * "unreachable"; only when neither applies does a service get credit for
- * having actually been checked.
+ * `'skipped'` alone cannot tell "not configured" from "checked and found
+ * nothing", since both steps return it for either. So the *configured* flags
+ * decide "not configured" and `'unknown'` decides "unreachable"; a service
+ * gets credit for being checked only when neither applies.
  */
 function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepStatus): string {
     const uncheckable: string[] = [];
@@ -437,14 +408,12 @@ function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepSt
 }
 
 /**
- * A queue row can be genuinely blocked (a fault, or a completed-but-unimported
- * download) while `file` is still `ok` — an upgrade grab failing, say. C1
- * correctly stops that from outranking a green chain, but going silent about
- * a real, active failure is over-correction in the other direction (N7): it
- * is worth a mention, just not the verdict.
+ * A queue row can be genuinely blocked while `file` is still `ok` — a failing
+ * upgrade grab, say. That must not outrank a green chain, but going silent
+ * about a real failure over-corrects: it is worth a mention, not the verdict.
  *
  * The wording changes on `fileIsOk`, rather than being suppressed by it
- * (whole-phase review, item 3's second symptom). A `request`/`managed`
+ * (a review finding's second symptom). A `request`/`managed`
  * verdict with genuinely no file yet (`monitored: false` *and*
  * `hasFile: false`) and a faulted queue row used to go silent about that
  * fault entirely — "…is not monitored." with a "turn monitoring on" remedy
@@ -463,16 +432,13 @@ const queueAside = (queueResult: QueueResult, fileIsOk: boolean): string => {
 };
 
 /**
- * The known one-line hedge (ledgered at Task 5, applied here at the
- * whole-phase review): evidence genuinely cannot distinguish "an ended
- * series, deliberately left unmonitored" or "a stale declined request" from
- * "an ongoing series, accidentally unmonitored" — there is no correctness fix
- * for that, only this disclosure. It fires only for `request`/`managed`
- * verdicts on a series with a confirmed file already visible in Jellyfin:
- * `excludeRequestManaged` already keeps a movie in this situation out of
- * `request`/`managed` entirely (residual C1), so a movie can never reach this
- * sentence, and "episodes you do not have yet" is always literally accurate
- * here.
+ * A disclosure, not a fix. Evidence genuinely cannot tell "an ended series
+ * deliberately left unmonitored" from "an ongoing one accidentally
+ * unmonitored", so this says so rather than guessing.
+ *
+ * Only for `request`/`managed` verdicts on a series with a file already
+ * visible in Jellyfin — a movie in that position is excluded upstream, so
+ * "episodes you do not have yet" is always literally true here.
  */
 const SERIES_FILE_VISIBLE_HEDGE =
     ' (A file is already on disk and visible in Jellyfin — this may only affect episodes you do not have yet.)';
@@ -481,7 +447,7 @@ const SERIES_FILE_VISIBLE_HEDGE =
  * The top-level `Diagnosis.degraded` a caller sees, and the input to the
  * `resolve` verdict's own certainty below, are both "everything this
  * diagnosis could not fully check" — the union of probe reachability and
- * library-read reachability (item 2 of the whole-phase review keeps those
+ * library-read reachability (a review finding keeps those
  * two arrays separate for the *per-stage* checks above, which each care
  * about only one; nothing downstream of this point needs that distinction).
  */
@@ -518,7 +484,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
 
     // `file` is now computed whenever Radarr/Sonarr knows about the item at
     // all, regardless of `monitored` — a file can exist on disk even when
-    // monitoring is off, and residual-C1 needs that real signal (below) to
+    // monitoring is off, and the check below needs that real signal to
     // tell "not monitored, and also no file" apart from "not monitored, but
     // it is sitting right there".
     if (acquisition === undefined) {
@@ -552,7 +518,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     const isBlocked = (s: Stage): boolean => byStage.get(s)?.status === 'blocked';
     // A file already confirmed on disk is proof that whatever request/managed
     // history led here already worked well enough to produce it — residual
-    // C1: an old declined/pending request, or `monitored: false`, cannot be
+    // An old declined/pending request, or `monitored: false`, cannot be
     // why playback fails when the file is sitting right there. From this
     // point on only Jellyfin's visibility of that file matters.
     const fileIsOk = byStage.get('file')?.status === 'ok';
@@ -585,7 +551,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
         certaintyPath = ['request', 'managed'];
     } else if (isBlocked('file')) {
         // A missing file is a symptom, not the cause: a stalled download or
-        // a dead indexer is (C1) — but only reached here because `file` is
+        // a dead indexer is — but only reached here because `file` is
         // genuinely `blocked`, not merely mentioned by an unrelated row.
         if (isBlocked('queue')) {
             // Checked first: a queue row is live, current evidence about an
@@ -606,8 +572,8 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
         // Only reachable with `fileIsOk` true — `libraryStep` can only
         // report `blocked` when `acquisition.hasFile === true`, which is
         // exactly `file`'s own `ok` condition. request/managed are excluded
-        // above, and correctly so: I6 (scan explains a blocked library) and
-        // N1 (an unknown scan costs certainty even when library alone would
+        // above, and correctly so: a scan explains a blocked library, and
+        // an unknown scan costs certainty even when library alone would
         // have been enough to verdict on) both apply here.
         verdictStage = isBlocked('scan') ? 'scan' : 'library';
         certaintyPath = ['file', 'library', 'scan'];
@@ -632,7 +598,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     if (verdictStage === undefined) {
         // The positive claim "is available in Jellyfin and playable" is only
         // honest when `library` itself said `ok` — read the step, not just
-        // whether Jellyfin is configured (C2): `certain: false` alone does
+        // whether Jellyfin is configured: `certain: false` alone does
         // not retract an unqualified sentence sitting right next to it.
         const summary =
             libStep?.status === 'ok'

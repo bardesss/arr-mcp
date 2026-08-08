@@ -28,6 +28,7 @@ import { registerDeleteRequest, registerRespondToRequest } from './manageRequest
 import { registerRemoveQueueItem } from './removeQueueItem.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerStackHealth } from './stackHealth.ts';
+import { registerTriggerScan } from './triggerScan.ts';
 import { registerTriggerSearch } from './triggerSearch.ts';
 import type { WriteContext } from './write.ts';
 
@@ -47,7 +48,7 @@ export type ToolContext = {
      * `library` already closes over it — the owned-library join happens there
      * exactly once. This field is for the tools that answer about things you
      * may *not* own, which never touch the library index: search, lookup and
-     * details. Spec §4.1 calls that the path that matters most, because a
+     * details. Spec calls that the path that matters most, because a
      * rating is usually wanted before deciding to add something.
      */
     dataset: ImdbDataset | undefined;
@@ -55,7 +56,7 @@ export type ToolContext = {
      *  write gate reads, so `stack_health` cannot report a different answer. */
     instances: readonly ServiceInstance[];
     /**
-     * The write half (§10). Built once alongside the resolvers rather than per
+     * The write half. Built once alongside the resolvers rather than per
      * request: `ConfirmTokens` holds the signing key and the spent-token set,
      * and rebuilding it per request would make every confirmation token invalid
      * the moment it was issued — the handshake spans two calls by construction.
@@ -114,7 +115,7 @@ export function buildToolContext(
  *
  * Tools whose service is not configured are **still registered**: they return
  * an empty result explaining the service is absent. Hiding a tool would make
- * the surface depend on configuration, and design spec §18 treats the tool
+ * the surface depend on configuration, and treats the tool
  * surface as the public API — a model that learned `get_subtitles` exists must
  * not find it missing after a config edit.
  */
@@ -137,12 +138,13 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerLookupMedia(server, adapters, dataset);
     registerDiscoverMedia(server, seerr, dataset);
 
-    // Registered unconditionally like every read tool, and for the same §18
+    // Registered unconditionally like every read tool, and for the same 
     // reason: the tool surface is the public API and must not depend on
     // configuration. A stack with no write permission still *has*
     // trigger_search — it refuses, naming the key to set, which is a far better
     // answer than a tool the model was told about and cannot find.
     registerTriggerSearch(server, write, adapters);
+    registerTriggerScan(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
     registerRespondToRequest(server, write, adapters);
@@ -150,7 +152,13 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerAddMedia(server, write, adapters);
 }
 
-/** The tool surface, frozen. §18: renaming one breaks users' saved prompts. */
+/**
+ * The tool surface, frozen at 1.0.
+ *
+ * Renaming or removing any of these breaks every user's saved prompts
+ * *silently* — the model stops finding the tool rather than raising an error —
+ * so from 1.0 onward it takes a major version. Adding one is a minor.
+ */
 export const TOOL_NAMES = [
     'diagnose',
     'stack_health',
@@ -166,6 +174,7 @@ export const TOOL_NAMES = [
     'lookup_media',
     'discover_media',
     'trigger_search',
+    'trigger_scan',
     'remove_queue_item',
     'delete_media',
     'respond_to_request',

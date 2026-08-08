@@ -18,7 +18,8 @@ import {
     type ServiceAdapter,
     type ServiceUser,
     type UserDirectoryCapable,
-    type UserLibraryCapable
+    type UserLibraryCapable,
+    type CommandHandle
 } from './types.ts';
 
 /**
@@ -30,6 +31,9 @@ import {
 type RawSystemInfo = { Version?: string; ServerName?: string; Id?: string };
 type RawUser = { Id?: string; Name?: string };
 type RawTask = {
+    /** Per-install GUID. Only `startLibraryScan` needs it; `getScanState`
+     *  matches on `Key`, which is stable across installs. */
+    Id?: string;
     Key?: string;
     Name?: string;
     State?: string;
@@ -37,13 +41,12 @@ type RawTask = {
 };
 
 /**
- * The task Jellyfin runs to scan libraries, confirmed against a live 10.11.11.
+ * The library-scan task, confirmed against a live 10.11.11.
  *
- * Keyed on `Key`, never on `Name`, for two independent reasons. A live server
- * exposes eight library-ish keys including `LanguageTagsSetsRefreshLibraryTask`
- * and `TraktSyncLibraryTask`, so a pattern would match the wrong one — and
- * `Name` is **localised to the server language**. The instance this was
- * captured from returns "Mediabibliotheek scannen".
+ * Keyed on `Key`, never `Name`, for two reasons: a server exposes eight
+ * library-ish keys including `TraktSyncLibraryTask`, so a pattern matches the
+ * wrong one — and `Name` is localised, returning "Mediabibliotheek scannen" on
+ * the instance this came from.
  */
 const LIBRARY_SCAN_KEY = 'RefreshLibrary';
 
@@ -85,7 +88,7 @@ type RawItemDetail = {
 
 /**
  * Jellyfin stores external ids as **strings** while Radarr and Sonarr use
- * numbers. Phase 3's identity resolver joins on tmdbId and tvdbId, so a string
+ * numbers. The identity resolver joins on tmdbId and tvdbId, so a string
  * here would silently fail every join — convert at the boundary.
  */
 const numericId = (value: string | undefined): number | undefined => {
@@ -121,15 +124,45 @@ export class JellyfinAdapter
 
     /**
      * Jellyfin identifies users by GUID while config names them by username, so
-     * every per-user call resolves through this list. Typing a username by hand
-     * is a guaranteed source of silent mismatches (design spec §14), which is
-     * why the resolver reports the available names on a miss.
+     * every per-user call resolves through this list — and the resolver reports
+     * the available names on a miss, because a hand-typed username is a
+     * guaranteed source of silent mismatches.
      */
     async listUsers(): Promise<ServiceUser[]> {
         const users = await this.#http.get<RawUser[]>('/Users');
         return users
             .filter((u): u is { Id: string; Name: string } => typeof u.Id === 'string' && typeof u.Name === 'string')
             .map(u => ({ id: u.Id, name: u.Name }));
+    }
+
+    /**
+     * Start the library scan — this adapter's only write.
+     *
+     * The task id is looked up rather than hard-coded, by the same
+     * `Key === LIBRARY_SCAN_KEY` match `getScanState` uses: Jellyfin's ids are
+     * per-install GUIDs, and the localised task *name* is no good either (a
+     * Dutch install returns "Mediabibliotheek scannen"). Matching on the key
+     * once, in one place, is what stops the two disagreeing about which task
+     * this is.
+     *
+     * Jellyfin answers this with 204 and no body, so there is no command id to
+     * report back — unlike the *arrs, which return one. The handle says so
+     * rather than inventing a number that would look like something you could
+     * poll.
+     */
+    async startLibraryScan(): Promise<CommandHandle> {
+        const tasks = await this.#http.get<RawTask[]>('/ScheduledTasks');
+        const scan = tasks.find(t => t.Key === LIBRARY_SCAN_KEY);
+
+        if (scan?.Id === undefined) {
+            throw new ServiceError('NotFound', this.id, 'Jellyfin did not report a library scan task', {
+                remedy: 'The task is called RefreshLibrary. If this Jellyfin has it disabled, start the scan from its dashboard instead.'
+            });
+        }
+
+        await this.#http.post(`/ScheduledTasks/Running/${encodeURIComponent(scan.Id)}`, undefined);
+
+        return { service: this.id, commandId: 0, name: LIBRARY_SCAN_KEY, status: 'started' };
     }
 
     async getScanState(): Promise<ScanState> {
@@ -242,7 +275,7 @@ export class JellyfinAdapter
 
     /**
      * Jellyfin is the only service that knows what has actually been *watched*,
-     * which is the gap design spec §12 says upstream never closed.
+     * which is the gap says upstream never closed.
      */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'library') return [];
@@ -250,7 +283,7 @@ export class JellyfinAdapter
         // `Fields=ProviderIds` is not optional decoration: Jellyfin omits
         // ProviderIds from search results entirely without it, confirmed
         // against a live 10.11.11. Every hit came back with no external ids at
-        // all — which is precisely what Phase 3's resolver joins on.
+        // all — which is precisely what the resolver joins on.
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
             `/Items?searchTerm=${encodeURIComponent(query)}&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds`
         );
@@ -277,9 +310,9 @@ export class JellyfinAdapter
     }
 
     /**
-     * Per-user by construction (§4.3). `EnableUserData` is what makes `Played`
+     * Per-user by construction. `EnableUserData` is what makes `Played`
      * come back at all, and `Fields=ProviderIds` is what makes the join
-     * possible — the same parameter whose absence made every Phase 2 search hit
+     * possible — the same parameter whose absence once made every search hit
      * arrive with no external ids.
      */
     async listUserLibrary(user: ServiceUser): Promise<IndexInput[]> {

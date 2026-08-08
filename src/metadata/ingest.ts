@@ -1,7 +1,7 @@
 import type { RawEpisode, RawRating, RawTitle } from './imdbDataset.ts';
 
 /**
- * IMDb's dumps into rows (0.8 spec §1).
+ * IMDb's dumps into rows (0.8 spec ).
  *
  * **Generators, not arrays.** `title.basics` is on the order of 10⁷ rows, and
  * materialising it costs a multiple of its own size in heap on a machine that

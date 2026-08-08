@@ -38,7 +38,7 @@ const seedConfig = () => ({
 /**
  * Reads <configDir>/config.yaml, creating it with a generated bearer token on
  * first run. The file is the source of truth; environment variables seed
- * first-run defaults only (design spec §13).
+ * first-run defaults only.
  */
 /**
  * `persist: false` reads without ever writing.

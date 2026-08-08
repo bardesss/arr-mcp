@@ -3,32 +3,25 @@ import type { Clock } from './cache.ts';
 import type { WriteTier } from './permissions.ts';
 
 /**
- * Design spec §10's per-call confirmation, built to survive the stateless
- * transport of §5.
+ * The per-call confirmation, built to survive a stateless transport.
  *
  * A write tool called without `confirm` performs nothing and hands back a
- * preview plus a token. Calling again with that token performs the write. The
- * point is not to stop a determined model — it holds the token and can always
- * call twice — it is that the *first* call is the one that cannot mutate
- * anything, so a mis-parsed instruction ("delete the Alien films") surfaces as
- * a preview a human sees before it becomes a deletion.
+ * preview plus a token; calling again with that token performs the write. The
+ * point is not to stop a determined model — it holds the token and can call
+ * twice — it is that the *first* call cannot mutate anything, so a mis-parsed
+ * instruction ("delete the Alien films") surfaces as a preview a human sees.
  *
- * Two properties do the work:
+ * Two properties do the work. The token is an **HMAC over the exact
+ * operation**, so one issued for "delete movie 5" cannot be replayed as
+ * "delete movie 9" — without that binding a model could preview something
+ * harmless and confirm something else, which is worse than no confirmation
+ * because it looks like protection. And it is **single-use**, so "add movie"
+ * cannot be confirmed twice into a duplicate.
  *
- *   1. The token is an HMAC over the exact operation, so a token issued for
- *      "delete movie 5" cannot be replayed as "delete movie 9". Without this
- *      binding a model could preview something harmless and then confirm
- *      something else, which is strictly worse than no confirmation because it
- *      looks like protection.
- *   2. It is single-use, so "add movie" cannot be confirmed twice into a
- *      duplicate.
- *
- * The signing key is fresh per process and never written down: a restart
- * invalidating outstanding tokens is correct, not a limitation. The alternative
- * — deriving it from the bearer token — would tie confirmation lifetime to
- * credential rotation, which are unrelated concerns.
+ * The signing key is fresh per process and never written down. A restart
+ * invalidating outstanding tokens is correct: deriving it from the bearer
+ * token would tie confirmation lifetime to credential rotation.
  */
-
 /** Long enough for a model to read a preview and decide; short enough that a
  *  token found in an old transcript is dead. */
 export const CONFIRM_TTL_MS = 300_000;

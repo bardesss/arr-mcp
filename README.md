@@ -20,17 +20,6 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
   broken and what to do about it, and read the logs and the write audit — no
   hand-edited YAML, no restart.
 
-> ### Status: 0.9 — questions, not just tools
->
-> Nineteen tools and no hint which to reach for is a menu nobody can read. This
-> adds five prompts for the questions this stack actually gets asked — why isn't
-> this playable, what needs my attention, what should I watch, what's the best
-> thing I own, what happened this week — plus three resources, chiefly the list
-> of instance ids every tool wants. Both degrade cleanly: client support for
-> them is uneven, and **nothing is reachable only through them**. `get_library`
-> also gains `has_file`, so "what am I still waiting for" is finally a question
-> you can ask.
-> See [the roadmap](#roadmap).
 
 ## Services
 
@@ -533,27 +522,43 @@ The UI is served over plain http on your LAN, like the services it manages.
 Put it behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 `allowed_hosts` if you do.
 
-## Roadmap
+## What 1.0 promises
 
-| Version | Delivers |
+**The tool surface is stable.** Tool names, their parameters and the fields they
+return are the public API — and they break *silently*, because a model stops
+finding a renamed tool rather than raising an error. So from 1.0:
+
+| Change | Version |
 | --- | --- |
-| 0.1 / 0.2 | Walking skeleton: stateless MCP transport, bearer auth, Radarr, `stack_health` |
-| 0.3 | The remaining seven service adapters and ten read tools |
-| 0.4 | Cross-service correlation: identity resolver, three-way library join, `diagnose` |
-| 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation |
-| 0.6 | Web config page: dashboard, diagnosing connection tests, log streams, config editing with hot reload |
-| 0.7 | Multiple Radarr, Sonarr and Bazarr instances — an HD and a 4K stack read as one library |
-| 0.8 | A local IMDb dataset: ratings that are consistent across films and series, and orderable |
-| 0.9 | Prompts and resources: the questions worth asking, and the ids every tool wants |
-| 1.0 | The tool surface settles: security, consistency and dead-code audit |
+| A tool renamed or removed, a parameter renamed or removed, a response field removed | **major** |
+| A tool added, an optional parameter added, a response field added | minor |
+| Everything else | patch |
 
-Each version is a self-contained, shippable slice — the goal is that 0.4 already
-answers questions no individual service can, with 0.5–0.7 making it complete.
+Two parameters were inconsistent when the surface froze, and both old spellings
+keep working forever: `discover_media` takes `kind` but still accepts
+`media_type`, and `get_library` takes `user` but still accepts `watched_by`.
+They are no longer documented, and nothing else will be quietly retired that
+way.
 
-0.1 and 0.2 are the same code under two tags. Dropping the component prefix
-from the release configuration made the release tooling treat the package as
-new and re-cut it; the changelog shows the same features twice. Not two
-releases.
+## Contributing
+
+**Contributions are welcome, and new service adapters most of all.** If you run
+something this does not speak to — Lidarr, Readarr, qBittorrent, Tautulli — an
+adapter is deliberately the most self-contained thing in the codebase, and
+[CONTRIBUTING.md](CONTRIBUTING.md) walks through it.
+
+One thing to know before you start: **I cannot test a service I do not run.** I
+have no Lidarr, no Plex, no qBittorrent, and reviewing an adapter for a service
+I cannot exercise means reading it and trusting you. So the bar for a new
+adapter is that *you* have tested it hard against your own live instance, and
+that the pull request says what you tested and against which version. Record
+what surprised you in a comment — every adapter here has a note about something
+its API does that the docs do not mention, and those notes are worth more than
+the code around them.
+
+Fixtures are captured from real services rather than hand-written for the same
+reason. A test that passes against an invented shape proves nothing about the
+service it claims to support.
 
 ## Requirements
 

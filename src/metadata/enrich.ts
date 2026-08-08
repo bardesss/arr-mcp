@@ -1,7 +1,7 @@
 import type { ImdbDataset } from './imdbDataset.ts';
 
 /**
- * Filling IMDb ratings from the dataset (0.8 spec §4.1).
+ * Filling IMDb ratings from the dataset (0.8 spec ).
  *
  * Here rather than in `src/tools/` so nothing in the tool layer imports the
  * store: `LibraryLoader` takes one function, not a database.

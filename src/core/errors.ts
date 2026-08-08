@@ -31,7 +31,7 @@ function formatServiceError(kind: ServiceErrorKind, service: string, detail: str
 
 /**
  * A model told *why* something failed reports it; a model handed an opaque
- * error invents an explanation (design spec §15). The remedy therefore lives
+ * error invents an explanation. The remedy therefore lives
  * in `.message` itself, not only in `toModelText()`: every path that throws
  * this error is caught somewhere as a plain `Error`, and the only field a
  * generic catcher reads is `.message` — including the MCP SDK's own tool

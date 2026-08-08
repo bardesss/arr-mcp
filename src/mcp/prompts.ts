@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 
 /**
- * The five questions this stack actually gets asked (0.9 spec §1).
+ * The five questions this stack actually gets asked (0.9 spec ).
  *
  * **A prompt orchestrates tools and adds no capability.** That is what makes
  * this phase safe on a client that does not surface prompts: every sequence

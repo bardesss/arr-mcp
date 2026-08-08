@@ -47,7 +47,7 @@ export type MediaDetailsQuery = {
 };
 
 /**
- * The resolved form (§5.3): the merged record the join §8 exists for.
+ * The resolved form: the merged record the join exists for.
  *
  * Like the explicit form, it **throws rather than degrading**. A request for
  * one specific item either produced that item or did not, and an empty success
@@ -76,7 +76,7 @@ export async function buildResolvedMediaDetails(loader: LibraryLoader, query: st
 }
 
 /**
- * Two forms, both deliberate (§5.3). `query` returns the merged record;
+ * Two forms, both deliberate. `query` returns the merged record;
  * `service` + `id` returns one service's raw view, which is how you inspect a
  * join that looks wrong and what `diagnose` needs when `presence` says the two
  * halves disagree.
@@ -141,8 +141,8 @@ export function registerGetMediaDetails(
             }, dataset);
 
             // `unknown` is not a place something is "present in" — it is the
-            // absence of a confident answer (item 1 of the whole-phase
-            // review), so it gets its own phrasing rather than reading as
+            // absence of a confident answer, so it gets its own phrasing
+            // rather than reading as
             // "present in: unknown."
             const summary =
                 'presence' in result

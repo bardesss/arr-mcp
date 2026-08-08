@@ -37,10 +37,10 @@ export type ArrAddShape = {
  *
  * Probed against a live Radarr 6.3.0:
  *
- *   /movie/lookup/tmdb?tmdbId=603        200, one MovieResource
- *   /movie/lookup/tmdb?tmdbId=999999999  500, MovieNotFoundException
- *   /movie/lookup?term=tmdb:603          200, a one-element array
- *   /movie/lookup?term=tmdb:999999999    200, []
+ *   /movie/lookup/tmdb?tmdbId=603 200, one MovieResource
+ *   /movie/lookup/tmdb?tmdbId=999999999 500, MovieNotFoundException
+ *   /movie/lookup?term=tmdb:603 200, a one-element array
+ *   /movie/lookup?term=tmdb:999999999 200, []
  *
  * An unknown id is a **500** on the dedicated endpoint, which `classifyHttpStatus`
  * turns into `UpstreamError` — telling the user Radarr is broken when in fact

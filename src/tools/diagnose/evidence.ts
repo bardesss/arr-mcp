@@ -30,7 +30,7 @@ const RECENT_REJECTION_LIMIT = 50;
 /**
  * Every probe returns `undefined` on failure and records the service in
  * `degraded`. That is the shape the chain reads: undefined is "could not
- * look", and it is what stops a verdict being confident across a hole (§6.1).
+ * look", and it is what stops a verdict being confident across a hole.
  */
 async function probe<T>(id: string, degraded: string[], fn: () => Promise<T>): Promise<T | undefined> {
     try {
@@ -48,29 +48,25 @@ async function resolveItem(
     degraded: string[],
     libraryDegraded: string[]
 ): Promise<MergedItem | undefined> {
-    // §9's gate lives in the loader's identity resolver, and a refusal
+    // the gate lives in the loader's identity resolver, and a refusal
     // propagates out of diagnose rather than becoming a degraded stage — this
     // call is deliberately not wrapped in `probe`.
     const snapshot = await deps.library.load(target.user);
-    // Library-read reachability, not probe reachability — kept in its own
-    // array rather than folded into `degraded` (item 2 of the whole-phase
-    // review). A Jellyfin `getScanState` probe failing below must not make
-    // `libraryStep` believe the *library read* failed too, and a Radarr
-    // *library* read failing here must not make `queueStep` believe Radarr's
-    // *queue* probe failed — each stage now reads only the reachability
-    // signal that actually applies to it.
+    // Library-read reachability, in its own array rather than folded into
+    // `degraded`. A Jellyfin scan probe failing must not make `libraryStep`
+    // believe the *library read* failed, nor a Radarr library read make
+    // `queueStep` believe Radarr's *queue* probe failed. Each stage reads only
+    // the signal that applies to it.
     for (const id of snapshot.degraded) if (!libraryDegraded.includes(id)) libraryDegraded.push(id);
 
     // The explicit id wins: it is unambiguous and a title is not.
     if (target.service !== undefined && target.id !== undefined) {
         const adapter = deps.adapters.find(a => a.id === target.service);
-        // A `ServiceId` the schema accepts but that does not implement
-        // getMediaDetails (e.g. sabnzbd) is a configuration mistake, not a
-        // hole to degrade across — silently returning `undefined` here would
-        // make the caller's own named service read as "the item does not
-        // exist" (`certain: true`), which is worse than either a stale
-        // download-client outage or a real absence. Same error, same remedy,
-        // as get_media_details.
+        // A service the schema accepts but that has no getMediaDetails
+        // (sabnzbd, say) is a configuration mistake, not a hole to degrade
+        // across. Returning `undefined` would make the caller's own named
+        // service read as "this does not exist" with `certain: true`. Same
+        // error and remedy as get_media_details.
         if (adapter === undefined || !hasMediaDetails(adapter)) {
             throw new ServiceError('NotFound', target.service, `${target.service} is not configured`, {
                 remedy: `Add services.${target.service} to config.yaml, or name a configured service.`
@@ -153,7 +149,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         seerr === undefined ? Promise.resolve(null) : probe(seerr.id, degraded, () => seerr.getRequests({}));
 
     // Multi-service: `gather` already distinguishes "some clients answered,
-    // some didn't" from "all of them did" — exactly the queue shape §6.1 asks
+    // some didn't" from "all of them did" — exactly the queue shape asks
     // for, folded into `queue`/`queueConfigured` below rather than collapsed
     // to a single undefined the way one failing client used to erase the
     // whole stage.
@@ -188,7 +184,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
      * Matched on tmdbId, falling back to tvdbId, never on title. Title is
      * only optionally present on a Seerr request (`MediaRequest['title']` is
      * `?`), and even when it is, a fuzzy match is far more fragile than the
-     * strong, structured ids already used for §8's whole join.
+     * strong, structured ids already used for the whole join.
      *
      * tmdbId is tried first because it is the id both movies and series can
      * carry; tvdbId is the fallback that closes Task 7's Finding B —
@@ -198,7 +194,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
      *
      * The requester's name is deliberately not carried into the evidence. The
      * status answers the question, and naming who asked exposes another
-     * household member's activity to whoever ran the tool (§9).
+     * household member's activity to whoever ran the tool.
      */
     let request: Evidence['request'];
     if (requests === undefined) {

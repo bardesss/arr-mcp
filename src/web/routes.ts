@@ -41,7 +41,7 @@ const MIN_PASSWORD = 12;
 export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; name: string; version: string };
 
 /**
- * The config UI (design spec §6): a dashboard, connection tests that diagnose
+ * The config UI: a dashboard, connection tests that diagnose
  * rather than pass/fail, log streams, the write audit, and configuration
  * editing that applies without a restart.
  *
@@ -123,12 +123,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const password = str(form.password);
         const auth = runtime.config.auth;
 
-        // One message for both wrong-username and wrong-password, and the
-        // password check runs either way: a login form that answers faster for
-        // an unknown user tells an attacker which names exist.
-        //
-        // The hash is present by the time we get here, but the type no longer
-        // proves it, and a missing hash must never read as a valid login.
+        // One message for both wrong username and wrong password, and the hash
+        // check runs either way — a form that answers faster for an unknown
+        // user tells an attacker which names exist. A missing hash must never
+        // read as a valid login.
         const nameOk = username === auth.username;
         const passOk = auth.password_hash !== undefined && verifyPassword(password, auth.password_hash);
 
@@ -161,10 +159,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         const snapshot = runtime.current;
 
-        // Gathered through `buildStackHealth`, the same function `stack_health`
-        // answers from, rather than by calling the adapters again here. Two
-        // implementations of "is the stack healthy" is how the page and the
-        // tool come to disagree — the same reason §8 keeps one library join.
+        // Through `buildStackHealth`, the same function `stack_health` answers
+        // from. Two implementations of "is the stack healthy" is how the page
+        // and the tool come to disagree.
         // It is live, not cached: a dashboard showing cached status is one
         // that tells you a dead service is fine, and it degrades rather than
         // failing when a service is unreachable.
@@ -230,15 +227,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // --- configuration --------------------------------------------------
 
     /**
-     * Who each user-aware service says its users are, for the default-user
-     * field to suggest.
+     * Who each user-aware service says its users are, to suggest in the
+     * default-user field.
      *
-     * Capped well below any service's own timeout on purpose. This is the page
-     * you open *because* something is unreachable, and a Jellyfin that is down
-     * must cost a moment, not the ten seconds its own client would wait. A
-     * service that misses the cap is simply absent from the result, which the
-     * card renders as a plain text field saying so — never as an empty dropdown
-     * that reads like "this service has no users".
+     * Capped well below the services' own timeouts: this is the page you open
+     * *because* something is unreachable, so a dead Jellyfin must cost a
+     * moment, not ten seconds. A service that misses the cap is absent from the
+     * result and the card says so — never an empty dropdown, which reads as
+     * "this service has no users".
      */
     const USER_LOOKUP_MS = 2500;
 
@@ -297,11 +293,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             const session = guard(c);
             if (session === undefined) return c.redirect(entry(), 302);
 
-            // Asks the services who their users are on the way out, the same as
-            // a plain page load: a save that dropped the suggestions would have
-            // the card claim the service went quiet when nothing of the sort
-            // happened, and a save that changed a Jellyfin key is exactly when
-            // the list is worth refreshing.
+            // Re-asks who the users are, as a plain page load does: a save that
+            // dropped the suggestions would have the card claim the service went
+            // quiet, and a save that changed a Jellyfin key is exactly when the
+            // list is worth refreshing.
             const render = async (
                 message: { kind: 'ok' | 'err'; text: string } | undefined,
                 status: 200 | 400 | 403,
@@ -381,25 +376,18 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     );
 
     /**
-     * Test one instance — against the fields as they stand, not as they are
-     * saved.
+     * Test one instance against the fields as they stand, not as they are
+     * saved — replacing "save it and see if the dashboard goes green", which
+     * writes a URL you already suspect is wrong and answers on another page.
+     * The candidate is built exactly as a save would build it and thrown away.
      *
-     * "Save it and see if the dashboard goes green" is the loop this replaces,
-     * and it is a bad one: it writes a URL you already suspect is wrong, and it
-     * answers on a different page. So the candidate config is built exactly as
-     * a save would build it, validated, and thrown away — nothing reaches disk,
-     * and a blank credential still means *unchanged*, so testing a card you
-     * have not touched tests what is already configured.
+     * The add dialog posts here too, with no `instance`. That candidate comes
+     * from `addInstance`, the same call Add makes, so a passing test is one Add
+     * will accept — and it inherits Add's validation, so an unnamed second
+     * radarr answers "name it" rather than a latency.
      *
-     * The add dialog posts here too, with no `instance` — there is not one yet.
-     * That candidate is built by `addInstance`, the same call Add itself makes,
-     * so a test that passes is a test that Add will accept. It inherits Add's
-     * validation along with it: testing a second radarr before naming it
-     * answers "name the new radarr instance" rather than a latency, which is
-     * the thing you needed to hear either way.
-     *
-     * Not a `configMutation`, despite the shape: that helper's whole contract
-     * is that it ends in `saveConfig`.
+     * Not a `configMutation`, despite the shape: that helper ends in
+     * `saveConfig`.
      */
     app.post('/ui/config/test', async c => {
         const session = guard(c);
@@ -409,13 +397,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const id = str(form.instance);
         const isAdd = id === '';
 
-        // The dialog's Test is fetched rather than posted, so its result can
-        // land in a dialog that still holds what you typed. A page re-render
-        // could not: `addDialog` renders its fields blank, and filling them
-        // back in would mean writing the API key into the HTML — which is the
-        // one thing `configPage` is built never to do. The unscripted path
-        // falls through to the same render as everything else, blank fields
-        // and all, exactly as a refused Add already behaves.
+        // The dialog's Test is fetched, not posted, so the result lands in a
+        // dialog that still holds what you typed. A re-render could not:
+        // `addDialog` renders its fields blank, and refilling them would mean
+        // writing the API key into the HTML — the one thing `configPage` never
+        // does. Unscripted falls through to the ordinary render.
         const wantsJson = c.req.header('accept')?.includes('application/json') === true;
 
         const render = async (status: 200 | 400 | 403, extra: Partial<Parameters<typeof configPage>[0]>) =>
@@ -474,15 +460,12 @@ function sessionOf(c: Context, runtime: Runtime): string | undefined {
 }
 
 /**
- * Resolves which of the three streams was asked for, and what that means as a
- * query.
+ * Which of the three streams was asked for, as a query.
  *
- * The service filter is parsed through `ServiceIdSchema`, so an unknown value
- * becomes "no filter" rather than reaching the store — the ids are a closed
- * set, and validating against it costs nothing.
- *
- * The "by service" stream with no service chosen defaults to the first that
- * has actually logged, so the tab is never a blank page with a dropdown.
+ * The service filter goes through `ServiceIdSchema`, so an unknown value
+ * becomes "no filter" rather than reaching the store. "By service" with none
+ * chosen defaults to the first that has actually logged, so the tab is never a
+ * blank page with a dropdown.
  */
 function logQuery(
     c: Context,
@@ -506,15 +489,12 @@ function logQuery(
 }
 
 /**
- * The instance fields a card's form carries.
+ * The instance fields a card's form carries, under bare names — each card is
+ * its own form, and an id containing a `/` has no sensible prefix anyway.
  *
- * Bare names, because each card is its own form — there is no `svc.<id>.`
- * prefix to parse any more, and with instance ids containing a `/` there is no
- * sensible prefix to invent.
- *
- * A blank credential means "unchanged", never "clear": the page never renders a
- * secret back, so blank is what an untouched field always looks like. Clearing
- * is expressed by removing the instance, which is unambiguous and confirmed.
+ * A blank credential means "unchanged", never "clear". The page never renders a
+ * secret back, so blank is what an untouched field always looks like; clearing
+ * is expressed by removing the instance, which is confirmed.
  */
 export function instanceFieldsFrom(form: Record<string, unknown>): InstanceFields {
     const timeout = Number(str(form.timeout_ms));

@@ -122,9 +122,9 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
  * Everything else is a form post and a server render.
  */
 export const JS = `
-// Say what actually happened. The clipboard write below fails on every plain
-// http origin, and reporting "Copied" for a fallback that only selected the
-// text is how someone pastes the wrong thing and blames the field.
+// Say what actually happened. The clipboard write fails on every plain http
+// origin, and reporting "Copied" for a fallback that only selected the text is
+// how someone pastes the wrong thing and blames the field.
 const flash = (btn, text) => {
   if (btn.dataset.label === undefined) btn.dataset.label = btn.textContent.trim();
   btn.textContent = text;
@@ -154,10 +154,9 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// The client config is assembled here, in the browser, and never rendered by
-// the server. The token is masked three lines above it on the page; putting the
-// same value into the HTML as readable JSON would quietly undo that, and a
-// screenshot of the dashboard would carry a working credential.
+// Assembled in the browser, never rendered by the server. The token is masked
+// three lines above on the page, so putting it into the HTML as readable JSON
+// would undo that and make a screenshot carry a working credential.
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-copy-config]');
   if (!btn) return;
@@ -180,10 +179,9 @@ document.addEventListener('click', async (e) => {
     await navigator.clipboard.writeText(config);
     flash(btn, 'Copied');
   } catch {
-    // No clipboard on http, and unlike the fields above there is nothing
-    // already on screen to select — so fill the textarea now and reveal it.
-    // That puts the token on screen, which is acceptable only because it takes
-    // an explicit click on a button that says it copies credentials.
+    // No clipboard on http, and nothing on screen to select — so fill the
+    // textarea and reveal it. That puts the token on screen, acceptable only
+    // because it took a click on a button that says it copies credentials.
     box.value = config;
     selectIn(box);
     flash(btn, 'Selected — copy it');
@@ -203,9 +201,8 @@ document.addEventListener('click', (e) => {
 });
 
 // The add form: a dialog opened by a button, with fields that follow the
-// service picker. Both are enhancements — with scripting off the <noscript>
-// rule in pages.ts styles the dialog back into the page and every field shows,
-// which is the form exactly as it was before either of these existed.
+// picker. Both are enhancements — with scripting off, a <noscript> rule styles
+// the dialog back into the page and every field shows.
 const addService = document.getElementById('add-service');
 if (addService) {
   document.addEventListener('click', (e) => {
@@ -295,7 +292,7 @@ if (addService) {
 // Every other part of this page is server-rendered through an escaping
 // template, and that is sound. This one is different in kind: log lines carry
 // release names straight from public indexers, which are the most
-// attacker-controllable strings in the whole system (design spec §11). Setting
+// attacker-controllable strings in the whole system. Setting
 // innerHTML here would make one escaping mistake, anywhere in the server-side
 // rendering path, an XSS. Building nodes and assigning textContent makes that
 // impossible rather than merely unlikely.

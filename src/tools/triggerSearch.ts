@@ -7,7 +7,7 @@ import { hasMediaDetails, hasSearchTrigger, type ServiceAdapter } from '../servi
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
- * Phase 4's first write, and the shape every later one follows.
+ * The first write, and the shape every later one follows.
  *
  * It takes `service` plus `id` and **not** a title. Every read tool accepts a
  * fuzzy title because the cost of resolving one wrongly is a wrong answer the

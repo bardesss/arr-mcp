@@ -7,7 +7,7 @@ export const CIRCUIT_THRESHOLD = 5;
 export const CIRCUIT_COOLDOWN_MS = 60_000;
 
 /**
- * The one implementation of design spec §15's resilience policy. Eight
+ * The one implementation of the resilience policy. Eight
  * adapters sharing this is what makes "the breaker opens after five failures"
  * a checkable property of the stack rather than a property of Radarr.
  */
@@ -29,7 +29,7 @@ export class ServiceHttp {
         this.#fetch = fetchImpl;
     }
 
-    /** Reads retry once on timeout (design spec §15). */
+    /** Reads retry once on timeout. */
     async get<T>(path: string): Promise<T> {
         return this.#request<T>('GET', path, undefined, true);
     }

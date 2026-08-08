@@ -3,10 +3,7 @@ import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { assertVersionSupported } from './versions.ts';
 
-/**
- * A diagnosis, not a boolean (design spec §6/§14). A connection test that
- * returns true/false tells the user nothing about what to fix.
- */
+/** A diagnosis, not a boolean: true/false tells nobody what to fix. */
 export type ConnectionDiagnosis = {
     ok: boolean;
     service: string;
@@ -16,11 +13,8 @@ export type ConnectionDiagnosis = {
 };
 
 export interface ServiceAdapter {
-    /**
-     * `radarr` for a single instance, `radarr/4k` for a named one. This is the
-     * identity everything human-facing uses — audit rows, log filters, error
-     * messages, merged read output.
-     */
+    /** `radarr`, or `radarr/4k` when named. The identity everything
+     *  human-facing uses: audit rows, log filters, errors, merged output. */
     readonly id: string;
     /**
      * What kind of service this is. **Capability dispatch keys on this, never
@@ -34,11 +28,9 @@ export interface ServiceAdapter {
     getVersion(): Promise<string>;
 }
 
-/**
- * `service` is carried on every row because stack_health merges rows from up
- * to eight services into one list. A failing health check that does not say
- * who reported it is not actionable.
- */
+/** `service` is on every row because stack_health merges up to eight services
+ *  into one list, and a failure that does not say who reported it is not
+ *  actionable. */
 export type DiskSpace = {
     service: string;
     /** Optional: omitted below `detail: full`, where paths are the longest
@@ -52,7 +44,7 @@ export type DiskSpace = {
 
 export type HealthCheck = { service: string; source: string; type: string; message: string };
 
-/** Library scan staleness, the fourth thing design spec §12 asks stack_health for. */
+/** Library scan staleness, the fourth thing asks stack_health for. */
 export type ScanState = { service: string; lastCompleted?: string; running?: boolean };
 
 export interface DiskSpaceCapable {
@@ -65,7 +57,7 @@ export interface ScanStateCapable {
     getScanState(): Promise<ScanState>;
 }
 
-/** Jellyfin and Seerr only — the two multi-user services (design spec §9). */
+/** Jellyfin and Seerr only — the two multi-user services. */
 export type ServiceUser = { id: string; name: string };
 
 export interface UserDirectoryCapable {
@@ -84,7 +76,7 @@ export const hasHealthChecks = (a: ServiceAdapter): a is ServiceAdapter & Health
 export const hasScanState = (a: ServiceAdapter): a is ServiceAdapter & ScanStateCapable =>
     typeof (a as Partial<ScanStateCapable>).getScanState === 'function';
 
-// --- Phase 2b read-tool capabilities ---
+// --- read-tool capabilities ---
 
 export type IndexerSummary = {
     service: string;
@@ -101,7 +93,7 @@ export type IndexerSummary = {
     rejectedGrabs?: number;
 };
 
-/** A query an indexer refused, with the reason it gave. §12's "recent rejections". */
+/** A query an indexer refused, with the reason it gave. the "recent rejections". */
 export type IndexerRejection = { indexer: string; at: string; reason: string; query?: string };
 
 export interface IndexerCapable {
@@ -128,7 +120,7 @@ export type SubtitleGap = {
 };
 
 /**
- * §12's "provider state". A subtitle gap says what is missing; this says
+ * the "provider state". A subtitle gap says what is missing; this says
  * whether Bazarr is currently able to do anything about it.
  */
 export type SubtitleProvider = {
@@ -273,13 +265,12 @@ export type SearchHit = {
     year?: number;
     ids: { tmdb?: number; tvdb?: number; imdb?: string };
     /**
-     * Ratings by source, on each source's native scale — the same shape and
-     * the same convention as `MediaDetails.ratings`, which this is the
-     * not-yet-owned counterpart to.
+     * Ratings by source, on each source's native scale — same shape as
+     * `MediaDetails.ratings`, which this is the not-yet-owned counterpart to.
      *
      * Nothing an *arr's lookup endpoint returns populates this: their search
      * payloads are shaped for *adding* a title, not describing one. It exists
-     * for the IMDb dataset (0.8 §4.1), which fills it for a hit carrying an
+     * for the IMDb dataset (0.8 ), which fills it for a hit carrying an
      * imdb id.
      */
     ratings?: Record<string, number>;
@@ -299,7 +290,7 @@ export interface SearchCapable {
 export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapable =>
     typeof (a as Partial<SearchCapable>).search === 'function';
 
-// --- Phase 4 write capabilities ---
+// --- write capabilities ---
 
 /**
  * What the *arrs hand back when told to do something: a queued command, not a
@@ -316,6 +307,22 @@ export interface SearchTriggerCapable {
 
 export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & SearchTriggerCapable =>
     typeof (a as Partial<SearchTriggerCapable>).triggerSearch === 'function';
+
+/**
+ * Starting the library scan whose staleness `getScanState` reports.
+ *
+ * The two go together deliberately: `diagnose` names a stale scan as the usual
+ * reason something downloaded is still not playable, and until 1.0 nothing
+ * could act on that — its best answer ended "now go and do it yourself". The
+ * services that can be asked are exactly the three that can be read.
+ */
+export interface LibraryScanCapable {
+    /** Queues a rescan and returns; it does not wait for the scan to finish. */
+    startLibraryScan(): Promise<CommandHandle>;
+}
+
+export const hasLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & LibraryScanCapable =>
+    typeof (a as Partial<LibraryScanCapable>).startLibraryScan === 'function';
 
 /**
  * Both flags default to the *least* destructive reading at every layer — the
@@ -423,17 +430,15 @@ export interface RequestManageCapable {
     respondToRequest(id: string, verdict: RequestVerdict): Promise<MediaRequest>;
     deleteRequest(id: string): Promise<void>;
     /**
-     * Resolves a human title for a request.
+     * A human title for a request.
      *
-     * Needed because Seerr's `/api/v1/request` payload carries **no title at
-     * all** — its `media` object is ids and service metadata only, confirmed
-     * against a live Seerr 3.4.1 and against the recorded fixture. So
-     * `MediaRequest.title` is undefined for every real request, and a write
-     * preview built from it alone says "request 19", which is not something
-     * anyone can meaningfully approve.
+     * Seerr's `/api/v1/request` payload carries **no title at all** — ids and
+     * service metadata only, confirmed against a live 3.4.1. So a preview built
+     * from the request alone says "request 19", which nobody can meaningfully
+     * approve.
      *
-     * Resolves undefined rather than throwing: a title lookup that fails must
-     * not block a user from deleting a request.
+     * Resolves undefined rather than throwing: a failed title lookup must not
+     * block someone deleting a request.
      */
     describeRequestMedia(request: MediaRequest): Promise<{ title: string; year?: number } | undefined>;
 }
@@ -443,7 +448,7 @@ export const hasRequestManage = (a: ServiceAdapter): a is ServiceAdapter & Reque
 
 /**
  * A whole-library read, shaped for the identity resolver rather than for a
- * tool. Phase 3 joins three of these into one index; nothing else consumes it.
+ * tool. The resolver joins three of these into one index; nothing else consumes it.
  */
 export interface LibraryCapable {
     listLibrary(): Promise<IndexInput[]>;
@@ -453,7 +458,7 @@ export const hasLibrary = (a: ServiceAdapter): a is ServiceAdapter & LibraryCapa
     typeof (a as Partial<LibraryCapable>).listLibrary === 'function';
 
 /**
- * Separate from LibraryCapable because Jellyfin's half is per-user (§4.3):
+ * Separate from LibraryCapable because Jellyfin's half is per-user:
  * watch state does not exist without a user, and a shared signature would let
  * a caller forget to supply one.
  */
@@ -486,7 +491,7 @@ export async function diagnoseConnection(
     const started = performance.now();
     try {
         const version = await probe();
-        // §14: a connection test distinguishes version-too-old from every other
+        // a connection test distinguishes version-too-old from every other
         // failure. Checked here rather than in each adapter, so no adapter can
         // forget — and after the probe, so an unreachable service reports being
         // unreachable rather than being the wrong version.

@@ -1,7 +1,7 @@
 /**
  * Per-service request shaping, and nothing else. Resilience policy lives in
  * ServiceHttp; keeping the two apart is what stops Transmission's session
- * handshake leaking into the adapter contract (design spec §6).
+ * handshake leaking into the adapter contract.
  */
 export interface AuthContext {
     url: URL;

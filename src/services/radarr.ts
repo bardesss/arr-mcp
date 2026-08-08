@@ -71,7 +71,7 @@ type RawCommand = components['schemas']['CommandResource'];
 
 /**
  * The task that actually rescans the film library, confirmed against a live
- * Radarr 6.3.0 during the Phase 2a capture run.
+ * Radarr 6.3.0 during a live capture.
  *
  * Matched exactly, never by pattern. A live instance runs eleven scheduled
  * tasks, three of which contain "Refresh": `RefreshMovie` is the library scan,
@@ -149,6 +149,21 @@ export class RadarrAdapter
             }));
     }
 
+    /**
+     * Queues the same command `getScanState` reads the last run of, so what
+     * this starts and what that reports can never drift apart.
+     */
+    async startLibraryScan(): Promise<CommandHandle> {
+        const command = await this.#http.post<RawCommand>('/api/v3/command', { name: 'RefreshMovie' });
+
+        return {
+            service: this.id,
+            commandId: command.id ?? 0,
+            name: command.name ?? 'RefreshMovie',
+            ...(typeof command.status === 'string' ? { status: command.status } : {})
+        };
+    }
+
     async getScanState(): Promise<ScanState> {
         const tasks = await this.#http.get<RawTask[]>('/api/v3/system/task');
         const scan = tasks.find(t => t.taskName === LIBRARY_SCAN_TASK);
@@ -224,10 +239,9 @@ export class RadarrAdapter
     }
 
     /**
-     * The first write in the codebase, and the only one Phase 4 ships at the
-     * `safe` tier: it asks Radarr to look for releases for a film it already
-     * tracks. Nothing is deleted, nothing is added, and the worst outcome is a
-     * grab the user did not want — which the queue tools can then undo.
+     * Safe tier: it asks Radarr to look for releases for a film it already
+     * tracks. Nothing is deleted or added, and the worst outcome is an unwanted
+     * grab, which the queue tools can undo.
      *
      * The id is coerced to a number rather than interpolated: `movieIds` is a
      * JSON array of integers, and a string there is silently accepted by Radarr
@@ -261,7 +275,7 @@ export class RadarrAdapter
         if (source === 'library') {
             // Radarr has no library search endpoint, so this fetches the whole
             // list. Costly on a 900-film instance and correct today; design
-            // spec §16's cache is what makes it cheap, and lands in Phase 3.
+            // spec the cache is what makes it cheap, and lands earlier.
             const movies = await this.#http.get<RawMovie[]>('/api/v3/movie');
             return movies.filter(m => (m.title ?? '').toLowerCase().includes(term)).map(m => this.#toHit(m, 'library'));
         }
@@ -295,7 +309,7 @@ export class RadarrAdapter
 
     /**
      * The whole film library in one call — Radarr has no server-side filter, so
-     * this is the same `/api/v3/movie` read `search` already does. §16's cache
+     * this is the same `/api/v3/movie` read `search` already does. The cache
      * is what makes it affordable, and it lives in the tool layer.
      */
     async listLibrary(): Promise<IndexInput[]> {

@@ -10,19 +10,13 @@ import { logger } from './logger.ts';
 import { Sessions } from './session.ts';
 
 /**
- * Everything a request needs that a config change can invalidate, behind one
- * swap.
+ * Everything a config change can invalidate, behind one swap — so editing
+ * config from the web page takes effect without restarting the container.
  *
- * Before the config UI, `index.ts` read the config once, built the adapters
- * once, and handed both to `buildApp`, which closed over them — so changing a
- * service meant restarting the container. Editing config from a web page and
- * then telling the user to restart it would be a worse experience than the
- * hand-edited YAML it replaces.
- *
- * The swap is one assignment of an immutable snapshot, not a mutation of a
+ * The swap is one assignment of an immutable snapshot, never a mutation of a
  * live object. A request that started before a reload finishes against the
- * snapshot it began with, rather than seeing half of each — which is what
- * makes "reload while a tool call is in flight" safe without any locking.
+ * snapshot it began with rather than seeing half of each, which is what makes
+ * "reload mid-tool-call" safe without any locking.
  */
 
 export type RuntimeSnapshot = {

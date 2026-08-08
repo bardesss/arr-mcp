@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LIMIT, DetailSchema, LimitSchema, MAX_LIMIT, applyLimit } from '../src/core/shape.ts';
+import { DEFAULT_LIMIT, DetailSchema, LimitSchema, MAX_LIMIT, applyLimit, preferred } from '../src/core/shape.ts';
 
 describe('applyLimit', () => {
     it('reports truncation honestly when the list is longer than the limit', () => {
@@ -83,5 +83,60 @@ describe('schemas', () => {
 
     it('rejects a fractional limit', () => {
         expect(LimitSchema.safeParse(1.5).success).toBe(false);
+    });
+});
+
+/**
+ * 1.0 froze the tool surface with two names inconsistent: `discover_media`
+ * asked for `media_type` in a vocabulary it did not answer in, and
+ * `get_library` called a Jellyfin user `watched_by` where two other tools call
+ * it `user`. Both keep working forever — removing a spelling breaks a saved
+ * prompt silently, which is the failure the freeze exists to prevent.
+ */
+describe('honouring an older spelling', () => {
+    const of = (value?: string, aliasValue?: string) =>
+        preferred({ name: 'kind', value, alias: 'media_type', aliasValue });
+
+    it('takes the documented name when only it was given', () => {
+        expect(of('series', undefined)).toBe('series');
+    });
+
+    it('takes the old spelling when only it was given', () => {
+        expect(of(undefined, 'series')).toBe('series');
+    });
+
+    it('is undefined when neither was given', () => {
+        expect(of(undefined, undefined)).toBeUndefined();
+    });
+
+    it('accepts both when they agree, since nothing is ambiguous', () => {
+        expect(of('series', 'series')).toBe('series');
+    });
+
+    /**
+     * Refused rather than resolved. Silently preferring one would make the
+     * answer depend on a precedence rule nobody wrote down, and the caller
+     * would never learn which half of their request was dropped.
+     */
+    it('refuses a request that contradicts itself, naming both spellings', () => {
+        expect(() => of('movie', 'series')).toThrow(/kind/);
+        expect(() => of('movie', 'series')).toThrow(/media_type/);
+    });
+
+    /** The alias may speak a different vocabulary — `tv` where the documented
+     *  name says `series` — so agreement is judged after translating. */
+    it('translates the old vocabulary before comparing', () => {
+        const tv = (value?: string, aliasValue?: string) =>
+            preferred({
+                name: 'kind',
+                value,
+                alias: 'media_type',
+                aliasValue,
+                translate: v => (v === 'tv' ? 'series' : v)
+            });
+
+        expect(tv(undefined, 'tv')).toBe('series');
+        expect(tv('series', 'tv')).toBe('series');
+        expect(() => tv('movie', 'tv')).toThrow();
     });
 });

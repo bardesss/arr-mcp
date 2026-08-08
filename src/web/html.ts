@@ -1,7 +1,7 @@
 /**
  * The one place untrusted text becomes HTML.
  *
- * Design spec §11 treats everything a service returns as data, never
+ * Design spec treats everything a service returns as data, never
  * instruction — and the config UI is where that data stops being JSON in a
  * model's context and becomes markup in a browser. A release name from a
  * public indexer reaches the log stream; a film title reaches the audit view.

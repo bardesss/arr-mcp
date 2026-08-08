@@ -5,7 +5,7 @@ import type { WriteTier } from './permissions.ts';
 import { logger } from './logger.ts';
 
 /**
- * Design spec §10's write audit: a durable answer to "what did this thing do
+ * The write audit: a durable answer to "what did this thing do
  * to my library, and who asked it to".
  *
  * SQLite rather than a JSONL file because 0.6's config page has to *read* this

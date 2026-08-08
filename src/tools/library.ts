@@ -17,7 +17,7 @@ export type LibrarySnapshot = {
 
 /**
  * One cached library index, shared by get_library, get_media_details and
- * diagnose (§8: duplicating the join is how joins drift apart).
+ * diagnose (duplicating the join is how joins drift apart).
  *
  * The cache lives here rather than in the adapters, so adapters stay directly
  * testable against fixtures and caching policy sits in one reviewable place.
@@ -33,16 +33,11 @@ export class LibraryLoader {
         jellyfinIdentity: IdentityResolver | undefined,
         cache: TtlCache = new TtlCache(),
         /**
-         * The IMDb dataset, when one is configured.
-         *
-         * Enrichment happens here rather than in each tool for the reason this
-         * class exists at all (§8: duplicating the join is how joins drift
-         * apart). `get_library`, `get_media_details` and `diagnose` all read
-         * this one cached snapshot, so they cannot disagree about a rating,
-         * and the dataset is queried once per cache TTL rather than once per
-         * tool call.
-         *
-         * Last and optional, so every existing call site keeps compiling.
+         * Enrichment happens here, not per tool, for the reason this class
+         * exists: all three readers share one snapshot, so they cannot
+         * disagree about a rating, and the dataset is queried once per cache
+         * TTL rather than once per call. Last and optional, so existing call
+         * sites keep compiling.
          */
         dataset?: ImdbDataset | undefined
     ) {
@@ -55,32 +50,23 @@ export class LibraryLoader {
     async load(user?: string): Promise<LibrarySnapshot> {
         const resolved = await this.#resolveUser(user);
 
-        // §4.3: the key includes the user id, or one household member's watch
-        // history appears in another's answer — a correctness bug that reads as
-        // a privacy one.
+        // Keyed by user, or one household member's watch history appears in
+        // another's answer — a correctness bug that reads as a privacy one.
         const key = `library:${resolved?.id ?? 'none'}`;
 
-        // A partial load is not worth five minutes of cache: the missing
-        // service is usually restarting, and the next call should find it.
-        // Declined via `shouldCache` rather than a follow-up `invalidate()`:
-        // invalidate has no way to tell "my degraded load lost a race to a
-        // fresher, complete one" from "nothing raced me" — it would delete
-        // the good entry in the first case. `shouldCache` runs on the same
-        // identity check the cache's own failure path uses, so only this
-        // exact load's entry is ever dropped.
+        // A partial load is not worth five minutes of cache. Declined via
+        // `shouldCache` rather than a later `invalidate()`, which cannot tell
+        // "my degraded load lost a race to a complete one" from "nothing raced
+        // me" and would delete the good entry.
         return this.#cache.get(key, LIBRARY_TTL_MS, () => this.#build(resolved), snapshot => snapshot.degraded.length === 0);
     }
 
     /**
-     * §16's write-invalidation seam, and the reason `TtlCache.invalidate`
-     * existed unused until now. Called after a successful write, so the next
-     * `get_library` reflects the change rather than up to five minutes of a
-     * library that no longer exists.
+     * Called after a successful write, so the next `get_library` reflects it
+     * rather than up to five minutes of a library that no longer exists.
      *
-     * Clears every entry rather than one key: this cache holds nothing but
-     * library snapshots, and a Radarr write invalidates *every* user's
-     * snapshot, not just the writer's — the keys are per Jellyfin user, and the
-     * film that was just deleted is gone from all of them. Recomputing a
+     * Clears every entry, not one key: keys are per Jellyfin user, and a film
+     * just deleted is gone from all of them. Recomputing a
      * household's worth of snapshots costs one library read each; serving a
      * stale one costs a wrong answer.
      */
@@ -89,41 +75,21 @@ export class LibraryLoader {
     }
 
     /**
-     * Returns undefined when there is no Jellyfin half to fetch. The decision
-     * to propagate or degrade turns on the error's *kind*, not on whether a
-     * user was named — naming someone must not turn a plain Jellyfin outage
-     * into a hard failure of the whole library read; the *arr half is still
-     * worth returning. Three distinct meanings, three distinct outcomes
-     * (whole-phase review item 5 — this is the one place all three have to
-     * stay apart):
+     * Undefined when there is no Jellyfin half to fetch.
      *
-     * - `AuthFailed` — the named user was refused (`allow_other_users` is
-     *   false and it wasn't the default). Always propagates: the model must
+     * Propagate or degrade turns on the error's **kind**, never on whether a
+     * user was named — naming someone must not turn a plain Jellyfin outage
+     * into a hard failure of the whole read, since the *arr half is still
+     * worth returning.
+     *
+     * - `AuthFailed` — the named user was refused. Propagates: a model must
      *   not retry a refusal.
-     * - `NotFound` — either nobody was named and no `default_user` is
-     *   configured, or the name in play (named or default) does not exist in
-     *   Jellyfin's own directory. Always propagates now, regardless of
-     *   `requested`: both are configuration errors with an actionable remedy
-     *   already attached (`IdentityResolver` names the exact config key), and
-     *   `src/config/schema.ts` documents that a per-user tool called with
-     *   nothing configured *fails naming that key* — degrading here instead
-     *   silently swallowed the remedy and reported "jellyfin could not be
-     *   reached" forever, indistinguishable from a real, transient outage,
-     *   while `stack_health` kept calling Jellyfin healthy. This is also what
-     *   used to make item 1's `unknown`-when-ungathered collapse permanent
-     *   rather than transient on such a stack: nothing about the failure ever
-     *   changes, so it never stops being ungathered.
-     *   Previously this propagated only when `requested !== undefined` (a
-     *   user was explicitly named) — the no-`default_user`-configured case
-     *   degraded silently. That distinction is gone: both are the same kind
-     *   of error (a config key that needs setting), so both surface the same
-     *   way. This must not be confused with `AuthFailed` above, which is a
-     *   different, narrower thing — a *configured* default exists, someone
-     *   asked to be answered as somebody else, and it was refused. That is
-     *   never a configuration gap and must never degrade.
-     * - Everything else — `Unreachable`, `Timeout`, `UpstreamError`, and any
-     *   non-`ServiceError` — degrades regardless of whether a user was named:
-     *   a real reachability problem, not a configuration one.
+     * - `NotFound` — no `default_user` configured, or the name does not exist
+     *   in Jellyfin. Propagates, because it is a config error carrying a
+     *   remedy that names the exact key. Degrading here instead reported
+     *   "jellyfin could not be reached" forever — indistinguishable from a
+     *   transient outage, and while `stack_health` called Jellyfin healthy.
+     * - Everything else degrades: a reachability problem, not a config one.
      */
     async #resolveUser(requested: string | undefined): Promise<ServiceUser | undefined> {
         if (this.#identity === undefined) return undefined;

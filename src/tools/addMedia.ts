@@ -13,7 +13,7 @@ import {
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
- * The last of Phase 4's writes, and the only one that has to *choose*
+ * The last of the writes, and the only one that has to *choose*
  * something on the user's behalf.
  *
  * Adding needs a quality profile and a root folder, and neither has a

@@ -2,45 +2,37 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceId } from '../config/schema.ts';
 import type { MergedItem } from '../core/resolver.ts';
-import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, preferred, type DetailLevel } from '../core/shape.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
 
-/** The five §4.1 names a film can carry, plus the one a series can. */
+/** The five names a film can carry, plus the one a series can. */
 export const RATING_SOURCES = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'tvdb'] as const;
 export type RatingSource = (typeof RATING_SOURCES)[number];
 
-/** Films only. `tvdb` is Sonarr's flat value and belongs to series alone (§21.2). */
+/** Films only. `tvdb` is Sonarr's flat value and belongs to series alone. */
 const FILM_SOURCES: readonly RatingSource[] = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes'];
 
 /**
- * What a series can actually carry.
+ * What a series can carry. `tvdb` is Sonarr's own flat value; `imdb` comes
+ * only from the IMDb dataset, since Sonarr never reports one.
  *
- * `tvdb` is Sonarr's own flat value. `imdb` arrives from the IMDb dataset
- * (0.8 §4.1) and is reachable *only* through it — Sonarr has never reported
- * one, and `flattenSeriesRating` can only honestly record its single unlabelled
- * number as `tvdb`. So with the dataset off, asking for `imdb` on a series is
- * accepted and simply finds nothing rated, which `ratingCoverage` then states.
- * That is the right shape: "your dataset has not been built yet" is a different
- * answer from "this filter is impossible", and only the second deserves a
- * refusal.
+ * With the dataset off, asking for `imdb` is accepted and finds nothing rated,
+ * which `ratingCoverage` states. "Not built yet" is a different answer from
+ * "impossible", and only the second deserves a refusal.
  */
 const SERIES_SOURCES: readonly RatingSource[] = ['tvdb', 'imdb'];
 
 /**
- * The scale each source's raw value arrives on. `min_rating` is documented as
- * 0–10 for every source, but Radarr/Sonarr pass Metacritic and Rotten Tomatoes
- * through on their own site's native 0–100 scale, and nothing upstream of
- * this filter rescales them — `flattenRatings`/`toMergedRatings`
- * (`src/services/arrRatings.ts`) store exactly what the *arr reported.
+ * The native scale each source arrives on. `min_rating` is documented as 0–10,
+ * but Metacritic and Rotten Tomatoes come through on 0–100 and nothing
+ * upstream rescales them.
  *
- * Comparing a raw 64 or 82 against an 0–10 `min_rating` threshold makes
- * "rated at all" read as "rated 8+" for those two sources: measured against a
- * real library, an 8+ filter matched 136 of 136 metacritic-rated films and
- * 121 of 121 rottenTomatoes-rated ones. The next source to add here needs to
- * see this decision, which is why it is a named table rather than a `/ 10` at
- * the comparison site below.
+ * Comparing a raw 64 against an 0–10 threshold makes "rated at all" read as
+ * "rated 8+": measured on a real library, an 8+ filter matched 136 of 136
+ * metacritic-rated films. A named table rather than a `/ 10` at the comparison
+ * site, so the next source added has to see this.
  */
 const RATING_SCALE_MAX: Record<RatingSource, number> = {
     imdb: 10,
@@ -61,7 +53,7 @@ const RATING_SCALE_MAX: Record<RatingSource, number> = {
 const toTenPointScale = (source: RatingSource, value: number): number => (value / RATING_SCALE_MAX[source]) * 10;
 
 /**
- * §4.3. A superlative cannot be answered by a filter: with more items than
+ *  A superlative cannot be answered by a filter: with more items than
  * `limit`, the best-rated may simply not be in the window, and the model then
  * answers confidently from whatever fifty it was handed.
  *
@@ -102,7 +94,7 @@ export type GetLibraryResult = {
 const ratingOf = (item: MergedItem, source: RatingSource): number | undefined => item.ratings?.[source];
 
 /**
- * §5: "whichever source covers the most of the library". Ties break in the
+ * "whichever source covers the most of the library". Ties break in the
  * declared order, so the same library always answers the same way.
  *
  * A series query stays on `tvdb` by default even though the IMDb dataset can
@@ -128,7 +120,7 @@ function bestCoveredSource(items: readonly MergedItem[], kind: LibraryQuery['kin
 }
 
 /**
- * §5.2's two documented limits, enforced rather than left to produce an empty
+ * the two documented limits, enforced rather than left to produce an empty
  * list. A filter that quietly matches nothing is worse than a stated gap: the
  * model reports "you have no such series" and the user believes it.
  *
@@ -160,18 +152,16 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
 }
 
 /**
- * Ordering, applied **before** `applyLimit` — ordering after truncation is the
- * same bug wearing a parameter.
+ * Applied **before** `applyLimit` — ordering after truncation is the same bug
+ * wearing a parameter.
  *
- * A rating sort assumes unrated items have already been removed by the caller,
- * which is what `needsRating` below guarantees. They are excluded rather than
- * ranked as zero: sorted to the bottom, an item nobody has rated is
- * indistinguishable from one rated 0.4, and `ratingCoverage.unrated` is what
- * states how many were set aside.
+ * A rating sort relies on `needsRating` below having already removed unrated
+ * items. Excluded rather than ranked zero: at the bottom of a list, an item
+ * nobody rated is indistinguishable from one rated 0.4, and
+ * `ratingCoverage.unrated` states how many were set aside.
  *
- * `localeCompare` rather than `<`, so "Ålesund" sorts where a reader expects
- * rather than after "Zulu", and `unfenced` because a title reaching here still
- * carries its untrusted-value fence.
+ * `localeCompare` so "Ålesund" sorts where a reader expects, and `unfenced`
+ * because a title here still carries its untrusted-value fence.
  */
 function applySort(items: readonly MergedItem[], sort: SortField, source: RatingSource): MergedItem[] {
     const sorted = [...items];
@@ -272,7 +262,7 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
     }
 
-    // §5.1: coverage is measured over everything the other filters kept, before
+    // coverage is measured over everything the other filters kept, before
     // the rating filter removes anything — that is what makes "184 rated, 66
     // unrated" answer the question the caller actually asked.
     const source = opts.rating_source ?? bestCoveredSource(filtered, opts.kind);
@@ -315,7 +305,13 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                     .describe(
                         'Whether a file is actually on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
                     ),
-                watched: z.boolean().optional().describe('Jellyfin watch state. Items Jellyfin has never seen count as unwatched.'),
+                watched: z.boolean().optional().describe('Jellyfin watch state. Items Jellyfin has never seen count as unwatched. Pair with `user` to ask about someone else.'),
+                user: UserSchema,
+                // Undocumented on purpose: the spelling this tool had when the
+                // surface froze at 1.0, where `get_playback` and `get_requests`
+                // already called the same thing `user`. Kept working forever —
+                // removing it would break a saved prompt silently — but
+                // described nowhere.
                 watched_by: UserSchema,
                 quality: z.string().min(1).optional().describe('Films only.'),
                 min_rating: z
@@ -347,7 +343,13 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
             })
         },
         async input => {
-            const result = await buildGetLibrary(loader, input as LibraryQuery);
+            const { user, watched_by, ...rest } = input as LibraryQuery & { user?: string };
+            const watchedBy = preferred({ name: 'user', value: user, alias: 'watched_by', aliasValue: watched_by });
+
+            const result = await buildGetLibrary(loader, {
+                ...rest,
+                ...(watchedBy === undefined ? {} : { watched_by: watchedBy })
+            } as LibraryQuery);
 
             const coverage =
                 result.ratingCoverage === undefined
