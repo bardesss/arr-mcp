@@ -147,6 +147,34 @@ export function loginPage(opts: { version: string; error?: string | undefined })
 export type DiskGroup = { freeSpace: number; totalSpace?: number | undefined; services: string[] };
 
 /**
+ * How far apart two reports of one filesystem may be and still be one disk.
+ *
+ * Measured, not guessed: SABnzbd's two-decimal gigabytes put the same 4.6 TB
+ * filesystem 4.8 MB — 0.0001% — away from the byte count Radarr reports for it.
+ * This is a thousand times that, and still three orders of magnitude below the
+ * gap between any two disks a real stack holds (a 228 GB root against a 10.8 TB
+ * array differ by 5000%).
+ *
+ * Relative rather than absolute because the quantisation error scales with the
+ * number being reported, and an absolute figure that suited a 10 TB array would
+ * be larger than a 240 GB SSD's entire free space.
+ */
+const SAME_DISK_TOLERANCE = 0.001;
+
+/**
+ * Two sizes close enough to be the same filesystem seen twice.
+ *
+ * Compared against the larger of the pair so the relation is symmetric — with
+ * the smaller as the denominator, whether A matched B would depend on which the
+ * loop happened to reach first.
+ */
+function sameSize(a: number, b: number): boolean {
+    if (a === b) return true;
+    const larger = Math.max(Math.abs(a), Math.abs(b));
+    return larger === 0 || Math.abs(a - b) / larger <= SAME_DISK_TOLERANCE;
+}
+
+/**
  * Collapse the mounts every service reports down to the disks behind them.
  *
  * Services in a stack are containers over the same host filesystems, so the
@@ -155,12 +183,19 @@ export type DiskGroup = { freeSpace: number; totalSpace?: number | undefined; se
  * per service, `/config` again for each. Ten rows to say "you have two disks",
  * which is a table nobody reads.
  *
- * Free bytes are the fingerprint. Two mounts of one filesystem agree on them
- * exactly, and two genuinely different disks landing on the same byte count is
- * a coincidence that does not happen at these sizes. Totals then guard against
- * even that: a mount only joins a group whose total it does not contradict,
- * which also folds in Transmission — it reports free space without a total, so
- * it has nothing to contradict and lands on the disk it shares.
+ * Free bytes are the fingerprint, compared with a tolerance rather than for
+ * equality — **not every service has byte precision to report**. SABnzbd
+ * returns gigabytes as a string to two decimals (`gigabytesToBytes` in
+ * `sabnzbd.ts` records a live 5.0.4 answering `"4711.95"`), a quantum of about
+ * 10.7 MB, while the *arrs return exact byte counts. Measured, one 4.6 TB
+ * filesystem arrives from the two of them 4.8 MB apart. Exact equality can
+ * never match a source like that, and the symptom is the disk you were trying
+ * to de-duplicate listed twice with identical rounded numbers.
+ *
+ * Totals then guard against a false merge: a mount only joins a group whose
+ * total it does not contradict, which also folds in Transmission — it reports
+ * free space without a total, so it has nothing to contradict and lands on the
+ * disk it shares.
  *
  * Paths are dropped rather than listed. Knowing that one disk is `/storage` to
  * Radarr and `/data` to SABnzbd is a container-mapping question; the question
@@ -172,8 +207,10 @@ export function groupDisks(disks: readonly DiskSpace[]): DiskGroup[] {
     for (const disk of disks) {
         const group = groups.find(
             g =>
-                g.freeSpace === disk.freeSpace &&
-                (g.totalSpace === undefined || disk.totalSpace === undefined || g.totalSpace === disk.totalSpace)
+                sameSize(g.freeSpace, disk.freeSpace) &&
+                (g.totalSpace === undefined ||
+                    disk.totalSpace === undefined ||
+                    sameSize(g.totalSpace, disk.totalSpace))
         );
 
         if (group === undefined) {
