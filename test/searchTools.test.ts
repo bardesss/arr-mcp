@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
+import { unfenced } from '../src/core/titleMatch.ts';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
@@ -631,5 +632,74 @@ describe('IMDb ratings on the not-yet-owned paths', () => {
             dataset()
         );
         expect(result.ratings?.imdb).toBe(8.8);
+    });
+});
+
+/**
+ * Without Seerr, `discover_media` used to return an empty result — which reads
+ * as "nothing matched" rather than "nobody could answer". The dataset can
+ * answer it: genre, year and a minimum rating are a join over two of its
+ * tables.
+ */
+describe('discovering without Seerr', () => {
+    let db: ImdbDataset | undefined;
+    afterEach(() => {
+        db?.close();
+        db = undefined;
+    });
+
+    const dataset = (): ImdbDataset => {
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [
+                { tconst: 'tt0068646', kind: 'movie', title: 'The Godfather', year: 1972, genres: 'Crime,Drama' },
+                { tconst: 'tt0903747', kind: 'tvSeries', title: 'Breaking Bad', year: 2008, genres: 'Crime,Drama' }
+            ],
+            ratings: [
+                { tconst: 'tt0068646', average: 9.2, votes: 2_000_000 },
+                { tconst: 'tt0903747', average: 9.5, votes: 2_200_000 }
+            ],
+            episodes: []
+        });
+        return db;
+    };
+
+    const query = { detail: 'standard' as const, limit: 10 };
+
+    it('answers from the dataset when Seerr is not configured', async () => {
+        const result = await buildDiscoverMedia(undefined, { ...query, mediaType: 'movie', genre: 'Crime' }, dataset());
+
+        // Fenced, like every external string that reaches model context — a
+        // dataset row is no more trusted than an indexer's release name.
+        expect(result.items[0]?.title).toContain('untrusted:imdb.title');
+        expect(result.items.map(i => unfenced(i.title))).toEqual(['The Godfather']);
+        expect(result.items[0]?.ratings?.imdb).toBe(9.2);
+    });
+
+    it('maps the tv media type onto series', async () => {
+        const result = await buildDiscoverMedia(undefined, { ...query, mediaType: 'tv' }, dataset());
+        expect(result.items.map(i => unfenced(i.title))).toEqual(['Breaking Bad']);
+    });
+
+    it('filters by minimum rating', async () => {
+        const result = await buildDiscoverMedia(undefined, { ...query, mediaType: 'movie', minRating: 9.4 }, dataset());
+        expect(result.items).toHaveLength(0);
+    });
+
+    /**
+     * `genre` is a TMDB id for Seerr and a name for the dataset, because that
+     * is what each source holds. A numeric id matches no IMDb genre, so it is
+     * refused rather than returning an empty list that reads as "you have
+     * nothing like that".
+     */
+    it('refuses a TMDB genre id it cannot possibly match', async () => {
+        await expect(
+            buildDiscoverMedia(undefined, { ...query, mediaType: 'movie', genre: '28' }, dataset())
+        ).rejects.toThrow(/TMDB id/);
+    });
+
+    it('returns the same empty result as before when neither is available', async () => {
+        const result = await buildDiscoverMedia(undefined, { ...query, mediaType: 'movie' }, undefined);
+        expect(result).toMatchObject({ items: [], total: 0 });
     });
 });

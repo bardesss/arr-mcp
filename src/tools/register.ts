@@ -130,7 +130,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetLibrary(server, library);
     registerSearchMedia(server, adapters, dataset);
     registerLookupMedia(server, adapters, dataset);
-    registerDiscoverMedia(server, seerr);
+    registerDiscoverMedia(server, seerr, dataset);
 
     // Registered unconditionally like every read tool, and for the same §18
     // reason: the tool surface is the public API and must not depend on
