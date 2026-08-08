@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/bardesss/arr-mcp/compare/v0.7.1...v0.7.2) (2026-08-08)
+
+
+### Features
+
+* test before adding, and one disk row per filesystem ([#70](https://github.com/bardesss/arr-mcp/issues/70)) ([3ffe5ad](https://github.com/bardesss/arr-mcp/commit/3ffe5add4f0ab53f7b81a6e1511c7392d2595f52))
+
 ## [0.7.1](https://github.com/bardesss/arr-mcp/compare/v0.7.0...v0.7.1) (2026-08-07)
 
 
