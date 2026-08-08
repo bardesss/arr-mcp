@@ -10,12 +10,12 @@ export type Gathered<T> = {
 };
 
 /**
- * Design spec §15: cross-service tools degrade, they do not fail. A tool
+ * cross-service tools degrade, they do not fail. A tool
  * spanning four services with one down returns three services' results plus
  * the name of the fourth — never an exception, and never a silently short list
  * that reads as "there is nothing in your queue".
  *
- * `counts` is measured before the caller truncates. §12's truncation contract
+ * `counts` is measured before the caller truncates. The truncation contract
  * says how many items were dropped but not which service lost them, and merged
  * lists are limited after concatenation — so without this, a long list from one
  * service can push another out of the response entirely and the model has no

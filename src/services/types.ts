@@ -4,7 +4,7 @@ import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { assertVersionSupported } from './versions.ts';
 
 /**
- * A diagnosis, not a boolean (design spec §6/§14). A connection test that
+ * A diagnosis, not a boolean. A connection test that
  * returns true/false tells the user nothing about what to fix.
  */
 export type ConnectionDiagnosis = {
@@ -52,7 +52,7 @@ export type DiskSpace = {
 
 export type HealthCheck = { service: string; source: string; type: string; message: string };
 
-/** Library scan staleness, the fourth thing design spec §12 asks stack_health for. */
+/** Library scan staleness, the fourth thing asks stack_health for. */
 export type ScanState = { service: string; lastCompleted?: string; running?: boolean };
 
 export interface DiskSpaceCapable {
@@ -65,7 +65,7 @@ export interface ScanStateCapable {
     getScanState(): Promise<ScanState>;
 }
 
-/** Jellyfin and Seerr only — the two multi-user services (design spec §9). */
+/** Jellyfin and Seerr only — the two multi-user services. */
 export type ServiceUser = { id: string; name: string };
 
 export interface UserDirectoryCapable {
@@ -84,7 +84,7 @@ export const hasHealthChecks = (a: ServiceAdapter): a is ServiceAdapter & Health
 export const hasScanState = (a: ServiceAdapter): a is ServiceAdapter & ScanStateCapable =>
     typeof (a as Partial<ScanStateCapable>).getScanState === 'function';
 
-// --- Phase 2b read-tool capabilities ---
+// --- an earlier phase read-tool capabilities ---
 
 export type IndexerSummary = {
     service: string;
@@ -101,7 +101,7 @@ export type IndexerSummary = {
     rejectedGrabs?: number;
 };
 
-/** A query an indexer refused, with the reason it gave. §12's "recent rejections". */
+/** A query an indexer refused, with the reason it gave. the "recent rejections". */
 export type IndexerRejection = { indexer: string; at: string; reason: string; query?: string };
 
 export interface IndexerCapable {
@@ -128,7 +128,7 @@ export type SubtitleGap = {
 };
 
 /**
- * §12's "provider state". A subtitle gap says what is missing; this says
+ * the "provider state". A subtitle gap says what is missing; this says
  * whether Bazarr is currently able to do anything about it.
  */
 export type SubtitleProvider = {
@@ -279,7 +279,7 @@ export type SearchHit = {
      *
      * Nothing an *arr's lookup endpoint returns populates this: their search
      * payloads are shaped for *adding* a title, not describing one. It exists
-     * for the IMDb dataset (0.8 §4.1), which fills it for a hit carrying an
+     * for the IMDb dataset (0.8 ), which fills it for a hit carrying an
      * imdb id.
      */
     ratings?: Record<string, number>;
@@ -299,7 +299,7 @@ export interface SearchCapable {
 export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapable =>
     typeof (a as Partial<SearchCapable>).search === 'function';
 
-// --- Phase 4 write capabilities ---
+// --- an earlier phase write capabilities ---
 
 /**
  * What the *arrs hand back when told to do something: a queued command, not a
@@ -459,7 +459,7 @@ export const hasRequestManage = (a: ServiceAdapter): a is ServiceAdapter & Reque
 
 /**
  * A whole-library read, shaped for the identity resolver rather than for a
- * tool. Phase 3 joins three of these into one index; nothing else consumes it.
+ * tool. The resolver joins three of these into one index; nothing else consumes it.
  */
 export interface LibraryCapable {
     listLibrary(): Promise<IndexInput[]>;
@@ -469,7 +469,7 @@ export const hasLibrary = (a: ServiceAdapter): a is ServiceAdapter & LibraryCapa
     typeof (a as Partial<LibraryCapable>).listLibrary === 'function';
 
 /**
- * Separate from LibraryCapable because Jellyfin's half is per-user (§4.3):
+ * Separate from LibraryCapable because Jellyfin's half is per-user:
  * watch state does not exist without a user, and a shared signature would let
  * a caller forget to supply one.
  */
@@ -502,7 +502,7 @@ export async function diagnoseConnection(
     const started = performance.now();
     try {
         const version = await probe();
-        // §14: a connection test distinguishes version-too-old from every other
+        // a connection test distinguishes version-too-old from every other
         // failure. Checked here rather than in each adapter, so no adapter can
         // forget — and after the probe, so an unreachable service reports being
         // unreachable rather than being the wrong version.

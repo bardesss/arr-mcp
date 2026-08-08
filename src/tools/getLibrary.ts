@@ -7,18 +7,18 @@ import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
 
-/** The five §4.1 names a film can carry, plus the one a series can. */
+/** The five names a film can carry, plus the one a series can. */
 export const RATING_SOURCES = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'tvdb'] as const;
 export type RatingSource = (typeof RATING_SOURCES)[number];
 
-/** Films only. `tvdb` is Sonarr's flat value and belongs to series alone (§21.2). */
+/** Films only. `tvdb` is Sonarr's flat value and belongs to series alone. */
 const FILM_SOURCES: readonly RatingSource[] = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes'];
 
 /**
  * What a series can actually carry.
  *
  * `tvdb` is Sonarr's own flat value. `imdb` arrives from the IMDb dataset
- * (0.8 §4.1) and is reachable *only* through it — Sonarr has never reported
+ * (0.8 ) and is reachable *only* through it — Sonarr has never reported
  * one, and `flattenSeriesRating` can only honestly record its single unlabelled
  * number as `tvdb`. So with the dataset off, asking for `imdb` on a series is
  * accepted and simply finds nothing rated, which `ratingCoverage` then states.
@@ -61,7 +61,7 @@ const RATING_SCALE_MAX: Record<RatingSource, number> = {
 const toTenPointScale = (source: RatingSource, value: number): number => (value / RATING_SCALE_MAX[source]) * 10;
 
 /**
- * §4.3. A superlative cannot be answered by a filter: with more items than
+ *  A superlative cannot be answered by a filter: with more items than
  * `limit`, the best-rated may simply not be in the window, and the model then
  * answers confidently from whatever fifty it was handed.
  *
@@ -102,7 +102,7 @@ export type GetLibraryResult = {
 const ratingOf = (item: MergedItem, source: RatingSource): number | undefined => item.ratings?.[source];
 
 /**
- * §5: "whichever source covers the most of the library". Ties break in the
+ * "whichever source covers the most of the library". Ties break in the
  * declared order, so the same library always answers the same way.
  *
  * A series query stays on `tvdb` by default even though the IMDb dataset can
@@ -128,7 +128,7 @@ function bestCoveredSource(items: readonly MergedItem[], kind: LibraryQuery['kin
 }
 
 /**
- * §5.2's two documented limits, enforced rather than left to produce an empty
+ * the two documented limits, enforced rather than left to produce an empty
  * list. A filter that quietly matches nothing is worse than a stated gap: the
  * model reports "you have no such series" and the user believes it.
  *
@@ -272,7 +272,7 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
     }
 
-    // §5.1: coverage is measured over everything the other filters kept, before
+    // coverage is measured over everything the other filters kept, before
     // the rating filter removes anything — that is what makes "184 rated, 66
     // unrated" answer the question the caller actually asked.
     const source = opts.rating_source ?? bestCoveredSource(filtered, opts.kind);

@@ -41,7 +41,7 @@ const MIN_PASSWORD = 12;
 export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; name: string; version: string };
 
 /**
- * The config UI (design spec §6): a dashboard, connection tests that diagnose
+ * The config UI: a dashboard, connection tests that diagnose
  * rather than pass/fail, log streams, the write audit, and configuration
  * editing that applies without a restart.
  *
@@ -164,7 +164,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // Gathered through `buildStackHealth`, the same function `stack_health`
         // answers from, rather than by calling the adapters again here. Two
         // implementations of "is the stack healthy" is how the page and the
-        // tool come to disagree — the same reason §8 keeps one library join.
+        // tool come to disagree — the same reason keeps one library join.
         // It is live, not cached: a dashboard showing cached status is one
         // that tells you a dead service is fine, and it degrades rather than
         // failing when a service is unreachable.

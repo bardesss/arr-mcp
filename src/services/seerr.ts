@@ -50,7 +50,7 @@ type RawRequestPage = { results?: RawRequest[] };
 const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 'declined' };
 
 /**
- * Design spec §21.4, settled 2026-08-06 against Seerr 3.4.1: passing
+ * Design spec, settled 2026-08-06 against Seerr 3.4.1: passing
  * `requestedBy` does filter server-side. Verified against a live 2-user
  * stack where every recorded request happened to belong to one user, which
  * made a naive before/after count comparison uninformative (it would match
@@ -267,8 +267,8 @@ export class SeerrAdapter
 
     /**
      * Seerr's discover is TMDB-backed, so the rating floor is applied by TMDB
-     * rather than by us. Design spec §7 defers rating filters over your *own*
-     * library to the IMDb dataset — that is get_library in Phase 3, not this.
+     * rather than by us. Design spec defers rating filters over your *own*
+     * library to the IMDb dataset — that is get_library earlier, not this.
      */
     async discover(opts: {
         mediaType: 'movie' | 'tv';

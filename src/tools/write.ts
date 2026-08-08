@@ -7,7 +7,7 @@ import { checkPermission, type PermissionSource, type WriteTier } from '../core/
 import type { LibraryLoader } from './library.ts';
 
 /**
- * Design spec §10, assembled once.
+ * Design spec, assembled once.
  *
  * The four properties a write must have — permission tier, `dry_run`, an audit
  * record, per-call confirmation — are not four things each write tool
@@ -76,7 +76,7 @@ export type WriteContext = {
     permissions: PermissionSource;
     confirm: ConfirmTokens;
     audit: WriteAudit;
-    /** Invalidated after a successful write (§16). */
+    /** Invalidated after a successful write. */
     library: LibraryLoader;
 };
 

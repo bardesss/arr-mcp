@@ -13,7 +13,7 @@ export const ServiceIdSchema = z.enum([
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
 /**
- * Permission tiers per the design spec §10. Both default to off: a service
+ * Permission tiers per the Both default to off: a service
  * added by hand-editing YAML must not silently acquire write access.
  */
 const PermissionsSchema = z
@@ -127,12 +127,12 @@ export type Instanced<T> = T & { readonly name?: string | undefined };
 export type BaseServiceConfig = Pick<KeyedServiceConfig, 'url' | 'timeout_ms' | 'permissions'>;
 
 /**
- * Jellyfin and Seerr only (design spec §9) — the two services with their own
+ * Jellyfin and Seerr only — the two services with their own
  * user concepts.
  *
  * `default_user` is optional on purpose: configuring a service purely so it
  * appears in stack_health is legitimate, and guessing an identity is the silent
- * mismatch §14 warns about. A per-user tool called with nothing configured
+ * mismatch warns about. A per-user tool called with nothing configured
  * fails naming this key.
  */
 const MultiUserServiceSchema = z.strictObject({
@@ -195,7 +195,7 @@ const ServicesSchema = z
     .default({});
 
 /**
- * Metadata sources that are not services (0.8 spec §3).
+ * Metadata sources that are not services (0.8 spec ).
  *
  * Separate from `services` because nothing here is reachable, has a URL, or
  * can be tested — an instance card would have nothing to put on it. It also

@@ -48,9 +48,9 @@ export function compareVersions(a: number[], b: number[]): number {
 }
 
 /**
- * Design spec §14 requires connection tests to distinguish version-too-old
+ * Design spec requires connection tests to distinguish version-too-old
  * alongside DNS failure, connection refused and a bad key. This is what finally
- * produces `VersionUnsupported`, which had been in the taxonomy since Phase 1
+ * produces `VersionUnsupported`, which had been in the taxonomy 
  * with nothing able to reach it.
  */
 export function assertVersionSupported(service: ServiceId, raw: string): void {

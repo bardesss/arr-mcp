@@ -3,8 +3,8 @@ import type { Clock } from './cache.ts';
 import type { WriteTier } from './permissions.ts';
 
 /**
- * Design spec §10's per-call confirmation, built to survive the stateless
- * transport of §5.
+ * The per-call confirmation, built to survive the stateless
+ * transport
  *
  * A write tool called without `confirm` performs nothing and hands back a
  * preview plus a token. Calling again with that token performs the write. The

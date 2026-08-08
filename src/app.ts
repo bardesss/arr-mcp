@@ -31,7 +31,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     const { runtime, audit, logs } = opts;
 
     // The factory runs once per request, so every call gets a fresh McpServer.
-    // This is what keeps the transport stateless (design spec §5) — do not
+    // This is what keeps the transport stateless — do not
     // hoist the server out of the closure.
     //
     // `runtime.current` is read here, per request, rather than captured when

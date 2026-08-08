@@ -6,7 +6,7 @@ import type { ImdbDataset } from './imdbDataset.ts';
 import { parseEpisodes, parseRatings, parseTitles } from './ingest.ts';
 
 /**
- * Fetching the dumps, and the daily schedule (0.8 spec §2).
+ * Fetching the dumps, and the daily schedule (0.8 spec ).
  *
  * The only file in `src/metadata/` that touches the network, which is what
  * lets the store and the parser be tested without one.
@@ -14,7 +14,7 @@ import { parseEpisodes, parseRatings, parseTitles } from './ingest.ts';
 
 export const IMDB_BASE_URL = 'https://datasets.imdbws.com';
 
-/** IMDb publishes daily. Spec §3 explains why this is not configurable: there
+/** IMDb publishes daily. Spec explains why this is not configurable: there
  *  is no second sensible value, and a knob with one answer invites a wrong one. */
 export const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 

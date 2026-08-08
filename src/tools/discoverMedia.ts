@@ -52,7 +52,7 @@ export async function buildDiscoverMedia(
         return { items: [], total: 0, returned: 0, truncated: false, degraded: [adapter.id], counts: {} };
     }
 
-    // Enrichment applies whatever the source (§4.1). Seerr's discover is
+    // Enrichment applies whatever the source. Seerr's discover is
     // TMDB-backed, so a hit carrying an imdb id gains an IMDb rating beside
     // the TMDB one it already had — source selection and enrichment are
     // independent decisions.
@@ -70,7 +70,7 @@ export async function buildDiscoverMedia(
 /**
  * Discovery from the local dataset, for a stack with no Seerr.
  *
- * **Seerr wins whenever it is configured** (spec §4.2). It knows what is
+ * **Seerr wins whenever it is configured** (spec ). It knows what is
  * trending, what is requestable and what you have already asked for; the
  * dataset knows a year column. Merging two orderings that mean different
  * things would produce a ranking that means neither.

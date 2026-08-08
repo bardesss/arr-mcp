@@ -7,7 +7,7 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
  * key and can change them. So the password is never stored — only a scrypt
  * hash — and the session cookie is a signed, expiring token rather than an
  * identifier looked up in a table, which keeps the transport as stateless as
- * §5 asks while still expiring properly.
+ *  asks while still expiring properly.
  */
 
 /** scrypt parameters. N=16384 is the Node default and costs ~50ms here, which

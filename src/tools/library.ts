@@ -17,7 +17,7 @@ export type LibrarySnapshot = {
 
 /**
  * One cached library index, shared by get_library, get_media_details and
- * diagnose (§8: duplicating the join is how joins drift apart).
+ * diagnose (duplicating the join is how joins drift apart).
  *
  * The cache lives here rather than in the adapters, so adapters stay directly
  * testable against fixtures and caching policy sits in one reviewable place.
@@ -36,7 +36,7 @@ export class LibraryLoader {
          * The IMDb dataset, when one is configured.
          *
          * Enrichment happens here rather than in each tool for the reason this
-         * class exists at all (§8: duplicating the join is how joins drift
+         * class exists at all (duplicating the join is how joins drift
          * apart). `get_library`, `get_media_details` and `diagnose` all read
          * this one cached snapshot, so they cannot disagree about a rating,
          * and the dataset is queried once per cache TTL rather than once per
@@ -55,7 +55,7 @@ export class LibraryLoader {
     async load(user?: string): Promise<LibrarySnapshot> {
         const resolved = await this.#resolveUser(user);
 
-        // §4.3: the key includes the user id, or one household member's watch
+        // the key includes the user id, or one household member's watch
         // history appears in another's answer — a correctness bug that reads as
         // a privacy one.
         const key = `library:${resolved?.id ?? 'none'}`;
@@ -72,7 +72,7 @@ export class LibraryLoader {
     }
 
     /**
-     * §16's write-invalidation seam, and the reason `TtlCache.invalidate`
+     * the write-invalidation seam, and the reason `TtlCache.invalidate`
      * existed unused until now. Called after a successful write, so the next
      * `get_library` reflects the change rather than up to five minutes of a
      * library that no longer exists.
@@ -94,7 +94,7 @@ export class LibraryLoader {
      * user was named — naming someone must not turn a plain Jellyfin outage
      * into a hard failure of the whole library read; the *arr half is still
      * worth returning. Three distinct meanings, three distinct outcomes
-     * (whole-phase review item 5 — this is the one place all three have to
+     * (a review finding — this is the one place all three have to
      * stay apart):
      *
      * - `AuthFailed` — the named user was refused (`allow_other_users` is
@@ -110,7 +110,7 @@ export class LibraryLoader {
      *   silently swallowed the remedy and reported "jellyfin could not be
      *   reached" forever, indistinguishable from a real, transient outage,
      *   while `stack_health` kept calling Jellyfin healthy. This is also what
-     *   used to make item 1's `unknown`-when-ungathered collapse permanent
+     *   used to make the `unknown`-when-ungathered collapse permanent
      *   rather than transient on such a stack: nothing about the failure ever
      *   changes, so it never stops being ungathered.
      *   Previously this propagated only when `requested !== undefined` (a

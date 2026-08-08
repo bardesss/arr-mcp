@@ -10,7 +10,7 @@ export type Step = { stage: Stage; service?: string; status: StepStatus; detail:
 
 /**
  * `undefined` and `null` mean different things throughout, and the distinction
- * is the whole of §6.1: **undefined is "could not look", null is "looked and
+ * is the whole of **undefined is "could not look", null is "looked and
  * found nothing"**. Collapsing them is how a diagnosis becomes confidently
  * wrong about a service that was down.
  */
@@ -39,7 +39,7 @@ export type Evidence = {
      */
     jellyfinConfigured: boolean;
     /**
-     * Library-read reachability (item 8's `LibraryLoader`/`LibraryIndex`
+     * Library-read reachability (the `LibraryLoader`/`LibraryIndex`
      * build) — kept separate from `degraded`, below, which is *probe*
      * reachability (this module's own scan/indexer/queue/seerr/explicit-id
      * calls). A service can fail one without the other: Jellyfin's
@@ -261,7 +261,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     // A service already named in `degraded` is unreachable even if the
     // collector's per-stage `partial` list did not separately say so (N8).
     // Deliberately `degraded` (probe reachability), not `libraryDegraded`
-    // (item 2 of the whole-phase review): Radarr/Sonarr's *library* read
+    // (a review finding): Radarr/Sonarr's *library* read
     // failing must not make this stage believe their *queue* probe failed
     // too — the two used to share one array, so a Radarr library-read
     // failure alone made this stage report unknown even when every
@@ -331,11 +331,11 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 function indexerStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.prowlarrConfigured) return SKIPPED('indexers', 'No indexer manager is configured.');
     if (ev.degraded.includes('prowlarr')) {
-        // `degraded` is probe reachability (item 2 of the whole-phase
-        // review) — the same array `scanStep`/`queueStep` read, and correctly
+        // `degraded` is probe reachability — the same array
+        // `scanStep`/`queueStep` read, and correctly
         // so here: Prowlarr contributes no library-read half, so there is no
-        // `libraryDegraded` signal for it to consult instead (N8's original
-        // point still holds — a service's own probe failing must count even
+        // `libraryDegraded` signal for it to consult instead — a service's
+        // own probe failing must count even
         // when `rejections` happens to be defined from a stale read).
         return { stage: 'indexers', service: 'prowlarr', status: 'unknown', detail: 'Prowlarr could not be reached.' };
     }
@@ -356,11 +356,11 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
 function libraryStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.jellyfinConfigured) return SKIPPED('library', 'Jellyfin is not configured.');
     if (ev.libraryDegraded.includes('jellyfin')) {
-        // Never "it is not in Jellyfin" when Jellyfin was not asked (§6.1).
-        // Reads `libraryDegraded`, not `degraded` (item 2 of the whole-phase
-        // review): a failed scan probe belongs to `degraded` and must not
+        // Never "it is not in Jellyfin" when Jellyfin was not asked.
+        // Reads `libraryDegraded`, not `degraded`: a failed scan probe
+        // belongs to `degraded` and must not
         // land here — this stage is about the library *read*, and item.presence
-        // alone is not enough of a guard (item 1's `unknown` looks the same
+        // alone is not enough of a guard (`unknown` looks the same
         // as "no evidence at all" to the check below, but `hasFile` is still
         // real *arr data this module must not reinterpret as a Jellyfin gap).
         return { stage: 'library', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its library was not checked.' };
@@ -382,8 +382,8 @@ function libraryStep(ev: Evidence, item: MergedItem): Step {
 function scanStep(ev: Evidence): Step {
     if (!ev.jellyfinConfigured) return SKIPPED('scan', 'Jellyfin is not configured.');
     if (ev.degraded.includes('jellyfin')) {
-        // `degraded` here is specifically the `getScanState` probe (item 2 of
-        // the whole-phase review) — deliberately *not* `libraryDegraded`,
+        // `degraded` here is specifically the `getScanState` probe —
+        // deliberately *not* `libraryDegraded`,
         // which `libraryStep` reads instead. The two used to share one array,
         // so a failed scan probe silently erased a library read that
         // succeeded; they are independent endpoints and are allowed to
@@ -444,7 +444,7 @@ function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepSt
  * is worth a mention, just not the verdict.
  *
  * The wording changes on `fileIsOk`, rather than being suppressed by it
- * (whole-phase review, item 3's second symptom). A `request`/`managed`
+ * (a review finding's second symptom). A `request`/`managed`
  * verdict with genuinely no file yet (`monitored: false` *and*
  * `hasFile: false`) and a faulted queue row used to go silent about that
  * fault entirely — "…is not monitored." with a "turn monitoring on" remedy
@@ -464,7 +464,7 @@ const queueAside = (queueResult: QueueResult, fileIsOk: boolean): string => {
 
 /**
  * The known one-line hedge (ledgered at Task 5, applied here at the
- * whole-phase review): evidence genuinely cannot distinguish "an ended
+ * a review finding: evidence genuinely cannot distinguish "an ended
  * series, deliberately left unmonitored" or "a stale declined request" from
  * "an ongoing series, accidentally unmonitored" — there is no correctness fix
  * for that, only this disclosure. It fires only for `request`/`managed`
@@ -481,7 +481,7 @@ const SERIES_FILE_VISIBLE_HEDGE =
  * The top-level `Diagnosis.degraded` a caller sees, and the input to the
  * `resolve` verdict's own certainty below, are both "everything this
  * diagnosis could not fully check" — the union of probe reachability and
- * library-read reachability (item 2 of the whole-phase review keeps those
+ * library-read reachability (a review finding keeps those
  * two arrays separate for the *per-stage* checks above, which each care
  * about only one; nothing downstream of this point needs that distinction).
  */

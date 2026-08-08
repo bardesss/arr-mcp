@@ -295,7 +295,7 @@ if (addService) {
 // Every other part of this page is server-rendered through an escaping
 // template, and that is sound. This one is different in kind: log lines carry
 // release names straight from public indexers, which are the most
-// attacker-controllable strings in the whole system (design spec §11). Setting
+// attacker-controllable strings in the whole system. Setting
 // innerHTML here would make one escaping mistake, anywhere in the server-side
 // rendering path, an XSS. Building nodes and assigning textContent makes that
 // impossible rather than merely unlikely.

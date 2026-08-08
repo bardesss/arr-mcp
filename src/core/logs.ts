@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { ServiceId } from '../config/schema.ts';
 
 /**
- * The SQLite ring buffer `logger.ts` has been pointing at since Phase 1, and
+ * The SQLite ring buffer `logger.ts` has been pointing at, and
  * the store behind the config UI's log streams.
  *
  * A ring buffer, not an audit trail — the opposite of `audit.ts`, and kept in

@@ -5,12 +5,12 @@ import { ServiceError } from './errors.ts';
 type IdentityConfig = Pick<MultiUserServiceConfig, 'default_user' | 'allow_other_users'>;
 
 /**
- * Design spec §9. Two of the eight services have their own user concepts, and
+ * Two of the eight services have their own user concepts, and
  * both issue admin-scoped keys — so one key plus a user parameter can query as
  * anybody. `allow_other_users` exists to make that deliberate rather than
  * incidental.
  *
- * The gate runs before any network call and reads configuration only: §11.4
+ * The gate runs before any network call and reads configuration only
  * requires that no value a service returns can widen what the model may do.
  */
 export class IdentityResolver {
@@ -70,7 +70,7 @@ export class IdentityResolver {
 
     /**
      * Users change rarely, so the directory is fetched once per process
-     * (design spec §16 makes the cache in-memory and restart-clearing). A
+     * ( makes the cache in-memory and restart-clearing). A
      * failed fetch is deliberately not cached: a service restarting during the
      * first call would otherwise poison every later one until arr-mcp itself
      * restarts.

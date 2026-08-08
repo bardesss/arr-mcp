@@ -89,7 +89,7 @@ type RawItemDetail = {
 
 /**
  * Jellyfin stores external ids as **strings** while Radarr and Sonarr use
- * numbers. Phase 3's identity resolver joins on tmdbId and tvdbId, so a string
+ * numbers. The identity resolver joins on tmdbId and tvdbId, so a string
  * here would silently fail every join — convert at the boundary.
  */
 const numericId = (value: string | undefined): number | undefined => {
@@ -126,7 +126,7 @@ export class JellyfinAdapter
     /**
      * Jellyfin identifies users by GUID while config names them by username, so
      * every per-user call resolves through this list. Typing a username by hand
-     * is a guaranteed source of silent mismatches (design spec §14), which is
+     * is a guaranteed source of silent mismatches, which is
      * why the resolver reports the available names on a miss.
      */
     async listUsers(): Promise<ServiceUser[]> {
@@ -276,7 +276,7 @@ export class JellyfinAdapter
 
     /**
      * Jellyfin is the only service that knows what has actually been *watched*,
-     * which is the gap design spec §12 says upstream never closed.
+     * which is the gap says upstream never closed.
      */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'library') return [];
@@ -284,7 +284,7 @@ export class JellyfinAdapter
         // `Fields=ProviderIds` is not optional decoration: Jellyfin omits
         // ProviderIds from search results entirely without it, confirmed
         // against a live 10.11.11. Every hit came back with no external ids at
-        // all — which is precisely what Phase 3's resolver joins on.
+        // all — which is precisely what the resolver joins on.
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
             `/Items?searchTerm=${encodeURIComponent(query)}&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds`
         );
@@ -311,9 +311,9 @@ export class JellyfinAdapter
     }
 
     /**
-     * Per-user by construction (§4.3). `EnableUserData` is what makes `Played`
+     * Per-user by construction. `EnableUserData` is what makes `Played`
      * come back at all, and `Fields=ProviderIds` is what makes the join
-     * possible — the same parameter whose absence made every Phase 2 search hit
+     * possible — the same parameter whose absence once made every search hit
      * arrive with no external ids.
      */
     async listUserLibrary(user: ServiceUser): Promise<IndexInput[]> {

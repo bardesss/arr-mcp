@@ -46,10 +46,10 @@ export type StackHealthResult = {
 export type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
 
 /**
- * minimal  — is anything broken? A verdict per service, and counts only.
+ * minimal — is anything broken? A verdict per service, and counts only.
  * standard — everything except disk paths, the longest strings in the response
  *            and rarely what the question was about.
- * full     — everything, paths included.
+ * full — everything, paths included.
  */
 function project(result: StackHealthResult, detail: DetailLevel): StackHealthResult {
     if (detail === 'full') return result;
@@ -87,7 +87,7 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
 
 /**
  * Composes per-service diagnoses into one answer. This tool must work
- * *especially* well when something is broken (design spec §15) — a service
+ * *especially* well when something is broken — a service
  * that is down contributes a diagnosis and a `degraded` entry, never an
  * exception.
  */

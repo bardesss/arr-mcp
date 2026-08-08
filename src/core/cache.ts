@@ -1,5 +1,5 @@
 /**
- * Design spec §16, with one deviation recorded in the Phase 3 design §3: this
+ * This cache is
  * is a TTL map, **not an LRU**.
  *
  * Eviction solves unbounded key growth, and the key space here is about a dozen
@@ -9,7 +9,7 @@
  */
 export type Clock = () => number;
 
-/** §16: library reads ~5 min, health ~30 s. */
+/** library reads ~5 min, health ~30 s. */
 export const LIBRARY_TTL_MS = 300_000;
 export const HEALTH_TTL_MS = 30_000;
 
@@ -59,7 +59,7 @@ export class TtlCache {
         } catch (err) {
             // Never cache a failure. A service restarting during the first call
             // would otherwise poison every later call until arr-mcp restarts —
-            // the same lesson the identity directory taught in Phase 2.
+            // the same lesson the identity directory taught earlier.
             //
             // Guarded on identity: a later successful load may already have
             // replaced this entry, and dropping that would be a second bug.
@@ -69,8 +69,8 @@ export class TtlCache {
     }
 
     /**
-     * The seam for write-invalidation (§16). Still nothing in production code
-     * calls it as of Phase 3b (only `test/cache.test.ts` exercises it
+     * The seam for write-invalidation. Still nothing in production code
+     * calls it (only `test/cache.test.ts` exercises it
      * directly): `LibraryLoader` needed "do not cache a degraded load," but
      * implemented it via `get`'s `shouldCache` predicate instead of a
      * follow-up call here, specifically to reuse the identity check that

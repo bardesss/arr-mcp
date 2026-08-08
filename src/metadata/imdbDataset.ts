@@ -3,7 +3,7 @@ import type { Database as Db } from 'better-sqlite3';
 import { join } from 'node:path';
 
 /**
- * The IMDb dataset (0.8 spec §2), as a third SQLite database beside
+ * The IMDb dataset (0.8 spec ), as a third SQLite database beside
  * `audit.db` and `logs.db`.
  *
  * Its own file, and its own module, for the reason those two are separate

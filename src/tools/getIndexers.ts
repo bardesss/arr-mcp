@@ -10,7 +10,7 @@ export type GetIndexersResult = {
     returned: number;
     truncated: boolean;
     degraded: string[];
-    /** §12's "recent rejections". Present only at detail: full. */
+    /** the "recent rejections". Present only at detail: full. */
     recentRejections?: IndexerRejection[];
 };
 

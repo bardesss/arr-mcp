@@ -1,10 +1,10 @@
 
 /**
- * Design spec §11: everything a service returns is untrusted data, never
+ * everything a service returns is untrusted data, never
  * instruction. Prowlarr returns release names from public indexers — those
  * strings are attacker-controllable and flow straight into model context.
  *
- * This is mitigations 2 and 3 of the five in §11. It does not make injection
+ * This is two of the five mitigations It does not make injection
  * impossible; it makes injected text visibly *data*, and removes the
  * characters that let a string render as something other than what it is.
  */

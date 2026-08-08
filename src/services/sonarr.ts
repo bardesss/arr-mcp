@@ -77,7 +77,7 @@ type RawCommand = components['schemas']['CommandResource'];
 
 /**
  * The task that rescans the series library, confirmed against a live Sonarr
- * 4.0.19 during the Phase 2a capture run.
+ * 4.0.19 during a live capture.
  *
  * Matched exactly, never by pattern — for the same reason as Radarr's
  * `RefreshMovie`. A live instance runs eleven tasks, and
@@ -340,7 +340,7 @@ export class SonarrAdapter
                 monitored: s.monitored ?? false,
                 // A series has no single file, so "has a file" means "has any
                 // episode on disk". No quality either: it is per-episode, which
-                // is why §5.2 makes the quality filter films-only.
+                // is why this makes the quality filter films-only.
                 hasFile: (s.statistics?.episodeFileCount ?? 0) > 0,
                 ...(s.added === undefined || s.added === null ? {} : { addedAt: s.added }),
                 ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk })

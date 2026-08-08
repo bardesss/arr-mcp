@@ -17,7 +17,7 @@ import {
 } from './types.ts';
 
 /**
- * Hand-written: Bazarr publishes no OpenAPI document (design spec §21.1), so
+ * Hand-written: Bazarr publishes no OpenAPI document, so
  * these shapes come from recorded fixtures and the contract test checks them
  * against those fixtures rather than against a spec.
  *
@@ -145,7 +145,7 @@ export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, Subtit
     }
 
     /**
-     * §12's "provider state". Bazarr reports a healthy provider as `status:
+     * the "provider state". Bazarr reports a healthy provider as `status:
      * "Good"` and an unhealthy one with the provider's own error text, so
      * `healthy` is derived here rather than making every caller know that
      * string. The status text is provider-supplied and therefore fenced.

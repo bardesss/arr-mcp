@@ -3,7 +3,7 @@ import type { AnyServiceConfig } from '../config/schema.ts';
 import { ServiceError } from './errors.ts';
 
 /**
- * Design spec §10's two tiers, as an **ordered** pair rather than two
+ * The two tiers, as an **ordered** pair rather than two
  * independent switches.
  *
  * `safe` is a mutation the service itself can undo: monitor a movie, trigger a
@@ -109,7 +109,7 @@ export function checkPermission(source: PermissionSource, service: string, tier:
 }
 
 /**
- * The live-write form of the same check. Throws the §15-shaped error, so a
+ * The live-write form of the same check. Throws the standard degraded-service error, so a
  * refusal reaches the model as a sentence naming the exact YAML key to change
  * rather than as a bare "forbidden" it would then have to guess about.
  */

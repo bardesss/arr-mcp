@@ -5,7 +5,7 @@ import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 
 /**
- * The three resources (0.9 spec §2).
+ * The three resources (0.9 spec ).
  *
  * **Every one mirrors a tool.** That is the rule the whole phase rests on:
  * client support for resources is uneven, and arr-mcp has to work on all of

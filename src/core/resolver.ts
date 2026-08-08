@@ -3,11 +3,11 @@ import { RANK_NONE, rankTitle, unfenced } from './titleMatch.ts';
 export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string };
 
 /**
- * Named sources rather than a loose map: §8 lists exactly these, and a
+ * Named sources rather than a loose map: these are the only ones there are, and a
  * `Record<string, number>` accepts a source name that does not exist.
  *
  * A film populates some subset of the first five. A series populates `tvdb`
- * and nothing else — §21.2 established that Sonarr's rating is one flat value,
+ * and nothing else — Sonarr's rating is one flat value,
  * unrelated to Radarr's per-source map. The two never mix.
  */
 export type MergedRatings = {
@@ -24,9 +24,9 @@ export type MergedItem = {
     title: string;
     year?: number;
     /**
-     * Absent from §4.1's record and required by §5: `genre` is a `get_library`
+     * Absent from the record and required because `genre` is a `get_library`
      * filter, and no other field in the merged shape could answer one.
-     * Recorded here as a correction to the design rather than bolted on in 3b.
+     * Recorded here as a correction to the design rather than bolted on later.
      */
     genres?: string[];
     ids: ExternalIds;
@@ -54,11 +54,11 @@ export type MergedItem = {
     playback?: { user: string; watched: boolean; playCount?: number; lastPlayed?: string };
     ratings?: MergedRatings;
     /**
-     * §8's diagnostic payload. `arr_only` **with a file** means a broken
+     * the diagnostic payload. `arr_only` **with a file** means a broken
      * Jellyfin import — but only when Jellyfin actually answered: `arr_only`
      * is what an *arr-managed item looks like whether Jellyfin found nothing
      * *or was never asked at all*, and asserting the former across the latter
-     * is exactly the collapse the whole-phase review found (§8's central
+     * is exactly the collapse a review found (the central
      * constraint: "empty is looked and found nothing; undefined is could not
      * look" applied one layer too shallow). `jellyfin_only` means media
      * nothing is managing. Neither is visible from any single service.
@@ -126,7 +126,7 @@ function mergeInto(target: MergedItem, input: IndexInput): void {
 }
 
 /**
- * §8's shared join. Records merge when **any** strong id matches, which is what
+ * the shared join. Records merge when **any** strong id matches, which is what
  * handles Radarr knowing only `tmdbId` while Jellyfin knows only `Imdb`.
  *
  * Records sharing no id stay separate. That is correct rather than lossy:

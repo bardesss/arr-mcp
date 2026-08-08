@@ -20,7 +20,7 @@ export const LimitSchema = z
     .describe(`Maximum items to return. Defaults to ${DEFAULT_LIMIT}, hard maximum ${MAX_LIMIT}.`);
 
 /**
- * The truncation contract from design spec §12. Silent truncation is how a
+ * The truncation contract from Silent truncation is how a
  * model confidently reports that a 900-film library contains 50 films, so
  * every read tool routes its list through here and serialises all four fields.
  *
