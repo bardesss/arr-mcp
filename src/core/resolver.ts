@@ -70,18 +70,15 @@ export type IndexInput = Omit<MergedItem, 'presence'>;
 
 export type BuildOptions = {
     /**
-     * Whether Jellyfin's half of *this* build was actually gathered —
-     * configured *and* read without error. Defaults to `true`, so a caller
-     * that does not pass it keeps `build`'s original behaviour (every
-     * existing call site but one).
+     * Whether Jellyfin's half of *this* build was gathered — configured *and*
+     * read without error. Defaults to `true`, so existing call sites are
+     * unchanged.
      *
-     * `LibraryIndex` has no way to tell "Jellyfin looked and this item is
-     * genuinely absent" from "Jellyfin was never asked" on its own: both
-     * arrive here as an `IndexInput` with `acquisition` set and `playback`
-     * unset — the join is symmetric, and an unset field carries no reason.
-     * `LibraryLoader` is the one caller that knows which case it is (it owns
-     * the fetch that did or did not happen), and passes it in rather than
-     * `LibraryIndex` guessing.
+     * `LibraryIndex` cannot tell "Jellyfin looked and this is genuinely absent"
+     * from "Jellyfin was never asked": both arrive with `acquisition` set and
+     * `playback` unset, and an unset field carries no reason. `LibraryLoader`
+     * owns the fetch, so it knows which — and passes it in rather than letting
+     * the index guess.
      */
     jellyfinGathered?: boolean;
 };

@@ -3,10 +3,7 @@ import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { assertVersionSupported } from './versions.ts';
 
-/**
- * A diagnosis, not a boolean. A connection test that
- * returns true/false tells the user nothing about what to fix.
- */
+/** A diagnosis, not a boolean: true/false tells nobody what to fix. */
 export type ConnectionDiagnosis = {
     ok: boolean;
     service: string;
@@ -16,11 +13,8 @@ export type ConnectionDiagnosis = {
 };
 
 export interface ServiceAdapter {
-    /**
-     * `radarr` for a single instance, `radarr/4k` for a named one. This is the
-     * identity everything human-facing uses — audit rows, log filters, error
-     * messages, merged read output.
-     */
+    /** `radarr`, or `radarr/4k` when named. The identity everything
+     *  human-facing uses: audit rows, log filters, errors, merged output. */
     readonly id: string;
     /**
      * What kind of service this is. **Capability dispatch keys on this, never
@@ -34,11 +28,9 @@ export interface ServiceAdapter {
     getVersion(): Promise<string>;
 }
 
-/**
- * `service` is carried on every row because stack_health merges rows from up
- * to eight services into one list. A failing health check that does not say
- * who reported it is not actionable.
- */
+/** `service` is on every row because stack_health merges up to eight services
+ *  into one list, and a failure that does not say who reported it is not
+ *  actionable. */
 export type DiskSpace = {
     service: string;
     /** Optional: omitted below `detail: full`, where paths are the longest
@@ -84,7 +76,7 @@ export const hasHealthChecks = (a: ServiceAdapter): a is ServiceAdapter & Health
 export const hasScanState = (a: ServiceAdapter): a is ServiceAdapter & ScanStateCapable =>
     typeof (a as Partial<ScanStateCapable>).getScanState === 'function';
 
-// --- an earlier phase read-tool capabilities ---
+// --- read-tool capabilities ---
 
 export type IndexerSummary = {
     service: string;
@@ -273,9 +265,8 @@ export type SearchHit = {
     year?: number;
     ids: { tmdb?: number; tvdb?: number; imdb?: string };
     /**
-     * Ratings by source, on each source's native scale — the same shape and
-     * the same convention as `MediaDetails.ratings`, which this is the
-     * not-yet-owned counterpart to.
+     * Ratings by source, on each source's native scale — same shape as
+     * `MediaDetails.ratings`, which this is the not-yet-owned counterpart to.
      *
      * Nothing an *arr's lookup endpoint returns populates this: their search
      * payloads are shaped for *adding* a title, not describing one. It exists
@@ -299,7 +290,7 @@ export interface SearchCapable {
 export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapable =>
     typeof (a as Partial<SearchCapable>).search === 'function';
 
-// --- an earlier phase write capabilities ---
+// --- write capabilities ---
 
 /**
  * What the *arrs hand back when told to do something: a queued command, not a

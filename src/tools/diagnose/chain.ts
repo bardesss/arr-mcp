@@ -18,12 +18,10 @@ export type Evidence = {
     item: MergedItem | undefined;
     request: { status: RequestStatus | 'unknown' } | null | undefined;
     /**
-     * A multi-service stage: `items` is whatever the collector actually read
-     * (from however many of Radarr/Sonarr/SABnzbd/Transmission answered),
-     * `partial` names the ones that didn't. A single unreachable client used
-     * to erase the whole stage to `undefined`, discarding rows another
-     * client *did* return — including the stalled row that was the actual
-     * cause. `undefined` still means every configured client failed.
+     * `items` is what the collector actually read, `partial` names the clients
+     * that did not answer. One unreachable client used to erase the whole stage,
+     * discarding rows another client did return — including the stalled row that
+     * was the cause. `undefined` still means every client failed.
      */
     queue: { items: QueueItem[]; partial: string[] } | undefined;
     /** Analogue of `jellyfinConfigured`, below: no download client at all, not merely unreachable. */
@@ -39,16 +37,11 @@ export type Evidence = {
      */
     jellyfinConfigured: boolean;
     /**
-     * Library-read reachability (the `LibraryLoader`/`LibraryIndex`
-     * build) — kept separate from `degraded`, below, which is *probe*
-     * reachability (this module's own scan/indexer/queue/seerr/explicit-id
-     * calls). A service can fail one without the other: Jellyfin's
-     * `getScanState` failing must not erase a library read that succeeded
-     * (`libraryStep` would otherwise discard the flagship `library` verdict
-     * over an unrelated endpoint), and a Radarr *library* read failing must
-     * not make `queueStep` believe every configured queue is unknown when
-     * they all answered in full. Only `libraryStep` reads this array; every
-     * other step reads `degraded`.
+     * Library-read reachability, separate from `degraded` below, which is
+     * *probe* reachability. A service can fail one without the other: a failing
+     * Jellyfin `getScanState` must not erase a library read that succeeded, and
+     * a failing Radarr library read must not make `queueStep` call every queue
+     * unknown. Only `libraryStep` reads this; every other step reads `degraded`.
      */
     libraryDegraded: readonly string[];
     degraded: readonly string[];

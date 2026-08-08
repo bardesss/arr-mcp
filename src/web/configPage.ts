@@ -5,30 +5,20 @@ import { html, raw, type SafeHtml } from './html.ts';
 import { layout } from './pages.ts';
 
 /**
- * The configuration page: one card per configured instance, and nothing else.
+ * One card per configured instance, and nothing else. Three rules shape it.
  *
- * Three rules shape it.
+ * **A secret is never rendered back.** Credentials render as empty fields
+ * meaning "unchanged", so a saved page or a screenshot cannot carry them. Blank
+ * therefore never means "clear this" — removing the instance does.
  *
- * **A secret is never rendered back.** API keys, the Transmission password and
- * the UI password all render as empty fields meaning "unchanged", so a saved
- * page, a screenshot or a browser's autofill history cannot carry them. An empty
- * credential field therefore can never mean "clear this"; removing the instance
- * is how you clear it, which is unambiguous.
+ * **Each card is its own form**, so a save touches exactly the instance it came
+ * from rather than rewriting every other service on screen.
  *
- * **Each card is its own form.** The page used to render all eight services
- * inside one form and rebuild every service from `svc.<id>.<field>` prefixes on
- * every save. With instances that prefix would have to carry `radarr/4k`. A form
- * per card means bare field names, and a save that touches exactly the instance
- * it came from rather than rewriting seven others that happened to be on screen.
- *
- * **Nothing here is `type="password"`.** That one attribute is what makes a
- * browser, and every password-manager extension, read a card as a login form:
- * a text input for the username, a password input below it. They then filled
- * the URL with a saved username and the key with a saved password on every
- * single load, so editing a timeout meant re-pasting both. `autocomplete="off"`
- * does not stop it — it is ignored for exactly these fields, deliberately. So
- * the secrets are masked in CSS instead (`IGNORE`, and `.secret` in
- * `assets.ts`), which leaves nothing for the heuristics to find.
+ * **Nothing here is `type="password"`.** That attribute is what makes browsers
+ * and password managers read a card as a login form and fill the URL and key on
+ * every load, so editing a timeout meant re-pasting both. `autocomplete="off"`
+ * is ignored for those fields deliberately, so the secrets are masked in CSS
+ * instead, leaving nothing for the heuristics to find.
  */
 
 export const SERVICE_IDS = ServiceIdSchema.options;
@@ -57,11 +47,10 @@ type AnyService = {
 /**
  * Every way of saying "do not fill this in" that anything actually reads.
  *
- * `autocomplete="off"` is first because it is the standard one, and last
- * because on its own it does nothing here: Chrome and every major extension
- * ignore it for fields they have decided are credentials. The rest are each
- * vendor's own opt-out, which they do honour. Dashlane reads `data-form-type`
- * off the form rather than the input, so that one is on the `<form>` tags.
+ * `autocomplete="off"` is the standard one and does nothing on its own — Chrome
+ * and every major extension ignore it for fields they consider credentials. The
+ * rest are per-vendor opt-outs, which they do honour. Dashlane reads
+ * `data-form-type` off the form, so that one is on the `<form>` tags.
  */
 const IGNORE = raw(
     'autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore'

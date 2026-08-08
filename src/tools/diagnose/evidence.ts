@@ -52,25 +52,21 @@ async function resolveItem(
     // propagates out of diagnose rather than becoming a degraded stage — this
     // call is deliberately not wrapped in `probe`.
     const snapshot = await deps.library.load(target.user);
-    // Library-read reachability, not probe reachability — kept in its own
-    // array rather than folded into `degraded`. A Jellyfin `getScanState`
-    // probe failing below must not make
-    // `libraryStep` believe the *library read* failed too, and a Radarr
-    // *library* read failing here must not make `queueStep` believe Radarr's
-    // *queue* probe failed — each stage now reads only the reachability
-    // signal that actually applies to it.
+    // Library-read reachability, in its own array rather than folded into
+    // `degraded`. A Jellyfin scan probe failing must not make `libraryStep`
+    // believe the *library read* failed, nor a Radarr library read make
+    // `queueStep` believe Radarr's *queue* probe failed. Each stage reads only
+    // the signal that applies to it.
     for (const id of snapshot.degraded) if (!libraryDegraded.includes(id)) libraryDegraded.push(id);
 
     // The explicit id wins: it is unambiguous and a title is not.
     if (target.service !== undefined && target.id !== undefined) {
         const adapter = deps.adapters.find(a => a.id === target.service);
-        // A `ServiceId` the schema accepts but that does not implement
-        // getMediaDetails (e.g. sabnzbd) is a configuration mistake, not a
-        // hole to degrade across — silently returning `undefined` here would
-        // make the caller's own named service read as "the item does not
-        // exist" (`certain: true`), which is worse than either a stale
-        // download-client outage or a real absence. Same error, same remedy,
-        // as get_media_details.
+        // A service the schema accepts but that has no getMediaDetails
+        // (sabnzbd, say) is a configuration mistake, not a hole to degrade
+        // across. Returning `undefined` would make the caller's own named
+        // service read as "this does not exist" with `certain: true`. Same
+        // error and remedy as get_media_details.
         if (adapter === undefined || !hasMediaDetails(adapter)) {
             throw new ServiceError('NotFound', target.service, `${target.service} is not configured`, {
                 remedy: `Add services.${target.service} to config.yaml, or name a configured service.`

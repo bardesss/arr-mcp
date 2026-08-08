@@ -41,13 +41,12 @@ type RawTask = {
 };
 
 /**
- * The task Jellyfin runs to scan libraries, confirmed against a live 10.11.11.
+ * The library-scan task, confirmed against a live 10.11.11.
  *
- * Keyed on `Key`, never on `Name`, for two independent reasons. A live server
- * exposes eight library-ish keys including `LanguageTagsSetsRefreshLibraryTask`
- * and `TraktSyncLibraryTask`, so a pattern would match the wrong one — and
- * `Name` is **localised to the server language**. The instance this was
- * captured from returns "Mediabibliotheek scannen".
+ * Keyed on `Key`, never `Name`, for two reasons: a server exposes eight
+ * library-ish keys including `TraktSyncLibraryTask`, so a pattern matches the
+ * wrong one — and `Name` is localised, returning "Mediabibliotheek scannen" on
+ * the instance this came from.
  */
 const LIBRARY_SCAN_KEY = 'RefreshLibrary';
 
@@ -125,9 +124,9 @@ export class JellyfinAdapter
 
     /**
      * Jellyfin identifies users by GUID while config names them by username, so
-     * every per-user call resolves through this list. Typing a username by hand
-     * is a guaranteed source of silent mismatches, which is
-     * why the resolver reports the available names on a miss.
+     * every per-user call resolves through this list — and the resolver reports
+     * the available names on a miss, because a hand-typed username is a
+     * guaranteed source of silent mismatches.
      */
     async listUsers(): Promise<ServiceUser[]> {
         const users = await this.#http.get<RawUser[]>('/Users');

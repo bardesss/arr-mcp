@@ -50,30 +50,24 @@ type RawRequestPage = { results?: RawRequest[] };
 const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 'declined' };
 
 /**
- * Design spec, settled 2026-08-06 against Seerr 3.4.1: passing
- * `requestedBy` does filter server-side. Verified against a live 2-user
- * stack where every recorded request happened to belong to one user, which
- * made a naive before/after count comparison uninformative (it would match
- * whether or not the server filtered). The decisive probe instead filtered
- * by the *other* user — one with zero requests — and got back zero rows
- * rather than the full unfiltered set, which only happens if the server
- * parsed and applied `requestedBy`.
+ * `requestedBy` does filter server-side, settled against a live Seerr 3.4.1.
+ * The decisive probe filtered by a user with *zero* requests and got zero rows
+ * back rather than the full set — a before/after count would have matched
+ * either way on the stack it was tested against.
  *
- * The in-memory filter still runs unconditionally — it costs nothing at
- * household volumes, and it means this constant can never silently widen
- * what one user sees of another's requests.
+ * The in-memory filter still runs unconditionally: it costs nothing at
+ * household volumes, and it means this constant can never silently widen what
+ * one user sees of another's requests.
  */
 const SEERR_FILTERS_SERVER_SIDE = true;
 
 /**
  * A release year, or nothing.
  *
- * `Number(''.slice(0, 4))` is **0**, not NaN, so a `Number.isFinite` guard
- * happily lets it through — which is how a live preview came out reading
- * "The Origin of Hide and Seek (0)". Seerr returns an empty `releaseDate` for
- * anything TMDB has no date for, which on a real instance is common. Requiring
- * four leading digits and a plausible value is what makes the absent case
- * absent rather than zero.
+ * `Number(''.slice(0, 4))` is **0**, not NaN, so a `Number.isFinite` guard lets
+ * it through — which is how a live preview read "The Origin of Hide and Seek
+ * (0)". Seerr returns an empty `releaseDate` whenever TMDB has no date, which is
+ * common. Four leading digits and a plausible value keep absent absent.
  */
 const yearOf = (date: string | undefined): number | undefined => {
     if (date === undefined || !/^\d{4}/.test(date)) return undefined;

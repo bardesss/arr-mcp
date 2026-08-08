@@ -69,13 +69,12 @@ dialog { display: block; position: static; max-width: none; width: auto; margin:
 }
 
 /**
- * Shown until someone claims the instance — a fresh install has no password at
- * all, so there is nothing a login form could accept.
+ * Shown until someone claims the instance: a fresh install has no password, so
+ * there is nothing a login form could accept. No `nav`, since there is nowhere
+ * to go and no session to sign out of.
  *
- * No `nav`: there is nowhere else to go yet, and a sign-out button on a page
- * with no session is nonsense. The warning is not decoration — between the
- * container starting and this form being submitted, the instance belongs to
- * whoever reaches it first.
+ * The warning is not decoration — until this form is submitted, the instance
+ * belongs to whoever reaches it first.
  */
 export function setupPage(opts: { version: string; error?: string | undefined }): string {
     const body = html`<div class="login">
@@ -150,11 +149,10 @@ export type DiskGroup = { freeSpace: number; totalSpace?: number | undefined; se
 /**
  * How far apart two reports of one filesystem may be and still be one disk.
  *
- * Measured, not guessed: SABnzbd's two-decimal gigabytes put the same 4.6 TB
- * filesystem 4.8 MB — 0.0001% — away from the byte count Radarr reports for it.
- * This is a thousand times that, and still three orders of magnitude below the
- * gap between any two disks a real stack holds (a 228 GB root against a 10.8 TB
- * array differ by 5000%).
+ * Measured: SABnzbd's two-decimal gigabytes put the same 4.6 TB filesystem
+ * 4.8 MB — 0.0001% — from the byte count Radarr gives. This is a thousand times
+ * that, and three orders of magnitude below the gap between any two real
+ * disks.
  *
  * Relative rather than absolute because the quantisation error scales with the
  * number being reported, and an absolute figure that suited a 10 TB array would

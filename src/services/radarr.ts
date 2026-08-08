@@ -239,10 +239,9 @@ export class RadarrAdapter
     }
 
     /**
-     * The first write in the codebase, and the only one an earlier phase ships at the
-     * `safe` tier: it asks Radarr to look for releases for a film it already
-     * tracks. Nothing is deleted, nothing is added, and the worst outcome is a
-     * grab the user did not want — which the queue tools can then undo.
+     * Safe tier: it asks Radarr to look for releases for a film it already
+     * tracks. Nothing is deleted or added, and the worst outcome is an unwanted
+     * grab, which the queue tools can undo.
      *
      * The id is coerced to a number rather than interpolated: `movieIds` is a
      * JSON array of integers, and a string there is silently accepted by Radarr
