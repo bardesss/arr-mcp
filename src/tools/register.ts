@@ -2,6 +2,7 @@ import { listInstances } from '../config/instances.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { Config } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
+import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { ConfirmTokens } from '../core/confirm.ts';
 import { IdentityResolver } from '../core/identity.ts';
 import { permissionSourceFrom } from '../core/permissions.ts';
@@ -57,7 +58,10 @@ export function buildToolContext(
     adapters: readonly ServiceAdapter[],
     config: Config,
     audit: WriteAudit,
-    confirm: ConfirmTokens
+    confirm: ConfirmTokens,
+    /** The IMDb dataset, when configured. Reaches the tools only through the
+     *  library loader, which is the one place the join happens. */
+    dataset?: ImdbDataset | undefined
 ): ToolContext {
     const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
@@ -67,7 +71,7 @@ export function buildToolContext(
             ? new IdentityResolver(jellyfin, config.services.jellyfin)
             : undefined;
 
-    const library = new LibraryLoader(adapters, jellyfinIdentity);
+    const library = new LibraryLoader(adapters, jellyfinIdentity, undefined, dataset);
 
     return {
         adapters,

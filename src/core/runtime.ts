@@ -81,8 +81,10 @@ export class Runtime {
         this.#audit = audit;
         this.confirm = new ConfirmTokens();
         this.sessions = new Sessions();
-        this.#snapshot = buildSnapshot(config, audit, this.confirm);
+        // Before the snapshot, not after: the tool context closes over the
+        // dataset, so it has to exist by the time it is built.
         this.#syncDataset(config);
+        this.#snapshot = buildSnapshot(config, audit, this.confirm, this.#dataset);
     }
 
     /**
@@ -138,7 +140,7 @@ export class Runtime {
             runtime.#snapshot = {
                 config,
                 adapters: opts.adapters,
-                tools: buildToolContext(opts.adapters, config, audit, runtime.confirm)
+                tools: buildToolContext(opts.adapters, config, audit, runtime.confirm, runtime.dataset)
             };
         }
         return runtime;
@@ -167,14 +169,19 @@ export class Runtime {
      */
     async reload(): Promise<void> {
         const { config } = await loadConfig(this.#configDir);
-        this.#snapshot = buildSnapshot(config, this.#audit, this.confirm);
         this.#syncDataset(config);
+        this.#snapshot = buildSnapshot(config, this.#audit, this.confirm, this.#dataset);
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');
     }
 
 }
 
-function buildSnapshot(config: Config, audit: WriteAudit, confirm: ConfirmTokens): RuntimeSnapshot {
+function buildSnapshot(
+    config: Config,
+    audit: WriteAudit,
+    confirm: ConfirmTokens,
+    dataset: ImdbDataset | undefined
+): RuntimeSnapshot {
     const adapters = buildAdapters(config);
-    return { config, adapters, tools: buildToolContext(adapters, config, audit, confirm) };
+    return { config, adapters, tools: buildToolContext(adapters, config, audit, confirm, dataset) };
 }

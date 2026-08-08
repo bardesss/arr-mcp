@@ -272,6 +272,17 @@ export type SearchHit = {
     title: string;
     year?: number;
     ids: { tmdb?: number; tvdb?: number; imdb?: string };
+    /**
+     * Ratings by source, on each source's native scale — the same shape and
+     * the same convention as `MediaDetails.ratings`, which this is the
+     * not-yet-owned counterpart to.
+     *
+     * Nothing an *arr's lookup endpoint returns populates this: their search
+     * payloads are shaped for *adding* a title, not describing one. It exists
+     * for the IMDb dataset (0.8 §4.1), which fills it for a hit carrying an
+     * imdb id.
+     */
+    ratings?: Record<string, number>;
     hasFile?: boolean;
     monitored?: boolean;
     indexer?: string;
