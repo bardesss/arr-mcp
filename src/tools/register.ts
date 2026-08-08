@@ -28,6 +28,7 @@ import { registerDeleteRequest, registerRespondToRequest } from './manageRequest
 import { registerRemoveQueueItem } from './removeQueueItem.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerStackHealth } from './stackHealth.ts';
+import { registerTriggerScan } from './triggerScan.ts';
 import { registerTriggerSearch } from './triggerSearch.ts';
 import type { WriteContext } from './write.ts';
 
@@ -143,6 +144,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     // trigger_search — it refuses, naming the key to set, which is a far better
     // answer than a tool the model was told about and cannot find.
     registerTriggerSearch(server, write, adapters);
+    registerTriggerScan(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
     registerRespondToRequest(server, write, adapters);
@@ -150,7 +152,13 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerAddMedia(server, write, adapters);
 }
 
-/** The tool surface, frozen. §18: renaming one breaks users' saved prompts. */
+/**
+ * The tool surface, frozen at 1.0.
+ *
+ * Renaming or removing any of these breaks every user's saved prompts
+ * *silently* — the model stops finding the tool rather than raising an error —
+ * so from 1.0 onward it takes a major version. Adding one is a minor.
+ */
 export const TOOL_NAMES = [
     'diagnose',
     'stack_health',
@@ -166,6 +174,7 @@ export const TOOL_NAMES = [
     'lookup_media',
     'discover_media',
     'trigger_search',
+    'trigger_scan',
     'remove_queue_item',
     'delete_media',
     'respond_to_request',

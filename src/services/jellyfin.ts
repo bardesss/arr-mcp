@@ -18,7 +18,8 @@ import {
     type ServiceAdapter,
     type ServiceUser,
     type UserDirectoryCapable,
-    type UserLibraryCapable
+    type UserLibraryCapable,
+    type CommandHandle
 } from './types.ts';
 
 /**
@@ -30,6 +31,9 @@ import {
 type RawSystemInfo = { Version?: string; ServerName?: string; Id?: string };
 type RawUser = { Id?: string; Name?: string };
 type RawTask = {
+    /** Per-install GUID. Only `startLibraryScan` needs it; `getScanState`
+     *  matches on `Key`, which is stable across installs. */
+    Id?: string;
     Key?: string;
     Name?: string;
     State?: string;
@@ -130,6 +134,36 @@ export class JellyfinAdapter
         return users
             .filter((u): u is { Id: string; Name: string } => typeof u.Id === 'string' && typeof u.Name === 'string')
             .map(u => ({ id: u.Id, name: u.Name }));
+    }
+
+    /**
+     * Start the library scan — this adapter's only write.
+     *
+     * The task id is looked up rather than hard-coded, by the same
+     * `Key === LIBRARY_SCAN_KEY` match `getScanState` uses: Jellyfin's ids are
+     * per-install GUIDs, and the localised task *name* is no good either (a
+     * Dutch install returns "Mediabibliotheek scannen"). Matching on the key
+     * once, in one place, is what stops the two disagreeing about which task
+     * this is.
+     *
+     * Jellyfin answers this with 204 and no body, so there is no command id to
+     * report back — unlike the *arrs, which return one. The handle says so
+     * rather than inventing a number that would look like something you could
+     * poll.
+     */
+    async startLibraryScan(): Promise<CommandHandle> {
+        const tasks = await this.#http.get<RawTask[]>('/ScheduledTasks');
+        const scan = tasks.find(t => t.Key === LIBRARY_SCAN_KEY);
+
+        if (scan?.Id === undefined) {
+            throw new ServiceError('NotFound', this.id, 'Jellyfin did not report a library scan task', {
+                remedy: 'The task is called RefreshLibrary. If this Jellyfin has it disabled, start the scan from its dashboard instead.'
+            });
+        }
+
+        await this.#http.post(`/ScheduledTasks/Running/${encodeURIComponent(scan.Id)}`, undefined);
+
+        return { service: this.id, commandId: 0, name: LIBRARY_SCAN_KEY, status: 'started' };
     }
 
     async getScanState(): Promise<ScanState> {

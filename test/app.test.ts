@@ -185,7 +185,7 @@ describe('the advertised tool surface', () => {
      * tool rather than raising an error. This asserts the exact set, so any
      * change to it has to be deliberate enough to edit a test.
      */
-    it('exposes exactly the thirteen tools of the frozen surface', async () => {
+    it('exposes exactly the frozen surface, no more and no fewer', async () => {
         expect((await listTools()).map(t => t.name).sort()).toEqual([...TOOL_NAMES].sort());
     });
 
@@ -324,12 +324,19 @@ describe('prompts and resources, beside the tools rather than instead of them', 
      * degrades past roughly forty, and a phase that quietly spent four of that
      * budget on convenience would be the wrong trade.
      */
-    it('still advertises exactly nineteen tools', async () => {
+    /**
+     * The count is asserted against TOOL_NAMES rather than a literal, because a
+     * literal in a test is a second place the number lives and the two drift.
+     * `CONTRIBUTING.md` caps this near forty — accuracy degrades past it — so
+     * the guard that matters is the ceiling, not the exact figure.
+     */
+    it('advertises exactly the frozen tool list, well inside the ceiling', async () => {
         const res = await app().request(
             'http://localhost:6060/mcp',
             rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
         );
         const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
-        expect(result.tools).toHaveLength(19);
+        expect(result.tools).toHaveLength(TOOL_NAMES.length);
+        expect(TOOL_NAMES.length).toBeLessThan(40);
     });
 });

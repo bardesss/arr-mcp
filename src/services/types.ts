@@ -318,6 +318,22 @@ export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & Searc
     typeof (a as Partial<SearchTriggerCapable>).triggerSearch === 'function';
 
 /**
+ * Starting the library scan whose staleness `getScanState` reports.
+ *
+ * The two go together deliberately: `diagnose` names a stale scan as the usual
+ * reason something downloaded is still not playable, and until 1.0 nothing
+ * could act on that — its best answer ended "now go and do it yourself". The
+ * services that can be asked are exactly the three that can be read.
+ */
+export interface LibraryScanCapable {
+    /** Queues a rescan and returns; it does not wait for the scan to finish. */
+    startLibraryScan(): Promise<CommandHandle>;
+}
+
+export const hasLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & LibraryScanCapable =>
+    typeof (a as Partial<LibraryScanCapable>).startLibraryScan === 'function';
+
+/**
  * Both flags default to the *least* destructive reading at every layer — the
  * tool schema, the adapter signature and the service call — so a caller that
  * forgets one deletes less than they asked for rather than more.

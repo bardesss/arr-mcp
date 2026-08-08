@@ -149,6 +149,21 @@ export class RadarrAdapter
             }));
     }
 
+    /**
+     * Queues the same command `getScanState` reads the last run of, so what
+     * this starts and what that reports can never drift apart.
+     */
+    async startLibraryScan(): Promise<CommandHandle> {
+        const command = await this.#http.post<RawCommand>('/api/v3/command', { name: 'RefreshMovie' });
+
+        return {
+            service: this.id,
+            commandId: command.id ?? 0,
+            name: command.name ?? 'RefreshMovie',
+            ...(typeof command.status === 'string' ? { status: command.status } : {})
+        };
+    }
+
     async getScanState(): Promise<ScanState> {
         const tasks = await this.#http.get<RawTask[]>('/api/v3/system/task');
         const scan = tasks.find(t => t.taskName === LIBRARY_SCAN_TASK);
