@@ -68,13 +68,6 @@ export type RawTitle = {
 
 export type RawRating = { tconst: string; average: number; votes: number };
 
-export type RawEpisode = {
-    tconst: string;
-    parent: string;
-    season?: number | undefined;
-    episode?: number | undefined;
-};
-
 export type DatasetTitle = {
     tconst: string;
     title: string;

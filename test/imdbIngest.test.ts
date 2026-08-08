@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
-import { parseEpisodes, parseRatings, parseTitles } from '../src/metadata/ingest.ts';
+import { parseRatings, parseTitles } from '../src/metadata/ingest.ts';
 
 /**
  * Parsing IMDb's dumps, against hand-written fixtures in the real format —
@@ -65,10 +65,6 @@ describe('parsing the dumps', () => {
         });
     });
 
-    it('reads an episode with no season or number as absent', () => {
-        const loose = [...parseEpisodes(lines('title.episode.tsv'))].find(e => e.tconst === 'tt2301451');
-        expect(loose).toEqual({ tconst: 'tt2301451', parent: 'tt0903747' });
-    });
 
     it('yields nothing for a file that is only a header', () => {
         expect([...parseTitles(['tconst\ttitleType\tprimaryTitle'])]).toEqual([]);
