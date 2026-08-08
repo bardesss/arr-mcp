@@ -178,6 +178,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 configured: snapshot.adapters.map(a => a.id),
                 bearerToken: snapshot.config.auth.bearer_token,
                 mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
+                ...(runtime.dataset === undefined ? {} : { imdb: runtime.dataset.status() }),
                 disks: health.disks.items,
                 failures: health.failures.items,
                 scans: health.scans,
@@ -566,6 +567,11 @@ export function addCandidateFrom(
  * from one form any more.
  */
 export function buildAuthConfig(current: Config, form: Record<string, unknown>): Config {
+    // The dataset toggle rides along with the access form because it is the
+    // only other thing on the page that is not an instance card. Off is
+    // expressed by dropping the block entirely rather than by `enabled: false`,
+    // so a config nobody touched stays exactly as clean as it started.
+    const imdb = on(form['metadata.imdb']);
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
     const hosts = str(form['auth.allowed_hosts'])
@@ -592,6 +598,7 @@ export function buildAuthConfig(current: Config, form: Record<string, unknown>):
             password_hash: carriedHash,
             allowed_hosts: hosts
         },
-        services: current.services
+        services: current.services,
+        ...(imdb ? { metadata: { imdb: { enabled: true } } } : {})
     };
 }

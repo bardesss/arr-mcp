@@ -49,6 +49,15 @@ export async function saveConfig(configDir: string, next: Config): Promise<void>
     // then reject on the next start.
     doc.setIn(['services'], value.services);
 
+    // Deleted when absent rather than written as null, for the same reason as
+    // `password_hash` above: the schema is strict, and `metadata: null` would
+    // fail to parse on the next start — turning a save into an instance that
+    // will not boot. Until 0.8 this key was preserved only because nothing
+    // here touched it, which held right up until the config page could switch
+    // the dataset on.
+    if (value.metadata === undefined) doc.deleteIn(['metadata']);
+    else doc.setIn(['metadata'], value.metadata);
+
     const tmp = `${path}.tmp`;
     // 0o600 on the temp file too — it holds the same secrets for the moment it
     // exists, and a default-umask temp file is a readable one.

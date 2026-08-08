@@ -444,6 +444,23 @@ export function configPage(opts: {
             </fieldset>
 
             <fieldset>
+                <legend>IMDb dataset</legend>
+                ${checkbox(
+                    'metadata.imdb',
+                    'metadata.imdb',
+                    'Download IMDb’s daily dataset for ratings',
+                    opts.config.metadata?.imdb?.enabled ?? false
+                )}
+                <p class="note">
+                    Gives every film <em>and</em> series an IMDb rating — including series, which no service
+                    here can report one for. Costs a daily download and some disk on this machine; nothing is
+                    sent anywhere, and there is no account or key. Switching it on starts the first ingest in
+                    the background, which takes a while: everything keeps working meanwhile, and the dashboard
+                    says when it has finished.
+                </p>
+            </fieldset>
+
+            <fieldset>
                 <legend>MCP endpoint</legend>
                 ${checkbox('auth.rotate_token', 'auth.rotate_token', 'Generate a new bearer token', false)}
                 <p class="note">
