@@ -46,17 +46,13 @@ const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape 
 export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
 
 /**
- * Which services may appear more than once.
+ * Which services may appear more than once. Quality tiers are the reason anyone
+ * runs two — an HD and a 4K Radarr, their Sonarrs, and a Bazarr per stack
+ * because Bazarr connects to exactly one of each.
  *
- * Quality tiers are the reason anyone runs two of something: an HD and a 4K
- * Radarr, the matching Sonarrs, and a Bazarr per stack because Bazarr connects
- * to exactly one Radarr and one Sonarr.
- *
- * The other five are deliberately single. Prowlarr feeds every *arr from one
- * place and Seerr connects to your instances itself, so a second one is not a
- * tier — and more to the point, `register.ts` selects those with a `.find`.
- * Admitting a shape the code then degrades on is worse than refusing it, so the
- * schema refuses it.
+ * The other five are deliberately single: a second Prowlarr or Seerr is not a
+ * tier, and `register.ts` selects those with a `.find`. Admitting a shape the
+ * code then degrades on is worse than refusing it.
  */
 export const MULTI_INSTANCE: readonly ServiceId[] = ['bazarr', 'radarr', 'sonarr'];
 
@@ -195,19 +191,13 @@ const ServicesSchema = z
     .default({});
 
 /**
- * Metadata sources that are not services (0.8 spec ).
+ * Metadata sources that are not services: nothing here is reachable, has a URL
+ * or can be tested, and none of it is a credential.
  *
- * Separate from `services` because nothing here is reachable, has a URL, or
- * can be tested — an instance card would have nothing to put on it. It also
- * holds no credential, so the no-echo rule that shapes the rest of the config
- * page does not reach it.
- *
- * `.strict()` on both levels, and the reason is the same in each. The setting
- * a user is most likely to invent is a refresh interval, and IMDb publishes
- * daily — there is no second answer to choose between. A knob whose only
- * sensible value is the default exists to be got wrong, and quietly ignoring
- * one that was set is worse than refusing it: the user believes it took
- * effect.
+ * `.strict()` at both levels because the setting a user is most likely to
+ * invent is a refresh interval, and IMDb publishes daily — there is no second
+ * answer. Quietly ignoring one that was set is worse than refusing it, since
+ * the user believes it took effect.
  */
 export const MetadataSchema = z
     .object({
@@ -230,14 +220,13 @@ export const ConfigSchema = z.object({
         /**
          * scrypt hash of the UI password, `scrypt$salt$hash`.
          *
-         * Optional, unlike `bearer_token`, and the difference is the whole
-         * design: absent means **unclaimed**, and the config UI serves its
-         * setup page instead of a login form until someone chooses a password
-         * in the browser. A bearer token has no interactive path, so a missing
-         * one must be generated; a password does, so one is never invented.
+         * Optional, unlike `bearer_token`, and that difference is the design:
+         * absent means **unclaimed**, so the config UI serves its setup page
+         * until someone chooses a password in the browser. A bearer token has
+         * no interactive path and must be generated; a password does, so one is
+         * never invented.
          *
-         * Deleting this line is how you ask for a new password, and it puts
-         * the instance on exactly the path a fresh install takes. The password
+         * Deleting this line is how you ask for a new password. The password
          * itself is never stored and never logged.
          */
         password_hash: z.string().min(1).optional(),

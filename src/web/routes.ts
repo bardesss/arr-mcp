@@ -230,15 +230,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // --- configuration --------------------------------------------------
 
     /**
-     * Who each user-aware service says its users are, for the default-user
-     * field to suggest.
+     * Who each user-aware service says its users are, to suggest in the
+     * default-user field.
      *
-     * Capped well below any service's own timeout on purpose. This is the page
-     * you open *because* something is unreachable, and a Jellyfin that is down
-     * must cost a moment, not the ten seconds its own client would wait. A
-     * service that misses the cap is simply absent from the result, which the
-     * card renders as a plain text field saying so — never as an empty dropdown
-     * that reads like "this service has no users".
+     * Capped well below the services' own timeouts: this is the page you open
+     * *because* something is unreachable, so a dead Jellyfin must cost a
+     * moment, not ten seconds. A service that misses the cap is absent from the
+     * result and the card says so — never an empty dropdown, which reads as
+     * "this service has no users".
      */
     const USER_LOOKUP_MS = 2500;
 
@@ -381,25 +380,18 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     );
 
     /**
-     * Test one instance — against the fields as they stand, not as they are
-     * saved.
+     * Test one instance against the fields as they stand, not as they are
+     * saved — replacing "save it and see if the dashboard goes green", which
+     * writes a URL you already suspect is wrong and answers on another page.
+     * The candidate is built exactly as a save would build it and thrown away.
      *
-     * "Save it and see if the dashboard goes green" is the loop this replaces,
-     * and it is a bad one: it writes a URL you already suspect is wrong, and it
-     * answers on a different page. So the candidate config is built exactly as
-     * a save would build it, validated, and thrown away — nothing reaches disk,
-     * and a blank credential still means *unchanged*, so testing a card you
-     * have not touched tests what is already configured.
+     * The add dialog posts here too, with no `instance`. That candidate comes
+     * from `addInstance`, the same call Add makes, so a passing test is one Add
+     * will accept — and it inherits Add's validation, so an unnamed second
+     * radarr answers "name it" rather than a latency.
      *
-     * The add dialog posts here too, with no `instance` — there is not one yet.
-     * That candidate is built by `addInstance`, the same call Add itself makes,
-     * so a test that passes is a test that Add will accept. It inherits Add's
-     * validation along with it: testing a second radarr before naming it
-     * answers "name the new radarr instance" rather than a latency, which is
-     * the thing you needed to hear either way.
-     *
-     * Not a `configMutation`, despite the shape: that helper's whole contract
-     * is that it ends in `saveConfig`.
+     * Not a `configMutation`, despite the shape: that helper ends in
+     * `saveConfig`.
      */
     app.post('/ui/config/test', async c => {
         const session = guard(c);
@@ -474,15 +466,12 @@ function sessionOf(c: Context, runtime: Runtime): string | undefined {
 }
 
 /**
- * Resolves which of the three streams was asked for, and what that means as a
- * query.
+ * Which of the three streams was asked for, as a query.
  *
- * The service filter is parsed through `ServiceIdSchema`, so an unknown value
- * becomes "no filter" rather than reaching the store — the ids are a closed
- * set, and validating against it costs nothing.
- *
- * The "by service" stream with no service chosen defaults to the first that
- * has actually logged, so the tab is never a blank page with a dropdown.
+ * The service filter goes through `ServiceIdSchema`, so an unknown value
+ * becomes "no filter" rather than reaching the store. "By service" with none
+ * chosen defaults to the first that has actually logged, so the tab is never a
+ * blank page with a dropdown.
  */
 function logQuery(
     c: Context,
@@ -506,15 +495,12 @@ function logQuery(
 }
 
 /**
- * The instance fields a card's form carries.
+ * The instance fields a card's form carries, under bare names — each card is
+ * its own form, and an id containing a `/` has no sensible prefix anyway.
  *
- * Bare names, because each card is its own form — there is no `svc.<id>.`
- * prefix to parse any more, and with instance ids containing a `/` there is no
- * sensible prefix to invent.
- *
- * A blank credential means "unchanged", never "clear": the page never renders a
- * secret back, so blank is what an untouched field always looks like. Clearing
- * is expressed by removing the instance, which is unambiguous and confirmed.
+ * A blank credential means "unchanged", never "clear". The page never renders a
+ * secret back, so blank is what an untouched field always looks like; clearing
+ * is expressed by removing the instance, which is confirmed.
  */
 export function instanceFieldsFrom(form: Record<string, unknown>): InstanceFields {
     const timeout = Number(str(form.timeout_ms));

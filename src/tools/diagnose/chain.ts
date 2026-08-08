@@ -92,25 +92,19 @@ const titleWords = (item: MergedItem): string[] => {
 };
 
 /**
- * Whether a release name (a queue row's title, a rejection's query) plausibly
- * refers to `item`.
+ * Whether a release name plausibly refers to `item`. Three failure modes it
+ * guards against, each of which has happened:
  *
- * Three failure modes this specifically guards against:
- * - **Substring matching.** "Alien" is a substring of "Aliens", and "Dune" of
- *   "Dune.Part.Two" — different films. Matching whole, tokenised words closes
- *   the first; a differing year in the haystack closes the second (title
- *   match without a contradicting year is still allowed — an ambiguous
- *   release name is more useful reported than silently dropped).
- * - **A length filter that starves short titles.** "Up", "Se7en" and "Top
- *   Gun" have no word over three characters; a filter that drops short words
- *   (the original approach) leaves nothing to match *anything*. All words
- *   count, however short.
- * - **Punctuation deletion vs. punctuation splitting (N3, a round-1
- *   regression).** `normaliseTitle` *deletes* intra-word punctuation
- *   ("Spider-Man" → "spiderman"), while a release name is naturally *split*
- *   on the same characters ("Spider.Man.2002" → "spider", "man", "2002").
- *   Deleting on one side and splitting on the other means neither ever
- *   produces the same tokens: `tokenize` splits both sides identically.
+ * - **Substring matching.** "Alien" is inside "Aliens", "Dune" inside
+ *   "Dune.Part.Two". Whole tokenised words close the first; a contradicting
+ *   year closes the second.
+ * - **A length filter starves short titles.** "Up", "Se7en" and "Top Gun" have
+ *   no word over three characters, so dropping short words left nothing to
+ *   match. Every word counts, however short.
+ * - **Deleting punctuation on one side, splitting on the other.**
+ *   `normaliseTitle` deletes it ("Spider-Man" → "spiderman") while a release
+ *   name splits on it ("Spider.Man.2002" → spider, man, 2002), so neither ever
+ *   produced the same tokens. `tokenize` splits both sides identically.
  */
 const mentions = (haystack: string, item: MergedItem): boolean => {
     const words = titleWords(item);
@@ -172,21 +166,16 @@ function requestStep(ev: Evidence): Step {
 }
 
 /**
- * Explicit, not a regex over free text: `/stall|fail|error|paused/i` reads
- * `completed` — a download waiting on Radarr/Sonarr to import it, which *is*
- * the broken import this phase exists to surface — as "still downloading",
- * because the word "complete" contains none of those substrings. It misreads
- * `downloadClientUnavailable`, and Radarr/Sonarr's own `warning`/`delay`, the
- * same way. Status vocabulary is collected from what the adapters actually
- * emit: Radarr/Sonarr's queue (`queued`, `paused`, `downloading`, `completed`,
- * `failed`, `warning`, `delay`, `downloadClientUnavailable`), Transmission's
- * RPC spec, and SABnzbd's slot status, all lowercased before matching here.
+ * An explicit set, not a regex over free text. `/stall|fail|error|paused/i`
+ * reads `completed` — a download waiting to be imported, which is exactly the
+ * broken import this tool exists to surface — as "still downloading", because
+ * "complete" contains none of those substrings. It misreads
+ * `downloadClientUnavailable` and `warning`/`delay` the same way.
  *
- * `seeding` / `queued to seed` (Transmission) mean the torrent itself
- * finished — the file is fully on disk, same as Radarr/Sonarr's `completed`
- * — so they classify as import-pending, not active (N5). `propagating`
- * (SABnzbd, the file is being finalised/verified post-download — healthy)
- * stays active (N6).
+ * The vocabulary is what the adapters actually emit, lowercased. `seeding` and
+ * `queued to seed` mean the file is fully on disk, so they are import-pending
+ * rather than active; `propagating` is SABnzbd finalising a healthy download,
+ * so it stays active.
  */
 const QUEUE_ACTIVE = new Set([
     'downloading',
@@ -207,18 +196,13 @@ const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'queued to seed'])
 type QueueClass = 'active' | 'importPending' | 'fault' | 'indeterminate';
 
 /**
- * Anything not explicitly recognised as active or import-pending is a fault
- * — that includes real faults like `failed`/`paused`/`stalled`/`warning`,
- * and anything this module has never seen before — silence is not evidence
- * of health.
+ * Anything not recognised as active or import-pending is a fault, including
+ * statuses this module has never seen: silence is not evidence of health.
  *
- * One exception (N6, by I5's own reasoning): the literal string `"unknown"`
- * is not a status a download client actually reports — it is *this repo's
- * own adapters'* fallback (`SabnzbdAdapter`'s `s.status ?? 'unknown'`,
- * `TransmissionAdapter`'s `TORRENT_STATUS[...] ?? 'unknown'`) for a status
- * code they could not map. That is the service answering with something
- * this module cannot classify — `indeterminate`, not a fault, exactly as an
- * indeterminate Seerr request status is `unknown`, not silently `ok` (I5).
+ * One exception. The literal `"unknown"` is not something a download client
+ * reports — it is our own adapters' fallback for a status code they could not
+ * map. That is the service saying something unclassifiable, so it is
+ * `indeterminate` rather than a fault.
  */
 function classifyQueueStatus(item: QueueItem): QueueClass {
     if (item.errorMessage !== undefined) return 'fault';
@@ -409,19 +393,14 @@ const REMEDIES: Partial<Record<Stage, string>> = {
 };
 
 /**
- * `file`'s remedy used to assert "no indexer reported a failure" and "nothing
- * is downloading" unconditionally — a claim about Prowlarr or a download
- * client even when the stack runs neither, *or* when it runs both but
- * neither answered (N2: the summary's own caveat says "Could not check:
- * queue, prowlarr" right next to a remedy asserting they were checked).
+ * The remedy must not claim a service was checked when it was not. It once
+ * asserted "no indexer reported a failure" unconditionally — printed directly
+ * beneath the summary's own "Could not check: queue, prowlarr".
  *
- * `StepStatus: 'skipped'` alone cannot tell "not configured" apart from
- * "configured, reachable, and genuinely found nothing" — `queueStep`/
- * `indexerStep` return the same status for both, with only their `detail`
- * text differing. So the *configured* flags decide "not configured", and
- * `status === 'unknown'` (only reachable when configured) decides
- * "unreachable"; only when neither applies does a service get credit for
- * having actually been checked.
+ * `'skipped'` alone cannot tell "not configured" from "checked and found
+ * nothing", since both steps return it for either. So the *configured* flags
+ * decide "not configured" and `'unknown'` decides "unreachable"; a service
+ * gets credit for being checked only when neither applies.
  */
 function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepStatus): string {
     const uncheckable: string[] = [];
@@ -437,11 +416,9 @@ function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepSt
 }
 
 /**
- * A queue row can be genuinely blocked (a fault, or a completed-but-unimported
- * download) while `file` is still `ok` — an upgrade grab failing, say. C1
- * correctly stops that from outranking a green chain, but going silent about
- * a real, active failure is over-correction in the other direction (N7): it
- * is worth a mention, just not the verdict.
+ * A queue row can be genuinely blocked while `file` is still `ok` — a failing
+ * upgrade grab, say. That must not outrank a green chain, but going silent
+ * about a real failure over-corrects: it is worth a mention, not the verdict.
  *
  * The wording changes on `fileIsOk`, rather than being suppressed by it
  * (a review finding's second symptom). A `request`/`managed`
@@ -463,16 +440,13 @@ const queueAside = (queueResult: QueueResult, fileIsOk: boolean): string => {
 };
 
 /**
- * The known one-line hedge (ledgered at Task 5, applied here at the
- * a review finding: evidence genuinely cannot distinguish "an ended
- * series, deliberately left unmonitored" or "a stale declined request" from
- * "an ongoing series, accidentally unmonitored" — there is no correctness fix
- * for that, only this disclosure. It fires only for `request`/`managed`
- * verdicts on a series with a confirmed file already visible in Jellyfin:
- * `excludeRequestManaged` already keeps a movie in this situation out of
- * `request`/`managed` entirely (residual C1), so a movie can never reach this
- * sentence, and "episodes you do not have yet" is always literally accurate
- * here.
+ * A disclosure, not a fix. Evidence genuinely cannot tell "an ended series
+ * deliberately left unmonitored" from "an ongoing one accidentally
+ * unmonitored", so this says so rather than guessing.
+ *
+ * Only for `request`/`managed` verdicts on a series with a file already
+ * visible in Jellyfin — a movie in that position is excluded upstream, so
+ * "episodes you do not have yet" is always literally true here.
  */
 const SERIES_FILE_VISIBLE_HEDGE =
     ' (A file is already on disk and visible in Jellyfin — this may only affect episodes you do not have yet.)';

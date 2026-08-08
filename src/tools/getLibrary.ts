@@ -15,32 +15,24 @@ export type RatingSource = (typeof RATING_SOURCES)[number];
 const FILM_SOURCES: readonly RatingSource[] = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes'];
 
 /**
- * What a series can actually carry.
+ * What a series can carry. `tvdb` is Sonarr's own flat value; `imdb` comes
+ * only from the IMDb dataset, since Sonarr never reports one.
  *
- * `tvdb` is Sonarr's own flat value. `imdb` arrives from the IMDb dataset
- * (0.8 ) and is reachable *only* through it — Sonarr has never reported
- * one, and `flattenSeriesRating` can only honestly record its single unlabelled
- * number as `tvdb`. So with the dataset off, asking for `imdb` on a series is
- * accepted and simply finds nothing rated, which `ratingCoverage` then states.
- * That is the right shape: "your dataset has not been built yet" is a different
- * answer from "this filter is impossible", and only the second deserves a
- * refusal.
+ * With the dataset off, asking for `imdb` is accepted and finds nothing rated,
+ * which `ratingCoverage` states. "Not built yet" is a different answer from
+ * "impossible", and only the second deserves a refusal.
  */
 const SERIES_SOURCES: readonly RatingSource[] = ['tvdb', 'imdb'];
 
 /**
- * The scale each source's raw value arrives on. `min_rating` is documented as
- * 0–10 for every source, but Radarr/Sonarr pass Metacritic and Rotten Tomatoes
- * through on their own site's native 0–100 scale, and nothing upstream of
- * this filter rescales them — `flattenRatings`/`toMergedRatings`
- * (`src/services/arrRatings.ts`) store exactly what the *arr reported.
+ * The native scale each source arrives on. `min_rating` is documented as 0–10,
+ * but Metacritic and Rotten Tomatoes come through on 0–100 and nothing
+ * upstream rescales them.
  *
- * Comparing a raw 64 or 82 against an 0–10 `min_rating` threshold makes
- * "rated at all" read as "rated 8+" for those two sources: measured against a
- * real library, an 8+ filter matched 136 of 136 metacritic-rated films and
- * 121 of 121 rottenTomatoes-rated ones. The next source to add here needs to
- * see this decision, which is why it is a named table rather than a `/ 10` at
- * the comparison site below.
+ * Comparing a raw 64 against an 0–10 threshold makes "rated at all" read as
+ * "rated 8+": measured on a real library, an 8+ filter matched 136 of 136
+ * metacritic-rated films. A named table rather than a `/ 10` at the comparison
+ * site, so the next source added has to see this.
  */
 const RATING_SCALE_MAX: Record<RatingSource, number> = {
     imdb: 10,
@@ -160,18 +152,16 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
 }
 
 /**
- * Ordering, applied **before** `applyLimit` — ordering after truncation is the
- * same bug wearing a parameter.
+ * Applied **before** `applyLimit` — ordering after truncation is the same bug
+ * wearing a parameter.
  *
- * A rating sort assumes unrated items have already been removed by the caller,
- * which is what `needsRating` below guarantees. They are excluded rather than
- * ranked as zero: sorted to the bottom, an item nobody has rated is
- * indistinguishable from one rated 0.4, and `ratingCoverage.unrated` is what
- * states how many were set aside.
+ * A rating sort relies on `needsRating` below having already removed unrated
+ * items. Excluded rather than ranked zero: at the bottom of a list, an item
+ * nobody rated is indistinguishable from one rated 0.4, and
+ * `ratingCoverage.unrated` states how many were set aside.
  *
- * `localeCompare` rather than `<`, so "Ålesund" sorts where a reader expects
- * rather than after "Zulu", and `unfenced` because a title reaching here still
- * carries its untrusted-value fence.
+ * `localeCompare` so "Ålesund" sorts where a reader expects, and `unfenced`
+ * because a title here still carries its untrusted-value fence.
  */
 function applySort(items: readonly MergedItem[], sort: SortField, source: RatingSource): MergedItem[] {
     const sorted = [...items];

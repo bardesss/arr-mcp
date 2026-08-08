@@ -7,20 +7,16 @@ import { checkPermission, type PermissionSource, type WriteTier } from '../core/
 import type { LibraryLoader } from './library.ts';
 
 /**
- * Design spec, assembled once.
+ * The four properties every write must have — permission tier, `dry_run`, an
+ * audit record, per-call confirmation — are this function, not four things each
+ * tool remembers. A tool supplies only what is specific to it: `plan`, which
+ * describes an effect without touching anything, and `apply`, reached only once
+ * all four gates pass.
  *
- * The four properties a write must have — permission tier, `dry_run`, an audit
- * record, per-call confirmation — are not four things each write tool
- * remembers to do. They are this function, and a write tool supplies only the
- * two halves that are actually specific to it: `plan`, which resolves
- * arguments into a concrete described effect without touching anything, and
- * `apply`, which is reached only once all four gates have passed.
- *
- * That split is the design. A tool physically cannot mutate during the preview
- * phase, because the preview phase only ever calls `plan` — the mutating code
- * is in a callback the harness declines to invoke. Reviewing a new write tool
- * therefore means reading its `plan`/`apply` pair, not auditing whether it
- * remembered to check permissions.
+ * That split is the design. A tool physically cannot mutate during preview,
+ * because preview only calls `plan` — the mutating code sits in a callback the
+ * harness declines to invoke. So reviewing a write tool means reading its
+ * `plan`/`apply` pair, not auditing whether it checked permissions.
  */
 
 /** What `plan` resolved the request into: a concrete target and a description

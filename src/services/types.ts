@@ -439,17 +439,15 @@ export interface RequestManageCapable {
     respondToRequest(id: string, verdict: RequestVerdict): Promise<MediaRequest>;
     deleteRequest(id: string): Promise<void>;
     /**
-     * Resolves a human title for a request.
+     * A human title for a request.
      *
-     * Needed because Seerr's `/api/v1/request` payload carries **no title at
-     * all** — its `media` object is ids and service metadata only, confirmed
-     * against a live Seerr 3.4.1 and against the recorded fixture. So
-     * `MediaRequest.title` is undefined for every real request, and a write
-     * preview built from it alone says "request 19", which is not something
-     * anyone can meaningfully approve.
+     * Seerr's `/api/v1/request` payload carries **no title at all** — ids and
+     * service metadata only, confirmed against a live 3.4.1. So a preview built
+     * from the request alone says "request 19", which nobody can meaningfully
+     * approve.
      *
-     * Resolves undefined rather than throwing: a title lookup that fails must
-     * not block a user from deleting a request.
+     * Resolves undefined rather than throwing: a failed title lookup must not
+     * block someone deleting a request.
      */
     describeRequestMedia(request: MediaRequest): Promise<{ title: string; year?: number } | undefined>;
 }
