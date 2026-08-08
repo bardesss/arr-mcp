@@ -1116,3 +1116,68 @@ describe('logs and audit', () => {
         expect(await res.text()).toContain('Write audit');
     });
 });
+
+/**
+ * A background ingest with no visible state is one nobody can tell has failed.
+ * The state that matters most is the middle one — enabled, first ingest not
+ * finished — where silence is indistinguishable from a broken download.
+ */
+describe('the IMDb dataset in the config UI', () => {
+    const seedWithDataset = async () => {
+        await seed();
+        await writeFile(
+            join(dir, 'config.yaml'),
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hashPassword(PASSWORD)}\n  allowed_hosts: []\nservices: {}\nmetadata:\n  imdb:\n    enabled: true\n`,
+            'utf8'
+        );
+        await runtime.reload();
+    };
+
+    it('says nothing at all on the dashboard when the dataset is not configured', async () => {
+        await signIn();
+        expect(await (await call('/ui')).text()).not.toContain('IMDb dataset');
+    });
+
+    it('says the first ingest has not finished rather than staying silent', async () => {
+        await seedWithDataset();
+        await signIn();
+
+        const page = await (await call('/ui')).text();
+        expect(page).toContain('IMDb dataset');
+        expect(page).toContain('still downloading');
+    });
+
+    it('offers the toggle on the configuration page', async () => {
+        await signIn();
+        expect(await (await call('/ui/config')).text()).toContain('name="metadata.imdb"');
+    });
+
+    /** The toggle has to reach config.yaml — `saveConfig` edits the document in
+     *  place, so a key nothing writes is a key that silently never persists. */
+    it('writes the block to disk when switched on', async () => {
+        await signIn();
+        await call(
+            '/ui/config/access',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'metadata.imdb': 'on' })
+        );
+
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('metadata:');
+        expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
+    });
+
+    /**
+     * Off is the block disappearing, not `enabled: false`. Written as null it
+     * would fail the strict schema on the next start — a save that produces an
+     * instance which will not boot.
+     */
+    it('removes the block entirely when switched off', async () => {
+        await seedWithDataset();
+        await signIn();
+        await call('/ui/config/access', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
+
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(onDisk).not.toContain('metadata:');
+        expect(onDisk).not.toContain('null');
+        expect(runtime.config.metadata).toBeUndefined();
+    });
+});

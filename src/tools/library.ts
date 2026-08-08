@@ -5,6 +5,8 @@ import { gather, type Source } from '../core/gather.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
 import { LibraryIndex, type IndexInput } from '../core/resolver.ts';
+import { enrichWithImdb } from '../metadata/enrich.ts';
+import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasLibrary, hasUserLibrary, type ServiceAdapter, type ServiceUser } from '../services/types.ts';
 
 export type LibrarySnapshot = {
@@ -24,15 +26,30 @@ export class LibraryLoader {
     readonly #adapters: readonly ServiceAdapter[];
     readonly #identity: IdentityResolver | undefined;
     readonly #cache: TtlCache;
+    readonly #dataset: ImdbDataset | undefined;
 
     constructor(
         adapters: readonly ServiceAdapter[],
         jellyfinIdentity: IdentityResolver | undefined,
-        cache: TtlCache = new TtlCache()
+        cache: TtlCache = new TtlCache(),
+        /**
+         * The IMDb dataset, when one is configured.
+         *
+         * Enrichment happens here rather than in each tool for the reason this
+         * class exists at all (§8: duplicating the join is how joins drift
+         * apart). `get_library`, `get_media_details` and `diagnose` all read
+         * this one cached snapshot, so they cannot disagree about a rating,
+         * and the dataset is queried once per cache TTL rather than once per
+         * tool call.
+         *
+         * Last and optional, so every existing call site keeps compiling.
+         */
+        dataset?: ImdbDataset | undefined
     ) {
         this.#adapters = adapters;
         this.#identity = jellyfinIdentity;
         this.#cache = cache;
+        this.#dataset = dataset;
     }
 
     async load(user?: string): Promise<LibrarySnapshot> {
@@ -151,6 +168,14 @@ export class LibraryLoader {
         // synthetic no-user-resolved rejection above alike).
         const jellyfinGathered = jellyfin !== undefined && !degraded.includes(jellyfin.id);
 
-        return { index: LibraryIndex.build(items, { jellyfinGathered }), degraded, counts };
+        // Enriched *before* the merge rather than after it, because the index
+        // hands the same objects to `all()` and to its key map — replacing
+        // them afterwards would have to keep both in step, while an input a
+        // service never rated is simply an input with a gap to fill. It also
+        // means Jellyfin-only media gets a rating, which nothing in the stack
+        // could otherwise give it.
+        const rated = enrichWithImdb(items, this.#dataset);
+
+        return { index: LibraryIndex.build(rated, { jellyfinGathered }), degraded, counts };
     }
 }

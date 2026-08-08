@@ -20,15 +20,16 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
   broken and what to do about it, and read the logs and the write audit — no
   hand-edited YAML, no restart.
 
-> ### Status: 0.7 — one library across many instances
+> ### Status: 0.8 — ratings that work for series too
 >
-> Run an HD and a 4K Radarr and read them as one library, or name the instance
-> you mean and write to exactly that one. The configuration page is built around
-> instances to match: a card each, added from a dialog that asks only what the
-> service needs, and tested before you save rather than after. Connection tests
-> still report the same `kind`, `detail` and `remedy` the tools do, rather than a
-> red cross you then have to investigate. The writes from 0.5 and the
-> correlation from 0.4 are unchanged underneath.
+> No service in this stack can tell you a series' IMDb rating: Radarr returns a
+> per-source map, Sonarr returns one unlabelled number. Switch on IMDb's daily
+> dataset and every film and series gets one — including things you do not own
+> yet, so you can check a rating before deciding to add it. `get_library` gains
+> `sort`, because *"which unwatched series is best rated"* is a superlative and
+> a filter alone cannot answer one. Everything from 0.7 and earlier — many
+> instances read as one library, the writes, the correlation — is unchanged
+> underneath.
 > See [the roadmap](#roadmap).
 
 ## Services
@@ -69,10 +70,12 @@ one service can never silently hide another. `diagnose` takes a title, or an
 exact `service` plus `id`, and returns a verdict rather than a list — see
 below.
 
-`get_library`'s `quality` filter and its per-source rating filters are films
-only — a series has no series-level quality, and Sonarr carries one flat
-TVDB rating rather than per-source scores. Asking either of series returns a
-refusal explaining why, not an empty list.
+`get_library`'s `quality` filter is films only — a series has no series-level
+quality. Its rating filters are mostly films only too, because Sonarr carries
+one flat TVDB rating rather than per-source scores; the exception is `imdb`,
+which the [IMDb dataset](#imdb-ratings) supplies for series as well. Asking for
+a combination that cannot exist returns a refusal explaining why, not an empty
+list.
 
 The first thirteen are reads. The last six write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded
@@ -352,6 +355,54 @@ Prowlarr feeds every *arr from one place, Seerr connects to your instances
 itself, and a second download client is a different kind of setup from a quality
 tier.
 
+### IMDb ratings
+
+Ratings across this stack are inconsistent, and for series they are absent.
+Radarr returns a per-source map, so a film can carry IMDb, TMDB, Rotten
+Tomatoes and Metacritic scores at once. Sonarr returns a single unlabelled
+number, which arr-mcp can only honestly record as TVDB's — so **no service here
+can tell you a series' IMDb rating**, and asking `get_library` for one used to
+be refused outright.
+
+Switching on IMDb's daily dataset fixes that:
+
+```yaml
+metadata:
+  imdb:
+    enabled: true
+```
+
+No account, no API key, nothing sent anywhere. Your container downloads three
+of IMDb's published files each day and keeps them in a local SQLite database
+beside the audit log. Films and series both get a rating, and so do things you
+do **not** own — `lookup_media` can rate something before you decide to add it.
+
+```
+get_library({ kind: "series", watched: false, rating_source: "imdb",
+              sort: "rating", limit: 10 })
+```
+
+> The ten best-rated series you have not watched.
+
+`sort` arrived with this, because a filter alone cannot answer a superlative:
+with more results than `limit`, the best-rated one may simply not be in the
+window returned, and an answer drawn from an arbitrary fifty looks exactly like
+a right one. Ordering happens before the limit is applied. Items the chosen
+source has no rating for are excluded rather than ranked as zero, and
+`ratingCoverage` says how many were set aside — a title nobody has rated is not
+a bad title.
+
+Two honest limits. The dataset keys on IMDb ids, and Radarr leads with TMDB
+ids, so titles carrying no IMDb id are never matched — they come back unrated,
+and counted. And the first ingest takes a while on a NAS; everything answers
+exactly as it did before until it lands, and the dashboard says when it has
+finished.
+
+`discover_media` also falls back to the dataset when Seerr is not configured,
+where it previously returned nothing. Seerr still answers whenever it is
+present — it knows what is trending and requestable, which a static catalogue
+does not.
+
 ## Config UI
 
 `http://<host>:6060`
@@ -516,6 +567,17 @@ is free software maintained largely by volunteers:
 | [Vitest](https://vitest.dev) | tests |
 | [yaml](https://eemeli.org/yaml/) | reading `config.yaml` |
 | [TypeScript](https://www.typescriptlang.org) | the language |
+
+**The data it reads**, when you enable the IMDb dataset:
+
+> Information courtesy of
+> [IMDb](https://www.imdb.com) ([datasets](https://developer.imdb.com/non-commercial-datasets/)).
+> Used with permission.
+
+Those datasets are published for **personal and non-commercial use**. arr-mcp
+never redistributes them and ships no prebuilt copy — your own container
+downloads them, for your own use, only if you switch the dataset on. It is off
+by default.
 
 If you find arr-mcp useful, consider supporting the services above first.
 

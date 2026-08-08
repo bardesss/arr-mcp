@@ -15,6 +15,20 @@ export type RatingSource = (typeof RATING_SOURCES)[number];
 const FILM_SOURCES: readonly RatingSource[] = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes'];
 
 /**
+ * What a series can actually carry.
+ *
+ * `tvdb` is Sonarr's own flat value. `imdb` arrives from the IMDb dataset
+ * (0.8 §4.1) and is reachable *only* through it — Sonarr has never reported
+ * one, and `flattenSeriesRating` can only honestly record its single unlabelled
+ * number as `tvdb`. So with the dataset off, asking for `imdb` on a series is
+ * accepted and simply finds nothing rated, which `ratingCoverage` then states.
+ * That is the right shape: "your dataset has not been built yet" is a different
+ * answer from "this filter is impossible", and only the second deserves a
+ * refusal.
+ */
+const SERIES_SOURCES: readonly RatingSource[] = ['tvdb', 'imdb'];
+
+/**
  * The scale each source's raw value arrives on. `min_rating` is documented as
  * 0–10 for every source, but Radarr/Sonarr pass Metacritic and Rotten Tomatoes
  * through on their own site's native 0–100 scale, and nothing upstream of
@@ -46,9 +60,22 @@ const RATING_SCALE_MAX: Record<RatingSource, number> = {
  */
 const toTenPointScale = (source: RatingSource, value: number): number => (value / RATING_SCALE_MAX[source]) * 10;
 
+/**
+ * §4.3. A superlative cannot be answered by a filter: with more items than
+ * `limit`, the best-rated may simply not be in the window, and the model then
+ * answers confidently from whatever fifty it was handed.
+ *
+ * `added` is deliberately absent. `MergedItem` carries no added date, and a
+ * sort option that silently does nothing is worse than one that was never
+ * offered — it can be added later as a minor without breaking anything.
+ */
+export const SORT_FIELDS = ['rating', 'year', 'title'] as const;
+export type SortField = (typeof SORT_FIELDS)[number];
+
 export type LibraryQuery = {
     detail: DetailLevel;
     limit: number;
+    sort?: SortField;
     kind?: 'movie' | 'series';
     year?: number;
     genre?: string;
@@ -76,6 +103,13 @@ const ratingOf = (item: MergedItem, source: RatingSource): number | undefined =>
 /**
  * §5: "whichever source covers the most of the library". Ties break in the
  * declared order, so the same library always answers the same way.
+ *
+ * A series query stays on `tvdb` by default even though the IMDb dataset can
+ * now supply `imdb`, and the reason is compatibility rather than coverage:
+ * changing the default would silently re-scale every saved prompt's
+ * `min_rating` against a different source, which is exactly the kind of quiet
+ * break CONTRIBUTING calls out about the tool surface. `imdb` is one explicit
+ * `rating_source` away.
  */
 function bestCoveredSource(items: readonly MergedItem[], kind: LibraryQuery['kind']): RatingSource {
     if (kind === 'series') return 'tvdb';
@@ -106,11 +140,47 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
             'quality applies to films only — a series’ quality is per-episode, so a series-level value would be a fiction. Filter get_media_details at detail: full instead.'
         );
     }
-    if (opts.kind === 'series' && opts.rating_source !== undefined && opts.rating_source !== 'tvdb') {
+    // Was: a series may only ask for `tvdb`, because Sonarr's flat value was
+    // the only rating one could carry. The IMDb dataset (0.8) makes `imdb`
+    // reachable for a series too, so the refusal narrows to the sources that
+    // still have no path to one — and gains its mirror image, `tvdb` on a
+    // film, which Radarr never reports and which therefore used to match
+    // nothing at all, silently.
+    if (opts.kind === 'series' && opts.rating_source !== undefined && !SERIES_SOURCES.includes(opts.rating_source)) {
         throw new Error(
-            `rating_source "${opts.rating_source}" applies to films only — Sonarr holds one flat TVDB rating per series. Use rating_source: "tvdb", or drop it.`
+            `rating_source "${opts.rating_source}" applies to films only — a series carries Sonarr's flat TVDB rating, and an IMDb rating when the IMDb dataset is enabled. Use "tvdb" or "imdb", or drop it.`
         );
     }
+    if (opts.kind === 'movie' && opts.rating_source === 'tvdb') {
+        throw new Error(
+            'rating_source "tvdb" applies to series only — Radarr does not report a TVDB rating, so this would match nothing. Drop it, or use one of the per-source film ratings.'
+        );
+    }
+}
+
+/**
+ * Ordering, applied **before** `applyLimit` — ordering after truncation is the
+ * same bug wearing a parameter.
+ *
+ * A rating sort assumes unrated items have already been removed by the caller,
+ * which is what `needsRating` below guarantees. They are excluded rather than
+ * ranked as zero: sorted to the bottom, an item nobody has rated is
+ * indistinguishable from one rated 0.4, and `ratingCoverage.unrated` is what
+ * states how many were set aside.
+ *
+ * `localeCompare` rather than `<`, so "Ålesund" sorts where a reader expects
+ * rather than after "Zulu", and `unfenced` because a title reaching here still
+ * carries its untrusted-value fence.
+ */
+function applySort(items: readonly MergedItem[], sort: SortField, source: RatingSource): MergedItem[] {
+    const sorted = [...items];
+
+    if (sort === 'title') return sorted.sort((a, b) => unfenced(a.title).localeCompare(unfenced(b.title)));
+    // Descending: the newest and the best rated are what a superlative asks
+    // for, and nobody asks for their worst film first.
+    if (sort === 'year') return sorted.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+
+    return sorted.sort((a, b) => (ratingOf(b, source) ?? 0) - (ratingOf(a, source) ?? 0));
 }
 
 const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
@@ -154,8 +224,21 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         return true;
     });
 
-    if (opts.min_rating === undefined) {
-        const shaped = applyLimit(filtered, opts.limit);
+    /**
+     * A rating is in play for a `min_rating` filter *or* a `sort: 'rating'` —
+     * and the second is why this is not simply `min_rating !== undefined`.
+     * Sorting by rating drops unrated items, so it owes the caller the same
+     * coverage count a filter does. Without this, "the ten best rated" would
+     * quietly leave out everything unrated and report nothing about it, which
+     * is the exact silent omission `ratingCoverage` was built to prevent.
+     */
+    const needsRating = opts.min_rating !== undefined || opts.sort === 'rating';
+
+    if (!needsRating) {
+        // `bestCoveredSource` is never consulted here: no rating is read, so
+        // computing one would be work whose result is discarded.
+        const ordered = opts.sort === undefined ? filtered : applySort(filtered, opts.sort, 'imdb');
+        const shaped = applyLimit(ordered, opts.limit);
         return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
     }
 
@@ -164,11 +247,18 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     // unrated" answer the question the caller actually asked.
     const source = opts.rating_source ?? bestCoveredSource(filtered, opts.kind);
     const rated = filtered.filter(i => ratingOf(i, source) !== undefined);
-    const matching = rated.filter(
-        i => toTenPointScale(source, ratingOf(i, source) as number) >= (opts.min_rating as number)
-    );
+    // Bound to a local so the narrowing survives into the closure — inside the
+    // callback, `opts.min_rating` is a property read TypeScript cannot prove
+    // has not changed.
+    const floor = opts.min_rating;
+    const matching =
+        floor === undefined
+            ? rated
+            : rated.filter(i => toTenPointScale(source, ratingOf(i, source) as number) >= floor);
 
-    const shaped = applyLimit(matching, opts.limit);
+    const ordered = opts.sort === undefined ? matching : applySort(matching, opts.sort, source);
+    const shaped = applyLimit(ordered, opts.limit);
+
     return {
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
@@ -183,7 +273,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
         'get_library',
         {
             description:
-                'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. Two limits: `quality` applies to films only (a series’ quality is per-episode), and series carry one flat TVDB rating rather than per-source ratings. A rating filter also reports how much of the library that source actually covers.',
+                'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating when the IMDb dataset is enabled — `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers.',
             inputSchema: z.object({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.'),
                 year: z.number().int().optional(),
@@ -209,6 +299,12 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                     .optional()
                     .describe(
                         'both / arr_only (possible broken import) / jellyfin_only (unmanaged media) / unknown (Jellyfin degraded or unconfigured — arr_only cannot be asserted).'
+                    ),
+                sort: z
+                    .enum(SORT_FIELDS)
+                    .optional()
+                    .describe(
+                        'Order the results *before* `limit` is applied — which is what makes "the best rated" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
                     ),
                 detail: DetailSchema,
                 limit: LimitSchema

@@ -1,4 +1,5 @@
 import type { LogRow } from '../core/logs.ts';
+import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
 
@@ -231,6 +232,38 @@ export function groupDisks(disks: readonly DiskSpace[]): DiskGroup[] {
     return groups.sort((a, b) => a.freeSpace - b.freeSpace);
 }
 
+/**
+ * The IMDb dataset's state, when one is configured.
+ *
+ * A background download with no visible state is one nobody can tell has
+ * failed — and the state that matters most is the middle one: enabled, but the
+ * first ingest has not finished. Saying nothing there is indistinguishable
+ * from a broken download, and the user would reasonably conclude the feature
+ * does not work.
+ */
+const imdbPanel = (status: DatasetStatus): SafeHtml => html`<h2>IMDb dataset</h2>
+    <div class="panel">
+        ${status.ingestedAt === undefined
+            ? html`<p class="note">
+                  Enabled, still downloading. Every tool answers exactly as it did before until the first
+                  ingest finishes — nothing is broken while this says so. It runs again daily.
+              </p>`
+            : html`<p class="note">
+                      Ratings for films <em>and</em> series, including the IMDb rating no service in your
+                      stack can report for a series. Refreshed daily; nothing here is sent anywhere.
+                  </p>
+                  <table>
+                      <thead><tr><th>Last ingested</th><th>Titles</th><th>Rated</th></tr></thead>
+                      <tbody>
+                          <tr>
+                              <td class="mono">${shortTime(status.ingestedAt)}</td>
+                              <td>${status.titles.toLocaleString('en')}</td>
+                              <td>${status.ratings.toLocaleString('en')}</td>
+                          </tr>
+                      </tbody>
+                  </table>`}
+    </div>`;
+
 const statusDot = (d: ConnectionDiagnosis): SafeHtml =>
     html`<span class="dot ${d.ok ? 'ok' : 'bad'}" title="${d.ok ? 'reachable' : 'unreachable'}"></span>`;
 
@@ -249,6 +282,9 @@ export function dashboardPage(opts: {
     /** Absent when the request carried no usable `Host` — see `origin.ts`. */
     mcpUrl?: string | undefined;
     writeCounts: { applied: number; denied: number; total: number };
+    /** Absent when the IMDb dataset is not configured — in which case the
+     *  panel is not rendered at all rather than rendered as "off". */
+    imdb?: DatasetStatus | undefined;
     disks: DiskSpace[];
     failures: HealthCheck[];
     scans: ScanState[];
@@ -345,6 +381,8 @@ export function dashboardPage(opts: {
 
         <h2>Problems</h2>
         <div class="panel">${problems}</div>
+
+        ${opts.imdb === undefined ? raw('') : imdbPanel(opts.imdb)}
 
         <h2>Disk space</h2>
         <div class="panel">

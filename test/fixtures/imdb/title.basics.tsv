@@ -1,0 +1,6 @@
+tconst	titleType	primaryTitle	originalTitle	isAdult	startYear	endYear	runtimeMinutes	genres
+tt0903747	tvSeries	Breaking Bad	Breaking Bad	0	2008	2013	49	Crime,Drama,Thriller
+tt0068646	movie	The Godfather	The Godfather	0	1972	\N	175	Crime,Drama
+tt0111161	movie	The Shawshank Redemption	The Shawshank Redemption	0	1994	\N	\N	Drama
+tt9999998	short	A Short	A Short	0	2001	\N	12	\N
+tt9999997	movie	\N	\N	0	2001	\N	90	Drama

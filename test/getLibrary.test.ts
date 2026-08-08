@@ -173,12 +173,22 @@ describe('get_library rating filtering', () => {
         expect((await buildGetLibrary(loaderOf(rated), base)).ratingCoverage).toBeUndefined();
     });
 
-    it('refuses a per-source rating filter on series', async () => {
-        // §21.2: Sonarr's rating is one flat TVDB value. Returning an empty
-        // list here would read as "no such series exist".
+    /**
+     * Was: *any* per-source filter on a series was refused, because §21.2's
+     * flat TVDB value was the only rating one could carry. 0.8's IMDb dataset
+     * makes `imdb` reachable for a series, so the refusal narrowed to the
+     * sources that still have no path to one. The reason it exists is
+     * unchanged — an empty list would read as "no such series exist".
+     */
+    it('refuses a per-source rating filter a series still cannot have', async () => {
         await expect(
-            buildGetLibrary(loaderOf([film()]), { ...base, kind: 'series', min_rating: 8, rating_source: 'imdb' })
-        ).rejects.toThrow(/flat TVDB/);
+            buildGetLibrary(loaderOf([film()]), {
+                ...base,
+                kind: 'series',
+                min_rating: 8,
+                rating_source: 'rottenTomatoes'
+            })
+        ).rejects.toThrow(/applies to films only/);
     });
 
     it('allows a tvdb-sourced rating filter on series', async () => {
@@ -306,5 +316,187 @@ describe('get_library shaping', () => {
         const many = repeat(film(), 500).map((f, i) => ({ ...f, ids: { tmdb: i + 1 } }));
         const result = await buildGetLibrary(loaderOf(many), { ...base, limit: 500 });
         expectWithinBudget(result, 60_000);
+    });
+});
+
+/**
+ * A series could not carry an IMDb rating before 0.8, and `get_library` said
+ * so in three places at once: the guard refused the filter, the default source
+ * was hard-coded to `tvdb`, and the tool description told the model series
+ * carry one flat TVDB rating. None of that was wrong — it accurately described
+ * a stack where Sonarr was the only possible source. The IMDb dataset is what
+ * makes it false.
+ */
+const series = (over: Partial<IndexInput> = {}): IndexInput =>
+    film({
+        kind: 'series',
+        title: 'Some Series',
+        ids: { tvdb: 81189, imdb: 'tt0903747' },
+        acquisition: { service: 'sonarr', monitored: true, hasFile: true },
+        ...over
+    });
+
+describe('series ratings, once the dataset can supply them', () => {
+    it('no longer refuses rating_source: imdb for a series', async () => {
+        await expect(
+            buildGetLibrary(loaderOf([series()], 'sonarr'), { ...base, kind: 'series', rating_source: 'imdb' })
+        ).resolves.toBeDefined();
+    });
+
+    /** The other documented limit is untouched: a series' quality really is
+     *  per-episode, and no dataset changes that. */
+    it('still refuses quality for a series', async () => {
+        await expect(
+            buildGetLibrary(loaderOf([series()], 'sonarr'), { ...base, kind: 'series', quality: 'bluray-1080p' })
+        ).rejects.toThrow('quality applies to films only');
+    });
+
+    it('still refuses a source a series genuinely cannot have', async () => {
+        await expect(
+            buildGetLibrary(loaderOf([series()], 'sonarr'), { ...base, kind: 'series', rating_source: 'metacritic' })
+        ).rejects.toThrow('applies to films only');
+    });
+
+    /** New, and the other half of the relaxed guard: Radarr never reports a
+     *  TVDB rating, so asking for one on a film matched nothing silently. */
+    it('refuses tvdb for a film', async () => {
+        await expect(
+            buildGetLibrary(loaderOf([film()]), { ...base, kind: 'movie', rating_source: 'tvdb' })
+        ).rejects.toThrow('applies to series only');
+    });
+
+    /**
+     * `tvdb` stays the default for a series even though `imdb` is now
+     * reachable. Changing it would silently re-scale every saved prompt's
+     * `min_rating` against a different source — the exact silent break
+     * CONTRIBUTING warns about for the tool surface.
+     */
+    it('still defaults a series query to tvdb', async () => {
+        const result = await buildGetLibrary(loaderOf([series({ ratings: { tvdb: 8.8 } })], 'sonarr'), {
+            ...base,
+            kind: 'series',
+            min_rating: 1
+        });
+        expect(result.ratingCoverage?.source).toBe('tvdb');
+    });
+
+    it('reports coverage against imdb when imdb was asked for', async () => {
+        const items = [
+            series({ ratings: { imdb: 9.5 } }),
+            series({ title: 'Unrated', ids: { tvdb: 1, imdb: 'tt0000001' } })
+        ];
+        const result = await buildGetLibrary(loaderOf(items, 'sonarr'), {
+            ...base,
+            kind: 'series',
+            rating_source: 'imdb',
+            min_rating: 1
+        });
+        expect(result.ratingCoverage).toMatchObject({ source: 'imdb', rated: 1, unrated: 1 });
+    });
+
+    it('filters a series by its IMDb rating', async () => {
+        const items = [
+            series({ title: 'Great', ratings: { imdb: 9.5 } }),
+            series({ title: 'Poor', ids: { tvdb: 2, imdb: 'tt0000002' }, ratings: { imdb: 4.0 } })
+        ];
+        const result = await buildGetLibrary(loaderOf(items, 'sonarr'), {
+            ...base,
+            kind: 'series',
+            rating_source: 'imdb',
+            min_rating: 8
+        });
+        expect(result.items.map(i => i.title)).toEqual(['Great']);
+    });
+});
+
+/**
+ * A superlative cannot be answered by a filter. With more items than `limit`,
+ * "the best rated" is answered from an arbitrary window — and the model then
+ * reports it confidently, wrong in a way that looks exactly like being right.
+ */
+const rated = (title: string, imdb: number, over: Partial<IndexInput> = {}): IndexInput =>
+    film({ title, ids: { tmdb: title.length * 977 + Math.round(imdb * 10) }, ratings: { imdb }, ...over });
+
+describe('ordering', () => {
+    it('orders before truncating, so the top result survives the limit', async () => {
+        const many = [
+            rated('Worst', 1.0),
+            ...Array.from({ length: 60 }, (_, i) => film({ title: `Mid ${i}`, ids: { tmdb: 90_000 + i }, ratings: { imdb: 5 } })),
+            rated('Best', 9.9)
+        ];
+
+        const result = await buildGetLibrary(loaderOf(many), {
+            ...base,
+            rating_source: 'imdb',
+            sort: 'rating',
+            limit: 10
+        });
+
+        expect(result.items[0]?.title).toBe('Best');
+        expect(result.returned).toBe(10);
+        expect(result.truncated).toBe(true);
+    });
+
+    /**
+     * An unrated item sorted to the bottom is indistinguishable from a badly
+     * rated one, so a rating sort drops them — and must then say how many, or
+     * it is exactly the silent omission `ratingCoverage` exists to prevent.
+     * Note there is no `min_rating` here: coverage has to appear for a sort
+     * alone.
+     */
+    it('excludes unrated items from a rating sort and reports how many', async () => {
+        const items = [rated('Rated', 8.0), film({ title: 'Unrated', ids: { tmdb: 999 } })];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, rating_source: 'imdb', sort: 'rating' });
+
+        expect(result.items.map(i => i.title)).toEqual(['Rated']);
+        expect(result.ratingCoverage).toMatchObject({ source: 'imdb', rated: 1, unrated: 1 });
+    });
+
+    it('sorts title ascending and year descending', async () => {
+        const named = [film({ title: 'Zulu', ids: { tmdb: 1 } }), film({ title: 'Alien', ids: { tmdb: 2 } })];
+        expect((await buildGetLibrary(loaderOf(named), { ...base, sort: 'title' })).items.map(i => i.title)).toEqual([
+            'Alien',
+            'Zulu'
+        ]);
+
+        const years = [film({ year: 1979, ids: { tmdb: 3 } }), film({ year: 2015, ids: { tmdb: 4 } })];
+        expect((await buildGetLibrary(loaderOf(years), { ...base, sort: 'year' })).items.map(i => i.year)).toEqual([
+            2015, 1979
+        ]);
+    });
+
+    it('leaves order untouched when sort is not asked for', async () => {
+        const named = [film({ title: 'Zulu', ids: { tmdb: 1 } }), film({ title: 'Alien', ids: { tmdb: 2 } })];
+        const result = await buildGetLibrary(loaderOf(named), base);
+        expect(result.items.map(i => i.title)).toEqual(['Zulu', 'Alien']);
+    });
+
+    it('omits coverage for a sort that has nothing to do with ratings', async () => {
+        const named = [film({ title: 'Zulu', ids: { tmdb: 1 } })];
+        expect((await buildGetLibrary(loaderOf(named), { ...base, sort: 'title' })).ratingCoverage).toBeUndefined();
+    });
+
+    /** The acceptance test for the whole phase. */
+    it('answers "which unwatched series is best rated"', async () => {
+        const items = [
+            series({
+                title: 'Seen',
+                ids: { tvdb: 11, imdb: 'tt0000011' },
+                ratings: { imdb: 9.9 },
+                playback: { user: 'u1', watched: true }
+            }),
+            series({ title: 'Unseen', ids: { tvdb: 12, imdb: 'tt0000012' }, ratings: { imdb: 8.4 } })
+        ];
+
+        const result = await buildGetLibrary(loaderOf(items, 'sonarr'), {
+            ...base,
+            kind: 'series',
+            watched: false,
+            rating_source: 'imdb',
+            sort: 'rating',
+            limit: 10
+        });
+
+        expect(result.items.map(i => i.title)).toEqual(['Unseen']);
     });
 });

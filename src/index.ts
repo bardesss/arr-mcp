@@ -5,6 +5,7 @@ import { attachLogStore } from './core/logger.ts';
 import { logger } from './core/logger.ts';
 import { LogStore } from './core/logs.ts';
 import { Runtime } from './core/runtime.ts';
+import { startRefresh } from './metadata/refresh.ts';
 
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? '/config';
 const PORT = Number(process.env.ARR_MCP_PORT ?? 6060);
@@ -35,6 +36,15 @@ if (runtime.config.auth.password_hash === undefined) {
         { config: `${CONFIG_DIR}/config.yaml` },
         'no services configured — add them in the config UI, or edit config.yaml'
     );
+}
+
+// Deliberately not awaited. The first ingest downloads and parses on the order
+// of 10^7 rows, which on a NAS is minutes — and every tool answers exactly as
+// it did before until it lands, so blocking here would turn a slow cache warm
+// into a container that looks broken.
+if (runtime.dataset !== undefined) {
+    logger.info('IMDb dataset enabled — refreshing in the background; ratings appear once the first ingest finishes');
+    startRefresh(runtime.dataset);
 }
 
 serve({ fetch: buildApp({ runtime, audit, logs }).fetch, port: PORT, hostname: '0.0.0.0' }, info => {

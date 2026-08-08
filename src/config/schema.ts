@@ -194,6 +194,29 @@ const ServicesSchema = z
     })
     .default({});
 
+/**
+ * Metadata sources that are not services (0.8 spec §3).
+ *
+ * Separate from `services` because nothing here is reachable, has a URL, or
+ * can be tested — an instance card would have nothing to put on it. It also
+ * holds no credential, so the no-echo rule that shapes the rest of the config
+ * page does not reach it.
+ *
+ * `.strict()` on both levels, and the reason is the same in each. The setting
+ * a user is most likely to invent is a refresh interval, and IMDb publishes
+ * daily — there is no second answer to choose between. A knob whose only
+ * sensible value is the default exists to be got wrong, and quietly ignoring
+ * one that was set is worse than refusing it: the user believes it took
+ * effect.
+ */
+export const MetadataSchema = z
+    .object({
+        imdb: z.object({ enabled: z.boolean().default(false) }).strict().optional()
+    })
+    .strict();
+
+export type MetadataConfig = z.infer<typeof MetadataSchema>;
+
 export const ConfigSchema = z.object({
     // Required, not optional: loadConfig always injects a generated token
     // before parsing, so the only way this is missing is a hand-edited file
@@ -226,6 +249,8 @@ export const ConfigSchema = z.object({
          */
         allowed_hosts: z.array(z.string()).default([])
     }),
-    services: ServicesSchema
+    services: ServicesSchema,
+    /** Absent means off, exactly like a service nobody configured. */
+    metadata: MetadataSchema.optional()
 });
 export type Config = z.infer<typeof ConfigSchema>;
