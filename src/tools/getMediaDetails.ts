@@ -6,6 +6,7 @@ import { ServiceError } from '../core/errors.ts';
 import type { MergedItem } from '../core/resolver.ts';
 import { DetailSchema, LimitSchema, type DetailLevel } from '../core/shape.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
+import { SeerrAdapter } from '../services/seerr.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasMediaDetails, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
 import type { LibraryLoader } from './library.ts';
@@ -34,7 +35,36 @@ export async function buildGetMediaDetails(
 
     // A single-item array through the same function the library uses, so one
     // title cannot get a different rating depending on which tool asked.
-    return enrichWithImdb([details], dataset)[0] as MediaDetails;
+    const rated = enrichWithImdb([details], dataset)[0] as MediaDetails;
+
+    return withSeerrRatings(adapters, rated);
+}
+
+/**
+ * Rotten Tomatoes, and IMDb for a film, from Seerr.
+ *
+ * Only here, and only for one item. It costs an HTTP call per title, so it has
+ * no business on a path that returns a page of them — `lookup_media` uses the
+ * `voteAverage` Seerr already puts in its search payload instead.
+ *
+ * Worth the call here because this is the "tell me everything about this one
+ * thing" tool, and Rotten Tomatoes is the one score nothing else in the stack
+ * can supply for a series. Never overwrites: the managing service is the
+ * authority on its own data, and Radarr already reports RT for films.
+ */
+async function withSeerrRatings(
+    adapters: readonly ServiceAdapter[],
+    details: MediaDetails
+): Promise<MediaDetails> {
+    const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
+    const tmdb = details.ids.tmdb;
+    if (seerr === undefined || tmdb === undefined) return details;
+
+    const kind = details.kind === 'series' ? 'series' : 'movie';
+    const extra = await seerr.getRatings(tmdb, kind);
+
+    const merged = { ...extra, ...details.ratings };
+    return Object.keys(merged).length === 0 ? details : { ...details, ratings: merged };
 }
 
 export type MediaDetailsQuery = {

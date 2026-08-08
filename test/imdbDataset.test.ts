@@ -94,9 +94,34 @@ describe('discovering from the dataset', () => {
         expect(hits.map(h => h.tconst)).not.toContain('tt0111161');
     });
 
-    it('includes unrated titles when no minimum is asked for', () => {
+    /**
+      * An unrated title is one nothing here can do anything with — every rating
+      * lookup misses it, and it is the overwhelming majority of IMDb's 12.7M
+      * rows. Since 1.0.1 they are dropped at ingest rather than stored and
+      * skipped, which is most of the difference between a 1.3 GB database and a
+      * small one.
+      */
+    it('does not store an unrated title at all', () => {
         const hits = seed().discover({ kind: 'movie', limit: 10 });
-        expect(hits.map(h => h.tconst)).toContain('tt0111161');
+        expect(hits.map(h => h.tconst)).not.toContain('tt0111161');
+    });
+
+    /** Nothing can query a tvEpisode or a video game, so nothing stores one. */
+    it('does not store a title of a kind no query can reach', () => {
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [
+                { tconst: 'tt1', kind: 'tvEpisode', title: 'An Episode' },
+                { tconst: 'tt2', kind: 'movie', title: 'A Film' }
+            ],
+            ratings: [
+                { tconst: 'tt1', average: 9, votes: 10 },
+                { tconst: 'tt2', average: 8, votes: 10 }
+            ]
+        });
+
+        expect(db.status().titles).toBe(1);
+        expect(db.discover({ kind: 'movie', limit: 10 }).map(h => h.tconst)).toEqual(['tt2']);
     });
 
     it('filters by year', () => {
@@ -111,7 +136,8 @@ describe('discovering from the dataset', () => {
 describe('status', () => {
     it('reports what it holds, for the dashboard', () => {
         const s = seed().status();
-        expect(s.titles).toBe(3);
+        // Two of the three fixture titles carry a rating; the third is dropped.
+        expect(s.titles).toBe(2);
         expect(s.ratings).toBe(2);
         expect(s.ingestedAt).toBeDefined();
     });
@@ -132,7 +158,7 @@ describe('replacing the dataset', () => {
         const store = seed();
         store.replaceAll({
             titles: [{ tconst: 'tt5', kind: 'movie', title: 'Only This' }],
-            ratings: []
+            ratings: [{ tconst: 'tt5', average: 7, votes: 5 }]
         });
 
         expect(store.status().titles).toBe(1);
@@ -150,7 +176,7 @@ describe('replacing the dataset', () => {
         }
 
         expect(() => store.replaceAll({ titles: explodes(), ratings: [] })).toThrow('connection reset');
-        expect(store.status().titles).toBe(3);
+        expect(store.status().titles).toBe(2);
         expect(store.ratingsFor(['tt0903747']).get('tt0903747')).toBe(9.5);
     });
 });

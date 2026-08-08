@@ -35,6 +35,20 @@ const KIND_TO_IMDB: Record<'movie' | 'series', readonly string[]> = {
 };
 
 /**
+ * The only title types any query can reach, so the only ones worth storing.
+ *
+ * IMDb's 12.7M rows are mostly `tvEpisode`, plus shorts, video games and adult
+ * titles — none of which `discover` can return and none of which carry a rating
+ * anyone looks up here. Filtering at ingest rather than at query time is the
+ * difference between a 1.3 GB database and a small one.
+ *
+ * Derived from `KIND_TO_IMDB` rather than written out again: two lists would
+ * drift, and the failure would be silent — a kind you can ask for that was
+ * never stored just returns nothing.
+ */
+const STORED_KINDS: ReadonlySet<string> = new Set(Object.values(KIND_TO_IMDB).flat());
+
+/**
  * SQLite's compiled-in default variable limit, minus room to spare.
  *
  * A library larger than this cannot go into one `IN (...)`, and a 900-film
@@ -249,10 +263,19 @@ export class ImdbDataset {
         this.#db.transaction(() => {
             this.#db.exec('DELETE FROM title; DELETE FROM rating;');
 
+            for (const r of rows.ratings) insertRating.run(r.tconst, r.average, r.votes);
+
             for (const t of rows.titles) {
+                if (!STORED_KINDS.has(t.kind)) continue;
                 insertTitle.run(t.tconst, t.kind, t.title, t.year ?? null, t.runtime ?? null, t.genres ?? null);
             }
-            for (const r of rows.ratings) insertRating.run(r.tconst, r.average, r.votes);
+
+            // An unrated title is one nothing here can do anything with: every
+            // rating lookup misses it, and `discover` only surfaces it when no
+            // minimum was asked for. Deleted in SQL against the index rather
+            // than checked per row, which would mean holding 1.7M ids in heap —
+            // the mistake that crashed the first real ingest.
+            this.#db.exec('DELETE FROM title WHERE tconst NOT IN (SELECT tconst FROM rating)');
 
             setMeta.run('ingested_at', new Date().toISOString());
         })();

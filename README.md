@@ -375,22 +375,32 @@ the audit log.
 | | |
 | --- | --- |
 | Download, per day | **223 MB** |
-| On disk | **~1.3 GB** |
+| On disk | **~125 MB** |
 | First ingest | ~3 minutes |
-| Titles / rated | 12.7M / 1.7M |
+| Titles stored / rated | 546K / 1.7M |
 
-Re-measure with `node --experimental-strip-types scripts/measure-imdb.ts` — the
+Only rated titles of a kind something can actually query are stored — the other
+12 million rows are episodes, shorts and video games no query can reach.
+Re-measure with `node --experimental-strip-types scripts/measure-imdb.ts`; the
 dumps grow, and a figure in a README is only as good as the day it was taken.
 
-**Whether you need it.** Radarr already reports IMDb ratings for films, so if
-you only care about films, probably not. What nothing else here can give you is
-an IMDb rating for a **series** — Sonarr reports a single unlabelled number —
-or a rating for something you do **not own yet**, which is what `lookup_media`
-answers. Those are the two gaps it fills.
+### Do you need it?
 
-It is not a stand-in for Seerr, either. Seerr filters discovery by TMDB rating
-but never returns a rating value, so the two do different jobs; discovery falls
-back to this dataset only when Seerr is not configured at all.
+Probably less than it first appears. Where ratings already come from:
+
+| | Films | Series |
+| --- | --- | --- |
+| **In your library** | Radarr: IMDb, TMDB, Rotten Tomatoes, Metacritic | Sonarr: one unlabelled number |
+| **Not in your library** | Seerr: TMDB on every hit, plus Rotten Tomatoes and IMDb on `get_media_details` | Seerr: TMDB, plus Rotten Tomatoes |
+
+So if you run Seerr and mostly care about films, **you may not need this at
+all**. What nothing else can give you is an **IMDb rating for a series** —
+Sonarr reports a single unlabelled number, and Seerr's `/tv/{id}/ratings` has no
+IMDb half — or ratings of any kind if you do not run Seerr.
+
+It is not a Seerr fallback, either. Seerr filters discovery by TMDB rating but
+that is a different job; discovery falls back to this dataset only when Seerr is
+not configured at all.
 
 ```
 get_library({ kind: "series", watched: false, rating_source: "imdb",

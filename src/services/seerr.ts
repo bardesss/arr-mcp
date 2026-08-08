@@ -27,9 +27,21 @@ type RawSearchResult = {
     name?: string;
     releaseDate?: string;
     firstAirDate?: string;
+    /** TMDB's own score, 0–10. Seerr passes it straight through on both search
+     *  and discover, confirmed against the recorded fixtures. */
+    voteAverage?: number;
+    voteCount?: number;
 };
 
 type RawStatus = { version?: string; commitTag?: string };
+
+/** `/movie/{id}/ratingscombined` — Rotten Tomatoes *and* IMDb. `/tv/{id}/ratings`
+ *  is the RT half alone; there is no combined endpoint for series. */
+type RawCombinedRatings = {
+    rt?: { criticsScore?: number; audienceScore?: number };
+    imdb?: { criticsScore?: number };
+    criticsScore?: number;
+};
 
 /**
  * `/movie/{tmdbId}` and `/tv/{tmdbId}` in one shape. Upstream names the title
@@ -243,7 +255,54 @@ export class SeerrAdapter
             id: String(r.id),
             title: fenceText(r.title ?? r.name ?? '', { service: this.id, field: 'title' }),
             ...(year === undefined ? {} : { year }),
-            ids: { tmdb: r.id }
+            ids: { tmdb: r.id },
+            // Seerr is TMDB-backed and hands this over for free on every hit.
+            // Worth reading: without it, nothing rates something you do not
+            // own, and the alternative was a gigabyte of IMDb dump. A zero is
+            // TMDB's "nobody has voted", not a score of zero, so it is dropped
+            // rather than reported as the worst film ever made.
+            ...(typeof r.voteAverage === 'number' && r.voteAverage > 0
+                ? { ratings: { tmdb: r.voteAverage } }
+                : {})
+        };
+    }
+
+    /**
+     * Rotten Tomatoes, and for a film IMDb too — the one thing Seerr knows that
+     * nothing else here does for a title you do not own.
+     *
+     * **One HTTP call per title**, which is why it is only ever used for a
+     * single item. Calling it across a `lookup_media` page would be fifty
+     * requests for one tool call; those hits carry TMDB's `voteAverage` from
+     * the search payload instead, which is free.
+     *
+     * Series get Rotten Tomatoes only. `/tv/{id}/ratings` has no `imdb` half,
+     * and there is no `ratingscombined` for TV — so an IMDb rating for a series
+     * still comes from the IMDb dataset or from nowhere.
+     *
+     * Degrades to nothing on failure. A ratings lookup that fails must not take
+     * down the details call it was decorating.
+     */
+    async getRatings(tmdbId: number, kind: 'movie' | 'series'): Promise<Record<string, number>> {
+        const path = kind === 'movie' ? `/api/v1/movie/${tmdbId}/ratingscombined` : `/api/v1/tv/${tmdbId}/ratings`;
+
+        let raw: RawCombinedRatings;
+        try {
+            raw = await this.#http.get<RawCombinedRatings>(path);
+        } catch (err) {
+            logger.warn({ service: this.id, tmdbId, err }, 'seerr ratings lookup failed; continuing without them');
+            return {};
+        }
+
+        // `/tv` returns the RT shape unwrapped; `/movie` nests it under `rt`.
+        const rt = raw.rt?.criticsScore ?? raw.criticsScore;
+        const imdb = raw.imdb?.criticsScore;
+
+        return {
+            // A zero is "not scored", the same convention TMDB uses, so it is
+            // dropped rather than reported as the worst film ever made.
+            ...(typeof rt === 'number' && rt > 0 ? { rottenTomatoes: rt } : {}),
+            ...(typeof imdb === 'number' && imdb > 0 ? { imdb } : {})
         };
     }
 

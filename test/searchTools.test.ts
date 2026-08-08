@@ -701,3 +701,115 @@ describe('discovering without Seerr', () => {
         expect(result).toMatchObject({ items: [], total: 0 });
     });
 });
+
+/**
+ * Seerr is TMDB-backed and returns `voteAverage` on every search and discover
+ * hit — confirmed in the recorded fixtures. It went unread until 1.0.1, which
+ * meant nothing rated anything you did not already own unless you had paid a
+ * gigabyte of disk for the IMDb dataset.
+ */
+describe('ratings Seerr already had', () => {
+    const seerrWith = (results: unknown[]) =>
+        new SeerrAdapter(seerrConfig, serving({ '/api/v1/search': { results } }));
+
+    it('reads the TMDB score Seerr hands over for free', async () => {
+        const adapter = seerrWith([
+            { id: 550, mediaType: 'movie', title: 'Fight Club', releaseDate: '1999-10-15', voteAverage: 8.4 }
+        ]);
+        const [hit] = await adapter.search('fight club', 'discover');
+        expect(hit?.ratings?.tmdb).toBe(8.4);
+    });
+
+    /**
+     * TMDB returns 0 for "nobody has voted", not for "this is terrible". A
+     * zero reported as a score would rank an unrated title below every rated
+     * one — the same mistake the IMDb dataset avoids by omitting a miss.
+     */
+    it('treats a zero as unrated rather than as the worst film ever made', async () => {
+        const adapter = seerrWith([{ id: 1, mediaType: 'movie', title: 'Unrated', voteAverage: 0 }]);
+        const [hit] = await adapter.search('unrated', 'discover');
+        expect(hit?.ratings).toBeUndefined();
+    });
+
+    it('omits ratings entirely when Seerr sent none', async () => {
+        const adapter = seerrWith([{ id: 2, mediaType: 'movie', title: 'No Score' }]);
+        const [hit] = await adapter.search('no score', 'discover');
+        expect(hit?.ratings).toBeUndefined();
+    });
+});
+
+/**
+ * Seerr knows Rotten Tomatoes, and IMDb for a film — the one thing nothing
+ * else in the stack can supply for a title you do not own.
+ *
+ * Only on `get_media_details`, and only for one item: it costs an HTTP call per
+ * title, so it has no business on a path that returns a page of them.
+ */
+describe('Rotten Tomatoes and IMDb from Seerr', () => {
+    const MOVIE = { id: 42, title: 'Some Film', year: 2026, monitored: true, hasFile: true, tmdbId: 550 };
+
+    const stack = (routes: Record<string, unknown>) => [
+        new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie/42': MOVIE })),
+        new SeerrAdapter(seerrConfig, serving(routes))
+    ];
+
+    it('adds the scores Radarr never reported', async () => {
+        const adapters = stack({
+            '/api/v1/movie/550/ratingscombined': { rt: { criticsScore: 85 }, imdb: { criticsScore: 6.5 } }
+        });
+
+        const result = await buildGetMediaDetails(adapters, {
+            service: 'radarr',
+            id: '42',
+            detail: 'standard',
+            limit: 50
+        });
+
+        expect(result.ratings).toMatchObject({ rottenTomatoes: 85, imdb: 6.5 });
+    });
+
+    /** The managing service is the authority on its own data. */
+    it('never displaces a score Radarr did report', async () => {
+        const rated = { ...MOVIE, ratings: { imdb: { value: 8.8, votes: 10 } } };
+        const adapters = [
+            new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie/42': rated })),
+            new SeerrAdapter(seerrConfig, serving({
+                '/api/v1/movie/550/ratingscombined': { imdb: { criticsScore: 6.5 } }
+            }))
+        ];
+
+        const result = await buildGetMediaDetails(adapters, {
+            service: 'radarr',
+            id: '42',
+            detail: 'standard',
+            limit: 50
+        });
+
+        expect(result.ratings?.imdb).toBe(8.8);
+    });
+
+    /** A ratings lookup that fails must not take down the details call. */
+    it('still answers when Seerr cannot be reached', async () => {
+        const adapters = stack({});
+        const result = await buildGetMediaDetails(adapters, {
+            service: 'radarr',
+            id: '42',
+            detail: 'standard',
+            limit: 50
+        });
+
+        expect(result.title).toContain('Some Film');
+    });
+
+    it('does nothing at all when no Seerr is configured', async () => {
+        const adapters = [new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie/42': MOVIE }))];
+        const result = await buildGetMediaDetails(adapters, {
+            service: 'radarr',
+            id: '42',
+            detail: 'standard',
+            limit: 50
+        });
+
+        expect(result.ratings).toBeUndefined();
+    });
+});

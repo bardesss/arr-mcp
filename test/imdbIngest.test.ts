@@ -91,7 +91,9 @@ describe('loading a parsed dump', () => {
         });
 
         expect(db.ratingsFor(['tt0903747']).get('tt0903747')).toBe(9.5);
-        expect(db.status().titles).toBe(4);
+        // Of the fixture's five rows: the short and the titleless one never
+        // parse, and Shawshank has no rating — so two survive.
+        expect(db.status().titles).toBe(2);
         expect(db.discover({ kind: 'movie', genre: 'Crime', limit: 10 }).map(h => h.title)).toEqual([
             'The Godfather'
         ]);
