@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceId } from '../config/schema.ts';
 import type { MergedItem } from '../core/resolver.ts';
-import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, preferred, type DetailLevel } from '../core/shape.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
@@ -315,7 +315,13 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                     .describe(
                         'Whether a file is actually on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
                     ),
-                watched: z.boolean().optional().describe('Jellyfin watch state. Items Jellyfin has never seen count as unwatched.'),
+                watched: z.boolean().optional().describe('Jellyfin watch state. Items Jellyfin has never seen count as unwatched. Pair with `user` to ask about someone else.'),
+                user: UserSchema,
+                // Undocumented on purpose: the spelling this tool had when the
+                // surface froze at 1.0, where `get_playback` and `get_requests`
+                // already called the same thing `user`. Kept working forever —
+                // removing it would break a saved prompt silently — but
+                // described nowhere.
                 watched_by: UserSchema,
                 quality: z.string().min(1).optional().describe('Films only.'),
                 min_rating: z
@@ -347,7 +353,13 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
             })
         },
         async input => {
-            const result = await buildGetLibrary(loader, input as LibraryQuery);
+            const { user, watched_by, ...rest } = input as LibraryQuery & { user?: string };
+            const watchedBy = preferred({ name: 'user', value: user, alias: 'watched_by', aliasValue: watched_by });
+
+            const result = await buildGetLibrary(loader, {
+                ...rest,
+                ...(watchedBy === undefined ? {} : { watched_by: watchedBy })
+            } as LibraryQuery);
 
             const coverage =
                 result.ratingCoverage === undefined

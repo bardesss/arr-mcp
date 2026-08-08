@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, preferred, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -19,7 +19,7 @@ const project = (h: SearchHit, detail: DetailLevel): SearchHit => {
 export async function buildDiscoverMedia(
     adapter: SeerrAdapter | undefined,
     opts: {
-        mediaType: 'movie' | 'tv';
+        kind: 'movie' | 'series';
         genre?: string;
         year?: number;
         minRating?: number;
@@ -39,7 +39,10 @@ export async function buildDiscoverMedia(
     let hits: SearchHit[];
     try {
         hits = await adapter.discover({
-            mediaType: opts.mediaType,
+            // Translated here, at the boundary that needs it: Seerr is
+            // TMDB-backed and TMDB says `tv`. Everything on our side of this
+            // call says `series`, including the items Seerr hands back.
+            mediaType: opts.kind === 'series' ? 'tv' : 'movie',
             ...(opts.genre === undefined ? {} : { genre: opts.genre }),
             ...(opts.year === undefined ? {} : { year: opts.year }),
             ...(opts.minRating === undefined ? {} : { minRating: opts.minRating })
@@ -78,7 +81,7 @@ export async function buildDiscoverMedia(
  * rejected rather than silently returning nothing.
  */
 function fromDataset(
-    opts: { mediaType: 'movie' | 'tv'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number },
+    opts: { kind: 'movie' | 'series'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number },
     dataset: ImdbDataset | undefined
 ): GetSearchResult {
     const empty = { items: [], total: 0, returned: 0, truncated: false, degraded: [], counts: {} };
@@ -92,7 +95,7 @@ function fromDataset(
 
     const hits = dataset
         .discover({
-            kind: opts.mediaType === 'movie' ? 'movie' : 'series',
+            kind: opts.kind,
             ...(opts.genre === undefined ? {} : { genre: opts.genre }),
             ...(opts.year === undefined ? {} : { year: opts.year }),
             ...(opts.minRating === undefined ? {} : { minRating: opts.minRating }),
@@ -102,7 +105,7 @@ function fromDataset(
             (t): SearchHit => ({
                 service: 'imdb',
                 source: 'discover',
-                kind: opts.mediaType === 'movie' ? 'movie' : 'series',
+                kind: opts.kind,
                 id: t.tconst,
                 // Fenced like every other external string. A dataset row is no
                 // more trusted than an indexer's release name.
@@ -132,7 +135,12 @@ export function registerDiscoverMedia(
             description:
                 'Browse what exists rather than what you have: films or series by genre, year and minimum rating. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so `genre` is a TMDB genre id and the rating is TMDB’s. With no Seerr it is answered from the local IMDb dataset instead, where `genre` is a name such as `Crime` and the rating is IMDb’s; passing a numeric id there is refused rather than silently matching nothing.',
             inputSchema: z.object({
-                media_type: z.enum(['movie', 'tv']).default('movie').describe('Films or series.'),
+                kind: z.enum(['movie', 'series']).optional().describe('Films or series. Defaults to films.'),
+                // Undocumented on purpose: the spelling this tool had when the
+                // surface froze at 1.0. Kept working forever — removing it
+                // would break a saved prompt silently — but described nowhere,
+                // so nothing new is written against it.
+                media_type: z.enum(['movie', 'tv']).optional(),
                 genre: z.string().optional().describe('TMDB genre id, e.g. 28 for Action.'),
                 year: z.number().int().min(1900).max(2100).optional().describe('Restrict to one release year.'),
                 min_rating: z.number().min(0).max(10).optional().describe('Minimum TMDB rating out of 10.'),
@@ -140,9 +148,18 @@ export function registerDiscoverMedia(
                 limit: LimitSchema
             })
         },
-        async ({ media_type, genre, year, min_rating, detail, limit }) => {
+        async ({ kind, media_type, genre, year, min_rating, detail, limit }) => {
+            const resolved =
+                preferred({
+                    name: 'kind',
+                    value: kind,
+                    alias: 'media_type',
+                    aliasValue: media_type,
+                    translate: v => (v === 'tv' ? 'series' : v)
+                }) ?? 'movie';
+
             const result = await buildDiscoverMedia(adapter, {
-                mediaType: media_type,
+                kind: resolved as 'movie' | 'series',
                 ...(genre === undefined ? {} : { genre }),
                 ...(year === undefined ? {} : { year }),
                 ...(min_rating === undefined ? {} : { minRating: min_rating }),
@@ -152,7 +169,7 @@ export function registerDiscoverMedia(
             const summary =
                 result.degraded.length > 0
                     ? 'Seerr could not be reached; nothing to discover.'
-                    : `${result.returned} of ${result.total} ${media_type === 'tv' ? 'series' : 'film(s)'} found.`;
+                    : `${result.returned} of ${result.total} ${resolved === 'series' ? 'series' : 'film(s)'} found.`;
 
             return { content: [{ type: 'text', text: summary }], structuredContent: result };
         }

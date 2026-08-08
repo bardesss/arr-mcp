@@ -247,7 +247,7 @@ describe('lookup_media', () => {
             seerrConfig,
             serving({
                 '/api/v1/search': {
-                    results: [{ id: 550, mediaType: 'movie', title: 'Some Film', releaseDate: '2026-03-01' }]
+                    results: [{ id: 550, kind: 'movie', title: 'Some Film', releaseDate: '2026-03-01' }]
                 }
             })
         );
@@ -260,7 +260,7 @@ describe('lookup_media', () => {
             seerrConfig,
             serving({
                 '/api/v1/search': {
-                    results: [{ id: 1, mediaType: 'tv', name: 'Some Show', firstAirDate: '2024-06-01' }]
+                    results: [{ id: 1, kind: 'series', name: 'Some Show', firstAirDate: '2024-06-01' }]
                 }
             })
         );
@@ -490,8 +490,8 @@ describe('get_media_details', () => {
 describe('discover_media', () => {
     const RESULTS = {
         results: [
-            { id: 550, mediaType: 'movie', title: 'Some Film', releaseDate: '2026-03-01' },
-            { id: 551, mediaType: 'movie', title: 'Other Film', releaseDate: '2025-06-01' }
+            { id: 550, kind: 'movie', title: 'Some Film', releaseDate: '2026-03-01' },
+            { id: 551, kind: 'movie', title: 'Other Film', releaseDate: '2025-06-01' }
         ]
     };
 
@@ -506,29 +506,29 @@ describe('discover_media', () => {
 
     it('returns TMDB-backed results as search hits', async () => {
         const { adapter } = recording();
-        const result = await buildDiscoverMedia(adapter, { mediaType: 'movie', detail: 'full', limit: 50 });
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'full', limit: 50 });
         expect(result.items[0]).toMatchObject({ service: 'seerr', source: 'discover', kind: 'movie', ids: { tmdb: 550 } });
     });
 
     it('asks Seerr for the movie endpoint for films and the tv endpoint for series', async () => {
         const movies = recording();
-        await buildDiscoverMedia(movies.adapter, { mediaType: 'movie', detail: 'full', limit: 50 });
+        await buildDiscoverMedia(movies.adapter, { kind: 'movie', detail: 'full', limit: 50 });
         expect(movies.urls[0]).toContain('/api/v1/discover/movies');
 
         const tv = recording();
-        await buildDiscoverMedia(tv.adapter, { mediaType: 'tv', detail: 'full', limit: 50 });
+        await buildDiscoverMedia(tv.adapter, { kind: 'series', detail: 'full', limit: 50 });
         expect(tv.urls[0]).toContain('/api/v1/discover/tv');
     });
 
     it('passes the rating floor to TMDB rather than filtering after the fact', async () => {
         const { adapter, urls } = recording();
-        await buildDiscoverMedia(adapter, { mediaType: 'movie', minRating: 8, detail: 'full', limit: 50 });
+        await buildDiscoverMedia(adapter, { kind: 'movie', minRating: 8, detail: 'full', limit: 50 });
         expect(new URL(urls[0] ?? '').searchParams.get('voteAverageGte')).toBe('8');
     });
 
     it('passes genre and year through', async () => {
         const { adapter, urls } = recording();
-        await buildDiscoverMedia(adapter, { mediaType: 'movie', genre: '28', year: 2026, detail: 'full', limit: 50 });
+        await buildDiscoverMedia(adapter, { kind: 'movie', genre: '28', year: 2026, detail: 'full', limit: 50 });
 
         const params = new URL(urls[0] ?? '').searchParams;
         expect(params.get('genre')).toBe('28');
@@ -538,12 +538,12 @@ describe('discover_media', () => {
 
     it('fences titles', async () => {
         const { adapter } = recording();
-        const result = await buildDiscoverMedia(adapter, { mediaType: 'movie', detail: 'full', limit: 50 });
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'full', limit: 50 });
         expect(result.items.every(i => i.title.startsWith('<<untrusted:seerr.title>>'))).toBe(true);
     });
 
     it('returns an empty result rather than throwing when Seerr is not configured', async () => {
-        expect(await buildDiscoverMedia(undefined, { mediaType: 'movie', detail: 'full', limit: 50 })).toMatchObject({
+        expect(await buildDiscoverMedia(undefined, { kind: 'movie', detail: 'full', limit: 50 })).toMatchObject({
             items: [],
             total: 0,
             degraded: []
@@ -557,7 +557,7 @@ describe('discover_media', () => {
                 throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' });
             }) as unknown as typeof fetch
         );
-        const result = await buildDiscoverMedia(broken, { mediaType: 'movie', detail: 'full', limit: 50 });
+        const result = await buildDiscoverMedia(broken, { kind: 'movie', detail: 'full', limit: 50 });
         expect(result.degraded).toEqual(['seerr']);
     });
 });
@@ -667,7 +667,7 @@ describe('discovering without Seerr', () => {
     const query = { detail: 'standard' as const, limit: 10 };
 
     it('answers from the dataset when Seerr is not configured', async () => {
-        const result = await buildDiscoverMedia(undefined, { ...query, mediaType: 'movie', genre: 'Crime' }, dataset());
+        const result = await buildDiscoverMedia(undefined, { ...query, kind: 'movie', genre: 'Crime' }, dataset());
 
         // Fenced, like every external string that reaches model context — a
         // dataset row is no more trusted than an indexer's release name.
@@ -677,12 +677,12 @@ describe('discovering without Seerr', () => {
     });
 
     it('maps the tv media type onto series', async () => {
-        const result = await buildDiscoverMedia(undefined, { ...query, mediaType: 'tv' }, dataset());
+        const result = await buildDiscoverMedia(undefined, { ...query, kind: 'series' }, dataset());
         expect(result.items.map(i => unfenced(i.title))).toEqual(['Breaking Bad']);
     });
 
     it('filters by minimum rating', async () => {
-        const result = await buildDiscoverMedia(undefined, { ...query, mediaType: 'movie', minRating: 9.4 }, dataset());
+        const result = await buildDiscoverMedia(undefined, { ...query, kind: 'movie', minRating: 9.4 }, dataset());
         expect(result.items).toHaveLength(0);
     });
 
@@ -694,12 +694,12 @@ describe('discovering without Seerr', () => {
      */
     it('refuses a TMDB genre id it cannot possibly match', async () => {
         await expect(
-            buildDiscoverMedia(undefined, { ...query, mediaType: 'movie', genre: '28' }, dataset())
+            buildDiscoverMedia(undefined, { ...query, kind: 'movie', genre: '28' }, dataset())
         ).rejects.toThrow(/TMDB id/);
     });
 
     it('returns the same empty result as before when neither is available', async () => {
-        const result = await buildDiscoverMedia(undefined, { ...query, mediaType: 'movie' }, undefined);
+        const result = await buildDiscoverMedia(undefined, { ...query, kind: 'movie' }, undefined);
         expect(result).toMatchObject({ items: [], total: 0 });
     });
 });
