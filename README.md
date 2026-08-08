@@ -452,7 +452,9 @@ Put it behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 | 0.5 | Writes: permission tiers, `dry_run`, write audit, per-call confirmation |
 | 0.6 | Web config page: dashboard, diagnosing connection tests, log streams, config editing with hot reload |
 | 0.7 | Multiple Radarr, Sonarr and Bazarr instances — an HD and a 4K stack read as one library |
-| 0.8 → 1.0 | Metadata providers, MCP resources and prompts |
+| 0.8 | A local IMDb dataset: ratings that are consistent across films and series, and orderable |
+| 0.9 | MCP resources and prompts |
+| 1.0 | The tool surface settles: security, consistency and dead-code audit |
 
 Each version is a self-contained, shippable slice — the goal is that 0.4 already
 answers questions no individual service can, with 0.5–0.7 making it complete.

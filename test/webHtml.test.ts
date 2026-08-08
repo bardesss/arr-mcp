@@ -142,6 +142,55 @@ describe('grouping the disks a stack reports', () => {
     it('has nothing to say about an empty list', () => {
         expect(groupDisks([])).toEqual([]);
     });
+
+    /**
+     * Not every service has byte precision to report.
+     *
+     * SABnzbd returns disk space as gigabytes in a string — `arrRatings`' sibling
+     * comment in `sabnzbd.ts` records a live 5.0.4 answering `"4711.95"` — so its
+     * quantum is 0.01 GB, about 10.7 MB. The *arrs return exact byte counts. The
+     * same filesystem therefore arrives from the two of them several megabytes
+     * apart, `humanBytes` rounds both to `4.6 TB`, and a reader sees one disk
+     * listed twice with identical numbers.
+     */
+    it('merges one filesystem reported by a service with only 2-decimal GB precision', () => {
+        const GB = 1024 ** 3;
+        const arrFree = 5_061_398_528_000;
+        const arrTotal = 11_878_195_200_000;
+        // Exactly what SABnzbd would report for that filesystem, round-tripped
+        // through its own precision rather than hand-picked to pass.
+        const sabFree = Math.round(Number((arrFree / GB).toFixed(2)) * GB);
+        const sabTotal = Math.round(Number((arrTotal / GB).toFixed(2)) * GB);
+
+        expect(sabFree).not.toBe(arrFree);
+
+        const groups = groupDisks([
+            disk('radarr', arrFree, arrTotal),
+            disk('sonarr', arrFree, arrTotal),
+            disk('sabnzbd', sabFree, sabTotal)
+        ]);
+
+        expect(groups).toHaveLength(1);
+        expect(groups[0]?.services).toEqual(['radarr', 'sonarr', 'sabnzbd']);
+    });
+
+    it('folds a total-less mount onto a disk reported at lower precision', () => {
+        const GB = 1024 ** 3;
+        const arrFree = 5_061_398_528_000;
+        const sabFree = Math.round(Number((arrFree / GB).toFixed(2)) * GB);
+
+        const groups = groupDisks([disk('sabnzbd', sabFree, 11_878_195_200_000), disk('transmission', arrFree)]);
+        expect(groups).toHaveLength(1);
+    });
+
+    // The tolerance must not be so generous that it swallows real differences.
+    it('still separates two disks that differ by more than rounding could explain', () => {
+        const groups = groupDisks([
+            disk('radarr', 5_061_398_528_000, 11_878_195_200_000),
+            disk('jellyfin', 4_800_000_000_000, 11_878_195_200_000)
+        ]);
+        expect(groups).toHaveLength(2);
+    });
 });
 
 /**
