@@ -41,6 +41,16 @@ export type ToolContext = {
     seerrIdentity: IdentityResolver | undefined;
     library: LibraryLoader;
     /**
+     * The IMDb dataset, when configured.
+     *
+     * `library` already closes over it — the owned-library join happens there
+     * exactly once. This field is for the tools that answer about things you
+     * may *not* own, which never touch the library index: search, lookup and
+     * details. Spec §4.1 calls that the path that matters most, because a
+     * rating is usually wanted before deciding to add something.
+     */
+    dataset: ImdbDataset | undefined;
+    /**
      * The write half (§10). Built once alongside the resolvers rather than per
      * request: `ConfirmTokens` holds the signing key and the spent-token set,
      * and rebuilding it per request would make every confirmation token invalid
@@ -75,6 +85,7 @@ export function buildToolContext(
 
     return {
         adapters,
+        dataset,
         jellyfinIdentity,
         seerrIdentity:
             seerr !== undefined && config.services.seerr !== undefined
@@ -103,7 +114,7 @@ export function buildToolContext(
  * not find it missing after a config edit.
  */
 export function registerAllTools(server: McpServer, context: ToolContext): void {
-    const { adapters, jellyfinIdentity, seerrIdentity, library, write } = context;
+    const { adapters, dataset, jellyfinIdentity, seerrIdentity, library, write } = context;
     const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
@@ -115,10 +126,10 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, jellyfin, jellyfinIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
-    registerGetMediaDetails(server, adapters, library);
+    registerGetMediaDetails(server, adapters, library, dataset);
     registerGetLibrary(server, library);
-    registerSearchMedia(server, adapters);
-    registerLookupMedia(server, adapters);
+    registerSearchMedia(server, adapters, dataset);
+    registerLookupMedia(server, adapters, dataset);
     registerDiscoverMedia(server, seerr);
 
     // Registered unconditionally like every read tool, and for the same §18

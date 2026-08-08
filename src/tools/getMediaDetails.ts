@@ -5,6 +5,8 @@ import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import type { MergedItem } from '../core/resolver.ts';
 import { DetailSchema, LimitSchema, type DetailLevel } from '../core/shape.ts';
+import { enrichWithImdb } from '../metadata/enrich.ts';
+import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasMediaDetails, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
 import type { LibraryLoader } from './library.ts';
 
@@ -15,7 +17,8 @@ import type { LibraryLoader } from './library.ts';
  */
 export async function buildGetMediaDetails(
     adapters: readonly ServiceAdapter[],
-    opts: { service: ServiceId; instance?: string | undefined; id: string; detail: DetailLevel; limit: number }
+    opts: { service: ServiceId; instance?: string | undefined; id: string; detail: DetailLevel; limit: number },
+    dataset?: ImdbDataset | undefined
 ): Promise<MediaDetails> {
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
     if (!hasMediaDetails(adapter)) {
@@ -24,10 +27,14 @@ export async function buildGetMediaDetails(
         });
     }
 
-    return adapter.getMediaDetails(opts.id, {
+    const details = await adapter.getMediaDetails(opts.id, {
         includeEpisodes: opts.detail === 'full',
         episodeLimit: opts.limit
     });
+
+    // A single-item array through the same function the library uses, so one
+    // title cannot get a different rating depending on which tool asked.
+    return enrichWithImdb([details], dataset)[0] as MediaDetails;
 }
 
 export type MediaDetailsQuery = {
@@ -77,7 +84,10 @@ export async function buildResolvedMediaDetails(loader: LibraryLoader, query: st
 export async function resolveMediaDetails(
     adapters: readonly ServiceAdapter[],
     loader: LibraryLoader,
-    opts: MediaDetailsQuery
+    opts: MediaDetailsQuery,
+    /** Only the by-id branch needs this. The by-title branch resolves through
+     *  the library index, which `LibraryLoader` has already enriched. */
+    dataset?: ImdbDataset | undefined
 ): Promise<MediaDetails | MergedItem> {
     // The explicit id wins when both are given: an id is unambiguous and a
     // title is not.
@@ -88,7 +98,7 @@ export async function resolveMediaDetails(
             id: opts.id,
             detail: opts.detail,
             limit: opts.limit
-        });
+        }, dataset);
     }
 
     if (opts.query === undefined) {
@@ -103,7 +113,8 @@ export async function resolveMediaDetails(
 export function registerGetMediaDetails(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
-    loader: LibraryLoader
+    loader: LibraryLoader,
+    dataset?: ImdbDataset | undefined
 ): void {
     server.registerTool(
         'get_media_details',
@@ -127,7 +138,7 @@ export function registerGetMediaDetails(
                 ...(id === undefined ? {} : { id }),
                 detail,
                 limit
-            });
+            }, dataset);
 
             // `unknown` is not a place something is "present in" — it is the
             // absence of a confident answer (item 1 of the whole-phase

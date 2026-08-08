@@ -4,6 +4,8 @@ import type { ServiceId } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
 import { rankTitle, unfenced } from '../core/titleMatch.ts';
+import { enrichWithImdb } from '../metadata/enrich.ts';
+import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasSearch, type SearchHit, type SearchSource, type ServiceAdapter } from '../services/types.ts';
 
 export type GetSearchResult = {
@@ -26,7 +28,8 @@ const project = (h: SearchHit, detail: DetailLevel): SearchHit => {
 
 export async function buildSearchMedia(
     adapters: readonly ServiceAdapter[],
-    opts: { query: string; source: SearchSource; detail: DetailLevel; limit: number }
+    opts: { query: string; source: SearchSource; detail: DetailLevel; limit: number },
+    dataset?: ImdbDataset | undefined
 ): Promise<GetSearchResult> {
     const { items, degraded, counts } = await gather(
         adapters.filter(hasSearch).map(a => ({ id: a.id, fetch: () => a.search(opts.query, opts.source) }))
@@ -41,11 +44,20 @@ export async function buildSearchMedia(
             unfenced(a.title).localeCompare(unfenced(b.title))
     );
 
+    // Enriched after the limit, not before: only the page actually returned
+    // needs ratings, and an indexer search can produce hundreds of hits for a
+    // caller who asked for ten.
     const shaped = applyLimit(items, opts.limit);
-    return { ...shaped, items: shaped.items.map(h => project(h, opts.detail)), degraded, counts };
+    const rated = enrichWithImdb(shaped.items, dataset);
+
+    return { ...shaped, items: rated.map(h => project(h, opts.detail)), degraded, counts };
 }
 
-export function registerSearchMedia(server: McpServer, adapters: readonly ServiceAdapter[]): void {
+export function registerSearchMedia(
+    server: McpServer,
+    adapters: readonly ServiceAdapter[],
+    dataset?: ImdbDataset | undefined
+): void {
     server.registerTool(
         'search_media',
         {
@@ -64,7 +76,7 @@ export function registerSearchMedia(server: McpServer, adapters: readonly Servic
             })
         },
         async ({ query, source, detail, limit }) => {
-            const result = await buildSearchMedia(adapters, { query, source, detail, limit });
+            const result = await buildSearchMedia(adapters, { query, source, detail, limit }, dataset);
             const summary =
                 result.total === 0
                     ? `No ${source} results for "${query}".`

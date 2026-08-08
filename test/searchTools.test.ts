@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
+import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
@@ -557,5 +558,78 @@ describe('discover_media', () => {
         );
         const result = await buildDiscoverMedia(broken, { mediaType: 'movie', detail: 'full', limit: 50 });
         expect(result.degraded).toEqual(['seerr']);
+    });
+});
+
+/**
+ * Spec §4.1 calls this the path that matters most: a rating is usually wanted
+ * for something you have *not* got, which is `lookup_media` rather than
+ * `get_library`. The *arr lookup endpoints are shaped for adding a title, so
+ * nothing in them carries a rating at all.
+ */
+describe('IMDb ratings on the not-yet-owned paths', () => {
+    let db: ImdbDataset | undefined;
+    afterEach(() => {
+        db?.close();
+        db = undefined;
+    });
+
+    // tt0137523 is what the lookup fixture above returns.
+    const dataset = (): ImdbDataset => {
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [{ tconst: 'tt0137523', kind: 'movie', title: 'Some Film' }],
+            ratings: [{ tconst: 'tt0137523', average: 9.3, votes: 100 }],
+            episodes: []
+        });
+        return db;
+    };
+
+    const lookupRadarr = new RadarrAdapter(
+        keyed(7878),
+        serving({
+            '/api/v3/movie/lookup': [
+                { title: 'Some Film', year: 2026, tmdbId: 550, imdbId: 'tt0137523', hasFile: false, monitored: false }
+            ]
+        })
+    );
+
+    it('rates a lookup hit for something not in the library at all', async () => {
+        const result = await buildLookupMedia(
+            [lookupRadarr],
+            { query: 'some film', detail: 'standard', limit: 50 },
+            dataset()
+        );
+        expect(result.items[0]?.ratings?.imdb).toBe(9.3);
+    });
+
+    it('leaves lookup exactly as it was when no dataset is configured', async () => {
+        const result = await buildLookupMedia([lookupRadarr], { query: 'some film', detail: 'standard', limit: 50 });
+        expect(result.items[0]?.ratings).toBeUndefined();
+    });
+
+    /**
+     * The MOVIE fixture carries Radarr's own imdb rating of 8.8. A service is
+     * the authority on its own data, so the dataset's 9.3 must not displace
+     * it — and the two disagreeing is exactly when that rule earns its keep.
+     */
+    it('never displaces a rating the service itself reported', async () => {
+        const rated = {
+            id: 42,
+            title: 'Some Film',
+            year: 2026,
+            monitored: true,
+            hasFile: true,
+            tmdbId: 550,
+            imdbId: 'tt0137523',
+            ratings: { imdb: { value: 8.8, votes: 2_000_000 } }
+        };
+        const detailRadarr = new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie/42': rated }));
+        const result = await buildGetMediaDetails(
+            [detailRadarr],
+            { service: 'radarr', id: '42', detail: 'standard', limit: 50 },
+            dataset()
+        );
+        expect(result.ratings?.imdb).toBe(8.8);
     });
 });
