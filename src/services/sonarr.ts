@@ -55,6 +55,7 @@ type RawSeries = {
     genres?: string[];
     /** Flat, unlike Radarr's per-source map — see `flattenSeriesRating`. */
     ratings?: RawRating;
+    added?: string | null;
     statistics?: { sizeOnDisk?: number; episodeFileCount?: number };
 };
 
@@ -326,6 +327,7 @@ export class SonarrAdapter
                 // episode on disk". No quality either: it is per-episode, which
                 // is why §5.2 makes the quality filter films-only.
                 hasFile: (s.statistics?.episodeFileCount ?? 0) > 0,
+                ...(s.added === undefined || s.added === null ? {} : { addedAt: s.added }),
                 ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk })
             },
             // Flat, and labelled tvdb. Treating it as a per-source map is the

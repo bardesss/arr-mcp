@@ -500,3 +500,41 @@ describe('ordering', () => {
         expect(result.items.map(i => i.title)).toEqual(['Unseen']);
     });
 });
+
+/**
+ * "What arrived this week" was unanswerable before 0.9: nothing in the merged
+ * shape carried an added date, which is also why 0.8 shipped `sort` without
+ * `added` in it.
+ */
+describe('sorting by when things arrived', () => {
+    const arrived = (title: string, at: string, tmdb: number): IndexInput =>
+        film({
+            title,
+            ids: { tmdb },
+            acquisition: { service: 'radarr', monitored: true, hasFile: true, addedAt: at }
+        });
+
+    it('puts the most recently added first', async () => {
+        const items = [
+            arrived('Old', '2020-01-01T00:00:00Z', 1),
+            arrived('New', '2026-08-01T00:00:00Z', 2),
+            arrived('Middle', '2023-05-05T00:00:00Z', 3)
+        ];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, sort: 'added' });
+        expect(result.items.map(i => i.title)).toEqual(['New', 'Middle', 'Old']);
+    });
+
+    /**
+     * Media Jellyfin alone knows about has no acquisition half and so no added
+     * date. Sorting it as the epoch would answer "we do not know" with "1970" —
+     * the same failure as ranking an unrated title zero.
+     */
+    it('excludes items with no added date rather than dating them to the epoch', async () => {
+        const items = [
+            arrived('Known', '2026-08-01T00:00:00Z', 1),
+            film({ title: 'Unknown', ids: { tmdb: 2 } })
+        ];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, sort: 'added' });
+        expect(result.items.map(i => i.title)).toEqual(['Known']);
+    });
+});

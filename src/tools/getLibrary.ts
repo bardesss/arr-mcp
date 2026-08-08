@@ -65,11 +65,11 @@ const toTenPointScale = (source: RatingSource, value: number): number => (value 
  * `limit`, the best-rated may simply not be in the window, and the model then
  * answers confidently from whatever fifty it was handed.
  *
- * `added` is deliberately absent. `MergedItem` carries no added date, and a
- * sort option that silently does nothing is worse than one that was never
- * offered — it can be added later as a minor without breaking anything.
+ * `added` was absent through 0.8 because nothing carried an added date. 0.9
+ * put one on `acquisition`, which is what makes "what arrived this week"
+ * answerable rather than approximated.
  */
-export const SORT_FIELDS = ['rating', 'year', 'title'] as const;
+export const SORT_FIELDS = ['rating', 'year', 'title', 'added'] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 
 export type LibraryQuery = {
@@ -176,6 +176,20 @@ function applySort(items: readonly MergedItem[], sort: SortField, source: Rating
     const sorted = [...items];
 
     if (sort === 'title') return sorted.sort((a, b) => unfenced(a.title).localeCompare(unfenced(b.title)));
+
+    if (sort === 'added') {
+        // Excluded, not defaulted. An item nobody can date is not an item from
+        // 1970, and answering "we do not know" with the epoch is the same
+        // failure as ranking an unrated title zero.
+        //
+        // Compared as strings: ISO 8601 sorts lexicographically in the order it
+        // sorts chronologically, so no parsing is needed — and `new Date()` on
+        // a malformed value yields NaN, which compares false against everything
+        // and would scramble the order silently.
+        return sorted
+            .filter(i => i.acquisition?.addedAt !== undefined)
+            .sort((a, b) => (b.acquisition?.addedAt ?? '').localeCompare(a.acquisition?.addedAt ?? ''));
+    }
     // Descending: the newest and the best rated are what a superlative asks
     // for, and nobody asks for their worst film first.
     if (sort === 'year') return sorted.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
@@ -304,7 +318,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                     .enum(SORT_FIELDS)
                     .optional()
                     .describe(
-                        'Order the results *before* `limit` is applied — which is what makes "the best rated" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
+                        'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages, which has no added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
                     ),
                 detail: DetailSchema,
                 limit: LimitSchema

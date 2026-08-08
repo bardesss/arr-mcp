@@ -378,3 +378,30 @@ describe('version floors', () => {
         expect(d.version).toBe('6.3.0.10514');
     });
 });
+
+/**
+ * `added` is the only source of an added date in this stack. Driven off the
+ * recorded fixture rather than a hand-written shape, so the day Radarr renames
+ * the field this fails here instead of silently emptying `sort: 'added'`.
+ */
+describe('when a service added something', () => {
+    it('carries the date Radarr reported, verbatim', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': fixture('radarr/movie.json') })
+        );
+
+        const items = await radarr.listLibrary();
+        expect(items[0]?.acquisition?.addedAt).toBe('2021-09-24T16:04:10Z');
+    });
+
+    it('omits it rather than inventing one when the service did not say', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': [{ id: 1, title: 'No Date', tmdbId: 1, monitored: true, hasFile: true }] })
+        );
+
+        const items = await radarr.listLibrary();
+        expect(items[0]?.acquisition?.addedAt).toBeUndefined();
+    });
+});

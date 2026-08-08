@@ -30,7 +30,27 @@ export type MergedItem = {
      */
     genres?: string[];
     ids: ExternalIds;
-    acquisition?: { service: string; monitored: boolean; hasFile: boolean; quality?: string; sizeBytes?: number };
+    acquisition?: {
+        service: string;
+        monitored: boolean;
+        hasFile: boolean;
+        quality?: string;
+        sizeBytes?: number;
+        /**
+         * When the managing service added it, ISO 8601, exactly as that service
+         * reported it.
+         *
+         * On `acquisition` rather than on the item, and that placement is the
+         * decision. "When Radarr added this" is one unambiguous fact; Jellyfin's
+         * `DateCreated` — when a file appeared in *its* library — is a different
+         * one, and a single field holding both answers would repeat the mistake
+         * Sonarr's unlabelled rating already taught this codebase. Media
+         * Jellyfin alone knows about has no acquisition half and therefore no
+         * added date, which `sort: 'added'` reports by omission rather than by
+         * guessing.
+         */
+        addedAt?: string;
+    };
     playback?: { user: string; watched: boolean; playCount?: number; lastPlayed?: string };
     ratings?: MergedRatings;
     /**
