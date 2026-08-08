@@ -18,6 +18,34 @@ bleeding edge. Nothing else. The release workflow fails the job when a release
 computes no version tag — a release that publishes only `latest` is a silent
 policy violation, and it has happened once.
 
+## Cutting a phase whose verification runs after the merge
+
+`CONTRIBUTING.md` says the minor is cut with a `Release-As: X.Y.0` footer on the
+last commit of the phase. That assumes the phase is fully verified before it
+merges. Twice now it has not been — 0.8 and 0.9 both ended with a manual gate
+that needs a live stack, and neither could be run before the PR went in.
+
+Leaving the footer off is the right call there: it is honest about what was
+verified. But `bump-patch-for-minor-pre-major` then does exactly its job and
+proposes a **patch**, so the phase would ship as `0.8.4` under a number the
+README roadmap has already promised to something else.
+
+So the second step is deliberate, not a mistake to avoid:
+
+```
+merge the phase PR        →  release-please proposes X.Y.(Z+1)
+merge a follow-up commit  →  Release-As: X.(Y+1).0
+                          →  the same release PR re-cuts itself
+```
+
+The follow-up may be empty (`git commit --allow-empty`) when its only job is the
+footer, though a small docs change is better — an empty commit in the log gives
+a future reader nothing to work with.
+
+**Check the version on the release PR before merging it**, every time. The title
+says which it is, and it is far cheaper to notice there than after the tag
+exists.
+
 ## If the release PR is BLOCKED with nothing failing
 
 `main` requires the `check` and `docker` status checks, with `enforce_admins:
