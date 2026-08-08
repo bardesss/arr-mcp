@@ -441,16 +441,19 @@ export function configPage(opts: {
                     opts.config.metadata?.imdb?.enabled ?? false
                 )}
                 <p class="note">
-                    <strong>About 125 MB on disk, and a 223 MB download each day.</strong> The first ingest
-                    takes a few minutes; everything keeps working meanwhile and the dashboard says when it
-                    has finished. Nothing is sent anywhere, and there is no account or key.
+                    <strong>A fallback — most stacks do not need this.</strong> If you run Seerr you already
+                    have ratings for films <em>and</em> series, with no disk cost: Seerr supplies TMDB and
+                    Rotten Tomatoes for both, plus IMDb for films. Radarr covers films in your own library.
                 </p>
                 <p class="note">
-                    <strong>You may not need it.</strong> Radarr already reports IMDb, Rotten Tomatoes and
-                    Metacritic for films in your library, and Seerr supplies ratings for things you do not
-                    own. What nothing else can give you is an <em>IMDb rating for a series</em> — Sonarr
-                    reports one unlabelled number, and Seerr has no IMDb score for TV. That, and ratings at
-                    all if you do not run Seerr, is what this is for.
+                    Switch it on if you <strong>do not run Seerr</strong>, or want ratings to keep working
+                    when Seerr is down — or if you specifically want an <strong>IMDb number for a series</strong>,
+                    which is the one figure nothing else has (Seerr returns Rotten Tomatoes only for TV).
+                </p>
+                <p class="note">
+                    <strong>About 125 MB on disk, and a 223 MB download each day.</strong> The first ingest
+                    takes a few minutes; everything keeps working meanwhile, and the dashboard says when it
+                    has finished. Nothing is sent anywhere, and there is no account or key.
                 </p>
             </fieldset>
 
