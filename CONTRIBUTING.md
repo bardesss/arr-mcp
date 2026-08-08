@@ -49,27 +49,32 @@ reads them to decide the next version and to write `CHANGELOG.md`.
 | Prefix | Effect on version |
 | --- | --- |
 | `fix:` | patch |
-| `feat:` | patch while on 0.x, minor after 1.0 |
-| `feat!:` or a `BREAKING CHANGE:` footer | minor while on 0.x, major after 1.0 |
+| `feat:` | minor |
+| `feat!:` or a `BREAKING CHANGE:` footer | **major** |
 | `chore:`, `docs:`, `ci:`, `test:`, `refactor:` | none |
 
-**Minor versions are reserved for phases while we are pre-1.0.** `0.6`, `0.7`
-and so on each mark a phase from the roadmap, not an individual feature — that
-is what the roadmap table in the README is numbering. A feature therefore lands
-as a patch (`0.6.3`, `0.6.4`), and the minor is cut deliberately when the phase
-is complete, with a `Release-As: 0.7.0` footer on the last commit of the phase.
+**What counts as breaking**, which is the part worth writing down:
 
-This is what `bump-patch-for-minor-pre-major` in `release-please-config.json`
-does, and it is the reason it is on. Without it a single `feat:` consumes the
-next phase number: a one-panel dashboard change proposed `0.7.0` and would have
-taken the number Phase 7 is meant to carry.
+- A tool renamed or removed
+- A parameter renamed or removed
+- A field removed from a response
+
+Adding a tool, an optional parameter or a response field is a **minor** — those
+are additive and nothing that reads the old shape stops working.
+
+The pre-1.0 scheme is gone. Minors used to be reserved for roadmap phases, so a
+`feat:` landed as a patch and the minor was cut deliberately with a
+`Release-As:` footer; `bump-patch-for-minor-pre-major` in
+`release-please-config.json` is what enforced it and is now inert. `RELEASING.md`
+records how that worked, because two releases were nearly cut under the wrong
+number by forgetting it.
 
 ## The tool surface is the public API
 
 Renaming a tool or removing a parameter breaks every user's saved prompts and
 agent configuration, and it breaks **silently** — the model stops finding the
 tool rather than raising an error. Changes to tool names or parameters therefore
-get stricter review than ordinary refactors. After 1.0, a renamed tool keeps its
+get stricter review than ordinary refactors. Since 1.0, a renamed tool keeps its
 old name as an alias for one full minor, with the deprecation stated in the
 tool's own description text.
 
@@ -93,6 +98,22 @@ why `stack_health` reports per-instance permissions.
 
 The highest-value contribution, and deliberately self-contained. Six steps,
 each with a worked example already in the tree.
+
+**You will have to test it yourself, properly.** The maintainer does not run
+every service this could support — there is no Lidarr, no Plex, no qBittorrent
+here — so an adapter for one cannot be exercised in review, only read. That
+makes your testing the only testing it gets before it ships.
+
+Concretely: run it against your own live instance, say in the pull request what
+you tested and against which version, and capture fixtures from the real service
+rather than writing them by hand. A test that passes against an invented shape
+proves nothing about the service it claims to support.
+
+And write down whatever surprised you. Every adapter here carries a note about
+something its API does that the documentation does not mention — SABnzbd
+reporting gigabytes as a string, Sonarr's rating arriving unlabelled, Jellyfin
+localising its task names. Those notes have prevented more bugs than the code
+around them.
 
 1. **Add the service id** to `ServiceIdSchema` in `src/config/schema.ts`, and a
    schema for it in `ServicesSchema`. Reuse `KeyedServiceSchema` unless the
