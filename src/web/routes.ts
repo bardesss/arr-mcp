@@ -15,6 +15,7 @@ import {
     SESSION_TTL_MS,
     verifyPassword
 } from '../core/session.ts';
+import { instanceId } from '../config/instances.ts';
 import { buildAdapters } from '../services/registry.ts';
 import { hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
@@ -351,18 +352,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.post(
         '/ui/config/add',
-        configMutation('Added.', form => {
-            const type = ServiceIdSchema.parse(str(form.type));
-            const name = str(form.name).trim();
-            const renameExistingTo = str(form.rename_existing_to).trim();
-
-            return addInstance(runtime.config, {
-                type,
-                ...(name === '' ? {} : { name }),
-                ...(renameExistingTo === '' ? {} : { renameExistingTo }),
-                fields: instanceFieldsFrom(form)
-            });
-        }, true)
+        configMutation('Added.', form => addCandidateFrom(runtime.config, form).candidate, true)
     );
 
     app.post(
@@ -400,12 +390,32 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
      * and a blank credential still means *unchanged*, so testing a card you
      * have not touched tests what is already configured.
      *
+     * The add dialog posts here too, with no `instance` — there is not one yet.
+     * That candidate is built by `addInstance`, the same call Add itself makes,
+     * so a test that passes is a test that Add will accept. It inherits Add's
+     * validation along with it: testing a second radarr before naming it
+     * answers "name the new radarr instance" rather than a latency, which is
+     * the thing you needed to hear either way.
+     *
      * Not a `configMutation`, despite the shape: that helper's whole contract
      * is that it ends in `saveConfig`.
      */
     app.post('/ui/config/test', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
+
+        const form = await c.req.parseBody();
+        const id = str(form.instance);
+        const isAdd = id === '';
+
+        // The dialog's Test is fetched rather than posted, so its result can
+        // land in a dialog that still holds what you typed. A page re-render
+        // could not: `addDialog` renders its fields blank, and filling them
+        // back in would mean writing the API key into the HTML — which is the
+        // one thing `configPage` is built never to do. The unscripted path
+        // falls through to the same render as everything else, blank fields
+        // and all, exactly as a refused Add already behaves.
+        const wantsJson = c.req.header('accept')?.includes('application/json') === true;
 
         const render = async (status: 200 | 400 | 403, extra: Partial<Parameters<typeof configPage>[0]>) =>
             c.html(
@@ -414,31 +424,38 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     config: runtime.config,
                     csrf: runtime.sessions.csrfFor(session),
                     users: await usersByInstance(),
+                    ...(isAdd ? { openAdd: true } : {}),
                     ...extra
                 }),
                 status
             );
 
-        const form = await c.req.parseBody();
+        const fail = async (status: 400 | 403, text: string) =>
+            wantsJson ? c.json({ ok: false, detail: text }, status) : render(status, { message: { kind: 'err', text } });
+
         if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
             logger.warn({ ip: ipOf(c) }, 'rejected a connection test with a bad CSRF token');
-            return render(403, { message: { kind: 'err', text: 'That form was stale. Reload the page and try again.' } });
+            return fail(403, 'That form was stale. Reload the page and try again.');
         }
 
-        const id = str(form.instance);
         try {
-            const candidate = updateInstance(runtime.config, id, instanceFieldsFrom(form));
-            const adapter = buildAdapters(candidate).find(a => a.id === id);
-            if (adapter === undefined) throw new Error(`${id} is not configured.`);
+            const { candidate, target } = isAdd
+                ? addCandidateFrom(runtime.config, form)
+                : { candidate: updateInstance(runtime.config, id, instanceFieldsFrom(form)), target: id };
+
+            const adapter = buildAdapters(candidate).find(a => a.id === target);
+            if (adapter === undefined) throw new Error(`${target} is not configured.`);
 
             const diagnosis = await adapter.testConnection();
-            logger.info({ ip: ipOf(c), service: id, ok: diagnosis.ok }, 'connection tested from the config UI');
-            return render(200, { tested: { instance: id, diagnosis } });
+            logger.info({ ip: ipOf(c), service: target, ok: diagnosis.ok }, 'connection tested from the config UI');
+
+            if (wantsJson) return c.json(diagnosis, 200);
+            return render(200, isAdd ? { testedAdd: diagnosis } : { tested: { instance: target, diagnosis } });
         } catch (err) {
             // A config that will not even build — a URL that is not a URL, a
             // timeout that is not a number. testConnection never gets to run,
             // so the message is the validation one, which names the field.
-            return render(400, { message: { kind: 'err', text: (err as Error).message } });
+            return fail(400, (err as Error).message);
         }
     });
 }
@@ -511,6 +528,33 @@ export function instanceFieldsFrom(form: Record<string, unknown>): InstanceField
         ...(Number.isFinite(timeout) && timeout > 0 ? { timeout_ms: Math.trunc(timeout) } : {}),
         safe_write: on(form.safe_write),
         destructive: on(form.destructive)
+    };
+}
+
+/**
+ * What the add dialog describes: the config it would produce, and the id the
+ * new instance would take.
+ *
+ * Shared by `/ui/config/add` and the dialog's Test so the two cannot drift.
+ * A Test that builds its candidate any other way is a Test that can pass
+ * against something Add would then refuse.
+ */
+export function addCandidateFrom(
+    config: Config,
+    form: Record<string, unknown>
+): { candidate: Config; target: string } {
+    const type = ServiceIdSchema.parse(str(form.type));
+    const name = str(form.name).trim();
+    const renameExistingTo = str(form.rename_existing_to).trim();
+
+    return {
+        candidate: addInstance(config, {
+            type,
+            ...(name === '' ? {} : { name }),
+            ...(renameExistingTo === '' ? {} : { renameExistingTo }),
+            fields: instanceFieldsFrom(form)
+        }),
+        target: instanceId(type, name === '' ? undefined : name)
     };
 }
 
