@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0](https://github.com/bardesss/arr-mcp/compare/v0.9.0...v1.0.0) (2026-08-08)
+
+
+### Features
+
+* 1.0 — the tool surface is stable ([#80](https://github.com/bardesss/arr-mcp/issues/80)) ([a469841](https://github.com/bardesss/arr-mcp/commit/a469841ea6483f2af14f60997c5e9ef94d0118a8))
+
+
+### Miscellaneous Chores
+
+* cut 1.0.0 — the squash ate the footer ([#82](https://github.com/bardesss/arr-mcp/issues/82)) ([1348c51](https://github.com/bardesss/arr-mcp/commit/1348c51186242626ef67bae91e55365d16db08a6))
+
 ## [0.9.0](https://github.com/bardesss/arr-mcp/compare/v0.8.0...v0.9.0) (2026-08-08)
 
 
