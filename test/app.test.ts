@@ -282,3 +282,54 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
         expect(text).toMatch(/id/i);
     });
 });
+
+/**
+ * The bet this whole phase rests on: client support for prompts and resources
+ * is uneven, and arr-mcp has to work on all of them. So a client that surfaces
+ * neither must be exactly as capable as before. Too central to leave resting on
+ * it being obvious.
+ */
+describe('prompts and resources, beside the tools rather than instead of them', () => {
+    const list = async (method: string): Promise<Record<string, unknown>> => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc({ jsonrpc: '2.0', id: 1, method }, { Authorization: `Bearer ${TOKEN}` })
+        );
+        return (await rpcPayload(res)).result ?? {};
+    };
+
+    it('advertises the five prompts', async () => {
+        const { prompts } = (await list('prompts/list')) as { prompts: { name: string }[] };
+        expect(prompts.map(p => p.name).sort()).toEqual([
+            'best_in_library',
+            'what_to_watch',
+            'whats_new',
+            'whats_wrong',
+            'why_not_playable'
+        ]);
+    });
+
+    it('advertises the three resources', async () => {
+        const { resources } = (await list('resources/list')) as { resources: { uri: string }[] };
+        expect(resources.map(r => r.uri).sort()).toEqual([
+            'arr://health',
+            'arr://instances',
+            'arr://library/summary'
+        ]);
+    });
+
+    /**
+     * Nineteen, unchanged. 0.9 extended three existing tools and added none —
+     * `CONTRIBUTING.md` calls the count a hard constraint because accuracy
+     * degrades past roughly forty, and a phase that quietly spent four of that
+     * budget on convenience would be the wrong trade.
+     */
+    it('still advertises exactly nineteen tools', async () => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
+        );
+        const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
+        expect(result.tools).toHaveLength(19);
+    });
+});
