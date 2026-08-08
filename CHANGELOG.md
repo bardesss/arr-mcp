@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/bardesss/arr-mcp/compare/v1.0.0...v1.1.0) (2026-08-08)
+
+
+### Bug Fixes
+
+* the IMDb ingest ran the process out of memory ([#83](https://github.com/bardesss/arr-mcp/issues/83)) ([f3e4a95](https://github.com/bardesss/arr-mcp/commit/f3e4a9576a2e244da647b5442c261aac66909bd3))
+
+
+### Miscellaneous Chores
+
+* cut 1.1.0 — the squash subject decided the bump ([#85](https://github.com/bardesss/arr-mcp/issues/85)) ([4e8fc69](https://github.com/bardesss/arr-mcp/commit/4e8fc69c57e7e1d3f66816a00aaf767adbe89961))
+
 ## [1.0.0](https://github.com/bardesss/arr-mcp/compare/v0.9.0...v1.0.0) (2026-08-08)
 
 
