@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/bardesss/arr-mcp/compare/v0.8.0...v0.9.0) (2026-08-08)
+
+
+### Features
+
+* prompts and resources — the questions worth asking ([#77](https://github.com/bardesss/arr-mcp/issues/77)) ([52bdb8c](https://github.com/bardesss/arr-mcp/commit/52bdb8c06f6e5cea6a7fcecd7b61ebfc90487859))
+
+
+### Documentation
+
+* write down the two-step for cutting a verified-late phase ([#79](https://github.com/bardesss/arr-mcp/issues/79)) ([605c0e3](https://github.com/bardesss/arr-mcp/commit/605c0e37000eabccecd6bcf3bdd093a67de12fe7))
+
 ## [0.8.0](https://github.com/bardesss/arr-mcp/compare/v0.7.3...v0.8.0) (2026-08-08)
 
 
