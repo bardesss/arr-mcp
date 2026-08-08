@@ -384,23 +384,25 @@ Only rated titles of a kind something can actually query are stored — the othe
 Re-measure with `node --experimental-strip-types scripts/measure-imdb.ts`; the
 dumps grow, and a figure in a README is only as good as the day it was taken.
 
-### Do you need it?
+### Do you need it? Probably not, if you run Seerr
 
-Probably less than it first appears. Where ratings already come from:
+**This is a fallback.** Seerr already supplies ratings for both films and
+series, and it needs no disk at all:
 
 | | Films | Series |
 | --- | --- | --- |
 | **In your library** | Radarr: IMDb, TMDB, Rotten Tomatoes, Metacritic | Sonarr: one unlabelled number |
-| **Not in your library** | Seerr: TMDB on every hit, plus Rotten Tomatoes and IMDb on `get_media_details` | Seerr: TMDB, plus Rotten Tomatoes |
+| **Not in your library** | Seerr: TMDB, Rotten Tomatoes, IMDb | Seerr: TMDB, Rotten Tomatoes |
 
-So if you run Seerr and mostly care about films, **you may not need this at
-all**. What nothing else can give you is an **IMDb rating for a series** —
-Sonarr reports a single unlabelled number, and Seerr's `/tv/{id}/ratings` has no
-IMDb half — or ratings of any kind if you do not run Seerr.
+So switch the dataset on if:
 
-It is not a Seerr fallback, either. Seerr filters discovery by TMDB rating but
-that is a different job; discovery falls back to this dataset only when Seerr is
-not configured at all.
+- **you do not run Seerr**, or want ratings to survive Seerr being down; or
+- **you specifically want an IMDb number for a series.** Seerr's
+  `/tv/{id}/ratings` returns Rotten Tomatoes only — there is no combined
+  endpoint for TV upstream — so that one figure has no other source.
+
+That second reason is a footnote, not a feature. If TMDB and Rotten Tomatoes are
+enough for your series, you do not need this.
 
 ```
 get_library({ kind: "series", watched: false, rating_source: "imdb",

@@ -241,9 +241,9 @@ const imdbPanel = (status: DatasetStatus): SafeHtml => html`<h2>IMDb dataset</h2
                   ingest finishes — nothing is broken while this says so. It runs again daily.
               </p>`
             : html`<p class="note">
-                      The IMDb rating no service in your stack can report for a series, and a rating for
-                      anything you do not own yet. Refreshed daily — about 223 MB down, roughly 1.3 GB on
-                      disk. Nothing here is sent anywhere.
+                      A fallback for ratings when Seerr is not configured or not answering, plus the IMDb
+                      number for a series that nothing else reports. Refreshed daily — about 223 MB down,
+                      roughly 125 MB on disk. Nothing here is sent anywhere.
                   </p>
                   <table>
                       <thead><tr><th>Last ingested</th><th>Titles</th><th>Rated</th></tr></thead>
