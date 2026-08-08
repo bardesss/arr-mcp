@@ -285,9 +285,9 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     if (cls === 'indeterminate') {
         // The row exists and mentions the item, but neither this module nor
         // the adapter that read it knows what its status means — reported
-        // as could-not-fully-classify, not silently folded into "active"
-        // (which would claim progress this module has no basis for) or
-        // "fault", which would claim a problem it cannot name.
+        // as could-not-classify — not folded into "active", which would claim
+        // progress there is no basis for, nor "fault", which would name a
+        // problem it cannot.
         return {
             step: {
                 stage: 'queue',
@@ -307,12 +307,11 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 function indexerStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.prowlarrConfigured) return SKIPPED('indexers', 'No indexer manager is configured.');
     if (ev.degraded.includes('prowlarr')) {
-        // `degraded` is probe reachability — the same array
-        // `scanStep`/`queueStep` read, and correctly
-        // so here: Prowlarr contributes no library-read half, so there is no
-        // `libraryDegraded` signal for it to consult instead — a service's
-        // own probe failing must count even
-        // when `rejections` happens to be defined from a stale read).
+        // `degraded` is probe reachability — the same array `scanStep` and
+        // `queueStep` read, and right here too: Prowlarr contributes no
+        // library-read half, so there is no `libraryDegraded` for it to consult
+        // instead. A service's own probe failing must count even when
+        // `rejections` happens to be defined from a stale read.
         return { stage: 'indexers', service: 'prowlarr', status: 'unknown', detail: 'Prowlarr could not be reached.' };
     }
     if (ev.rejections === undefined) return { stage: 'indexers', service: 'prowlarr', status: 'unknown', detail: 'Prowlarr could not be reached.' };
@@ -332,13 +331,12 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
 function libraryStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.jellyfinConfigured) return SKIPPED('library', 'Jellyfin is not configured.');
     if (ev.libraryDegraded.includes('jellyfin')) {
-        // Never "it is not in Jellyfin" when Jellyfin was not asked.
-        // Reads `libraryDegraded`, not `degraded`: a failed scan probe
-        // belongs to `degraded` and must not
-        // land here — this stage is about the library *read*, and item.presence
-        // alone is not enough of a guard (`unknown` looks the same
-        // as "no evidence at all" to the check below, but `hasFile` is still
-        // real *arr data this module must not reinterpret as a Jellyfin gap).
+        // Never "it is not in Jellyfin" when Jellyfin was not asked. Reads
+        // `libraryDegraded`, not `degraded`: a failed scan probe belongs to the
+        // latter and must not land here, because this stage is about the
+        // library *read*. `presence` alone is not enough of a guard either —
+        // `unknown` looks like "no evidence at all" to the check below, while
+        // `hasFile` is real *arr data this module must not reinterpret.
         return { stage: 'library', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its library was not checked.' };
     }
     if (item.presence === 'both' || item.presence === 'jellyfin_only') {
@@ -358,12 +356,10 @@ function libraryStep(ev: Evidence, item: MergedItem): Step {
 function scanStep(ev: Evidence): Step {
     if (!ev.jellyfinConfigured) return SKIPPED('scan', 'Jellyfin is not configured.');
     if (ev.degraded.includes('jellyfin')) {
-        // `degraded` here is specifically the `getScanState` probe —
-        // deliberately *not* `libraryDegraded`,
-        // which `libraryStep` reads instead. The two used to share one array,
-        // so a failed scan probe silently erased a library read that
-        // succeeded; they are independent endpoints and are allowed to
-        // disagree about which of them Jellyfin actually answered.
+        // Specifically the `getScanState` probe, and deliberately not
+        // `libraryDegraded`. The two once shared an array, so a failed scan
+        // probe silently erased a library read that had succeeded — they are
+        // independent endpoints and may disagree about what Jellyfin answered.
         return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its scan state was not checked.' };
     }
     if (ev.scan === undefined) return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin’s scan state could not be read.' };
@@ -447,9 +443,9 @@ const SERIES_FILE_VISIBLE_HEDGE =
  * The top-level `Diagnosis.degraded` a caller sees, and the input to the
  * `resolve` verdict's own certainty below, are both "everything this
  * diagnosis could not fully check" — the union of probe reachability and
- * library-read reachability (a review finding keeps those
- * two arrays separate for the *per-stage* checks above, which each care
- * about only one; nothing downstream of this point needs that distinction).
+ * library-read reachability. The two are kept separate for the per-stage
+ * checks above, which each care about only one; nothing downstream of here
+ * needs the distinction.
  */
 const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...ev.libraryDegraded])].sort();
 
