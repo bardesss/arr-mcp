@@ -1,5 +1,6 @@
 import { loadConfig } from '../config/load.ts';
 import type { Config } from '../config/schema.ts';
+import { IMDB_FILENAME, ImdbDataset } from '../metadata/imdbDataset.ts';
 import { buildAdapters } from '../services/registry.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { buildToolContext, type ToolContext } from '../tools/register.ts';
@@ -30,6 +31,13 @@ export type RuntimeSnapshot = {
     tools: ToolContext;
 };
 
+/**
+ * What `fromConfig` uses when a test gives it no directory: a runtime that
+ * cannot reload, and must not write anything beside a config file it does not
+ * have.
+ */
+const NO_CONFIG_DIR = '';
+
 export class Runtime {
     #snapshot: RuntimeSnapshot;
     readonly #configDir: string;
@@ -48,12 +56,58 @@ export class Runtime {
     readonly confirm: ConfirmTokens;
     readonly sessions: Sessions;
 
+    /**
+     * The IMDb dataset, when `metadata.imdb.enabled` is on.
+     *
+     * Outside the snapshot for the same reason as the two above, and a
+     * stronger one: it is a database that can take twenty minutes to build,
+     * and rebuilding it because someone changed a timeout would be absurd. A
+     * reload only opens or closes it when the config's answer actually
+     * changed.
+     *
+     * Opening is all this class does. Keeping it *fresh* is `startRefresh`,
+     * which the entry point calls — so constructing a Runtime never reaches
+     * the network, and no test has to opt out of a download it did not ask
+     * for.
+     */
+    #dataset: ImdbDataset | undefined;
+
+    get dataset(): ImdbDataset | undefined {
+        return this.#dataset;
+    }
+
     private constructor(configDir: string, audit: WriteAudit, config: Config) {
         this.#configDir = configDir;
         this.#audit = audit;
         this.confirm = new ConfirmTokens();
         this.sessions = new Sessions();
         this.#snapshot = buildSnapshot(config, audit, this.confirm);
+        this.#syncDataset(config);
+    }
+
+    /**
+     * Open or close the dataset to match the config, and do nothing at all
+     * when the answer has not changed — which is the common case on reload.
+     *
+     * `ImdbDataset.open` touches the filesystem, so it is skipped entirely
+     * when there is no real config directory: `fromConfig`'s default is a
+     * placeholder, and a test that never asked for a dataset must not have one
+     * written beside it.
+     */
+    #syncDataset(config: Config): void {
+        const wanted = config.metadata?.imdb?.enabled === true && this.#configDir !== NO_CONFIG_DIR;
+
+        if (wanted && this.#dataset === undefined) {
+            this.#dataset = ImdbDataset.open(this.#configDir);
+            logger.info({ file: IMDB_FILENAME }, 'IMDb dataset opened');
+            return;
+        }
+
+        if (!wanted && this.#dataset !== undefined) {
+            this.#dataset.close();
+            this.#dataset = undefined;
+            logger.info('IMDb dataset closed — no longer enabled');
+        }
     }
 
     static async start(configDir: string, audit: WriteAudit): Promise<{ runtime: Runtime; created: boolean }> {
@@ -79,7 +133,7 @@ export class Runtime {
         audit: WriteAudit,
         opts: { configDir?: string; adapters?: readonly ServiceAdapter[] } = {}
     ): Runtime {
-        const runtime = new Runtime(opts.configDir ?? '', audit, config);
+        const runtime = new Runtime(opts.configDir ?? NO_CONFIG_DIR, audit, config);
         if (opts.adapters !== undefined) {
             runtime.#snapshot = {
                 config,
@@ -114,6 +168,7 @@ export class Runtime {
     async reload(): Promise<void> {
         const { config } = await loadConfig(this.#configDir);
         this.#snapshot = buildSnapshot(config, this.#audit, this.confirm);
+        this.#syncDataset(config);
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');
     }
 
