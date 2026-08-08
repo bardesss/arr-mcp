@@ -77,6 +77,18 @@ Tool count is a hard constraint, not a preference: model accuracy degrades
 measurably past roughly 40 tools. New capability should extend an existing tool
 before it adds one.
 
+**Prompt names are public surface too.** A client that has surfaced
+`whats_wrong` as a slash command breaks when it is renamed, exactly as a saved
+prompt breaks when a tool is. They are frozen at 1.0 on the same terms, and
+`test/mcpPrompts.test.ts` asserts that no prompt names a tool that does not
+exist — so a rename fails there rather than silently in someone's client.
+
+**A resource must mirror a tool, never originate.** Client support for
+resources is uneven and arr-mcp has to work on all of them, so anything only a
+resource could answer would be unreachable wherever they are not surfaced. When
+a resource needs a fact no tool reports, the fix is to extend the tool — that is
+why `stack_health` reports per-instance permissions.
+
 ## Adding a service adapter
 
 The highest-value contribution, and deliberately self-contained. Six steps,
