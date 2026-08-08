@@ -43,12 +43,10 @@ const BASICS =
     'tconst\ttitleType\tprimaryTitle\toriginalTitle\tisAdult\tstartYear\tendYear\truntimeMinutes\tgenres\n' +
     'tt0903747\ttvSeries\tBreaking Bad\tBreaking Bad\t0\t2008\t2013\t49\tCrime,Drama';
 const RATINGS = 'tconst\taverageRating\tnumVotes\ntt0903747\t9.5\t2200000';
-const EPISODES = 'tconst\tparentTconst\tseasonNumber\tepisodeNumber\ntt2081647\ttt0903747\t1\t1';
 
 const ALL = {
     'title.basics.tsv.gz': BASICS,
-    'title.ratings.tsv.gz': RATINGS,
-    'title.episode.tsv.gz': EPISODES
+    'title.ratings.tsv.gz': RATINGS
 };
 
 const BASE = 'https://example.test';

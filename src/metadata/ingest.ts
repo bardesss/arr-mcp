@@ -1,4 +1,4 @@
-import type { RawEpisode, RawRating, RawTitle } from './imdbDataset.ts';
+import type { RawRating, RawTitle } from './imdbDataset.ts';
 
 /**
  * IMDb's dumps into rows (0.8 spec ).
@@ -88,24 +88,5 @@ export function* parseRatings(lines: Iterable<string>): Generator<RawRating> {
         if (tconst === undefined || average === undefined || votes === undefined) continue;
 
         yield { tconst, average, votes };
-    }
-}
-
-/** `tconst parentTconst seasonNumber episodeNumber` */
-export function* parseEpisodes(lines: Iterable<string>): Generator<RawEpisode> {
-    for (const cols of rows(lines)) {
-        const tconst = value(cols[0]);
-        const parent = value(cols[1]);
-        if (tconst === undefined || parent === undefined) continue;
-
-        const season = number(cols[2]);
-        const episode = number(cols[3]);
-
-        yield {
-            tconst,
-            parent,
-            ...(season === undefined ? {} : { season }),
-            ...(episode === undefined ? {} : { episode })
-        };
     }
 }
