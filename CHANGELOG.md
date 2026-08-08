@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/bardesss/arr-mcp/compare/v0.7.3...v0.8.0) (2026-08-08)
+
+
+### Features
+
+* IMDb ratings, for series too ([#74](https://github.com/bardesss/arr-mcp/issues/74)) ([eabe9ad](https://github.com/bardesss/arr-mcp/commit/eabe9ad0a47038ca42abc8a46e716fdf7245df18))
+
+
+### Miscellaneous Chores
+
+* cut 0.8 as a phase rather than a patch ([#76](https://github.com/bardesss/arr-mcp/issues/76)) ([58d0ea3](https://github.com/bardesss/arr-mcp/commit/58d0ea30c4228f7ee3db5d122035f4bc675cb2eb))
+
 ## [0.7.3](https://github.com/bardesss/arr-mcp/compare/v0.7.2...v0.7.3) (2026-08-08)
 
 
