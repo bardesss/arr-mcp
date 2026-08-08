@@ -349,3 +349,78 @@ describe('loadConfig', () => {
         expect(single(config.services.radarr)?.permissions.destructive).toBe(false);
     });
 });
+
+/**
+ * The IMDb dataset's config block (0.8 spec §3).
+ *
+ * It holds no credential, which is why there is nothing here about secrets
+ * being echoed back — the rule the rest of the config page is shaped by does
+ * not apply to a boolean.
+ */
+describe('the metadata block', () => {
+    it('is absent by default, the same as any service nobody configured', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: {} });
+        expect(parsed.metadata).toBeUndefined();
+    });
+
+    it('accepts the dataset being switched on', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: {}, metadata: { imdb: { enabled: true } } });
+        expect(parsed.metadata?.imdb?.enabled).toBe(true);
+    });
+
+    it('defaults enabled to false, so a bare block does not start a download', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: {}, metadata: { imdb: {} } });
+        expect(parsed.metadata?.imdb?.enabled).toBe(false);
+    });
+
+    /**
+     * IMDb publishes daily, so there is no second sensible interval to choose
+     * between. The setting a user is most likely to invent is therefore one
+     * that cannot mean anything — and silently ignoring it is worse than
+     * refusing it, because a user who sets it believes it took effect.
+     */
+    it('refuses a refresh interval, which is not a setting', () => {
+        expect(() =>
+            ConfigSchema.parse({
+                auth: AUTH,
+                services: {},
+                metadata: { imdb: { enabled: true, refresh: 'hourly' } }
+            })
+        ).toThrow();
+    });
+
+    it('refuses an unknown provider rather than ignoring it', () => {
+        expect(() =>
+            ConfigSchema.parse({ auth: AUTH, services: {}, metadata: { tmdb: { api_key: 'k' } } })
+        ).toThrow();
+    });
+});
+
+/**
+ * `saveConfig` edits an existing YAML document in place rather than
+ * re-serialising the parsed config, so a key it does not know about is
+ * preserved by omission rather than by design. That is worth a test: the
+ * config UI rewrites this file on every save, and a `metadata` block that
+ * vanished the first time someone changed a timeout would be a silent
+ * downgrade nobody would connect to the save that caused it.
+ */
+describe('the metadata block through a save', () => {
+    it('survives a save that was about something else entirely', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(
+            path,
+            `auth:\n  bearer_token: ${'d'.repeat(64)}\n  password_hash: scrypt$00$11\nservices:\n  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\nmetadata:\n  imdb:\n    enabled: true\n`,
+            'utf8'
+        );
+
+        const { config } = await loadConfig(dir);
+        expect(config.metadata?.imdb?.enabled).toBe(true);
+
+        await saveConfig(dir, config);
+
+        const reloaded = await loadConfig(dir);
+        expect(reloaded.config.metadata?.imdb?.enabled).toBe(true);
+        expect(await readFile(path, 'utf8')).toContain('metadata:');
+    });
+});
