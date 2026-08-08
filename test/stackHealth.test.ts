@@ -9,6 +9,7 @@ import type {
     ScanState,
     ServiceAdapter
 } from '../src/services/types.ts';
+import type { ServiceInstance } from '../src/config/instances.ts';
 import { buildStackHealth, registerStackHealth } from '../src/tools/stackHealth.ts';
 
 /** What `ArrAdapter` used to name, now spelled as the capabilities it is. */
@@ -314,5 +315,50 @@ describe('stack_health', () => {
     it('registers without throwing', () => {
         const server = new McpServer({ name: 'test', version: '0.0.0' });
         expect(() => registerStackHealth(server, [])).not.toThrow();
+    });
+});
+
+/**
+ * `arr://instances` needs to say what each instance is allowed to do, and a
+ * resource must mirror a tool rather than originate — a client that ignores
+ * resources must not be the only one unable to answer "what may I do here".
+ * So stack_health reports it.
+ *
+ * The permission *source* is untouched: `permissionSourceFrom` still reads
+ * config, deliberately, so an adapter cannot widen its own grants. This
+ * reports the gate's answer; it does not become a second one.
+ */
+describe('stack_health permissions', () => {
+    const instance = (id: string, safe_write: boolean, destructive: boolean) =>
+        ({
+            id,
+            type: id.split('/')[0],
+            config: { permissions: { safe_write, destructive } }
+        }) as unknown as ServiceInstance;
+
+    it('reports what each instance is allowed to do', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std, [
+            instance('radarr/4k', true, false),
+            instance('sonarr', false, false)
+        ]);
+
+        expect(result.permissions).toEqual([
+            { instance: 'radarr/4k', safe_write: true, destructive: false },
+            { instance: 'sonarr', safe_write: false, destructive: false }
+        ]);
+    });
+
+    /** Minimal answers "is anything broken", and a permission is not a fault. */
+    it('leaves permissions out of a minimal answer', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail: 'minimal', limit: 50 }, [
+            instance('radarr', true, true)
+        ]);
+        expect(result.permissions).toBeUndefined();
+    });
+
+    /** Every existing call site passes no instances and must keep working. */
+    it('omits the field entirely when nobody supplied instances', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);
+        expect(result.permissions).toBeUndefined();
     });
 });

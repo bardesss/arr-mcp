@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
+import type { ServiceInstance } from '../config/instances.ts';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
@@ -26,8 +27,23 @@ export type StackHealthResult = {
      * in a truncation contract is noise in every response.
      */
     scans: ScanState[];
+    /**
+     * What each instance is allowed to do — absent unless the caller supplied
+     * the instances, and absent at `minimal`, which answers "is anything
+     * broken" and a permission is not a fault.
+     *
+     * Reported here because `arr://instances` needs it and a resource must
+     * mirror a tool rather than originate one: a client that ignores resources
+     * must not be the only one unable to answer "what may I do here". The
+     * permission *source* is untouched — `permissionSourceFrom` still reads
+     * config so an adapter cannot widen its own grants. This reports the gate's
+     * answer; it is not a second one.
+     */
+    permissions?: InstancePermissions[];
     degraded: string[];
 };
+
+export type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
 
 /**
  * minimal  — is anything broken? A verdict per service, and counts only.
@@ -63,6 +79,8 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
             service: s.service,
             ...(s.lastCompleted === undefined ? {} : { lastCompleted: s.lastCompleted })
         })),
+        // No permissions: minimal answers "is anything broken", and being
+        // allowed to write is not a fault.
         degraded: result.degraded
     };
 }
@@ -75,7 +93,9 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
  */
 export async function buildStackHealth(
     adapters: readonly ServiceAdapter[],
-    opts: { detail: DetailLevel; limit: number }
+    opts: { detail: DetailLevel; limit: number },
+    /** Optional and last, so every existing call site keeps compiling. */
+    instances?: readonly ServiceInstance[]
 ): Promise<StackHealthResult> {
     const services: ConnectionDiagnosis[] = [];
     const degraded: string[] = [];
@@ -168,22 +188,47 @@ export async function buildStackHealth(
 
     // Counts stay honest at every detail level: a model must never see
     // returned: 0 and conclude there are no disks.
+    // Sorted by id like the lists above, and read from each instance's own
+    // config rather than from its adapter — the same source the write gate
+    // uses, so the two can never disagree about what is permitted.
+    const permissions =
+        instances === undefined
+            ? undefined
+            : [...instances]
+                  .map(i => ({
+                      instance: i.id,
+                      safe_write: i.config.permissions.safe_write,
+                      destructive: i.config.permissions.destructive
+                  }))
+                  .sort((a, b) => a.instance.localeCompare(b.instance));
+
     return project(
-        { services, disks: shapedDisks, failures: shapedFailures, scans, degraded },
+        {
+            services,
+            disks: shapedDisks,
+            failures: shapedFailures,
+            scans,
+            ...(permissions === undefined ? {} : { permissions }),
+            degraded
+        },
         opts.detail
     );
 }
 
-export function registerStackHealth(server: McpServer, adapters: readonly ServiceAdapter[]): void {
+export function registerStackHealth(
+    server: McpServer,
+    adapters: readonly ServiceAdapter[],
+    instances?: readonly ServiceInstance[]
+): void {
     server.registerTool(
         'stack_health',
         {
             description:
-                'Health of every configured service: version, disk space, failing health checks, and when each library was last scanned. Returns partial results with a `degraded` list rather than failing when a service is down.',
+                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. The `permissions` list is also the set of ids you may pass as `instance` to other tools.',
             inputSchema: z.object({ detail: DetailSchema, limit: LimitSchema })
         },
         async ({ detail, limit }) => {
-            const result = await buildStackHealth(adapters, { detail, limit });
+            const result = await buildStackHealth(adapters, { detail, limit }, instances);
             const neverScanned = result.scans.filter(s => s.lastCompleted === undefined).length;
             const summary =
                 result.degraded.length === 0

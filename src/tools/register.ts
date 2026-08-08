@@ -5,6 +5,7 @@ import type { WriteAudit } from '../core/audit.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { ConfirmTokens } from '../core/confirm.ts';
 import { IdentityResolver } from '../core/identity.ts';
+import type { ServiceInstance } from '../config/instances.ts';
 import { permissionSourceFrom } from '../core/permissions.ts';
 import { JellyfinAdapter } from '../services/jellyfin.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
@@ -50,6 +51,9 @@ export type ToolContext = {
      * rating is usually wanted before deciding to add something.
      */
     dataset: ImdbDataset | undefined;
+    /** Every configured instance, as the config declares it — the source the
+     *  write gate reads, so `stack_health` cannot report a different answer. */
+    instances: readonly ServiceInstance[];
     /**
      * The write half (§10). Built once alongside the resolvers rather than per
      * request: `ConfirmTokens` holds the signing key and the spent-token set,
@@ -86,6 +90,7 @@ export function buildToolContext(
     return {
         adapters,
         dataset,
+        instances: listInstances(config),
         jellyfinIdentity,
         seerrIdentity:
             seerr !== undefined && config.services.seerr !== undefined
@@ -114,12 +119,12 @@ export function buildToolContext(
  * not find it missing after a config edit.
  */
 export function registerAllTools(server: McpServer, context: ToolContext): void {
-    const { adapters, dataset, jellyfinIdentity, seerrIdentity, library, write } = context;
+    const { adapters, dataset, instances, jellyfinIdentity, seerrIdentity, library, write } = context;
     const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
     registerDiagnose(server, { adapters, library });
-    registerStackHealth(server, adapters);
+    registerStackHealth(server, adapters, instances);
     registerGetIndexers(server, adapters.find(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
     registerGetQueue(server, adapters);
