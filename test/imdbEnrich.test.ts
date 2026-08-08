@@ -12,8 +12,7 @@ const dataset = (): ImdbDataset => {
     db = ImdbDataset.ephemeral();
     db.replaceAll({
         titles: [{ tconst: 'tt0903747', kind: 'tvSeries', title: 'Breaking Bad' }],
-        ratings: [{ tconst: 'tt0903747', average: 9.5, votes: 2_200_000 }],
-        episodes: []
+        ratings: [{ tconst: 'tt0903747', average: 9.5, votes: 2_200_000 }]
     });
     return db;
 };

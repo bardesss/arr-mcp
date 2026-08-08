@@ -24,8 +24,7 @@ const seed = (): ImdbDataset => {
         ratings: [
             { tconst: 'tt0903747', average: 9.5, votes: 2_200_000 },
             { tconst: 'tt0068646', average: 9.2, votes: 2_000_000 }
-        ],
-        episodes: [{ tconst: 'tt2081647', parent: 'tt0903747', season: 1, episode: 1 }]
+        ]
     });
     return db;
 };
@@ -80,8 +79,7 @@ describe('discovering from the dataset', () => {
         db = ImdbDataset.ephemeral();
         db.replaceAll({
             titles: [{ tconst: 'tt1', kind: 'movie', title: 'A Docudrama', genres: 'Docudrama' }],
-            ratings: [],
-            episodes: []
+            ratings: []
         });
         expect(db.discover({ kind: 'movie', genre: 'Drama', limit: 10 })).toHaveLength(0);
     });
@@ -134,8 +132,7 @@ describe('replacing the dataset', () => {
         const store = seed();
         store.replaceAll({
             titles: [{ tconst: 'tt5', kind: 'movie', title: 'Only This' }],
-            ratings: [],
-            episodes: []
+            ratings: []
         });
 
         expect(store.status().titles).toBe(1);
@@ -152,7 +149,7 @@ describe('replacing the dataset', () => {
             throw new Error('connection reset');
         }
 
-        expect(() => store.replaceAll({ titles: explodes(), ratings: [], episodes: [] })).toThrow('connection reset');
+        expect(() => store.replaceAll({ titles: explodes(), ratings: [] })).toThrow('connection reset');
         expect(store.status().titles).toBe(3);
         expect(store.ratingsFor(['tt0903747']).get('tt0903747')).toBe(9.5);
     });

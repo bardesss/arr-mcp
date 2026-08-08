@@ -87,8 +87,7 @@ describe('loading a parsed dump', () => {
         db = ImdbDataset.ephemeral();
         db.replaceAll({
             titles: parseTitles(lines('title.basics.tsv')),
-            ratings: parseRatings(lines('title.ratings.tsv')),
-            episodes: parseEpisodes(lines('title.episode.tsv'))
+            ratings: parseRatings(lines('title.ratings.tsv'))
         });
 
         expect(db.ratingsFor(['tt0903747']).get('tt0903747')).toBe(9.5);

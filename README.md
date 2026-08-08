@@ -366,10 +366,31 @@ metadata:
     enabled: true
 ```
 
-No account, no API key, nothing sent anywhere. Your container downloads three
-of IMDb's published files each day and keeps them in a local SQLite database
-beside the audit log. Films and series both get a rating, and so do things you
-do **not** own — `lookup_media` can rate something before you decide to add it.
+No account, no API key, nothing sent anywhere. Your container downloads two of
+IMDb's published files each day and keeps them in a local SQLite database beside
+the audit log.
+
+**It costs real disk.** Measured against the live dumps on 2026-08-08:
+
+| | |
+| --- | --- |
+| Download, per day | **223 MB** |
+| On disk | **~1.3 GB** |
+| First ingest | ~3 minutes |
+| Titles / rated | 12.7M / 1.7M |
+
+Re-measure with `node --experimental-strip-types scripts/measure-imdb.ts` — the
+dumps grow, and a figure in a README is only as good as the day it was taken.
+
+**Whether you need it.** Radarr already reports IMDb ratings for films, so if
+you only care about films, probably not. What nothing else here can give you is
+an IMDb rating for a **series** — Sonarr reports a single unlabelled number —
+or a rating for something you do **not own yet**, which is what `lookup_media`
+answers. Those are the two gaps it fills.
+
+It is not a stand-in for Seerr, either. Seerr filters discovery by TMDB rating
+but never returns a rating value, so the two do different jobs; discovery falls
+back to this dataset only when Seerr is not configured at all.
 
 ```
 get_library({ kind: "series", watched: false, rating_source: "imdb",

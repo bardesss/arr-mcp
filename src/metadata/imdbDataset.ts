@@ -87,17 +87,10 @@ CREATE TABLE IF NOT EXISTS rating (
     average REAL    NOT NULL,
     votes   INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS episode (
-    tconst  TEXT PRIMARY KEY,
-    parent  TEXT    NOT NULL,
-    season  INTEGER,
-    episode INTEGER
-);
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS episode_parent ON episode(parent);
 CREATE INDEX IF NOT EXISTS title_kind ON title(kind);
 `;
 
@@ -111,6 +104,10 @@ export class ImdbDataset {
         // rebuild.
         this.#db.pragma('journal_mode = WAL');
         this.#db.exec(SCHEMA);
+        // Written through 1.0 and never read by a single query — 52 MB a day and
+        // millions of rows for a table nothing consulted. Dropped on open so an
+        // existing database reclaims the space rather than carrying it forever.
+        this.#db.exec('DROP INDEX IF EXISTS episode_parent; DROP TABLE IF EXISTS episode;');
     }
 
     static open(dir: string): ImdbDataset {
@@ -240,32 +237,22 @@ export class ImdbDataset {
      * transaction: `title.basics` is on the order of 10⁷ rows, and this runs
      * on a NAS.
      */
-    replaceAll(rows: {
-        titles: Iterable<RawTitle>;
-        ratings: Iterable<RawRating>;
-        episodes: Iterable<RawEpisode>;
-    }): void {
+    replaceAll(rows: { titles: Iterable<RawTitle>; ratings: Iterable<RawRating> }): void {
         const insertTitle = this.#db.prepare(
             'INSERT OR REPLACE INTO title (tconst, kind, title, year, runtime, genres) VALUES (?, ?, ?, ?, ?, ?)'
         );
         const insertRating = this.#db.prepare(
             'INSERT OR REPLACE INTO rating (tconst, average, votes) VALUES (?, ?, ?)'
         );
-        const insertEpisode = this.#db.prepare(
-            'INSERT OR REPLACE INTO episode (tconst, parent, season, episode) VALUES (?, ?, ?, ?)'
-        );
         const setMeta = this.#db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)');
 
         this.#db.transaction(() => {
-            this.#db.exec('DELETE FROM title; DELETE FROM rating; DELETE FROM episode;');
+            this.#db.exec('DELETE FROM title; DELETE FROM rating;');
 
             for (const t of rows.titles) {
                 insertTitle.run(t.tconst, t.kind, t.title, t.year ?? null, t.runtime ?? null, t.genres ?? null);
             }
             for (const r of rows.ratings) insertRating.run(r.tconst, r.average, r.votes);
-            for (const e of rows.episodes) {
-                insertEpisode.run(e.tconst, e.parent, e.season ?? null, e.episode ?? null);
-            }
 
             setMeta.run('ingested_at', new Date().toISOString());
         })();

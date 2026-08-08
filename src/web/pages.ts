@@ -241,8 +241,9 @@ const imdbPanel = (status: DatasetStatus): SafeHtml => html`<h2>IMDb dataset</h2
                   ingest finishes — nothing is broken while this says so. It runs again daily.
               </p>`
             : html`<p class="note">
-                      Ratings for films <em>and</em> series, including the IMDb rating no service in your
-                      stack can report for a series. Refreshed daily; nothing here is sent anywhere.
+                      The IMDb rating no service in your stack can report for a series, and a rating for
+                      anything you do not own yet. Refreshed daily — about 223 MB down, roughly 1.3 GB on
+                      disk. Nothing here is sent anywhere.
                   </p>
                   <table>
                       <thead><tr><th>Last ingested</th><th>Titles</th><th>Rated</th></tr></thead>

@@ -580,8 +580,7 @@ describe('IMDb ratings on the not-yet-owned paths', () => {
         db = ImdbDataset.ephemeral();
         db.replaceAll({
             titles: [{ tconst: 'tt0137523', kind: 'movie', title: 'Some Film' }],
-            ratings: [{ tconst: 'tt0137523', average: 9.3, votes: 100 }],
-            episodes: []
+            ratings: [{ tconst: 'tt0137523', average: 9.3, votes: 100 }]
         });
         return db;
     };
@@ -658,8 +657,7 @@ describe('discovering without Seerr', () => {
             ratings: [
                 { tconst: 'tt0068646', average: 9.2, votes: 2_000_000 },
                 { tconst: 'tt0903747', average: 9.5, votes: 2_200_000 }
-            ],
-            episodes: []
+            ]
         });
         return db;
     };

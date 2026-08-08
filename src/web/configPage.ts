@@ -441,11 +441,21 @@ export function configPage(opts: {
                     opts.config.metadata?.imdb?.enabled ?? false
                 )}
                 <p class="note">
-                    Gives every film <em>and</em> series an IMDb rating — including series, which no service
-                    here can report one for. Costs a daily download and some disk on this machine; nothing is
-                    sent anywhere, and there is no account or key. Switching it on starts the first ingest in
-                    the background, which takes a while: everything keeps working meanwhile, and the dashboard
-                    says when it has finished.
+                    <strong>About 1.3 GB on disk, and a 223 MB download each day.</strong> The first ingest
+                    takes a few minutes; everything keeps working meanwhile and the dashboard says when it
+                    has finished. Nothing is sent anywhere, and there is no account or key.
+                </p>
+                <p class="note">
+                    <strong>What it is actually for.</strong> Radarr already reports IMDb ratings for films,
+                    so if you only care about films you may not need this. What no service here can give you
+                    is an IMDb rating for a <em>series</em> — Sonarr reports one unlabelled number — or a
+                    rating for anything you do not own yet, which is what <span class="mono">lookup_media</span>
+                    answers. Those are the two gaps it fills.
+                </p>
+                <p class="note">
+                    It is <em>not</em> a stand-in for Seerr. Seerr filters discovery by TMDB rating but never
+                    returns a rating value, so the two do different jobs — and discovery falls back to this
+                    dataset only when Seerr is not configured at all.
                 </p>
             </fieldset>
 
