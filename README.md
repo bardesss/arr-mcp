@@ -517,6 +517,17 @@ is free software maintained largely by volunteers:
 | [yaml](https://eemeli.org/yaml/) | reading `config.yaml` |
 | [TypeScript](https://www.typescriptlang.org) | the language |
 
+**The data it reads**, when you enable the IMDb dataset:
+
+> Information courtesy of
+> [IMDb](https://www.imdb.com) ([datasets](https://developer.imdb.com/non-commercial-datasets/)).
+> Used with permission.
+
+Those datasets are published for **personal and non-commercial use**. arr-mcp
+never redistributes them and ships no prebuilt copy — your own container
+downloads them, for your own use, only if you switch the dataset on. It is off
+by default.
+
 If you find arr-mcp useful, consider supporting the services above first.
 
 ## Licence
