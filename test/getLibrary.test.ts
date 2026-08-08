@@ -538,3 +538,55 @@ describe('sorting by when things arrived', () => {
         expect(result.items.map(i => i.title)).toEqual(['Known']);
     });
 });
+
+/**
+ * "What am I still waiting for" is one of the most commonly asked questions of
+ * an *arr stack, and every comparable MCP server has a wanted/missing tool for
+ * it. arr-mcp could not express it at all: `monitored` existed, nothing about
+ * whether a file was on disk, and `presence` answers a different question —
+ * which services know about an item, not whether one exists.
+ */
+describe('filtering by whether a file exists', () => {
+    const onDisk = film({ title: 'Have it', ids: { tmdb: 1 } });
+    const waiting = film({
+        title: 'Waiting',
+        ids: { tmdb: 2 },
+        acquisition: { service: 'radarr', monitored: true, hasFile: false }
+    });
+    const { acquisition: _drop, ...unmanaged } = film({ title: 'Unmanaged', ids: { tmdb: 3 } });
+
+    it('answers "what am I still waiting for"', async () => {
+        const result = await buildGetLibrary(loaderOf([onDisk, waiting]), {
+            ...base,
+            has_file: false,
+            monitored: true
+        });
+        expect(result.items.map(i => i.title)).toEqual(['Waiting']);
+    });
+
+    it('answers "what can I actually watch"', async () => {
+        const result = await buildGetLibrary(loaderOf([onDisk, waiting]), { ...base, has_file: true });
+        expect(result.items.map(i => i.title)).toEqual(['Have it']);
+    });
+
+    /**
+     * Absent is not false. Media no *arr manages is not "waiting for a
+     * download" — nothing is going to fetch it — so sweeping it into
+     * `has_file: false` would put it on a list of things to chase. The same
+     * distinction `presence: unknown` exists to protect.
+     */
+    it('excludes unmanaged media from both answers', async () => {
+        const items = [onDisk, waiting, unmanaged as IndexInput];
+
+        expect(
+            (await buildGetLibrary(loaderOf(items), { ...base, has_file: false })).items.map(i => i.title)
+        ).toEqual(['Waiting']);
+        expect((await buildGetLibrary(loaderOf(items), { ...base, has_file: true })).items.map(i => i.title)).toEqual([
+            'Have it'
+        ]);
+    });
+
+    it('leaves the library alone when not asked for', async () => {
+        expect((await buildGetLibrary(loaderOf([onDisk, waiting]), base)).total).toBe(2);
+    });
+});
