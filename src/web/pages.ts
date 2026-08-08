@@ -143,6 +143,57 @@ export function loginPage(opts: { version: string; error?: string | undefined })
     });
 }
 
+/** One filesystem, and every instance that can see it. */
+export type DiskGroup = { freeSpace: number; totalSpace?: number | undefined; services: string[] };
+
+/**
+ * Collapse the mounts every service reports down to the disks behind them.
+ *
+ * Services in a stack are containers over the same host filesystems, so the
+ * array that arrives here is mostly the same two or three disks repeated: the
+ * array volume once per *arr plus the download client, the container root once
+ * per service, `/config` again for each. Ten rows to say "you have two disks",
+ * which is a table nobody reads.
+ *
+ * Free bytes are the fingerprint. Two mounts of one filesystem agree on them
+ * exactly, and two genuinely different disks landing on the same byte count is
+ * a coincidence that does not happen at these sizes. Totals then guard against
+ * even that: a mount only joins a group whose total it does not contradict,
+ * which also folds in Transmission — it reports free space without a total, so
+ * it has nothing to contradict and lands on the disk it shares.
+ *
+ * Paths are dropped rather than listed. Knowing that one disk is `/storage` to
+ * Radarr and `/data` to SABnzbd is a container-mapping question; the question
+ * this table answers is whether anything is about to run out of room.
+ */
+export function groupDisks(disks: readonly DiskSpace[]): DiskGroup[] {
+    const groups: DiskGroup[] = [];
+
+    for (const disk of disks) {
+        const group = groups.find(
+            g =>
+                g.freeSpace === disk.freeSpace &&
+                (g.totalSpace === undefined || disk.totalSpace === undefined || g.totalSpace === disk.totalSpace)
+        );
+
+        if (group === undefined) {
+            groups.push({
+                freeSpace: disk.freeSpace,
+                ...(disk.totalSpace === undefined ? {} : { totalSpace: disk.totalSpace }),
+                services: [disk.service]
+            });
+            continue;
+        }
+
+        group.totalSpace ??= disk.totalSpace;
+        if (!group.services.includes(disk.service)) group.services.push(disk.service);
+    }
+
+    // Emptiest first: the disk about to cause a failed import is the one worth
+    // reading, and it is never the one with room to spare.
+    return groups.sort((a, b) => a.freeSpace - b.freeSpace);
+}
+
 const statusDot = (d: ConnectionDiagnosis): SafeHtml =>
     html`<span class="dot ${d.ok ? 'ok' : 'bad'}" title="${d.ok ? 'reachable' : 'unreachable'}"></span>`;
 
@@ -216,18 +267,18 @@ export function dashboardPage(opts: {
                   </tbody>
               </table>`;
 
+    const grouped = groupDisks(opts.disks);
     const disks =
-        opts.disks.length === 0
+        grouped.length === 0
             ? html`<p class="note">No service reported disk space.</p>`
             : html`<table>
-                  <thead><tr><th>Service</th><th>Location</th><th>Free</th><th>Total</th></tr></thead>
+                  <thead><tr><th>Free</th><th>Total</th><th>Seen by</th></tr></thead>
                   <tbody>
-                      ${opts.disks.map(
+                      ${grouped.map(
                           d => html`<tr>
-                              <td>${d.service}</td>
-                              <td class="mono">${d.path ?? d.label}</td>
                               <td>${humanBytes(d.freeSpace)}</td>
                               <td>${d.totalSpace === undefined ? '—' : humanBytes(d.totalSpace)}</td>
+                              <td>${d.services.join(', ')}</td>
                           </tr>`
                       )}
                   </tbody>
@@ -259,7 +310,13 @@ export function dashboardPage(opts: {
         <div class="panel">${problems}</div>
 
         <h2>Disk space</h2>
-        <div class="panel">${disks}</div>
+        <div class="panel">
+            <p class="note">
+                One row per filesystem, not per mount — services in one stack share the same disks, and
+                listing every path they see them through says the same thing several times over.
+            </p>
+            ${disks}
+        </div>
 
         <h2>Library scans</h2>
         <div class="panel">

@@ -271,7 +271,12 @@ function instanceCard(
  * The server still validates either way, and answers with the specific thing to
  * do; those messages are written for a reader who saw everything at once.
  */
-function addDialog(config: Config, csrf: string, open: boolean): SafeHtml {
+function addDialog(
+    config: Config,
+    csrf: string,
+    open: boolean,
+    tested: ConnectionDiagnosis | undefined
+): SafeHtml {
     const instances = listInstances(config);
     const configured = new Set(instances.map(i => i.type));
 
@@ -358,10 +363,23 @@ function addDialog(config: Config, csrf: string, open: boolean): SafeHtml {
 
             <div class="row" style="margin-top:1rem">
                 <button type="submit">Add</button>
+                <!-- The question this dialog exists to get wrong is "is this URL
+                     and this key right", and the cheapest place to answer it is
+                     before anything is written to config.yaml.
+
+                     Scripted, this posts through fetch and fills #add-test-result
+                     below without leaving the page — because a re-render would
+                     have to either clear the key you just typed or echo it back
+                     into the HTML, and this file does not echo secrets. With
+                     scripting off it is an ordinary submit: the server renders
+                     the page with the dialog open and the diagnosis on it, the
+                     fields blank, exactly as a refused Add already does. -->
+                <button type="submit" formaction="/ui/config/test" formnovalidate class="ghost">Test</button>
                 <!-- Native: closes the dialog without posting, no script involved.
                      Hidden with scripting off, where the dialog is the page. -->
                 <button type="submit" formmethod="dialog" formnovalidate class="ghost close">Cancel</button>
             </div>
+            <div id="add-test-result">${tested === undefined ? raw('') : testResult(tested)}</div>
         </form>
     </dialog>`;
 }
@@ -380,6 +398,10 @@ export function configPage(opts: {
     users?: Record<string, readonly string[]>;
     /** The one instance whose Test button was pressed, and what came back. */
     tested?: { instance: string; diagnosis: ConnectionDiagnosis } | undefined;
+    /** The add dialog's own Test, which has no instance id to key on because
+     *  the instance does not exist yet. Only the unscripted path reaches this —
+     *  with scripting the result is fetched and filled in client-side. */
+    testedAdd?: ConnectionDiagnosis | undefined;
     message?: { kind: 'ok' | 'err'; text: string } | undefined;
 }): string {
     const instances = listInstances(opts.config);
@@ -403,7 +425,7 @@ export function configPage(opts: {
                 opts.tested?.instance === i.id ? opts.tested.diagnosis : undefined
             )
         )}
-        ${addDialog(opts.config, opts.csrf, opts.openAdd === true)}
+        ${addDialog(opts.config, opts.csrf, opts.openAdd === true, opts.testedAdd)}
 
         <h2>Access</h2>
         <form method="post" action="/ui/config/access" ${IGNORE_FORM}>

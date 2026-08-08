@@ -624,6 +624,114 @@ describe('testing a connection', () => {
     });
 });
 
+/**
+ * The same route, driven by the add dialog, which has no instance to name
+ * because it is describing one that does not exist yet.
+ */
+describe('testing from the add dialog', () => {
+    const reachable = () => {
+        globalThis.fetch = (async () =>
+            new Response(JSON.stringify({ version: '5.1.0' }), {
+                headers: { 'content-type': 'application/json' }
+            })) as typeof fetch;
+    };
+
+    const json = (body: Record<string, string>): RequestInit => ({
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+        body: new URLSearchParams(body).toString()
+    });
+
+    it('offers a Test button in the dialog', async () => {
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+        const dialog = page.slice(page.indexOf('<dialog id="add-service"'));
+
+        expect(dialog).toContain('formaction="/ui/config/test"');
+        expect(dialog).toContain('id="add-test-result"');
+    });
+
+    it('tests a service that is not configured yet', async () => {
+        reachable();
+        await signIn();
+
+        const res = await call(
+            '/ui/config/test',
+            json({ csrf: await csrfFrom(), type: 'radarr', url: 'http://192.0.2.10:7878', api_key: 'typed-key' })
+        );
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ ok: true, version: '5.1.0' });
+    });
+
+    it('adds nothing to the config, whatever the answer', async () => {
+        reachable();
+        await signIn();
+
+        await call(
+            '/ui/config/test',
+            json({ csrf: await csrfFrom(), type: 'radarr', url: 'http://192.0.2.10:7878', api_key: 'typed-key' })
+        );
+
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(onDisk).not.toContain('192.0.2.10');
+        expect(onDisk).not.toContain('typed-key');
+    });
+
+    // The reason the scripted path exists at all: a re-render would have to put
+    // the key back in the HTML to keep the dialog usable, and this file never
+    // renders a secret back.
+    it('never echoes the typed key back, on either path', async () => {
+        globalThis.fetch = (async () => new Response('nope', { status: 401 })) as typeof fetch;
+        await signIn();
+        const csrf = await csrfFrom();
+        const fields = { csrf, type: 'radarr', url: 'http://192.0.2.10:7878', api_key: 'typed-key' };
+
+        expect(JSON.stringify(await (await call('/ui/config/test', json(fields))).json())).not.toContain('typed-key');
+        expect(await (await call('/ui/config/test', form(fields))).text()).not.toContain('typed-key');
+    });
+
+    // Unscripted, the answer has to come back on a page with the dialog open —
+    // a diagnosis behind a closed dialog is a diagnosis nobody reads.
+    it('reopens the dialog when it answers as a page', async () => {
+        reachable();
+        await signIn();
+
+        const res = await call(
+            '/ui/config/test',
+            form({ csrf: await csrfFrom(), type: 'radarr', url: 'http://192.0.2.10:7878', api_key: 'k' })
+        );
+
+        const page = await res.text();
+        expect(page).toContain('<dialog id="add-service" open>');
+        expect(page).toContain('Reachable in');
+    });
+
+    // It builds its candidate through `addInstance`, so it refuses exactly what
+    // Add would refuse — and says the same thing about it.
+    it('answers with the add validation message rather than a latency', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: saved-key\n');
+        reachable();
+        await signIn();
+
+        const res = await call(
+            '/ui/config/test',
+            json({ csrf: await csrfFrom(), type: 'radarr', url: 'http://192.0.2.20:7878', api_key: 'k' })
+        );
+
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({ ok: false, detail: expect.stringContaining('Name the new radarr') });
+    });
+
+    it('refuses a forged CSRF token as JSON when JSON was asked for', async () => {
+        await signIn();
+        const res = await call('/ui/config/test', json({ csrf: 'forged', type: 'radarr' }));
+
+        expect(res.status).toBe(403);
+        expect(await res.json()).toMatchObject({ ok: false });
+    });
+});
+
 describe('saving an instance', () => {
     it('keeps an existing key when the field is left blank', async () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: keep-me\n');

@@ -233,6 +233,60 @@ if (addService) {
     picker.addEventListener('change', follow);
     follow();
   }
+
+  // Test, without leaving the dialog.
+  //
+  // The unscripted fallback posts this form and gets the page back with the
+  // dialog reopened and the fields blank — survivable for a refused Add, which
+  // you do once, but not for a test you repeat while fixing a URL. So the
+  // scripted path posts the same form to the same route and fills the result in
+  // place, which is also what keeps the typed API key off the wire twice and
+  // out of the rendered HTML entirely.
+  //
+  // textContent, never innerHTML: detail and remedy quote whatever the service
+  // said back, and this is the one path where that string is put on the page by
+  // the browser rather than through the server's escaping template.
+  const form = addService.querySelector('form');
+  const result = document.getElementById('add-test-result');
+  const testBtn = addService.querySelector('button[formaction="/ui/config/test"]');
+
+  if (form && result && testBtn) {
+    const say = (kind, text) => {
+      const box = document.createElement('div');
+      box.className = 'msg ' + kind;
+      box.style.margin = '.75rem 0 0';
+      box.textContent = text;
+      result.replaceChildren(box);
+    };
+
+    testBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      testBtn.disabled = true;
+      say('ok', 'Testing…');
+
+      try {
+        const res = await fetch('/ui/config/test', {
+          method: 'POST',
+          headers: { accept: 'application/json' },
+          body: new FormData(form),
+        });
+        const d = await res.json();
+
+        if (d.ok) {
+          say('ok', 'Reachable in ' + d.latency_ms + ' ms' +
+            (d.version ? ' — version ' + d.version : '') +
+            '. Not added yet: this tested the fields as they are on screen.');
+        } else {
+          const err = d.error || d;
+          say('err', (err.detail || 'Unreachable.') + (err.remedy ? '\\n' + err.remedy : ''));
+        }
+      } catch {
+        say('err', 'Could not reach this server to run the test. Check that the page is still connected.');
+      } finally {
+        testBtn.disabled = false;
+      }
+    });
+  }
 }
 
 // The log stream polls JSON and builds rows with textContent — never

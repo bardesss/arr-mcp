@@ -371,6 +371,12 @@ from the same code: is it reachable, is anything reporting a problem, is a disk
 filling up, and when did each library last finish a scan. A stale scan is the
 usual reason something downloaded is still not playable.
 
+**Disk space is listed per filesystem, not per mount.** Services in one stack are
+containers over the same host disks, so each of them reports the array, its own
+root and its config volume separately — ten rows to tell you about two disks. The
+dashboard groups them back together and names the instances that can see each
+one, emptiest first.
+
 **Secrets never come back out.** API keys, the Transmission password and the UI
 password all render as empty fields meaning *unchanged*, so a saved page or a
 screenshot cannot carry them. The bearer token is the deliberate exception —
@@ -402,11 +408,13 @@ once you have that one, so the picker never offers a choice that ends in
 "already configured". With scripting off the dialog is the plain form it used to
 be, every field showing, and the server still refuses what does not make sense.
 
-**Test** on a card tries the URL and key *as they are on screen*, saved or not,
-and tells you what came back — reachable and how fast, or what is wrong and what
-to do about it. Nothing is written to disk, so it is safe to try a URL you are
-unsure of. A blank key still means unchanged, so testing a card you have not
-touched tests what is already configured.
+**Test** tries the URL and key *as they are on screen*, saved or not, and tells
+you what came back — reachable and how fast, or what is wrong and what to do
+about it. Nothing is written to disk, so it is safe to try a URL you are unsure
+of. It sits in the **Add a service** dialog, where you can check a new service
+before it is added at all, and on every card, where a blank key still means
+unchanged — so testing a card you have not touched tests what is already
+configured.
 
 **Jellyfin and Seerr suggest their own users.** The default-user field is backed
 by the real list, fetched from the service when the page loads, so the name you
