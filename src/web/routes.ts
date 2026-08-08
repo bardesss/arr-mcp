@@ -123,12 +123,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const password = str(form.password);
         const auth = runtime.config.auth;
 
-        // One message for both wrong-username and wrong-password, and the
-        // password check runs either way: a login form that answers faster for
-        // an unknown user tells an attacker which names exist.
-        //
-        // The hash is present by the time we get here, but the type no longer
-        // proves it, and a missing hash must never read as a valid login.
+        // One message for both wrong username and wrong password, and the hash
+        // check runs either way — a form that answers faster for an unknown
+        // user tells an attacker which names exist. A missing hash must never
+        // read as a valid login.
         const nameOk = username === auth.username;
         const passOk = auth.password_hash !== undefined && verifyPassword(password, auth.password_hash);
 
@@ -161,10 +159,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         const snapshot = runtime.current;
 
-        // Gathered through `buildStackHealth`, the same function `stack_health`
-        // answers from, rather than by calling the adapters again here. Two
-        // implementations of "is the stack healthy" is how the page and the
-        // tool come to disagree — the same reason keeps one library join.
+        // Through `buildStackHealth`, the same function `stack_health` answers
+        // from. Two implementations of "is the stack healthy" is how the page
+        // and the tool come to disagree.
         // It is live, not cached: a dashboard showing cached status is one
         // that tells you a dead service is fine, and it degrades rather than
         // failing when a service is unreachable.
@@ -296,11 +293,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             const session = guard(c);
             if (session === undefined) return c.redirect(entry(), 302);
 
-            // Asks the services who their users are on the way out, the same as
-            // a plain page load: a save that dropped the suggestions would have
-            // the card claim the service went quiet when nothing of the sort
-            // happened, and a save that changed a Jellyfin key is exactly when
-            // the list is worth refreshing.
+            // Re-asks who the users are, as a plain page load does: a save that
+            // dropped the suggestions would have the card claim the service went
+            // quiet, and a save that changed a Jellyfin key is exactly when the
+            // list is worth refreshing.
             const render = async (
                 message: { kind: 'ok' | 'err'; text: string } | undefined,
                 status: 200 | 400 | 403,
@@ -401,13 +397,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const id = str(form.instance);
         const isAdd = id === '';
 
-        // The dialog's Test is fetched rather than posted, so its result can
-        // land in a dialog that still holds what you typed. A page re-render
-        // could not: `addDialog` renders its fields blank, and filling them
-        // back in would mean writing the API key into the HTML — which is the
-        // one thing `configPage` is built never to do. The unscripted path
-        // falls through to the same render as everything else, blank fields
-        // and all, exactly as a refused Add already behaves.
+        // The dialog's Test is fetched, not posted, so the result lands in a
+        // dialog that still holds what you typed. A re-render could not:
+        // `addDialog` renders its fields blank, and refilling them would mean
+        // writing the API key into the HTML — the one thing `configPage` never
+        // does. Unscripted falls through to the ordinary render.
         const wantsJson = c.req.header('accept')?.includes('application/json') === true;
 
         const render = async (status: 200 | 400 | 403, extra: Partial<Parameters<typeof configPage>[0]>) =>
