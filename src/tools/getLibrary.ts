@@ -65,11 +65,11 @@ const toTenPointScale = (source: RatingSource, value: number): number => (value 
  * `limit`, the best-rated may simply not be in the window, and the model then
  * answers confidently from whatever fifty it was handed.
  *
- * `added` is deliberately absent. `MergedItem` carries no added date, and a
- * sort option that silently does nothing is worse than one that was never
- * offered — it can be added later as a minor without breaking anything.
+ * `added` was absent through 0.8 because nothing carried an added date. 0.9
+ * put one on `acquisition`, which is what makes "what arrived this week"
+ * answerable rather than approximated.
  */
-export const SORT_FIELDS = ['rating', 'year', 'title'] as const;
+export const SORT_FIELDS = ['rating', 'year', 'title', 'added'] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 
 export type LibraryQuery = {
@@ -80,6 +80,7 @@ export type LibraryQuery = {
     year?: number;
     genre?: string;
     monitored?: boolean;
+    has_file?: boolean;
     watched?: boolean;
     watched_by?: string;
     quality?: string;
@@ -176,6 +177,20 @@ function applySort(items: readonly MergedItem[], sort: SortField, source: Rating
     const sorted = [...items];
 
     if (sort === 'title') return sorted.sort((a, b) => unfenced(a.title).localeCompare(unfenced(b.title)));
+
+    if (sort === 'added') {
+        // Excluded, not defaulted. An item nobody can date is not an item from
+        // 1970, and answering "we do not know" with the epoch is the same
+        // failure as ranking an unrated title zero.
+        //
+        // Compared as strings: ISO 8601 sorts lexicographically in the order it
+        // sorts chronologically, so no parsing is needed — and `new Date()` on
+        // a malformed value yields NaN, which compares false against everything
+        // and would scramble the order silently.
+        return sorted
+            .filter(i => i.acquisition?.addedAt !== undefined)
+            .sort((a, b) => (b.acquisition?.addedAt ?? '').localeCompare(a.acquisition?.addedAt ?? ''));
+    }
     // Descending: the newest and the best rated are what a superlative asks
     // for, and nobody asks for their worst film first.
     if (sort === 'year') return sorted.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
@@ -211,6 +226,21 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         if (opts.year !== undefined && item.year !== opts.year) return false;
         if (genre !== undefined && !(item.genres ?? []).some(g => unfenced(g).toLowerCase() === genre)) return false;
         if (opts.monitored !== undefined && (item.acquisition?.monitored ?? false) !== opts.monitored) return false;
+        /**
+         * Strict, and deliberately **unlike** `monitored` directly above.
+         *
+         * `monitored ?? false` is right for monitoring: media no *arr manages
+         * genuinely is not monitored, because nothing is monitoring it. The
+         * same coalesce would be wrong here — Jellyfin-only media plainly does
+         * have a file, Jellyfin found it, and reporting `hasFile: false` for
+         * something demonstrably on disk would put it on a list of things to
+         * chase a download for.
+         *
+         * So an item with no acquisition half matches neither `true` nor
+         * `false`. It is the `presence: unknown` distinction again: absent
+         * evidence is not evidence of absence.
+         */
+        if (opts.has_file !== undefined && item.acquisition?.hasFile !== opts.has_file) return false;
         // Absent playback is "not watched", never "excluded": an item Jellyfin
         // has never seen is exactly what `watched: false` should surface.
         if (opts.watched !== undefined && (item.playback?.watched ?? false) !== opts.watched) return false;
@@ -273,12 +303,18 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
         'get_library',
         {
             description:
-                'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating when the IMDb dataset is enabled — `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers.',
+                'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. `has_file: false` with `monitored: true` is "what am I still waiting for". Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating when the IMDb dataset is enabled — `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers.',
             inputSchema: z.object({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.'),
                 year: z.number().int().optional(),
                 genre: z.string().min(1).optional().describe('Matched case-insensitively against the *arr genres.'),
                 monitored: z.boolean().optional(),
+                has_file: z
+                    .boolean()
+                    .optional()
+                    .describe(
+                        'Whether a file is actually on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
+                    ),
                 watched: z.boolean().optional().describe('Jellyfin watch state. Items Jellyfin has never seen count as unwatched.'),
                 watched_by: UserSchema,
                 quality: z.string().min(1).optional().describe('Films only.'),
@@ -304,7 +340,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                     .enum(SORT_FIELDS)
                     .optional()
                     .describe(
-                        'Order the results *before* `limit` is applied — which is what makes "the best rated" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
+                        'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages, which has no added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
                     ),
                 detail: DetailSchema,
                 limit: LimitSchema

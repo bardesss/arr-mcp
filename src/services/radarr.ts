@@ -53,6 +53,7 @@ type RawMovie = {
     imdbId?: string;
     genres?: string[];
     ratings?: Record<string, RawRating>;
+    added?: string | null;
     movieFile?: { size?: number; quality?: { quality?: { name?: string } } };
 };
 
@@ -315,6 +316,7 @@ export class RadarrAdapter
                 service: this.id,
                 monitored: m.monitored ?? false,
                 hasFile: m.hasFile ?? false,
+                ...(m.added === undefined || m.added === null ? {} : { addedAt: m.added }),
                 ...(m.movieFile?.quality?.quality?.name === undefined
                     ? {}
                     : { quality: m.movieFile.quality.quality.name }),

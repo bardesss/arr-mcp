@@ -500,3 +500,93 @@ describe('ordering', () => {
         expect(result.items.map(i => i.title)).toEqual(['Unseen']);
     });
 });
+
+/**
+ * "What arrived this week" was unanswerable before 0.9: nothing in the merged
+ * shape carried an added date, which is also why 0.8 shipped `sort` without
+ * `added` in it.
+ */
+describe('sorting by when things arrived', () => {
+    const arrived = (title: string, at: string, tmdb: number): IndexInput =>
+        film({
+            title,
+            ids: { tmdb },
+            acquisition: { service: 'radarr', monitored: true, hasFile: true, addedAt: at }
+        });
+
+    it('puts the most recently added first', async () => {
+        const items = [
+            arrived('Old', '2020-01-01T00:00:00Z', 1),
+            arrived('New', '2026-08-01T00:00:00Z', 2),
+            arrived('Middle', '2023-05-05T00:00:00Z', 3)
+        ];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, sort: 'added' });
+        expect(result.items.map(i => i.title)).toEqual(['New', 'Middle', 'Old']);
+    });
+
+    /**
+     * Media Jellyfin alone knows about has no acquisition half and so no added
+     * date. Sorting it as the epoch would answer "we do not know" with "1970" —
+     * the same failure as ranking an unrated title zero.
+     */
+    it('excludes items with no added date rather than dating them to the epoch', async () => {
+        const items = [
+            arrived('Known', '2026-08-01T00:00:00Z', 1),
+            film({ title: 'Unknown', ids: { tmdb: 2 } })
+        ];
+        const result = await buildGetLibrary(loaderOf(items), { ...base, sort: 'added' });
+        expect(result.items.map(i => i.title)).toEqual(['Known']);
+    });
+});
+
+/**
+ * "What am I still waiting for" is one of the most commonly asked questions of
+ * an *arr stack, and every comparable MCP server has a wanted/missing tool for
+ * it. arr-mcp could not express it at all: `monitored` existed, nothing about
+ * whether a file was on disk, and `presence` answers a different question —
+ * which services know about an item, not whether one exists.
+ */
+describe('filtering by whether a file exists', () => {
+    const onDisk = film({ title: 'Have it', ids: { tmdb: 1 } });
+    const waiting = film({
+        title: 'Waiting',
+        ids: { tmdb: 2 },
+        acquisition: { service: 'radarr', monitored: true, hasFile: false }
+    });
+    const { acquisition: _drop, ...unmanaged } = film({ title: 'Unmanaged', ids: { tmdb: 3 } });
+
+    it('answers "what am I still waiting for"', async () => {
+        const result = await buildGetLibrary(loaderOf([onDisk, waiting]), {
+            ...base,
+            has_file: false,
+            monitored: true
+        });
+        expect(result.items.map(i => i.title)).toEqual(['Waiting']);
+    });
+
+    it('answers "what can I actually watch"', async () => {
+        const result = await buildGetLibrary(loaderOf([onDisk, waiting]), { ...base, has_file: true });
+        expect(result.items.map(i => i.title)).toEqual(['Have it']);
+    });
+
+    /**
+     * Absent is not false. Media no *arr manages is not "waiting for a
+     * download" — nothing is going to fetch it — so sweeping it into
+     * `has_file: false` would put it on a list of things to chase. The same
+     * distinction `presence: unknown` exists to protect.
+     */
+    it('excludes unmanaged media from both answers', async () => {
+        const items = [onDisk, waiting, unmanaged as IndexInput];
+
+        expect(
+            (await buildGetLibrary(loaderOf(items), { ...base, has_file: false })).items.map(i => i.title)
+        ).toEqual(['Waiting']);
+        expect((await buildGetLibrary(loaderOf(items), { ...base, has_file: true })).items.map(i => i.title)).toEqual([
+            'Have it'
+        ]);
+    });
+
+    it('leaves the library alone when not asked for', async () => {
+        expect((await buildGetLibrary(loaderOf([onDisk, waiting]), base)).total).toBe(2);
+    });
+});

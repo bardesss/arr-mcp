@@ -6,6 +6,8 @@ import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
 import type { Runtime } from './core/runtime.ts';
+import { registerAllPrompts } from './mcp/prompts.ts';
+import { registerAllResources } from './mcp/resources.ts';
 import { registerAllTools } from './tools/register.ts';
 import { registerWebRoutes } from './web/routes.ts';
 
@@ -40,6 +42,12 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         const snapshot = runtime.current;
         const server = new McpServer({ name: NAME, version: VERSION });
         registerAllTools(server, snapshot.tools);
+        // Registered beside the tools, never instead of them. Client support
+        // for prompts and resources is uneven and arr-mcp has to work on all of
+        // them, so a client that surfaces neither is exactly as capable as
+        // before — `test/mcp.test.ts` asserts that rather than trusting it.
+        registerAllPrompts(server);
+        registerAllResources(server, snapshot.tools);
         return server;
     });
 

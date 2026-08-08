@@ -20,16 +20,16 @@ Jellyfin. arr-mcp correlates them and gives you the causal chain.
   broken and what to do about it, and read the logs and the write audit — no
   hand-edited YAML, no restart.
 
-> ### Status: 0.8 — ratings that work for series too
+> ### Status: 0.9 — questions, not just tools
 >
-> No service in this stack can tell you a series' IMDb rating: Radarr returns a
-> per-source map, Sonarr returns one unlabelled number. Switch on IMDb's daily
-> dataset and every film and series gets one — including things you do not own
-> yet, so you can check a rating before deciding to add it. `get_library` gains
-> `sort`, because *"which unwatched series is best rated"* is a superlative and
-> a filter alone cannot answer one. Everything from 0.7 and earlier — many
-> instances read as one library, the writes, the correlation — is unchanged
-> underneath.
+> Nineteen tools and no hint which to reach for is a menu nobody can read. This
+> adds five prompts for the questions this stack actually gets asked — why isn't
+> this playable, what needs my attention, what should I watch, what's the best
+> thing I own, what happened this week — plus three resources, chiefly the list
+> of instance ids every tool wants. Both degrade cleanly: client support for
+> them is uneven, and **nothing is reachable only through them**. `get_library`
+> also gains `has_file`, so "what am I still waiting for" is finally a question
+> you can ask.
 > See [the roadmap](#roadmap).
 
 ## Services
@@ -69,6 +69,11 @@ could not reach, and how many results each contributed, so a long answer from
 one service can never silently hide another. `diagnose` takes a title, or an
 exact `service` plus `id`, and returns a verdict rather than a list — see
 below.
+
+`get_library` also answers **"what am I still waiting for"** — `has_file: false`
+with `monitored: true`. Media no *arr manages is excluded from that answer
+rather than counted as missing: nothing is going to fetch it, so it does not
+belong on a list of things to chase.
 
 `get_library`'s `quality` filter is films only — a series has no series-level
 quality. Its rating filters are mostly films only too, because Sonarr carries
@@ -403,6 +408,41 @@ where it previously returned nothing. Seerr still answers whenever it is
 present — it knows what is trending and requestable, which a static catalogue
 does not.
 
+## Prompts and resources
+
+Nineteen tools cover what arr-mcp can do. They do not tell you which one to
+reach for, and the questions people actually ask are rarely one call.
+
+**Five prompts**, which most clients surface as slash commands:
+
+| Prompt | Asks |
+| --- | --- |
+| `why_not_playable` | Why isn't this playable? |
+| `whats_wrong` | What needs my attention right now? |
+| `what_to_watch` | What should I watch tonight? |
+| `best_in_library` | What's the best thing I own? |
+| `whats_new` | What happened this week? |
+
+**Three resources**, which a client can attach once rather than re-fetch:
+
+| Resource | Holds |
+| --- | --- |
+| `arr://instances` | Every instance id and what it may do — the values other tools accept as `instance` |
+| `arr://health` | A stack verdict, stamped with when it was taken |
+| `arr://library/summary` | Total, on disk, still wanted |
+
+**Client support for both is uneven, so nothing is reachable only through
+them.** A prompt is a sequence of tool calls the model could have made anyway,
+and every resource mirrors something a tool already returns. On a client that
+surfaces neither, arr-mcp is exactly as capable as it was — you just have to
+know what to ask.
+
+`arr://health` is never cached (`ttlMs: 0`) and says so. A pinned "sonarr:
+reachable" five hours after Sonarr fell over is worse than the tool call it
+replaced — confidently wrong rather than merely absent. Every resource also
+carries its own `as_of`, because a cache hint is advice a client may ignore
+while a timestamp inside the content cannot be dropped.
+
 ## Config UI
 
 `http://<host>:6060`
@@ -504,7 +544,7 @@ Put it behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 | 0.6 | Web config page: dashboard, diagnosing connection tests, log streams, config editing with hot reload |
 | 0.7 | Multiple Radarr, Sonarr and Bazarr instances — an HD and a 4K stack read as one library |
 | 0.8 | A local IMDb dataset: ratings that are consistent across films and series, and orderable |
-| 0.9 | MCP resources and prompts |
+| 0.9 | Prompts and resources: the questions worth asking, and the ids every tool wants |
 | 1.0 | The tool surface settles: security, consistency and dead-code audit |
 
 Each version is a self-contained, shippable slice — the goal is that 0.4 already
