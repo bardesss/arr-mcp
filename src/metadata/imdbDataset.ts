@@ -35,6 +35,20 @@ const KIND_TO_IMDB: Record<'movie' | 'series', readonly string[]> = {
 };
 
 /**
+ * The only title types any query can reach, so the only ones worth storing.
+ *
+ * IMDb's 12.7M rows are mostly `tvEpisode`, plus shorts, video games and adult
+ * titles — none of which `discover` can return and none of which carry a rating
+ * anyone looks up here. Filtering at ingest rather than at query time is the
+ * difference between a 1.3 GB database and a small one.
+ *
+ * Derived from `KIND_TO_IMDB` rather than written out again: two lists would
+ * drift, and the failure would be silent — a kind you can ask for that was
+ * never stored just returns nothing.
+ */
+const STORED_KINDS: ReadonlySet<string> = new Set(Object.values(KIND_TO_IMDB).flat());
+
+/**
  * SQLite's compiled-in default variable limit, minus room to spare.
  *
  * A library larger than this cannot go into one `IN (...)`, and a 900-film
@@ -87,17 +101,10 @@ CREATE TABLE IF NOT EXISTS rating (
     average REAL    NOT NULL,
     votes   INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS episode (
-    tconst  TEXT PRIMARY KEY,
-    parent  TEXT    NOT NULL,
-    season  INTEGER,
-    episode INTEGER
-);
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS episode_parent ON episode(parent);
 CREATE INDEX IF NOT EXISTS title_kind ON title(kind);
 `;
 
@@ -111,6 +118,10 @@ export class ImdbDataset {
         // rebuild.
         this.#db.pragma('journal_mode = WAL');
         this.#db.exec(SCHEMA);
+        // Written through 1.0 and never read by a single query — 52 MB a day and
+        // millions of rows for a table nothing consulted. Dropped on open so an
+        // existing database reclaims the space rather than carrying it forever.
+        this.#db.exec('DROP INDEX IF EXISTS episode_parent; DROP TABLE IF EXISTS episode;');
     }
 
     static open(dir: string): ImdbDataset {
@@ -240,32 +251,31 @@ export class ImdbDataset {
      * transaction: `title.basics` is on the order of 10⁷ rows, and this runs
      * on a NAS.
      */
-    replaceAll(rows: {
-        titles: Iterable<RawTitle>;
-        ratings: Iterable<RawRating>;
-        episodes: Iterable<RawEpisode>;
-    }): void {
+    replaceAll(rows: { titles: Iterable<RawTitle>; ratings: Iterable<RawRating> }): void {
         const insertTitle = this.#db.prepare(
             'INSERT OR REPLACE INTO title (tconst, kind, title, year, runtime, genres) VALUES (?, ?, ?, ?, ?, ?)'
         );
         const insertRating = this.#db.prepare(
             'INSERT OR REPLACE INTO rating (tconst, average, votes) VALUES (?, ?, ?)'
         );
-        const insertEpisode = this.#db.prepare(
-            'INSERT OR REPLACE INTO episode (tconst, parent, season, episode) VALUES (?, ?, ?, ?)'
-        );
         const setMeta = this.#db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)');
 
         this.#db.transaction(() => {
-            this.#db.exec('DELETE FROM title; DELETE FROM rating; DELETE FROM episode;');
+            this.#db.exec('DELETE FROM title; DELETE FROM rating;');
+
+            for (const r of rows.ratings) insertRating.run(r.tconst, r.average, r.votes);
 
             for (const t of rows.titles) {
+                if (!STORED_KINDS.has(t.kind)) continue;
                 insertTitle.run(t.tconst, t.kind, t.title, t.year ?? null, t.runtime ?? null, t.genres ?? null);
             }
-            for (const r of rows.ratings) insertRating.run(r.tconst, r.average, r.votes);
-            for (const e of rows.episodes) {
-                insertEpisode.run(e.tconst, e.parent, e.season ?? null, e.episode ?? null);
-            }
+
+            // An unrated title is one nothing here can do anything with: every
+            // rating lookup misses it, and `discover` only surfaces it when no
+            // minimum was asked for. Deleted in SQL against the index rather
+            // than checked per row, which would mean holding 1.7M ids in heap —
+            // the mistake that crashed the first real ingest.
+            this.#db.exec('DELETE FROM title WHERE tconst NOT IN (SELECT tconst FROM rating)');
 
             setMeta.run('ingested_at', new Date().toISOString());
         })();

@@ -1,7 +1,10 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createGzip } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
-import { ingestOnce } from '../src/metadata/refresh.ts';
+import { ingestOnce, linesOf } from '../src/metadata/refresh.ts';
 
 /**
  * The one file that touches the network, driven against a stubbed `fetch`
@@ -86,5 +89,52 @@ describe('ingesting from the published dumps', () => {
         db = ImdbDataset.ephemeral();
 
         await expect(ingestOnce(db, { baseUrl: BASE })).rejects.toThrow('title.basics.tsv.gz');
+    });
+});
+
+/**
+ * The fix for a crash found by the first real ingest: `title.basics` is ~12M
+ * lines, and buffering them cost about 4 GB of heap and killed the process.
+ * Lines are now read from a staged file a megabyte at a time.
+ *
+ * The subtle risk in doing that is the chunk boundary — a line straddling two
+ * reads must be stitched, not split, and getting it wrong corrupts quietly
+ * rather than throwing.
+ */
+describe('reading a staged dump', () => {
+    const write = (text: string): string => {
+        const dir = mkdtempSync(join(tmpdir(), 'lines-'));
+        const path = join(dir, 'dump.tsv');
+        writeFileSync(path, text, 'utf8');
+        return path;
+    };
+
+    it('yields each line', () => {
+        expect([...linesOf(write('a\nb\nc'))]).toEqual(['a', 'b', 'c']);
+    });
+
+    it('keeps the last line when the file does not end in a newline', () => {
+        expect([...linesOf(write('a\nb'))]).toEqual(['a', 'b']);
+    });
+
+    it('yields nothing for an empty file', () => {
+        expect([...linesOf(write(''))]).toEqual([]);
+    });
+
+    /** The whole reason the carry exists. */
+    it('stitches a line that straddles the 1 MB read boundary', () => {
+        const long = 'x'.repeat(1_500_000);
+        const lines = [...linesOf(write(`first\n${long}\nlast`))];
+
+        expect(lines).toHaveLength(3);
+        expect(lines[1]).toHaveLength(1_500_000);
+        expect(lines[2]).toBe('last');
+    });
+
+    /** Lazy, not materialised — the property the crash was caused by losing. */
+    it('reads lazily rather than loading the file', () => {
+        const gen = linesOf(write('a\nb\nc'));
+        expect(gen.next().value).toBe('a');
+        gen.return(undefined);
     });
 });

@@ -366,10 +366,41 @@ metadata:
     enabled: true
 ```
 
-No account, no API key, nothing sent anywhere. Your container downloads three
-of IMDb's published files each day and keeps them in a local SQLite database
-beside the audit log. Films and series both get a rating, and so do things you
-do **not** own — `lookup_media` can rate something before you decide to add it.
+No account, no API key, nothing sent anywhere. Your container downloads two of
+IMDb's published files each day and keeps them in a local SQLite database beside
+the audit log.
+
+**It costs real disk.** Measured against the live dumps on 2026-08-08:
+
+| | |
+| --- | --- |
+| Download, per day | **223 MB** |
+| On disk | **~125 MB** |
+| First ingest | ~3 minutes |
+| Titles stored / rated | 546K / 1.7M |
+
+Only rated titles of a kind something can actually query are stored — the other
+12 million rows are episodes, shorts and video games no query can reach.
+Re-measure with `node --experimental-strip-types scripts/measure-imdb.ts`; the
+dumps grow, and a figure in a README is only as good as the day it was taken.
+
+### Do you need it?
+
+Probably less than it first appears. Where ratings already come from:
+
+| | Films | Series |
+| --- | --- | --- |
+| **In your library** | Radarr: IMDb, TMDB, Rotten Tomatoes, Metacritic | Sonarr: one unlabelled number |
+| **Not in your library** | Seerr: TMDB on every hit, plus Rotten Tomatoes and IMDb on `get_media_details` | Seerr: TMDB, plus Rotten Tomatoes |
+
+So if you run Seerr and mostly care about films, **you may not need this at
+all**. What nothing else can give you is an **IMDb rating for a series** —
+Sonarr reports a single unlabelled number, and Seerr's `/tv/{id}/ratings` has no
+IMDb half — or ratings of any kind if you do not run Seerr.
+
+It is not a Seerr fallback, either. Seerr filters discovery by TMDB rating but
+that is a different job; discovery falls back to this dataset only when Seerr is
+not configured at all.
 
 ```
 get_library({ kind: "series", watched: false, rating_source: "imdb",
