@@ -3,12 +3,12 @@ import { RANK_NONE, rankTitle, unfenced } from './titleMatch.ts';
 export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string };
 
 /**
- * Named sources rather than a loose map: these are the only ones there are, and a
- * `Record<string, number>` accepts a source name that does not exist.
+ * Named sources rather than a loose map, which would accept a source name that
+ * does not exist.
  *
- * A film populates some subset of the first five. A series populates `tvdb`
- * and nothing else — Sonarr's rating is one flat value,
- * unrelated to Radarr's per-source map. The two never mix.
+ * A film populates some subset of the first five; a series populates `tvdb`,
+ * plus `imdb` from the IMDb dataset. Sonarr's own rating is one flat value,
+ * unrelated to Radarr's per-source map — the two never mix.
  */
 export type MergedRatings = {
     imdb?: number;
@@ -37,43 +37,31 @@ export type MergedItem = {
         quality?: string;
         sizeBytes?: number;
         /**
-         * When the managing service added it, ISO 8601, exactly as that service
-         * reported it.
+         * When the managing service added it, ISO 8601, as reported.
          *
-         * On `acquisition` rather than on the item, and that placement is the
-         * decision. "When Radarr added this" is one unambiguous fact; Jellyfin's
-         * `DateCreated` — when a file appeared in *its* library — is a different
-         * one, and a single field holding both answers would repeat the mistake
-         * Sonarr's unlabelled rating already taught this codebase. Media
-         * Jellyfin alone knows about has no acquisition half and therefore no
-         * added date, which `sort: 'added'` reports by omission rather than by
-         * guessing.
+         * On `acquisition` rather than on the item, deliberately: "when Radarr
+         * added this" and Jellyfin's `DateCreated` are different facts, and one
+         * field holding both repeats the mistake Sonarr's unlabelled rating
+         * taught. Jellyfin-only media has no acquisition half and so no added
+         * date, which `sort: 'added'` reports by omission rather than guessing.
          */
         addedAt?: string;
     };
     playback?: { user: string; watched: boolean; playCount?: number; lastPlayed?: string };
     ratings?: MergedRatings;
     /**
-     * the diagnostic payload. `arr_only` **with a file** means a broken
-     * Jellyfin import — but only when Jellyfin actually answered: `arr_only`
-     * is what an *arr-managed item looks like whether Jellyfin found nothing
-     * *or was never asked at all*, and asserting the former across the latter
-     * is exactly the collapse a review found (the central
-     * constraint: "empty is looked and found nothing; undefined is could not
-     * look" applied one layer too shallow). `jellyfin_only` means media
-     * nothing is managing. Neither is visible from any single service.
+     * What no single service can tell you.
      *
-     * `unknown` covers two distinct shortfalls, deliberately not split
-     * further (`build`'s `BuildOptions` documents why a caller cannot even
-     * tell them apart from the input alone): a record with **neither** half
-     * of evidence at all, and an *arr-only record whose Jellyfin half was
-     * never gathered for this build — degraded, or never configured. Real
-     * *arr adapter data always contributes `acquisition`, so the
-     * neither-half case never happens on its own; what does happen, and what
-     * this state exists to stop, is a degraded or unconfigured Jellyfin
-     * making `LibraryIndex.build` fabricate `arr_only` — and with it a false
-     * "Jellyfin cannot see this file" — for every item in the library.
-     * `unknown` is the only answer that does not fabricate a source.
+     * `arr_only` **with a file** means a broken Jellyfin import — but only
+     * when Jellyfin actually answered. An *arr-managed item looks identical
+     * whether Jellyfin found nothing or was never asked, and asserting the
+     * first across the second is the collapse this guards: empty is "looked
+     * and found nothing", undefined is "could not look". `jellyfin_only`
+     * means media nothing is managing.
+     *
+     * `unknown` is what a degraded or unconfigured Jellyfin gets, instead of
+     * `arr_only` and a false "Jellyfin cannot see this file" across the whole
+     * library — the only answer that does not fabricate a source.
      */
     presence: 'both' | 'arr_only' | 'jellyfin_only' | 'unknown';
 };

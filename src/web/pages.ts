@@ -179,28 +179,22 @@ function sameSize(a: number, b: number): boolean {
  * Collapse the mounts every service reports down to the disks behind them.
  *
  * Services in a stack are containers over the same host filesystems, so the
- * array that arrives here is mostly the same two or three disks repeated: the
- * array volume once per *arr plus the download client, the container root once
- * per service, `/config` again for each. Ten rows to say "you have two disks",
- * which is a table nobody reads.
+ * same two or three disks arrive repeated — ten rows to say "you have two
+ * disks", which is a table nobody reads.
  *
- * Free bytes are the fingerprint, compared with a tolerance rather than for
- * equality — **not every service has byte precision to report**. SABnzbd
- * returns gigabytes as a string to two decimals (`gigabytesToBytes` in
- * `sabnzbd.ts` records a live 5.0.4 answering `"4711.95"`), a quantum of about
- * 10.7 MB, while the *arrs return exact byte counts. Measured, one 4.6 TB
- * filesystem arrives from the two of them 4.8 MB apart. Exact equality can
- * never match a source like that, and the symptom is the disk you were trying
- * to de-duplicate listed twice with identical rounded numbers.
+ * Free bytes are the fingerprint, compared with a **tolerance rather than for
+ * equality**: not every service reports byte precision. SABnzbd returns
+ * gigabytes to two decimals, so one 4.6 TB filesystem arrives 4.8 MB away from
+ * the exact count Radarr gives for it, and exact equality could never match
+ * them — the symptom being the disk listed twice with identical rounded
+ * numbers.
  *
- * Totals then guard against a false merge: a mount only joins a group whose
- * total it does not contradict, which also folds in Transmission — it reports
- * free space without a total, so it has nothing to contradict and lands on the
- * disk it shares.
+ * A mount only joins a group whose total it does not contradict, which guards
+ * against a false merge and folds in Transmission, which reports free space
+ * with no total to contradict.
  *
- * Paths are dropped rather than listed. Knowing that one disk is `/storage` to
- * Radarr and `/data` to SABnzbd is a container-mapping question; the question
- * this table answers is whether anything is about to run out of room.
+ * Paths are dropped: which mount is `/storage` is a container-mapping
+ * question, and this table answers whether anything is running out of room.
  */
 export function groupDisks(disks: readonly DiskSpace[]): DiskGroup[] {
     const groups: DiskGroup[] = [];
