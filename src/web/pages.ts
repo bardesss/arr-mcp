@@ -238,12 +238,15 @@ const imdbPanel = (status: DatasetStatus): SafeHtml => html`<h2>IMDb dataset</h2
         ${status.ingestedAt === undefined
             ? html`<p class="note">
                   Enabled, still downloading. Every tool answers exactly as it did before until the first
-                  ingest finishes — nothing is broken while this says so. It runs again daily.
+                  ingest finishes — nothing is broken while this says so, but <strong>IMDb ratings for
+                  series are not available yet</strong>, because this is the only thing that supplies them.
+                  It runs again weekly.
               </p>`
             : html`<p class="note">
-                      A fallback for ratings when Seerr is not configured or not answering, plus the IMDb
-                      number for a series that nothing else reports. Refreshed daily — about 223 MB down,
-                      roughly 125 MB on disk. Nothing here is sent anywhere.
+                      A fallback for ratings when Seerr is not configured or not answering — and the only
+                      source of an <strong>IMDb rating for a series</strong>, which no service in this stack
+                      reports. Refreshed weekly — about 223 MB down, roughly 125 MB on disk. Nothing here is
+                      sent anywhere.
                   </p>
                   <table>
                       <thead><tr><th>Last ingested</th><th>Titles</th><th>Rated</th></tr></thead>

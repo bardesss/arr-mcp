@@ -821,16 +821,127 @@ describe('removing an instance', () => {
     });
 });
 
+/**
+ * Three cards where there was one form, each saving only itself.
+ *
+ * The page had a single button at the bottom covering Config UI credentials,
+ * the IMDb dataset and the MCP endpoint at once — which read as a global save
+ * because it was the last thing on the page, while every service card above
+ * saved itself. Two save models on one page, and no way to tell which button
+ * owned what you had just typed.
+ *
+ * Splitting them introduces exactly one new way to be wrong, and it is a bad
+ * one: a form that no longer carries a field can look identical to a user
+ * clearing it. Saving the IMDb card must not wipe `allowed_hosts` just because
+ * that input is now on a different card, and saving the MCP card must not
+ * switch the dataset off. These tests exist for that, and each one failed
+ * against the naive split.
+ */
+describe('each access card saves only itself', () => {
+    /**
+     * A host worth pinning, and the reason every call below carries it.
+     *
+     * `app.request()` sends no `Host` header of its own, and a non-empty
+     * `allowed_hosts` rejects a request with no matching one — so a fixture
+     * that pins a host and then posts without setting it gets 403 on every
+     * save. The first draft did exactly that, and two of these tests passed
+     * anyway because they asserted values the failed save would have left
+     * alone. Hence `post`, and hence the explicit status assertion in it.
+     */
+    const PINNED = 'arr.example.com';
+
+    /**
+     * A config with all three cards' settings non-default at once, so a save
+     * that clobbers one is visible. Sign in *before* calling this: pinning
+     * locks out `/ui/login` too.
+     */
+    const withDataset = async () => {
+        await writeFile(
+            join(dir, 'config.yaml'),
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hashPassword(PASSWORD)}\n  allowed_hosts: [${PINNED}]\nservices: {}\nmetadata:\n  imdb:\n    enabled: true\n`,
+            'utf8'
+        );
+        await runtime.reload();
+    };
+
+    /** A save through the pinned host, asserting it was actually accepted —
+     *  without which every test here risks passing on a 403. */
+    const post = async (path: string, body: Record<string, string> = {}) => {
+        const page = await (await call('/ui/config', { headers: { host: PINNED } })).text();
+        const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+
+        const res = await call(path, {
+            ...form({ csrf, ...body }),
+            headers: { 'content-type': 'application/x-www-form-urlencoded', host: PINNED }
+        });
+        expect(res.status).toBe(200);
+        return res;
+    };
+
+    const ready = async () => {
+        await signIn();
+        await withDataset();
+    };
+
+    it('saving the IMDb card leaves the pinned hosts and the token alone', async () => {
+        await ready();
+
+        await post('/ui/config/imdb', { 'metadata.imdb': 'on' });
+
+        expect(runtime.config.auth.allowed_hosts).toEqual([PINNED]);
+        expect(runtime.config.auth.bearer_token).toBe(BEARER);
+        expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
+    });
+
+    it('saving the MCP card does not switch the dataset off', async () => {
+        await ready();
+
+        await post('/ui/config/mcp', { 'auth.allowed_hosts': PINNED });
+
+        expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
+    });
+
+    it('saving the account card touches neither the dataset, the hosts nor the token', async () => {
+        await ready();
+
+        await post('/ui/config/account', { 'auth.username': 'someone-else' });
+
+        expect(runtime.config.auth.username).toBe('someone-else');
+        expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
+        expect(runtime.config.auth.allowed_hosts).toEqual([PINNED]);
+        expect(runtime.config.auth.bearer_token).toBe(BEARER);
+    });
+
+    /** The dataset still has to be switchable *off*, which is the one case the
+     *  "absent means unchanged" rule above cannot express — so the IMDb card
+     *  reads its own checkbox as authoritative, and only its own. */
+    it('still switches the dataset off from its own card', async () => {
+        await ready();
+
+        await post('/ui/config/imdb');
+
+        expect(runtime.config.metadata).toBeUndefined();
+        expect(runtime.config.auth.allowed_hosts).toEqual([PINNED]);
+    });
+
+    it('gives each card its own button, and the page no button that spans them', async () => {
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        expect(page).toContain('/ui/config/account');
+        expect(page).toContain('/ui/config/imdb');
+        expect(page).toContain('/ui/config/mcp');
+        expect(page).not.toContain('Save access settings');
+    });
+});
+
 describe('access settings', () => {
     it('rotates the bearer token only when asked', async () => {
         await signIn();
-        await call('/ui/config/access', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
+        await call('/ui/config/mcp', form({ csrf: await csrfFrom() }));
         expect(runtime.config.auth.bearer_token).toBe(BEARER);
 
-        await call(
-            '/ui/config/access',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.rotate_token': 'on' })
-        );
+        await call('/ui/config/mcp', form({ csrf: await csrfFrom(), 'auth.rotate_token': 'on' }));
         expect(runtime.config.auth.bearer_token).not.toBe(BEARER);
         expect(runtime.config.auth.bearer_token).toMatch(/^[0-9a-f]{64}$/);
     });
@@ -839,10 +950,7 @@ describe('access settings', () => {
     // or the old token keeps working until a restart.
     it('makes a rotated token effective immediately on /mcp', async () => {
         await signIn();
-        await call(
-            '/ui/config/access',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.rotate_token': 'on' })
-        );
+        await call('/ui/config/mcp', form({ csrf: await csrfFrom(), 'auth.rotate_token': 'on' }));
 
         const res = await app.request('http://localhost:6060/mcp', {
             method: 'POST',
@@ -860,7 +968,7 @@ describe('access settings', () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
         await signIn();
 
-        await call('/ui/config/access', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
+        await call('/ui/config/account', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
 
         expect(runtime.current.adapters.map(a => a.id)).toEqual(['radarr']);
     });
@@ -868,7 +976,7 @@ describe('access settings', () => {
     it('changes the password, and the old one stops working', async () => {
         await signIn();
         await call(
-            '/ui/config/access',
+            '/ui/config/account',
             form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password' })
         );
 
@@ -879,7 +987,7 @@ describe('access settings', () => {
 
     it('leaves the password alone when the field is blank', async () => {
         await signIn();
-        await call('/ui/config/access', form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': '' }));
+        await call('/ui/config/account', form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': '' }));
 
         cookie = '';
         expect((await call('/ui/login', form({ username: 'admin', password: PASSWORD }))).status).toBe(302);
@@ -899,8 +1007,8 @@ describe('allowed_hosts', () => {
     it('applies a pinned host immediately, with no restart', async () => {
         await signIn();
         await call(
-            '/ui/config/access',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
+            '/ui/config/mcp',
+            form({ csrf: await csrfFrom(), 'auth.allowed_hosts': 'arr.example.com' })
         );
 
         expect((await get('arr.example.com')).status).toBe(200);
@@ -912,8 +1020,8 @@ describe('allowed_hosts', () => {
     it('matches a pinned bare hostname when the request carries a port', async () => {
         await signIn();
         await call(
-            '/ui/config/access',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
+            '/ui/config/mcp',
+            form({ csrf: await csrfFrom(), 'auth.allowed_hosts': 'arr.example.com' })
         );
 
         expect((await get('arr.example.com:6060')).status).toBe(200);
@@ -931,8 +1039,8 @@ describe('allowed_hosts', () => {
     it('locks out an unlisted host, and can be undone from a listed one', async () => {
         await signIn();
         await call(
-            '/ui/config/access',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.allowed_hosts': 'arr.example.com' })
+            '/ui/config/mcp',
+            form({ csrf: await csrfFrom(), 'auth.allowed_hosts': 'arr.example.com' })
         );
         expect((await get('other.example.com')).status).toBe(403);
 
@@ -941,8 +1049,8 @@ describe('allowed_hosts', () => {
 
         const page = await (await call('/ui/config', { headers: { host: 'arr.example.com' } })).text();
         const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
-        await call('/ui/config/access', {
-            ...form({ csrf, 'auth.username': 'admin', 'auth.allowed_hosts': '' }),
+        await call('/ui/config/mcp', {
+            ...form({ csrf, 'auth.allowed_hosts': '' }),
             headers: {
                 'content-type': 'application/x-www-form-urlencoded',
                 host: 'arr.example.com'
@@ -1156,10 +1264,7 @@ describe('the IMDb dataset in the config UI', () => {
      *  place, so a key nothing writes is a key that silently never persists. */
     it('writes the block to disk when switched on', async () => {
         await signIn();
-        await call(
-            '/ui/config/access',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'metadata.imdb': 'on' })
-        );
+        await call('/ui/config/imdb', form({ csrf: await csrfFrom(), 'metadata.imdb': 'on' }));
 
         expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('metadata:');
         expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
@@ -1173,7 +1278,7 @@ describe('the IMDb dataset in the config UI', () => {
     it('removes the block entirely when switched off', async () => {
         await seedWithDataset();
         await signIn();
-        await call('/ui/config/access', form({ csrf: await csrfFrom(), 'auth.username': 'admin' }));
+        await call('/ui/config/imdb', form({ csrf: await csrfFrom() }));
 
         const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
         expect(onDisk).not.toContain('metadata:');

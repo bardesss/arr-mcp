@@ -12,7 +12,12 @@ import { layout } from './pages.ts';
  * therefore never means "clear this" — removing the instance does.
  *
  * **Each card is its own form**, so a save touches exactly the instance it came
- * from rather than rewriting every other service on screen.
+ * from rather than rewriting every other service on screen. That holds for the
+ * three access cards at the bottom too, and did not always: they shared one
+ * button, which by sitting last on the page read as a global save while every
+ * card above saved itself. One rule now — the card you edited is the card you
+ * save — and one route per card in `routes.ts` to enforce it, each carrying
+ * forward the config it does not own.
  *
  * **Nothing here is `type="password"`.** That attribute is what makes browsers
  * and password managers read a card as a login form and fill the URL and key on
@@ -417,67 +422,91 @@ export function configPage(opts: {
         ${addDialog(opts.config, opts.csrf, opts.openAdd === true, opts.testedAdd)}
 
         <h2>Access</h2>
-        <form method="post" action="/ui/config/access" ${IGNORE_FORM}>
+        <p class="note" style="margin:-.5rem 0 1rem">
+            Three separate settings, saved separately — like the service cards above. Each Save writes only
+            its own card.
+        </p>
+
+        <form method="post" action="/ui/config/account" class="panel" ${IGNORE_FORM}>
             <input type="hidden" name="csrf" value="${opts.csrf}">
-            <fieldset>
-                <legend>Config UI</legend>
-                ${field({ id: 'auth.username', name: 'auth.username', label: 'Username', value: opts.config.auth.username })}
-                ${field({
-                    id: 'auth.password',
-                    name: 'auth.password',
-                    label: 'New password',
-                    secret: true,
-                    placeholder: 'unchanged',
-                    note: 'Leave blank to keep the current password. Only a hash is stored — it cannot be read back.'
-                })}
-            </fieldset>
-
-            <fieldset>
-                <legend>IMDb dataset</legend>
-                ${checkbox(
-                    'metadata.imdb',
-                    'metadata.imdb',
-                    'Download IMDb’s daily dataset for ratings',
-                    opts.config.metadata?.imdb?.enabled ?? false
-                )}
-                <p class="note">
-                    <strong>A fallback — most stacks do not need this.</strong> If you run Seerr you already
-                    have ratings for films <em>and</em> series, with no disk cost: Seerr supplies TMDB and
-                    Rotten Tomatoes for both, plus IMDb for films. Radarr covers films in your own library.
-                </p>
-                <p class="note">
-                    Switch it on if you <strong>do not run Seerr</strong>, or want ratings to keep working
-                    when Seerr is down — or if you specifically want an <strong>IMDb number for a series</strong>,
-                    which is the one figure nothing else has (Seerr returns Rotten Tomatoes only for TV).
-                </p>
-                <p class="note">
-                    <strong>About 125 MB on disk, and a 223 MB download each day.</strong> The first ingest
-                    takes a few minutes; everything keeps working meanwhile, and the dashboard says when it
-                    has finished. Nothing is sent anywhere, and there is no account or key.
-                </p>
-            </fieldset>
-
-            <fieldset>
-                <legend>MCP endpoint</legend>
-                ${checkbox('auth.rotate_token', 'auth.rotate_token', 'Generate a new bearer token', false)}
-                <p class="note">
-                    Rotating invalidates the current token immediately; every MCP client will need the new one,
-                    which appears on the dashboard.
-                </p>
-                ${field({
-                    id: 'auth.allowed_hosts',
-                    name: 'auth.allowed_hosts',
-                    label: 'Allowed hosts (comma separated)',
-                    value: opts.config.auth.allowed_hosts.join(', '),
-                    note: 'Leave empty to accept any Host — right for a LAN container reached by IP. Applies immediately; pin the wrong name and you will lock yourself out until you edit config.yaml by hand.'
-                })}
-            </fieldset>
-
-            <div class="row">
-                <button type="submit">Save access settings</button>
-                <a href="/ui" style="margin-left:.5rem">Back to the dashboard</a>
+            <h3 style="margin:0 0 .75rem">Config UI sign-in</h3>
+            ${field({ id: 'auth.username', name: 'auth.username', label: 'Username', value: opts.config.auth.username })}
+            ${field({
+                id: 'auth.password',
+                name: 'auth.password',
+                label: 'New password',
+                secret: true,
+                placeholder: 'unchanged',
+                note: 'Leave blank to keep the current password. Only a hash is stored — it cannot be read back.'
+            })}
+            <div class="row" style="margin-top:1rem">
+                <button type="submit">Save sign-in</button>
             </div>
-        </form>`;
+        </form>
+
+        <form method="post" action="/ui/config/imdb" class="panel" ${IGNORE_FORM}>
+            <input type="hidden" name="csrf" value="${opts.csrf}">
+            <h3 style="margin:0 0 .75rem">IMDb dataset</h3>
+            ${checkbox(
+                'metadata.imdb',
+                'metadata.imdb',
+                'Download IMDb’s dataset for ratings',
+                opts.config.metadata?.imdb?.enabled ?? false
+            )}
+            <!-- The required-for-series line comes first and is unhedged. It
+                 used to be the second half of the second paragraph, under a
+                 heading that said "most stacks do not need this" — so someone
+                 looking for a series' IMDb score read the discouragement and
+                 stopped. That is not a hypothetical: it is how this page was
+                 found to be wrong. -->
+            <p class="note">
+                <strong>Required for IMDb ratings on TV series.</strong> Leave this off and
+                <span class="mono">rating_source: imdb</span> on a series matches nothing at all — not
+                because your shows are unrated, but because nothing else in the stack has that number.
+                Sonarr reports one flat TVDB rating, and Seerr’s <span class="mono">/tv</span> ratings are
+                Rotten Tomatoes only; there is no combined endpoint for TV upstream. Films are unaffected —
+                Radarr and Seerr both supply IMDb for those.
+            </p>
+            <p class="note">
+                <strong>For everything else it is only a fallback.</strong> If you run Seerr you already have
+                TMDB and Rotten Tomatoes for films and series, plus IMDb for films, at no disk cost. So the
+                other reasons to switch this on are that you <strong>do not run Seerr</strong>, or you want
+                ratings to keep working while Seerr is down.
+            </p>
+            <p class="note">
+                <strong>About 125 MB on disk, and a 223 MB download each week.</strong> Refreshed weekly
+                rather than daily: an average over millions of votes barely moves, so a nightly re-download
+                spent 6.5 GB a month to change third decimal places. The cost is that a title published in
+                the last week may not be there yet. The first ingest takes a few minutes; everything keeps
+                working meanwhile, and the dashboard says when it has finished. Nothing is sent anywhere,
+                and there is no account or key.
+            </p>
+            <div class="row" style="margin-top:1rem">
+                <button type="submit">Save IMDb settings</button>
+            </div>
+        </form>
+
+        <form method="post" action="/ui/config/mcp" class="panel" ${IGNORE_FORM}>
+            <input type="hidden" name="csrf" value="${opts.csrf}">
+            <h3 style="margin:0 0 .75rem">MCP endpoint</h3>
+            ${checkbox('auth.rotate_token', 'auth.rotate_token', 'Generate a new bearer token', false)}
+            <p class="note">
+                Rotating invalidates the current token immediately; every MCP client will need the new one,
+                which appears on the dashboard.
+            </p>
+            ${field({
+                id: 'auth.allowed_hosts',
+                name: 'auth.allowed_hosts',
+                label: 'Allowed hosts (comma separated)',
+                value: opts.config.auth.allowed_hosts.join(', '),
+                note: 'Leave empty to accept any Host — right for a LAN container reached by IP. Applies immediately; pin the wrong name and you will lock yourself out until you edit config.yaml by hand.'
+            })}
+            <div class="row" style="margin-top:1rem">
+                <button type="submit">Save MCP settings</button>
+            </div>
+        </form>
+
+        <p class="note"><a href="/ui">Back to the dashboard</a></p>`;
 
     return layout({
         title: 'Configuration',

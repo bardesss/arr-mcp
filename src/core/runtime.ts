@@ -32,10 +32,24 @@ export type RuntimeSnapshot = {
  */
 const NO_CONFIG_DIR = '';
 
+/**
+ * Keeping an open dataset current, and how to stop.
+ *
+ * A seam rather than a direct call to `startRefresh`, for the property the
+ * `#dataset` doc claims: constructing a Runtime must not reach the network
+ * unless the caller asked it to. `src/index.ts` passes the real one; every
+ * test that never mentions the dataset gets `NO_REFRESH` and no download.
+ */
+export type Refresher = (dataset: ImdbDataset) => () => void;
+
+/** The default. Nothing to keep fresh, and nothing to stop. */
+const NO_REFRESH: Refresher = () => () => {};
+
 export class Runtime {
     #snapshot: RuntimeSnapshot;
     readonly #configDir: string;
     readonly #audit: WriteAudit;
+    readonly #refresh: Refresher;
 
     /**
      * Deliberately outside the snapshot, and so **not** rebuilt on reload.
@@ -59,20 +73,27 @@ export class Runtime {
      * reload only opens or closes it when the config's answer actually
      * changed.
      *
-     * Opening is all this class does. Keeping it *fresh* is `startRefresh`,
-     * which the entry point calls — so constructing a Runtime never reaches
-     * the network, and no test has to opt out of a download it did not ask
-     * for.
+     * Opening it and keeping it *fresh* are the same decision, so both live
+     * here. Through 1.1 they did not: `startRefresh` was called once at
+     * startup from the entry point, so switching the dataset on from the
+     * config UI opened an empty database that nothing ever ingested into, and
+     * every rating stayed missing until the container was restarted — a
+     * feature that looks broken rather than one that looks off. What the
+     * entry point supplies now is the *refresher*, not the timing.
      */
     #dataset: ImdbDataset | undefined;
+
+    /** Stops the refresh belonging to `#dataset`, and only while one is open. */
+    #stopRefresh: (() => void) | undefined;
 
     get dataset(): ImdbDataset | undefined {
         return this.#dataset;
     }
 
-    private constructor(configDir: string, audit: WriteAudit, config: Config) {
+    private constructor(configDir: string, audit: WriteAudit, config: Config, refresh: Refresher) {
         this.#configDir = configDir;
         this.#audit = audit;
+        this.#refresh = refresh;
         this.confirm = new ConfirmTokens();
         this.sessions = new Sessions();
         // Before the snapshot, not after: the tool context closes over the
@@ -82,8 +103,14 @@ export class Runtime {
     }
 
     /**
-     * Open or close the dataset to match the config, and do nothing at all
-     * when the answer has not changed — which is the common case on reload.
+     * Open or close the dataset to match the config — and start or stop its
+     * refresh with it — doing nothing at all when the answer has not changed,
+     * which is the common case on reload.
+     *
+     * The "unchanged" branch is what stops every unrelated save from stacking
+     * up refreshers: editing a timeout reloads the runtime, and a second timer
+     * per edit would mean a day of configuring left a pile of them all
+     * downloading 223 MB on the same schedule.
      *
      * `ImdbDataset.open` touches the filesystem, so it is skipped entirely
      * when there is no real config directory: `fromConfig`'s default is a
@@ -96,19 +123,34 @@ export class Runtime {
         if (wanted && this.#dataset === undefined) {
             this.#dataset = ImdbDataset.open(this.#configDir);
             logger.info({ file: IMDB_FILENAME }, 'IMDb dataset opened');
+            // After the open, and pointed at the database that was just
+            // opened: a refresh filling a dataset nothing reads would be the
+            // same bug this call exists to fix, wearing a different hat.
+            this.#stopRefresh = this.#refresh(this.#dataset);
             return;
         }
 
         if (!wanted && this.#dataset !== undefined) {
+            // Stopped *before* the close, so no further ingest is scheduled
+            // against a database about to go away. An ingest already in flight
+            // is not cancellable — it will fail on the closed handle and be
+            // logged by the refresher's own catch, which is the right outcome:
+            // a warning about a download nobody wants any more.
+            this.#stopRefresh?.();
+            this.#stopRefresh = undefined;
             this.#dataset.close();
             this.#dataset = undefined;
             logger.info('IMDb dataset closed — no longer enabled');
         }
     }
 
-    static async start(configDir: string, audit: WriteAudit): Promise<{ runtime: Runtime; created: boolean }> {
+    static async start(
+        configDir: string,
+        audit: WriteAudit,
+        opts: { refresh?: Refresher } = {}
+    ): Promise<{ runtime: Runtime; created: boolean }> {
         const { config, created } = await loadConfig(configDir);
-        return { runtime: new Runtime(configDir, audit, config), created };
+        return { runtime: new Runtime(configDir, audit, config, opts.refresh ?? NO_REFRESH), created };
     }
 
     /**
@@ -127,9 +169,14 @@ export class Runtime {
     static fromConfig(
         config: Config,
         audit: WriteAudit,
-        opts: { configDir?: string; adapters?: readonly ServiceAdapter[] } = {}
+        opts: { configDir?: string; adapters?: readonly ServiceAdapter[]; refresh?: Refresher } = {}
     ): Runtime {
-        const runtime = new Runtime(opts.configDir ?? NO_CONFIG_DIR, audit, config);
+        const runtime = new Runtime(
+            opts.configDir ?? NO_CONFIG_DIR,
+            audit,
+            config,
+            opts.refresh ?? NO_REFRESH
+        );
         if (opts.adapters !== undefined) {
             runtime.#snapshot = {
                 config,

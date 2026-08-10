@@ -9,7 +9,7 @@ import { join } from 'node:path';
  * Its own file, and its own module, for the reason those two are separate
  * from each other: three different retention stories. Write records survive
  * forever, log lines are a ring buffer, and this is a cache that is wholly
- * replaced every day and can be deleted at any moment without losing anything
+ * replaced every week and can be deleted at any moment without losing anything
  * a user typed. Losing it costs a download, not data.
  *
  * **Nothing here touches the network.** Downloading lives in `refresh.ts` and
@@ -106,7 +106,7 @@ export class ImdbDataset {
 
     private constructor(db: Db) {
         this.#db = db;
-        // WAL for the reason audit.ts uses it: the daily ingest writes while
+        // WAL for the reason audit.ts uses it: the weekly ingest writes while
         // tool calls read, and a reader must never block on a twenty-minute
         // rebuild.
         this.#db.pragma('journal_mode = WAL');

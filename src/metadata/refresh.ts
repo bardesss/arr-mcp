@@ -9,7 +9,7 @@ import type { ImdbDataset } from './imdbDataset.ts';
 import { parseRatings, parseTitles } from './ingest.ts';
 
 /**
- * Fetching the dumps, and the daily schedule.
+ * Fetching the dumps, and the weekly schedule.
  *
  * The only file in `src/metadata/` that touches the network, which is what lets
  * the store and the parser be tested without one.
@@ -17,8 +17,27 @@ import { parseRatings, parseTitles } from './ingest.ts';
 
 export const IMDB_BASE_URL = 'https://datasets.imdbws.com';
 
-/** IMDb publishes daily, so there is no second sensible interval to offer. */
-export const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/**
+ * Weekly, though IMDb publishes daily — the publish cadence is not the useful
+ * one here.
+ *
+ * What this database holds is average ratings for titles that already exist. An
+ * average over two million votes moves by hundredths across a *year*; refetching
+ * 223 MB every night to change a third decimal place spent 6.5 GB a month of a
+ * NAS's bandwidth to answer every question exactly as it did the night before.
+ * Weekly is under a gigabyte a month for the same answers.
+ *
+ * **What this costs, stated plainly:** a title IMDb published in the last week
+ * may have no row yet, so a brand-new release can be missing from `discover`,
+ * and a series added to your library the day it premiered goes without an IMDb
+ * rating until the next refresh. Ratings for anything older — which is nearly
+ * everything anybody owns — are unaffected.
+ *
+ * Still not configurable, for the reason it never was: there is no interval a
+ * user could pick that would serve them better than this one, and a setting
+ * that cannot help can still be set wrong.
+ */
+export const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Download one dump, decompressed, **to a file** — never into memory.
@@ -116,7 +135,12 @@ export async function ingestOnce(dataset: ImdbDataset, opts: { baseUrl?: string 
 }
 
 /**
- * Start the daily refresh, returning a function that stops it.
+ * Start the weekly refresh, returning a function that stops it.
+ *
+ * Runs once immediately, then on the interval — which is what makes switching
+ * the dataset on from the config UI produce ratings rather than an empty
+ * database that waits a week. `Runtime` calls this the moment it opens the
+ * database, and calls the returned stop function when it closes it.
  *
  * **Startup never awaits this.** A first run of several minutes is several
  * minutes of normal service, not a container that looks broken — every tool
