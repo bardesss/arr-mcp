@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/bardesss/arr-mcp/compare/v1.1.0...v1.2.0) (2026-08-10)
+
+
+### Features
+
+* make a series' IMDb rating actually reachable ([#89](https://github.com/bardesss/arr-mcp/issues/89)) ([f9fbd8f](https://github.com/bardesss/arr-mcp/commit/f9fbd8fc3860c200ffe9f84ffc12f6f25494ba84))
+
 ## [1.1.0](https://github.com/bardesss/arr-mcp/compare/v1.0.0...v1.1.0) (2026-08-08)
 
 
