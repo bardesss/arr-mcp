@@ -47,6 +47,26 @@ export class LibraryLoader {
         this.#dataset = dataset;
     }
 
+    /**
+     * Whether an IMDb rating is *obtainable* here, which is not the same
+     * question as whether one was found.
+     *
+     * `get_library` needs this to tell three situations apart that all arrive
+     * as "0 rated": the dataset is off, it is on but has not finished its first
+     * ingest, or it is loaded and genuinely does not cover these titles. Only
+     * the last is an answer about the library; the other two are answers about
+     * this server, and a caller told "0 rated" without them reasonably
+     * concludes the library is the problem — which is exactly what happened.
+     *
+     * A getter rather than a field on the snapshot: the state changes when the
+     * ingest lands, which is not a library read and must not wait for the cache
+     * to expire.
+     */
+    get imdbDatasetState(): 'off' | 'ingesting' | 'ready' {
+        if (this.#dataset === undefined) return 'off';
+        return this.#dataset.status().ingestedAt === undefined ? 'ingesting' : 'ready';
+    }
+
     async load(user?: string): Promise<LibrarySnapshot> {
         const resolved = await this.#resolveUser(user);
 

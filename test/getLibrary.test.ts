@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { LibraryIndex, type IndexInput } from '../src/core/resolver.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
+import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { buildGetLibrary } from '../src/tools/getLibrary.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
@@ -416,6 +417,86 @@ describe('series ratings, once the dataset can supply them', () => {
  */
 const rated = (title: string, imdb: number, over: Partial<IndexInput> = {}): IndexInput =>
     film({ title, ids: { tmdb: title.length * 977 + Math.round(imdb * 10) }, ratings: { imdb }, ...over });
+
+/**
+ * The bug a user actually hit: they asked for their series' IMDb scores, every
+ * one came back unrated, and nothing anywhere said why.
+ *
+ * `ratingCoverage` already reported "0 rated, 40 unrated", which is true and
+ * useless — it reads as "your library has no good series" rather than "the one
+ * thing that could answer this is switched off". A model handed that number
+ * reasonably concludes the question cannot be answered, which is what it told
+ * them.
+ *
+ * The distinction worth drawing is three-way, because the remedies differ: not
+ * enabled (turn it on), enabled but still ingesting (wait), and genuinely
+ * covering nothing (a real answer about a real library).
+ */
+describe('explaining an imdb rating nothing could supply', () => {
+    const loaderWith = (dataset: ImdbDataset | undefined, items: IndexInput[]) =>
+        new LibraryLoader([stub('sonarr', items), jellyfinStub()], healthyJellyfinIdentity, undefined, dataset);
+
+    let db: ImdbDataset | undefined;
+    afterEach(() => {
+        db?.close();
+        db = undefined;
+    });
+
+    const seriesQuery = { ...base, kind: 'series' as const, rating_source: 'imdb' as const, min_rating: 1 };
+
+    it('names the dataset when it is off and nothing carries an imdb rating', async () => {
+        const result = await buildGetLibrary(loaderWith(undefined, [series()]), seriesQuery);
+
+        expect(result.ratingCoverage).toMatchObject({ source: 'imdb', rated: 0, unrated: 1 });
+        expect(result.ratingCoverage?.note).toMatch(/not enabled/i);
+        // The remedy has to be findable, not merely implied.
+        expect(result.ratingCoverage?.note).toContain('metadata.imdb.enabled');
+    });
+
+    /** Enabled but empty is a wait, not a config change — and saying "turn it
+     *  on" to someone who already did would send them in a circle. */
+    it('says to wait when the dataset is on but has not ingested yet', async () => {
+        db = ImdbDataset.ephemeral();
+        const result = await buildGetLibrary(loaderWith(db, [series()]), seriesQuery);
+
+        expect(result.ratingCoverage?.note).toMatch(/still|not finished|ingest/i);
+        expect(result.ratingCoverage?.note).not.toMatch(/not enabled/i);
+    });
+
+    /** A real answer about a real library gets no excuse attached to it. */
+    it('says nothing when the dataset is ingested and simply does not know these titles', async () => {
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [{ tconst: 'tt0000009', kind: 'tvSeries', title: 'Something Else' }],
+            ratings: [{ tconst: 'tt0000009', average: 7, votes: 10 }]
+        });
+
+        const result = await buildGetLibrary(loaderWith(db, [series()]), seriesQuery);
+
+        expect(result.ratingCoverage).toMatchObject({ rated: 0 });
+        expect(result.ratingCoverage?.note).toBeUndefined();
+    });
+
+    /** Coverage that speaks for itself needs no note, however partial. */
+    it('says nothing when at least one item is rated', async () => {
+        const items = [series({ ratings: { imdb: 9.5 } }), series({ title: 'Other', ids: { tvdb: 1, imdb: 'tt1' } })];
+        const result = await buildGetLibrary(loaderWith(undefined, items), seriesQuery);
+
+        expect(result.ratingCoverage).toMatchObject({ rated: 1, unrated: 1 });
+        expect(result.ratingCoverage?.note).toBeUndefined();
+    });
+
+    /** Films reach IMDb through Radarr, so an off dataset is not the whole
+     *  story — but it is still the only thing that would fill the gap. */
+    it('explains a film query that found no imdb ratings too', async () => {
+        const result = await buildGetLibrary(
+            new LibraryLoader([stub('radarr', [film()]), jellyfinStub()], healthyJellyfinIdentity),
+            { ...base, kind: 'movie', rating_source: 'imdb', min_rating: 1 }
+        );
+
+        expect(result.ratingCoverage?.note).toMatch(/not enabled/i);
+    });
+});
 
 describe('ordering', () => {
     it('orders before truncating, so the top result survives the limit', async () => {

@@ -67,9 +67,11 @@ belong on a list of things to chase.
 `get_library`'s `quality` filter is films only — a series has no series-level
 quality. Its rating filters are mostly films only too, because Sonarr carries
 one flat TVDB rating rather than per-source scores; the exception is `imdb`,
-which the [IMDb dataset](#imdb-ratings) supplies for series as well. Asking for
-a combination that cannot exist returns a refusal explaining why, not an empty
-list.
+which the [IMDb dataset](#imdb-ratings) supplies for series as well — **and only
+it does**, so asking for a series' IMDb rating with the dataset off finds
+nothing. Asking for a combination that cannot exist returns a refusal explaining
+why, not an empty list; asking for one that needs the dataset says so in
+`ratingCoverage.note` rather than reporting a bare zero.
 
 The first thirteen are reads. The last six write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded
@@ -351,14 +353,23 @@ tier.
 
 ### IMDb ratings
 
+> **If you want IMDb scores for TV series, you need the IMDb dataset. There is
+> no other way to get them.** Nothing else in this stack has that number —
+> not Sonarr, not Seerr, not Jellyfin. Leave the dataset off and
+> `rating_source: imdb` on a series matches nothing, which reads as "your shows
+> are unrated" rather than "this server cannot look that up". Skip to
+> [switching it on](#switching-it-on). Films are unaffected.
+
 Ratings across this stack are inconsistent, and for series they are absent.
 Radarr returns a per-source map, so a film can carry IMDb, TMDB, Rotten
 Tomatoes and Metacritic scores at once. Sonarr returns a single unlabelled
-number, which arr-mcp can only honestly record as TVDB's — so **no service here
-can tell you a series' IMDb rating**, and asking `get_library` for one used to
-be refused outright.
+number, which arr-mcp can only honestly record as TVDB's. Seerr's
+`/tv/{id}/ratings` is Rotten Tomatoes only — the combined endpoint that carries
+the IMDb half exists for films alone, upstream. So **no service here can tell
+you a series' IMDb rating**, and asking `get_library` for one used to be
+refused outright.
 
-Switching on IMDb's daily dataset fixes that:
+#### Switching it on
 
 ```yaml
 metadata:
@@ -366,15 +377,20 @@ metadata:
     enabled: true
 ```
 
+Or tick **IMDb dataset** in the config UI, which applies immediately — the
+download starts when you save, with no restart.
+
 No account, no API key, nothing sent anywhere. Your container downloads two of
-IMDb's published files each day and keeps them in a local SQLite database beside
-the audit log.
+IMDb's published files and keeps them in a local SQLite database beside the
+audit log. The first ingest takes a few minutes; every tool answers exactly as
+it did before until it lands, and the dashboard says when it has finished.
 
 **It costs real disk.** Measured against the live dumps on 2026-08-08:
 
 | | |
 | --- | --- |
-| Download, per day | **223 MB** |
+| Download, per refresh | **223 MB** |
+| Refreshed | **weekly** |
 | On disk | **~125 MB** |
 | First ingest | ~3 minutes |
 | Titles stored / rated | 546K / 1.7M |
@@ -384,25 +400,36 @@ Only rated titles of a kind something can actually query are stored — the othe
 Re-measure with `node --experimental-strip-types scripts/measure-imdb.ts`; the
 dumps grow, and a figure in a README is only as good as the day it was taken.
 
-### Do you need it? Probably not, if you run Seerr
+**Weekly, though IMDb publishes daily.** What this holds is average ratings for
+titles that already exist, and an average over millions of votes moves by
+hundredths across a year — a nightly re-download spent 6.5 GB a month to answer
+every question exactly as it did the night before. The cost is that a title
+published in the last week may not be there yet, so a brand-new release can be
+missing from `discover_media` and a series added the day it premiered goes
+without an IMDb rating until the next refresh. The interval is not configurable.
 
-**This is a fallback.** Seerr already supplies ratings for both films and
-series, and it needs no disk at all:
+### Do you need it? For series IMDb scores, yes — otherwise probably not
+
+**For everything except a series' IMDb rating, this is a fallback.** Seerr
+already supplies ratings for both films and series, and it needs no disk at all:
 
 | | Films | Series |
 | --- | --- | --- |
 | **In your library** | Radarr: IMDb, TMDB, Rotten Tomatoes, Metacritic | Sonarr: one unlabelled number |
 | **Not in your library** | Seerr: TMDB, Rotten Tomatoes, IMDb | Seerr: TMDB, Rotten Tomatoes |
 
+Read the bottom-right cell: **no IMDb, either column, for a series.** That gap
+is the one thing the dataset uniquely fills.
+
 So switch the dataset on if:
 
-- **you do not run Seerr**, or want ratings to survive Seerr being down; or
-- **you specifically want an IMDb number for a series.** Seerr's
-  `/tv/{id}/ratings` returns Rotten Tomatoes only — there is no combined
-  endpoint for TV upstream — so that one figure has no other source.
+- **you want an IMDb number for a series** — the dataset is the only source,
+  in your library or out of it; or
+- **you do not run Seerr**, or want ratings to survive Seerr being down.
 
-That second reason is a footnote, not a feature. If TMDB and Rotten Tomatoes are
-enough for your series, you do not need this.
+The second is a footnote, not a feature. If TMDB and Rotten Tomatoes are enough
+for your series, you do not need this — but if you came here for IMDb scores on
+TV, the first reason is the whole answer.
 
 ```
 get_library({ kind: "series", watched: false, rating_source: "imdb",

@@ -88,7 +88,12 @@ export type GetLibraryResult = {
     truncated: boolean;
     degraded: string[];
     counts: Partial<Record<ServiceId, number>>;
-    ratingCoverage?: { source: RatingSource; rated: number; unrated: number };
+    /**
+     * `note` is set only when the count needs defending — see
+     * `imdbUnavailableNote`. Additive and optional, so a caller reading
+     * `source`/`rated`/`unrated` is unaffected.
+     */
+    ratingCoverage?: { source: RatingSource; rated: number; unrated: number; note?: string };
 };
 
 const ratingOf = (item: MergedItem, source: RatingSource): number | undefined => item.ratings?.[source];
@@ -203,6 +208,31 @@ const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
     return rest;
 };
 
+/**
+ * Why an IMDb query found nothing — when the reason is this server rather than
+ * the library.
+ *
+ * "0 rated, 40 unrated" is true and useless on its own. It reads as *your
+ * series are unrated*, and a model handed that number reasonably tells the user
+ * their question cannot be answered — which is how someone came to be told that
+ * IMDb scores for their own shows were impossible, when the answer was one
+ * config line away.
+ *
+ * Only ever attached to a **zero**. A partial count speaks for itself, and
+ * qualifying a real answer with an excuse would be worse than saying nothing.
+ * `ready` returns nothing for the same reason: a loaded dataset that does not
+ * cover these titles is a genuine fact about the library.
+ */
+function imdbUnavailableNote(state: 'off' | 'ingesting' | 'ready'): string | undefined {
+    if (state === 'off') {
+        return 'No IMDb rating was available for anything here, because the IMDb dataset is not enabled — set `metadata.imdb.enabled: true` (Configuration → IMDb dataset). For a series this is the only source there is: Sonarr reports one flat TVDB number, and Seerr’s /tv ratings are Rotten Tomatoes only. This is a gap in what this server can look up, not a verdict on the library.';
+    }
+    if (state === 'ingesting') {
+        return 'The IMDb dataset is enabled but has not finished its first ingest, so no IMDb rating is available yet — it takes a few minutes and the dashboard reports when it lands. Nothing needs changing; ask again shortly. This is not a verdict on the library.';
+    }
+    return undefined;
+}
+
 export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery): Promise<GetLibraryResult> {
     rejectImpossibleFilters(opts);
 
@@ -279,12 +309,22 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     const ordered = opts.sort === undefined ? matching : applySort(matching, opts.sort, source);
     const shaped = applyLimit(ordered, opts.limit);
 
+    // Only for `imdb`, and only for a zero: every other source is supplied by a
+    // service that either answered or is already named in `degraded`.
+    const note =
+        source === 'imdb' && rated.length === 0 ? imdbUnavailableNote(loader.imdbDatasetState) : undefined;
+
     return {
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
         degraded,
         counts,
-        ratingCoverage: { source, rated: rated.length, unrated: filtered.length - rated.length }
+        ratingCoverage: {
+            source,
+            rated: rated.length,
+            unrated: filtered.length - rated.length,
+            ...(note === undefined ? {} : { note })
+        }
     };
 }
 
@@ -293,7 +333,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
         'get_library',
         {
             description:
-                'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. `has_file: false` with `monitored: true` is "what am I still waiting for". Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating when the IMDb dataset is enabled — `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers.',
+                'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. `has_file: false` with `monitored: true` is "what am I still waiting for". Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered.',
             inputSchema: z.object({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.'),
                 year: z.number().int().optional(),
@@ -354,7 +394,12 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
             const coverage =
                 result.ratingCoverage === undefined
                     ? ''
-                    : ` ${result.ratingCoverage.unrated} item(s) carry no ${result.ratingCoverage.source} rating and could not be judged.`;
+                    : ` ${result.ratingCoverage.unrated} item(s) carry no ${result.ratingCoverage.source} rating and could not be judged.` +
+                      // In the text too, not only the structured half: this is
+                      // the sentence that stops "0 rated" being read as a fact
+                      // about the library, and it has to reach a reader who
+                      // only ever sees the summary line.
+                      (result.ratingCoverage.note === undefined ? '' : ` ${result.ratingCoverage.note}`);
             const missing =
                 result.degraded.length === 0 ? '' : ` ${result.degraded.join(', ')} could not be reached.`;
 

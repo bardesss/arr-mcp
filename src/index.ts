@@ -21,7 +21,11 @@ attachLogStore(logs);
 // watching `docker logs`, rather than the first time they ask for a deletion.
 const audit = WriteAudit.open(CONFIG_DIR);
 
-const { runtime } = await Runtime.start(CONFIG_DIR, audit);
+// The refresher, not the timing: `Runtime` owns *when* to start and stop one,
+// because only it knows when the dataset was opened or closed. Passing it here
+// is also the only thing that lets this process reach the network for a
+// dataset — a test that constructs a Runtime without it never downloads.
+const { runtime } = await Runtime.start(CONFIG_DIR, audit, { refresh: dataset => startRefresh(dataset) });
 
 if (runtime.config.auth.password_hash === undefined) {
     // Deliberately the loudest line at startup: until someone claims it, this
@@ -38,13 +42,17 @@ if (runtime.config.auth.password_hash === undefined) {
     );
 }
 
-// Deliberately not awaited. The first ingest downloads and parses on the order
-// of 10^7 rows, which on a NAS is minutes — and every tool answers exactly as
-// it did before until it lands, so blocking here would turn a slow cache warm
-// into a container that looks broken.
+// The refresh itself is already running if the dataset is on — `Runtime`
+// started it as it opened the database, and will start one just the same when
+// somebody switches the dataset on from the config UI, which is the case this
+// line used to be the only cover for and could not reach.
+//
+// Nothing is awaited: the first ingest downloads and parses on the order of
+// 10^7 rows, which on a NAS is minutes — and every tool answers exactly as it
+// did before until it lands, so blocking here would turn a slow cache warm into
+// a container that looks broken.
 if (runtime.dataset !== undefined) {
     logger.info('IMDb dataset enabled — refreshing in the background; ratings appear once the first ingest finishes');
-    startRefresh(runtime.dataset);
 }
 
 serve({ fetch: buildApp({ runtime, audit, logs }).fetch, port: PORT, hostname: '0.0.0.0' }, info => {

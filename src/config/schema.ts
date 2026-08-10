@@ -195,9 +195,10 @@ const ServicesSchema = z
  * or can be tested, and none of it is a credential.
  *
  * `.strict()` at both levels because the setting a user is most likely to
- * invent is a refresh interval, and IMDb publishes daily — there is no second
- * answer. Quietly ignoring one that was set is worse than refusing it, since
- * the user believes it took effect.
+ * invent is a refresh interval, and there is no value they could pick that
+ * would serve them better than the weekly one `REFRESH_INTERVAL_MS` explains.
+ * Quietly ignoring one that was set is worse than refusing it, since the user
+ * believes it took effect.
  */
 export const MetadataSchema = z
     .object({

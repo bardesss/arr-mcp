@@ -374,10 +374,12 @@ describe('the metadata block', () => {
     });
 
     /**
-     * IMDb publishes daily, so there is no second sensible interval to choose
-     * between. The setting a user is most likely to invent is therefore one
-     * that cannot mean anything — and silently ignoring it is worse than
-     * refusing it, because a user who sets it believes it took effect.
+     * There is no interval a user could choose that would serve them better
+     * than the weekly one — see `REFRESH_INTERVAL_MS`, which explains why the
+     * publish cadence is not the useful cadence. The setting a user is most
+     * likely to invent is therefore one that cannot help them, and silently
+     * ignoring it is worse than refusing it, because a user who sets it
+     * believes it took effect.
      */
     it('refuses a refresh interval, which is not a setting', () => {
         expect(() =>

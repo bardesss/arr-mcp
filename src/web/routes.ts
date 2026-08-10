@@ -370,9 +370,21 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         })
     );
 
+    // One route per card, matching one form per card. A single `/access` route
+    // taking all three was what let the page grow a button that looked global.
     app.post(
-        '/ui/config/access',
-        configMutation('Access settings saved.', form => buildAuthConfig(runtime.config, form))
+        '/ui/config/account',
+        configMutation('Config UI sign-in saved.', form => buildAccountConfig(runtime.config, form))
+    );
+
+    app.post(
+        '/ui/config/imdb',
+        configMutation('IMDb dataset settings saved.', form => buildImdbConfig(runtime.config, form))
+    );
+
+    app.post(
+        '/ui/config/mcp',
+        configMutation('MCP endpoint settings saved.', form => buildMcpConfig(runtime.config, form))
     );
 
     /**
@@ -540,24 +552,26 @@ export function addCandidateFrom(
 }
 
 /**
- * The `auth` half of the old `buildConfig`, unchanged in behaviour.
+ * The three cards below the services, one builder each.
  *
- * The services half is gone: instances are added, edited and removed one at a
- * time through `src/config/mutate.ts`, so nothing rebuilds all eight services
- * from one form any more.
+ * They were a single `buildAuthConfig` behind a single button, which is what
+ * made the page have two save models at once — every service card saved
+ * itself, and then one button at the bottom of the page saved three unrelated
+ * things together while looking, by position, like it saved everything.
+ *
+ * Splitting them makes the rule uniform: **the card you edited is the card you
+ * save.** It also creates the one hazard worth naming, which is why each of
+ * these carries forward every field it does not own rather than rebuilding the
+ * config from its own form. A form that never contained `auth.allowed_hosts`
+ * submits nothing for it, and "nothing" is indistinguishable from "the user
+ * cleared the box" unless the builder knows which fields are its business.
+ * `test/configUi.test.ts` holds one test per way of getting that wrong.
  */
-export function buildAuthConfig(current: Config, form: Record<string, unknown>): Config {
-    // The dataset toggle rides along with the access form because it is the
-    // only other thing on the page that is not an instance card. Off is
-    // expressed by dropping the block entirely rather than by `enabled: false`,
-    // so a config nobody touched stays exactly as clean as it started.
-    const imdb = on(form['metadata.imdb']);
+
+/** The Config UI's own credentials. Owns `username` and `password_hash`. */
+export function buildAccountConfig(current: Config, form: Record<string, unknown>): Config {
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
-    const hosts = str(form['auth.allowed_hosts'])
-        .split(',')
-        .map(h => h.trim())
-        .filter(h => h !== '');
 
     // Refused rather than carried forward as `undefined`. Since `password_hash`
     // became optional this assignment type-checks either way, so nothing but
@@ -570,15 +584,47 @@ export function buildAuthConfig(current: Config, form: Record<string, unknown>):
     }
 
     return {
+        ...current,
         auth: {
+            ...current.auth,
+            username: username === '' ? current.auth.username : username,
+            password_hash: carriedHash
+        }
+    };
+}
+
+/**
+ * The IMDb dataset. Owns `metadata` and nothing else.
+ *
+ * Its checkbox is authoritative because an unchecked box submits nothing, and
+ * this is the only form that carries it — so absent genuinely means off here,
+ * where on any other card it would mean "not mine to touch". Off is expressed
+ * by dropping the block entirely rather than by `enabled: false`, so a config
+ * nobody touched stays exactly as clean as it started.
+ */
+export function buildImdbConfig(current: Config, form: Record<string, unknown>): Config {
+    const { metadata: _dropped, ...rest } = current;
+    return {
+        ...rest,
+        ...(on(form['metadata.imdb']) ? { metadata: { imdb: { enabled: true } } } : {})
+    };
+}
+
+/** The MCP endpoint. Owns `bearer_token` and `allowed_hosts`. */
+export function buildMcpConfig(current: Config, form: Record<string, unknown>): Config {
+    const hosts = str(form['auth.allowed_hosts'])
+        .split(',')
+        .map(h => h.trim())
+        .filter(h => h !== '');
+
+    return {
+        ...current,
+        auth: {
+            ...current.auth,
             bearer_token: on(form['auth.rotate_token'])
                 ? generateBearerToken()
                 : current.auth.bearer_token,
-            username: username === '' ? current.auth.username : username,
-            password_hash: carriedHash,
             allowed_hosts: hosts
-        },
-        services: current.services,
-        ...(imdb ? { metadata: { imdb: { enabled: true } } } : {})
+        }
     };
 }
