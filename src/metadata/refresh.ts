@@ -1,4 +1,4 @@
-import { closeSync, createWriteStream, mkdtempSync, openSync, readSync, rmSync } from 'node:fs';
+import { closeSync, createWriteStream, mkdtempSync, openSync, readdirSync, readSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -38,6 +38,76 @@ export const IMDB_BASE_URL = 'https://datasets.imdbws.com';
  * that cannot help can still be set wrong.
  */
 export const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * What every staging directory is named, and nothing else is.
+ *
+ * Exported so the sweep and the thing it sweeps cannot drift apart: two
+ * spellings of this would mean either cleaning up nothing or cleaning up
+ * somebody else's directory, and both fail silently.
+ */
+export const STAGING_PREFIX = 'arr-mcp-imdb-';
+
+/**
+ * How long a staging directory must have gone untouched before it counts as
+ * abandoned rather than in use.
+ *
+ * An ingest takes minutes, so a day is a hundredfold margin. The gate exists
+ * because a *young* staging directory is the only evidence available that
+ * another process — a second container sharing /tmp, or `measure-imdb.ts` —
+ * is still writing to it, and deleting a running ingest's dumps out from
+ * under it would turn a slow disk leak into a broken refresh.
+ */
+const ABANDONED_AFTER_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Remove staging directories that an earlier run never got to remove itself.
+ *
+ * `ingestOnce` cleans up in a `finally`, which covers a failed download and a
+ * failed parse but **not** the process being killed — and that is the failure
+ * this project has actually had. The first real ingest was OOM-killed, and
+ * days later 661 MB of `title.basics.tsv` was still sitting in the OS temp
+ * directory. At a weekly refresh that leaks slowly enough that nobody notices
+ * until a disk is full.
+ *
+ * Returns how many it removed, and **never throws**: this is housekeeping in
+ * front of the download that is the actual point, so a permission error or a
+ * directory that vanished mid-scan must not take the refresh down with it.
+ */
+export function sweepStaging(root: string, opts: { now?: number } = {}): number {
+    const now = opts.now ?? Date.now();
+    let removed = 0;
+
+    let entries: string[];
+    try {
+        entries = readdirSync(root);
+    } catch {
+        // No temp directory, or not readable. Nothing to clean, and nothing
+        // worth failing a refresh over.
+        return 0;
+    }
+
+    for (const name of entries) {
+        if (!name.startsWith(STAGING_PREFIX)) continue;
+
+        const path = join(root, name);
+        try {
+            const stat = statSync(path);
+            // A plain file that happens to match is not ours: staging is
+            // always a directory, and deleting an unrelated file on a name
+            // collision would be a real bug rather than a tidy-up.
+            if (!stat.isDirectory()) continue;
+            if (now - stat.mtimeMs < ABANDONED_AFTER_MS) continue;
+
+            rmSync(path, { recursive: true, force: true });
+            removed += 1;
+        } catch (err) {
+            logger.warn({ path, err }, 'could not remove an abandoned IMDb staging directory');
+        }
+    }
+
+    return removed;
+}
 
 /**
  * Download one dump, decompressed, **to a file** — never into memory.
@@ -108,7 +178,14 @@ export function* linesOf(path: string): Generator<string> {
 export async function ingestOnce(dataset: ImdbDataset, opts: { baseUrl?: string } = {}): Promise<void> {
     const baseUrl = opts.baseUrl ?? IMDB_BASE_URL;
     const started = Date.now();
-    const staging = mkdtempSync(join(tmpdir(), 'arr-mcp-imdb-'));
+
+    // Before staging our own, not after: this is the moment we are about to
+    // ask for another ~700 MB of temp space, so it is the moment worth
+    // reclaiming what a killed predecessor left behind.
+    const swept = sweepStaging(tmpdir());
+    if (swept > 0) logger.info({ swept }, 'removed abandoned IMDb staging directories');
+
+    const staging = mkdtempSync(join(tmpdir(), STAGING_PREFIX));
 
     try {
         const titlesFile = join(staging, 'title.basics.tsv');
