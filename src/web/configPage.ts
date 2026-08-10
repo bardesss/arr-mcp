@@ -474,7 +474,7 @@ export function configPage(opts: {
                 ratings to keep working while Seerr is down.
             </p>
             <p class="note">
-                <strong>About 125 MB on disk, and a 223 MB download each week.</strong> Refreshed weekly
+                <strong>About 81 MB on disk, and a 223 MB download each week.</strong> Refreshed weekly
                 rather than daily: an average over millions of votes barely moves, so a nightly re-download
                 spent 6.5 GB a month to change third decimal places. The cost is that a title published in
                 the last week may not be there yet. The first ingest takes a few minutes; everything keeps

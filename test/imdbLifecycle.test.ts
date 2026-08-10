@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -27,6 +27,8 @@ const BEARER = 'a'.repeat(64);
 
 let dir: string;
 let audit: WriteAudit;
+/** Held so cleanup can close the dataset's handle on `imdb.db`. */
+let runtime: Runtime | undefined;
 
 /** Every dataset the refresher was handed, and whether it has been stopped. */
 type Started = { dataset: ImdbDataset; stopped: boolean };
@@ -56,16 +58,37 @@ const write = async (imdb: boolean): Promise<void> => {
 
 const runtimeFrom = async (opts: { refresh: (d: ImdbDataset) => () => void }): Promise<Runtime> => {
     const { config } = await loadConfig(dir);
-    return Runtime.fromConfig(config, audit, { configDir: dir, refresh: opts.refresh });
+    runtime = Runtime.fromConfig(config, audit, { configDir: dir, refresh: opts.refresh });
+    return runtime;
 };
 
+/**
+ * **Not** the `arr-mcp-imdb-` prefix, deliberately. That one belongs to
+ * `ingestOnce`'s staging directories, and `sweepStaging` deletes anything
+ * wearing it that has gone a day untouched — so a config directory borrowing
+ * the name would be a test fixture that a production code path is entitled to
+ * delete. The first draft of this file did borrow it, and left 35 of them
+ * behind besides.
+ */
 beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'arr-mcp-imdb-life-'));
+    dir = await mkdtemp(join(tmpdir(), 'arr-mcp-lifecycle-'));
     audit = WriteAudit.ephemeral();
 });
 
-afterEach(() => {
+afterEach(async () => {
     audit.close();
+
+    // The open dataset holds a handle on imdb.db, and Windows refuses to
+    // unlink an open file however `force` is set — `rm` fails with EBUSY, and
+    // the directory leaks exactly as it did before this cleanup existed.
+    try {
+        runtime?.dataset?.close();
+    } catch {
+        // Already closed by a test that switched the dataset off.
+    }
+    runtime = undefined;
+
+    await rm(dir, { recursive: true, force: true, maxRetries: 3 });
 });
 
 describe('the IMDb refresh follows the config', () => {
@@ -163,7 +186,7 @@ describe('the IMDb refresh follows the config', () => {
     it('does not refresh at all when no refresher was supplied', async () => {
         await write(true);
         const { config } = await loadConfig(dir);
-        const runtime = Runtime.fromConfig(config, audit, { configDir: dir });
+        runtime = Runtime.fromConfig(config, audit, { configDir: dir });
 
         expect(runtime.dataset).toBeDefined();
         await expect(runtime.reload()).resolves.toBeUndefined();

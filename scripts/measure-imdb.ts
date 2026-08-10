@@ -50,18 +50,24 @@ try {
     const status = dataset.status();
     dataset.close();
 
-    // Checkpointed and vacuumed, so this is what the file settles at rather
-    // than what it peaked at mid-write.
+    // What the running server actually leaves behind, measured before this
+    // script touches anything. `replaceAll` vacuums for itself now, so this is
+    // the honest figure — it used to be measured only after the VACUUM below,
+    // which meant the README quoted a size no live install ever reached.
+    const asLeft = onDisk(dir);
+
+    // Checkpointing folds the WAL back in. Kept because the WAL is real disk
+    // the server occupies between refreshes, and worth reporting separately.
     const db = new Database(join(dir, IMDB_FILENAME));
     db.pragma('wal_checkpoint(TRUNCATE)');
-    db.exec('VACUUM');
     db.close();
 
     console.log('\n--- measured ---');
     console.log('titles              ', status.titles.toLocaleString('en'));
     console.log('rated               ', status.ratings.toLocaleString('en'));
     console.log('ingest wall clock   ', `${seconds}s`);
-    console.log('on disk             ', mb(onDisk(dir)));
+    console.log('on disk, as left    ', mb(asLeft));
+    console.log('on disk, checkpointed', mb(onDisk(dir)));
 } finally {
     // Best effort: Windows can still hold the SQLite file briefly after close,
     // and failing to tidy a temp directory must not lose the measurement that

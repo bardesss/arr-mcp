@@ -385,18 +385,30 @@ IMDb's published files and keeps them in a local SQLite database beside the
 audit log. The first ingest takes a few minutes; every tool answers exactly as
 it did before until it lands, and the dashboard says when it has finished.
 
-**It costs real disk.** Measured against the live dumps on 2026-08-08:
+**It costs real disk.** Measured against the live dumps on 2026-08-10:
 
 | | |
 | --- | --- |
 | Download, per refresh | **223 MB** |
 | Refreshed | **weekly** |
-| On disk | **~125 MB** |
+| On disk | **~81 MB** |
 | First ingest | ~3 minutes |
-| Titles stored / rated | 546K / 1.7M |
+| Titles stored / rated | 809K / 809K |
 
-Only rated titles of a kind something can actually query are stored — the other
-12 million rows are episodes, shorts and video games no query can reach.
+Only rated titles of a kind something can actually reach are stored — the other
+12 million rows are episodes and video games no query can touch. The two tables
+now hold the same set of ids: a rating is kept exactly when its title is, which
+is what took `rating` from 1.7M rows to 809K.
+
+The on-disk figure is what a running server actually leaves behind. It used to
+be ~125 MB, and three changes account for the difference — both tables are
+`WITHOUT ROWID` (each keyed on `tconst` alone, so the old layout stored every id
+twice), ratings with no stored title are pruned, and the database is vacuumed
+after each replace so freed pages go back to the OS rather than leaving the file
+at its high-water mark for ever. That last one is also why the number is now
+honest: the old ~125 MB was measured post-`VACUUM` by the script, and no live
+install ever reached it.
+
 Re-measure with `node --experimental-strip-types scripts/measure-imdb.ts`; the
 dumps grow, and a figure in a README is only as good as the day it was taken.
 
