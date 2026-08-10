@@ -35,18 +35,35 @@ const KIND_TO_IMDB: Record<'movie' | 'series', readonly string[]> = {
 };
 
 /**
- * The only title types any query can reach, so the only ones worth storing.
+ * Types an *arr can plausibly be managing that `discover` deliberately does
+ * not offer.
  *
- * IMDb's 12.7M rows are mostly `tvEpisode`, plus shorts, video games and adult
- * titles — none of which `discover` can return and none of which carry a rating
- * anyone looks up here. Filtering at ingest rather than at query time is the
- * difference between a 1.3 GB database and a small one.
- *
- * Derived from `KIND_TO_IMDB` rather than written out again: two lists would
- * drift, and the failure would be silent — a kind you can ask for that was
- * never stored just returns nothing.
+ * A direct-to-video film is `video`, a stand-up or holiday special is
+ * `tvSpecial`, and a short film Radarr has is `tvShort` or `short`. Nobody
+ * browsing "films from 1994" wants these mixed in, so they stay out of
+ * `KIND_TO_IMDB` — but somebody who *owns* one still deserves its rating, and
+ * `ratingsFor` reaches titles by id without going through `discover`'s
+ * vocabulary at all.
  */
-const STORED_KINDS: ReadonlySet<string> = new Set(Object.values(KIND_TO_IMDB).flat());
+const ALSO_STORED = ['video', 'tvSpecial', 'tvShort', 'short'] as const;
+
+/**
+ * Every title type worth *storing*, which is deliberately more than every type
+ * `discover` can *return*.
+ *
+ * IMDb's 12.7M rows are mostly `tvEpisode`, plus video games and adult titles
+ * — none of which anything here can reach. Filtering at ingest rather than at
+ * query time is the difference between a 1.3 GB database and a small one.
+ *
+ * This was `KIND_TO_IMDB` flattened, on the reasoning that two lists would
+ * drift. They are two questions, though, and conflating them only looked free
+ * while the `rating` table was unfiltered: ratings for unstored titles were
+ * what kept a direct-to-video film rated. Pruning those orphans — two thirds
+ * of the table — takes that prop away, so what a lookup may hit has to be
+ * stated separately from what a browse may return. The pair is covered by
+ * tests that a stored-but-not-discoverable kind stays out of `discover`.
+ */
+const STORED_KINDS: ReadonlySet<string> = new Set([...Object.values(KIND_TO_IMDB).flat(), ...ALSO_STORED]);
 
 /**
  * SQLite's compiled-in default variable limit, minus room to spare.
@@ -80,6 +97,17 @@ export type DatasetTitle = {
 
 export type DatasetStatus = { ingestedAt?: string; titles: number; ratings: number };
 
+/**
+ * `WITHOUT ROWID` on both big tables.
+ *
+ * Each keys on `tconst` and nothing else, so the default layout stored every
+ * id twice — once in the rowid btree holding the row, and again in the
+ * implicit unique index enforcing the primary key. `WITHOUT ROWID` puts the
+ * row in the key's own btree and drops the second copy. The rows here are
+ * small and the key is most of them, which is exactly the shape it is for.
+ *
+ * `meta` holds two rows and is left alone; the pragma would be noise.
+ */
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS title (
     tconst  TEXT PRIMARY KEY,
@@ -88,12 +116,12 @@ CREATE TABLE IF NOT EXISTS title (
     year    INTEGER,
     runtime INTEGER,
     genres  TEXT
-);
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS rating (
     tconst  TEXT PRIMARY KEY,
     average REAL    NOT NULL,
     votes   INTEGER NOT NULL
-);
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -110,11 +138,44 @@ export class ImdbDataset {
         // tool calls read, and a reader must never block on a twenty-minute
         // rebuild.
         this.#db.pragma('journal_mode = WAL');
+        this.#dropSuperseded();
         this.#db.exec(SCHEMA);
-        // Written through 1.0 and never read by a single query — 52 MB a day and
-        // millions of rows for a table nothing consulted. Dropped on open so an
-        // existing database reclaims the space rather than carrying it forever.
+    }
+
+    /**
+     * Throw away what an older version left that this one cannot use.
+     *
+     * Both cases are **drops, not migrations**, and the module header is the
+     * licence for that: this is a cache that is wholly replaced every week and
+     * can be deleted at any moment without losing anything a user typed.
+     * Losing it costs a download. Writing migration code for it would be
+     * carrying a liability to avoid a cost nobody pays — and `Runtime` starts
+     * a refresh the moment it opens the database, so the refill is immediate.
+     *
+     * - `episode` was written through 1.0 and never read by a single query —
+     *   52 MB a day and millions of rows for a table nothing consulted.
+     * - `title` and `rating` predating `WITHOUT ROWID` cannot be changed in
+     *   place: `CREATE TABLE IF NOT EXISTS` is a no-op against a table that
+     *   already exists, so without this an existing `imdb.db` would keep the
+     *   old layout for ever and quietly never get the saving.
+     */
+    #dropSuperseded(): void {
         this.#db.exec('DROP INDEX IF EXISTS episode_parent; DROP TABLE IF EXISTS episode;');
+
+        const legacy = this.#db
+            .prepare(
+                `SELECT name FROM sqlite_master
+                  WHERE type = 'table' AND name IN ('title', 'rating')
+                    AND sql NOT LIKE '%WITHOUT ROWID%'`
+            )
+            .all() as { name: string }[];
+
+        if (legacy.length === 0) return;
+
+        // `meta` goes too, and it matters: it holds `ingested_at`, and leaving
+        // it would have `status()` report a date for rows that no longer
+        // exist — the dashboard claiming a fresh dataset over an empty one.
+        this.#db.exec('DROP TABLE IF EXISTS title; DROP TABLE IF EXISTS rating; DROP TABLE IF EXISTS meta;');
     }
 
     static open(dir: string): ImdbDataset {
@@ -270,7 +331,27 @@ export class ImdbDataset {
             // the mistake that crashed the first real ingest.
             this.#db.exec('DELETE FROM title WHERE tconst NOT IN (SELECT tconst FROM rating)');
 
+            // And the mirror image, which is the larger half: `rating` arrives
+            // unfiltered, so it carried a row for every episode, video game and
+            // short IMDb has ever rated — 1.7M rows against 546K titles. After
+            // this the two tables hold the same set of ids.
+            //
+            // Safe only because `ALSO_STORED` widened what a title *is*: these
+            // orphans were what kept a direct-to-video film rated back when
+            // `ratingsFor` could reach a rating whose title was never stored.
+            this.#db.exec('DELETE FROM rating WHERE tconst NOT IN (SELECT tconst FROM title)');
+
             setMeta.run('ingested_at', new Date().toISOString());
         })();
+
+        // Outside the transaction, because VACUUM cannot run inside one.
+        //
+        // SQLite does not hand freed pages back to the OS by itself, so a
+        // replace left the file at its high-water mark for ever — and every
+        // replace frees the entire previous dataset. The ~125 MB the README
+        // quoted was a number only `measure-imdb.ts` ever saw, because it
+        // vacuumed afterwards and the running server never did. Costs a full
+        // rewrite once a week, on a file that has just been rewritten anyway.
+        this.#db.exec('VACUUM');
     }
 }

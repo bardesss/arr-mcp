@@ -133,6 +133,78 @@ describe('discovering from the dataset', () => {
     });
 });
 
+/**
+ * Three changes made to get the file down, and the coverage each one must not
+ * cost. `rating` held 1.7M rows against `title`'s 546K, so two thirds of it
+ * was rows for titles that were filtered out at ingest.
+ */
+describe('keeping the file small', () => {
+    /**
+     * The saving. Ratings for titles nothing stores are the bulk of the table
+     * — episodes above all, at roughly ten million rows.
+     */
+    it('drops a rating for a title it did not store', () => {
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [
+                { tconst: 'tt1', kind: 'tvEpisode', title: 'An Episode' },
+                { tconst: 'tt2', kind: 'movie', title: 'A Film' }
+            ],
+            ratings: [
+                { tconst: 'tt1', average: 9, votes: 10 },
+                { tconst: 'tt2', average: 8, votes: 10 }
+            ]
+        });
+
+        expect(db.status().ratings).toBe(1);
+        expect(db.ratingsFor(['tt1']).size).toBe(0);
+    });
+
+    /**
+     * The coverage that pruning would otherwise have cost, and the reason
+     * `STORED_KINDS` is no longer just `KIND_TO_IMDB` flattened.
+     *
+     * `ratingsFor` looks up by tconst without joining `title`, so before the
+     * prune these were rated purely because the rating table was unfiltered.
+     * Delete the orphans without widening what is stored and a direct-to-video
+     * film in Radarr, or a stand-up special in Sonarr, silently loses its
+     * rating — which reads as "unrated" and is indistinguishable from a title
+     * IMDb has never heard of.
+     */
+    it.each(['video', 'tvSpecial', 'tvShort'])('still rates a %s, which an *arr can manage', kind => {
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [{ tconst: 'tt9', kind, title: 'Something An Arr Has' }],
+            ratings: [{ tconst: 'tt9', average: 7.7, votes: 900 }]
+        });
+
+        expect(db.ratingsFor(['tt9']).get('tt9')).toBe(7.7);
+    });
+
+    /**
+     * Stored is not the same as discoverable, which is the whole point of
+     * splitting the two lists. `discover` still offers exactly the vocabulary
+     * `get_library` speaks, so widening storage must not start returning
+     * direct-to-video results to someone browsing films.
+     */
+    it('does not offer the extra stored kinds through discover', () => {
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [
+                { tconst: 'tt9', kind: 'video', title: 'Straight To Video' },
+                { tconst: 'tt8', kind: 'movie', title: 'A Real Film' }
+            ],
+            ratings: [
+                { tconst: 'tt9', average: 7.7, votes: 900 },
+                { tconst: 'tt8', average: 8.1, votes: 900 }
+            ]
+        });
+
+        expect(db.discover({ kind: 'movie', limit: 10 }).map(h => h.tconst)).toEqual(['tt8']);
+    });
+
+});
+
 describe('status', () => {
     it('reports what it holds, for the dashboard', () => {
         const s = seed().status();

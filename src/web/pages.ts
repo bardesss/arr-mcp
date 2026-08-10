@@ -245,7 +245,7 @@ const imdbPanel = (status: DatasetStatus): SafeHtml => html`<h2>IMDb dataset</h2
             : html`<p class="note">
                       A fallback for ratings when Seerr is not configured or not answering — and the only
                       source of an <strong>IMDb rating for a series</strong>, which no service in this stack
-                      reports. Refreshed weekly — about 223 MB down, roughly 125 MB on disk. Nothing here is
+                      reports. Refreshed weekly — about 223 MB down, roughly 81 MB on disk. Nothing here is
                       sent anywhere.
                   </p>
                   <table>
