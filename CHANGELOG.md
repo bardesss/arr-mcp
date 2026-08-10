@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/bardesss/arr-mcp/compare/v1.2.0...v1.2.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* reclaim leaked staging dirs, and take the IMDb dataset to 81 MB ([#91](https://github.com/bardesss/arr-mcp/issues/91)) ([c0583f6](https://github.com/bardesss/arr-mcp/commit/c0583f6329379e2c8c3d52d15a6d9a4ab9cd15bd))
+
 ## [1.2.0](https://github.com/bardesss/arr-mcp/compare/v1.1.0...v1.2.0) (2026-08-10)
 
 
