@@ -362,3 +362,61 @@ describe('stack_health permissions', () => {
         expect(result.permissions).toBeUndefined();
     });
 });
+
+/**
+ * `endpoints` carries `instance`, `service` and `baseUrl` only — never
+ * `api_key`, `password`, `bearer_token`, or any other credential. A tool that
+ * returns a key on request does not retrieve it, it publishes it: everything
+ * a tool returns passes through a model's context, so the key is available to
+ * any prompt the model later sees. A script that needs one runs beside the
+ * config and imports `loadConfig` instead.
+ */
+describe('stack_health endpoints', () => {
+    const SENTINEL = 'sk-do-not-ship-me-0123456789';
+
+    const instanceWithUrl = (id: string, url: string) =>
+        ({
+            id,
+            type: id.split('/')[0],
+            config: {
+                url,
+                api_key: SENTINEL,
+                timeout_ms: 10_000,
+                permissions: { safe_write: true, destructive: false }
+            }
+        }) as unknown as ServiceInstance;
+
+    it('reports each instance base URL', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std, [
+            instanceWithUrl('radarr', 'http://192.0.2.10:7878')
+        ]);
+
+        expect(result.endpoints).toEqual([{ instance: 'radarr', service: 'radarr', baseUrl: 'http://192.0.2.10:7878' }]);
+    });
+
+    /** Minimal answers "is anything broken", and a URL is not a fault. */
+    it('omits endpoints out of a minimal answer', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail: 'minimal', limit: 50 }, [
+            instanceWithUrl('radarr', 'http://192.0.2.10:7878')
+        ]);
+        expect(result).not.toHaveProperty('endpoints');
+    });
+
+    /** Every existing call site passes no instances and must keep working. */
+    it('omits the field entirely when nobody supplied instances', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);
+        expect(result.endpoints).toBeUndefined();
+    });
+
+    it('never serializes an API key, at any detail level', async () => {
+        // The guard that matters. Everything a tool returns passes through a
+        // model's context — transcripts, logs, a provider. A key reaching this
+        // response is a key published, not a key retrieved.
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, [
+                instanceWithUrl('radarr', 'http://192.0.2.10:7878')
+            ]);
+            expect(JSON.stringify(result)).not.toContain(SENTINEL);
+        }
+    });
+});
