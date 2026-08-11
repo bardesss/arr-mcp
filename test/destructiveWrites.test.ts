@@ -564,4 +564,95 @@ describe('set_monitoring', () => {
         });
         await expect(call({ service: 'radarr', id: '412', monitored: false })).rejects.toThrow(ServiceError);
     });
+
+    // The four tests below are the mutating path: a confirm-token round trip
+    // for each of the three targets, asserting the actual outgoing PUT rather
+    // than just the tool's own report of success. TypeScript catches a wrong
+    // field name on `episodeIds`; it does not catch an inverted mapping, a
+    // wrong value, or `season` leaking into the episode call.
+
+    it('applies to a whole series once confirmed', async () => {
+        const recorder = recordingFetch(routes);
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
+        });
+        const first = await call({ service: 'sonarr', id: '7', monitored: false });
+        const second = await call({
+            service: 'sonarr',
+            id: '7',
+            monitored: false,
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        const put = recorder.sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v3/series/7');
+        expect((put?.body as { monitored: boolean }).monitored).toBe(false);
+    });
+
+    it('applies to one season and leaves the other alone once confirmed', async () => {
+        const recorder = recordingFetch(routes);
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
+        });
+        const first = await call({ service: 'sonarr', id: '7', monitored: false, season: 2 });
+        const second = await call({
+            service: 'sonarr',
+            id: '7',
+            monitored: false,
+            season: 2,
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        const put = recorder.sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v3/series/7');
+        // Season 1 untouched is the assertion that matters — a PUT that
+        // rewrites every season would silently unmonitor the whole show.
+        expect((put?.body as { seasons: unknown[] }).seasons).toEqual([
+            { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8 } },
+            { seasonNumber: 2, monitored: false, statistics: { episodeFileCount: 2 } }
+        ]);
+    });
+
+    it('applies to specific episodes, on the episode endpoint, once confirmed', async () => {
+        // The preview reads episodes (includeEpisodes: true), so the episode
+        // list endpoint needs a route too, unlike the whole-series/season forms.
+        const recorder = recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': [] });
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
+        });
+        const first = await call({ service: 'sonarr', id: '7', monitored: false, episodes: ['11', '12'] });
+        const second = await call({
+            service: 'sonarr',
+            id: '7',
+            monitored: false,
+            episodes: ['11', '12'],
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        const put = recorder.sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v3/episode/monitor');
+        // The tool's `episodes` (strings) becoming the adapter's `episodeIds`
+        // (numbers) is the one translation the brief singles out — a mapping
+        // TypeScript would not catch if it were inverted or dropped a value.
+        expect(put?.body).toEqual({ episodeIds: [11, 12], monitored: false });
+        expect(recorder.sent.filter(s => s.path === '/api/v3/series/7' && s.method === 'PUT')).toHaveLength(0);
+    });
+
+    // `plan` throws before `write.ts` ever reaches its dry-run branch, so a
+    // dry run does not bypass the both-given refusal. Correct today; this pins it.
+    it('refuses season and episodes together even on a dry run', async () => {
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch(routes).impl)]
+        });
+        await expect(
+            call({ service: 'sonarr', id: '7', monitored: false, season: 2, episodes: ['11'], dry_run: true })
+        ).rejects.toThrow(/both/i);
+    });
 });
