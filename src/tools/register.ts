@@ -11,6 +11,7 @@ import { JellyfinAdapter } from '../services/jellyfin.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import { hasIndexers, hasSubtitles, type ServiceAdapter } from '../services/types.ts';
 import { registerAddMedia } from './addMedia.ts';
+import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
 import { registerDeleteMedia } from './deleteMedia.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
@@ -148,6 +149,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerTriggerScan(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
+    registerDeleteEpisodeFiles(server, write, adapters);
     registerSetMonitoring(server, write, adapters);
     registerRespondToRequest(server, write, adapters);
     registerDeleteRequest(server, write, adapters);
@@ -179,6 +181,7 @@ export const TOOL_NAMES = [
     'trigger_scan',
     'remove_queue_item',
     'delete_media',
+    'delete_episode_files',
     'set_monitoring',
     'respond_to_request',
     'delete_request',

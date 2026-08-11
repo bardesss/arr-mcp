@@ -225,6 +225,8 @@ export type EpisodeSummary = {
     airDate?: string;
     hasFile: boolean;
     monitored: boolean;
+    /** 0 or absent when the episode has no file — Sonarr uses zero, not absence. */
+    episodeFileId?: number;
 };
 
 /**

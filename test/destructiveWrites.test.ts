@@ -11,6 +11,7 @@ import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import { registerDeleteEpisodeFiles } from '../src/tools/deleteEpisodeFiles.ts';
 import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
@@ -703,6 +704,160 @@ describe('set_monitoring', () => {
         });
         await expect(
             call({ service: 'sonarr', id: '7', monitored: false, season: 2, episodes: ['11'], dry_run: true })
+        ).rejects.toThrow(/both/i);
+    });
+});
+
+describe('delete_episode_files', () => {
+    const routes = {
+        '/api/v3/series/7': SERIES_FULL,
+        '/api/v3/episodefile?seriesId=7': EPISODE_FILES
+    };
+    const sonarrWith = () => new SonarrAdapter(keyed(8989), recordingFetch(routes).impl);
+
+    it('is destructive tier — safe_write alone is refused', async () => {
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [sonarrWith()]
+        });
+        await expect(call({ service: 'sonarr', id: '7', season: 2 })).rejects.toThrow(ServiceError);
+    });
+
+    it('names the file count and the size in the preview', async () => {
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [sonarrWith()]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', season: 2 });
+        expect(preview.structuredContent.summary).toContain('2 episode file');
+        expect(preview.structuredContent.summary).toContain('8.4 GB');
+    });
+
+    it('warns that a monitored season will be re-downloaded', async () => {
+        // The whole reason two primitives are safe to ship separately.
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [sonarrWith()]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', season: 2 });
+        expect(preview.structuredContent.effects.join(' ')).toMatch(/still monitored.*re-download/i);
+    });
+
+    it('does not warn when the season is already unmonitored', async () => {
+        // A warning that always fires is noise nobody reads.
+        const unmonitored = {
+            ...SERIES_FULL,
+            seasons: [
+                { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8 } },
+                { seasonNumber: 2, monitored: false, statistics: { episodeFileCount: 2 } }
+            ]
+        };
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [
+                new SonarrAdapter(
+                    keyed(8989),
+                    recordingFetch({ ...routes, '/api/v3/series/7': unmonitored }).impl
+                )
+            ]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', season: 2 });
+        expect(preview.structuredContent.effects.join(' ')).not.toMatch(/re-download/i);
+    });
+
+    it('is a no-op for a season with no files on disk', async () => {
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [sonarrWith()]
+        });
+        const result = await call({ service: 'sonarr', id: '7', season: 5 });
+        expect(result.structuredContent.noop).toBe(true);
+        expect(result.structuredContent).not.toHaveProperty('confirm_token');
+    });
+
+    // The token binds the *resolved fileIds*, not the season number, and
+    // `write.ts` (the shared harness) always re-resolves `plan` fresh — on the
+    // preview call and on the confirm call alike — then verifies the presented
+    // token against whatever that fresh resolution just produced. So binding
+    // `season: 2` instead would let a file that lands in the season between
+    // preview and confirm ride along into the delete on the *original* token,
+    // silently swept up. Binding the concrete ids instead means that same
+    // scenario makes the token's signature stop matching, and the harness
+    // refuses rather than applying a delete nobody previewed. The write is not
+    // lost — refusing hands back a fresh token, and confirming *that* one
+    // correctly captures the file that had landed.
+    it('refuses a stale token rather than sweeping a newly-imported file into the delete', async () => {
+        const files = [...EPISODE_FILES];
+        const recorder = recordingFetch({
+            '/api/v3/series/7': SERIES_FULL,
+            '/api/v3/episodefile?seriesId=7': files
+        });
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
+        });
+
+        const preview = await call({ service: 'sonarr', id: '7', season: 2 });
+        const staleToken = preview.structuredContent.confirm_token;
+        expect(preview.structuredContent.target).toBe('sonarr:7:s2');
+
+        // A new file lands in season 2 after the preview was taken.
+        files.push({ id: 104, seriesId: 7, seasonNumber: 2, size: 1_000_000_000 });
+
+        const rejected = await call({ service: 'sonarr', id: '7', season: 2, confirm: staleToken });
+        expect(rejected.structuredContent.applied).toBe(false);
+        expect(rejected.structuredContent.confirm_error).toBeDefined();
+        expect(recorder.sent.filter(s => s.method === 'DELETE')).toHaveLength(0);
+
+        // Confirming the *fresh* token the refusal handed back applies against
+        // the now-current, correctly-resolved set — including the new file.
+        const freshToken = rejected.structuredContent.confirm_token;
+        await call({ service: 'sonarr', id: '7', season: 2, confirm: freshToken });
+        const del = recorder.sent.find(s => s.method === 'DELETE');
+        expect(del?.body).toEqual({ episodeFileIds: [102, 103, 104] });
+    });
+
+    // Not in the brief, but the mutating path for the `episodes` target needs
+    // the same confirm-token-to-apply coverage the season target got above —
+    // an earlier task on this branch shipped with its mutating path untested
+    // and had to be sent back for exactly this gap.
+    it('deletes only the files behind the given episode ids, through apply', async () => {
+        const RAW_EPISODES = [
+            { id: 11, seasonNumber: 2, episodeNumber: 1, title: 'Ep1', hasFile: true, monitored: true, episodeFileId: 102 },
+            { id: 12, seasonNumber: 2, episodeNumber: 2, title: 'Ep2', hasFile: true, monitored: true, episodeFileId: 103 }
+        ];
+        const recorder = recordingFetch({
+            '/api/v3/series/7': SERIES_FULL,
+            '/api/v3/episode?seriesId=7': RAW_EPISODES,
+            '/api/v3/episodefile?seriesId=7': EPISODE_FILES
+        });
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
+        });
+
+        const preview = await call({ service: 'sonarr', id: '7', episodes: ['11', '12'] });
+        expect(preview.structuredContent.applied).toBe(false);
+        const token = preview.structuredContent.confirm_token;
+
+        const applied = await call({ service: 'sonarr', id: '7', episodes: ['11', '12'], confirm: token });
+        expect(applied.structuredContent.applied).toBe(true);
+
+        // The assertion that matters: the outgoing DELETE body carries the
+        // *file* ids resolved from the episode ids, not the episode ids
+        // themselves, and not season 1's file (101).
+        const del = recorder.sent.find(s => s.method === 'DELETE');
+        expect(del?.path).toBe('/api/v3/episodefile/bulk');
+        expect(del?.body).toEqual({ episodeFileIds: [102, 103] });
+    });
+
+    it('refuses season and episodes together', async () => {
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [sonarrWith()]
+        });
+        await expect(
+            call({ service: 'sonarr', id: '7', season: 2, episodes: ['11'] })
         ).rejects.toThrow(/both/i);
     });
 });

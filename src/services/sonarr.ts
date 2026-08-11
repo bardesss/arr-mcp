@@ -369,7 +369,8 @@ export class SonarrAdapter
                 title: fenceText(e.title ?? '', { service: this.id, field: 'episode.title' }),
                 ...(e.airDateUtc === undefined ? {} : { airDate: e.airDateUtc }),
                 hasFile: e.hasFile ?? false,
-                monitored: e.monitored ?? false
+                monitored: e.monitored ?? false,
+                ...(e.episodeFileId === undefined ? {} : { episodeFileId: e.episodeFileId })
             })),
             episodeCount: shaped.total,
             episodesTruncated: shaped.truncated
