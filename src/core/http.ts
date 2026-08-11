@@ -63,6 +63,12 @@ export class ServiceHttp {
         await this.#request<unknown>('DELETE', path, undefined, false, true);
     }
 
+    /** Sonarr's bulk episode-file delete is a DELETE *with* a body, which
+     *  `delete` cannot express. Same no-retry, same discarded body. */
+    async deleteWithBody(path: string, body: unknown): Promise<void> {
+        await this.#request<unknown>('DELETE', path, body, false, true);
+    }
+
     // --- internals ---
 
     async #request<T>(

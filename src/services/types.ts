@@ -377,6 +377,18 @@ export interface MonitoringCapable {
 export const hasMonitoring = (a: ServiceAdapter): a is ServiceAdapter & MonitoringCapable =>
     typeof (a as Partial<MonitoringCapable>).setMonitoring === 'function';
 
+/** One file on disk. `sizeBytes` is omitted when Sonarr did not report one —
+ *  a preview saying "0 bytes" would read as "nothing to lose". */
+export type EpisodeFile = { id: number; season: number; sizeBytes?: number };
+
+export interface EpisodeFileCapable {
+    listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]>;
+    deleteEpisodeFiles(fileIds: number[]): Promise<void>;
+}
+
+export const hasEpisodeFiles = (a: ServiceAdapter): a is ServiceAdapter & EpisodeFileCapable =>
+    typeof (a as Partial<EpisodeFileCapable>).listEpisodeFiles === 'function';
+
 export type RemoveQueueOptions = {
     /** Also tell the download client to drop it, and delete partial data. */
     removeFromClient: boolean;

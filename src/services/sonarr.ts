@@ -30,6 +30,8 @@ import {
     type AddMediaOptions,
     type CommandHandle,
     type DeleteMediaOptions,
+    type EpisodeFile,
+    type EpisodeFileCapable,
     type MediaAddCapable,
     type MediaDeleteCapable,
     type MonitoringCapable,
@@ -79,7 +81,11 @@ type RawEpisode = {
     airDateUtc?: string;
     hasFile?: boolean;
     monitored?: boolean;
+    /** 0 when the episode has no file — Sonarr uses zero, not absence. */
+    episodeFileId?: number;
 };
+
+type RawEpisodeFile = { id?: number; seasonNumber?: number; size?: number };
 
 type RawStatus = components['schemas']['SystemResource'];
 type RawDiskSpace = components['schemas']['DiskSpaceResource'];
@@ -114,7 +120,8 @@ export class SonarrAdapter
         QueueRemoveCapable,
         MediaDeleteCapable,
         MediaAddCapable,
-        MonitoringCapable
+        MonitoringCapable,
+        EpisodeFileCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -252,6 +259,27 @@ export class SonarrAdapter
             s.seasonNumber === opts.season ? { ...s, monitored: opts.monitored } : s
         );
         await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, seasons }, true);
+    }
+
+    async listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]> {
+        const id = this.#numericId(seriesId, 'series');
+        const files = await this.#http.get<RawEpisodeFile[]>(`/api/v3/episodefile?seriesId=${id}`);
+
+        return files
+            .filter((f): f is RawEpisodeFile & { id: number } => typeof f.id === 'number')
+            .map(f => ({
+                id: f.id,
+                season: f.seasonNumber ?? 0,
+                ...(f.size === undefined ? {} : { sizeBytes: f.size })
+            }));
+    }
+
+    /** Bulk, in one call. An empty list issues nothing: a delete with no ids is
+     *  a request with no purpose, and Sonarr's behaviour for it is not worth
+     *  discovering in production. */
+    async deleteEpisodeFiles(fileIds: number[]): Promise<void> {
+        if (fileIds.length === 0) return;
+        await this.#http.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: fileIds });
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {

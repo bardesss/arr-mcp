@@ -313,6 +313,56 @@ it('reports per-season monitoring, which the write tools gate on', async () => {
     ]);
 });
 
+const EPISODE_FILES = [
+    { id: 101, seriesId: 7, seasonNumber: 1, size: 3_000_000_000 },
+    { id: 102, seriesId: 7, seasonNumber: 2, size: 4_000_000_000 },
+    { id: 103, seriesId: 7, seasonNumber: 2, size: 5_000_000_000 }
+];
+
+describe('Sonarr episode files', () => {
+    it('lists them with season and size, which is what a preview needs', async () => {
+        const { impl } = recordingFetch({ '/api/v3/episodefile?seriesId=7': EPISODE_FILES });
+        const files = await new SonarrAdapter(keyed(8989), impl).listEpisodeFiles('7');
+        expect(files).toEqual([
+            { id: 101, season: 1, sizeBytes: 3_000_000_000 },
+            { id: 102, season: 2, sizeBytes: 4_000_000_000 },
+            { id: 103, season: 2, sizeBytes: 5_000_000_000 }
+        ]);
+    });
+
+    it('omits a size Sonarr did not report rather than calling it zero', async () => {
+        const { impl } = recordingFetch({
+            '/api/v3/episodefile?seriesId=7': [{ id: 101, seasonNumber: 1 }]
+        });
+        const [file] = await new SonarrAdapter(keyed(8989), impl).listEpisodeFiles('7');
+        expect(file).not.toHaveProperty('sizeBytes');
+    });
+
+    it('deletes in bulk, in one call', async () => {
+        const { impl, sent } = recordingFetch({});
+        await new SonarrAdapter(keyed(8989), impl).deleteEpisodeFiles([102, 103]);
+        const del = sent.find(s => s.method === 'DELETE');
+        expect(del?.path).toBe('/api/v3/episodefile/bulk');
+        expect(del?.body).toEqual({ episodeFileIds: [102, 103] });
+    });
+
+    it('does nothing at all for an empty id list', async () => {
+        // A bulk delete with no ids is a request with no purpose; Sonarr's
+        // behaviour for it is not worth discovering in production.
+        const { impl, sent } = recordingFetch({});
+        await new SonarrAdapter(keyed(8989), impl).deleteEpisodeFiles([]);
+        expect(sent).toHaveLength(0);
+    });
+
+    it('refuses a non-numeric series id', async () => {
+        const { impl, sent } = recordingFetch({});
+        await expect(new SonarrAdapter(keyed(8989), impl).listEpisodeFiles('Severance')).rejects.toThrow(
+            ServiceError
+        );
+        expect(sent).toHaveLength(0);
+    });
+});
+
 // --- the tools -----------------------------------------------------------
 
 type Call = (args: Record<string, unknown>) => Promise<{
