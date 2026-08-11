@@ -3,7 +3,7 @@ import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/s
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
-import { hasLibrary, hasUserLibrary } from '../src/services/types.ts';
+import { hasLibrary, hasUserLibrary, hasUserSeasons } from '../src/services/types.ts';
 import { serving } from './helpers/serve.ts';
 
 const keyed: KeyedServiceConfig = {
@@ -39,7 +39,12 @@ const SERIES = [
         imdbId: 'tt5687612',
         genres: ['Drama'],
         ratings: { votes: 164018, value: 8.3 },
-        statistics: { sizeOnDisk: 90_000_000_000, episodeFileCount: 8 }
+        statistics: { sizeOnDisk: 90_000_000_000, episodeFileCount: 8 },
+        seasons: [
+            { seasonNumber: 0, monitored: false, statistics: { episodeFileCount: 0, episodeCount: 0, totalEpisodeCount: 3 } },
+            { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8, episodeCount: 8, totalEpisodeCount: 8 } },
+            { seasonNumber: 2, monitored: true, statistics: { episodeFileCount: 2, episodeCount: 6, totalEpisodeCount: 10 } }
+        ]
     }
 ];
 
@@ -132,6 +137,28 @@ describe('Sonarr.listLibrary', () => {
         const [item] = await adapter().listLibrary();
         expect(item?.acquisition?.quality).toBeUndefined();
     });
+
+    it('reports TVDB episode counts per season, which is what makes "finished" answerable', async () => {
+        const [item] = await adapter().listLibrary();
+        expect(item?.seasons).toEqual([
+            { season: 0, onDisk: 0, aired: 0, total: 3 },
+            { season: 1, onDisk: 8, aired: 8, total: 8 },
+            { season: 2, onDisk: 2, aired: 6, total: 10 }
+        ]);
+    });
+
+    it('reports specials like any other season rather than dropping them', async () => {
+        // Season 0 is real data. Deciding it is not television belongs to the
+        // caller, which filters `season > 0`, not to this server.
+        const [item] = await adapter().listLibrary();
+        expect(item?.seasons?.some(s => s.season === 0)).toBe(true);
+    });
+
+    it('omits seasons entirely when Sonarr reported none', async () => {
+        const bare = new SonarrAdapter(keyed, serving({ '/api/v3/series': [{ id: 7, title: 'Bare', tvdbId: 1 }] }));
+        const [item] = await bare.listLibrary();
+        expect(item).not.toHaveProperty('seasons');
+    });
 });
 
 describe('Jellyfin.listUserLibrary', () => {
@@ -172,5 +199,74 @@ describe('Jellyfin.listUserLibrary', () => {
     it('contributes no acquisition half — Jellyfin manages nothing', async () => {
         const items = await adapter().listUserLibrary(user);
         expect(items.every(i => i.acquisition === undefined)).toBe(true);
+    });
+});
+
+const SERIES_ITEMS = {
+    Items: [
+        { Id: 'show-1', Name: 'Some Show', Type: 'Series', ProviderIds: { Tvdb: '292157' } },
+        { Id: 'show-2', Name: 'Unwatched Show', Type: 'Series', ProviderIds: { Tvdb: '999' } },
+        // Watched, and carrying no external id at all — a real Jellyfin state
+        // for a series its metadata providers never matched.
+        { Id: 'show-3', Name: 'Id-less Show', Type: 'Series' }
+    ]
+};
+
+const EPISODE_ITEMS = {
+    Items: [
+        { Id: 'e1', SeriesId: 'show-1', ParentIndexNumber: 1, IndexNumber: 1, UserData: { Played: true, LastPlayedDate: '2026-08-09T20:00:00Z' } },
+        { Id: 'e2', SeriesId: 'show-1', ParentIndexNumber: 1, IndexNumber: 2, UserData: { Played: true, LastPlayedDate: '2026-08-10T21:00:00Z' } },
+        { Id: 'e3', SeriesId: 'show-1', ParentIndexNumber: 2, IndexNumber: 1, UserData: { Played: false } },
+        { Id: 'e4', SeriesId: 'show-3', ParentIndexNumber: 1, IndexNumber: 1, UserData: { Played: true } }
+    ]
+};
+
+const SERIES_ROUTE = '/Items?Recursive=true&IncludeItemTypes=Series&Fields=ProviderIds';
+const EPISODE_ROUTE = '/Items?userId=u1&Recursive=true&IncludeItemTypes=Episode&EnableUserData=true';
+
+describe('Jellyfin.listUserSeasons', () => {
+    const adapter = () =>
+        new JellyfinAdapter(multi, serving({ [SERIES_ROUTE]: SERIES_ITEMS, [EPISODE_ROUTE]: EPISODE_ITEMS }));
+    const someone = { id: 'u1', name: 'Someone' };
+
+    it('is discoverable through the capability guard', () => {
+        expect(hasUserSeasons(adapter())).toBe(true);
+    });
+
+    it('rolls episodes up per season, counting only played ones', async () => {
+        const items = await adapter().listUserSeasons(someone);
+        expect(items).toHaveLength(1);
+        expect(items[0]?.seasons).toEqual([
+            { season: 1, watched: 2, lastPlayed: '2026-08-10T21:00:00Z' },
+            { season: 2, watched: 0 }
+        ]);
+    });
+
+    it('carries the external ids the resolver joins on, never Jellyfin\'s own id', async () => {
+        const [item] = await adapter().listUserSeasons(someone);
+        expect(item?.ids).toEqual({ tvdb: 292157 });
+        expect(JSON.stringify(item)).not.toContain('show-1');
+    });
+
+    it('omits a series with no episodes at all rather than inventing empty seasons', async () => {
+        const items = await adapter().listUserSeasons(someone);
+        expect(items.map(i => i.ids.tvdb)).not.toContain(999);
+    });
+
+    it('drops a series carrying no external id, which would otherwise duplicate a library row', async () => {
+        // `LibraryIndex.build` keys on tmdb/tvdb/imdb. A seasons-only row with
+        // none of them joins to nothing and becomes a second, near-empty item
+        // beside the one `listUserLibrary` already returned for the same
+        // series — a duplicated title and an inflated `total` in get_library.
+        const items = await adapter().listUserSeasons(someone);
+        expect(JSON.stringify(items)).not.toContain('Id-less Show');
+        expect(items.every(i => Object.keys(i.ids).length > 0)).toBe(true);
+    });
+
+    it('carries no playback field, so it cannot fabricate presence on its own', async () => {
+        // presence: 'both' means Jellyfin saw the item. That claim belongs to
+        // listUserLibrary; this source only ever adds seasons to it.
+        const [item] = await adapter().listUserSeasons(someone);
+        expect(item).not.toHaveProperty('playback');
     });
 });

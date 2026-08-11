@@ -1,4 +1,3 @@
-import type { ServiceId } from '../config/schema.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather, type Source } from '../core/gather.ts';
@@ -7,12 +6,17 @@ import { logger } from '../core/logger.ts';
 import { LibraryIndex, type IndexInput } from '../core/resolver.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
-import { hasLibrary, hasUserLibrary, type ServiceAdapter, type ServiceUser } from '../services/types.ts';
+import { hasLibrary, hasUserLibrary, hasUserSeasons, type ServiceAdapter, type ServiceUser } from '../services/types.ts';
 
 export type LibrarySnapshot = {
     index: LibraryIndex;
     degraded: string[];
-    counts: Partial<Record<ServiceId, number>>;
+    /**
+     * Keyed by **source**, not by service: `jellyfin:episodes` is its own
+     * source and reports its own count. Widened from `ServiceId` for that
+     * reason; every existing key is unchanged.
+     */
+    counts: Record<string, number>;
 };
 
 /**
@@ -140,6 +144,20 @@ export class LibraryLoader {
                           // answer really is missing a service's contribution.
                           () => Promise.reject(new Error('no Jellyfin user resolved'))
                         : () => jellyfin.listUserLibrary(user)
+            });
+        }
+
+        // Its own source, so `gather` degrades it by name. A try/catch inside
+        // the adapter could not tell the snapshot *why* seasons were missing —
+        // the same ambiguity `BuildOptions.jellyfinGathered` exists to prevent.
+        const seasons = this.#adapters.find(hasUserSeasons);
+        if (seasons !== undefined) {
+            sources.push({
+                id: `${seasons.id}:episodes`,
+                fetch:
+                    user === undefined
+                        ? () => Promise.reject(new Error('no Jellyfin user resolved'))
+                        : () => seasons.listUserSeasons(user)
             });
         }
 

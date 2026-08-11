@@ -333,7 +333,11 @@ describe('stack_health permissions', () => {
         ({
             id,
             type: id.split('/')[0],
-            config: { permissions: { safe_write, destructive } }
+            // `url` is not what these cases are about, but every real
+            // `ServiceInstance` carries one (the config schema requires it)
+            // and `endpoints` now reads it — a stand-in that omits it is
+            // testing a shape production cannot produce.
+            config: { url: 'http://192.0.2.10:7878', permissions: { safe_write, destructive } }
         }) as unknown as ServiceInstance;
 
     it('reports what each instance is allowed to do', async () => {
@@ -360,5 +364,90 @@ describe('stack_health permissions', () => {
     it('omits the field entirely when nobody supplied instances', async () => {
         const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);
         expect(result.permissions).toBeUndefined();
+    });
+});
+
+/**
+ * `endpoints` carries `instance`, `service` and `baseUrl` only — never
+ * `api_key`, `password`, `bearer_token`, or any other credential. A tool that
+ * returns a key on request does not retrieve it, it publishes it: everything
+ * a tool returns passes through a model's context, so the key is available to
+ * any prompt the model later sees. A script that needs one runs beside the
+ * config and imports `loadConfig` instead.
+ */
+describe('stack_health endpoints', () => {
+    const SENTINEL = 'sk-do-not-ship-me-0123456789';
+
+    const instanceWithUrl = (id: string, url: string) =>
+        ({
+            id,
+            type: id.split('/')[0],
+            config: {
+                url,
+                api_key: SENTINEL,
+                timeout_ms: 10_000,
+                permissions: { safe_write: true, destructive: false }
+            }
+        }) as unknown as ServiceInstance;
+
+    it('reports each instance base URL', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std, [
+            instanceWithUrl('radarr', 'http://192.0.2.10:7878')
+        ]);
+
+        expect(result.endpoints).toEqual([{ instance: 'radarr', service: 'radarr', baseUrl: 'http://192.0.2.10:7878' }]);
+    });
+
+    /** Minimal answers "is anything broken", and a URL is not a fault. */
+    it('omits endpoints out of a minimal answer', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail: 'minimal', limit: 50 }, [
+            instanceWithUrl('radarr', 'http://192.0.2.10:7878')
+        ]);
+        expect(result).not.toHaveProperty('endpoints');
+    });
+
+    /** Every existing call site passes no instances and must keep working. */
+    it('omits the field entirely when nobody supplied instances', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);
+        expect(result.endpoints).toBeUndefined();
+    });
+
+    it('never serializes an API key, at any detail level', async () => {
+        // The guard that matters. Everything a tool returns passes through a
+        // model's context — transcripts, logs, a provider. A key reaching this
+        // response is a key published, not a key retrieved.
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, [
+                instanceWithUrl('radarr', 'http://192.0.2.10:7878')
+            ]);
+            expect(JSON.stringify(result)).not.toContain(SENTINEL);
+        }
+    });
+
+    it('never serializes a credential carried in the URL itself, at any detail level', async () => {
+        // The sentinel above only plants an `api_key`, so it could not catch
+        // this: `UrlSchema` accepts userinfo, and Transmission and SABnzbd are
+        // routinely deployed as `http://user:pass@host:9091`. Reported
+        // verbatim, that publishes the credential under the one field whose
+        // description promises no tool here ever returns one.
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, [
+                instanceWithUrl('transmission', `http://admin:${SENTINEL}@192.0.2.10:9091`)
+            ]);
+            const serialized = JSON.stringify(result);
+            expect(serialized).not.toContain(SENTINEL);
+            // The username is a credential half too — a name is half of a
+            // guess, and it is no more this tool's to publish than the secret.
+            expect(serialized).not.toContain('admin');
+        }
+    });
+
+    it('keeps the host and port after stripping the credential', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std, [
+            instanceWithUrl('transmission', `http://admin:${SENTINEL}@192.0.2.10:9091`)
+        ]);
+        // Still usable as a base URL: stripping must not cost the answer the
+        // field exists to give.
+        expect(result.endpoints?.[0]?.baseUrl).toBe('http://192.0.2.10:9091/');
     });
 });

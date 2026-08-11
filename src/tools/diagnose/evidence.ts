@@ -129,7 +129,12 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     }
 
     const degraded: string[] = [];
-    const libraryDegraded: ServiceId[] = [];
+    // `string[]`, not `ServiceId[]`: what arrives here is `LibrarySnapshot`'s
+    // own `degraded`, which is keyed by **source**, so it can hold
+    // `jellyfin:episodes` as well as a plain service id. The declaration was
+    // never enforced — the ids come in through a `string[]` parameter — so it
+    // only claimed something untrue about what the array holds.
+    const libraryDegraded: string[] = [];
     const item = await resolveItem(deps, target, degraded, libraryDegraded);
 
     // Structural, not `instanceof SeerrAdapter`: every other capability here

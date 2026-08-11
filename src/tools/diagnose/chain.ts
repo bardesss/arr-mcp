@@ -1,4 +1,5 @@
 import type { ServiceId } from '../../config/schema.ts';
+import { servicesOnly } from '../../core/gather.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import type { MergedItem } from '../../core/resolver.ts';
 import type { IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
@@ -449,6 +450,20 @@ const SERIES_FILE_VISIBLE_HEDGE =
  */
 const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...ev.libraryDegraded])].sort();
 
+/**
+ * The same union, minus source-scoped ids (`gather.ts`'s `servicesOnly`) — the
+ * input to the `resolve` verdict's certainty, which is a claim about whether a
+ * *service* could be asked.
+ *
+ * No stage of this chain reads `seasons`, so a failed `jellyfin:episodes` read
+ * says nothing about whether a title exists or where it is stuck. Counted, it
+ * made every diagnose verdict on a stack with a broken episode endpoint report
+ * `certain: false` — hedging eight stages against a hole in none of them. The
+ * top-level `degraded` still lists it: naming what did not answer is honest,
+ * doubting an unrelated verdict over it is not.
+ */
+const certaintyDegraded = (ev: Evidence): string[] => servicesOnly(allDegraded(ev));
+
 export function buildChain(query: string, ev: Evidence): Diagnosis {
     const steps: Step[] = [];
 
@@ -466,7 +481,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
                 // Not knowing about it and not being able to look are different
                 // answers, and a degraded library service means the second —
                 // whether the library read itself failed or a diagnose probe did.
-                certain: allDegraded(ev).length === 0
+                certain: certaintyDegraded(ev).length === 0
             },
             degraded: allDegraded(ev)
         };

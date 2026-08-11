@@ -671,3 +671,39 @@ describe('filtering by whether a file exists', () => {
         expect((await buildGetLibrary(loaderOf([onDisk, waiting]), base)).total).toBe(2);
     });
 });
+
+/**
+ * Two hundred series at ten seasons each is two thousand objects, spent
+ * straight out of a model's context budget by callers who did not ask for
+ * season arithmetic. `full` is the only detail level that pays that cost.
+ */
+describe('seasons projection', () => {
+    const withSeasons = series({ seasons: [{ season: 1, watched: 8, total: 8, complete: true }] });
+
+    it('returns seasons at full', async () => {
+        const result = await buildGetLibrary(loaderOf([withSeasons], 'sonarr'), {
+            ...base,
+            detail: 'full',
+            kind: 'series'
+        });
+        expect(result.items[0]?.seasons).toBeDefined();
+    });
+
+    it('omits seasons at standard, which is the default', async () => {
+        const result = await buildGetLibrary(loaderOf([withSeasons], 'sonarr'), {
+            ...base,
+            detail: 'standard',
+            kind: 'series'
+        });
+        expect(result.items[0]).not.toHaveProperty('seasons');
+    });
+
+    it('omits seasons at minimal', async () => {
+        const result = await buildGetLibrary(loaderOf([withSeasons], 'sonarr'), {
+            ...base,
+            detail: 'minimal',
+            kind: 'series'
+        });
+        expect(result.items[0]).not.toHaveProperty('seasons');
+    });
+});

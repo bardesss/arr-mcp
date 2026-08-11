@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import { servicesOnly } from '../core/gather.ts';
 import type { MergedItem } from '../core/resolver.ts';
 import { DetailSchema, LimitSchema, type DetailLevel } from '../core/shape.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -94,10 +95,17 @@ export async function buildResolvedMediaDetails(loader: LibraryLoader, query: st
         // across the same hole is not a different situation. Named services,
         // not just "something failed" — a model deciding whether to retry
         // needs to know which ones.
+        //
+        // Source-scoped ids are excluded (`gather.ts`'s `servicesOnly`): a
+        // source like `jellyfin:episodes` intersects its own series list with
+        // this user's episodes, so it can only ever *add* `seasons` to items
+        // another source already returned. It can never be why a title was not
+        // found, and saying it might be is a hedge against nothing.
+        const unreachable = servicesOnly(degraded);
         const hedge =
-            degraded.length === 0
+            unreachable.length === 0
                 ? ''
-                : ` ${degraded.join(', ')} could not be reached, so this may be incomplete rather than a real absence.`;
+                : ` ${unreachable.join(', ')} could not be reached, so this may be incomplete rather than a real absence.`;
         throw new Error(
             `Nothing in your library matches "${query}".${hedge} Try search_media, which also looks at what you do not have yet.`
         );
@@ -150,7 +158,7 @@ export function registerGetMediaDetails(
         'get_media_details',
         {
             description:
-                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full also returns its episodes.',
+                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full also returns its episodes. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known.',
             inputSchema: z.object({
                 query: z.string().min(1).optional().describe('A title. Resolved through the library index.'),
                 service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),

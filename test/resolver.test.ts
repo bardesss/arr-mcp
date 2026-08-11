@@ -481,6 +481,65 @@ describe('LibraryIndex.all', () => {
     });
 });
 
+describe('season merging', () => {
+    const sonarrHalf = {
+        kind: 'series' as const,
+        title: 'Some Show',
+        ids: { tvdb: 292157 },
+        acquisition: { service: 'sonarr', monitored: true, hasFile: true },
+        seasons: [
+            { season: 1, onDisk: 8, aired: 8, total: 8 },
+            { season: 2, onDisk: 2, aired: 6, total: 10 }
+        ]
+    };
+    const jellyfinHalf = {
+        kind: 'series' as const,
+        title: 'Some Show',
+        ids: { tvdb: 292157 },
+        playback: { user: 'Someone', watched: false },
+        seasons: [
+            { season: 1, watched: 8, lastPlayed: '2026-08-10T21:00:00Z' },
+            { season: 2, watched: 2 }
+        ]
+    };
+
+    it('joins each half of a season row instead of replacing the row', () => {
+        const index = LibraryIndex.build([sonarrHalf, jellyfinHalf]);
+        expect(index.find({ tvdb: 292157 })?.seasons).toEqual([
+            { season: 1, onDisk: 8, aired: 8, total: 8, watched: 8, lastPlayed: '2026-08-10T21:00:00Z', complete: true },
+            { season: 2, onDisk: 2, aired: 6, total: 10, watched: 2, complete: false }
+        ]);
+    });
+
+    it('merges in either order — neither source may erase the other', () => {
+        const forward = LibraryIndex.build([sonarrHalf, jellyfinHalf]).find({ tvdb: 292157 });
+        const reverse = LibraryIndex.build([jellyfinHalf, sonarrHalf]).find({ tvdb: 292157 });
+        expect(reverse?.seasons).toEqual(forward?.seasons);
+    });
+
+    it('leaves complete absent when no Sonarr manages the series', () => {
+        // jellyfin_only: a real watched count and no denominator. `false` here
+        // would put a finished season on a list of things still to watch.
+        const [season] = LibraryIndex.build([jellyfinHalf]).find({ tvdb: 292157 })?.seasons ?? [];
+        expect(season).not.toHaveProperty('complete');
+    });
+
+    it('leaves complete absent when Jellyfin has never seen the series', () => {
+        // arr_only: the mirror case. Denominators, but nothing watched-shaped.
+        const [season] = LibraryIndex.build([sonarrHalf]).find({ tvdb: 292157 })?.seasons ?? [];
+        expect(season).not.toHaveProperty('complete');
+    });
+
+    it('leaves complete absent for a season TVDB reports as empty', () => {
+        // 0 >= 0 is true, and "complete" for a season with no episodes is a
+        // fiction rather than an answer.
+        const empty = { ...jellyfinHalf, seasons: [{ season: 3, watched: 0 }] };
+        const denom = { ...sonarrHalf, seasons: [{ season: 3, onDisk: 0, aired: 0, total: 0 }] };
+        const [season] = LibraryIndex.build([denom, empty]).find({ tvdb: 292157 })?.seasons ?? [];
+        expect(season).not.toHaveProperty('complete');
+    });
+});
+
 /**
  * Never called — its only job is to be type-checked by `npm run typecheck`.
  * Each line below must fail to compile, proving `LibraryIndex.all()` returns

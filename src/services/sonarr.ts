@@ -5,7 +5,7 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
-import type { IndexInput } from '../core/resolver.ts';
+import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
@@ -57,6 +57,16 @@ type RawSeries = {
     ratings?: RawRating;
     added?: string | null;
     statistics?: { sizeOnDisk?: number; episodeFileCount?: number };
+    /**
+     * Present in every `/api/v3/series` response and unread until now.
+     * `totalEpisodeCount` is TVDB's number for the season, which is why this
+     * server needs no TVDB client of its own.
+     */
+    seasons?: {
+        seasonNumber?: number;
+        monitored?: boolean;
+        statistics?: { episodeFileCount?: number; episodeCount?: number; totalEpisodeCount?: number };
+    }[];
 };
 
 type RawEpisode = {
@@ -321,36 +331,59 @@ export class SonarrAdapter
         };
     }
 
+    /**
+     * Sonarr's half of a season row: the three denominators, no watch state.
+     * Sorted by season number so responses are stable across calls and diffable in
+     * tests — Sonarr's own order is not guaranteed.
+     */
+    #seasonsOf(raw: RawSeries): SeasonSummary[] | undefined {
+        if (raw.seasons === undefined) return undefined;
+        const rows = raw.seasons
+            .filter((s): s is typeof s & { seasonNumber: number } => typeof s.seasonNumber === 'number')
+            .map(s => ({
+                season: s.seasonNumber,
+                ...(s.statistics?.episodeFileCount === undefined ? {} : { onDisk: s.statistics.episodeFileCount }),
+                ...(s.statistics?.episodeCount === undefined ? {} : { aired: s.statistics.episodeCount }),
+                ...(s.statistics?.totalEpisodeCount === undefined ? {} : { total: s.statistics.totalEpisodeCount })
+            }))
+            .sort((a, b) => a.season - b.season);
+        return rows.length === 0 ? undefined : rows;
+    }
+
     async listLibrary(): Promise<IndexInput[]> {
         const series = await this.#http.get<RawSeries[]>('/api/v3/series');
 
-        return series.map(s => ({
-            kind: 'series' as const,
-            title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
-            ...(s.year === undefined ? {} : { year: s.year }),
-            ...(s.genres === undefined
-                ? {}
-                : { genres: s.genres.map(g => fenceText(g, { service: this.id, field: 'genre' })) }),
-            ids: {
-                ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
-                ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
-            },
-            acquisition: {
-                service: this.id,
-                monitored: s.monitored ?? false,
-                // A series has no single file, so "has a file" means "has any
-                // episode on disk". No quality either: it is per-episode, which
-                // is why this makes the quality filter films-only.
-                hasFile: (s.statistics?.episodeFileCount ?? 0) > 0,
-                ...(s.added === undefined || s.added === null ? {} : { addedAt: s.added }),
-                ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk })
-            },
-            // Flat, and labelled tvdb. Treating it as a per-source map is the
-            // 0.3.0 defect that reported a source called `votes` worth 164018.
-            ...((r => (r === undefined ? {} : { ratings: r }))(
-                (raw => (raw?.tvdb === undefined ? undefined : { tvdb: raw.tvdb }))(flattenSeriesRating(s.ratings))
-            ))
-        }));
+        return series.map(s => {
+            const seasons = this.#seasonsOf(s);
+            return {
+                kind: 'series' as const,
+                title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
+                ...(s.year === undefined ? {} : { year: s.year }),
+                ...(s.genres === undefined
+                    ? {}
+                    : { genres: s.genres.map(g => fenceText(g, { service: this.id, field: 'genre' })) }),
+                ids: {
+                    ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
+                    ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
+                },
+                acquisition: {
+                    service: this.id,
+                    monitored: s.monitored ?? false,
+                    // A series has no single file, so "has a file" means "has any
+                    // episode on disk". No quality either: it is per-episode, which
+                    // is why this makes the quality filter films-only.
+                    hasFile: (s.statistics?.episodeFileCount ?? 0) > 0,
+                    ...(s.added === undefined || s.added === null ? {} : { addedAt: s.added }),
+                    ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk })
+                },
+                // Flat, and labelled tvdb. Treating it as a per-source map is the
+                // 0.3.0 defect that reported a source called `votes` worth 164018.
+                ...((r => (r === undefined ? {} : { ratings: r }))(
+                    (raw => (raw?.tvdb === undefined ? undefined : { tvdb: raw.tvdb }))(flattenSeriesRating(s.ratings))
+                )),
+                ...(seasons === undefined ? {} : { seasons })
+            };
+        });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

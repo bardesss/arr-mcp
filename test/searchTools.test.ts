@@ -463,6 +463,45 @@ describe('get_media_details', () => {
         );
     });
 
+    it('does not hedge a title miss on a source that could only ever have added seasons', async () => {
+        // `jellyfin:episodes` intersects its own series list with this user's
+        // episodes, so it can only add `seasons` to items `listUserLibrary`
+        // already returned. It can never be why a title was not found, and
+        // "this may be incomplete rather than a real absence" over it points a
+        // model at a retry that cannot help.
+        const episodesDown = new LibraryLoader(
+            [
+                {
+                    id: 'radarr',
+                    testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                    getVersion: async () => '1.0.0',
+                    listLibrary: async () => [RESOLVED]
+                } as unknown as ServiceAdapter,
+                {
+                    id: 'jellyfin',
+                    testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
+                    getVersion: async () => '10.0.0',
+                    listUserLibrary: async () => [],
+                    listUserSeasons: async () => {
+                        throw new Error('episodes endpoint down');
+                    }
+                } as unknown as ServiceAdapter
+            ],
+            { resolve: async () => ({ id: 'u1', name: 'Someone' }) } as unknown as IdentityResolver
+        );
+
+        const thrown = await resolveMediaDetails([], episodesDown, { ...query, query: 'zzzz' }).then(
+            () => undefined,
+            (e: unknown) => e as Error
+        );
+        // Resolving would mean the fixture stopped exercising the miss.
+        expect(thrown).toBeInstanceOf(Error);
+        const message = (thrown as Error).message;
+        expect(message).toMatch(/nothing in your library matches/i);
+        expect(message).not.toMatch(/could not be reached/i);
+        expect(message).not.toContain('jellyfin:episodes');
+    });
+
     it('keeps the explicit form, which is how you inspect one side of a join', async () => {
         const result = await resolveMediaDetails([detailRadarr], loader(), {
             ...query,
