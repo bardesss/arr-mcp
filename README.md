@@ -81,7 +81,9 @@ Jellyfin, `onDisk`, `aired` and `total` from Sonarr's per-season statistics
 needs no TVDB integration of its own), and `complete`. `complete` is true once
 `watched` reaches `total` for that season, and **absent, never `false`**,
 whenever either half can't be compared — a series no *arr manages has no
-`total`, one Jellyfin has never seen has no `watched`. Treating an absent
+`total`, one Jellyfin has never seen has no `watched` — and also absent for a
+season Sonarr reports with zero total episodes, so an unannounced or empty
+season is never reported as finished. Treating an absent
 `complete` as `false` would put a season you already finished on a list of
 things still to watch. `seasons` is omitted below `detail: "full"`; asked by
 title, `get_media_details` always includes it, because that path returns the
