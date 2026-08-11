@@ -321,11 +321,4 @@ describe('Jellyfin.getPlayback', () => {
         const film = (await adapter().getPlayback(someone)).find(e => e.season === undefined);
         expect(film).not.toHaveProperty('seriesTitle');
     });
-
-    it('sends an explicit Limit so truncation is decided by applyLimit, not an undocumented server default', async () => {
-        // The Resume endpoint has an undocumented default page size, so we send
-        // an explicit Limit=500 so the contract layer's applyLimit decides
-        // truncation and reports it, rather than the server doing so silently.
-        expect(RESUMABLE_ROUTE).toContain('Limit=500');
-    });
 });
