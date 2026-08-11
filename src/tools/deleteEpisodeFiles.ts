@@ -173,6 +173,21 @@ export function registerDeleteEpisodeFiles(
                     effects.push(
                         `${stillMonitored.length} episode(s) in season ${season} ${plural ? 'are' : 'is'} still monitored — Sonarr will search for ${plural ? 'them' : 'it'} again and re-download ${plural ? 'them' : 'it'}. Unmonitor the season first with set_monitoring.`
                     );
+                } else if (details.episodesTruncated === true) {
+                    // Finding nothing monitored is only an answer when
+                    // everything was looked at. The episode list is capped at
+                    // 500 and sliced in Sonarr's own order, so on a series
+                    // longer than that — The Simpsons, Doctor Who, a long
+                    // anime — this season's episodes can sit outside the
+                    // window entirely, and silence would read as "nothing is
+                    // monitored" when it means "I could not see". The files
+                    // themselves come from `listEpisodeFiles`, which is not
+                    // truncated, so the delete is still exact; it is only the
+                    // advisory that has a hole, and saying so is better than
+                    // refusing a legitimate delete over it.
+                    effects.push(
+                        `Whether season ${season} is still monitored could not be established — the episode list was truncated at 500, so some of its episodes were never fetched. If any of them is monitored, Sonarr will search for it again and re-download it. Unmonitor the season first with set_monitoring to be sure.`
+                    );
                 }
             } else {
                 const stillMonitored = episodesLosingFiles.filter(e => e.monitored === true);

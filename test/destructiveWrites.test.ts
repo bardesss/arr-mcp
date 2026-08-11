@@ -830,6 +830,62 @@ describe('delete_episode_files', () => {
         expect(preview.structuredContent.effects.join(' ')).toMatch(/still monitored.*re-download/i);
     });
 
+    // The episode read is capped at 500 and sliced in Sonarr's own order, so on
+    // a series longer than that the targeted season's episodes can fall outside
+    // the window entirely: `stillMonitored` comes back empty for a season that
+    // really is monitored, and the warning — the whole mitigation for shipping
+    // two primitives rather than one cleanup_season — would simply not fire.
+    // The delete itself stays exact, because the file ids come from
+    // `listEpisodeFiles`, which is not truncated; only the advisory has a hole.
+    it('says the monitoring state could not be checked when the episode list was truncated', async () => {
+        // 500 season-1 episodes fill the window; season 2's two, both
+        // monitored, sit past it and are never fetched.
+        const LONG = [
+            ...Array.from({ length: 500 }, (_, i) => ({
+                id: 1000 + i,
+                seasonNumber: 1,
+                episodeNumber: i + 1,
+                title: `Ep${i + 1}`,
+                hasFile: true,
+                monitored: false,
+                episodeFileId: 101
+            })),
+            ...EPISODES_S2
+        ];
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [
+                new SonarrAdapter(keyed(8989), recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': LONG }).impl)
+            ]
+        });
+
+        const preview = await call({ service: 'sonarr', id: '7', season: 2 });
+        const effects = preview.structuredContent.effects.join(' ');
+        // A gap in what could be checked, said as one — not silence, which
+        // reads as "nothing is monitored".
+        expect(effects).toMatch(/could not be established/i);
+        expect(effects).toMatch(/truncated at 500/i);
+        // Still a preview of a real delete, not a refusal.
+        expect(preview.structuredContent.confirm_token).toBeDefined();
+    });
+
+    it('does not add the truncation caveat when the whole episode list was seen', async () => {
+        // Otherwise the caveat becomes permanent noise on every ordinary
+        // series, which is how a warning stops being read.
+        const unmonitored = EPISODES_S2.map(e => ({ ...e, monitored: false }));
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [
+                new SonarrAdapter(
+                    keyed(8989),
+                    recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': unmonitored }).impl
+                )
+            ]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', season: 2 });
+        expect(preview.structuredContent.effects.join(' ')).not.toMatch(/could not be established|truncated/i);
+    });
+
     it('is a no-op for a season with no files on disk', async () => {
         const { call } = harness(registerDeleteEpisodeFiles, {
             permissions: { sonarr: tiered(false, true) },

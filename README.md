@@ -235,14 +235,26 @@ while it is still monitored, Sonarr treats them as missing and re-downloads
 exactly what you just deleted — the reason these shipped as two separate
 tools rather than one that does both. `delete_episode_files`'s preview warns
 when the target is still monitored, and says nothing when it is not, so the
-warning is worth reading rather than skipping past. Given an episode id it
-cannot resolve, `delete_episode_files` refuses outright rather than silently
-dropping it — and when a file holds more than one episode, which Sonarr
-routinely does for a double episode, it names every episode the delete would
+warning is worth reading rather than skipping past — it reads the episodes'
+own monitored flags, not Sonarr's per-season summary of them, which
+`set_monitoring`'s episode form can leave behind. On a series long enough that
+the episode list is truncated, the preview says the monitoring state could not
+be established rather than staying quiet, because silence there would read as
+"nothing is monitored".
+
+**Both tools refuse rather than write into the dark.** Given an episode id it
+cannot resolve — wrong, or past the 500-episode cap — either tool refuses
+outright rather than silently dropping it, and `set_monitoring` refuses a
+season the series does not have, naming the seasons it does: a write that
+matches nothing would otherwise report success, and you would go on to delete
+files believing the season was unmonitored.
+
+When a file holds more than one episode, which Sonarr routinely does for a
+double episode, `delete_episode_files` names every episode the delete would
 take with it, not just the one you asked for. Episode ids for both tools come
-from `get_media_details`, whose `episodes` also carry
-`episodeFileId` — the file each episode is on, when it has one — which is how
-`delete_episode_files` resolves a target without a second read.
+from `get_media_details`, whose `episodes` also carry `episodeFileId` — the
+file each episode is on, when it has one — which is how `delete_episode_files`
+resolves a target without a second read.
 
 `dry_run: true` is the separate, terminal form: it describes the effect and
 issues no token at all, so it can never turn into a write. It works even with
