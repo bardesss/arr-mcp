@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { ServiceId } from '../config/schema.ts';
 import type { MergedItem } from '../core/resolver.ts';
 import { DetailSchema, LimitSchema, applyLimit, preferred, type DetailLevel } from '../core/shape.ts';
 import { unfenced } from '../core/titleMatch.ts';
@@ -87,7 +86,8 @@ export type GetLibraryResult = {
     returned: number;
     truncated: boolean;
     degraded: string[];
-    counts: Partial<Record<ServiceId, number>>;
+    /** Keyed by source — see `LibrarySnapshot.counts`. */
+    counts: Record<string, number>;
     /**
      * `note` is set only when the count needs defending — see
      * `imdbUnavailableNote`. Additive and optional, so a caller reading

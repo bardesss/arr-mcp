@@ -229,3 +229,53 @@ describe('LibraryLoader', () => {
         });
     });
 });
+
+const seasonsOf = (tvdb: number): IndexInput => ({
+    kind: 'series',
+    title: 'Some Show',
+    ids: { tvdb },
+    seasons: [{ season: 1, watched: 8 }]
+});
+
+const jellyfinWithSeasons = (byUser: Record<string, IndexInput[]>, seasons: IndexInput[] | Error) =>
+    stub('jellyfin', {
+        listUserLibrary: async (u: ServiceUser) => byUser[u.name] ?? [],
+        listUserSeasons: async () => {
+            if (seasons instanceof Error) throw seasons;
+            return seasons;
+        }
+    });
+
+describe('the jellyfin:episodes source', () => {
+    it('adds seasons to the merged item', async () => {
+        const loader = new LibraryLoader(
+            [jellyfinWithSeasons({ Someone: [watched(550, 'Someone')] }, [seasonsOf(292157)])],
+            identity(someone)
+        );
+        const snapshot = await loader.load();
+        expect(snapshot.index.find({ tvdb: 292157 })?.seasons).toEqual([{ season: 1, watched: 8 }]);
+    });
+
+    it('degrades on its own name, leaving Jellyfin itself healthy', async () => {
+        // The whole point of a separate source: an episode-endpoint failure
+        // must not cost the caller their film watch state.
+        const loader = new LibraryLoader(
+            [
+                radarr(),
+                jellyfinWithSeasons({ Someone: [watched(550, 'Someone')] }, new Error('boom'))
+            ],
+            identity(someone)
+        );
+        const snapshot = await loader.load();
+
+        expect(snapshot.degraded).toContain('jellyfin:episodes');
+        expect(snapshot.degraded).not.toContain('jellyfin');
+        expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('both');
+        expect(snapshot.index.find({ tmdb: 550 })?.playback?.watched).toBe(true);
+    });
+
+    it('is not registered when the adapter cannot answer it', async () => {
+        const loader = new LibraryLoader([radarr()], undefined);
+        expect((await loader.load()).counts).not.toHaveProperty('jellyfin:episodes');
+    });
+});
