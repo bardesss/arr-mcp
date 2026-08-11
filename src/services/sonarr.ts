@@ -32,6 +32,8 @@ import {
     type DeleteMediaOptions,
     type MediaAddCapable,
     type MediaDeleteCapable,
+    type MonitoringCapable,
+    type MonitoringTarget,
     type QualityProfile,
     type QueueRemoveCapable,
     type RootFolder,
@@ -111,7 +113,8 @@ export class SonarrAdapter
         SearchTriggerCapable,
         QueueRemoveCapable,
         MediaDeleteCapable,
-        MediaAddCapable
+        MediaAddCapable,
+        MonitoringCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -211,6 +214,46 @@ export class SonarrAdapter
         return addArrMedia(this.#http, this.id, SONARR_ADD, opts);
     }
 
+    /** Shared by every write here: refuse before issuing, never after. */
+    #numericId(value: string, what: string): number {
+        const id = Number(value);
+        if (!Number.isInteger(id)) {
+            throw new ServiceError('NotFound', this.id, `"${value}" is not a Sonarr ${what} id`, {
+                remedy: `Sonarr ${what} ids are integers. Get one from get_media_details or get_library.`
+            });
+        }
+        return id;
+    }
+
+    /**
+     * Three targets, one method, because they are one decision: what to
+     * monitor. Episode ids take their own endpoint; the series and season forms
+     * both round-trip the series resource, because Sonarr's PUT replaces it
+     * wholesale and a partial body would blank every field left out.
+     */
+    async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
+        if (opts.episodeIds !== undefined) {
+            const episodeIds = opts.episodeIds.map(e => this.#numericId(e, 'episode'));
+            await this.#http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
+            return;
+        }
+
+        const seriesId = this.#numericId(id, 'series');
+        const series = await this.#http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
+
+        if (opts.season === undefined) {
+            await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, monitored: opts.monitored }, true);
+            return;
+        }
+
+        // Only the named season changes. Rewriting them all would unmonitor the
+        // whole show while reporting that one season had been touched.
+        const seasons = (series.seasons ?? []).map(s =>
+            s.seasonNumber === opts.season ? { ...s, monitored: opts.monitored } : s
+        );
+        await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, seasons }, true);
+    }
+
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
         const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(range));
         return readSonarrCalendar(episodes, this.id);
@@ -268,7 +311,15 @@ export class SonarrAdapter
                 ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
                 ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
             },
-            ...(ratings === undefined ? {} : { ratings })
+            ...(ratings === undefined ? {} : { ratings }),
+            ...(s.seasons === undefined
+                ? {}
+                : {
+                      seasons: s.seasons
+                          .filter((x): x is typeof x & { seasonNumber: number } => typeof x.seasonNumber === 'number')
+                          .map(x => ({ season: x.seasonNumber, monitored: x.monitored ?? false }))
+                          .sort((a, b) => a.season - b.season)
+                  })
         };
 
         if (!opts.includeEpisodes) return base;

@@ -50,8 +50,9 @@ function recordingFetch(routes: Record<string, unknown>, opts: { emptyBody?: boo
             body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
         });
 
-        if (method === 'DELETE') {
+        if (method === 'DELETE' || method === 'PUT') {
             // What Radarr and Sonarr actually answer: 200 with nothing in it.
+            // Every PUT this adapter issues discards the body, same as DELETE.
             return opts.emptyBody === false ? jsonResponse({}) : new Response('', { status: 200 });
         }
         if (url.pathname in routes) return jsonResponse(routes[url.pathname]);
@@ -64,6 +65,16 @@ function recordingFetch(routes: Record<string, unknown>, opts: { emptyBody?: boo
 
 const MOVIE = { id: 412, title: 'Alien', year: 1979, monitored: true, hasFile: true, movieFile: { size: 25_900_000_000 } };
 const SERIES = { id: 7, title: 'Alien: Earth', year: 2025, monitored: true, statistics: { sizeOnDisk: 3_000_000_000, episodeFileCount: 8 } };
+
+const SERIES_FULL = {
+    id: 7,
+    title: 'Alien: Earth',
+    monitored: true,
+    seasons: [
+        { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8 } },
+        { seasonNumber: 2, monitored: true, statistics: { episodeFileCount: 2 } }
+    ]
+};
 
 const ARR_QUEUE = {
     records: [{ id: 91, title: 'Alien.1979.2160p-GROUP', status: 'stalled', size: 1000, sizeleft: 900 }]
@@ -231,6 +242,74 @@ describe('removing a queue item', () => {
             })
         ).rejects.toThrow(/torrent-remove failed/);
     });
+});
+
+describe('Sonarr.setMonitoring', () => {
+    it('unmonitors a whole series', async () => {
+        const { impl, sent } = recordingFetch({ '/api/v3/series/7': SERIES_FULL });
+        await new SonarrAdapter(keyed(8989), impl).setMonitoring('7', { monitored: false });
+
+        const put = sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v3/series/7');
+        expect(put?.body).toMatchObject({ id: 7, monitored: false });
+    });
+
+    it('unmonitors one season and leaves the others alone', async () => {
+        const { impl, sent } = recordingFetch({ '/api/v3/series/7': SERIES_FULL });
+        await new SonarrAdapter(keyed(8989), impl).setMonitoring('7', { monitored: false, season: 2 });
+
+        const put = sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v3/series/7');
+        // Season 1 untouched is the assertion that matters — a PUT that
+        // rewrites every season would silently unmonitor the whole show.
+        expect((put?.body as { seasons: unknown[] }).seasons).toEqual([
+            { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8 } },
+            { seasonNumber: 2, monitored: false, statistics: { episodeFileCount: 2 } }
+        ]);
+        expect((put?.body as { monitored: boolean }).monitored).toBe(true);
+    });
+
+    it('uses the episode endpoint for episode ids, not the series one', async () => {
+        const { impl, sent } = recordingFetch({});
+        await new SonarrAdapter(keyed(8989), impl).setMonitoring('7', {
+            monitored: false,
+            episodeIds: ['11', '12']
+        });
+
+        const put = sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v3/episode/monitor');
+        expect(put?.body).toEqual({ episodeIds: [11, 12], monitored: false });
+        // No series read at all on this path.
+        expect(sent.filter(s => s.path === '/api/v3/series/7')).toHaveLength(0);
+    });
+
+    it('refuses a non-numeric series id rather than issuing a write into the dark', async () => {
+        const { impl, sent } = recordingFetch({});
+        await expect(
+            new SonarrAdapter(keyed(8989), impl).setMonitoring('Severance', { monitored: false })
+        ).rejects.toThrow(ServiceError);
+        expect(sent.filter(s => s.method === 'PUT')).toHaveLength(0);
+    });
+
+    it('refuses a non-numeric episode id the same way', async () => {
+        const { impl, sent } = recordingFetch({});
+        await expect(
+            new SonarrAdapter(keyed(8989), impl).setMonitoring('7', { monitored: false, episodeIds: ['x'] })
+        ).rejects.toThrow(ServiceError);
+        expect(sent.filter(s => s.method === 'PUT')).toHaveLength(0);
+    });
+});
+
+it('reports per-season monitoring, which the write tools gate on', async () => {
+    const { impl } = recordingFetch({ '/api/v3/series/7': SERIES_FULL });
+    const details = await new SonarrAdapter(keyed(8989), impl).getMediaDetails('7', {
+        includeEpisodes: false,
+        episodeLimit: 0
+    });
+    expect(details.seasons).toEqual([
+        { season: 1, monitored: true },
+        { season: 2, monitored: true }
+    ]);
 });
 
 // --- the tools -----------------------------------------------------------

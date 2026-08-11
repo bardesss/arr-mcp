@@ -40,6 +40,16 @@ export class ServiceHttp {
     }
 
     /**
+     * Like every write, never auto-retried. `discardBody` because Sonarr's
+     * `/episode/monitor` answers with an empty 200 — routing that through the
+     * JSON parse would turn a successful write into "response was not valid
+     * JSON", the same trap `delete` already documents.
+     */
+    async put<T>(path: string, body: unknown, discardBody = false): Promise<T> {
+        return this.#request<T>('PUT', path, body, false, discardBody);
+    }
+
+    /**
      * Deletes return no body worth reading — Radarr and Sonarr answer 200 with
      * an empty one — so this discards it rather than parsing it. Typing it
      * `void` is the honest signature: a `delete<T>` would invite a caller to
