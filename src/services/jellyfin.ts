@@ -196,7 +196,24 @@ export class JellyfinAdapter
 
         const [sessions, resume] = await Promise.all([
             this.#http.get<RawSession[]>('/Sessions'),
-            this.#http.get<RawItemsPage>(`/Users/${encodeURIComponent(user.id)}/Items/Resume`)
+            /**
+             * `IsResumable=true`, **not** `/Users/{id}/Items/Resume`.
+             *
+             * That endpoint is Jellyfin's "Continue Watching" row, which is
+             * curated and small: measured live it returned 1 item against 171
+             * genuinely resumable films. A tool whose description promises
+             * "what they can continue watching" answered with one of a hundred
+             * and seventy-two — and reported `truncated: false`, because the
+             * truncation contract can only measure what the endpoint returned.
+             *
+             * No `Limit`: `listUserLibrary` fetches the whole library for the
+             * same reason, and a cap here would make `total` understate the set
+             * in exactly the way this change exists to fix.
+             */
+            this.#http.get<RawItemsPage>(
+                `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IsResumable=true` +
+                    '&IncludeItemTypes=Movie,Episode&EnableUserData=true'
+            )
         ]);
 
         const common = (item: RawItem) => ({

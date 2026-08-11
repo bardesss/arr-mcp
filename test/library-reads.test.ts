@@ -270,3 +270,56 @@ describe('Jellyfin.listUserSeasons', () => {
         expect(item).not.toHaveProperty('playback');
     });
 });
+
+const RESUMABLE_ROUTE =
+    '/Items?userId=u1&Recursive=true&IsResumable=true&IncludeItemTypes=Movie,Episode&EnableUserData=true';
+
+const RESUMABLE = {
+    Items: [
+        {
+            Id: 'film-1',
+            Name: 'Some Film',
+            Type: 'Movie',
+            RunTimeTicks: 72_000_000_000, // 2h in ticks
+            UserData: { PlaybackPositionTicks: 18_000_000_000, LastPlayedDate: '2026-08-10T21:00:00Z' }
+        },
+        {
+            Id: 'ep-1',
+            Name: 'Some Episode',
+            Type: 'Episode',
+            SeriesName: 'Some Show',
+            ParentIndexNumber: 2,
+            IndexNumber: 3,
+            RunTimeTicks: 18_000_000_000,
+            UserData: { PlaybackPositionTicks: 9_000_000_000 }
+        }
+    ]
+};
+
+describe('Jellyfin.getPlayback', () => {
+    const adapter = () =>
+        new JellyfinAdapter(multi, serving({ '/Sessions': [], [RESUMABLE_ROUTE]: RESUMABLE }));
+    const someone = { id: 'u1', name: 'Someone' };
+
+    it('reads the resumable set, not the Continue Watching row', async () => {
+        // /Users/{id}/Items/Resume returns Jellyfin's curated row — measured at
+        // 1 item against 171 genuinely resumable films. A tool promising "what
+        // you can continue watching" must not answer with the row.
+        const entries = await adapter().getPlayback(someone);
+        expect(entries).toHaveLength(2);
+        expect(entries.every(e => e.kind === 'resume')).toBe(true);
+    });
+
+    it('carries percentComplete, which is what a >20% rule filters on', async () => {
+        const [film] = await adapter().getPlayback(someone);
+        expect(film).toMatchObject({ percentComplete: 25, positionSeconds: 1800, runtimeSeconds: 7200 });
+    });
+
+    it('marks episodes with series and numbers, so films can be told apart', async () => {
+        const episode = (await adapter().getPlayback(someone)).find(e => e.season !== undefined);
+        expect(episode).toMatchObject({ season: 2, episode: 3 });
+        // A film carries none of these — that is how a caller filters to films.
+        const film = (await adapter().getPlayback(someone)).find(e => e.season === undefined);
+        expect(film).not.toHaveProperty('seriesTitle');
+    });
+});
