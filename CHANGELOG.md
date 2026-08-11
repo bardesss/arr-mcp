@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/bardesss/arr-mcp/compare/v1.2.1...v1.3.0) (2026-08-11)
+
+
+### Features
+
+* answer whether a season is finished ([#93](https://github.com/bardesss/arr-mcp/issues/93)) ([53220f9](https://github.com/bardesss/arr-mcp/commit/53220f994bec613973f274bcf61256f461de5cbc))
+
 ## [1.2.1](https://github.com/bardesss/arr-mcp/compare/v1.2.0...v1.2.1) (2026-08-10)
 
 
