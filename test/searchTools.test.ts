@@ -286,7 +286,7 @@ describe('get_media_details', () => {
 
     const SERIES = { id: 7, title: 'Some Show', year: 2024, tvdbId: 12345, statistics: { sizeOnDisk: 900_000_000_000 } };
     const EPISODES = [
-        { id: 900, seasonNumber: 1, episodeNumber: 1, title: 'Pilot', airDateUtc: '2024-01-01T00:00:00Z', hasFile: true, monitored: true },
+        { id: 900, seasonNumber: 1, episodeNumber: 1, title: 'Pilot', airDateUtc: '2024-01-01T00:00:00Z', hasFile: true, monitored: true, episodeFileId: 5001 },
         { id: 901, seasonNumber: 1, episodeNumber: 2, title: 'Second', hasFile: false, monitored: true }
     ];
 
@@ -335,6 +335,21 @@ describe('get_media_details', () => {
         expect(result).toMatchObject({ kind: 'series', ids: { tvdb: 12345 }, sizeBytes: 900_000_000_000 });
         expect(result.episodes).toHaveLength(2);
         expect(result.episodes?.[0]).toMatchObject({ season: 1, episode: 1, hasFile: true });
+    });
+
+    // delete_episode_files resolves an episode id to its file id through this
+    // field. Sonarr omits it (or sends 0) for an episode with no file, so the
+    // mapping must carry it only when Sonarr actually reported one.
+    it('carries episodeFileId for an episode that has one, and omits it for one that does not', async () => {
+        const result = await buildGetMediaDetails([detailSonarr()], {
+            service: 'sonarr',
+            id: '7',
+            detail: 'full',
+            limit: 50
+        });
+
+        expect(result.episodes?.[0]).toMatchObject({ episodeFileId: 5001 });
+        expect(result.episodes?.[1]).not.toHaveProperty('episodeFileId');
     });
 
     it('omits episodes at detail: standard, because a 200-episode series is the response', async () => {

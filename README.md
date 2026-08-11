@@ -45,8 +45,10 @@ All eight are supported as of 0.3.
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again |
+| `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `delete_media` | Remove this film or series, optionally from disk |
+| `delete_episode_files` | Free disk from one Sonarr season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
 | `add_media` | Add this film or series and start looking for it |
@@ -85,15 +87,39 @@ whenever either half can't be compared — a series no *arr manages has no
 season Sonarr reports with zero total episodes, so an unannounced or empty
 season is never reported as finished. Treating an absent
 `complete` as `false` would put a season you already finished on a list of
-things still to watch. `seasons` is omitted below `detail: "full"`; asked by
-title, `get_media_details` always includes it, because that path returns the
-merged record unprojected rather than a shaped one. If Jellyfin's episode read
-fails on its own, `degraded` gains `jellyfin:episodes` — Sonarr's half of
-`seasons` survives intact (`onDisk`, `aired` and `total`), and only the watch
-half (`watched`, `lastPlayed`) and `complete`, which needs both halves, go
-missing. Film watch state and `presence` stay unaffected.
+things still to watch. Each row also carries `monitored` — Sonarr's own
+per-season flag, and the one to check before deleting a season's files, since
+deleting the files of a monitored season makes Sonarr search for exactly what
+you removed. It is **absent, never `false`**, for a series no Sonarr manages:
+nothing is monitoring it, which is a different fact from monitoring being off.
 
-The first thirteen are reads. The last six write, and are gated as described
+**`get_library`** omits `seasons` below `detail: "full"`. **`get_media_details`**
+carries it at every detail level, on both of its forms: asked by title it
+returns the merged record unprojected rather than a shaped one, and asked by
+`service` plus `id` Sonarr's own view puts `seasons` in the base payload, before
+the gate that adds episodes. `monitored` means the same thing on both forms, so
+neither answer leaves you guessing about it.
+
+If Jellyfin's episode read fails on its own, `degraded` gains
+`jellyfin:episodes` — Sonarr's half of `seasons` survives intact (`onDisk`,
+`aired`, `total` and `monitored`), and only the watch half (`watched`,
+`lastPlayed`) and `complete`, which needs both halves, go missing. Film watch
+state and `presence` stay unaffected.
+
+`get_playback` reads what can be continued from `/Users/{id}/Items/Resume`,
+Jellyfin's own answer to the question — `/Items?IsResumable=true` looks like
+the right query, but Jellyfin 10.11 silently ignores it and returns the whole
+library rather than the resumable set. The call sends an explicit `Limit=500`
+so truncation is decided by `limit` (default 50, like every other tool) and
+reported honestly through `truncated`, rather than by however many rows an
+undocumented server page size happens to hand back. Each entry carries
+`percentComplete`, `positionSeconds` and `runtimeSeconds`. To find, say, films
+you are partway through: keep only `kind: "resume"`, keep entries with no
+`seriesTitle`, `season` or `episode` (those three appear only on an episode),
+then compare `percentComplete` yourself — arr-mcp does not filter by how far
+in you are.
+
+The first thirteen are reads. The last eight write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded
 either way.
 
@@ -143,8 +169,10 @@ a film but refuses to re-monitor it.
 | `trigger_search` | safe | `safe_write` |
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
+| `set_monitoring` | safe | `safe_write` |
 | `remove_queue_item` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
+| `delete_episode_files` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
 
 Approving and declining a request are one tool and deleting one is another,
@@ -193,6 +221,40 @@ delete_media { service: "radarr", id: "1535", delete_files: true }
 > - Deletes 18.8 GB from disk. This cannot be undone.
 > - Removes They Will Kill You (2026) from radarr, along with its monitoring
 >   and history.
+
+Two more tools work below the level of a whole item. `set_monitoring` (safe —
+`safe_write` alone is enough, nothing is deleted and Sonarr can undo it) turns
+monitoring on or off for a whole series, one season, or specific episodes:
+give `season` or `episodes`, never both, and giving neither targets the whole
+series. `delete_episode_files` (destructive) deletes the files for one season
+or specific episodes — there is no whole-series form here, because that is
+what `delete_media` already does.
+
+**Unmonitor before you delete.** If a season's or episode's files are deleted
+while it is still monitored, Sonarr treats them as missing and re-downloads
+exactly what you just deleted — the reason these shipped as two separate
+tools rather than one that does both. `delete_episode_files`'s preview warns
+when the target is still monitored, and says nothing when it is not, so the
+warning is worth reading rather than skipping past — it reads the episodes'
+own monitored flags, not Sonarr's per-season summary of them, which
+`set_monitoring`'s episode form can leave behind. On a series long enough that
+the episode list is truncated, the preview says the monitoring state could not
+be established rather than staying quiet, because silence there would read as
+"nothing is monitored".
+
+**Both tools refuse rather than write into the dark.** Given an episode id it
+cannot resolve — wrong, or past the 500-episode cap — either tool refuses
+outright rather than silently dropping it, and `set_monitoring` refuses a
+season the series does not have, naming the seasons it does: a write that
+matches nothing would otherwise report success, and you would go on to delete
+files believing the season was unmonitored.
+
+When a file holds more than one episode, which Sonarr routinely does for a
+double episode, `delete_episode_files` names every episode the delete would
+take with it, not just the one you asked for. Episode ids for both tools come
+from `get_media_details`, whose `episodes` also carry `episodeFileId` — the
+file each episode is on, when it has one — which is how `delete_episode_files`
+resolves a target without a second read.
 
 `dry_run: true` is the separate, terminal form: it describes the effect and
 issues no token at all, so it can never turn into a write. It works even with
@@ -499,7 +561,7 @@ does not.
 
 ## Prompts and resources
 
-Nineteen tools cover what arr-mcp can do. They do not tell you which one to
+Twenty-one tools cover what arr-mcp can do. They do not tell you which one to
 reach for, and the questions people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

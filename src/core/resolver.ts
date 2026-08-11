@@ -44,6 +44,19 @@ export type SeasonSummary = {
     total?: number;
     /** Computed in `LibraryIndex.build`, never by a service. */
     complete?: boolean;
+    /**
+     * Sonarr's per-season monitoring flag, so `seasons[].monitored` means the
+     * same thing here as on `MediaDetails.seasons` — `get_media_details`
+     * returns either shape depending on how it was asked, and a key that
+     * carried monitoring on one form and nothing on the other is how a caller
+     * reads "no `monitored`" as "not monitored", unmonitors nothing, and
+     * deletes files Sonarr immediately re-downloads.
+     *
+     * **Absent, never `false`**, like every other field here: a series no
+     * Sonarr manages has no monitoring at all, and `false` would be a claim
+     * about a service that was never asked.
+     */
+    monitored?: boolean;
 };
 
 export type MergedItem = {
