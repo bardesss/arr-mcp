@@ -73,6 +73,22 @@ nothing. Asking for a combination that cannot exist returns a refusal explaining
 why, not an empty list; asking for one that needs the dataset says so in
 `ratingCoverage.note` rather than reporting a bare zero.
 
+At `detail: "full"`, a series in `get_library` also carries `seasons` — one
+entry per season: `season` (0 is specials, reported like any other season;
+filter `season > 0` if you don't want it), `watched` and `lastPlayed` from
+Jellyfin, `onDisk`, `aired` and `total` from Sonarr's per-season statistics
+(`total` is TVDB's episode count by way of Sonarr, which is why this server
+needs no TVDB integration of its own), and `complete`. `complete` is true once
+`watched` reaches `total` for that season, and **absent, never `false`**,
+whenever either half can't be compared — a series no *arr manages has no
+`total`, one Jellyfin has never seen has no `watched`. Treating an absent
+`complete` as `false` would put a season you already finished on a list of
+things still to watch. `seasons` is omitted below `detail: "full"`; asked by
+title, `get_media_details` always includes it, because that path returns the
+merged record unprojected rather than a shaped one. If Jellyfin's episode read
+fails on its own, `degraded` gains `jellyfin:episodes` — season data goes
+missing while film watch state and `presence` stay unaffected.
+
 The first thirteen are reads. The last six write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded
 either way.
@@ -326,6 +342,14 @@ services:
 library question answers from all of them at once — which is the whole point of
 running a second one. Every row says which instance it came from, as
 `radarr/4k`.
+
+`stack_health` also reports `endpoints` — `instance`, `service` and `baseUrl`
+for every configured instance, so a script knows where each one lives. It never
+carries a key: **no tool in this server returns an API key**, because anything
+a tool returns passes through a model's context. A script that needs
+credentials runs beside `config.yaml` and imports `loadConfig`. `endpoints` is
+absent at `detail: "minimal"`, alongside `permissions` — a URL is no more a
+fault than a grant is.
 
 **Writes name one.** Adding a film with two Radarrs configured and no `instance`
 is refused, and the refusal lists the names rather than guessing — a 4K release
