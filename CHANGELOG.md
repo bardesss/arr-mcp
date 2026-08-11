@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/bardesss/arr-mcp/compare/v1.3.0...v1.4.0) (2026-08-11)
+
+
+### Features
+
+* unmonitor a season and delete its episode files ([#95](https://github.com/bardesss/arr-mcp/issues/95)) ([021c635](https://github.com/bardesss/arr-mcp/commit/021c635819f4181df863c7871f1e2aac498b0f88))
+
 ## [1.3.0](https://github.com/bardesss/arr-mcp/compare/v1.2.1...v1.3.0) (2026-08-11)
 
 
