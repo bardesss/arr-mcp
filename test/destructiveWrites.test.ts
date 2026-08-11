@@ -320,6 +320,17 @@ const EPISODE_FILES = [
     { id: 103, seriesId: 7, seasonNumber: 2, size: 5_000_000_000 }
 ];
 
+/**
+ * Season 2's two episodes, monitored, holding the two season-2 files above.
+ * Both write tools read the episode list now — set_monitoring to validate the
+ * ids it was given, delete_episode_files to decide whether the re-download
+ * warning is true — so a season case needs episodes as well as files.
+ */
+const EPISODES_S2 = [
+    { id: 11, seasonNumber: 2, episodeNumber: 1, title: 'Ep1', hasFile: true, monitored: true, episodeFileId: 102 },
+    { id: 12, seasonNumber: 2, episodeNumber: 2, title: 'Ep2', hasFile: true, monitored: true, episodeFileId: 103 }
+];
+
 describe('Sonarr episode files', () => {
     it('lists them with season and size, which is what a preview needs', async () => {
         const { impl } = recordingFetch({ '/api/v3/episodefile?seriesId=7': EPISODE_FILES });
@@ -616,6 +627,35 @@ describe('set_monitoring', () => {
         await expect(call({ service: 'radarr', id: '412', monitored: false })).rejects.toThrow(ServiceError);
     });
 
+    // Previously: a season the series does not have produced no noop, planned
+    // happily, and made Sonarr PUT the series back unchanged — `applied: true`
+    // for a write that provably did nothing, after which a caller believing
+    // the season is unmonitored goes on to delete its files.
+    it('refuses a season the series does not have, naming the ones it does', async () => {
+        const recorder = recordingFetch(routes);
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
+        });
+        await expect(call({ service: 'sonarr', id: '7', monitored: false, season: 9 })).rejects.toThrow(/season 9/);
+        await expect(call({ service: 'sonarr', id: '7', monitored: false, season: 9 })).rejects.toThrow(/1, 2/);
+        expect(recorder.sent.filter(s => s.method === 'PUT')).toHaveLength(0);
+    });
+
+    // The episode list was already being fetched and then thrown away, so an
+    // id that does not exist reached Sonarr as an unvalidated PUT.
+    it('refuses an episode id it could not find rather than PUTting it blind', async () => {
+        const recorder = recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': EPISODES_S2 });
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
+        });
+        await expect(call({ service: 'sonarr', id: '7', monitored: false, episodes: ['11', '999'] })).rejects.toThrow(
+            /999/
+        );
+        expect(recorder.sent.filter(s => s.method === 'PUT')).toHaveLength(0);
+    });
+
     // The four tests below are the mutating path: a confirm-token round trip
     // for each of the three targets, asserting the actual outgoing PUT rather
     // than just the tool's own report of success. TypeScript catches a wrong
@@ -669,9 +709,10 @@ describe('set_monitoring', () => {
     });
 
     it('applies to specific episodes, on the episode endpoint, once confirmed', async () => {
-        // The preview reads episodes (includeEpisodes: true), so the episode
-        // list endpoint needs a route too, unlike the whole-series/season forms.
-        const recorder = recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': [] });
+        // The preview reads episodes (includeEpisodes: true) and now validates
+        // the requested ids against them, so the episode list endpoint needs a
+        // route carrying the ids being asked for.
+        const recorder = recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': EPISODES_S2 });
         const { call } = harness(registerSetMonitoring, {
             permissions: { sonarr: tiered(true, false) },
             adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
@@ -711,6 +752,7 @@ describe('set_monitoring', () => {
 describe('delete_episode_files', () => {
     const routes = {
         '/api/v3/series/7': SERIES_FULL,
+        '/api/v3/episode?seriesId=7': EPISODES_S2,
         '/api/v3/episodefile?seriesId=7': EPISODE_FILES
     };
     const sonarrWith = () => new SonarrAdapter(keyed(8989), recordingFetch(routes).impl);
@@ -743,9 +785,32 @@ describe('delete_episode_files', () => {
         expect(preview.structuredContent.effects.join(' ')).toMatch(/still monitored.*re-download/i);
     });
 
-    it('does not warn when the season is already unmonitored', async () => {
-        // A warning that always fires is noise nobody reads.
-        const unmonitored = {
+    it('does not warn when nothing in the season is monitored', async () => {
+        // A warning that always fires is noise nobody reads. The season
+        // aggregate is left at `monitored: true` on purpose: the episodes are
+        // what Sonarr searches on, so a stale aggregate must not manufacture a
+        // warning any more than it may suppress one.
+        const unmonitored = EPISODES_S2.map(e => ({ ...e, monitored: false }));
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [
+                new SonarrAdapter(
+                    keyed(8989),
+                    recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': unmonitored }).impl
+                )
+            ]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', season: 2 });
+        expect(preview.structuredContent.effects.join(' ')).not.toMatch(/re-download/i);
+    });
+
+    // The state this branch itself creates: `set_monitoring { episodes }`
+    // writes episode flags and never touches the season aggregate, so a season
+    // can read `monitored: false` while its episodes are monitored. Reading the
+    // aggregate left the preview silent while Sonarr re-downloaded everything
+    // just deleted — the one thing the two-primitive design leans on.
+    it('warns from the episode flags even when the season aggregate says unmonitored', async () => {
+        const staleAggregate = {
             ...SERIES_FULL,
             seasons: [
                 { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8 } },
@@ -757,12 +822,12 @@ describe('delete_episode_files', () => {
             adapters: [
                 new SonarrAdapter(
                     keyed(8989),
-                    recordingFetch({ ...routes, '/api/v3/series/7': unmonitored }).impl
+                    recordingFetch({ ...routes, '/api/v3/series/7': staleAggregate }).impl
                 )
             ]
         });
         const preview = await call({ service: 'sonarr', id: '7', season: 2 });
-        expect(preview.structuredContent.effects.join(' ')).not.toMatch(/re-download/i);
+        expect(preview.structuredContent.effects.join(' ')).toMatch(/still monitored.*re-download/i);
     });
 
     it('is a no-op for a season with no files on disk', async () => {
@@ -790,6 +855,7 @@ describe('delete_episode_files', () => {
         const files = [...EPISODE_FILES];
         const recorder = recordingFetch({
             '/api/v3/series/7': SERIES_FULL,
+            '/api/v3/episode?seriesId=7': EPISODES_S2,
             '/api/v3/episodefile?seriesId=7': files
         });
         const { call } = harness(registerDeleteEpisodeFiles, {

@@ -66,10 +66,17 @@ export function registerDeleteEpisodeFiles(
                 throw new ServiceError('NotFound', service, `${service} cannot describe its own items`);
             }
 
-            const details = await adapter.getMediaDetails(id, {
-                includeEpisodes: episodes !== undefined,
-                episodeLimit: 500
-            });
+            // Episodes on both paths, not just the `episodes` one. The
+            // re-download warning below is the entire mitigation for shipping
+            // monitoring and deletion as two primitives, and Sonarr's searches
+            // key on the **episode** monitored flag — `seasons[].monitored` is
+            // a UI aggregate over it. Toggling a season cascades down, but
+            // set_monitoring's own episode form writes episode flags and never
+            // touches the aggregate, so a season can read `monitored: false`
+            // while its episodes are monitored. Reading the aggregate here
+            // would leave the warning silent in exactly the state this branch
+            // can create.
+            const details = await adapter.getMediaDetails(id, { includeEpisodes: true, episodeLimit: 500 });
             const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
             const all = await adapter.listEpisodeFiles(id);
 
@@ -154,12 +161,17 @@ export function registerDeleteEpisodeFiles(
             }
 
             // Only when something targeted is actually still monitored. A
-            // warning that always fires is noise nobody reads.
+            // warning that always fires is noise nobody reads. Both paths ask
+            // the same question of the same field — the episode's own flag,
+            // which is what Sonarr's searches key on.
             if (season !== undefined) {
-                const monitored = details.seasons?.find(s => s.season === season)?.monitored;
-                if (monitored === true) {
+                const stillMonitored = (details.episodes ?? []).filter(
+                    e => e.season === season && e.monitored === true
+                );
+                if (stillMonitored.length > 0) {
+                    const plural = stillMonitored.length > 1;
                     effects.push(
-                        `Season ${season} is still monitored — Sonarr will search for these episodes again and re-download them. Unmonitor it first with set_monitoring.`
+                        `${stillMonitored.length} episode(s) in season ${season} ${plural ? 'are' : 'is'} still monitored — Sonarr will search for ${plural ? 'them' : 'it'} again and re-download ${plural ? 'them' : 'it'}. Unmonitor the season first with set_monitoring.`
                     );
                 }
             } else {

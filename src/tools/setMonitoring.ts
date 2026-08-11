@@ -54,13 +54,54 @@ export function registerSetMonitoring(
             }
 
             // The read that makes the preview approvable and fails legibly on a
-            // bad id, rather than issuing a PUT into the dark.
+            // bad id, rather than issuing a PUT into the dark. The episode form
+            // asks for the episode list and then *uses* it, below: paying for
+            // up to 500 episodes and validating nothing against them was how an
+            // id that does not exist reached Sonarr as a write.
             const details = await adapter.getMediaDetails(id, {
                 includeEpisodes: episodes !== undefined,
                 episodeLimit: 500
             });
             const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
             const verb = monitored ? 'Monitor' : 'Unmonitor';
+
+            // A season this series does not have is not a no-op: `sonarr.ts`
+            // maps every season, matches none, and PUTs the series back
+            // unchanged — so the tool would report `applied: true` for a write
+            // that provably did nothing, and the caller, believing the season
+            // is now unmonitored, would go on to delete its files. Refused
+            // instead, exactly as delete_episode_files refuses an episode id it
+            // cannot resolve. Only when Sonarr actually reported seasons: no
+            // list is no evidence, and refusing on that would be a guess.
+            if (season !== undefined && details.seasons !== undefined) {
+                const known = details.seasons.map(s => s.season);
+                if (!known.includes(season)) {
+                    throw new ServiceError('NotFound', service, `${label} has no season ${season}`, {
+                        remedy: `Seasons on this series: ${known.join(', ')}. Get them from get_media_details.`
+                    });
+                }
+            }
+
+            // The same refusal one level down, and for the same reason its
+            // sibling gives: an id `getMediaDetails` never returned — wrong, or
+            // past the 500-episode cap — is not "nothing to change"; it is "I
+            // could not see that episode at all", and the episode endpoint
+            // accepts ids it cannot find without complaint.
+            if (episodes !== undefined) {
+                const found = new Set((details.episodes ?? []).map(e => String(e.id)));
+                const unresolved = episodes.filter(eid => !found.has(eid));
+                if (unresolved.length > 0) {
+                    throw new ServiceError(
+                        'NotFound',
+                        service,
+                        `Could not find episode(s) ${unresolved.join(', ')} on ${label}` +
+                            (details.episodesTruncated === true
+                                ? ' — the episode list was truncated at 500, so they may simply not have been fetched.'
+                                : '.'),
+                        { remedy: 'Check the episode ids from get_media_details.' }
+                    );
+                }
+            }
 
             const scope =
                 episodes !== undefined
@@ -69,10 +110,10 @@ export function registerSetMonitoring(
                       ? `season ${season} of ${label}`
                       : label;
 
-            // `noop` only where the current state is actually knowable. For the
-            // episode form it is not, from this payload, so no claim is made —
-            // asserting "already monitored" from evidence we do not have would
-            // be worse than one redundant confirmation.
+            // `noop` only where the current state is a single value. The
+            // episode form targets a set that can disagree with itself — some
+            // monitored, some not — so no claim is made there; one redundant
+            // confirmation beats "already monitored" asserted across a mixture.
             const current =
                 season !== undefined
                     ? details.seasons?.find(s => s.season === season)?.monitored
