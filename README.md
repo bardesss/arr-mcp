@@ -95,16 +95,18 @@ fails on its own, `degraded` gains `jellyfin:episodes` — Sonarr's half of
 half (`watched`, `lastPlayed`) and `complete`, which needs both halves, go
 missing. Film watch state and `presence` stay unaffected.
 
-`get_playback` reads Jellyfin's actual resumable set (`IsResumable=true`),
-not its curated "Continue Watching" row — that row is small and hand-picked,
-and measured live it returned 1 item against 171 genuinely resumable films.
-That makes `limit` (default 50, like every other tool) worth
-setting deliberately here, and it means `truncated: true` on this tool now
-tells the truth instead of confirming a curated handful. To find, say, films
+`get_playback` reads what can be continued from `/Users/{id}/Items/Resume`,
+Jellyfin's own answer to the question — `/Items?IsResumable=true` looks like
+the right query, but Jellyfin 10.11 silently ignores it and returns the whole
+library rather than the resumable set. The call sends an explicit `Limit=500`
+so truncation is decided by `limit` (default 50, like every other tool) and
+reported honestly through `truncated`, rather than by however many rows an
+undocumented server page size happens to hand back. Each entry carries
+`percentComplete`, `positionSeconds` and `runtimeSeconds`. To find, say, films
 you are partway through: keep only `kind: "resume"`, keep entries with no
-`seriesTitle`, `season` or `episode` (an episode carries all three; a film
-carries none), then compare `percentComplete` yourself — arr-mcp does not
-filter by how far in you are.
+`seriesTitle`, `season` or `episode` (those three appear only on an episode),
+then compare `percentComplete` yourself — arr-mcp does not filter by how far
+in you are.
 
 The first thirteen are reads. The last eight write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded
