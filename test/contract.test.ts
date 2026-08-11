@@ -197,6 +197,24 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fixture: 'test/fixtures/sonarr/episode.json',
                 fields: ['id', 'seasonNumber', 'episodeNumber', 'title', 'hasFile', 'monitored', 'episodeFileId']
             },
+            {
+                // The whole delete set `delete_episode_files` resolves comes
+                // from these three fields, and nothing else in the suite would
+                // notice them changing: every unit test builds its own episode
+                // -file rows, so the mapping stays green whatever upstream
+                // does. `seasonNumber` is the sharpest case — `listEpisodeFiles`
+                // reads it as `f.seasonNumber ?? 0`, so a rename would put
+                // *every* file in season 0 and `delete_episode_files
+                // { season: 1 }` would resolve an empty id set: "no files on
+                // disk" reported as a no-op for a season plainly full of them,
+                // with a green suite. `id` is what the bulk DELETE body carries
+                // — losing it deletes nothing — and `size` is the number the
+                // preview shows to make someone hesitate before confirming.
+                path: '/api/v3/episodefile',
+                method: 'get',
+                fixture: 'test/fixtures/sonarr/episodefile.json',
+                fields: ['id', 'seasonNumber', 'size']
+            },
             { fixture: 'test/fixtures/sonarr/series-lookup.json', fields: ['title', 'tvdbId'] }
         ]
     },

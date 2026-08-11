@@ -1,0 +1,650 @@
+[
+  {
+    "seriesId": 15,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Series.Title.S01E01.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E01.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 3716931111,
+    "dateAdded": "2026-01-27T15:01:00Z",
+    "sceneName": "Series.Title.S01E01.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [
+      {
+        "id": 116,
+        "name": "1080p WEB-DL"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 127,
+        "name": "Amazon Enhancement"
+      },
+      {
+        "id": 125,
+        "name": "AMZN"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 17,
+        "name": "WEB Tier 01"
+      },
+      {
+        "id": 100,
+        "name": "WEB-DL Tier 2"
+      }
+    ],
+    "customFormatScore": 383680,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 640000,
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 23.976,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "57:31",
+      "scanType": "Progressive",
+      "subtitles": "eng/eng"
+    },
+    "qualityCutoffNotMet": true,
+    "id": 12481
+  },
+  {
+    "seriesId": 15,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Series.Title.S01E02.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E02.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 3891188955,
+    "dateAdded": "2026-01-27T15:02:29Z",
+    "sceneName": "Series.Title.S01E02.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [
+      {
+        "id": 116,
+        "name": "1080p WEB-DL"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 127,
+        "name": "Amazon Enhancement"
+      },
+      {
+        "id": 125,
+        "name": "AMZN"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 17,
+        "name": "WEB Tier 01"
+      },
+      {
+        "id": 100,
+        "name": "WEB-DL Tier 2"
+      }
+    ],
+    "customFormatScore": 383680,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 640000,
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 23.976,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "58:25",
+      "scanType": "Progressive",
+      "subtitles": "eng/eng"
+    },
+    "qualityCutoffNotMet": true,
+    "id": 12482
+  },
+  {
+    "seriesId": 15,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Series.Title.S01E03.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E03.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 3842213973,
+    "dateAdded": "2026-01-27T15:02:29Z",
+    "sceneName": "Series.Title.S01E03.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [
+      {
+        "id": 116,
+        "name": "1080p WEB-DL"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 127,
+        "name": "Amazon Enhancement"
+      },
+      {
+        "id": 125,
+        "name": "AMZN"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 17,
+        "name": "WEB Tier 01"
+      },
+      {
+        "id": 100,
+        "name": "WEB-DL Tier 2"
+      }
+    ],
+    "customFormatScore": 383680,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 640000,
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 23.976,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "59:39",
+      "scanType": "Progressive",
+      "subtitles": "eng/eng"
+    },
+    "qualityCutoffNotMet": true,
+    "id": 12483
+  },
+  {
+    "seriesId": 15,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Series.Title.S01E04.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E04.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 3673185456,
+    "dateAdded": "2026-01-27T15:03:59Z",
+    "sceneName": "Series.Title.S01E04.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [
+      {
+        "id": 116,
+        "name": "1080p WEB-DL"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 127,
+        "name": "Amazon Enhancement"
+      },
+      {
+        "id": 125,
+        "name": "AMZN"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 17,
+        "name": "WEB Tier 01"
+      },
+      {
+        "id": 100,
+        "name": "WEB-DL Tier 2"
+      }
+    ],
+    "customFormatScore": 383680,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 640000,
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 23.976,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "58:56",
+      "scanType": "Progressive",
+      "subtitles": "eng/eng"
+    },
+    "qualityCutoffNotMet": true,
+    "id": 12484
+  },
+  {
+    "seriesId": 15,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Series.Title.S01E05.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E05.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 3833386419,
+    "dateAdded": "2026-01-27T15:05:29Z",
+    "sceneName": "Series.Title.S01E05.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [
+      {
+        "id": 116,
+        "name": "1080p WEB-DL"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 127,
+        "name": "Amazon Enhancement"
+      },
+      {
+        "id": 125,
+        "name": "AMZN"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 17,
+        "name": "WEB Tier 01"
+      },
+      {
+        "id": 100,
+        "name": "WEB-DL Tier 2"
+      }
+    ],
+    "customFormatScore": 383680,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 640000,
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 23.976,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "1:00:40",
+      "scanType": "Progressive",
+      "subtitles": "eng/eng"
+    },
+    "qualityCutoffNotMet": true,
+    "id": 12485
+  },
+  {
+    "seriesId": 15,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Series.Title.S01E06.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E06.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 4124042775,
+    "dateAdded": "2026-01-27T15:05:29Z",
+    "sceneName": "Series.Title.S01E06.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [
+      {
+        "id": 116,
+        "name": "1080p WEB-DL"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 127,
+        "name": "Amazon Enhancement"
+      },
+      {
+        "id": 125,
+        "name": "AMZN"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 17,
+        "name": "WEB Tier 01"
+      },
+      {
+        "id": 100,
+        "name": "WEB-DL Tier 2"
+      }
+    ],
+    "customFormatScore": 383680,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 640000,
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 23.976,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "59:42",
+      "scanType": "Progressive",
+      "subtitles": "eng/eng"
+    },
+    "qualityCutoffNotMet": true,
+    "id": 12486
+  },
+  {
+    "seriesId": 15,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Series.Title.S01E07.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E07.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 3938243897,
+    "dateAdded": "2026-01-27T15:06:59Z",
+    "sceneName": "Series.Title.S01E07.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [
+      {
+        "id": 116,
+        "name": "1080p WEB-DL"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 127,
+        "name": "Amazon Enhancement"
+      },
+      {
+        "id": 125,
+        "name": "AMZN"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 17,
+        "name": "WEB Tier 01"
+      },
+      {
+        "id": 100,
+        "name": "WEB-DL Tier 2"
+      }
+    ],
+    "customFormatScore": 383680,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 640000,
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 23.976,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "59:38",
+      "scanType": "Progressive",
+      "subtitles": "eng/eng"
+    },
+    "qualityCutoffNotMet": true,
+    "id": 12487
+  },
+  {
+    "seriesId": 15,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Series.Title.S01E08.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E08.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 3812181888,
+    "dateAdded": "2026-01-27T15:08:30Z",
+    "sceneName": "Series.Title.S01E08.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [
+      {
+        "id": 116,
+        "name": "1080p WEB-DL"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 127,
+        "name": "Amazon Enhancement"
+      },
+      {
+        "id": 125,
+        "name": "AMZN"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 17,
+        "name": "WEB Tier 01"
+      },
+      {
+        "id": 100,
+        "name": "WEB-DL Tier 2"
+      }
+    ],
+    "customFormatScore": 383680,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 640000,
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 23.976,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "59:16",
+      "scanType": "Progressive",
+      "subtitles": "eng/eng"
+    },
+    "qualityCutoffNotMet": true,
+    "id": 12488
+  }
+]
