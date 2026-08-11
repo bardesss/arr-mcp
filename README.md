@@ -88,8 +88,10 @@ season is never reported as finished. Treating an absent
 things still to watch. `seasons` is omitted below `detail: "full"`; asked by
 title, `get_media_details` always includes it, because that path returns the
 merged record unprojected rather than a shaped one. If Jellyfin's episode read
-fails on its own, `degraded` gains `jellyfin:episodes` — season data goes
-missing while film watch state and `presence` stay unaffected.
+fails on its own, `degraded` gains `jellyfin:episodes` — Sonarr's half of
+`seasons` survives intact (`onDisk`, `aired` and `total`), and only the watch
+half (`watched`, `lastPlayed`) and `complete`, which needs both halves, go
+missing. Film watch state and `presence` stay unaffected.
 
 The first thirteen are reads. The last six write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded

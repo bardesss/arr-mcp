@@ -237,6 +237,17 @@ const seasonsOf = (tvdb: number): IndexInput => ({
     seasons: [{ season: 1, watched: 8 }]
 });
 
+/** Sonarr's half of a season row: the denominators, and no watch state. */
+const sonarrShow = (tvdb: number): IndexInput => ({
+    kind: 'series',
+    title: 'Some Show',
+    ids: { tvdb },
+    acquisition: { service: 'sonarr', monitored: true, hasFile: true },
+    seasons: [{ season: 1, onDisk: 8, aired: 8, total: 10 }]
+});
+
+const sonarr = (items = [sonarrShow(292157)]) => stub('sonarr', { listLibrary: async () => items });
+
 const jellyfinWithSeasons = (byUser: Record<string, IndexInput[]>, seasons: IndexInput[] | Error) =>
     stub('jellyfin', {
         listUserLibrary: async (u: ServiceUser) => byUser[u.name] ?? [],
@@ -272,6 +283,24 @@ describe('the jellyfin:episodes source', () => {
         expect(snapshot.degraded).not.toContain('jellyfin');
         expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('both');
         expect(snapshot.index.find({ tmdb: 550 })?.playback?.watched).toBe(true);
+    });
+
+    it('leaves Sonarr’s half of seasons intact when the episode read fails', async () => {
+        // Not "season data goes missing": the denominators come from Sonarr's
+        // own library read, which this failure never touched. Only the watch
+        // half and `complete`, which needs both halves to be computed at all,
+        // are absent — and absent, never `false`/`0`.
+        const loader = new LibraryLoader(
+            [sonarr(), jellyfinWithSeasons({ Someone: [] }, new Error('boom'))],
+            identity(someone)
+        );
+        const snapshot = await loader.load();
+        const seasons = snapshot.index.find({ tvdb: 292157 }, 'series')?.seasons;
+
+        expect(snapshot.degraded).toEqual(['jellyfin:episodes']);
+        expect(seasons).toEqual([{ season: 1, onDisk: 8, aired: 8, total: 10 }]);
+        expect(seasons?.[0]).not.toHaveProperty('watched');
+        expect(seasons?.[0]).not.toHaveProperty('complete');
     });
 
     it('is not registered when the adapter cannot answer it', async () => {

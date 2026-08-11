@@ -158,7 +158,7 @@ export function registerGetMediaDetails(
         'get_media_details',
         {
             description:
-                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full also returns its episodes.',
+                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full also returns its episodes. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known.',
             inputSchema: z.object({
                 query: z.string().min(1).optional().describe('A title. Resolved through the library index.'),
                 service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
