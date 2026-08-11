@@ -469,6 +469,18 @@ export interface UserLibraryCapable {
 export const hasUserLibrary = (a: ServiceAdapter): a is ServiceAdapter & UserLibraryCapable =>
     typeof (a as Partial<UserLibraryCapable>).listUserLibrary === 'function';
 
+/**
+ * Separate from `UserLibraryCapable` so it can fail on its own. `LibraryLoader`
+ * registers this as its own `gather` source, which is what lets an episode-read
+ * failure degrade `jellyfin:episodes` while film watch state survives.
+ */
+export interface UserSeasonsCapable {
+    listUserSeasons(user: ServiceUser): Promise<IndexInput[]>;
+}
+
+export const hasUserSeasons = (a: ServiceAdapter): a is ServiceAdapter & UserSeasonsCapable =>
+    typeof (a as Partial<UserSeasonsCapable>).listUserSeasons === 'function';
+
 export interface DiscoverCapable {
     discover(opts: {
         mediaType: 'movie' | 'tv';

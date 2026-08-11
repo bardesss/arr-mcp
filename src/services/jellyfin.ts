@@ -19,6 +19,7 @@ import {
     type ServiceUser,
     type UserDirectoryCapable,
     type UserLibraryCapable,
+    type UserSeasonsCapable,
     type CommandHandle
 } from './types.ts';
 
@@ -86,6 +87,13 @@ type RawItemDetail = {
     UserData?: { Played?: boolean; PlayCount?: number; LastPlayedDate?: string };
 };
 
+type RawEpisodeItem = {
+    SeriesId?: string;
+    /** Jellyfin's season number. `IndexNumber` is the episode's. */
+    ParentIndexNumber?: number;
+    UserData?: { Played?: boolean; LastPlayedDate?: string };
+};
+
 /**
  * Jellyfin stores external ids as **strings** while Radarr and Sonarr use
  * numbers. The identity resolver joins on tmdbId and tvdbId, so a string
@@ -104,7 +112,8 @@ export class JellyfinAdapter
         UserDirectoryCapable,
         MediaDetailCapable,
         SearchCapable,
-        UserLibraryCapable
+        UserLibraryCapable,
+        UserSeasonsCapable
 {
     readonly type: ServiceId = 'jellyfin';
     readonly id: string = 'jellyfin';
@@ -345,6 +354,73 @@ export class JellyfinAdapter
                 }
             };
         });
+    }
+
+    /**
+     * Per-season watch state for every series this user has episodes of.
+     *
+     * Two calls, and the series call is deliberately **not** shared with
+     * `listUserLibrary`: sharing it would couple the two sources, and
+     * independent failure is the entire reason they are separate. It is cheap —
+     * ids only, no genres and no user data.
+     *
+     * Episodes are collapsed here rather than returned, so a 10,000-episode
+     * library costs one object per season in the snapshot instead of 10,000.
+     * Jellyfin's internal `Id` never leaves this method; the resolver keeps
+     * joining on external ids alone.
+     */
+    async listUserSeasons(user: ServiceUser): Promise<IndexInput[]> {
+        const series = await this.#http.get<{ Items?: RawItemDetail[] }>(
+            '/Items?Recursive=true&IncludeItemTypes=Series&Fields=ProviderIds'
+        );
+        const episodes = await this.#http.get<{ Items?: RawEpisodeItem[] }>(
+            `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Episode` +
+                '&EnableUserData=true'
+        );
+
+        const bySeries = new Map<string, Map<number, { watched: number; lastPlayed?: string }>>();
+        for (const episode of episodes.Items ?? []) {
+            const seriesId = episode.SeriesId;
+            const season = episode.ParentIndexNumber;
+            if (seriesId === undefined || season === undefined) continue;
+
+            const seasons = bySeries.get(seriesId) ?? new Map<number, { watched: number; lastPlayed?: string }>();
+            bySeries.set(seriesId, seasons);
+
+            const row = seasons.get(season) ?? { watched: 0 };
+            if (episode.UserData?.Played === true) row.watched += 1;
+            const played = episode.UserData?.LastPlayedDate;
+            // Compared as strings: ISO 8601 sorts lexicographically in the order
+            // it sorts chronologically, and `new Date()` on a malformed value
+            // yields NaN, which compares false against everything.
+            if (played !== undefined && (row.lastPlayed === undefined || played > row.lastPlayed)) {
+                row.lastPlayed = played;
+            }
+            seasons.set(season, row);
+        }
+
+        return (series.Items ?? [])
+            .filter((s): s is RawItemDetail & { Id: string } => typeof s.Id === 'string' && bySeries.has(s.Id))
+            .map(s => {
+                const tmdb = numericId(s.ProviderIds?.Tmdb);
+                const tvdb = numericId(s.ProviderIds?.Tvdb);
+                return {
+                    kind: 'series' as const,
+                    title: fenceText(s.Name ?? '', { service: this.id, field: 'Name' }),
+                    ids: {
+                        ...(tmdb === undefined ? {} : { tmdb }),
+                        ...(tvdb === undefined ? {} : { tvdb }),
+                        ...(s.ProviderIds?.Imdb === undefined ? {} : { imdb: s.ProviderIds.Imdb })
+                    },
+                    seasons: [...(bySeries.get(s.Id) ?? new Map()).entries()]
+                        .map(([season, row]) => ({
+                            season,
+                            watched: row.watched,
+                            ...(row.lastPlayed === undefined ? {} : { lastPlayed: row.lastPlayed })
+                        }))
+                        .sort((a, b) => a.season - b.season)
+                };
+            });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
