@@ -420,7 +420,16 @@ export class JellyfinAdapter
                         }))
                         .sort((a, b) => a.season - b.season)
                 };
-            });
+            })
+            // A row with no external id can never join. `LibraryIndex.build`
+            // keys on tmdb/tvdb/imdb, so a seasons-only row carrying none of
+            // them matches nothing and becomes a **new** library item — the
+            // same id-less series `listUserLibrary` already returned, appearing
+            // a second time with no playback, no acquisition and
+            // `presence: 'unknown'`, inflating `get_library`'s `total` and
+            // duplicating the title. Dropped rather than emitted: seasons with
+            // nothing to attach them to answer no question anyone can ask.
+            .filter(row => Object.keys(row.ids).length > 0);
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

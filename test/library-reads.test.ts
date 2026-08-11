@@ -205,7 +205,10 @@ describe('Jellyfin.listUserLibrary', () => {
 const SERIES_ITEMS = {
     Items: [
         { Id: 'show-1', Name: 'Some Show', Type: 'Series', ProviderIds: { Tvdb: '292157' } },
-        { Id: 'show-2', Name: 'Unwatched Show', Type: 'Series', ProviderIds: { Tvdb: '999' } }
+        { Id: 'show-2', Name: 'Unwatched Show', Type: 'Series', ProviderIds: { Tvdb: '999' } },
+        // Watched, and carrying no external id at all — a real Jellyfin state
+        // for a series its metadata providers never matched.
+        { Id: 'show-3', Name: 'Id-less Show', Type: 'Series' }
     ]
 };
 
@@ -213,7 +216,8 @@ const EPISODE_ITEMS = {
     Items: [
         { Id: 'e1', SeriesId: 'show-1', ParentIndexNumber: 1, IndexNumber: 1, UserData: { Played: true, LastPlayedDate: '2026-08-09T20:00:00Z' } },
         { Id: 'e2', SeriesId: 'show-1', ParentIndexNumber: 1, IndexNumber: 2, UserData: { Played: true, LastPlayedDate: '2026-08-10T21:00:00Z' } },
-        { Id: 'e3', SeriesId: 'show-1', ParentIndexNumber: 2, IndexNumber: 1, UserData: { Played: false } }
+        { Id: 'e3', SeriesId: 'show-1', ParentIndexNumber: 2, IndexNumber: 1, UserData: { Played: false } },
+        { Id: 'e4', SeriesId: 'show-3', ParentIndexNumber: 1, IndexNumber: 1, UserData: { Played: true } }
     ]
 };
 
@@ -247,6 +251,16 @@ describe('Jellyfin.listUserSeasons', () => {
     it('omits a series with no episodes at all rather than inventing empty seasons', async () => {
         const items = await adapter().listUserSeasons(someone);
         expect(items.map(i => i.ids.tvdb)).not.toContain(999);
+    });
+
+    it('drops a series carrying no external id, which would otherwise duplicate a library row', async () => {
+        // `LibraryIndex.build` keys on tmdb/tvdb/imdb. A seasons-only row with
+        // none of them joins to nothing and becomes a second, near-empty item
+        // beside the one `listUserLibrary` already returned for the same
+        // series — a duplicated title and an inflated `total` in get_library.
+        const items = await adapter().listUserSeasons(someone);
+        expect(JSON.stringify(items)).not.toContain('Id-less Show');
+        expect(items.every(i => Object.keys(i.ids).length > 0)).toBe(true);
     });
 
     it('carries no playback field, so it cannot fabricate presence on its own', async () => {
