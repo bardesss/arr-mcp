@@ -161,6 +161,14 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // before this phase turned display text into a filter input
                 // elsewhere in this same object (`statistics.episodeFileCount`,
                 // just above).
+                //
+                // The `seasons[]` fields are the same argument one level down.
+                // `seasonNumber` is what every season row is keyed and merged
+                // on, and the three counts become `onDisk`, `aired` and
+                // `total` — with `total` the denominator `complete` is
+                // computed against. A rename of `totalEpisodeCount` would make
+                // `complete` vanish library-wide, silently, since every unit
+                // test builds its own fixture and would keep passing.
                 fixture: 'test/fixtures/sonarr/series.json',
                 fields: [
                     'id',
@@ -171,7 +179,11 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'statistics',
                     'statistics.episodeFileCount',
                     'statistics.sizeOnDisk',
-                    'genres'
+                    'genres',
+                    'seasons.seasonNumber',
+                    'seasons.statistics.episodeFileCount',
+                    'seasons.statistics.episodeCount',
+                    'seasons.statistics.totalEpisodeCount'
                 ]
             },
             {
