@@ -46,17 +46,28 @@ describe('gather', () => {
     });
 
     it('runs sources concurrently rather than in sequence', async () => {
+        // Overlap is asserted directly rather than raced against a wall clock.
+        // The previous form allowed 110ms for three 40ms sources and failed
+        // intermittently under full-suite load (observed at 150ms) — a red that
+        // said nothing about concurrency and everything about the machine.
+        //
+        // Counting concurrent occupancy cannot be fooled by a slow timer: run
+        // sequentially, the peak is 1 no matter how long each source takes.
+        let inFlight = 0;
+        let peak = 0;
         const delayed = async () => {
-            await new Promise(r => setTimeout(r, 40));
+            inFlight += 1;
+            peak = Math.max(peak, inFlight);
+            await new Promise(r => setTimeout(r, 10));
+            inFlight -= 1;
             return [1];
         };
-        const started = Date.now();
         await gather([
             { id: 'radarr', fetch: delayed },
             { id: 'sonarr', fetch: delayed },
             { id: 'sabnzbd', fetch: delayed }
         ]);
-        expect(Date.now() - started).toBeLessThan(110);
+        expect(peak).toBe(3);
     });
 
     it('reports degraded services in a stable, sorted order', async () => {
