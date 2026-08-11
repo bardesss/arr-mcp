@@ -333,7 +333,11 @@ describe('stack_health permissions', () => {
         ({
             id,
             type: id.split('/')[0],
-            config: { permissions: { safe_write, destructive } }
+            // `url` is not what these cases are about, but every real
+            // `ServiceInstance` carries one (the config schema requires it)
+            // and `endpoints` now reads it — a stand-in that omits it is
+            // testing a shape production cannot produce.
+            config: { url: 'http://192.0.2.10:7878', permissions: { safe_write, destructive } }
         }) as unknown as ServiceInstance;
 
     it('reports what each instance is allowed to do', async () => {
@@ -418,5 +422,32 @@ describe('stack_health endpoints', () => {
             ]);
             expect(JSON.stringify(result)).not.toContain(SENTINEL);
         }
+    });
+
+    it('never serializes a credential carried in the URL itself, at any detail level', async () => {
+        // The sentinel above only plants an `api_key`, so it could not catch
+        // this: `UrlSchema` accepts userinfo, and Transmission and SABnzbd are
+        // routinely deployed as `http://user:pass@host:9091`. Reported
+        // verbatim, that publishes the credential under the one field whose
+        // description promises no tool here ever returns one.
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, [
+                instanceWithUrl('transmission', `http://admin:${SENTINEL}@192.0.2.10:9091`)
+            ]);
+            const serialized = JSON.stringify(result);
+            expect(serialized).not.toContain(SENTINEL);
+            // The username is a credential half too — a name is half of a
+            // guess, and it is no more this tool's to publish than the secret.
+            expect(serialized).not.toContain('admin');
+        }
+    });
+
+    it('keeps the host and port after stripping the credential', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std, [
+            instanceWithUrl('transmission', `http://admin:${SENTINEL}@192.0.2.10:9091`)
+        ]);
+        // Still usable as a base URL: stripping must not cost the answer the
+        // field exists to give.
+        expect(result.endpoints?.[0]?.baseUrl).toBe('http://192.0.2.10:9091/');
     });
 });

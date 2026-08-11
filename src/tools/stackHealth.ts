@@ -62,6 +62,35 @@ export type InstancePermissions = { instance: string; safe_write: boolean; destr
 export type InstanceEndpoint = { instance: string; service: ServiceId; baseUrl: string };
 
 /**
+ * A base URL with its userinfo removed.
+ *
+ * `UrlSchema` accepts `http://user:pass@host:9091` — Transmission and SABnzbd
+ * are routinely deployed behind exactly that — and reporting it verbatim would
+ * publish a credential into a model's context under a field whose whole
+ * documented promise is that this server never returns one. The strip is here,
+ * at the single place a URL leaves the process, rather than in the schema: the
+ * adapters still need the URL they were configured with in order to connect.
+ *
+ * The string is returned untouched when it carries no userinfo, because
+ * `new URL(...).toString()` normalises — it appends a trailing slash — and a
+ * URL nobody wrote is a small lie of its own.
+ */
+export function withoutCredentials(url: string): string {
+    try {
+        const parsed = new URL(url);
+        if (parsed.username === '' && parsed.password === '') return url;
+        parsed.username = '';
+        parsed.password = '';
+        return parsed.toString();
+    } catch {
+        // Unreachable through config, which parses every URL at startup. A
+        // credential must not survive an unparseable one either, so drop the
+        // authority's userinfo textually rather than returning the input.
+        return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@]*@/i, '$1');
+    }
+}
+
+/**
  * minimal — is anything broken? A verdict per service, and counts only.
  * standard — everything except disk paths, the longest strings in the response
  *            and rarely what the question was about.
@@ -224,7 +253,7 @@ export async function buildStackHealth(
         instances === undefined
             ? undefined
             : [...instances]
-                  .map(i => ({ instance: i.id, service: i.type, baseUrl: i.config.url }))
+                  .map(i => ({ instance: i.id, service: i.type, baseUrl: withoutCredentials(i.config.url) }))
                   .sort((a, b) => a.instance.localeCompare(b.instance));
 
     return project(

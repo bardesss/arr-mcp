@@ -36,7 +36,10 @@ const instance = (id: string, safe_write: boolean, destructive: boolean): Servic
     ({
         id,
         type: id.split('/')[0],
-        config: { permissions: { safe_write, destructive } }
+        // Every real `ServiceInstance` carries a `url` — the config schema
+        // requires one, and `stack_health`'s `endpoints` reads it. A stand-in
+        // without it is a shape production cannot produce.
+        config: { url: 'http://192.0.2.10:7878', permissions: { safe_write, destructive } }
     }) as unknown as ServiceInstance;
 
 const INSTANCES = [instance('radarr/4k', true, false), instance('sonarr', false, false)];
