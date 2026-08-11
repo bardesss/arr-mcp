@@ -27,6 +27,7 @@ import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
 import { registerRemoveQueueItem } from './removeQueueItem.ts';
 import { registerSearchMedia } from './searchMedia.ts';
+import { registerSetMonitoring } from './setMonitoring.ts';
 import { registerStackHealth } from './stackHealth.ts';
 import { registerTriggerScan } from './triggerScan.ts';
 import { registerTriggerSearch } from './triggerSearch.ts';
@@ -147,6 +148,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerTriggerScan(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
+    registerSetMonitoring(server, write, adapters);
     registerRespondToRequest(server, write, adapters);
     registerDeleteRequest(server, write, adapters);
     registerAddMedia(server, write, adapters);
@@ -177,6 +179,7 @@ export const TOOL_NAMES = [
     'trigger_scan',
     'remove_queue_item',
     'delete_media',
+    'set_monitoring',
     'respond_to_request',
     'delete_request',
     'add_media'

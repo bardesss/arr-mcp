@@ -14,6 +14,7 @@ import type { ServiceAdapter } from '../src/services/types.ts';
 import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
+import { registerSetMonitoring } from '../src/tools/setMonitoring.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
@@ -505,5 +506,62 @@ describe('remove_queue_item', () => {
         await expect(h.call({ service: 'radarr', id: '91' })).rejects.toThrow(
             /services\.radarr\.permissions\.destructive: true/
         );
+    });
+});
+
+describe('set_monitoring', () => {
+    const routes = { '/api/v3/series/7': SERIES_FULL };
+
+    it('is a safe-tier write, allowed by safe_write alone', async () => {
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch(routes).impl)]
+        });
+        const first = await call({ service: 'sonarr', id: '7', monitored: false, season: 2 });
+        expect(first.structuredContent.tier).toBe('safe');
+        expect(first.structuredContent.permission.allowed).toBe(true);
+    });
+
+    it('names the target in the preview rather than an id', async () => {
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch(routes).impl)]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', monitored: false, season: 2 });
+        expect(preview.structuredContent.summary).toContain('season 2');
+        expect(preview.structuredContent.summary).toContain('Alien: Earth');
+        expect(preview.structuredContent.applied).toBe(false);
+        expect(preview.structuredContent.confirm_token).toBeDefined();
+    });
+
+    it('is a no-op when the season is already in the requested state', async () => {
+        // Season 1 is already monitored: true. Asking for true changes nothing,
+        // and a confirmation prompt for a no-op trains a model to confirm
+        // reflexively.
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch(routes).impl)]
+        });
+        const result = await call({ service: 'sonarr', id: '7', monitored: true, season: 1 });
+        expect(result.structuredContent.noop).toBe(true);
+        expect(result.structuredContent).not.toHaveProperty('confirm_token');
+    });
+
+    it('refuses season and episodes together instead of picking one', async () => {
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch(routes).impl)]
+        });
+        await expect(
+            call({ service: 'sonarr', id: '7', monitored: false, season: 2, episodes: ['11'] })
+        ).rejects.toThrow(/both/i);
+    });
+
+    it('refuses a service that cannot monitor', async () => {
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { radarr: tiered(true, false) },
+            adapters: [new RadarrAdapter(keyed(7878), recordingFetch({}).impl)]
+        });
+        await expect(call({ service: 'radarr', id: '412', monitored: false })).rejects.toThrow(ServiceError);
     });
 });
