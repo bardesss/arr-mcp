@@ -860,4 +860,91 @@ describe('delete_episode_files', () => {
             call({ service: 'sonarr', id: '7', season: 2, episodes: ['11'] })
         ).rejects.toThrow(/both/i);
     });
+
+    // Review round 2: three findings on the `episodes` path specifically.
+
+    it('warns that a monitored targeted episode will be re-downloaded', async () => {
+        // The episodes-target counterpart to the season warning above — the
+        // whole mitigation has a hole if only one of the two targets warns.
+        const RAW = [
+            { id: 11, seasonNumber: 2, episodeNumber: 1, title: 'Ep1', hasFile: true, monitored: true, episodeFileId: 102 }
+        ];
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': RAW }).impl)]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', episodes: ['11'] });
+        expect(preview.structuredContent.effects.join(' ')).toMatch(/still monitored.*re-download/i);
+    });
+
+    it('does not warn when the targeted episode is already unmonitored', async () => {
+        const RAW = [
+            { id: 11, seasonNumber: 2, episodeNumber: 1, title: 'Ep1', hasFile: true, monitored: false, episodeFileId: 102 }
+        ];
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': RAW }).impl)]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', episodes: ['11'] });
+        expect(preview.structuredContent.effects.join(' ')).not.toMatch(/re-download/i);
+    });
+
+    it('refuses rather than silently dropping an episode id it could not find', async () => {
+        // Previously: an id past the episode cap, or simply wrong, vanished
+        // from `fileIds` with nothing said — a 700-episode series asking for
+        // an id past the 500-episode cap got told "nothing to delete" about
+        // files that exist. The truth is "I could not see that episode".
+        const RAW = [
+            { id: 11, seasonNumber: 2, episodeNumber: 1, title: 'Ep1', hasFile: true, monitored: false, episodeFileId: 102 }
+        ];
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': RAW }).impl)]
+        });
+        await expect(call({ service: 'sonarr', id: '7', episodes: ['11', '999'] })).rejects.toThrow(/999/);
+    });
+
+    it('names a collateral episode that shares a file with the one actually requested', async () => {
+        // Sonarr stores a double episode as one `episodefile`. Targeting only
+        // episode 11 still takes episode 12's file with it — the preview must
+        // say so, not silently delete an episode nobody named.
+        const DOUBLE = [
+            { id: 11, seasonNumber: 2, episodeNumber: 1, title: 'Double A', hasFile: true, monitored: false, episodeFileId: 102 },
+            { id: 12, seasonNumber: 2, episodeNumber: 2, title: 'Double B', hasFile: true, monitored: false, episodeFileId: 102 }
+        ];
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': DOUBLE }).impl)]
+        });
+        const preview = await call({ service: 'sonarr', id: '7', episodes: ['11'] });
+        expect(preview.structuredContent.effects.join(' ')).toContain('S2E2');
+        // One file, but two episodes actually lose one — the preview's episode
+        // count must reflect that, not just the one id that was named.
+        expect(preview.structuredContent.summary).toContain('2 episode(s)');
+    });
+
+    it('dedupes a file shared by two requested episodes in the outgoing delete', async () => {
+        // Previously: requesting both halves of a double episode put the same
+        // file id in the DELETE body twice ([102, 102]) and the preview's
+        // count read "2 episode file(s)" for what is really one file.
+        const DOUBLE = [
+            { id: 11, seasonNumber: 2, episodeNumber: 1, title: 'Double A', hasFile: true, monitored: false, episodeFileId: 102 },
+            { id: 12, seasonNumber: 2, episodeNumber: 2, title: 'Double B', hasFile: true, monitored: false, episodeFileId: 102 }
+        ];
+        const recorder = recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': DOUBLE });
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recorder.impl)]
+        });
+
+        const preview = await call({ service: 'sonarr', id: '7', episodes: ['11', '12'] });
+        expect(preview.structuredContent.summary).toContain('1 episode file(s)');
+        // Both requested — no collateral to name.
+        expect(preview.structuredContent.effects.join(' ')).not.toContain('share');
+
+        const token = preview.structuredContent.confirm_token;
+        await call({ service: 'sonarr', id: '7', episodes: ['11', '12'], confirm: token });
+        const del = recorder.sent.find(s => s.method === 'DELETE');
+        expect(del?.body).toEqual({ episodeFileIds: [102] });
+    });
 });

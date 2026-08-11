@@ -3,7 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasEpisodeFiles, hasMediaDetails, type ServiceAdapter } from '../services/types.ts';
+import { hasEpisodeFiles, hasMediaDetails, type EpisodeSummary, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 const GIB = 1024 ** 3;
@@ -73,17 +73,63 @@ export function registerDeleteEpisodeFiles(
             const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
             const all = await adapter.listEpisodeFiles(id);
 
-            const fileIds =
-                season !== undefined
-                    ? all.filter(f => f.season === season).map(f => f.id)
-                    : (details.episodes ?? [])
-                          .filter(e => episodes?.includes(String(e.id)) === true)
-                          .map(e => e.episodeFileId)
-                          .filter((f): f is number => typeof f === 'number' && f > 0);
+            let fileIds: number[];
+            // Episodes whose file is about to go, so the preview can name
+            // exactly what will disappear and check their monitoring — not
+            // just the requested ids, which may be a strict subset of that
+            // (see `collateral` below).
+            let episodesLosingFiles: EpisodeSummary[] = [];
+            // Requested episodes that share a file with an episode the caller
+            // did not name — Sonarr routinely stores a double episode as one
+            // `episodefile`, so deleting episode 11's file can also remove
+            // episode 12's without episode 12 ever being asked for.
+            let collateral: EpisodeSummary[] = [];
+
+            if (season !== undefined) {
+                fileIds = all.filter(f => f.season === season).map(f => f.id);
+            } else {
+                const requested = episodes ?? [];
+                const allEpisodes = details.episodes ?? [];
+                const foundIds = new Set(allEpisodes.map(e => String(e.id)));
+
+                // An id `getMediaDetails` never returned — wrong, or past the
+                // 500-episode cap — is not "nothing to delete"; it is "I
+                // could not see that episode at all". Reporting a noop or a
+                // quietly-short count for that would misdescribe the request,
+                // so this refuses instead of guessing.
+                const unresolved = requested.filter(rid => !foundIds.has(rid));
+                if (unresolved.length > 0) {
+                    throw new ServiceError(
+                        'NotFound',
+                        service,
+                        `Could not find episode(s) ${unresolved.join(', ')} on ${label}` +
+                            (details.episodesTruncated === true
+                                ? ' — the episode list was truncated at 500, so they may simply not have been fetched.'
+                                : '.'),
+                        { remedy: 'Check the episode ids from get_media_details.' }
+                    );
+                }
+
+                const requestedIdSet = new Set(requested);
+                const targeted = allEpisodes.filter(e => requestedIdSet.has(String(e.id)));
+                const rawFileIds = targeted
+                    .map(e => e.episodeFileId)
+                    .filter((f): f is number => typeof f === 'number' && f > 0);
+                // De-duplicated: two requested episodes can share one file
+                // (a double episode), and the DELETE body must not carry the
+                // same id twice.
+                fileIds = Array.from(new Set(rawFileIds));
+
+                episodesLosingFiles = allEpisodes.filter(
+                    e => typeof e.episodeFileId === 'number' && fileIds.includes(e.episodeFileId)
+                );
+                collateral = episodesLosingFiles.filter(e => !requestedIdSet.has(String(e.id)));
+            }
 
             const bytes = all.filter(f => fileIds.includes(f.id)).reduce((sum, f) => sum + (f.sizeBytes ?? 0), 0);
             const size = humanSize(bytes);
-            const scope = season !== undefined ? `season ${season} of ${label}` : `${fileIds.length} episode(s) of ${label}`;
+            const episodeCount = season !== undefined ? fileIds.length : episodesLosingFiles.length;
+            const scope = season !== undefined ? `season ${season} of ${label}` : `${episodeCount} episode(s) of ${label}`;
 
             if (fileIds.length === 0) {
                 return {
@@ -94,21 +140,37 @@ export function registerDeleteEpisodeFiles(
                 };
             }
 
-            const monitored =
-                season !== undefined ? details.seasons?.find(s => s.season === season)?.monitored : undefined;
-
             const effects: string[] = [
                 size === undefined
                     ? `Deletes ${fileIds.length} file(s) from disk. This cannot be undone.`
                     : `Deletes ${size} across ${fileIds.length} file(s) from disk. This cannot be undone.`
             ];
 
-            // Only when it is actually still monitored. A warning that always
-            // fires is noise nobody reads.
-            if (monitored === true) {
+            if (collateral.length > 0) {
+                const names = collateral.map(e => `S${e.season}E${e.episode}`).join(', ');
                 effects.push(
-                    `Season ${season} is still monitored — Sonarr will search for these episodes again and re-download them. Unmonitor it first with set_monitoring.`
+                    `${names} share${collateral.length === 1 ? 's' : ''} a file with an episode you targeted, and will be deleted too.`
                 );
+            }
+
+            // Only when something targeted is actually still monitored. A
+            // warning that always fires is noise nobody reads.
+            if (season !== undefined) {
+                const monitored = details.seasons?.find(s => s.season === season)?.monitored;
+                if (monitored === true) {
+                    effects.push(
+                        `Season ${season} is still monitored — Sonarr will search for these episodes again and re-download them. Unmonitor it first with set_monitoring.`
+                    );
+                }
+            } else {
+                const stillMonitored = episodesLosingFiles.filter(e => e.monitored === true);
+                if (stillMonitored.length > 0) {
+                    const plural = stillMonitored.length > 1;
+                    const names = stillMonitored.map(e => `S${e.season}E${e.episode}`).join(', ');
+                    effects.push(
+                        `${names} ${plural ? 'are' : 'is'} still monitored — Sonarr will search for ${plural ? 'them' : 'it'} again and re-download ${plural ? 'them' : 'it'}. Unmonitor ${plural ? 'them' : 'it'} first with set_monitoring.`
+                    );
+                }
             }
 
             effects.push(
@@ -121,7 +183,11 @@ export function registerDeleteEpisodeFiles(
                 effects,
                 // The ids, not the season: a file imported between preview and
                 // confirm must not be swept up by a token issued before it
-                // existed. `apply` uses these rather than re-resolving.
+                // existed. The protection is the token's signature: `apply`
+                // gets whatever `plan` resolves at confirm time, and a
+                // resolution that has drifted from what was previewed fails to
+                // verify — the write is refused rather than applied against
+                // stale or changed ids.
                 args: { service, id, fileIds }
             };
         },
