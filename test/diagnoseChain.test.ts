@@ -470,6 +470,48 @@ describe('buildChain — certainty', () => {
         expect(d.verdict).toMatchObject({ stage: 'resolve', certain: false });
         expect(d.degraded).toEqual(['radarr']);
     });
+
+    it('stays certain when only a source within a service failed, since no stage here reads it', () => {
+        // `jellyfin:episodes` is a source, not a service: it contributes
+        // per-season watch state and nothing else, and no stage of this chain
+        // reads `seasons`. Counted as an outage it made this verdict — and
+        // every other one resting on the same check — hedge against a hole in
+        // none of them. Still listed in `degraded`, because naming what did
+        // not answer is honest; only the certainty claim changes.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: undefined,
+            libraryDegraded: ['jellyfin:episodes'],
+            degraded: []
+        });
+
+        expect(d.verdict).toMatchObject({ stage: 'resolve', certain: true });
+        expect(d.degraded).toEqual(['jellyfin:episodes']);
+    });
+
+    it('still doubts itself when the whole Jellyfin library read failed alongside the episode source', () => {
+        // The guard on the guard: the filter must key on the colon, not on
+        // "contains jellyfin".
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: undefined,
+            libraryDegraded: ['jellyfin', 'jellyfin:episodes'],
+            degraded: []
+        });
+        expect(d.verdict.certain).toBe(false);
+    });
+
+    it('still doubts itself for a second instance of a service, whose id carries a slash rather than a colon', () => {
+        // `radarr/4k` is a whole Radarr that did not answer — a real hole in
+        // the library, and nothing like a source within a service.
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: undefined,
+            libraryDegraded: ['radarr/4k'],
+            degraded: []
+        });
+        expect(d.verdict.certain).toBe(false);
+    });
 });
 
 describe('buildChain — verdict order is pinned, not incidental (I7)', () => {

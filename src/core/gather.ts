@@ -10,6 +10,26 @@ export type Gathered<T> = {
 };
 
 /**
+ * Just the whole-service ids out of a degraded list, dropping the
+ * source-scoped ones.
+ *
+ * A source id names either a whole service — `radarr`, or `radarr/4k` for a
+ * second instance of one — or a single source *within* a service, written
+ * `service:source`. `jellyfin:episodes` is the only one today: it contributes
+ * per-season watch state and nothing else. The colon is the discriminator; a
+ * slash deliberately is not, because a second instance is still a whole
+ * service whose absence is worth reporting.
+ *
+ * For the consumers that reason about whether a *service's own view* of the
+ * library was missed — diagnose's certainty, and get_media_details' hedge on a
+ * title it could not find. Neither reads `seasons`, and the episode source can
+ * only ever add seasons to items another source already returned, so its
+ * failure is no reason for either to doubt itself. `get_library`, which does
+ * return `seasons`, reports the unfiltered list: there the name is the answer.
+ */
+export const servicesOnly = (degraded: readonly string[]): string[] => degraded.filter(id => !id.includes(':'));
+
+/**
  * cross-service tools degrade, they do not fail. A tool
  * spanning four services with one down returns three services' results plus
  * the name of the fourth — never an exception, and never a silently short list
