@@ -271,8 +271,7 @@ describe('Jellyfin.listUserSeasons', () => {
     });
 });
 
-const RESUMABLE_ROUTE =
-    '/Items?userId=u1&Recursive=true&IsResumable=true&IncludeItemTypes=Movie,Episode&EnableUserData=true';
+const RESUMABLE_ROUTE = '/Users/u1/Items/Resume?Limit=500';
 
 const RESUMABLE = {
     Items: [
@@ -301,10 +300,10 @@ describe('Jellyfin.getPlayback', () => {
         new JellyfinAdapter(multi, serving({ '/Sessions': [], [RESUMABLE_ROUTE]: RESUMABLE }));
     const someone = { id: 'u1', name: 'Someone' };
 
-    it('reads the resumable set, not the Continue Watching row', async () => {
-        // /Users/{id}/Items/Resume returns Jellyfin's curated row — measured at
-        // 1 item against 171 genuinely resumable films. A tool promising "what
-        // you can continue watching" must not answer with the row.
+    it('reads the resumable set from the supported endpoint', async () => {
+        // /Users/{id}/Items/Resume is the supported way to ask for the resumable
+        // set. /Items?IsResumable=true looks like the right query but is silently
+        // ignored by Jellyfin 10.11 — it returns the entire library.
         const entries = await adapter().getPlayback(someone);
         expect(entries).toHaveLength(2);
         expect(entries.every(e => e.kind === 'resume')).toBe(true);
@@ -321,5 +320,12 @@ describe('Jellyfin.getPlayback', () => {
         // A film carries none of these — that is how a caller filters to films.
         const film = (await adapter().getPlayback(someone)).find(e => e.season === undefined);
         expect(film).not.toHaveProperty('seriesTitle');
+    });
+
+    it('sends an explicit Limit so truncation is decided by applyLimit, not an undocumented server default', async () => {
+        // The Resume endpoint has an undocumented default page size, so we send
+        // an explicit Limit=500 so the contract layer's applyLimit decides
+        // truncation and reports it, rather than the server doing so silently.
+        expect(RESUMABLE_ROUTE).toContain('Limit=500');
     });
 });

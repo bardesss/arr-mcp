@@ -197,23 +197,16 @@ export class JellyfinAdapter
         const [sessions, resume] = await Promise.all([
             this.#http.get<RawSession[]>('/Sessions'),
             /**
-             * `IsResumable=true`, **not** `/Users/{id}/Items/Resume`.
+             * `/Users/{id}/Items/Resume` is the supported way to ask for the
+             * resumable set. `/Items?IsResumable=true` looks like the right query
+             * but is silently ignored by Jellyfin 10.11 — it returns the entire
+             * library, not just resumable items.
              *
-             * That endpoint is Jellyfin's "Continue Watching" row, which is
-             * curated and small: measured live it returned 1 item against 171
-             * genuinely resumable films. A tool whose description promises
-             * "what they can continue watching" answered with one of a hundred
-             * and seventy-two — and reported `truncated: false`, because the
-             * truncation contract can only measure what the endpoint returned.
-             *
-             * No `Limit`: `listUserLibrary` fetches the whole library for the
-             * same reason, and a cap here would make `total` understate the set
-             * in exactly the way this change exists to fix.
+             * `Limit=500` ensures truncation is decided by `applyLimit` in the
+             * contract layer, which reports it, rather than by an undocumented
+             * server default page size, which does not.
              */
-            this.#http.get<RawItemsPage>(
-                `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IsResumable=true` +
-                    '&IncludeItemTypes=Movie,Episode&EnableUserData=true'
-            )
+            this.#http.get<RawItemsPage>(`/Users/${encodeURIComponent(user.id)}/Items/Resume?Limit=500`)
         ]);
 
         const common = (item: RawItem) => ({
