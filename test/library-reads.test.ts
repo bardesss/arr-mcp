@@ -39,7 +39,12 @@ const SERIES = [
         imdbId: 'tt5687612',
         genres: ['Drama'],
         ratings: { votes: 164018, value: 8.3 },
-        statistics: { sizeOnDisk: 90_000_000_000, episodeFileCount: 8 }
+        statistics: { sizeOnDisk: 90_000_000_000, episodeFileCount: 8 },
+        seasons: [
+            { seasonNumber: 0, monitored: false, statistics: { episodeFileCount: 0, episodeCount: 0, totalEpisodeCount: 3 } },
+            { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8, episodeCount: 8, totalEpisodeCount: 8 } },
+            { seasonNumber: 2, monitored: true, statistics: { episodeFileCount: 2, episodeCount: 6, totalEpisodeCount: 10 } }
+        ]
     }
 ];
 
@@ -131,6 +136,28 @@ describe('Sonarr.listLibrary', () => {
     it('reports no quality, because a series quality would be a fiction', async () => {
         const [item] = await adapter().listLibrary();
         expect(item?.acquisition?.quality).toBeUndefined();
+    });
+
+    it('reports TVDB episode counts per season, which is what makes "finished" answerable', async () => {
+        const [item] = await adapter().listLibrary();
+        expect(item?.seasons).toEqual([
+            { season: 0, onDisk: 0, aired: 0, total: 3 },
+            { season: 1, onDisk: 8, aired: 8, total: 8 },
+            { season: 2, onDisk: 2, aired: 6, total: 10 }
+        ]);
+    });
+
+    it('reports specials like any other season rather than dropping them', async () => {
+        // Season 0 is real data. Deciding it is not television belongs to the
+        // caller, which filters `season > 0`, not to this server.
+        const [item] = await adapter().listLibrary();
+        expect(item?.seasons?.some(s => s.season === 0)).toBe(true);
+    });
+
+    it('omits seasons entirely when Sonarr reported none', async () => {
+        const bare = new SonarrAdapter(keyed, serving({ '/api/v3/series': [{ id: 7, title: 'Bare', tvdbId: 1 }] }));
+        const [item] = await bare.listLibrary();
+        expect(item).not.toHaveProperty('seasons');
     });
 });
 

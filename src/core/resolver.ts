@@ -19,6 +19,33 @@ export type MergedRatings = {
     tvdb?: number;
 };
 
+/**
+ * One season's watch state, joined from two services that each know half of it.
+ *
+ * Every field but `season` is optional because either half can be missing:
+ * a `jellyfin_only` series has `watched` and no denominator, an `arr_only`
+ * series has denominators and no `watched`. In both cases `complete` is
+ * **absent, never `false`** — the rule `has_file` already follows at
+ * `getLibrary.ts:263`. A `false` here would put a season you had finished onto
+ * a list of things still to watch, and `watched: 0` would claim Jellyfin looked
+ * and found nothing played, which is a different fact from never having asked.
+ */
+export type SeasonSummary = {
+    season: number;
+    /** Jellyfin: episodes in this season with `UserData.Played`. */
+    watched?: number;
+    /** Jellyfin: the newest `LastPlayedDate` across the season. */
+    lastPlayed?: string;
+    /** Sonarr `episodeFileCount` — what is on disk. */
+    onDisk?: number;
+    /** Sonarr `episodeCount` — what has aired. */
+    aired?: number;
+    /** Sonarr `totalEpisodeCount` — TVDB's count, including unaired. */
+    total?: number;
+    /** Computed in `LibraryIndex.build`, never by a service. */
+    complete?: boolean;
+};
+
 export type MergedItem = {
     kind: 'movie' | 'series';
     title: string;
@@ -48,6 +75,8 @@ export type MergedItem = {
         addedAt?: string;
     };
     playback?: { user: string; watched: boolean; playCount?: number; lastPlayed?: string };
+    /** Series only. Films have no seasons and carry this field never. */
+    seasons?: SeasonSummary[];
     ratings?: MergedRatings;
     /**
      * What no single service can tell you.
