@@ -45,8 +45,10 @@ All eight are supported as of 0.3.
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again |
+| `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `delete_media` | Remove this film or series, optionally from disk |
+| `delete_episode_files` | Free disk from one Sonarr season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
 | `add_media` | Add this film or series and start looking for it |
@@ -93,7 +95,18 @@ fails on its own, `degraded` gains `jellyfin:episodes` — Sonarr's half of
 half (`watched`, `lastPlayed`) and `complete`, which needs both halves, go
 missing. Film watch state and `presence` stay unaffected.
 
-The first thirteen are reads. The last six write, and are gated as described
+`get_playback` reads Jellyfin's actual resumable set (`IsResumable=true`),
+not its curated "Continue Watching" row — that row is small and hand-picked,
+and measured live it returned 1 item against 171 genuinely resumable films.
+That makes `limit` (default 50, like every other tool) worth
+setting deliberately here, and it means `truncated: true` on this tool now
+tells the truth instead of confirming a curated handful. To find, say, films
+you are partway through: keep only `kind: "resume"`, keep entries with no
+`seriesTitle`, `season` or `episode` (an episode carries all three; a film
+carries none), then compare `percentComplete` yourself — arr-mcp does not
+filter by how far in you are.
+
+The first thirteen are reads. The last eight write, and are gated as described
 under [Writes](#writes) — off by default, previewed before they act, recorded
 either way.
 
@@ -143,8 +156,10 @@ a film but refuses to re-monitor it.
 | `trigger_search` | safe | `safe_write` |
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
+| `set_monitoring` | safe | `safe_write` |
 | `remove_queue_item` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
+| `delete_episode_files` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
 
 Approving and declining a request are one tool and deleting one is another,
@@ -193,6 +208,28 @@ delete_media { service: "radarr", id: "1535", delete_files: true }
 > - Deletes 18.8 GB from disk. This cannot be undone.
 > - Removes They Will Kill You (2026) from radarr, along with its monitoring
 >   and history.
+
+Two more tools work below the level of a whole item. `set_monitoring` (safe —
+`safe_write` alone is enough, nothing is deleted and Sonarr can undo it) turns
+monitoring on or off for a whole series, one season, or specific episodes:
+give `season` or `episodes`, never both, and giving neither targets the whole
+series. `delete_episode_files` (destructive) deletes the files for one season
+or specific episodes — there is no whole-series form here, because that is
+what `delete_media` already does.
+
+**Unmonitor before you delete.** If a season's or episode's files are deleted
+while it is still monitored, Sonarr treats them as missing and re-downloads
+exactly what you just deleted — the reason these shipped as two separate
+tools rather than one that does both. `delete_episode_files`'s preview warns
+when the target is still monitored, and says nothing when it is not, so the
+warning is worth reading rather than skipping past. Given an episode id it
+cannot resolve, `delete_episode_files` refuses outright rather than silently
+dropping it — and when a file holds more than one episode, which Sonarr
+routinely does for a double episode, it names every episode the delete would
+take with it, not just the one you asked for. Episode ids for both tools come
+from `get_media_details`, whose `episodes` also carry
+`episodeFileId` — the file each episode is on, when it has one — which is how
+`delete_episode_files` resolves a target without a second read.
 
 `dry_run: true` is the separate, terminal form: it describes the effect and
 issues no token at all, so it can never turn into a write. It works even with
@@ -499,7 +536,7 @@ does not.
 
 ## Prompts and resources
 
-Nineteen tools cover what arr-mcp can do. They do not tell you which one to
+Twenty-one tools cover what arr-mcp can do. They do not tell you which one to
 reach for, and the questions people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

@@ -187,8 +187,15 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 ]
             },
             {
+                // `episodeFileId` is what delete_episode_files.ts resolves an
+                // episode id to a file id through — it reads the field off
+                // `EpisodeSummary`, itself mapped straight from this one.
+                // Without this entry an upstream rename would make every
+                // episode look fileless to that tool: it would report
+                // "nothing to delete" for a season that plainly has files, a
+                // silent no-op nobody notices with a green suite.
                 fixture: 'test/fixtures/sonarr/episode.json',
-                fields: ['id', 'seasonNumber', 'episodeNumber', 'title', 'hasFile', 'monitored']
+                fields: ['id', 'seasonNumber', 'episodeNumber', 'title', 'hasFile', 'monitored', 'episodeFileId']
             },
             { fixture: 'test/fixtures/sonarr/series-lookup.json', fields: ['title', 'tvdbId'] }
         ]
