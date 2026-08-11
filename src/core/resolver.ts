@@ -124,6 +124,26 @@ const keysOf = (kind: MergedItem['kind'], ids: ExternalIds): string[] => {
     return out;
 };
 
+/**
+ * Joins season rows **per season number**, because the two halves of one row
+ * come from different services: Sonarr supplies the denominators, Jellyfin the
+ * watch counts.
+ *
+ * `absorb` replaces `playback` wholesale, which is right for a field one service
+ * owns end to end. Doing the same here would let whichever source merged last
+ * erase the other's half of every row — and which one merges last depends on
+ * adapter order, so the bug would be intermittent rather than obvious.
+ *
+ * Both mappers omit absent fields rather than setting them undefined, so the
+ * spread cannot clobber a known value with a hole.
+ */
+function mergeSeasons(target: SeasonSummary[] | undefined, input: readonly SeasonSummary[]): SeasonSummary[] {
+    const rows = new Map<number, SeasonSummary>();
+    for (const row of target ?? []) rows.set(row.season, { ...row });
+    for (const row of input) rows.set(row.season, { ...rows.get(row.season), ...row });
+    return [...rows.values()].sort((a, b) => a.season - b.season);
+}
+
 function mergeInto(target: MergedItem, input: IndexInput): void {
     // The *arr title wins: it is the managed one, and the one a user sees in
     // the service they would go and fix something in.
@@ -136,6 +156,7 @@ function mergeInto(target: MergedItem, input: IndexInput): void {
     target.ids = { ...target.ids, ...input.ids };
     if (input.acquisition !== undefined) target.acquisition = input.acquisition;
     if (input.playback !== undefined) target.playback = input.playback;
+    if (input.seasons !== undefined) target.seasons = mergeSeasons(target.seasons, input.seasons);
     if (input.ratings !== undefined) target.ratings = { ...target.ratings, ...input.ratings };
 }
 
@@ -240,6 +261,18 @@ export class LibraryIndex {
                       : item.playback !== undefined
                         ? 'jellyfin_only'
                         : 'unknown';
+            // Here rather than in `absorb` for the reason `presence` is here:
+            // this is the first point at which an item is fully merged, and a
+            // verdict computed mid-merge would be computed against half the
+            // evidence. `total === 0` is excluded because 0 >= 0 would report a
+            // season with no episodes as finished.
+            if (item.seasons !== undefined) {
+                item.seasons = item.seasons.map(s =>
+                    s.total === undefined || s.watched === undefined || s.total === 0
+                        ? s
+                        : { ...s, complete: s.watched >= s.total }
+                );
+            }
             for (const key of keysOf(item.kind, item.ids)) finalByKey.set(key, item);
         }
 
