@@ -412,9 +412,14 @@ export class SonarrAdapter
     }
 
     /**
-     * Sonarr's half of a season row: the three denominators, no watch state.
-     * Sorted by season number so responses are stable across calls and diffable in
-     * tests — Sonarr's own order is not guaranteed.
+     * Sonarr's half of a season row: the three denominators and the monitoring
+     * flag, no watch state. Sorted by season number so responses are stable
+     * across calls and diffable in tests — Sonarr's own order is not guaranteed.
+     *
+     * `monitored` is carried here as well as on `getMediaDetails` so that
+     * `seasons[].monitored` means one thing on both forms `get_media_details`
+     * can return. Omitted when Sonarr did not report it, never defaulted to
+     * `false` — see `SeasonSummary`.
      */
     #seasonsOf(raw: RawSeries): SeasonSummary[] | undefined {
         if (raw.seasons === undefined) return undefined;
@@ -422,6 +427,7 @@ export class SonarrAdapter
             .filter((s): s is typeof s & { seasonNumber: number } => typeof s.seasonNumber === 'number')
             .map(s => ({
                 season: s.seasonNumber,
+                ...(s.monitored === undefined ? {} : { monitored: s.monitored }),
                 ...(s.statistics?.episodeFileCount === undefined ? {} : { onDisk: s.statistics.episodeFileCount }),
                 ...(s.statistics?.episodeCount === undefined ? {} : { aired: s.statistics.episodeCount }),
                 ...(s.statistics?.totalEpisodeCount === undefined ? {} : { total: s.statistics.totalEpisodeCount })

@@ -87,13 +87,24 @@ whenever either half can't be compared — a series no *arr manages has no
 season Sonarr reports with zero total episodes, so an unannounced or empty
 season is never reported as finished. Treating an absent
 `complete` as `false` would put a season you already finished on a list of
-things still to watch. `seasons` is omitted below `detail: "full"`; asked by
-title, `get_media_details` always includes it, because that path returns the
-merged record unprojected rather than a shaped one. If Jellyfin's episode read
-fails on its own, `degraded` gains `jellyfin:episodes` — Sonarr's half of
-`seasons` survives intact (`onDisk`, `aired` and `total`), and only the watch
-half (`watched`, `lastPlayed`) and `complete`, which needs both halves, go
-missing. Film watch state and `presence` stay unaffected.
+things still to watch. Each row also carries `monitored` — Sonarr's own
+per-season flag, and the one to check before deleting a season's files, since
+deleting the files of a monitored season makes Sonarr search for exactly what
+you removed. It is **absent, never `false`**, for a series no Sonarr manages:
+nothing is monitoring it, which is a different fact from monitoring being off.
+
+**`get_library`** omits `seasons` below `detail: "full"`. **`get_media_details`**
+carries it at every detail level, on both of its forms: asked by title it
+returns the merged record unprojected rather than a shaped one, and asked by
+`service` plus `id` Sonarr's own view puts `seasons` in the base payload, before
+the gate that adds episodes. `monitored` means the same thing on both forms, so
+neither answer leaves you guessing about it.
+
+If Jellyfin's episode read fails on its own, `degraded` gains
+`jellyfin:episodes` — Sonarr's half of `seasons` survives intact (`onDisk`,
+`aired`, `total` and `monitored`), and only the watch half (`watched`,
+`lastPlayed`) and `complete`, which needs both halves, go missing. Film watch
+state and `presence` stay unaffected.
 
 `get_playback` reads what can be continued from `/Users/{id}/Items/Resume`,
 Jellyfin's own answer to the question — `/Items?IsResumable=true` looks like

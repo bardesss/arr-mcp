@@ -141,10 +141,36 @@ describe('Sonarr.listLibrary', () => {
     it('reports TVDB episode counts per season, which is what makes "finished" answerable', async () => {
         const [item] = await adapter().listLibrary();
         expect(item?.seasons).toEqual([
-            { season: 0, onDisk: 0, aired: 0, total: 3 },
-            { season: 1, onDisk: 8, aired: 8, total: 8 },
-            { season: 2, onDisk: 2, aired: 6, total: 10 }
+            { season: 0, monitored: false, onDisk: 0, aired: 0, total: 3 },
+            { season: 1, monitored: true, onDisk: 8, aired: 8, total: 8 },
+            { season: 2, monitored: true, onDisk: 2, aired: 6, total: 10 }
         ]);
+    });
+
+    // `get_media_details` returns the merged record for a title and Sonarr's
+    // own view for a service+id, and both put their season rows on `seasons`.
+    // Before this, only the by-id form carried `monitored` — so a model that
+    // asked the natural way saw season rows with no monitoring at all and,
+    // reading absent as false, could delete files Sonarr then re-downloads.
+    it('carries per-season monitoring, so seasons[].monitored means one thing on both forms', async () => {
+        const sonarr = new SonarrAdapter(
+            keyed,
+            serving({ '/api/v3/series': SERIES, '/api/v3/series/7': SERIES[0] })
+        );
+        const [merged] = await sonarr.listLibrary();
+        const details = await sonarr.getMediaDetails('7', { includeEpisodes: false, episodeLimit: 0 });
+
+        expect(merged?.seasons?.map(s => s.monitored)).toEqual([false, true, true]);
+        expect(details.seasons?.map(s => s.monitored)).toEqual([false, true, true]);
+    });
+
+    it('omits monitored Sonarr did not report rather than calling it false', async () => {
+        const bare = new SonarrAdapter(
+            keyed,
+            serving({ '/api/v3/series': [{ id: 7, title: 'Bare', tvdbId: 1, seasons: [{ seasonNumber: 1 }] }] })
+        );
+        const [item] = await bare.listLibrary();
+        expect(item?.seasons?.[0]).not.toHaveProperty('monitored');
     });
 
     it('reports specials like any other season rather than dropping them', async () => {
