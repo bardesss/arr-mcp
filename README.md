@@ -70,7 +70,7 @@ yourself.
 
 | | |
 | --- | --- |
-| **[Tools](docs/tools.md)** | All twenty-one, what each answers, and the fields whose meaning is not obvious |
+| **[Tools](docs/tools.md)** | All twenty-two, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, several Radarrs, Jellyfin's `default_user` |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
@@ -103,7 +103,7 @@ arr-mcp is itself built with a coding agent. Point yours at
 
 **Missing a tool?** [Open an issue](../../issues/new/choose) describing the
 question you could not get answered rather than the tool you think should
-exist — at twenty-one tools the answer is usually a new parameter on one that
+exist — at twenty-two tools the answer is usually a new parameter on one that
 already exists.
 
 ## Security
