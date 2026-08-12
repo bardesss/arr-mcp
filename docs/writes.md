@@ -1,8 +1,8 @@
-# Writes in detail
+# Writes
 
-Nothing writes to your stack until you say so, per service. The
-[README](../README.md#writes) has the summary; this is how each guarantee
-actually behaves.
+Nothing writes to your stack until you say so, per service. Every write is
+previewed before it acts and recorded either way — this is how each of those
+guarantees actually behaves.
 
 ## Permissions
 
