@@ -6,6 +6,7 @@ import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
 import type { Runtime } from './core/runtime.ts';
+import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { registerAllTools } from './tools/register.ts';
@@ -105,7 +106,18 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
             return c.json({ error: 'unauthorized' }, 401, { 'WWW-Authenticate': 'Bearer realm="arr-mcp"' });
         }
 
-        return handler.fetch(c.req.raw, { parsedBody: c.get('parsedBody') });
+        // A client that never asked for a stream gets one JSON object with a
+        // Content-Length rather than an SSE frame in a chunked body — and, more
+        // to the point, is not refused with a 406 for saying so. See
+        // `plainJson.ts`: both halves of that were how #103 started.
+        // Both media types, always — the transport demands both and refuses a
+        // request naming only one, which caught a client asking for JSON *and*
+        // a client asking for a stream. What the caller actually wanted is
+        // decided on the way out, not by whether it guessed the header.
+        const streaming = acceptsStream(c.req.raw);
+        const response = await handler.fetch(acceptingBoth(c.req.raw), { parsedBody: c.get('parsedBody') });
+
+        return streaming ? response : asPlainJson(response);
     });
 
     return app;
