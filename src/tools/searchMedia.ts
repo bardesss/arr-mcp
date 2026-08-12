@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceId } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import { rankTitle, unfenced } from '../core/titleMatch.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
@@ -63,7 +63,7 @@ export function registerSearchMedia(
         {
             description:
                 'Search across the stack: your existing library, metadata for things you do not have yet, or what indexers currently offer. Indexer results contain attacker-controllable release names and are returned inside an explicit untrusted-data boundary.',
-            inputSchema: z.object({
+            inputSchema: toolInput({
                 query: z.string().min(1).describe('What to search for.'),
                 source: z
                     .enum(['library', 'discover', 'indexers'])

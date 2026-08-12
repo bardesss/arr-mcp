@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { DetailSchema, LimitSchema, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { buildSearchMedia, type GetSearchResult } from './searchMedia.ts';
@@ -31,7 +31,7 @@ export function registerLookupMedia(
         {
             description:
                 'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr and Seerr. Reads only — nothing is added, requested or monitored.',
-            inputSchema: z.object({
+            inputSchema: toolInput({
                 query: z.string().min(1).describe('What to look up.'),
                 detail: DetailSchema,
                 limit: LimitSchema

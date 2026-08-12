@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, preferred, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -134,7 +134,7 @@ export function registerDiscoverMedia(
         {
             description:
                 'Browse what exists rather than what you have: films or series by genre, year and minimum rating. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so `genre` is a TMDB genre id and the rating is TMDB’s. With no Seerr it is answered from the local IMDb dataset instead, where `genre` is a name such as `Crime` and the rating is IMDb’s; passing a numeric id there is refused rather than silently matching nothing.',
-            inputSchema: z.object({
+            inputSchema: toolInput({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Defaults to films.'),
                 // Undocumented on purpose: the spelling this tool had when the
                 // surface froze at 1.0. Kept working forever — removing it
@@ -146,7 +146,7 @@ export function registerDiscoverMedia(
                 min_rating: z.number().min(0).max(10).optional().describe('Minimum TMDB rating out of 10.'),
                 detail: DetailSchema,
                 limit: LimitSchema
-            })
+            }, { undocumented: ['media_type'] })
         },
         async ({ kind, media_type, genre, year, min_rating, detail, limit }) => {
             const resolved =

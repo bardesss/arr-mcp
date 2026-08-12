@@ -1,6 +1,6 @@
 # Tools
 
-Twenty-one of them. The first thirteen read; the last eight write, and are off
+Twenty-two of them. The first thirteen read; the last nine write, and are off
 until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -19,6 +19,7 @@ until you turn them on — see [writes](writes.md).
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again |
+| `trigger_scan` | Rescan a library — it downloaded but still will not play |
 | `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `delete_media` | Remove this film or series, optionally from disk |
@@ -43,6 +44,15 @@ silently hide another.
 
 `diagnose` takes a title, or an exact `service` plus `id`, and returns a verdict
 rather than a list.
+
+**An argument a tool does not have is refused, and the refusal lists the ones it
+does have.** Dropping it silently would be worse than it sounds: the call
+succeeds, the invented argument is gone, and the answer is indistinguishable
+from one where it had been honoured. That is [#103] — an agent sent `offset` and
+`source` to `get_library`, got a clean `200`, and reported the library as
+unpaginable, never having learned that `limit` was the parameter it wanted.
+
+[#103]: https://github.com/bardesss/arr-mcp/issues/103
 
 ## `diagnose`
 
@@ -170,7 +180,7 @@ how far in you are.
 
 ## Prompts and resources
 
-Twenty-one tools do not tell you which one to reach for, and the questions
+Twenty-two tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

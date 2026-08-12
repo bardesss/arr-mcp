@@ -4,6 +4,7 @@ import type { WriteAudit } from '../core/audit.ts';
 import type { ConfirmTokens, WriteIntent } from '../core/confirm.ts';
 import { ServiceError } from '../core/errors.ts';
 import { checkPermission, type PermissionSource, type WriteTier } from '../core/permissions.ts';
+import { toolInput } from '../core/shape.ts';
 import type { LibraryLoader } from './library.ts';
 
 /**
@@ -127,7 +128,13 @@ export function registerWriteTool<Schema extends z.ZodObject>(
         spec.name,
         {
             description: spec.description,
-            inputSchema: spec.inputSchema.extend({ dry_run: DryRunSchema, confirm: ConfirmSchema })
+            // Rebuilt through `toolInput` rather than extended, and the
+            // difference is the error text: strictness carried over from the
+            // spec's own schema would list only the tool's half, so a caller
+            // that mistyped one argument would be told `dry_run` and `confirm`
+            // — the two parameters the write protocol itself runs on — are not
+            // parameters of this tool.
+            inputSchema: toolInput({ ...spec.inputSchema.shape, dry_run: DryRunSchema, confirm: ConfirmSchema })
         },
         async (raw: Record<string, unknown>) => {
             const { dry_run: dryRun, confirm: presented, ...rest } = raw as {

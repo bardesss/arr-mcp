@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import type { MediaRequest, RequestStatus } from '../services/types.ts';
 import { UserSchema } from './getPlayback.ts';
@@ -66,7 +66,7 @@ export function registerGetRequests(
         {
             description:
                 'Media requests in Seerr — pending, approved or declined — for one user. Defaults to the configured user; reading another requires allow_other_users.',
-            inputSchema: z.object({
+            inputSchema: toolInput({
                 detail: DetailSchema,
                 limit: LimitSchema,
                 user: UserSchema,
