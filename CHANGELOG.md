@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/bardesss/arr-mcp/compare/v1.4.0...v1.4.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* stop a service card save from switching the IMDb dataset off ([#97](https://github.com/bardesss/arr-mcp/issues/97)) ([ca82abf](https://github.com/bardesss/arr-mcp/commit/ca82abfc19be9467ecaaac79935051f109497130))
+
 ## [1.4.0](https://github.com/bardesss/arr-mcp/compare/v1.3.0...v1.4.0) (2026-08-11)
 
 
