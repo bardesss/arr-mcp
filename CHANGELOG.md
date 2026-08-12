@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/bardesss/arr-mcp/compare/v1.4.1...v1.4.2) (2026-08-12)
+
+
+### Bug Fixes
+
+* make the config UI usable on a phone, and the write audit readable ([#99](https://github.com/bardesss/arr-mcp/issues/99)) ([19931d3](https://github.com/bardesss/arr-mcp/commit/19931d3674f9f389b052d2889fc11f9a17f8f141))
+
 ## [1.4.1](https://github.com/bardesss/arr-mcp/compare/v1.4.0...v1.4.1) (2026-08-12)
 
 
