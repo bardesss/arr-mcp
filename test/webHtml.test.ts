@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiskSpace } from '../src/services/types.ts';
 import { JS } from '../src/web/assets.ts';
 import { esc, html, humanBytes, raw, shortTime } from '../src/web/html.ts';
-import { groupDisks } from '../src/web/pages.ts';
+import { auditPage, groupDisks, loginPage, type AuditRow } from '../src/web/pages.ts';
 
 describe('escaping', () => {
     it('neutralises the characters that end a tag or an attribute', () => {
@@ -190,6 +190,83 @@ describe('grouping the disks a stack reports', () => {
             disk('jellyfin', 4_800_000_000_000, 11_878_195_200_000)
         ]);
         expect(groups).toHaveLength(2);
+    });
+});
+
+/**
+ * The audit trail's arguments are stored as JSON in one column, and printing
+ * that column into a cell is what made this page unreadable: an object on one
+ * line, beside six other columns.
+ */
+describe('the write audit', () => {
+    const row = (over: Partial<AuditRow> = {}): AuditRow => ({
+        at: '2026-08-12T14:03:11.000Z',
+        tool: 'delete_media',
+        service: 'radarr/4k',
+        operation: 'delete',
+        tier: 'destructive',
+        target: '1535',
+        args: '{"id":"1535","delete_files":true}',
+        outcome: 'applied',
+        detail: null,
+        ...over
+    });
+
+    it('renders each recorded argument as its own field', () => {
+        const page = auditPage({ version: '1.4.1', rows: [row()] });
+
+        expect(page).toContain('<dt class="mono">delete_files</dt>');
+        expect(page).toContain('<dd class="mono">true</dd>');
+        // The blob it is stored as never reaches the page.
+        expect(page).not.toContain('{&quot;id&quot;');
+    });
+
+    it('shows arguments that do not parse verbatim rather than dropping them', () => {
+        const page = auditPage({ version: '1.4.1', rows: [row({ args: 'not json at all' })] });
+        expect(page).toContain('not json at all');
+    });
+
+    // A log's value is that nothing goes missing from it, so a shape nobody
+    // expected is a reason to print it, not to skip the row.
+    it('survives arguments that are valid JSON but not an object', () => {
+        const page = auditPage({ version: '1.4.1', rows: [row({ args: '[1,2]' })] });
+        expect(page).toContain('[1,2]');
+        expect(page).toContain('delete_media');
+    });
+
+    it('marks the outcomes worth stopping on, and leaves a preview unmarked', () => {
+        const marked = auditPage({ version: '1.4.1', rows: [row({ outcome: 'failed' })] });
+        expect(marked).toContain('<span class="badge failed">failed</span>');
+
+        const plain = auditPage({ version: '1.4.1', rows: [row({ outcome: 'unconfirmed' })] });
+        expect(plain).toContain('<span class="badge unconfirmed">unconfirmed</span>');
+    });
+
+    it('escapes a detail the service handed back', () => {
+        const page = auditPage({
+            version: '1.4.1',
+            rows: [row({ outcome: 'failed', detail: '<img src=x onerror=alert(1)>' })]
+        });
+        expect(page).not.toContain('<img src=x');
+        expect(page).toContain('&lt;img src=x');
+    });
+});
+
+/**
+ * The footer is on every page including sign-in, because the person locked out
+ * is exactly the person who needs the issue tracker.
+ */
+describe('the footer', () => {
+    it('links to the repository and the issue form, without leaking the host', () => {
+        const page = loginPage({ version: '1.4.1' });
+
+        // Both carry noreferrer: a plain-http LAN page linking out would
+        // otherwise hand github.com the hostname and port this instance
+        // answers on.
+        expect(page).toContain('href="https://github.com/bardesss/arr-mcp" target="_blank" rel="noreferrer"');
+        expect(page).toContain(
+            'href="https://github.com/bardesss/arr-mcp/issues/new/choose" target="_blank" rel="noreferrer"'
+        );
     });
 });
 

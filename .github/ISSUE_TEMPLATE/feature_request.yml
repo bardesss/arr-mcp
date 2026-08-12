@@ -1,0 +1,116 @@
+name: Feature request
+description: A question arr-mcp cannot answer, or a service it does not speak to
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Describe the question you could not get answered, not the tool you
+        think should exist.** Knowing which question goes unanswered is most of
+        the work; the code that answers it is the easy half.
+
+        This matters because the answer is often a new parameter or a new field
+        on a tool that already exists. Twenty-one tools is close to the ceiling
+        — model accuracy degrades measurably past roughly forty — so new
+        capability extends an existing tool before it adds one. A request framed
+        as a question can be answered that way. One framed as a tool name
+        usually cannot.
+
+        Requests you never intend to write the code for are welcome. So are
+        ones you do — see
+        [CONTRIBUTING.md](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: question
+    attributes:
+      label: What did you ask, and what came back?
+      description: >-
+        The actual question you put to your MCP client, and what arr-mcp
+        answered — a refusal, an empty list, the wrong thing, or nothing at all.
+      placeholder: >-
+        "Which of my films are on a drive that is nearly full?" — get_library
+        returned the films but nothing about which disk they are on.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should the answer have been?
+      description: >-
+        Roughly what you expected back. If you already know which tool is
+        closest and what it is missing, say so here.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: services
+    attributes:
+      label: Which services would this have to read?
+      description: >-
+        Tick what you think it needs. Guessing is fine — tick nothing if you
+        are not sure.
+      options:
+        - label: Radarr
+        - label: Sonarr
+        - label: Prowlarr
+        - label: Bazarr
+        - label: Jellyfin
+        - label: Seerr
+        - label: SABnzbd
+        - label: Transmission
+
+  - type: input
+    id: unsupported-service
+    attributes:
+      label: A service arr-mcp does not support at all?
+      description: >-
+        Name it and its version. Adapters are the most self-contained thing in
+        the codebase and the highest-value contribution — but a service the
+        maintainer does not run cannot be tested in review, so one you are
+        willing to test yourself against a live instance goes much further than
+        one nobody can exercise.
+      placeholder: 'Lidarr 2.14.0'
+
+  - type: dropdown
+    id: writes
+    attributes:
+      label: Would this change anything in your stack?
+      description: >-
+        Reads ship freely. Writes are gated per service and per tier, and a
+        write that loses data — files, history, a blocklist entry — is a
+        different conversation from one the service can undo.
+      options:
+        - 'No — it only reads'
+        - 'Yes, but reversibly (monitor, search, approve)'
+        - 'Yes, destructively (delete files, remove a record)'
+        - 'Not sure'
+    validations:
+      required: true
+
+  - type: input
+    id: arr-mcp-version
+    attributes:
+      label: arr-mcp version
+      description: The image tag you are on, or `git rev-parse --short HEAD` if running from source.
+      placeholder: '1.4.1'
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How are you working around it today?
+      description: >-
+        Optional, and more useful than it sounds — a workaround that almost
+        works usually points at the field that is missing.
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Before submitting
+      options:
+        - label: >-
+            I checked the tool list in the README, including each tool's
+            parameters, and none of them answers this.
+          required: true
