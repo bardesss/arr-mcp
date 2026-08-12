@@ -43,7 +43,12 @@ nav a {
 }
 nav a:hover { background: var(--panel-2); color: var(--text); }
 nav a.on { background: var(--panel-2); color: var(--text); }
-main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem 2rem; }
+footer {
+  max-width: 1100px; margin: 0 auto; padding: 1rem 1.25rem 2.5rem;
+  border-top: 1px solid var(--line); color: var(--dim); font-size: .85rem;
+  display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; align-items: baseline;
+}
 h2 { font-size: 1.05rem; margin: 2rem 0 .75rem; }
 h2:first-child { margin-top: 0; }
 p.note { color: var(--dim); font-size: .9rem; margin: .35rem 0 1rem; }
@@ -64,7 +69,14 @@ p.note { color: var(--dim); font-size: .9rem; margin: .35rem 0 1rem; }
   background: var(--panel-2); border-radius: 0 6px 6px 0; font-size: .85rem; color: var(--text);
 }
 table { width: 100%; border-collapse: collapse; font-size: .87rem; }
-th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+/* A health message, a mount path, a URL: one long unbroken value in a cell is
+   enough to push the whole page sideways on a phone. overflow-wrap is
+   "anywhere" rather than "break-word" because only that value lets the cell's
+   min-content width shrink, which is the part that stops the overflow. */
+th, td {
+  text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line);
+  vertical-align: top; overflow-wrap: anywhere;
+}
 th { color: var(--dim); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
 td.mono, .mono { font-family: var(--mono); font-size: .85em; }
 tr.lvl-40 td { color: var(--warn); } tr.lvl-50 td, tr.lvl-60 td { color: var(--bad); }
@@ -111,9 +123,68 @@ dialog {
 }
 dialog::backdrop { background: rgba(0, 0, 0, .6); }
 dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; overflow: auto; }
-.token { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
-.token input { flex: 1; font-family: var(--mono); font-size: .8rem; }
+.token { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap; }
+/* Wraps rather than shrinking: squeezed onto one phone-width line, the field
+   holding the token is narrower than the two buttons beside it, and a token
+   you cannot see any of is worse than one on its own line. */
+.token input { flex: 1 1 14rem; font-family: var(--mono); font-size: .8rem; }
 #mcp-config { width: 100%; margin-top: .6rem; font-size: .78rem; white-space: pre; }
+.dim { color: var(--dim); }
+
+/* --- the write audit ---------------------------------------------------
+   Seven columns, one of them a JSON blob of arguments, was unreadable before
+   it was unresponsive — no width makes that table scannable. An entry per
+   attempt puts the answer on the first line (what happened, which tool, when)
+   and moves the arguments underneath, where their length costs nothing. */
+.trail { display: grid; gap: .6rem; }
+.entry {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: .75rem .9rem;
+}
+.entry-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.entry-top .tool { font-weight: 600; }
+.entry-top time { margin-left: auto; color: var(--dim); font-size: .8rem; }
+.entry dl {
+  margin: .55rem 0 0; display: grid; grid-template-columns: auto 1fr;
+  gap: .15rem .75rem; font-size: .86rem;
+}
+.entry dt { color: var(--dim); }
+.entry dd { margin: 0; overflow-wrap: anywhere; }
+.badge {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
+  padding: .1rem .45rem; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--dim);
+}
+/* Only the outcomes worth stopping on are coloured. A preview and a dry run
+   are the system working, and colouring those too would leave nothing for a
+   refusal or a half-finished write to stand out against. */
+.badge.applied { color: var(--ok); border-color: currentColor; }
+.badge.denied, .badge.attempted { color: var(--warn); border-color: currentColor; }
+.badge.failed { color: var(--bad); border-color: currentColor; }
+
+/* --- small screens -----------------------------------------------------
+   The body is one column at any width already. What breaks on a phone is the
+   header, where a title, four nav links and Sign out share one wrapping flex
+   row and land wherever they happen to fall. */
+@media (max-width: 700px) {
+  header { gap: .6rem .75rem; padding: .75rem .9rem; }
+  header h1 { flex: 1; }
+  /* A row of its own, under the title and Sign out. Moved with "order" rather
+     than in the markup, because on a wide screen the nav genuinely does belong
+     between those two, and the source order is the reading order. */
+  nav { order: 1; flex-basis: 100%; gap: .3rem; }
+  /* Stretched to fill the line: four links of unequal length wrapping across
+     two rows read as debris otherwise. Smaller and tighter so that on most
+     phones they fit on one row at all. */
+  nav a { flex: 1 1 auto; text-align: center; padding: .55rem .55rem; font-size: .85rem; }
+  main { padding: 1.25rem .9rem 1.5rem; }
+  footer { padding: 1rem .9rem 2.5rem; }
+  .panel, .card, .entry { padding: .8rem .85rem; }
+  /* 16px is the threshold under which iOS Safari zooms the page in on focus —
+     and it does not zoom back out, so one tap on a field leaves you scrolled
+     sideways across a form you were only trying to type in. */
+  input, select, textarea, .token input, #mcp-config { font-size: 16px; }
+}
 `;
 
 /**

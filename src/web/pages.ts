@@ -11,6 +11,11 @@ import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts'
 
 export type Nav = 'dashboard' | 'config' | 'logs' | 'audit';
 
+/** Where this came from, and where a missing tool or a bug goes. On every
+ *  page, including the sign-in one — the person who cannot get in is exactly
+ *  the person who needs the issue tracker. */
+const REPO = 'https://github.com/bardesss/arr-mcp';
+
 const NAV: { key: Nav; href: string; label: string }[] = [
     { key: 'dashboard', href: '/ui', label: 'Dashboard' },
     { key: 'config', href: '/ui/config', label: 'Configuration' },
@@ -63,6 +68,14 @@ dialog { display: block; position: static; max-width: none; width: auto; margin:
 <body>
 <header><h1>arr-mcp <span>${esc(opts.version)}</span></h1>${nav}</header>
 <main>${message}${opts.body}</main>
+<!-- rel="noreferrer" because this page is served over plain http on a LAN and
+     the link leaves for github.com: without it the Referer header hands them
+     the hostname and port your instance is reachable on. -->
+<footer>
+  <span>arr-mcp ${esc(opts.version)}</span>
+  <a href="${REPO}" target="_blank" rel="noreferrer">Source on GitHub</a>
+  <a href="${REPO}/issues/new/choose" target="_blank" rel="noreferrer">Report a bug or request a tool</a>
+</footer>
 <script src="/ui/app.js?v=${encodeURIComponent(opts.version)}" defer></script>
 </body>
 </html>`;
@@ -577,38 +590,71 @@ export type AuditRow = {
     detail: string | null;
 };
 
+/**
+ * The recorded arguments, as fields rather than as the blob they are stored as.
+ *
+ * `args` is JSON in one database column, and printing it into a cell put a
+ * whole object on one line beside six other columns — the single thing that
+ * made this page unreadable at any width.
+ *
+ * A row that does not parse is shown verbatim rather than dropped. This is a
+ * log: something unexpected in it is a reason to display it, not to hide it.
+ */
+function argFields(args: string): SafeHtml {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(args);
+    } catch {
+        return html`<dt>Arguments</dt><dd class="mono">${args}</dd>`;
+    }
+
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        return html`<dt>Arguments</dt><dd class="mono">${args}</dd>`;
+    }
+
+    const entries = Object.entries(parsed as Record<string, unknown>);
+    if (entries.length === 0) return html`<dt>Arguments</dt><dd class="dim">none</dd>`;
+
+    return html`${entries.map(
+        ([key, value]) =>
+            html`<dt class="mono">${key}</dt>
+                <dd class="mono">${typeof value === 'string' ? value : JSON.stringify(value)}</dd>`
+    )}`;
+}
+
+/**
+ * One entry per attempt, rather than one row of seven columns.
+ *
+ * The order is the order the questions get asked: what happened, to what, with
+ * which arguments, and — only when there is one — what the service said back.
+ */
+function auditEntry(r: AuditRow): SafeHtml {
+    return html`<article class="entry">
+        <div class="entry-top">
+            <span class="badge ${r.outcome}">${r.outcome}</span>
+            <span class="tool">${r.tool}</span>
+            <span class="mono dim">${r.service}</span>
+            <time class="mono">${shortTime(r.at)}</time>
+        </div>
+        <dl>
+            <dt>Target</dt>
+            <dd class="mono">${r.target}</dd>
+            ${argFields(r.args)}
+        </dl>
+        ${r.detail === null || r.detail === '' ? raw('') : html`<div class="remedy">${r.detail}</div>`}
+    </article>`;
+}
+
 export function auditPage(opts: { version: string; rows: AuditRow[] }): string {
     const body = html`<h2>Write audit</h2>
         <p class="note">
-            Every write attempt, including previews and refusals. A row still reading
+            Every write attempt, including previews and refusals. An entry still reading
             <span class="mono">attempted</span> means arr-mcp stopped mid-write.
         </p>
 
         ${opts.rows.length === 0
             ? html`<p class="note">Nothing has tried to write yet.</p>`
-            : html`<div class="scroll">
-                  <table>
-                      <thead>
-                          <tr>
-                              <th>Time</th><th>Outcome</th><th>Tool</th><th>Service</th>
-                              <th>Target</th><th>Arguments</th><th>Detail</th>
-                          </tr>
-                      </thead>
-                      <tbody>
-                          ${opts.rows.map(
-                              r => html`<tr>
-                                  <td class="mono">${shortTime(r.at)}</td>
-                                  <td>${r.outcome}</td>
-                                  <td>${r.tool}</td>
-                                  <td>${r.service}</td>
-                                  <td class="mono">${r.target}</td>
-                                  <td class="mono">${r.args}</td>
-                                  <td>${r.detail ?? ''}</td>
-                              </tr>`
-                          )}
-                      </tbody>
-                  </table>
-              </div>`}`;
+            : html`<div class="trail">${opts.rows.map(auditEntry)}</div>`}`;
 
     return layout({ title: 'Write audit', nav: 'audit', version: opts.version, body });
 }

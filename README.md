@@ -605,6 +605,18 @@ while a timestamp inside the content cannot be dropped.
 | Logs | Three streams — all activity, problems only, or one service |
 | Write audit | Every write attempt — applied, previewed, refused or failed |
 
+**It works on a phone**, which is where you are when something stops playing.
+The navigation becomes its own full-width row rather than wrapping into the
+title, form fields are large enough that iOS does not zoom the page in when you
+tap one, and no table pushes the page sideways.
+
+**The write audit reads as entries, not as a spreadsheet.** Each attempt gives
+its outcome, tool and time on one line and its recorded arguments underneath,
+each as its own field — the arguments are stored as a single JSON blob, and a
+column holding that blob beside six others was unreadable on a desktop long
+before it was unreadable on a phone. Nothing is summarised away: an argument
+that does not parse is shown exactly as it was recorded.
+
 **Connection tests diagnose rather than pass or fail.** A service that is down
 says what is wrong and what to do about it — the same `kind`, `detail` and
 `remedy` the MCP tools return — instead of showing a red cross you then have to
@@ -721,6 +733,59 @@ the code around them.
 Fixtures are captured from real services rather than hand-written for the same
 reason. A test that passes against an invented shape proves nothing about the
 service it claims to support.
+
+### Missing a tool? Open an issue
+
+**A question arr-mcp cannot answer is worth reporting even if you never intend
+to write the code.** Knowing which question goes unanswered is most of the work;
+the tool that answers it is the easy half.
+
+The [feature request form](.github/ISSUE_TEMPLATE/feature_request.yml) asks
+**what you asked and what you expected back**, rather than for a tool name. The
+answer is often a new parameter or a new field on a tool that already exists —
+twenty-one tools is close to the ceiling, because model accuracy degrades
+measurably past roughly forty, so new capability extends an existing tool before
+it adds one. A request framed as a question can be answered that way; one framed
+as a tool name usually cannot. It is also where to name a service arr-mcp does
+not speak to at all.
+
+Bugs go through the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml),
+which asks for the two fields a report is unreproducible without: your versions
+and your logs. Redact API keys and the bearer token.
+
+### AI-assisted contributions
+
+**Welcome, and held to the same bar — not a lower one, and not a higher one.**
+arr-mcp is itself built with a coding agent. A patch is judged by whether it
+holds up, so there is no separate review track and nothing to disclose beyond
+being straight about what was actually verified.
+
+Point your agent at [CONTRIBUTING.md](CONTRIBUTING.md) first — it is written to
+be read by one, and it carries the constraints that are not visible from the
+code alone. Four of them matter more than the rest, because breaking them
+produces a pull request that *looks* finished:
+
+- **Never write a fixture by hand.** Asked for one, an agent will produce
+  something plausible — and a plausible fixture is worse than no fixture at all,
+  because the test passes, the adapter ships, and the shape was never the
+  service's. Capture with `npm run capture` against a live instance, or say in
+  the PR that the fixture is missing.
+- **Run the three gates and paste what they printed.** `npm run lint`,
+  `npm run typecheck`, `npm test`. "Should pass" is not a result, and CI runs
+  exactly what you can run locally, so there is nothing to guess about.
+- **Say what a *human* exercised.** An agent cannot run your Lidarr. An adapter
+  that has never touched a live service is still worth opening — one described
+  as tested when nobody tested it is not, because I cannot check that claim for
+  a service I do not run.
+- **A typecheck failure against `src/services/generated/` is the codegen doing
+  its job.** Fix the mapper; do not widen it with a cast. This is the one
+  failure most likely to get papered over, and the cast survives long after the
+  reason for it is forgotten.
+
+Commit messages are [Conventional Commits](https://www.conventionalcommits.org/)
+and are read by release automation, so the prefix decides the next version
+number — `fix:` patch, `feat:` minor, `feat!:` major. Getting it wrong ships the
+wrong version rather than failing loudly.
 
 ## Requirements
 
