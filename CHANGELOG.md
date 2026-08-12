@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/bardesss/arr-mcp/compare/v1.4.2...v1.4.3) (2026-08-12)
+
+
+### Bug Fixes
+
+* refuse a tool argument this server does not have, instead of dropping it ([#104](https://github.com/bardesss/arr-mcp/issues/104)) ([b262aa8](https://github.com/bardesss/arr-mcp/commit/b262aa848ac809a3480bce342aa9856bfb19165b))
+
 ## [1.4.2](https://github.com/bardesss/arr-mcp/compare/v1.4.1...v1.4.2) (2026-08-12)
 
 
