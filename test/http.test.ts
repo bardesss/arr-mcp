@@ -62,6 +62,102 @@ describe('ServiceHttp request shaping', () => {
     });
 });
 
+/**
+ * `put`'s `discardBody` and `deleteWithBody` had no direct test at all, and the
+ * adapter suites cannot supply one: their fake fetch answers every PUT with an
+ * empty 200 regardless, which makes `put(path, body, true)` and
+ * `put(path, body)` indistinguishable there. So a dropped `true` at a call site
+ * — the exact trap `put`'s own comment names, a successful empty-200 write
+ * turning into "response was not valid JSON" — would reach production green.
+ * These are the tests that can tell the two apart.
+ */
+describe('ServiceHttp put and deleteWithBody', () => {
+    const emptyOk = () => new Response('', { status: 200 });
+
+    it('sends a PUT with a JSON body to the given path', async () => {
+        const seen: { url: string; method?: string; body?: unknown; contentType: string | null }[] = [];
+        const client = http(async (input: string, init?: RequestInit) => {
+            seen.push({
+                url: String(input),
+                ...(init?.method === undefined ? {} : { method: init.method }),
+                body: init?.body,
+                contentType: new Headers(init?.headers).get('content-type')
+            });
+            return emptyOk();
+        });
+
+        await client.put('/api/v3/episode/monitor', { episodeIds: [11], monitored: false }, true);
+        expect(seen[0]?.method).toBe('PUT');
+        expect(seen[0]?.url).toBe('http://192.168.1.20:7878/api/v3/episode/monitor');
+        expect(seen[0]?.contentType).toBe('application/json');
+        expect(seen[0]?.body).toBe(JSON.stringify({ episodeIds: [11], monitored: false }));
+    });
+
+    it('tolerates the empty 200 a successful write actually returns, when told to discard', async () => {
+        const client = http(async () => emptyOk());
+        await expect(client.put('/api/v3/episode/monitor', {}, true)).resolves.toBeUndefined();
+    });
+
+    it('turns that same empty 200 into an error when the flag is dropped', async () => {
+        // Not a curiosity: this is what a call site forgetting `true` does to a
+        // write that in fact succeeded.
+        const client = http(async () => emptyOk());
+        await expect(client.put('/api/v3/episode/monitor', {})).rejects.toThrow(/not valid JSON/);
+    });
+
+    it('parses the body when not told to discard it', async () => {
+        const client = http(async () => json({ id: 7, monitored: false }));
+        expect(await client.put('/api/v3/series/7', { monitored: false })).toEqual({ id: 7, monitored: false });
+    });
+
+    it('discards a body that is there, rather than returning it, when told to', async () => {
+        const client = http(async () => json({ id: 7 }));
+        await expect(client.put('/api/v3/series/7', {}, true)).resolves.toBeUndefined();
+    });
+
+    it('never auto-retries a PUT — a retried write is a second write', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            throw timeoutError();
+        });
+        await expect(client.put('/x', {}, true)).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+
+    it('sends deleteWithBody as a DELETE carrying the body, and discards the response', async () => {
+        const seen: { method?: string; url: string; body?: unknown }[] = [];
+        const client = http(async (input: string, init?: RequestInit) => {
+            seen.push({ url: String(input), ...(init?.method === undefined ? {} : { method: init.method }), body: init?.body });
+            return emptyOk();
+        });
+
+        await expect(
+            client.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: [102, 103] })
+        ).resolves.toBeUndefined();
+        expect(seen[0]?.method).toBe('DELETE');
+        expect(seen[0]?.url).toBe('http://192.168.1.20:7878/api/v3/episodefile/bulk');
+        expect(seen[0]?.body).toBe(JSON.stringify({ episodeFileIds: [102, 103] }));
+    });
+
+    it('maps a failing deleteWithBody to a ServiceError rather than resolving', async () => {
+        const client = http(async () => json({ message: 'nope' }, 404));
+        await expect(client.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: [1] })).rejects.toThrow(
+            /not found/i
+        );
+    });
+
+    it('never auto-retries a deleteWithBody either', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            throw timeoutError();
+        });
+        await expect(client.deleteWithBody('/x', {})).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+});
+
 describe('ServiceHttp error mapping', () => {
     it('maps a 401 to AuthFailed without retrying — auth failure is not transient', async () => {
         let calls = 0;

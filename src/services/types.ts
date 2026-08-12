@@ -225,7 +225,19 @@ export type EpisodeSummary = {
     airDate?: string;
     hasFile: boolean;
     monitored: boolean;
+    /** 0 or absent when the episode has no file — Sonarr uses zero, not absence. */
+    episodeFileId?: number;
 };
+
+/**
+ * One season's *monitoring* state, from a single service.
+ *
+ * Deliberately not `SeasonSummary` from `core/resolver.ts`: that type is the
+ * cross-service merged shape carrying watch counts and TVDB denominators, and
+ * this is one service's own answer about one flag. Sharing a name would invite
+ * merging them, and the service layer must not depend on the resolver.
+ */
+export type SeasonMonitoring = { season: number; monitored: boolean };
 
 export type MediaDetails = {
     service: string;
@@ -245,6 +257,8 @@ export type MediaDetails = {
     episodes?: EpisodeSummary[];
     episodeCount?: number;
     episodesTruncated?: boolean;
+    /** Series only. Sonarr's per-season monitoring, as reported by Sonarr. */
+    seasons?: SeasonMonitoring[];
 };
 
 export interface MediaDetailCapable {
@@ -342,6 +356,40 @@ export interface MediaDeleteCapable {
 
 export const hasMediaDelete = (a: ServiceAdapter): a is ServiceAdapter & MediaDeleteCapable =>
     typeof (a as Partial<MediaDeleteCapable>).deleteMedia === 'function';
+
+/**
+ * Monitoring is `safe` tier, not `destructive`: nothing is lost and the service
+ * itself can undo it (`permissions.ts:9-10` names this exact case).
+ *
+ * `season` and `episodeIds` are mutually exclusive — the tool refuses both
+ * rather than picking one, so this type never has to define a precedence.
+ */
+export type MonitoringTarget = {
+    monitored: boolean;
+    /** One season. Omit with `episodeIds` to target the whole series. */
+    season?: number;
+    /** Specific episodes, as integer strings. */
+    episodeIds?: string[];
+};
+
+export interface MonitoringCapable {
+    setMonitoring(id: string, opts: MonitoringTarget): Promise<void>;
+}
+
+export const hasMonitoring = (a: ServiceAdapter): a is ServiceAdapter & MonitoringCapable =>
+    typeof (a as Partial<MonitoringCapable>).setMonitoring === 'function';
+
+/** One file on disk. `sizeBytes` is omitted when Sonarr did not report one —
+ *  a preview saying "0 bytes" would read as "nothing to lose". */
+export type EpisodeFile = { id: number; season: number; sizeBytes?: number };
+
+export interface EpisodeFileCapable {
+    listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]>;
+    deleteEpisodeFiles(fileIds: number[]): Promise<void>;
+}
+
+export const hasEpisodeFiles = (a: ServiceAdapter): a is ServiceAdapter & EpisodeFileCapable =>
+    typeof (a as Partial<EpisodeFileCapable>).listEpisodeFiles === 'function';
 
 export type RemoveQueueOptions = {
     /** Also tell the download client to drop it, and delete partial data. */

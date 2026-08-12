@@ -116,7 +116,11 @@ const DYNAMIC_TOOLS: ToolName[] = [
     'delete_media',
     'respond_to_request',
     'delete_request',
-    'add_media'
+    'add_media',
+    // Sonarr-only, and both need a real series id — the same reason as the
+    // five above. Driven as dry runs off the first Sonarr search hit.
+    'set_monitoring',
+    'delete_episode_files'
 ];
 
 const missing = TOOL_NAMES.filter(
@@ -348,6 +352,38 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
     );
 } else {
     console.log('SKIP delete_media — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+}
+
+/**
+ * The Sonarr pair, dry run only, for the same reasons — and one more.
+ *
+ * `set_monitoring` is the whole-series form deliberately: a season number
+ * taken from thin air is a season the series may not have, which the tool now
+ * refuses, and a red line for a correct refusal is a script bug rather than a
+ * finding. `delete_episode_files` has no whole-series form at all, so it takes
+ * season 1 — the season essentially every series has; a series without files
+ * there answers `noop`, which is a pass, not a failure.
+ *
+ * Both exercise what only a live stack proves: the id resolves, the series and
+ * its episodes are read back, the preview describes real state — including
+ * whether anything is still monitored, which is the warning the two-primitive
+ * design leans on — and the permission verdict is reported. Neither writes.
+ */
+const sonarrHit = searchHits.find(h => h.service === 'sonarr');
+
+if (sonarrHit?.id !== undefined) {
+    await run(
+        'set_monitoring',
+        { service: 'sonarr', id: String(sonarrHit.id), monitored: false, dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+    await run(
+        'delete_episode_files',
+        { service: 'sonarr', id: String(sonarrHit.id), season: 1, dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    console.log('SKIP set_monitoring and delete_episode_files — search_media returned no Sonarr hit.');
 }
 
 const queueItem = (queueResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as

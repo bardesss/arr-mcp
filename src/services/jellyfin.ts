@@ -196,7 +196,17 @@ export class JellyfinAdapter
 
         const [sessions, resume] = await Promise.all([
             this.#http.get<RawSession[]>('/Sessions'),
-            this.#http.get<RawItemsPage>(`/Users/${encodeURIComponent(user.id)}/Items/Resume`)
+            /**
+             * `/Users/{id}/Items/Resume` is the supported way to ask for the
+             * resumable set. `/Items?IsResumable=true` looks like the right query
+             * but is silently ignored by Jellyfin 10.11 — it returns the entire
+             * library, not just resumable items.
+             *
+             * `Limit=500` ensures truncation is decided by `applyLimit` in the
+             * contract layer, which reports it, rather than by an undocumented
+             * server default page size, which does not.
+             */
+            this.#http.get<RawItemsPage>(`/Users/${encodeURIComponent(user.id)}/Items/Resume?Limit=500`)
         ]);
 
         const common = (item: RawItem) => ({

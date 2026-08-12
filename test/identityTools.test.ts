@@ -60,7 +60,7 @@ const RESUME = {
 const jellyfinRoutes = {
     '/Users': USERS,
     '/Sessions': SESSIONS,
-    [`/Users/${USER_ID}/Items/Resume`]: RESUME
+    [`/Users/${USER_ID}/Items/Resume?Limit=500`]: RESUME
 };
 
 const jellyfin = (over: Partial<MultiUserServiceConfig> = {}, routes: Record<string, unknown> = jellyfinRoutes) => {
@@ -103,7 +103,7 @@ describe('get_playback', () => {
 
     it('omits the percentage rather than dividing by zero when runtime is unknown', async () => {
         const noRuntime = { Items: [{ Id: 'x', Name: 'X', UserData: { PlaybackPositionTicks: 100 } }] };
-        const { adapter, resolver } = jellyfin({}, { ...jellyfinRoutes, [`/Users/${USER_ID}/Items/Resume`]: noRuntime });
+        const { adapter, resolver } = jellyfin({}, { ...jellyfinRoutes, [`/Users/${USER_ID}/Items/Resume?Limit=500`]: noRuntime });
         const result = await buildGetPlayback(adapter, resolver, { detail: 'full', limit: 50 });
 
         expect(result.items.find(i => i.kind === 'resume')?.percentComplete).toBeUndefined();
@@ -127,7 +127,7 @@ describe('get_playback', () => {
     });
 
     it('permits another user when allow_other_users is true', async () => {
-        const guestRoutes = { ...jellyfinRoutes, [`/Users/${GUEST_ID}/Items/Resume`]: { Items: [] } };
+        const guestRoutes = { ...jellyfinRoutes, [`/Users/${GUEST_ID}/Items/Resume?Limit=500`]: { Items: [] } };
         const { adapter, resolver } = jellyfin({ allow_other_users: true }, guestRoutes);
         const result = await buildGetPlayback(adapter, resolver, { detail: 'full', limit: 50, user: 'Guest' });
 
@@ -151,7 +151,7 @@ describe('get_playback', () => {
 
     it('reports truncation honestly', async () => {
         const many = { Items: repeat(RESUME.Items[0]!, 200) };
-        const { adapter, resolver } = jellyfin({}, { ...jellyfinRoutes, [`/Users/${USER_ID}/Items/Resume`]: many });
+        const { adapter, resolver } = jellyfin({}, { ...jellyfinRoutes, [`/Users/${USER_ID}/Items/Resume?Limit=500`]: many });
         const result = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50 });
 
         expect(result).toMatchObject({ total: 201, returned: 50, truncated: true });
@@ -159,7 +159,7 @@ describe('get_playback', () => {
 
     it('stays within its token budget at the absolute maximum', async () => {
         const many = { Items: repeat(RESUME.Items[0]!, 500) };
-        const { adapter, resolver } = jellyfin({}, { ...jellyfinRoutes, [`/Users/${USER_ID}/Items/Resume`]: many });
+        const { adapter, resolver } = jellyfin({}, { ...jellyfinRoutes, [`/Users/${USER_ID}/Items/Resume?Limit=500`]: many });
         const result = await buildGetPlayback(adapter, resolver, { detail: 'full', limit: 500 });
 
         expectWithinBudget(result, 40_000);

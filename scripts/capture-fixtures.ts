@@ -52,6 +52,25 @@ const firstId = (body: unknown): number | undefined => {
     return typeof row?.id === 'number' ? row.id : undefined;
 };
 
+/**
+ * First series in a captured `series` fixture that actually has files on disk.
+ *
+ * Deliberately not `firstId`: `/episodefile?seriesId=` for a series with
+ * nothing downloaded answers `[]`, and an empty array is a fixture that guards
+ * nothing — the contract test would pass forever whatever upstream renamed.
+ * Undefined when no captured series has a file, like every other helper here,
+ * so the endpoint is skipped with a reason rather than capturing a shape that
+ * does not exist.
+ */
+const firstSeriesWithFiles = (body: unknown): number | undefined => {
+    const rows = Array.isArray(body) ? body : [];
+    for (const row of rows as { id?: unknown; statistics?: { episodeFileCount?: unknown } }[]) {
+        const files = row.statistics?.episodeFileCount;
+        if (typeof row.id === 'number' && typeof files === 'number' && files > 0) return row.id;
+    }
+    return undefined;
+};
+
 type Row = Record<string, unknown>;
 
 /**
@@ -91,6 +110,41 @@ function anonymiseIndexer(row: Row, index: number): Row {
         indexerUrls: Array.isArray(row.indexerUrls) ? [anonymousUrl] : row.indexerUrls,
         legacyUrls: Array.isArray(row.legacyUrls) ? [] : row.legacyUrls,
         fields
+    };
+}
+
+/**
+ * An episode file names where the user keeps their media and who they take it
+ * from — the same class of thing as an indexer name, and permanent once it is
+ * in a public repository.
+ *
+ * The scrubbed list is every string-valued path- or release-shaped property on
+ * Sonarr's own `EpisodeFileResource` (`specs/sonarr.json`): `path` (absolute,
+ * so it carries the whole library layout), `relativePath` (the folder and file
+ * naming scheme), `sceneName` (the release name, which names the group, the
+ * tracker's conventions and often the uploader) and `releaseGroup`.
+ * `originalFilePath` and `sourcePath` are not on the 4.0 schema but are
+ * emitted by some import paths, and an unrecognised key surviving is worse
+ * than a known one rewritten twice.
+ *
+ * Everything else is left exactly as captured, because it is the shape the
+ * contract test reads and none of it is identifying: `id`, `seriesId`,
+ * `seasonNumber`, `size`, `dateAdded`, `quality`, `languages`, `mediaInfo`,
+ * `customFormats`, `customFormatScore`, `indexerFlags`, `releaseType`,
+ * `qualityCutoffNotMet`. Values are replaced rather than dropped, so each
+ * field keeps its presence and its type.
+ */
+function anonymiseEpisodeFile(row: Row, index: number): Row {
+    const n = String(index + 1).padStart(2, '0');
+    const file = `Series.Title.S01E${n}.1080p.WEB-DL.x264-GROUP`;
+    return {
+        ...row,
+        path: replaceIfString(row.path, `/media/tv/Series Title/Season 01/${file}.mkv`),
+        relativePath: replaceIfString(row.relativePath, `Season 01/${file}.mkv`),
+        originalFilePath: replaceIfString(row.originalFilePath, `Series Title/Season 01/${file}.mkv`),
+        sourcePath: replaceIfString(row.sourcePath, `/downloads/${file}/${file}.mkv`),
+        sceneName: replaceIfString(row.sceneName, file),
+        releaseGroup: replaceIfString(row.releaseGroup, 'GROUP')
     };
 }
 
@@ -148,6 +202,20 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                 const id = firstId(captured.get('series'));
                 return id === undefined ? undefined : `/api/v3/episode?seriesId=${id}`;
             }
+        },
+        {
+            // delete_episode_files resolves its whole delete set from this
+            // payload — `id`, `seasonNumber` and `size` — and none of the three
+            // is contracted, because until now no fixture existed to contract
+            // them against. A rename of `seasonNumber` would put every file in
+            // season 0, so `delete_episode_files { season: 1 }` would delete
+            // nothing at all with a green suite.
+            name: 'episodefile',
+            path: captured => {
+                const id = firstSeriesWithFiles(captured.get('series'));
+                return id === undefined ? undefined : `/api/v3/episodefile?seriesId=${id}`;
+            },
+            anonymise: body => (Array.isArray(body) ? (body as Row[]).map(anonymiseEpisodeFile) : body)
         },
         { name: 'series-lookup', path: '/api/v3/series/lookup?term=breaking%20bad' }
     ],

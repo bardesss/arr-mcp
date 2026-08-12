@@ -30,8 +30,12 @@ import {
     type AddMediaOptions,
     type CommandHandle,
     type DeleteMediaOptions,
+    type EpisodeFile,
+    type EpisodeFileCapable,
     type MediaAddCapable,
     type MediaDeleteCapable,
+    type MonitoringCapable,
+    type MonitoringTarget,
     type QualityProfile,
     type QueueRemoveCapable,
     type RootFolder,
@@ -77,7 +81,11 @@ type RawEpisode = {
     airDateUtc?: string;
     hasFile?: boolean;
     monitored?: boolean;
+    /** 0 when the episode has no file — Sonarr uses zero, not absence. */
+    episodeFileId?: number;
 };
+
+type RawEpisodeFile = { id?: number; seasonNumber?: number; size?: number };
 
 type RawStatus = components['schemas']['SystemResource'];
 type RawDiskSpace = components['schemas']['DiskSpaceResource'];
@@ -111,7 +119,9 @@ export class SonarrAdapter
         SearchTriggerCapable,
         QueueRemoveCapable,
         MediaDeleteCapable,
-        MediaAddCapable
+        MediaAddCapable,
+        MonitoringCapable,
+        EpisodeFileCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -211,6 +221,67 @@ export class SonarrAdapter
         return addArrMedia(this.#http, this.id, SONARR_ADD, opts);
     }
 
+    /** Shared by every write here: refuse before issuing, never after. */
+    #numericId(value: string, what: string): number {
+        const id = Number(value);
+        if (!Number.isInteger(id)) {
+            throw new ServiceError('NotFound', this.id, `"${value}" is not a Sonarr ${what} id`, {
+                remedy: `Sonarr ${what} ids are integers. Get one from get_media_details or get_library.`
+            });
+        }
+        return id;
+    }
+
+    /**
+     * Three targets, one method, because they are one decision: what to
+     * monitor. Episode ids take their own endpoint; the series and season forms
+     * both round-trip the series resource, because Sonarr's PUT replaces it
+     * wholesale and a partial body would blank every field left out.
+     */
+    async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
+        if (opts.episodeIds !== undefined) {
+            const episodeIds = opts.episodeIds.map(e => this.#numericId(e, 'episode'));
+            await this.#http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
+            return;
+        }
+
+        const seriesId = this.#numericId(id, 'series');
+        const series = await this.#http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
+
+        if (opts.season === undefined) {
+            await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, monitored: opts.monitored }, true);
+            return;
+        }
+
+        // Only the named season changes. Rewriting them all would unmonitor the
+        // whole show while reporting that one season had been touched.
+        const seasons = (series.seasons ?? []).map(s =>
+            s.seasonNumber === opts.season ? { ...s, monitored: opts.monitored } : s
+        );
+        await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, seasons }, true);
+    }
+
+    async listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]> {
+        const id = this.#numericId(seriesId, 'series');
+        const files = await this.#http.get<RawEpisodeFile[]>(`/api/v3/episodefile?seriesId=${id}`);
+
+        return files
+            .filter((f): f is RawEpisodeFile & { id: number } => typeof f.id === 'number')
+            .map(f => ({
+                id: f.id,
+                season: f.seasonNumber ?? 0,
+                ...(f.size === undefined ? {} : { sizeBytes: f.size })
+            }));
+    }
+
+    /** Bulk, in one call. An empty list issues nothing: a delete with no ids is
+     *  a request with no purpose, and Sonarr's behaviour for it is not worth
+     *  discovering in production. */
+    async deleteEpisodeFiles(fileIds: number[]): Promise<void> {
+        if (fileIds.length === 0) return;
+        await this.#http.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: fileIds });
+    }
+
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
         const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(range));
         return readSonarrCalendar(episodes, this.id);
@@ -268,7 +339,15 @@ export class SonarrAdapter
                 ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
                 ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
             },
-            ...(ratings === undefined ? {} : { ratings })
+            ...(ratings === undefined ? {} : { ratings }),
+            ...(s.seasons === undefined
+                ? {}
+                : {
+                      seasons: s.seasons
+                          .filter((x): x is typeof x & { seasonNumber: number } => typeof x.seasonNumber === 'number')
+                          .map(x => ({ season: x.seasonNumber, monitored: x.monitored ?? false }))
+                          .sort((a, b) => a.season - b.season)
+                  })
         };
 
         if (!opts.includeEpisodes) return base;
@@ -290,7 +369,8 @@ export class SonarrAdapter
                 title: fenceText(e.title ?? '', { service: this.id, field: 'episode.title' }),
                 ...(e.airDateUtc === undefined ? {} : { airDate: e.airDateUtc }),
                 hasFile: e.hasFile ?? false,
-                monitored: e.monitored ?? false
+                monitored: e.monitored ?? false,
+                ...(e.episodeFileId === undefined ? {} : { episodeFileId: e.episodeFileId })
             })),
             episodeCount: shaped.total,
             episodesTruncated: shaped.truncated
@@ -332,9 +412,14 @@ export class SonarrAdapter
     }
 
     /**
-     * Sonarr's half of a season row: the three denominators, no watch state.
-     * Sorted by season number so responses are stable across calls and diffable in
-     * tests — Sonarr's own order is not guaranteed.
+     * Sonarr's half of a season row: the three denominators and the monitoring
+     * flag, no watch state. Sorted by season number so responses are stable
+     * across calls and diffable in tests — Sonarr's own order is not guaranteed.
+     *
+     * `monitored` is carried here as well as on `getMediaDetails` so that
+     * `seasons[].monitored` means one thing on both forms `get_media_details`
+     * can return. Omitted when Sonarr did not report it, never defaulted to
+     * `false` — see `SeasonSummary`.
      */
     #seasonsOf(raw: RawSeries): SeasonSummary[] | undefined {
         if (raw.seasons === undefined) return undefined;
@@ -342,6 +427,7 @@ export class SonarrAdapter
             .filter((s): s is typeof s & { seasonNumber: number } => typeof s.seasonNumber === 'number')
             .map(s => ({
                 season: s.seasonNumber,
+                ...(s.monitored === undefined ? {} : { monitored: s.monitored }),
                 ...(s.statistics?.episodeFileCount === undefined ? {} : { onDisk: s.statistics.episodeFileCount }),
                 ...(s.statistics?.episodeCount === undefined ? {} : { aired: s.statistics.episodeCount }),
                 ...(s.statistics?.totalEpisodeCount === undefined ? {} : { total: s.statistics.totalEpisodeCount })
