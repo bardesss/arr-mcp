@@ -1,8 +1,35 @@
-# Tools in detail
+# Tools
 
-The [README](../README.md) lists what each tool answers. This is the rest: the
-shape of the answers, the fields whose meaning is not obvious, and the places
-where a value is deliberately absent rather than false.
+Twenty-one of them. The first thirteen read; the last eight write, and are off
+until you turn them on — see [writes](writes.md).
+
+| Tool | Answers |
+| --- | --- |
+| `diagnose` | Why is this not playable? |
+| `stack_health` | Is anything broken, out of disk, or not scanning? |
+| `search_media` | What do I have, what exists, what can I get? |
+| `get_media_details` | Everything about one item |
+| `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
+| `get_queue` | What is downloading, across all four download paths |
+| `get_calendar` | What is due, and what just aired |
+| `get_subtitles` | What is missing subtitles, and which providers are throttled |
+| `get_playback` | What am I watching, and what can I continue |
+| `get_indexers` | Which indexers are healthy, and what they recently rejected |
+| `get_requests` | What has been requested, and what is still pending |
+| `lookup_media` | Tell me about this, without adding it |
+| `discover_media` | What exists in this genre, year, or rating band |
+| `trigger_search` | Go look for this again |
+| `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
+| `remove_queue_item` | Get rid of this stuck or wrong download |
+| `delete_media` | Remove this film or series, optionally from disk |
+| `delete_episode_files` | Free disk from one Sonarr season or a handful of episodes, without touching the series |
+| `respond_to_request` | Approve or decline what someone asked for |
+| `delete_request` | Drop a request record entirely |
+| `add_media` | Add this film or series and start looking for it |
+
+The rest of this page is the shape of the answers: the fields whose meaning is
+not obvious, and the places where a value is deliberately absent rather than
+`false`.
 
 ## Every tool answers the same way
 
@@ -144,8 +171,25 @@ how far in you are.
 ## Prompts and resources
 
 Twenty-one tools do not tell you which one to reach for, and the questions
-people actually ask are rarely one call. Five prompts and three resources are
-listed in the [README](../README.md#prompts-and-resources).
+people actually ask are rarely one call.
+
+**Five prompts**, which most clients surface as slash commands:
+
+| Prompt | Asks |
+| --- | --- |
+| `why_not_playable` | Why isn't this playable? |
+| `whats_wrong` | What needs my attention right now? |
+| `what_to_watch` | What should I watch tonight? |
+| `best_in_library` | What's the best thing I own? |
+| `whats_new` | What happened this week? |
+
+**Three resources**, which a client can attach once rather than re-fetch:
+
+| Resource | Holds |
+| --- | --- |
+| `arr://instances` | Every instance id and what it may do — the values other tools accept as `instance` |
+| `arr://health` | A stack verdict, stamped with when it was taken |
+| `arr://library/summary` | Total, on disk, still wanted |
 
 **Client support for both is uneven, so nothing is reachable only through
 them.** A prompt is a sequence of tool calls the model could have made anyway,

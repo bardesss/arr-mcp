@@ -1,8 +1,16 @@
-# The config UI in detail
+# The config UI
 
-`http://<host>:6060`. Four pages, listed in the
-[README](../README.md#config-ui). This is what each one does that is not obvious
-from looking at it.
+`http://<host>:6060`. Four pages, no restart, no hand-edited YAML.
+
+| Page | What it is for |
+| --- | --- |
+| Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and the bearer token for your MCP client |
+| Configuration | Add, edit, test and remove service instances one at a time; change credentials |
+| Logs | Three streams — all activity, problems only, or one service |
+| Write audit | Every write attempt — applied, previewed, refused or failed |
+
+The rest of this page is what each one does that is not obvious from looking
+at it.
 
 ## The dashboard
 
