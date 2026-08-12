@@ -57,6 +57,12 @@ silently hide another.
 `diagnose` takes a title, or an exact `service` plus `id`, and returns a verdict
 rather than a list.
 
+**Every answer comes twice: a sentence and a structure.** The summary line is
+for a reader; `structuredContent` is the contract, and every tool declares its
+shape as an `outputSchema` so a client knows what it will get before it calls.
+Read `total` from there rather than parsing it out of "50 of 243 item(s)" —
+that sentence is prose and may be reworded.
+
 **An argument a tool does not have is refused, and the refusal lists the ones it
 does have.** Dropping it silently would be worse than it sounds: the call
 succeeds, the invented argument is gone, and the answer is indistinguishable

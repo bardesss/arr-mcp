@@ -91,6 +91,44 @@ const ConfirmSchema = z
         'The confirmation token from this same tool\'s preview of this same operation. Omit it to get a preview and a token; pass the token back verbatim to apply the change. Tokens are single-use, expire, and are bound to the exact operation and arguments previewed.'
     );
 
+/**
+ * What every write answers with, declared for the same reason the read
+ * envelope is (#103): a client that gates `structuredContent` on a declared
+ * schema shows the caller nothing without one.
+ *
+ * It matters more here than on a read. `applied` is the difference between "I
+ * deleted it" and "I would delete it, confirm first", and a model that cannot
+ * see the structured half has to infer which happened from a sentence. Getting
+ * that wrong in the reassuring direction — reporting a preview as done — is the
+ * failure the whole confirm handshake exists to prevent.
+ *
+ * Loose, like the read envelope: a validation failure here would fail the call
+ * *after* the write had already landed, reporting a completed deletion as an
+ * error. The optional fields are genuinely conditional — a token is issued only
+ * when there is something to confirm.
+ */
+const WriteOutputSchema = z.looseObject({
+    applied: z.boolean().describe('Whether the change actually happened. False on every preview, refusal and no-op.'),
+    dry_run: z.boolean().describe('Whether this was an explicit preview.'),
+    tool: z.string(),
+    service: z.string(),
+    operation: z.string(),
+    tier: z.enum(['safe', 'destructive']),
+    target: z.string().describe('The resolved id the write acts on — what the confirmation token is bound to.'),
+    summary: z.string().describe('One sentence, safe to show a human.'),
+    effects: z.array(z.string()).describe('Itemised consequences, most severe first. Empty is legitimate for a no-op.'),
+    noop: z.boolean().describe('True when the request resolved but there was nothing to do — already monitored, already approved.'),
+    permission: z.looseObject({
+        allowed: z.boolean(),
+        reason: z.string().optional(),
+        remedy: z.string().optional()
+    }),
+    confirm_token: z.string().optional().describe('Present when a preview is awaiting confirmation. Single-use, expiring, bound to this exact operation and arguments.'),
+    confirm_error: z.string().optional().describe('Why a presented token was rejected. Present only when one was presented.'),
+    result: z.unknown().optional().describe('Whatever the service returned, on a write that landed.'),
+    audit_id: z.number().optional().describe('The audit row this call wrote. Every branch writes one, including previews and refusals.')
+});
+
 export type WriteToolResult = {
     applied: boolean;
     dry_run: boolean;
@@ -134,7 +172,8 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             // that mistyped one argument would be told `dry_run` and `confirm`
             // — the two parameters the write protocol itself runs on — are not
             // parameters of this tool.
-            inputSchema: toolInput({ ...spec.inputSchema.shape, dry_run: DryRunSchema, confirm: ConfirmSchema })
+            inputSchema: toolInput({ ...spec.inputSchema.shape, dry_run: DryRunSchema, confirm: ConfirmSchema }),
+            outputSchema: WriteOutputSchema
         },
         async (raw: Record<string, unknown>) => {
             const { dry_run: dryRun, confirm: presented, ...rest } = raw as {

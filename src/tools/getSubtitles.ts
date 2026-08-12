@@ -1,12 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ServiceAdapter, SubtitleCapable, SubtitleGap, SubtitleProvider } from '../services/types.ts';
 
 export type GetSubtitlesResult = {
     items: SubtitleGap[];
     total: number;
     returned: number;
+    offset: number;
     truncated: boolean;
     degraded: string[];
     /**
@@ -45,7 +46,7 @@ export async function buildGetSubtitles(
     opts: { detail: DetailLevel; limit: number; offset?: number }
 ): Promise<GetSubtitlesResult> {
     if (adapters.length === 0) {
-        return { items: [], total: 0, returned: 0, truncated: false, degraded: [] };
+        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [] };
     }
 
     const gaps: SubtitleGap[] = [];
@@ -96,6 +97,7 @@ export function registerGetSubtitles(server: McpServer, adapters: readonly (Serv
         {
             description:
                 'Subtitles Bazarr knows are missing, for both films and episodes, with the languages wanted for each — and which subtitle providers are currently working, throttled, or blocked, which is usually why something is missing. Release names come from public indexers and are fenced as untrusted data.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
         },
         async ({ detail, limit, offset }) => {

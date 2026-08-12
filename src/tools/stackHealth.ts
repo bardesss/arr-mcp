@@ -1,9 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/server';
+import * as z from 'zod/v4';
 import type { ServiceInstance } from '../config/instances.ts';
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, TruncationSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import {
     hasDiskSpace,
     hasHealthChecks,
@@ -15,7 +16,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 
-type Shaped<T> = { items: T[]; total: number; returned: number; truncated: boolean };
+type Shaped<T> = { items: T[]; total: number; returned: number; offset: number; truncated: boolean };
 
 export type StackHealthResult = {
     services: ConnectionDiagnosis[];
@@ -284,7 +285,20 @@ export function registerStackHealth(
         {
             description:
                 'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
-            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema })
+            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema }),
+            // The one read tool whose answer is not a list, so it declares its
+            // own shape rather than the paged envelope. `disks` and `failures`
+            // are envelopes of their own — one `limit` budget spans both, spent
+            // on failures first, which is why neither is the top-level list.
+            outputSchema: z.looseObject({
+                services: z.array(z.unknown()).describe('One row per configured instance: reachable, version, latency.'),
+                failures: TruncationSchema.describe('Health checks the services themselves are reporting.'),
+                disks: TruncationSchema.describe('Free space per root folder.'),
+                scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated — bounded by the number of services.'),
+                permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal` — a permission is not a fault.'),
+                endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
+                degraded: z.array(z.string())
+            })
         },
         async ({ detail, limit }) => {
             const result = await buildStackHealth(adapters, { detail, limit }, instances);

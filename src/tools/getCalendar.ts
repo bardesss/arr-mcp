@@ -2,13 +2,14 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceId } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasCalendar, type CalendarEntry, type ServiceAdapter } from '../services/types.ts';
 
 export type GetCalendarResult = {
     items: CalendarEntry[];
     total: number;
     returned: number;
+    offset: number;
     truncated: boolean;
     degraded: string[];
     counts: Partial<Record<ServiceId, number>>;
@@ -66,6 +67,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
         {
             description:
                 'Films and episodes due in a date window, merged from Radarr and Sonarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 detail: DetailSchema,
                 limit: LimitSchema,

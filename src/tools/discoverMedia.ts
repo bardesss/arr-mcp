@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -50,7 +50,7 @@ export async function buildDiscoverMedia(
         });
     } catch (err) {
         logger.warn({ service: adapter.id, err }, 'discover failed; degrading');
-        return { items: [], total: 0, returned: 0, truncated: false, degraded: [adapter.id], counts: {} };
+        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id], counts: {} };
     }
 
     // Enrichment applies whatever the source. Seerr's discover is
@@ -85,7 +85,7 @@ function fromDataset(
     opts: { kind: 'movie' | 'series'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number; offset?: number },
     dataset: ImdbDataset | undefined
 ): GetSearchResult {
-    const empty = { items: [], total: 0, returned: 0, truncated: false, degraded: [], counts: {} };
+    const empty = { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [], counts: {} };
     if (dataset === undefined) return empty;
 
     if (opts.genre !== undefined && /^\d+$/.test(opts.genre)) {
@@ -135,6 +135,7 @@ export function registerDiscoverMedia(
         {
             description:
                 'Browse what exists rather than what you have: films or series by genre, year and minimum rating. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so `genre` is a TMDB genre id and the rating is TMDB’s. With no Seerr it is answered from the local IMDb dataset instead, where `genre` is a name such as `Crime` and the rating is IMDb’s; passing a numeric id there is refused rather than silently matching nothing.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Defaults to films.'),
                 // Undocumented on purpose: the spelling this tool had when the

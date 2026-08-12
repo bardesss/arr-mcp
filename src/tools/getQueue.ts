@@ -1,13 +1,14 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { ServiceId } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 
 export type GetQueueResult = {
     items: QueueItem[];
     total: number;
     returned: number;
+    offset: number;
     truncated: boolean;
     degraded: string[];
     counts: Partial<Record<ServiceId, number>>;
@@ -45,6 +46,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
         {
             description:
                 'Everything currently downloading or stalled, merged across Radarr, Sonarr, SABnzbd and Transmission. Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
         },
         async ({ detail, limit, offset }) => {

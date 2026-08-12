@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { MergedItem } from '../core/resolver.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
@@ -85,6 +85,7 @@ export type GetLibraryResult = {
     items: MergedItem[];
     total: number;
     returned: number;
+    offset: number;
     truncated: boolean;
     degraded: string[];
     /** Keyed by source — see `LibrarySnapshot.counts`. */
@@ -339,6 +340,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
         {
             description:
                 'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. `has_file: false` with `monitored: true` is "what am I still waiting for". Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered. A series at `detail: "full"` also carries `seasons`: per season, how many episodes you have watched (`watched`), how many are on disk (`onDisk`), how many have aired (`aired`), and how many exist in total (`total`, which is TVDB\'s count via Sonarr). `complete` is true only when every episode of the season has been watched — and is **absent, not false**, when either half is unknown: a series no *arr manages has no `total`, and one Jellyfin has never seen has no `watched`. Season 0 is specials and is reported like any other season. `seasons` is omitted below `detail: "full"`. Each season row also carries `monitored`, Sonarr’s own per-season flag — the same field `get_media_details` reports — absent rather than false when no Sonarr manages the series.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.'),
                 year: z.number().int().optional(),

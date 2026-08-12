@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { JellyfinAdapter } from '../services/jellyfin.ts';
 import type { PlaybackEntry } from '../services/types.ts';
 
@@ -10,6 +10,7 @@ export type GetPlaybackResult = {
     items: PlaybackEntry[];
     total: number;
     returned: number;
+    offset: number;
     truncated: boolean;
     degraded: string[];
 };
@@ -37,7 +38,7 @@ export async function buildGetPlayback(
     opts: { detail: DetailLevel; limit: number; offset?: number; user?: string }
 ): Promise<GetPlaybackResult> {
     if (adapter === undefined || resolver === undefined) {
-        return { items: [], total: 0, returned: 0, truncated: false, degraded: [] };
+        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [] };
     }
 
     // Deliberately outside the try: an authorization or configuration failure
@@ -51,7 +52,7 @@ export async function buildGetPlayback(
         entries = await adapter.getPlayback(user);
     } catch (err) {
         logger.warn({ service: adapter.id, err }, 'playback read failed; degrading');
-        return { items: [], total: 0, returned: 0, truncated: false, degraded: [adapter.id] };
+        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id] };
     }
 
     const shaped = applyLimit(entries, opts.limit, opts.offset);
@@ -68,6 +69,7 @@ export function registerGetPlayback(
         {
             description:
                 'What a Jellyfin user is watching now and what they can continue watching, with position and completion. Watch state exists only in Jellyfin — Radarr and Sonarr have no concept of it. Defaults to the configured user; reading another requires allow_other_users.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema, user: UserSchema })
         },
         async ({ detail, limit, offset, user }) => {
