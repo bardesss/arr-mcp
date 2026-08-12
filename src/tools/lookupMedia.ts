@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { DetailSchema, LimitSchema, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { buildSearchMedia, type GetSearchResult } from './searchMedia.ts';
@@ -15,7 +15,7 @@ import { buildSearchMedia, type GetSearchResult } from './searchMedia.ts';
  */
 export async function buildLookupMedia(
     adapters: readonly ServiceAdapter[],
-    opts: { query: string; detail: DetailLevel; limit: number },
+    opts: { query: string; detail: DetailLevel; limit: number; offset?: number },
     dataset?: ImdbDataset | undefined
 ): Promise<GetSearchResult> {
     return buildSearchMedia(adapters, { ...opts, source: 'discover' }, dataset);
@@ -34,11 +34,12 @@ export function registerLookupMedia(
             inputSchema: toolInput({
                 query: z.string().min(1).describe('What to look up.'),
                 detail: DetailSchema,
-                limit: LimitSchema
+                limit: LimitSchema,
+                offset: OffsetSchema
             })
         },
-        async ({ query, detail, limit }) => {
-            const result = await buildLookupMedia(adapters, { query, detail, limit }, dataset);
+        async ({ query, detail, limit, offset }) => {
+            const result = await buildLookupMedia(adapters, { query, detail, limit, offset }, dataset);
             const summary =
                 result.total === 0
                     ? `Nothing found for "${query}".`

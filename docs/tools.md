@@ -35,8 +35,20 @@ not obvious, and the places where a value is deliberately absent rather than
 ## Every tool answers the same way
 
 Every tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
-`limit`, and reports `{ total, returned, truncated }` — a truncated answer
-always says so.
+`limit`, and reports `{ total, returned, offset, truncated }` — a truncated
+answer always says so.
+
+**Paging.** Every list tool also takes `offset`: page two of fifty is
+`offset: 50`. `total` always counts the whole list rather than the window, so
+`offset + returned < total` is how you know another page exists. `truncated`
+answers a different question — *this is not the whole list* — and so stays
+`true` on the last page of a walk, where everything you already read is behind
+you. Pair `offset` with `sort` when the order matters: without one the order is
+whatever the services returned, and an item can move between pages.
+
+`stack_health` is the exception and takes no `offset`. One `limit` budget spans
+its two lists, spent on failures before disks, so a single number could not say
+which list it meant to skip into — and neither is one you page through.
 
 Tools spanning several services also report which ones they could not reach, and
 how many results each contributed, so a long answer from one service can never

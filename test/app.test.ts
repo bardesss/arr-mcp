@@ -309,14 +309,22 @@ describe('an argument this server does not have is refused, not ignored', () => 
         return (payload.result ?? {}) as { isError?: boolean; content?: { type: string; text: string }[] };
     };
 
-    it('refuses the exact call from #103, naming every invented parameter', async () => {
-        const result = await callTool('get_library', { offset: 100, source: 'media', totally_made_up: true });
+    /**
+     * The call from #103, minus `offset` — which that issue asked for and this
+     * tool now has, so it is no longer an invented parameter. The other two
+     * never existed and still do not.
+     */
+    it('refuses the invented parameters from #103, naming each one', async () => {
+        const result = await callTool('get_library', { source: 'media', totally_made_up: true });
 
         expect(result.isError).toBe(true);
         const text = result.content?.[0]?.text ?? '';
-        expect(text).toContain('offset');
         expect(text).toContain('source');
         expect(text).toContain('totally_made_up');
+    });
+
+    it('honours `offset`, which #103 asked for, rather than refusing it', async () => {
+        expect((await callTool('get_library', { offset: 100, limit: 5 })).isError).toBeFalsy();
     });
 
     /**
@@ -326,9 +334,10 @@ describe('an argument this server does not have is refused, not ignored', () => 
      * is the answer it was looking for in #103.
      */
     it('names the parameters the tool does accept, so the caller can correct itself', async () => {
-        const text = (await callTool('get_library', { offset: 100 })).content?.[0]?.text ?? '';
+        const text = (await callTool('get_library', { source: 'media' })).content?.[0]?.text ?? '';
 
         expect(text).toContain('limit');
+        expect(text).toContain('offset');
         expect(text).toContain('min_rating');
     });
 
@@ -342,7 +351,7 @@ describe('an argument this server does not have is refused, not ignored', () => 
         expect((await callTool('get_library', { watched_by: 'Someone' })).isError).toBeFalsy();
         expect((await callTool('discover_media', { media_type: 'tv' })).isError).toBeFalsy();
 
-        const text = (await callTool('get_library', { offset: 1 })).content?.[0]?.text ?? '';
+        const text = (await callTool('get_library', { source: 'media' })).content?.[0]?.text ?? '';
         expect(text).not.toContain('watched_by');
     });
 

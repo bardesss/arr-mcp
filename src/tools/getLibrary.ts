@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { MergedItem } from '../core/resolver.ts';
-import { DetailSchema, LimitSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
@@ -66,6 +66,7 @@ export type SortField = (typeof SORT_FIELDS)[number];
 export type LibraryQuery = {
     detail: DetailLevel;
     limit: number;
+    offset?: number;
     sort?: SortField;
     kind?: 'movie' | 'series';
     year?: number;
@@ -292,7 +293,7 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         // `bestCoveredSource` is never consulted here: no rating is read, so
         // computing one would be work whose result is discarded.
         const ordered = opts.sort === undefined ? filtered : applySort(filtered, opts.sort, 'imdb');
-        const shaped = applyLimit(ordered, opts.limit);
+        const shaped = applyLimit(ordered, opts.limit, opts.offset);
         return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
     }
 
@@ -311,7 +312,7 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
             : rated.filter(i => toTenPointScale(source, ratingOf(i, source) as number) >= floor);
 
     const ordered = opts.sort === undefined ? matching : applySort(matching, opts.sort, source);
-    const shaped = applyLimit(ordered, opts.limit);
+    const shaped = applyLimit(ordered, opts.limit, opts.offset);
 
     // Only for `imdb`, and only for a zero: every other source is supplied by a
     // service that either answered or is already named in `degraded`.
@@ -383,7 +384,8 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                         'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages, which has no added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
                     ),
                 detail: DetailSchema,
-                limit: LimitSchema
+                limit: LimitSchema,
+                offset: OffsetSchema
             }, { undocumented: ['watched_by'] })
         },
         async input => {

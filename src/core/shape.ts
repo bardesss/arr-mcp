@@ -20,6 +20,25 @@ export const LimitSchema = z
     .describe(`Maximum items to return. Defaults to ${DEFAULT_LIMIT}, hard maximum ${MAX_LIMIT}.`);
 
 /**
+ * How many to skip — the other half of `limit`, and the parameter #103 guessed
+ * at because a library past `MAX_LIMIT` could not be read in full without it.
+ *
+ * Unbounded above, unlike `limit`: `limit` caps how much context one answer can
+ * spend, which is a real cost, while a large `offset` only means a caller is
+ * deep into a list and costs nothing to serve. Capping it would put items past
+ * the cap permanently out of reach, which is the bug this parameter exists to
+ * fix.
+ */
+export const OffsetSchema = z
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe(
+        'How many items to skip before the window `limit` returns — page two of 50 is `offset: 50`. `total` always counts the whole list, so `offset + returned < total` is how you know there is another page. Pair it with `sort` for a stable walk: without one the order is whatever the services returned, and an item can move between pages.'
+    );
+
+/**
  * Every tool's arguments, refusing the ones it does not have.
  *
  * A plain `z.object` **strips** unknown keys, which is the quietest possible
@@ -62,23 +81,39 @@ export function toolInput<T extends z.ZodRawShape>(
 /**
  * The truncation contract from Silent truncation is how a
  * model confidently reports that a 900-film library contains 50 films, so
- * every read tool routes its list through here and serialises all four fields.
+ * every read tool routes its list through here and serialises all five fields.
  *
  * `limit` is clamped defensively even though LimitSchema also caps it — a
  * future internal caller that bypasses the schema must not be able to request
  * 5000 items, and must not be able to request zero and get a silently empty
  * list back.
+ *
+ * `offset` is clamped only at zero, and not at the top: a window past the end
+ * is an empty page, which is the honest answer to "give me items 900–950 of
+ * 243". A negative one starts at the beginning rather than reaching `slice`,
+ * where it would count backwards from the end and hand back the last few items
+ * as though they were the first.
+ *
+ * `truncated` keeps the meaning it had before an offset existed — *this is not
+ * the whole list* — rather than becoming "there is more after this window".
+ * Under the second reading the last page of a paged walk reports `false` with
+ * everything the caller never saw sitting in front of it, which is the same
+ * false completeness the field was added to prevent. "Is there another page" is
+ * `offset + returned < total`, and every term is in the response.
  */
 export function applyLimit<T>(
     items: readonly T[],
-    limit: number
-): { items: T[]; total: number; returned: number; truncated: boolean } {
+    limit: number,
+    offset = 0
+): { items: T[]; total: number; returned: number; offset: number; truncated: boolean } {
     const effective = Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
-    const sliced = items.slice(0, effective);
+    const start = Math.max(Math.trunc(offset), 0);
+    const sliced = items.slice(start, start + effective);
     return {
         items: sliced,
         total: items.length,
         returned: sliced.length,
+        offset: start,
         truncated: sliced.length < items.length
     };
 }

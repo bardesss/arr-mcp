@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -25,6 +25,7 @@ export async function buildDiscoverMedia(
         minRating?: number;
         detail: DetailLevel;
         limit: number;
+        offset?: number;
     },
     dataset?: ImdbDataset | undefined
 ): Promise<GetSearchResult> {
@@ -56,7 +57,7 @@ export async function buildDiscoverMedia(
     // TMDB-backed, so a hit carrying an imdb id gains an IMDb rating beside
     // the TMDB one it already had — source selection and enrichment are
     // independent decisions.
-    const shaped = applyLimit(hits, opts.limit);
+    const shaped = applyLimit(hits, opts.limit, opts.offset);
     const rated = enrichWithImdb(shaped.items, dataset);
 
     return {
@@ -81,7 +82,7 @@ export async function buildDiscoverMedia(
  * rejected rather than silently returning nothing.
  */
 function fromDataset(
-    opts: { kind: 'movie' | 'series'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number },
+    opts: { kind: 'movie' | 'series'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number; offset?: number },
     dataset: ImdbDataset | undefined
 ): GetSearchResult {
     const empty = { items: [], total: 0, returned: 0, truncated: false, degraded: [], counts: {} };
@@ -120,7 +121,7 @@ function fromDataset(
     // back rather than what exists — the dataset holds ~10^7 titles and
     // counting the full match set would cost a second query to tell the caller
     // a number they cannot page through anyway.
-    const shaped = applyLimit(hits, opts.limit);
+    const shaped = applyLimit(hits, opts.limit, opts.offset);
     return { ...shaped, items: shaped.items.map(h => project(h, opts.detail)), degraded: [], counts: {} };
 }
 
@@ -145,10 +146,11 @@ export function registerDiscoverMedia(
                 year: z.number().int().min(1900).max(2100).optional().describe('Restrict to one release year.'),
                 min_rating: z.number().min(0).max(10).optional().describe('Minimum TMDB rating out of 10.'),
                 detail: DetailSchema,
-                limit: LimitSchema
+                limit: LimitSchema,
+                offset: OffsetSchema
             }, { undocumented: ['media_type'] })
         },
-        async ({ kind, media_type, genre, year, min_rating, detail, limit }) => {
+        async ({ kind, media_type, genre, year, min_rating, detail, limit, offset }) => {
             const resolved =
                 preferred({
                     name: 'kind',
@@ -164,7 +166,8 @@ export function registerDiscoverMedia(
                 ...(year === undefined ? {} : { year }),
                 ...(min_rating === undefined ? {} : { minRating: min_rating }),
                 detail,
-                limit
+                limit,
+                offset
             }, dataset);
             const summary =
                 result.degraded.length > 0

@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ServiceAdapter, SubtitleCapable, SubtitleGap, SubtitleProvider } from '../services/types.ts';
 
 export type GetSubtitlesResult = {
@@ -42,7 +42,7 @@ const project = (g: SubtitleGap, detail: DetailLevel): SubtitleGap => {
  */
 export async function buildGetSubtitles(
     adapters: readonly (ServiceAdapter & SubtitleCapable)[],
-    opts: { detail: DetailLevel; limit: number }
+    opts: { detail: DetailLevel; limit: number; offset?: number }
 ): Promise<GetSubtitlesResult> {
     if (adapters.length === 0) {
         return { items: [], total: 0, returned: 0, truncated: false, degraded: [] };
@@ -79,7 +79,8 @@ export async function buildGetSubtitles(
     // answered first, which would make the output differ run to run.
     const shaped = applyLimit(
         gaps.sort((a, b) => a.service.localeCompare(b.service) || a.title.localeCompare(b.title)),
-        opts.limit
+        opts.limit,
+        opts.offset
     );
     return {
         ...shaped,
@@ -95,10 +96,10 @@ export function registerGetSubtitles(server: McpServer, adapters: readonly (Serv
         {
             description:
                 'Subtitles Bazarr knows are missing, for both films and episodes, with the languages wanted for each — and which subtitle providers are currently working, throttled, or blocked, which is usually why something is missing. Release names come from public indexers and are fenced as untrusted data.',
-            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema })
+            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
         },
-        async ({ detail, limit }) => {
-            const result = await buildGetSubtitles(adapters, { detail, limit });
+        async ({ detail, limit, offset }) => {
+            const result = await buildGetSubtitles(adapters, { detail, limit, offset });
             const unhealthy = (result.providers ?? []).filter(p => !p.healthy).length;
             const summary =
                 result.degraded.length > 0

@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import type { MediaRequest, RequestStatus } from '../services/types.ts';
 import { UserSchema } from './getPlayback.ts';
@@ -31,7 +31,7 @@ const project = (r: MediaRequest, detail: DetailLevel): MediaRequest => {
 export async function buildGetRequests(
     adapter: SeerrAdapter | undefined,
     resolver: IdentityResolver | undefined,
-    opts: { detail: DetailLevel; limit: number; user?: string; status?: RequestStatus }
+    opts: { detail: DetailLevel; limit: number; offset?: number; user?: string; status?: RequestStatus }
 ): Promise<GetRequestsResult> {
     if (adapter === undefined || resolver === undefined) {
         return { items: [], total: 0, returned: 0, truncated: false, degraded: [] };
@@ -52,7 +52,7 @@ export async function buildGetRequests(
         return { items: [], total: 0, returned: 0, truncated: false, degraded: [adapter.id] };
     }
 
-    const shaped = applyLimit(requests, opts.limit);
+    const shaped = applyLimit(requests, opts.limit, opts.offset);
     return { ...shaped, items: shaped.items.map(r => project(r, opts.detail)), degraded: [] };
 }
 
@@ -69,14 +69,16 @@ export function registerGetRequests(
             inputSchema: toolInput({
                 detail: DetailSchema,
                 limit: LimitSchema,
+                offset: OffsetSchema,
                 user: UserSchema,
                 status: StatusSchema
             })
         },
-        async ({ detail, limit, user, status }) => {
+        async ({ detail, limit, offset, user, status }) => {
             const result = await buildGetRequests(adapter, resolver, {
                 detail,
                 limit,
+                offset,
                 ...(user === undefined ? {} : { user }),
                 ...(status === undefined ? {} : { status })
             });

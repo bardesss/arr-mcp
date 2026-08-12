@@ -707,3 +707,74 @@ describe('seasons projection', () => {
         expect(result.items[0]).not.toHaveProperty('seasons');
     });
 });
+
+/**
+ * The other half of #103. `limit` bounds one answer; without an offset a
+ * library past `MAX_LIMIT` could not be read in full at all, which is what the
+ * reporter's agent was reaching for when it invented the parameter.
+ *
+ * Driven through `buildGetLibrary` rather than the schema, because what matters
+ * is that the window lands after sorting and filtering — an offset applied to
+ * the wrong list is a paging bug that no amount of schema testing would find.
+ */
+describe('paging a library larger than one answer', () => {
+    const shelf = () =>
+        loaderOf(
+            Array.from({ length: 12 }, (_, i) =>
+                film({ title: `Film ${String(i).padStart(2, '0')}`, ids: { tmdb: i + 1 } })
+            )
+        );
+
+    const titles = (items: { title: string }[]) => items.map(i => i.title);
+
+    it('returns the second page, and counts the whole library in `total`', async () => {
+        const result = await buildGetLibrary(shelf(), { ...base, sort: 'title', limit: 5, offset: 5 });
+
+        expect(titles(result.items)).toEqual(['Film 05', 'Film 06', 'Film 07', 'Film 08', 'Film 09']);
+        expect(result.total).toBe(12);
+        expect(result.returned).toBe(5);
+        expect(result.offset).toBe(5);
+    });
+
+    /**
+     * The bug this test exists for: an offset applied before the sort would
+     * page through the services' own order and return a different five films
+     * for the same request, while still looking perfectly well-formed.
+     */
+    it('pages the sorted order, not the order the services happened to return', async () => {
+        const pages = await Promise.all(
+            [0, 4, 8].map(offset => buildGetLibrary(shelf(), { ...base, sort: 'title', limit: 4, offset }))
+        );
+
+        expect(pages.flatMap(p => titles(p.items))).toEqual(
+            Array.from({ length: 12 }, (_, i) => `Film ${String(i).padStart(2, '0')}`)
+        );
+    });
+
+    /** A filter narrows the list the offset walks, so the two compose. */
+    it('offsets within the filtered list rather than the whole library', async () => {
+        const loader = loaderOf([
+            ...Array.from({ length: 3 }, (_, i) => film({ title: `Film ${i}`, ids: { tmdb: i + 1 } })),
+            ...Array.from({ length: 3 }, (_, i) =>
+                film({ kind: 'series', title: `Show ${i}`, ids: { tvdb: i + 100 } })
+            )
+        ]);
+        const result = await buildGetLibrary(loader, { ...base, kind: 'series', sort: 'title', limit: 2, offset: 1 });
+
+        expect(titles(result.items)).toEqual(['Show 1', 'Show 2']);
+        expect(result.total).toBe(3);
+    });
+
+    /**
+     * Past the end is an empty page whose `total` still names the library. A
+     * bare `[]` here would read as "you have no films", which is the same
+     * false conclusion #103 ended in.
+     */
+    it('reports an empty page past the end without disowning the library', async () => {
+        const result = await buildGetLibrary(shelf(), { ...base, limit: 5, offset: 50 });
+
+        expect(result.items).toEqual([]);
+        expect(result.total).toBe(12);
+        expect(result.truncated).toBe(true);
+    });
+});

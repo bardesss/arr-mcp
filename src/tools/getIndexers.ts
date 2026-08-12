@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { IndexerCapable, IndexerRejection, IndexerSummary, ServiceAdapter } from '../services/types.ts';
 
 export type GetIndexersResult = {
@@ -23,7 +23,7 @@ const project = (i: IndexerSummary, detail: DetailLevel): IndexerSummary => {
 
 export async function buildGetIndexers(
     adapter: (ServiceAdapter & IndexerCapable) | undefined,
-    opts: { detail: DetailLevel; limit: number }
+    opts: { detail: DetailLevel; limit: number; offset?: number }
 ): Promise<GetIndexersResult> {
     if (adapter === undefined) {
         return { items: [], total: 0, returned: 0, truncated: false, degraded: [] };
@@ -48,7 +48,7 @@ export async function buildGetIndexers(
         }
     }
 
-    const shaped = applyLimit(indexers, opts.limit);
+    const shaped = applyLimit(indexers, opts.limit, opts.offset);
     return {
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
@@ -63,10 +63,10 @@ export function registerGetIndexers(server: McpServer, adapter: (ServiceAdapter 
         {
             description:
                 'Prowlarr indexer health: which indexers are enabled, which are temporarily disabled and why, per-indexer query and grab counts, and — at detail: full — the queries indexers recently rejected and the reasons they gave. Failure messages and rejection reasons come from the indexer itself and are fenced as untrusted data.',
-            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema })
+            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
         },
-        async ({ detail, limit }) => {
-            const result = await buildGetIndexers(adapter, { detail, limit });
+        async ({ detail, limit, offset }) => {
+            const result = await buildGetIndexers(adapter, { detail, limit, offset });
             const disabled = result.items.filter(i => i.disabledUntil !== undefined).length;
             const summary =
                 result.degraded.length > 0

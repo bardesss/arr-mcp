@@ -225,9 +225,14 @@ export async function buildStackHealth(
     // must not be able to ask for zero items and get a silently empty list.
     // A spent budget is the one case where zero is the honest answer, so it is
     // handled here rather than by weakening that guard for every other caller.
+    // `offset: 0` rather than omitted, so a hand-built envelope reports the
+    // same five fields `applyLimit` does. This tool takes no `offset`
+    // parameter: one budget spans two lists, so a single number could not say
+    // which of them it meant to skip into — and neither list is one you page
+    // through. `limit` here bounds context, it does not paginate.
     const shapedDisks =
         remaining === 0
-            ? { items: [], total: disks.length, returned: 0, truncated: disks.length > 0 }
+            ? { items: [], total: disks.length, returned: 0, offset: 0, truncated: disks.length > 0 }
             : applyLimit(disks, remaining);
 
     // Counts stay honest at every detail level: a model must never see
