@@ -2,13 +2,14 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceId } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasCalendar, type CalendarEntry, type ServiceAdapter } from '../services/types.ts';
 
 export type GetCalendarResult = {
     items: CalendarEntry[];
     total: number;
     returned: number;
+    offset: number;
     truncated: boolean;
     degraded: string[];
     counts: Partial<Record<ServiceId, number>>;
@@ -39,7 +40,7 @@ const project = (c: CalendarEntry, detail: DetailLevel): CalendarEntry => {
 
 export async function buildGetCalendar(
     adapters: readonly ServiceAdapter[],
-    opts: { detail: DetailLevel; limit: number; daysBack: number; daysAhead: number; now?: () => Date }
+    opts: { detail: DetailLevel; limit: number; offset?: number; daysBack: number; daysAhead: number; now?: () => Date }
 ): Promise<GetCalendarResult> {
     // The clock is injected so tests are not time-dependent.
     const at = (opts.now ?? (() => new Date()))();
@@ -56,7 +57,7 @@ export async function buildGetCalendar(
     // items, not whichever service happened to answer second.
     items.sort((a, b) => a.date.localeCompare(b.date));
 
-    const shaped = applyLimit(items, opts.limit);
+    const shaped = applyLimit(items, opts.limit, opts.offset);
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }
 
@@ -66,17 +67,20 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
         {
             description:
                 'Films and episodes due in a date window, merged from Radarr and Sonarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 detail: DetailSchema,
                 limit: LimitSchema,
+                offset: OffsetSchema,
                 days_back: DaysBackSchema,
                 days_ahead: DaysAheadSchema
             })
         },
-        async ({ detail, limit, days_back, days_ahead }) => {
+        async ({ detail, limit, offset, days_back, days_ahead }) => {
             const result = await buildGetCalendar(adapters, {
                 detail,
                 limit,
+                offset,
                 daysBack: days_back,
                 daysAhead: days_ahead
             });

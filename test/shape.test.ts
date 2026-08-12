@@ -14,7 +14,7 @@ describe('applyLimit', () => {
 
     it('reports truncated: false when everything fits', () => {
         const out = applyLimit([1, 2, 3], 50);
-        expect(out).toEqual({ items: [1, 2, 3], total: 3, returned: 3, truncated: false });
+        expect(out).toEqual({ items: [1, 2, 3], total: 3, returned: 3, offset: 0, truncated: false });
     });
 
     it('caps at MAX_LIMIT regardless of what was requested', () => {
@@ -27,7 +27,7 @@ describe('applyLimit', () => {
     });
 
     it('handles an empty list without claiming truncation', () => {
-        expect(applyLimit([], 50)).toEqual({ items: [], total: 0, returned: 0, truncated: false });
+        expect(applyLimit([], 50)).toEqual({ items: [], total: 0, returned: 0, offset: 0, truncated: false });
     });
 
     it('clamps a nonsensical limit to at least one item rather than returning nothing', () => {
@@ -47,6 +47,80 @@ describe('applyLimit', () => {
         const input = [1, 2, 3, 4];
         applyLimit(input, 2);
         expect(input).toEqual([1, 2, 3, 4]);
+    });
+});
+
+/**
+ * The second half of the truncation contract, added in response to #103.
+ *
+ * `limit` alone answers "give me fewer"; it cannot answer "give me the next
+ * ones", and a library past `MAX_LIMIT` was therefore unreadable in full. The
+ * agent in #103 guessed at `offset` for exactly this reason — the parameter it
+ * reached for was the right idea against a tool that did not have it.
+ */
+describe('applyLimit with an offset', () => {
+    const hundred = Array.from({ length: 100 }, (_, i) => i);
+
+    it('returns the window starting at the offset', () => {
+        const out = applyLimit(hundred, 10, 20);
+        expect(out.items).toEqual([20, 21, 22, 23, 24, 25, 26, 27, 28, 29]);
+        expect(out.offset).toBe(20);
+        expect(out.returned).toBe(10);
+        expect(out.total).toBe(100);
+    });
+
+    /**
+     * `total` counts the whole list, never the window. It is the number that
+     * stops a model reporting a 100-item library as a 10-item one, so an offset
+     * must not be able to shrink it.
+     */
+    it('counts the whole list in `total`, not the window', () => {
+        expect(applyLimit(hundred, 10, 90).total).toBe(100);
+    });
+
+    /**
+     * `truncated` keeps the meaning it had before an offset existed: *this is
+     * not the whole list*. Reading it as "there is more after this window"
+     * would make the last page report `false` while 90 items the caller never
+     * saw sat in front of it.
+     */
+    it('still reports truncation on the last page, where most of the list is behind you', () => {
+        const out = applyLimit(hundred, 10, 90);
+        expect(out.returned).toBe(10);
+        expect(out.truncated).toBe(true);
+    });
+
+    it('is not truncated when one window covers everything', () => {
+        expect(applyLimit([1, 2, 3], 50, 0)).toEqual({
+            items: [1, 2, 3],
+            total: 3,
+            returned: 3,
+            offset: 0,
+            truncated: false
+        });
+    });
+
+    /**
+     * Past the end is an empty page, not an error and not a wrapped-around
+     * first page. `total` still says how far past the end the caller went.
+     */
+    it('returns nothing for an offset beyond the end, without pretending it is the start', () => {
+        const out = applyLimit(hundred, 10, 500);
+        expect(out.items).toEqual([]);
+        expect(out.returned).toBe(0);
+        expect(out.total).toBe(100);
+    });
+
+    it('treats a negative or fractional offset as the start rather than slicing from the end', () => {
+        expect(applyLimit(hundred, 3, -5).items).toEqual([0, 1, 2]);
+        expect(applyLimit(hundred, 3, 2.7).items).toEqual([2, 3, 4]);
+    });
+
+    /** Paging the whole list yields every item exactly once, in order. */
+    it('covers the list exactly once when walked page by page', () => {
+        const seen: number[] = [];
+        for (let offset = 0; offset < 100; offset += 30) seen.push(...applyLimit(hundred, 30, offset).items);
+        expect(seen).toEqual(hundred);
     });
 });
 

@@ -35,8 +35,20 @@ not obvious, and the places where a value is deliberately absent rather than
 ## Every tool answers the same way
 
 Every tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
-`limit`, and reports `{ total, returned, truncated }` — a truncated answer
-always says so.
+`limit`, and reports `{ total, returned, offset, truncated }` — a truncated
+answer always says so.
+
+**Paging.** Every list tool also takes `offset`: page two of fifty is
+`offset: 50`. `total` always counts the whole list rather than the window, so
+`offset + returned < total` is how you know another page exists. `truncated`
+answers a different question — *this is not the whole list* — and so stays
+`true` on the last page of a walk, where everything you already read is behind
+you. Pair `offset` with `sort` when the order matters: without one the order is
+whatever the services returned, and an item can move between pages.
+
+`stack_health` is the exception and takes no `offset`. One `limit` budget spans
+its two lists, spent on failures before disks, so a single number could not say
+which list it meant to skip into — and neither is one you page through.
 
 Tools spanning several services also report which ones they could not reach, and
 how many results each contributed, so a long answer from one service can never
@@ -44,6 +56,12 @@ silently hide another.
 
 `diagnose` takes a title, or an exact `service` plus `id`, and returns a verdict
 rather than a list.
+
+**Every answer comes twice: a sentence and a structure.** The summary line is
+for a reader; `structuredContent` is the contract, and every tool declares its
+shape as an `outputSchema` so a client knows what it will get before it calls.
+Read `total` from there rather than parsing it out of "50 of 243 item(s)" —
+that sentence is prose and may be reworded.
 
 **An argument a tool does not have is refused, and the refusal lists the ones it
 does have.** Dropping it silently would be worse than it sounds: the call

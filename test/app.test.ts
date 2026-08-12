@@ -309,14 +309,22 @@ describe('an argument this server does not have is refused, not ignored', () => 
         return (payload.result ?? {}) as { isError?: boolean; content?: { type: string; text: string }[] };
     };
 
-    it('refuses the exact call from #103, naming every invented parameter', async () => {
-        const result = await callTool('get_library', { offset: 100, source: 'media', totally_made_up: true });
+    /**
+     * The call from #103, minus `offset` — which that issue asked for and this
+     * tool now has, so it is no longer an invented parameter. The other two
+     * never existed and still do not.
+     */
+    it('refuses the invented parameters from #103, naming each one', async () => {
+        const result = await callTool('get_library', { source: 'media', totally_made_up: true });
 
         expect(result.isError).toBe(true);
         const text = result.content?.[0]?.text ?? '';
-        expect(text).toContain('offset');
         expect(text).toContain('source');
         expect(text).toContain('totally_made_up');
+    });
+
+    it('honours `offset`, which #103 asked for, rather than refusing it', async () => {
+        expect((await callTool('get_library', { offset: 100, limit: 5 })).isError).toBeFalsy();
     });
 
     /**
@@ -326,9 +334,10 @@ describe('an argument this server does not have is refused, not ignored', () => 
      * is the answer it was looking for in #103.
      */
     it('names the parameters the tool does accept, so the caller can correct itself', async () => {
-        const text = (await callTool('get_library', { offset: 100 })).content?.[0]?.text ?? '';
+        const text = (await callTool('get_library', { source: 'media' })).content?.[0]?.text ?? '';
 
         expect(text).toContain('limit');
+        expect(text).toContain('offset');
         expect(text).toContain('min_rating');
     });
 
@@ -342,7 +351,7 @@ describe('an argument this server does not have is refused, not ignored', () => 
         expect((await callTool('get_library', { watched_by: 'Someone' })).isError).toBeFalsy();
         expect((await callTool('discover_media', { media_type: 'tv' })).isError).toBeFalsy();
 
-        const text = (await callTool('get_library', { offset: 1 })).content?.[0]?.text ?? '';
+        const text = (await callTool('get_library', { source: 'media' })).content?.[0]?.text ?? '';
         expect(text).not.toContain('watched_by');
     });
 
@@ -377,6 +386,116 @@ describe('an argument this server does not have is refused, not ignored', () => 
 
         const permissive = result.tools.filter(t => t.inputSchema.additionalProperties !== false);
         expect(permissive.map(t => t.name)).toEqual([]);
+    });
+});
+
+/**
+ * #103 reported `total` as missing from `structuredContent`. It was never
+ * missing — but no tool declared an `outputSchema`, and a client that gates
+ * `structuredContent` on a declared schema surfaces nothing without one, which
+ * from the far side is the same thing. The reporter parsed the count out of the
+ * summary sentence instead.
+ *
+ * Declaring one is not free: the SDK validates `structuredContent` against it
+ * and fails the *whole call* on a mismatch. On a write that means a change that
+ * already landed would be reported as an error. So these drive real payloads
+ * through the validating path — an empty result validates against almost
+ * anything, and would prove nothing.
+ */
+describe('every tool declares the shape it answers in', () => {
+    const film = {
+        id: 1,
+        title: 'Some Film',
+        year: 2026,
+        monitored: true,
+        hasFile: true,
+        tmdbId: 550,
+        movieFile: { size: 4_000_000_000, quality: { quality: { name: 'Bluray-1080p' } } }
+    };
+
+    /** Reachable, with one film and a scan capability — enough for a read, a
+     *  health answer and a write preview to all produce a real payload. */
+    const radarr = (): ServiceAdapter =>
+        ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+            getVersion: async () => '5.0.0',
+            listLibrary: async () => [
+                {
+                    kind: 'movie',
+                    title: film.title,
+                    year: film.year,
+                    ids: { tmdb: film.tmdbId },
+                    acquisition: { service: 'radarr', monitored: true, hasFile: true, quality: 'Bluray-1080p' }
+                }
+            ],
+            startLibraryScan: async () => ({ commandId: 42 })
+        }) as unknown as ServiceAdapter;
+
+    /**
+     * Permissions are read from the config, never from the adapter, so a write
+     * preview needs a `services.radarr` block even though the adapter above is
+     * a stub. Without it `trigger_scan` is refused before it can produce the
+     * shape this is here to validate.
+     */
+    const writable = ConfigSchema.parse({
+        auth: { bearer_token: TOKEN, password_hash: hashPassword('unused-here') },
+        services: { radarr: { url: 'http://192.0.2.10:7878', api_key: 'k', permissions: { safe_write: true } } }
+    });
+
+    const call = async (name: string, args: Record<string, unknown> = {}) => {
+        const res = await appWith(writable, [radarr()]).request(
+            'http://localhost:6060/mcp',
+            rpc(
+                { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
+        );
+        return ((await rpcPayload(res)).result ?? {}) as {
+            isError?: boolean;
+            content?: { text: string }[];
+            structuredContent?: Record<string, unknown>;
+        };
+    };
+
+    it('declares an output schema on every tool, not only the ones that were easy', async () => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
+        );
+        const { result } = (await rpcPayload(res)) as { result: { tools: { name: string; outputSchema?: unknown }[] } };
+
+        expect(result.tools.filter(t => t.outputSchema === undefined).map(t => t.name)).toEqual([]);
+    });
+
+    /** The field #103 could not reach, now declared and still populated. */
+    it('returns a validated envelope carrying `total` for a real library read', async () => {
+        const result = await call('get_library');
+
+        expect(result.isError).toBeFalsy();
+        expect(result.structuredContent).toMatchObject({ total: 1, returned: 1, offset: 0, truncated: false });
+    });
+
+    it('validates the answer of the one read tool that is not a list', async () => {
+        const result = await call('stack_health');
+
+        expect(result.isError).toBeFalsy();
+        expect(result.structuredContent).toHaveProperty('services');
+    });
+
+    /**
+     * A write preview, which is where a wrong schema would cost the most: the
+     * call fails *after* `apply` has run, so a completed change gets reported
+     * as an error. This one stops before `apply` — no token was presented —
+     * but it exercises the same validation on the same shape.
+     */
+    it('validates a write preview, token and all', async () => {
+        const result = await call('trigger_scan', { service: 'radarr' });
+
+        expect(result.isError).toBeFalsy();
+        expect(result.structuredContent).toMatchObject({ applied: false, tool: 'trigger_scan', tier: 'safe' });
+        expect(result.structuredContent?.['confirm_token']).toEqual(expect.any(String));
     });
 });
 

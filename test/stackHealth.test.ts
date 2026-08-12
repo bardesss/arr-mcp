@@ -204,7 +204,7 @@ describe('stack_health', () => {
 
         expect(result.services).toEqual([]);
         expect(result.degraded).toEqual([]);
-        expect(result.disks).toEqual({ items: [], total: 0, returned: 0, truncated: false });
+        expect(result.disks).toEqual({ items: [], total: 0, returned: 0, offset: 0, truncated: false });
     });
 
     it('includes a capability-less service in the diagnosis list without degrading it', async () => {

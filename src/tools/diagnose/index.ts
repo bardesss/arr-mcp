@@ -19,6 +19,25 @@ export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
         {
             description:
                 'Why is this not playable? Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the first thing that explains the absence, with what to do about it. Give a title as `query` for how a person actually asks; give `service` plus `id` only when you already have an exact item in hand (e.g. from get_media_details) — the explicit id wins if both are given. Works with services down: any step it could not check sets `certain: false` and the summary says what was missed, rather than guessing across the hole.',
+            // A verdict, not a list — so no paged envelope. `certain` is the
+            // field that matters most and the one a client must not have to
+            // read prose to find: a diagnosis reached across a service that
+            // could not be checked is a guess, and reporting it as an answer is
+            // how someone gets told their file is fine when nothing looked.
+            outputSchema: z.looseObject({
+                query: z.string(),
+                resolved: z.looseObject({}).optional().describe('What the title resolved to. Absent when nothing matched.'),
+                steps: z.array(z.unknown()).describe('The chain, in the order it runs: requested, managed, monitored, downloaded, indexed, imported, scanned.'),
+                verdict: z.looseObject({
+                    stage: z.string().describe('The first stage that explains the absence, or `playable`.'),
+                    summary: z.string(),
+                    remedy: z.string().optional(),
+                    certain: z
+                        .boolean()
+                        .describe('False when a step could not be checked. Report the verdict as provisional and say what was missed rather than guessing across the hole.')
+                }),
+                degraded: z.array(z.string())
+            }),
             inputSchema: toolInput({
                 query: z.string().min(1).optional().describe('A title — how a person actually asks.'),
                 service: ServiceIdSchema.optional().describe('With `id`: an exact item, when one is already in hand.'),

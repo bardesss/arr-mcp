@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -25,6 +25,7 @@ export async function buildDiscoverMedia(
         minRating?: number;
         detail: DetailLevel;
         limit: number;
+        offset?: number;
     },
     dataset?: ImdbDataset | undefined
 ): Promise<GetSearchResult> {
@@ -49,14 +50,14 @@ export async function buildDiscoverMedia(
         });
     } catch (err) {
         logger.warn({ service: adapter.id, err }, 'discover failed; degrading');
-        return { items: [], total: 0, returned: 0, truncated: false, degraded: [adapter.id], counts: {} };
+        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id], counts: {} };
     }
 
     // Enrichment applies whatever the source. Seerr's discover is
     // TMDB-backed, so a hit carrying an imdb id gains an IMDb rating beside
     // the TMDB one it already had — source selection and enrichment are
     // independent decisions.
-    const shaped = applyLimit(hits, opts.limit);
+    const shaped = applyLimit(hits, opts.limit, opts.offset);
     const rated = enrichWithImdb(shaped.items, dataset);
 
     return {
@@ -81,10 +82,10 @@ export async function buildDiscoverMedia(
  * rejected rather than silently returning nothing.
  */
 function fromDataset(
-    opts: { kind: 'movie' | 'series'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number },
+    opts: { kind: 'movie' | 'series'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number; offset?: number },
     dataset: ImdbDataset | undefined
 ): GetSearchResult {
-    const empty = { items: [], total: 0, returned: 0, truncated: false, degraded: [], counts: {} };
+    const empty = { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [], counts: {} };
     if (dataset === undefined) return empty;
 
     if (opts.genre !== undefined && /^\d+$/.test(opts.genre)) {
@@ -120,7 +121,7 @@ function fromDataset(
     // back rather than what exists — the dataset holds ~10^7 titles and
     // counting the full match set would cost a second query to tell the caller
     // a number they cannot page through anyway.
-    const shaped = applyLimit(hits, opts.limit);
+    const shaped = applyLimit(hits, opts.limit, opts.offset);
     return { ...shaped, items: shaped.items.map(h => project(h, opts.detail)), degraded: [], counts: {} };
 }
 
@@ -134,6 +135,7 @@ export function registerDiscoverMedia(
         {
             description:
                 'Browse what exists rather than what you have: films or series by genre, year and minimum rating. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so `genre` is a TMDB genre id and the rating is TMDB’s. With no Seerr it is answered from the local IMDb dataset instead, where `genre` is a name such as `Crime` and the rating is IMDb’s; passing a numeric id there is refused rather than silently matching nothing.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Defaults to films.'),
                 // Undocumented on purpose: the spelling this tool had when the
@@ -145,10 +147,11 @@ export function registerDiscoverMedia(
                 year: z.number().int().min(1900).max(2100).optional().describe('Restrict to one release year.'),
                 min_rating: z.number().min(0).max(10).optional().describe('Minimum TMDB rating out of 10.'),
                 detail: DetailSchema,
-                limit: LimitSchema
+                limit: LimitSchema,
+                offset: OffsetSchema
             }, { undocumented: ['media_type'] })
         },
-        async ({ kind, media_type, genre, year, min_rating, detail, limit }) => {
+        async ({ kind, media_type, genre, year, min_rating, detail, limit, offset }) => {
             const resolved =
                 preferred({
                     name: 'kind',
@@ -164,7 +167,8 @@ export function registerDiscoverMedia(
                 ...(year === undefined ? {} : { year }),
                 ...(min_rating === undefined ? {} : { minRating: min_rating }),
                 detail,
-                limit
+                limit,
+                offset
             }, dataset);
             const summary =
                 result.degraded.length > 0

@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceId } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import { rankTitle, unfenced } from '../core/titleMatch.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
@@ -12,6 +12,7 @@ export type GetSearchResult = {
     items: SearchHit[];
     total: number;
     returned: number;
+    offset: number;
     truncated: boolean;
     degraded: string[];
     counts: Partial<Record<ServiceId, number>>;
@@ -28,7 +29,7 @@ const project = (h: SearchHit, detail: DetailLevel): SearchHit => {
 
 export async function buildSearchMedia(
     adapters: readonly ServiceAdapter[],
-    opts: { query: string; source: SearchSource; detail: DetailLevel; limit: number },
+    opts: { query: string; source: SearchSource; detail: DetailLevel; limit: number; offset?: number },
     dataset?: ImdbDataset | undefined
 ): Promise<GetSearchResult> {
     const { items, degraded, counts } = await gather(
@@ -47,7 +48,7 @@ export async function buildSearchMedia(
     // Enriched after the limit, not before: only the page actually returned
     // needs ratings, and an indexer search can produce hundreds of hits for a
     // caller who asked for ten.
-    const shaped = applyLimit(items, opts.limit);
+    const shaped = applyLimit(items, opts.limit, opts.offset);
     const rated = enrichWithImdb(shaped.items, dataset);
 
     return { ...shaped, items: rated.map(h => project(h, opts.detail)), degraded, counts };
@@ -63,6 +64,7 @@ export function registerSearchMedia(
         {
             description:
                 'Search across the stack: your existing library, metadata for things you do not have yet, or what indexers currently offer. Indexer results contain attacker-controllable release names and are returned inside an explicit untrusted-data boundary.',
+            outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 query: z.string().min(1).describe('What to search for.'),
                 source: z
@@ -72,11 +74,12 @@ export function registerSearchMedia(
                         'library: what you already have. discover: metadata lookup, nothing added. indexers: what is available to download — these results contain release names from public indexers and are fenced as untrusted data.'
                     ),
                 detail: DetailSchema,
-                limit: LimitSchema
+                limit: LimitSchema,
+                offset: OffsetSchema
             })
         },
-        async ({ query, source, detail, limit }) => {
-            const result = await buildSearchMedia(adapters, { query, source, detail, limit }, dataset);
+        async ({ query, source, detail, limit, offset }) => {
+            const result = await buildSearchMedia(adapters, { query, source, detail, limit, offset }, dataset);
             const summary =
                 result.total === 0
                     ? `No ${source} results for "${query}".`

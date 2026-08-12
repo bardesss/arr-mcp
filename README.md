@@ -62,6 +62,12 @@ Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
 the dashboard. Everything the UI does is still just `config.yaml`, and editing
 that by hand remains supported.
 
+A client that asks for `Accept: application/json` — or sends no `Accept` at
+all — gets a single JSON object back with a `Content-Length`, rather than being
+refused for not also naming `text/event-stream`. One that does accept a stream
+still gets one. So a plain `curl` or `requests.post` works as-is, and so does a
+full MCP client.
+
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest`, plus `main` for bleeding edge.
 Pin a minor — `:1.4` — if you would rather approve each new tool surface
 yourself.
