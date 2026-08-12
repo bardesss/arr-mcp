@@ -154,3 +154,37 @@ describe('removing an instance', () => {
         expect(ids(removeInstance(base({ radarr: KEYED }), 'radarr'))).toEqual([]);
     });
 });
+
+/**
+ * The keys these operations have no business touching.
+ *
+ * Not a hypothetical: `validate` used to rebuild the config from `auth` and
+ * `services` alone, and since `saveConfig` deletes an absent `metadata` block,
+ * editing a timeout on any card switched the IMDb dataset off and closed the
+ * database. Nothing caught it, because every test here asked only about
+ * `services`.
+ */
+describe('editing an instance leaves the rest of the config alone', () => {
+    const withDataset = (services: unknown = { radarr: KEYED }): Config =>
+        ConfigSchema.parse({ auth: AUTH, services, metadata: { imdb: { enabled: true } } });
+
+    it('keeps the dataset switched on across an add', () => {
+        const next = addInstance(withDataset({}), { type: 'radarr', fields: KEYED });
+        expect(next.metadata?.imdb?.enabled).toBe(true);
+    });
+
+    it('keeps the dataset switched on across an update', () => {
+        const next = updateInstance(withDataset(), 'radarr', { timeout_ms: 12_000 });
+        expect(next.metadata?.imdb?.enabled).toBe(true);
+    });
+
+    it('keeps the dataset switched on across a removal', () => {
+        const next = removeInstance(withDataset(), 'radarr');
+        expect(next.metadata?.imdb?.enabled).toBe(true);
+    });
+
+    it('leaves auth untouched', () => {
+        const next = updateInstance(withDataset(), 'radarr', { timeout_ms: 12_000 });
+        expect(next.auth).toEqual(AUTH);
+    });
+});

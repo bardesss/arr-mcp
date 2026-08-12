@@ -67,8 +67,19 @@ function writeBack(services: Record<string, unknown>, type: ServiceId, entries: 
 const cloneServices = (config: Config): Record<string, unknown> =>
     JSON.parse(JSON.stringify(config.services)) as Record<string, unknown>;
 
+/**
+ * Re-parses the whole config with `services` swapped in.
+ *
+ * Spread rather than assembled key by key. Listing the keys it meant to keep is
+ * how this silently switched the IMDb dataset off: `metadata` was not in the
+ * list, `saveConfig` deletes an absent `metadata` block, and so editing a
+ * timeout on any card wiped a setting that card has nothing to do with. The
+ * same rule the `build*Config` builders follow in `src/web/routes.ts` — carry
+ * forward every field you do not own — and the spread keeps it true for keys
+ * added later.
+ */
 const validate = (config: Config, services: Record<string, unknown>): Config => {
-    const result = ConfigSchema.safeParse({ auth: config.auth, services });
+    const result = ConfigSchema.safeParse({ ...config, services });
     if (!result.success) {
         throw new ConfigEditError(result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; '));
     }

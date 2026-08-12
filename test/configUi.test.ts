@@ -924,6 +924,63 @@ describe('each access card saves only itself', () => {
         expect(runtime.config.auth.allowed_hosts).toEqual([PINNED]);
     });
 
+    /**
+     * The service cards are held to the same rule, and were the one path that
+     * broke it: the config algebra rebuilt the file from `auth` and `services`,
+     * so `metadata` went missing and `saveConfig` deleted the block. Adding a
+     * service, or nudging a timeout on one, switched the IMDb dataset off and
+     * closed the database — a card away from anything the user had touched.
+     *
+     * Asserted against the file as well as the runtime: the runtime reads back
+     * from disk on reload, but naming the block makes the failure say what went
+     * wrong rather than "expected true, got undefined".
+     */
+    const addRadarr = () =>
+        post('/ui/config/add', {
+            type: 'radarr',
+            url: 'http://192.0.2.10:7878',
+            api_key: 'k'
+        });
+
+    const onDisk = async () => await readFile(join(dir, 'config.yaml'), 'utf8');
+
+    it('adding a service does not switch the dataset off', async () => {
+        await ready();
+
+        await addRadarr();
+
+        expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
+        expect(await onDisk()).toContain('metadata:');
+    });
+
+    it('editing a service does not switch the dataset off', async () => {
+        await ready();
+        await addRadarr();
+
+        await post('/ui/config/save', {
+            instance: 'radarr',
+            url: 'http://192.0.2.10:7878',
+            timeout_ms: '12000'
+        });
+
+        // The edit landed, so the save really ran — without which the dataset
+        // would still be on for the boring reason.
+        expect(runtime.config.services.radarr).toMatchObject({ timeout_ms: 12_000 });
+        expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
+        expect(await onDisk()).toContain('metadata:');
+    });
+
+    it('removing a service does not switch the dataset off', async () => {
+        await ready();
+        await addRadarr();
+
+        await post('/ui/config/remove', { instance: 'radarr', confirm: 'yes' });
+
+        expect(runtime.config.services.radarr).toBeUndefined();
+        expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
+        expect(await onDisk()).toContain('metadata:');
+    });
+
     it('gives each card its own button, and the page no button that spans them', async () => {
         await signIn();
         const page = await (await call('/ui/config')).text();
