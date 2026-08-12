@@ -25,6 +25,34 @@ npm run typecheck  # tsc --noEmit
 npm test           # vitest
 ```
 
+## If you are working with a coding agent
+
+Welcome, and held to the same bar — not a lower one, and not a higher one.
+arr-mcp is itself built with one. A patch is judged by whether it holds up, so
+there is no separate review track and nothing to disclose beyond being straight
+about what was actually verified.
+
+This file is written to be read by an agent, and everything in it applies. Four
+rules matter more than the rest, because breaking them produces a pull request
+that *looks* finished:
+
+- **Never write a fixture by hand.** Asked for one, an agent will produce
+  something plausible — and a plausible fixture is worse than no fixture at all,
+  because the test passes, the adapter ships, and the shape was never the
+  service's. Capture with `npm run capture` against a live instance, or say in
+  the PR that the fixture is missing.
+- **Run the three gates and paste what they printed.** "Should pass" is not a
+  result, and CI runs exactly what you can run locally, so there is nothing to
+  guess about.
+- **Say what a *human* exercised.** An agent cannot run your Lidarr. An adapter
+  that has never touched a live service is still worth opening; one described as
+  tested when nobody tested it is not, because the maintainer cannot check that
+  claim for a service they do not run.
+- **A typecheck failure against `src/services/generated/` is the codegen doing
+  its job.** Fix the mapper; do not widen it with a cast. This is the one
+  failure most likely to get papered over, and the cast survives long after the
+  reason for it is forgotten.
+
 ## Dependencies
 
 Renovate runs monthly, plus immediate PRs for security advisories. Only one
