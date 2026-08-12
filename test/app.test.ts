@@ -284,6 +284,103 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
 });
 
 /**
+ * Reported from a live agent session (#103): a caller sent `offset`, `source`
+ * and `totally_made_up` to `get_library` and got a clean 200 back. Nothing
+ * objected, so the model concluded the parameters existed and that its
+ * pagination was simply broken — it then reported a 243-item library as
+ * unpaginable, having never learned that `limit` was the parameter it wanted.
+ *
+ * A dropped argument is indistinguishable from an honoured one, which makes
+ * silence the worst possible answer: the caller's next move is to trust the
+ * result. These run through the real HTTP path because the SDK validates
+ * against the schema *before* the handler — a test that calls the handler
+ * directly, as `toolSurface.test.ts` does, never sees this at all.
+ */
+describe('an argument this server does not have is refused, not ignored', () => {
+    const callTool = async (name: string, args: Record<string, unknown>) => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(
+                { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
+        );
+        const payload = await rpcPayload(res);
+        return (payload.result ?? {}) as { isError?: boolean; content?: { type: string; text: string }[] };
+    };
+
+    it('refuses the exact call from #103, naming every invented parameter', async () => {
+        const result = await callTool('get_library', { offset: 100, source: 'media', totally_made_up: true });
+
+        expect(result.isError).toBe(true);
+        const text = result.content?.[0]?.text ?? '';
+        expect(text).toContain('offset');
+        expect(text).toContain('source');
+        expect(text).toContain('totally_made_up');
+    });
+
+    /**
+     * The half that turns a refusal into a recovery. "offset is not a
+     * parameter" leaves the model exactly as stuck as silence did; naming the
+     * parameters it *can* send is what lets it find `limit` on its own, which
+     * is the answer it was looking for in #103.
+     */
+    it('names the parameters the tool does accept, so the caller can correct itself', async () => {
+        const text = (await callTool('get_library', { offset: 100 })).content?.[0]?.text ?? '';
+
+        expect(text).toContain('limit');
+        expect(text).toContain('min_rating');
+    });
+
+    /**
+     * The undocumented 1.0 spellings are accepted and stay unadvertised — an
+     * error message that listed them would teach the old name to every caller
+     * that made a typo, which is the one thing keeping them undocumented was
+     * for.
+     */
+    it('still accepts the undocumented aliases, and does not advertise them', async () => {
+        expect((await callTool('get_library', { watched_by: 'Someone' })).isError).toBeFalsy();
+        expect((await callTool('discover_media', { media_type: 'tv' })).isError).toBeFalsy();
+
+        const text = (await callTool('get_library', { offset: 1 })).content?.[0]?.text ?? '';
+        expect(text).not.toContain('watched_by');
+    });
+
+    /**
+     * `dry_run` and `confirm` are added to every write tool by
+     * `registerWriteTool`, after the tool declared its own arguments — so a
+     * strictness applied only to the tool's half would refuse the two
+     * parameters the write protocol itself depends on.
+     */
+    it('keeps the write protocol’s own parameters valid on a write tool', async () => {
+        const text = (await callTool('set_monitoring', { nonsense: 1 })).content?.[0]?.text ?? '';
+
+        expect(text).toContain('nonsense');
+        expect(text).toContain('dry_run');
+        expect(text).toContain('confirm');
+    });
+
+    /**
+     * The guard for tool number twenty. Strictness that has to be remembered
+     * per tool is strictness that will be forgotten, and the failure mode is
+     * silent — so this asserts the property across the whole surface rather
+     * than sampling it.
+     */
+    it('advertises no tool that would accept an unknown argument', async () => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
+        );
+        const { result } = (await rpcPayload(res)) as {
+            result: { tools: { name: string; inputSchema: { additionalProperties?: boolean } }[] };
+        };
+
+        const permissive = result.tools.filter(t => t.inputSchema.additionalProperties !== false);
+        expect(permissive.map(t => t.name)).toEqual([]);
+    });
+});
+
+/**
  * The bet this whole phase rests on: client support for prompts and resources
  * is uneven, and arr-mcp has to work on all of them. So a client that surfaces
  * neither must be exactly as capable as before. Too central to leave resting on

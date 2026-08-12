@@ -41,6 +41,15 @@ Tools spanning several services also report which ones they could not reach, and
 how many results each contributed, so a long answer from one service can never
 silently hide another.
 
+**An argument a tool does not have is refused, and the refusal lists the ones it
+does have.** Dropping it silently would be worse than it sounds: the call
+succeeds, the invented argument is gone, and the answer is indistinguishable
+from one where it had been honoured. That is [#103] — an agent sent `offset` and
+`source` to `get_library`, got a clean `200`, and reported the library as
+unpaginable, never having learned that `limit` was the parameter it wanted.
+
+[#103]: https://github.com/bardesss/arr-mcp/issues/103
+
 `diagnose` takes a title, or an exact `service` plus `id`, and returns a verdict
 rather than a list.
 

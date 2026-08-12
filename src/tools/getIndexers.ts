@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { IndexerCapable, IndexerRejection, IndexerSummary, ServiceAdapter } from '../services/types.ts';
 
 export type GetIndexersResult = {
@@ -64,7 +63,7 @@ export function registerGetIndexers(server: McpServer, adapter: (ServiceAdapter 
         {
             description:
                 'Prowlarr indexer health: which indexers are enabled, which are temporarily disabled and why, per-indexer query and grab counts, and — at detail: full — the queries indexers recently rejected and the reasons they gave. Failure messages and rejection reasons come from the indexer itself and are fenced as untrusted data.',
-            inputSchema: z.object({ detail: DetailSchema, limit: LimitSchema })
+            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema })
         },
         async ({ detail, limit }) => {
             const result = await buildGetIndexers(adapter, { detail, limit });

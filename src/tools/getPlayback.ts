@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { JellyfinAdapter } from '../services/jellyfin.ts';
 import type { PlaybackEntry } from '../services/types.ts';
 
@@ -68,7 +68,7 @@ export function registerGetPlayback(
         {
             description:
                 'What a Jellyfin user is watching now and what they can continue watching, with position and completion. Watch state exists only in Jellyfin — Radarr and Sonarr have no concept of it. Defaults to the configured user; reading another requires allow_other_users.',
-            inputSchema: z.object({ detail: DetailSchema, limit: LimitSchema, user: UserSchema })
+            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, user: UserSchema })
         },
         async ({ detail, limit, user }) => {
             const result = await buildGetPlayback(adapter, resolver, {

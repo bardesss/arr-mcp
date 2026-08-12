@@ -1,10 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { ServiceInstance } from '../config/instances.ts';
 import type { ServiceId } from '../config/schema.ts';
-import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, applyLimit, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import {
     hasDiskSpace,
     hasHealthChecks,
@@ -280,7 +279,7 @@ export function registerStackHealth(
         {
             description:
                 'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
-            inputSchema: z.object({ detail: DetailSchema, limit: LimitSchema })
+            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema })
         },
         async ({ detail, limit }) => {
             const result = await buildStackHealth(adapters, { detail, limit }, instances);

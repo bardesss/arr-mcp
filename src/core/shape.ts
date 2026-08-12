@@ -20,6 +20,46 @@ export const LimitSchema = z
     .describe(`Maximum items to return. Defaults to ${DEFAULT_LIMIT}, hard maximum ${MAX_LIMIT}.`);
 
 /**
+ * Every tool's arguments, refusing the ones it does not have.
+ *
+ * A plain `z.object` **strips** unknown keys, which is the quietest possible
+ * failure: the call succeeds, the invented argument is gone, and the result
+ * looks exactly like one where it had been honoured. #103 is what that costs —
+ * an agent sent `offset` and `source` to `get_library`, got a clean 200, and
+ * concluded from the unchanged results that this server's pagination and
+ * filtering were broken. Neither parameter has ever existed. It never found
+ * `limit`, which was the parameter it actually wanted, because nothing in the
+ * exchange ever suggested it was looking in the wrong place.
+ *
+ * So the error names both halves: what was refused, and what this tool does
+ * accept. The first alone leaves a model exactly as stuck as silence did — the
+ * list is what lets it correct itself in one turn rather than guess again.
+ *
+ * `undocumented` keeps a key working while leaving it out of that list. Two
+ * parameters were frozen at 1.0 under an older spelling and are deliberately
+ * described nowhere (see `preferred`); advertising them in an error would teach
+ * the old name to every caller who made a typo, which is the one thing keeping
+ * them undocumented was for.
+ */
+export function toolInput<T extends z.ZodRawShape>(
+    shape: T,
+    opts: { undocumented?: readonly (keyof T & string)[] } = {}
+) {
+    const hidden = new Set<string>(opts.undocumented ?? []);
+    const accepted = Object.keys(shape)
+        .filter(k => !hidden.has(k))
+        .sort()
+        .join(', ');
+
+    return z.strictObject(shape, {
+        error: issue =>
+            issue.code === 'unrecognized_keys'
+                ? `Unknown argument(s): ${issue.keys.join(', ')}. They were refused rather than ignored, because a dropped argument is indistinguishable from one that worked. This tool accepts: ${accepted}.`
+                : undefined
+    });
+}
+
+/**
  * The truncation contract from Silent truncation is how a
  * model confidently reports that a 900-film library contains 50 films, so
  * every read tool routes its list through here and serialises all four fields.
