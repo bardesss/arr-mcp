@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/bardesss/arr-mcp/compare/v1.5.0...v1.6.0) (2026-08-13)
+
+
+### Features
+
+* say what each tool is, so a client can tell a read from a delete ([#108](https://github.com/bardesss/arr-mcp/issues/108)) ([938244f](https://github.com/bardesss/arr-mcp/commit/938244f6c9368e66e238580c1a3962a504da876d)), closes [#103](https://github.com/bardesss/arr-mcp/issues/103)
+
 ## [1.5.0](https://github.com/bardesss/arr-mcp/compare/v1.4.3...v1.5.0) (2026-08-12)
 
 
