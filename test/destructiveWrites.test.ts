@@ -176,6 +176,27 @@ describe('removing a queue item', () => {
         expect(seen[0]).toContain('del_files=1');
     });
 
+    it('never re-sends the SABnzbd delete on a timeout', async () => {
+        // SABnzbd's whole API is GET, so its one destructive call travels over
+        // the verb the transport retries. A delete that timed out *after*
+        // SABnzbd processed it would be sent again, and the second one answers
+        // `{"status": false}` for an nzo_id that is already gone — reporting a
+        // refusal for a deletion that succeeded.
+        let calls = 0;
+        const impl = (async () => {
+            calls += 1;
+            throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+        }) as unknown as typeof fetch;
+
+        await expect(
+            new SabnzbdAdapter(keyed(8080), impl).removeQueueItem('SABnzbd_nzo_ab12', {
+                removeFromClient: true,
+                blocklist: false
+            })
+        ).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+
     it('leaves SABnzbd partial data alone when removeFromClient is false', async () => {
         const seen: string[] = [];
         const impl = (async (input: string | URL | Request) => {

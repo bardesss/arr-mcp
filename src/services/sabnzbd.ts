@@ -151,7 +151,7 @@ export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCa
      * happened.
      */
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
-        const body = await this.#http.get<{ status?: boolean; error?: string }>(
+        const body = await this.#http.getAsWrite<{ status?: boolean; error?: string }>(
             `/api?mode=queue&name=delete&value=${encodeURIComponent(id)}&del_files=${opts.removeFromClient ? 1 : 0}&output=json`
         );
 
