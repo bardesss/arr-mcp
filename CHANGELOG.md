@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/bardesss/arr-mcp/compare/v1.8.0...v1.8.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **config:** write the ui block so the theme switcher saves ([#119](https://github.com/bardesss/arr-mcp/issues/119)) ([0733f9f](https://github.com/bardesss/arr-mcp/commit/0733f9f6282f7d9c0c9b787b91257a32bf9db159))
+
 ## [1.8.0](https://github.com/bardesss/arr-mcp/compare/v1.7.0...v1.8.0) (2026-08-13)
 
 
