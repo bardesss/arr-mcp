@@ -1,0 +1,78 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.bardesss/arr-mcp",
+  "title": "arr-mcp",
+  "description": "One MCP server for the whole media stack: Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr",
+  "version": "1.6.2",
+  "websiteUrl": "https://github.com/bardesss/arr-mcp",
+  "repository": {
+    "url": "https://github.com/bardesss/arr-mcp",
+    "source": "github",
+    "id": "1322956288"
+  },
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/bardesss/arr-mcp:1.6.2",
+      "runtimeHint": "docker",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "-p",
+          "value": "6060:6060",
+          "description": "Publish the MCP and config-UI port"
+        },
+        {
+          "type": "named",
+          "name": "-v",
+          "value": "{config_dir}:/config",
+          "description": "Host directory holding config.yaml, the write audit and the log ring buffer",
+          "isRequired": true,
+          "variables": {
+            "config_dir": {
+              "description": "Directory on the host to keep arr-mcp's configuration in",
+              "format": "filepath",
+              "isRequired": true
+            }
+          }
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "PUID",
+          "description": "User id owning the files in /config",
+          "default": "1000"
+        },
+        {
+          "name": "PGID",
+          "description": "Group id owning the files in /config",
+          "default": "1000"
+        },
+        {
+          "name": "TZ",
+          "description": "Timezone used for timestamps, e.g. Europe/Amsterdam"
+        }
+      ],
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://localhost:6060/mcp",
+        "headers": [
+          {
+            "name": "Authorization",
+            "description": "Bearer token shown on the arr-mcp dashboard once the instance is claimed",
+            "value": "Bearer {token}",
+            "isRequired": true,
+            "isSecret": true,
+            "variables": {
+              "token": {
+                "description": "The bearer token from http://<host>:6060",
+                "isRequired": true,
+                "isSecret": true
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

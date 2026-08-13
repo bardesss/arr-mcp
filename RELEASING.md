@@ -11,12 +11,40 @@ PR merged to main  →  release-please updates its release PR
 merge release PR   →  tag vX.Y.Z + GitHub Release
 tag                →  buildx multi-arch → ghcr.io/bardesss/arr-mcp
                    →  SBOM + provenance attestation
+                   →  server.json → registry.modelcontextprotocol.io
 ```
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest` for releases, plus `main` for
 bleeding edge. Nothing else. The release workflow fails the job when a release
 computes no version tag — a release that publishes only `latest` is a silent
 policy violation, and it has happened once.
+
+## The MCP Registry entry
+
+`server.json` is the listing at `registry.modelcontextprotocol.io`, which is how
+MCP clients discover this server. The `registry` job publishes it after the
+image, on releases only, using the workflow's own OIDC identity — there is no
+token to store or rotate.
+
+Two things it depends on, both of which fail late:
+
+- **The published image must carry `LABEL io.modelcontextprotocol.server.name`
+  matching the `name` in `server.json`.** That label is the registry's only
+  proof we own `ghcr.io/bardesss/arr-mcp`, and it is read from the image at
+  publish time — so the tag must already be pushed, which is why `registry`
+  needs `image`.
+- **The tag in `packages[0].identifier` must be the one the release pushed.**
+  release-please bumps `version`, but cannot rewrite a tag embedded in a string,
+  so the job derives both from the release version with `jq`.
+
+Check a `server.json` change without publishing anything:
+
+```bash
+mcp-publisher validate server.json
+```
+
+It checks the schema and the registry's rules. It does **not** check the image
+label — that only fails during a real publish.
 
 ## Forcing a version, and the three ways it has gone wrong
 
@@ -232,7 +260,9 @@ reported a 23-hour-stale library as scanned a minute ago.
 Do this at **0.3 and later**, not for 0.1 or 0.2 — those are foundations, and
 an announcement lands once.
 
-- [ ] [MCP registry](https://github.com/modelcontextprotocol/registry) listing
+- [x] [MCP registry](https://github.com/modelcontextprotocol/registry) listing —
+      `io.github.bardesss/arr-mcp`, published from `server.json` by the release
+      workflow
 - [ ] Unraid Community Applications template
 - [ ] Umbrel app store submission
 - [ ] CasaOS app store submission

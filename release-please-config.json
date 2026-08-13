@@ -10,7 +10,14 @@
       "draft": false,
       "prerelease": false,
       "initial-version": "0.1.0",
-      "include-component-in-tag": false
+      "include-component-in-tag": false,
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "server.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   }
 }

@@ -84,7 +84,9 @@ It applies immediately; there is no restart. Configure only what you run.
 
 Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
 the dashboard. Everything the UI does is still just `config.yaml`, and editing
-that by hand remains supported.
+that by hand remains supported. Clients that read the
+[MCP Registry](https://registry.modelcontextprotocol.io) find it there as
+`io.github.bardesss/arr-mcp`.
 
 **Works with whatever you point at it.** A client asking for
 `Accept: application/json` — or sending no `Accept` at all — gets one JSON object
