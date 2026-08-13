@@ -158,8 +158,16 @@ export class ProwlarrAdapter implements ServiceAdapter, HealthCheckCapable, Inde
      * indexer — so it is fenced along with the reason.
      */
     async getRecentRejections(limit: number): Promise<IndexerRejection[]> {
+        // `successful=false` is pushed down to Prowlarr, which supports it.
+        //
+        // Without it `pageSize` bounded the *history* window and the failures
+        // were picked out of it afterwards — so "the last 25 events" on a busy
+        // indexer is mostly successes, and an indexer that failed forty queries
+        // yesterday answered with an empty list today. "No recent rejections"
+        // for a visibly failing indexer is the worst possible answer to the
+        // question this method exists for.
         const [history, indexers] = await Promise.all([
-            this.#http.get<{ records?: RawHistoryRecord[] }>(`/api/v1/history?pageSize=${limit}`),
+            this.#http.get<{ records?: RawHistoryRecord[] }>(`/api/v1/history?pageSize=${limit}&successful=false`),
             this.#http.get<RawIndexer[]>('/api/v1/indexer')
         ]);
 

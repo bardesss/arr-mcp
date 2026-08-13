@@ -200,3 +200,25 @@ describe('get_indexers', () => {
         expectWithinBudget(result, 16_000);
     });
 });
+
+describe('ProwlarrAdapter.getRecentRejections', () => {
+    it('asks Prowlarr for failures rather than filtering a page of history', async () => {
+        // `pageSize` bounds the *history* window. Filtering `successful === false`
+        // out of it afterwards means an indexer that failed forty queries
+        // yesterday but has served twenty since answers with an empty list —
+        // "no recent rejections" for a visibly failing indexer.
+        const urls: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            const url = input instanceof Request ? input.url : String(input);
+            urls.push(url);
+            return new Response(JSON.stringify(url.includes('/history') ? { records: [] } : []), {
+                status: 200,
+                headers: { 'content-type': 'application/json' }
+            });
+        }) as unknown as typeof fetch;
+
+        await new ProwlarrAdapter(config, impl).getRecentRejections(25);
+
+        expect(urls.find(u => u.includes('/api/v1/history'))).toContain('successful=false');
+    });
+});

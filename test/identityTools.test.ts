@@ -306,4 +306,29 @@ describe('get_requests', () => {
         const requests = await adapter.getRequests({ user: { id: '1', name: 'Someone' } });
         expect(requests.map(r => r.id)).toEqual([1]);
     });
+
+    it('asks Seerr for a status it can filter on, rather than narrowing 500 rows in memory', async () => {
+        // The window is the newest 500 by `added`. A household with 600
+        // lifetime requests whose pending ones are older than that got an empty
+        // list for `status: pending` — which reads as "nothing is pending"
+        // rather than as a truncation.
+        const urls: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            urls.push(input instanceof Request ? input.url : String(input));
+            return new Response(JSON.stringify({ results: [] }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' }
+            });
+        }) as unknown as typeof fetch;
+
+        const adapter = new SeerrAdapter(seerrConfig(), impl);
+        await adapter.getRequests({ status: 'pending' });
+        expect(urls[0]).toContain('filter=pending');
+
+        // Seerr's filter vocabulary has no value for declined, and mapping it
+        // onto a near-miss would answer a different question.
+        urls.length = 0;
+        await adapter.getRequests({ status: 'declined' });
+        expect(urls[0]).not.toContain('filter=');
+    });
 });
