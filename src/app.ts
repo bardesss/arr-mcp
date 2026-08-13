@@ -140,7 +140,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
 
     app.get('/healthz', c => c.json({ status: 'ok', name: NAME, version: VERSION }));
 
-    registerWebRoutes(app, { runtime, audit, logs, name: NAME, version: VERSION });
+    registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {
         const header = c.req.header('Authorization') ?? '';

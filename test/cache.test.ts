@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HEALTH_TTL_MS, LIBRARY_TTL_MS, TtlCache } from '../src/core/cache.ts';
+import { LIBRARY_TTL_MS, TtlCache } from '../src/core/cache.ts';
 
 /** A hand-cranked clock, so expiry is testable without waiting five minutes. */
 const clock = (start = 0) => {
@@ -184,6 +184,5 @@ describe('TtlCache', () => {
 
     it('exposes the ttls the design spec names', () => {
         expect(LIBRARY_TTL_MS).toBe(300_000);
-        expect(HEALTH_TTL_MS).toBe(30_000);
     });
 });

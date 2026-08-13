@@ -38,7 +38,7 @@ import {
  *  `Password1!` and buy nothing a longer passphrase does not. */
 const MIN_PASSWORD = 12;
 
-export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; name: string; version: string };
+export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; version: string };
 
 /**
  * The config UI: a dashboard, connection tests that diagnose

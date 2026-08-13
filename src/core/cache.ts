@@ -9,9 +9,15 @@
  */
 export type Clock = () => number;
 
-/** library reads ~5 min, health ~30 s. */
+/**
+ * Library reads, ~5 minutes.
+ *
+ * There was a `HEALTH_TTL_MS = 30_000` beside this for a health cache that was
+ * never built — nothing constructed a second `TtlCache`, and `mcp/resources.ts`
+ * declares its own `HEALTH_TTL_MS = 0` meaning the opposite. One name, two
+ * values, neither caching anything.
+ */
 export const LIBRARY_TTL_MS = 300_000;
-export const HEALTH_TTL_MS = 30_000;
 
 type Entry<T> = { value: Promise<T>; expiresAt: number };
 

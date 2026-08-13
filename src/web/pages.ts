@@ -659,4 +659,3 @@ export function auditPage(opts: { version: string; rows: AuditRow[] }): string {
     return layout({ title: 'Write audit', nav: 'audit', version: opts.version, body });
 }
 
-export { humanBytes };

@@ -16,11 +16,6 @@ export function attachLogStore(store: LogStore): void {
     sink = store;
 }
 
-/** Tests attach an ephemeral store; this puts it back. */
-export function detachLogStore(): void {
-    sink = undefined;
-}
-
 /**
  * Writes to stdout **and** the ring buffer.
  *
