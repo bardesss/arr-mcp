@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema } from '../../config/schema.ts';
-import { toolInput } from '../../core/shape.ts';
+import { READ_ONLY, toolInput } from '../../core/shape.ts';
 import { buildChain, type Diagnosis } from './chain.ts';
 import { collectEvidence, type DiagnoseDeps, type DiagnoseTarget } from './evidence.ts';
 
@@ -17,6 +17,8 @@ export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
     server.registerTool(
         'diagnose',
         {
+            title: 'Diagnose a missing or unplayable item',
+            annotations: READ_ONLY,
             description:
                 'Why is this not playable? Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the first thing that explains the absence, with what to do about it. Give a title as `query` for how a person actually asks; give `service` plus `id` only when you already have an exact item in hand (e.g. from get_media_details) — the explicit id wins if both are given. Works with services down: any step it could not check sets `certain: false` and the summary says what was missed, rather than guessing across the hole.',
             // A verdict, not a list — so no paged envelope. `certain` is the

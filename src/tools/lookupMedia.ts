@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { buildSearchMedia, type GetSearchResult } from './searchMedia.ts';
@@ -29,6 +29,8 @@ export function registerLookupMedia(
     server.registerTool(
         'lookup_media',
         {
+            title: 'Look up a title externally',
+            annotations: READ_ONLY,
             description:
                 'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr and Seerr. Reads only — nothing is added, requested or monitored.',
             outputSchema: PagedOutputSchema,

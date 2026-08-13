@@ -90,6 +90,7 @@ export function registerRespondToRequest(
 ): void {
     registerWriteTool(server, context, {
         name: 'respond_to_request',
+        title: 'Approve or decline a request',
         description:
             'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it — so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews by default — call again with the returned `confirm` token to actually apply the verdict.',
         inputSchema: z.object({
@@ -152,6 +153,7 @@ export function registerDeleteRequest(
 ): void {
     registerWriteTool(server, context, {
         name: 'delete_request',
+        title: 'Delete a request',
         description:
             'Deletes a Seerr request record entirely. This removes the request, not the media — anything already downloaded stays on disk and in Radarr or Sonarr. Use respond_to_request with `decline` to refuse a request while keeping the record. Take `id` from get_requests. Previews by default — call again with the returned `confirm` token to actually delete it.',
         inputSchema: z.object({

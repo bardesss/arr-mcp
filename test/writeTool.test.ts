@@ -79,6 +79,7 @@ function buildHarness(
         },
         {
             name: 'delete_media',
+            title: 'Delete a film or series',
             description: 'Deletes a film.',
             inputSchema: z.object({ id: z.string() }),
             service: 'radarr',

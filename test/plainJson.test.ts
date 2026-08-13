@@ -135,6 +135,85 @@ describe('a client that asks for JSON gets JSON', () => {
     });
 });
 
+/**
+ * The last place a JSON client could still be handed something it cannot parse.
+ *
+ * The Hono adapter parses the body of anything declaring `application/json` and
+ * answers a failure with `text/plain` "Invalid JSON" — before the request
+ * reaches the transport, so nothing downstream can put it right. That is the
+ * same shape of failure as the 406 and the SSE frame: a caller that asked in
+ * JSON, got a non-JSON answer, and has nothing to read it with. A JSON-RPC
+ * parse error costs the same bytes and says the same thing in a form the client
+ * already has a parser for.
+ *
+ * It also catches a body-less GET. A client probing for a stream while sending
+ * a default `Content-Type: application/json` header — which plenty of HTTP
+ * libraries set on every request — was answered `400 Invalid JSON` for a body
+ * it never claimed to send, rather than the 405 that actually describes the
+ * endpoint.
+ */
+const raw = (method: string, contentType: string | undefined, body?: string) =>
+    app().request('http://localhost:6060/mcp', {
+        method,
+        headers: {
+            Authorization: `Bearer ${TOKEN}`,
+            Accept: 'application/json',
+            ...(contentType === undefined ? {} : { 'Content-Type': contentType })
+        },
+        ...(body === undefined ? {} : { body })
+    });
+
+describe('a body that will not parse', () => {
+    it('is refused as a JSON-RPC parse error, not as plain text', async () => {
+        const res = await raw('POST', 'application/json', '{oops');
+
+        expect(res.headers.get('content-type')).toContain('application/json');
+        expect(JSON.parse(await res.text())).toMatchObject({
+            jsonrpc: '2.0',
+            error: { code: -32700 }
+        });
+    });
+
+    it('answers an empty body the same way, rather than as a mystery 400', async () => {
+        const res = await raw('POST', 'application/json');
+
+        expect(res.status).toBe(400);
+        expect(JSON.parse(await res.text())).toMatchObject({ error: { code: -32700 } });
+    });
+
+    it('lets a GET reach the 405 that describes the endpoint, despite a JSON content type', async () => {
+        const res = await raw('GET', 'application/json');
+
+        expect(res.status).toBe(405);
+        expect(JSON.parse(await res.text())).toMatchObject({ error: { message: expect.stringContaining('Method not allowed') } });
+    });
+
+    /**
+     * A POST that is not JSON at all is the transport's to refuse, and it
+     * already answers 415 in JSON. Claiming the body here would turn that into
+     * a parse error, which names the wrong problem.
+     */
+    it('leaves a non-JSON content type to the transport, which refuses it with 415', async () => {
+        const res = await raw('POST', 'text/plain', 'hello');
+
+        expect(res.status).toBe(415);
+        expect(JSON.parse(await res.text())).toMatchObject({ error: { code: -32000 } });
+    });
+
+    it('leaves a POST with no content type at all to the transport', async () => {
+        const res = await raw('POST', undefined, JSON.stringify(toolsList));
+
+        expect(res.status).toBe(415);
+    });
+
+    it('still serves a content type carrying parameters', async () => {
+        const res = await raw('POST', 'application/json; charset=utf-8', JSON.stringify(toolsList));
+
+        expect(res.status).toBe(200);
+        expect((JSON.parse(await res.text()) as { result: { tools: unknown[] } }).result.tools).toHaveLength(22);
+    });
+});
+
 describe('unwrapping an SSE frame', () => {
     const sse = (body: string) =>
         new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream', 'x-accel-buffering': 'no' } });

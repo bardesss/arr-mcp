@@ -127,6 +127,7 @@ const FOLDER_MATCH = {
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     registerWriteTool(server, context, {
         name: 'add_media',
+        title: 'Add a film or series',
         description:
             'Adds a film to Radarr or a series to Sonarr and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr takes a TVDB id — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes. Previews by default — call again with the returned `confirm` token to actually add it.',
         inputSchema: z.object({

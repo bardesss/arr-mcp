@@ -65,8 +65,9 @@ that by hand remains supported.
 A client that asks for `Accept: application/json` — or sends no `Accept` at
 all — gets a single JSON object back with a `Content-Length`, rather than being
 refused for not also naming `text/event-stream`. One that does accept a stream
-still gets one. So a plain `curl` or `requests.post` works as-is, and so does a
-full MCP client.
+still gets one. Even a refusal is JSON: a body that will not parse comes back as
+a JSON-RPC parse error rather than as plain text. So a plain `curl` or
+`requests.post` works as-is, and so does a full MCP client.
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest`, plus `main` for bleeding edge.
 Pin a minor — `:1.4` — if you would rather approve each new tool surface
