@@ -1,5 +1,4 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import type { ServiceId } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
@@ -11,7 +10,14 @@ export type GetQueueResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
-    counts: Partial<Record<ServiceId, number>>;
+    /**
+     * Keyed by **adapter id**, not by service type: a named instance reports
+     * under `radarr/4k`. Widened from `ServiceId` for the reason
+     * `library.ts` already was — `gather` has always keyed this by the id it
+     * fanned out over, so the narrower type described something this never
+     * held. Every existing key is unchanged.
+     */
+    counts: Record<string, number>;
 };
 
 const project = (q: QueueItem, detail: DetailLevel): QueueItem => {

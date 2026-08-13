@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3';
 import type { Database as Db } from 'better-sqlite3';
 import { join } from 'node:path';
-import type { ServiceId } from '../config/schema.ts';
 
 /**
  * The SQLite ring buffer `logger.ts` has been pointing at, and
@@ -38,7 +37,13 @@ export type LogRow = {
     at: string;
     level: number;
     levelName: string;
-    service: string | undefined;
+    /**
+     * `null`, not `undefined`, when a line names no service: the column is
+     * written as SQL NULL and better-sqlite3 hands that back verbatim. Typing
+     * it `undefined` made `row.service === undefined` look like the right
+     * check and silently never match.
+     */
+    service: string | null;
     msg: string;
     /** Everything pino emitted that is not already a column, as JSON. */
     fields: string;
@@ -48,8 +53,16 @@ export type LogQuery = {
     limit?: number;
     /** Inclusive floor, so `warn` returns warnings, errors and fatals. */
     minLevel?: number;
-    /** The media service a line is *about* — `service`, never `app` (see logger.ts). */
-    service?: ServiceId | undefined;
+    /**
+     * The media service a line is *about* — `service`, never `app` (see
+     * logger.ts).
+     *
+     * A plain string rather than `ServiceId`: what writers actually put in this
+     * column is the **instance** id (`radarr/4k`) and, from a fan-out read, the
+     * **source** id (`jellyfin:episodes`). Declaring the eight-name enum
+     * described something the column never held.
+     */
+    service?: string | undefined;
     /** For polling: only rows newer than one already seen. */
     afterId?: number;
 };

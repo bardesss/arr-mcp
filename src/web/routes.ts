@@ -1,6 +1,6 @@
 import type { Context, Hono } from 'hono';
 import { saveConfig } from '../config/save.ts';
-import { ServiceIdSchema, type Config, type ServiceId } from '../config/schema.ts';
+import { ServiceIdSchema, type Config } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import type { LogStore } from '../core/logs.ts';
@@ -482,17 +482,21 @@ function sessionOf(c: Context, runtime: Runtime): string | undefined {
 function logQuery(
     c: Context,
     logs: LogStore
-): { stream: LogStreamKey; minLevel: number; service: ServiceId | undefined } {
+): { stream: LogStreamKey; minLevel: number; service: string | undefined } {
     const requested = c.req.query('stream') ?? 'all';
     const stream = LOG_STREAMS.find(s => s.key === requested) ?? LOG_STREAMS[0];
 
-    const parsed = ServiceIdSchema.safeParse(c.req.query('service') ?? '');
-    let service = parsed.success ? parsed.data : undefined;
+    // Validated against what has actually been logged, not against the
+    // eight-name service enum. The column holds instance ids (`radarr/4k`) and
+    // source ids (`jellyfin:episodes`), and `services()` builds the dropdown
+    // from those same values — so parsing the choice as a bare ServiceId threw
+    // away every selection the dropdown offered on a multi-instance install,
+    // returned every line from every service, and looked like "nothing logged".
+    const known = logs.services();
+    const requestedService = c.req.query('service');
+    let service = requestedService !== undefined && known.includes(requestedService) ? requestedService : undefined;
 
-    if (stream.key === 'service' && service === undefined) {
-        const first = ServiceIdSchema.safeParse(logs.services()[0] ?? '');
-        service = first.success ? first.data : undefined;
-    }
+    if (stream.key === 'service' && service === undefined) service = known[0];
     // Only the by-service stream filters by service; picking one and then
     // switching to Problems must not silently keep filtering.
     if (stream.key !== 'service') service = undefined;

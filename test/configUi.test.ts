@@ -1247,6 +1247,29 @@ describe('logs and audit', () => {
         expect(await streamRows('?stream=service&service=sonarr')).toEqual(['sonarr-error', 'sonarr-info']);
     });
 
+    it('filters by an instance id, which is what a second Radarr logs under', async () => {
+        // Log rows carry the *instance* id — `radarr/4k` — and the dropdown is
+        // built from those same values. Validating the choice against the bare
+        // eight-service enum threw it away and returned every line from every
+        // service, so anyone running two Radarrs could not filter their logs
+        // at all, and the failure looked like "nothing was logged".
+        logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 'hd-info', service: 'radarr/hd' }));
+        logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: '4k-info', service: 'radarr/4k' }));
+        await signIn();
+
+        expect(await streamRows('?stream=service&service=radarr%2F4k')).toEqual(['4k-info']);
+    });
+
+    it('filters by a source id, which is what a fan-out read logs under', async () => {
+        // `gather` logs per *source*, so `jellyfin:episodes` reaches the column
+        // and the dropdown as well.
+        seedLogs();
+        logs.write(JSON.stringify({ level: 40, time: Date.now(), msg: 'episodes-warn', service: 'jellyfin:episodes' }));
+        await signIn();
+
+        expect(await streamRows('?stream=service&service=jellyfin%3Aepisodes')).toEqual(['episodes-warn']);
+    });
+
     // Picking a service and then switching to Problems must not keep filtering.
     it('ignores a service on a stream that is not the by-service one', async () => {
         seedLogs();
