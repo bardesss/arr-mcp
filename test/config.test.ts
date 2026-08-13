@@ -426,3 +426,55 @@ describe('the metadata block through a save', () => {
         expect(await readFile(path, 'utf8')).toContain('metadata:');
     });
 });
+
+describe('comments through a save', () => {
+    it('keeps the annotations people wrote inside the services block', async () => {
+        // The module's first stated property is that comments survive, and the
+        // README told people to hand-edit this file for five releases — so the
+        // annotations they wrote are exactly the ones a save must not eat.
+        // `setIn(['services'], …)` replaced the whole node with plain values
+        // and took every comment inside it along with it.
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(
+            path,
+            `# the whole stack lives here\n` +
+                `auth:\n  bearer_token: ${'d'.repeat(64)}\n  password_hash: scrypt$00$11\n` +
+                `services:\n` +
+                `  # the HD stack, not the 4K one\n` +
+                `  radarr:\n` +
+                `    url: http://192.0.2.10:7878 # LAN only\n` +
+                `    api_key: k\n`,
+            'utf8'
+        );
+
+        const { config } = await loadConfig(dir);
+        await saveConfig(dir, config);
+
+        const written = await readFile(path, 'utf8');
+        expect(written).toContain('# the whole stack lives here');
+        expect(written).toContain('# the HD stack, not the 4K one');
+        expect(written).toContain('# LAN only');
+    });
+
+    it('refuses rather than deleting a service added on disk since the page was loaded', async () => {
+        // The config UI assembles its save from the snapshot it rendered. A
+        // service hand-added after that render is absent from the snapshot, so
+        // a wholesale write deleted it — and answered "Saved. Applied
+        // immediately; no restart needed."
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        const base =
+            `auth:\n  bearer_token: ${'d'.repeat(64)}\n  password_hash: scrypt$00$11\n` +
+            `services:\n  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n`;
+        await writeFile(path, base, 'utf8');
+
+        const { config } = await loadConfig(dir);
+
+        // Someone edits the file directly while the page is open.
+        await writeFile(path, `${base}  sonarr:\n    url: http://192.0.2.10:8989\n    api_key: k2\n`, 'utf8');
+
+        await expect(saveConfig(dir, config, { expected: config })).rejects.toThrow(/changed on disk/i);
+        expect(await readFile(path, 'utf8')).toContain('sonarr');
+    });
+});

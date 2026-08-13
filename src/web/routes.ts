@@ -332,7 +332,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             }
 
             try {
-                await saveConfig(runtime.configDir, updated);
+                // `expected` is the snapshot this page's form was built from,
+                // so a service hand-added to config.yaml since then is a
+                // refusal rather than a silent deletion under a "Saved" banner.
+                await saveConfig(runtime.configDir, updated, { expected: runtime.config });
                 await runtime.reload();
             } catch (err) {
                 // The file is written atomically and validated first, so
