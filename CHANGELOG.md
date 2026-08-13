@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/bardesss/arr-mcp/compare/v1.4.3...v1.5.0) (2026-08-12)
+
+
+### Features
+
+* pagination, output schemas, and a plain-JSON transport path ([#106](https://github.com/bardesss/arr-mcp/issues/106)) ([dd5dbd8](https://github.com/bardesss/arr-mcp/commit/dd5dbd86a4bdb18632305334be807ee40fe366ac))
+
 ## [1.4.3](https://github.com/bardesss/arr-mcp/compare/v1.4.2...v1.4.3) (2026-08-12)
 
 
