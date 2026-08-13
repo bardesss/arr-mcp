@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/bardesss/arr-mcp/compare/v1.6.1...v1.6.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* everything from the code review, plus a README pass ([#112](https://github.com/bardesss/arr-mcp/issues/112)) ([5539180](https://github.com/bardesss/arr-mcp/commit/55391807e9b2a58e138967c9a6bdb53c22dcdd35))
+
 ## [1.6.1](https://github.com/bardesss/arr-mcp/compare/v1.6.0...v1.6.1) (2026-08-13)
 
 
