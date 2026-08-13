@@ -93,11 +93,17 @@ describe('get_subtitles', () => {
         expect(result.items.every(i => i.title.startsWith('<<untrusted:bazarr.'))).toBe(true);
     });
 
-    it('drops release names and per-language detail at detail: minimal', async () => {
+    it('drops release names at detail: minimal but still says what is missing', async () => {
+        // `missing` used to be replaced with `[]` here, so every row in a list
+        // of items with missing subtitles reported that nothing was missing —
+        // while the summary line above it counted them. Omitting a field is an
+        // absence a reader can see; an empty array is a claim, and this is the
+        // one field the tool exists to answer.
         const result = await buildGetSubtitles([adapter()], { detail: 'minimal', limit: 50 });
         const movie = result.items.find(i => i.kind === 'movie');
+
         expect(movie?.releaseName).toBeUndefined();
-        expect(movie?.missing).toEqual([]);
+        expect(movie?.missing.length).toBeGreaterThan(0);
     });
 
     it('degrades when one endpoint is down', async () => {

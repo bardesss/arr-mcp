@@ -21,13 +21,17 @@ const StatusSchema = z
     .optional()
     .describe('Only requests in this state. Omit for all.');
 
-const project = (r: MediaRequest, detail: DetailLevel): MediaRequest => {
-    if (detail === 'full') return r;
-    if (detail === 'minimal') {
-        return { service: r.service, id: r.id, status: r.status, mediaType: r.mediaType, requestedBy: r.requestedBy };
-    }
-    return r;
-};
+/**
+ * `standard` and `full` are deliberately the same shape: a request is five
+ * short fields and a date, so there is nothing at `standard` worth trimming
+ * that `minimal` does not already trim. The `full` guard that used to sit here
+ * was identical to the fall-through and only made it look as though three
+ * levels differed.
+ */
+const project = (r: MediaRequest, detail: DetailLevel): MediaRequest =>
+    detail === 'minimal'
+        ? { service: r.service, id: r.id, status: r.status, mediaType: r.mediaType, requestedBy: r.requestedBy }
+        : r;
 
 export async function buildGetRequests(
     adapter: SeerrAdapter | undefined,

@@ -24,8 +24,15 @@ const project = (g: SubtitleGap, detail: DetailLevel): SubtitleGap => {
         const { releaseName: _r, ...rest } = g;
         return rest;
     }
-    // minimal: what is missing, not which release or which languages.
-    return { service: g.service, kind: g.kind, id: g.id, title: g.title, missing: [] };
+    // minimal: which item, and what is missing from it.
+    //
+    // `missing` stays. It was being replaced with `[]`, so every row in a list
+    // of items *with missing subtitles* asserted that nothing was missing,
+    // under a summary line that counted them. Omitting a field is an absence a
+    // reader can see; an empty array is a claim — and this is the one field
+    // the tool exists to answer.
+    const { releaseName: _r, episodeTitle: _e, ...rest } = g;
+    return rest;
 };
 
 /**
