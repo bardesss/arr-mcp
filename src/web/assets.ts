@@ -11,6 +11,23 @@
  * client — polling the log stream and copying the token.
  */
 
+/**
+ * The light palette, in one place and applied twice.
+ *
+ * It has to appear under both a media query and an attribute selector, and CSS
+ * cannot combine those into one rule. Writing it out twice is how `--ok`,
+ * `--warn` and `--bad` came to be missing from the light theme for as long as
+ * they were: the status colours were tuned against a near-black panel, and on
+ * white the warn amber landed near 1.8:1 — illegible on the one row of the log
+ * table anyone urgently needs to read. Interpolating a single constant means
+ * the next token added cannot be added to only one of them.
+ */
+const LIGHT = `
+  --bg: #f6f7f9; --panel: #fff; --panel-2: #f0f2f5; --line: #d9dee7;
+  --text: #1a1d26; --dim: #5b6472; --accent: #1a56db;
+  --ok: #15803d; --warn: #b45309; --bad: #b91c1c;
+`;
+
 export const CSS = `
 :root {
   --bg: #12141a; --panel: #1a1d26; --panel-2: #21252f; --line: #2c313d;
@@ -18,12 +35,12 @@ export const CSS = `
   --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+/* Follow the OS, unless the config says otherwise. The :not() is what lets an
+   explicit dark choice win on a machine set to light. */
 @media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f6f7f9; --panel: #fff; --panel-2: #f0f2f5; --line: #d9dee7;
-    --text: #1a1d26; --dim: #5b6472; --accent: #1a56db;
-  }
+  :root:not([data-theme="dark"]) {${LIGHT}}
 }
+:root[data-theme="light"] {${LIGHT}}
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--bg); color: var(--text);

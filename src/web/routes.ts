@@ -1,6 +1,6 @@
 import type { Context, Hono } from 'hono';
 import { saveConfig } from '../config/save.ts';
-import { ServiceIdSchema, type Config } from '../config/schema.ts';
+import { ServiceIdSchema, ThemeSchema, type Config, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import type { LogStore } from '../core/logs.ts';
@@ -68,9 +68,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const unclaimed = (): boolean => runtime.config.auth.password_hash === undefined;
     const entry = (): string => (unclaimed() ? '/ui/setup' : '/ui/login');
 
+    // Read per render rather than captured: `runtime.config` is replaced on
+    // reload, and saving the theme is itself a reload — so a captured value
+    // would leave the page that just saved showing the previous theme.
+    const theme = (): Theme => runtime.config.ui?.theme ?? 'system';
+
     app.get('/ui/setup', c => {
         if (!unclaimed()) return c.redirect('/ui/login', 302);
-        return c.html(setupPage({ version }));
+        return c.html(setupPage({ version, theme: theme() }));
     });
 
     /**
@@ -88,7 +93,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const username = str(body.username).trim();
         const password = str(body.password);
 
-        const reject = (text: string) => c.html(setupPage({ version, error: text }), 400);
+        const reject = (text: string) => c.html(setupPage({ version, error: text, theme: theme() }), 400);
         if (username === '') return reject('Choose a username.');
         if (password.length < MIN_PASSWORD) return reject(`Use a password of at least ${MIN_PASSWORD} characters.`);
         if (password !== str(body.confirm)) return reject('Those two passwords do not match.');
@@ -112,7 +117,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.get('/ui/login', c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
         if (sessionOf(c, runtime) !== undefined) return c.redirect('/ui', 302);
-        return c.html(loginPage({ version }));
+        return c.html(loginPage({ version, theme: theme() }));
     });
 
     app.post('/ui/login', async c => {
@@ -132,7 +137,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         if (!nameOk || !passOk) {
             logger.warn({ ip: ipOf(c), username }, 'rejected config UI sign-in');
-            return c.html(loginPage({ version, error: 'Wrong username or password.' }), 401);
+            return c.html(loginPage({ version, error: 'Wrong username or password.', theme: theme() }), 401);
         }
 
         const token = runtime.sessions.issue();
@@ -170,6 +175,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         return c.html(
             dashboardPage({
+                theme: theme(),
                 version,
                 diagnoses: health.services,
                 configured: snapshot.adapters.map(a => a.id),
@@ -198,6 +204,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         return c.html(
             logsPage({
+                theme: theme(),
                 version,
                 services: logs.services(),
                 selectedService: service ?? '',
@@ -221,7 +228,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.get('/ui/audit', c => {
         if (guard(c) === undefined) return c.redirect(entry(), 302);
-        return c.html(auditPage({ version, rows: audit.recent(300) as AuditRow[] }));
+        return c.html(auditPage({ version, rows: audit.recent(300) as AuditRow[], theme: theme() }));
     });
 
     // --- configuration --------------------------------------------------
@@ -378,6 +385,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.post(
         '/ui/config/account',
         configMutation('Config UI sign-in saved.', form => buildAccountConfig(runtime.config, form))
+    );
+
+    app.post(
+        '/ui/config/appearance',
+        configMutation('Appearance saved.', form => buildAppearanceConfig(runtime.config, form))
     );
 
     app.post(
@@ -615,6 +627,23 @@ export function buildImdbConfig(current: Config, form: Record<string, unknown>):
         ...rest,
         ...(on(form['metadata.imdb']) ? { metadata: { imdb: { enabled: true } } } : {})
     };
+}
+
+/**
+ * The theme. Owns `ui` and nothing else.
+ *
+ * `system` drops the block rather than writing `theme: system`, so choosing the
+ * default leaves the file as clean as it was — the same rule the IMDb card
+ * follows. An unparseable value falls back to `system` instead of being written
+ * through: this comes from a form, and the schema would refuse the file on the
+ * next load, which turns a bad select into a server that will not start.
+ */
+export function buildAppearanceConfig(current: Config, form: Record<string, unknown>): Config {
+    const { ui: _dropped, ...rest } = current;
+    const parsed = ThemeSchema.safeParse(str(form['ui.theme']));
+    const theme = parsed.success ? parsed.data : 'system';
+
+    return { ...rest, ...(theme === 'system' ? {} : { ui: { theme } }) };
 }
 
 /** The MCP endpoint. Owns `bearer_token` and `allowed_hosts`. */

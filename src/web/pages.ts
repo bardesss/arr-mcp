@@ -1,3 +1,4 @@
+import type { Theme } from '../config/schema.ts';
 import type { LogRow } from '../core/logs.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
@@ -30,7 +31,14 @@ export function layout(opts: {
     version: string;
     body: SafeHtml;
     message?: { kind: 'ok' | 'err'; text: string } | undefined;
+    /** Absent, or `system`, leaves the attribute off so the CSS falls through
+     *  to `prefers-color-scheme`. Stamped server-side rather than set by a
+     *  script, so there is no flash of the theme the OS would have picked. */
+    theme?: Theme | undefined;
 }): string {
+    const theme =
+        opts.theme === undefined || opts.theme === 'system' ? raw('') : raw(` data-theme="${opts.theme}"`);
+
     const message =
         opts.message === undefined
             ? raw('')
@@ -47,7 +55,7 @@ export function layout(opts: {
               <form method="post" action="/ui/logout"><button class="ghost" type="submit">Sign out</button></form>`;
 
     return `<!doctype html>
-<html lang="en">
+<html lang="en"${theme}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -90,7 +98,7 @@ dialog { display: block; position: static; max-width: none; width: auto; margin:
  * The warning is not decoration — until this form is submitted, the instance
  * belongs to whoever reaches it first.
  */
-export function setupPage(opts: { version: string; error?: string | undefined }): string {
+export function setupPage(opts: { version: string; error?: string | undefined; theme?: Theme | undefined }): string {
     const body = html`<div class="login">
         <div class="panel">
             <h2>Set up arr-mcp</h2>
@@ -122,11 +130,12 @@ export function setupPage(opts: { version: string; error?: string | undefined })
         title: 'Set up',
         version: opts.version,
         body,
+        theme: opts.theme,
         ...(opts.error === undefined ? {} : { message: { kind: 'err' as const, text: opts.error } })
     });
 }
 
-export function loginPage(opts: { version: string; error?: string | undefined }): string {
+export function loginPage(opts: { version: string; error?: string | undefined; theme?: Theme | undefined }): string {
     const body = html`<div class="login">
         <div class="panel">
             <h2>Sign in</h2>
@@ -153,6 +162,7 @@ export function loginPage(opts: { version: string; error?: string | undefined })
         title: 'Sign in',
         version: opts.version,
         body,
+        theme: opts.theme,
         ...(opts.error === undefined ? {} : { message: { kind: 'err' as const, text: opts.error } })
     });
 }
@@ -298,6 +308,7 @@ export function dashboardPage(opts: {
     disks: DiskSpace[];
     failures: HealthCheck[];
     scans: ScanState[];
+    theme?: Theme | undefined;
 }): string {
     const cards =
         opts.diagnoses.length === 0
@@ -459,7 +470,7 @@ export function dashboardPage(opts: {
             </div>
         </div>`;
 
-    return layout({ title: 'Dashboard', nav: 'dashboard', version: opts.version, body });
+    return layout({ title: 'Dashboard', nav: 'dashboard', version: opts.version, body, theme: opts.theme });
 }
 
 /**
@@ -498,6 +509,7 @@ export function logsPage(opts: {
     stream: LogStreamKey;
     streamUrl: string;
     rows: LogRow[];
+    theme?: Theme | undefined;
 }): string {
     const active = LOG_STREAMS.find(s => s.key === opts.stream) ?? LOG_STREAMS[0];
 
@@ -554,7 +566,7 @@ export function logsPage(opts: {
 
         <div class="scroll" id="log-stream" data-url="${opts.streamUrl}">${logTable(opts.rows)}</div>`;
 
-    return layout({ title: 'Logs', nav: 'logs', version: opts.version, body });
+    return layout({ title: 'Logs', nav: 'logs', version: opts.version, body, theme: opts.theme });
 }
 
 /** The no-JavaScript rendering. The live one is rebuilt client-side from JSON
@@ -646,7 +658,7 @@ function auditEntry(r: AuditRow): SafeHtml {
     </article>`;
 }
 
-export function auditPage(opts: { version: string; rows: AuditRow[] }): string {
+export function auditPage(opts: { version: string; rows: AuditRow[]; theme?: Theme | undefined }): string {
     const body = html`<h2>Write audit</h2>
         <p class="note">
             Every write attempt, including previews and refusals. An entry still reading
@@ -657,6 +669,6 @@ export function auditPage(opts: { version: string; rows: AuditRow[] }): string {
             ? html`<p class="note">Nothing has tried to write yet.</p>`
             : html`<div class="trail">${opts.rows.map(auditEntry)}</div>`}`;
 
-    return layout({ title: 'Write audit', nav: 'audit', version: opts.version, body });
+    return layout({ title: 'Write audit', nav: 'audit', version: opts.version, body, theme: opts.theme });
 }
 

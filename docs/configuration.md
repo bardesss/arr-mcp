@@ -135,3 +135,19 @@ metadata:
 Off by default. It is the only source of an IMDb rating for a TV series, and a
 fallback for everything else — see [IMDb ratings](imdb.md) for what it costs and
 whether you need it.
+
+## Appearance
+
+```yaml
+ui:
+  theme: dark   # system (default) · dark · light
+```
+
+`system` follows the browser's `prefers-color-scheme` and tracks your OS as it
+changes; the other two override it. Omit the block entirely for `system` —
+choosing it on the Configuration page removes the block rather than writing it
+out, so a config nobody customised stays as clean as it started.
+
+It is stored server-side rather than in the browser because this UI has exactly
+one account: there is no second person for a shared setting to be wrong for, and
+it holds wherever you sign in from.

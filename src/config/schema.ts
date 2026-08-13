@@ -205,6 +205,21 @@ export const MetadataSchema = z
     .strict();
 
 
+/**
+ * How the config UI looks. Server-side rather than a browser cookie because
+ * this UI has exactly one account — there is no second person for a shared
+ * setting to be wrong for — and it keeps the rule that everything the UI does
+ * is still just `config.yaml`.
+ *
+ * `system` is the default and follows `prefers-color-scheme`. The other two are
+ * a deliberate override, for the display that is not the one the OS was set up
+ * for.
+ */
+export const ThemeSchema = z.enum(['system', 'dark', 'light']);
+export type Theme = z.infer<typeof ThemeSchema>;
+
+const UiSchema = z.strictObject({ theme: ThemeSchema.default('system') });
+
 export const ConfigSchema = z.object({
     // Required, not optional: loadConfig always injects a generated token
     // before parsing, so the only way this is missing is a hand-edited file
@@ -238,6 +253,9 @@ export const ConfigSchema = z.object({
     }),
     services: ServicesSchema,
     /** Absent means off, exactly like a service nobody configured. */
-    metadata: MetadataSchema.optional()
+    metadata: MetadataSchema.optional(),
+    /** Absent means `system`, so a config nobody touched stays as clean as it
+     *  started — the same reasoning as `metadata`. */
+    ui: UiSchema.optional()
 });
 export type Config = z.infer<typeof ConfigSchema>;

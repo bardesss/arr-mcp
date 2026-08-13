@@ -1,5 +1,5 @@
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
-import { MULTI_INSTANCE, ServiceIdSchema, type Config, type ServiceId } from '../config/schema.ts';
+import { MULTI_INSTANCE, ServiceIdSchema, type Config, type ServiceId, type Theme } from '../config/schema.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
 import { html, raw, type SafeHtml } from './html.ts';
 import { serviceIcon } from './icons.ts';
@@ -28,6 +28,14 @@ import { layout } from './pages.ts';
  */
 
 export const SERVICE_IDS = ServiceIdSchema.options;
+
+/** Labelled rather than title-cased from the key: "System" alone does not say
+ *  what it follows, and this is the only place it is explained. */
+const THEMES: readonly { key: Theme; label: string }[] = [
+    { key: 'system', label: 'Follow the system' },
+    { key: 'dark', label: 'Dark' },
+    { key: 'light', label: 'Light' }
+];
 
 /** Alphabetical, unlike `ServiceIdSchema.options` — which is declaration order
  *  and reads as arbitrary to anyone looking for their service in the list. */
@@ -446,6 +454,27 @@ export function configPage(opts: {
             </div>
         </form>
 
+        <form method="post" action="/ui/config/appearance" class="panel" ${IGNORE_FORM}>
+            <input type="hidden" name="csrf" value="${opts.csrf}">
+            <h3 style="margin:0 0 .75rem">Appearance</h3>
+            <div class="field">
+                <label for="ui.theme">Theme</label>
+                <select id="ui.theme" name="ui.theme">
+                    ${THEMES.map(
+                        t =>
+                            html`<option value="${t.key}" ${
+                                (opts.config.ui?.theme ?? 'system') === t.key ? raw('selected') : raw('')
+                            }>${t.label}</option>`
+                    )}
+                </select>
+            </div>
+            <p class="note">
+                Saved here rather than in the browser, so it holds wherever you sign in from. Follow
+                the system is the default and tracks your OS setting as it changes.
+            </p>
+            <button type="submit">Save</button>
+        </form>
+
         <form method="post" action="/ui/config/imdb" class="panel" ${IGNORE_FORM}>
             <input type="hidden" name="csrf" value="${opts.csrf}">
             <h3 style="margin:0 0 .75rem">IMDb dataset</h3>
@@ -515,6 +544,9 @@ export function configPage(opts: {
         nav: 'config',
         version: opts.version,
         body,
+        // Derived, not passed in: this page already has the config, and a
+        // second source for one value is a way for them to disagree.
+        theme: opts.config.ui?.theme,
         ...(opts.message === undefined ? {} : { message: opts.message })
     });
 }

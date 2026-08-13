@@ -111,6 +111,17 @@ Nothing is summarised away: an argument that does not parse is printed exactly
 as it was recorded, because a log's whole value is that nothing goes missing
 from it. An entry still reading `attempted` means arr-mcp stopped mid-write.
 
+## Dark and light
+
+**Follows your system by default**, through `prefers-color-scheme`. The
+**Appearance** card on the Configuration page overrides it with Dark or Light,
+for the display that is not the one the OS was set up for.
+
+The choice is saved to `config.yaml` rather than to the browser, so it holds
+wherever you sign in from, and it is applied server-side when the page is
+rendered — there is no moment where the wrong theme flashes before a script
+corrects it, and it works with scripting off like the rest of the page.
+
 ## On a phone
 
 The navigation becomes a full-width row of its own under the title rather than
