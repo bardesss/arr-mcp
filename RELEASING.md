@@ -37,6 +37,16 @@ Two things it depends on, both of which fail late:
   release-please bumps `version`, but cannot rewrite a tag embedded in a string,
   so the job derives both from the release version with `jq`.
 
+The `mcp-publisher` binary is pinned to a release **and** its SHA-256, because
+that step runs with `id-token: write` — the upstream `releases/latest` one-liner
+would let a swapped asset mint an OIDC token in this repository's name. Nothing
+bumps the pin automatically; move the version and the digest together:
+
+```bash
+curl -fLO https://github.com/modelcontextprotocol/registry/releases/download/<tag>/mcp-publisher_linux_amd64.tar.gz
+sha256sum mcp-publisher_linux_amd64.tar.gz
+```
+
 Check a `server.json` change without publishing anything:
 
 ```bash

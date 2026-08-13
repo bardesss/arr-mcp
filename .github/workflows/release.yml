@@ -135,9 +135,19 @@ jobs:
             server.json > server.tmp && mv server.tmp server.json
           cat server.json
 
+      # Pinned and checksummed, unlike the `releases/latest` one-liner upstream
+      # documents: this step runs with `id-token: write`, so a binary swapped
+      # under `latest` could mint an OIDC token asserting this repository's
+      # identity. Bump both values together — see RELEASING.md.
       - name: Install mcp-publisher
+        env:
+          VERSION: v1.8.1
+          SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          curl -fL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
 
       # OIDC, so there is no token to store or rotate: the registry trusts the
       # workflow's own identity, and `io.github.bardesss/*` is ours because the
