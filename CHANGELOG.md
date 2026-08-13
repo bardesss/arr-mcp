@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/bardesss/arr-mcp/compare/v1.6.2...v1.7.0) (2026-08-13)
+
+
+### Features
+
+* list arr-mcp in the MCP Registry ([#114](https://github.com/bardesss/arr-mcp/issues/114)) ([6bd6b9e](https://github.com/bardesss/arr-mcp/commit/6bd6b9e4d6ed54f86417dc81bfbeb8c6a569d633))
+
+
+### Bug Fixes
+
+* pin and checksum the publisher binary the release runs ([#116](https://github.com/bardesss/arr-mcp/issues/116)) ([9baa5d7](https://github.com/bardesss/arr-mcp/commit/9baa5d72c8c008ffba7b7b6e6ce562915a616d1a))
+
 ## [1.6.2](https://github.com/bardesss/arr-mcp/compare/v1.6.1...v1.6.2) (2026-08-13)
 
 
