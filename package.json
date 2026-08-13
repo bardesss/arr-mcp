@@ -22,7 +22,8 @@
     "specs:fetch": "bash scripts/fetch-specs.sh",
     "codegen": "node scripts/codegen.mjs",
     "capture": "node scripts/capture-fixtures.ts",
-    "integration": "node scripts/integration.ts"
+    "integration": "node scripts/integration.ts",
+    "screenshots": "node scripts/screenshots.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.0",
@@ -39,6 +40,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.13.3",
     "eslint": "^10.8.0",
+    "playwright": "^1.62.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.66.0",
     "vitest": "^4.1.10"
