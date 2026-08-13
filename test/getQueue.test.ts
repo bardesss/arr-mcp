@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, TransmissionServiceConfig } from '../src/config/schema.ts';
+import { parseTimeleft } from '../src/services/arrQueue.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
@@ -76,11 +77,65 @@ const transmission = () =>
 
 const opts = { detail: 'full' as const, limit: 50 };
 
+/**
+ * Radarr and Sonarr page their queue and default `pageSize` to 10 when the
+ * caller sends none — which is why the captured fixture echoes `"pageSize": 10`.
+ * This fake enforces that default, so a request that omits the parameter sees
+ * exactly what a real instance would return.
+ */
+const pagingQueue = (total: number): typeof fetch =>
+    (async (input: string | URL | Request) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        if (url.pathname !== '/api/v3/queue') return jsonResponse({ message: 'not found' }, 404);
+        const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+        const page = Number(url.searchParams.get('page') ?? 1);
+        const start = (page - 1) * pageSize;
+        const records = Array.from({ length: Math.max(0, Math.min(pageSize, total - start)) }, (_, i) => ({
+            id: start + i + 1,
+            title: `Film.${start + i + 1}-GROUP`,
+            status: 'downloading'
+        }));
+        return jsonResponse({ page, pageSize, totalRecords: total, records });
+    }) as unknown as typeof fetch;
+
+describe('parseTimeleft', () => {
+    it('reads a TimeSpan carrying fractional seconds', () => {
+        // .NET's "c" format is `[d.]hh:mm:ss[.fffffff]` and emits the fraction
+        // whenever it is non-zero, so this is the common shape, not the exotic
+        // one. Splitting on the first dot read the whole clock as a day count.
+        expect(parseTimeleft('00:04:32.1234567')).toBe(272);
+    });
+
+    it('reads a TimeSpan carrying both a day count and a fraction', () => {
+        expect(parseTimeleft('1.02:03:04.5000000')).toBe(86_400 + 2 * 3600 + 3 * 60 + 4);
+    });
+
+    it('still reads the plain and day-prefixed forms', () => {
+        expect(parseTimeleft('00:12:30')).toBe(750);
+        expect(parseTimeleft('1.02:03:04')).toBe(86_400 + 2 * 3600 + 3 * 60 + 4);
+    });
+
+    it('returns undefined for something that is not a TimeSpan', () => {
+        expect(parseTimeleft('soon')).toBeUndefined();
+        expect(parseTimeleft(undefined)).toBeUndefined();
+    });
+});
+
 describe('get_queue', () => {
     it('merges three services into one list', async () => {
         const result = await buildGetQueue([radarr(), sabnzbd(), transmission()], opts);
         expect(result.items.map(i => i.service).sort()).toEqual(['radarr', 'sabnzbd', 'transmission']);
         expect(result.total).toBe(3);
+    });
+
+    it('reads the whole queue rather than the server default first page', async () => {
+        // 25 downloads against a server that hands out 10 unless asked
+        // otherwise. Reporting 10 as the queue is not a truncation the caller
+        // can see — `truncated` is decided by applyLimit, which only ever sees
+        // the rows that arrived.
+        const result = await buildGetQueue([new RadarrAdapter(keyed(7878), pagingQueue(25))], { detail: 'full', limit: 100 });
+        expect(result.total).toBe(25);
+        expect(result.items.map(i => i.id)).toContain('25');
     });
 
     it('normalises Radarr sizes, which arrive as bytes', async () => {

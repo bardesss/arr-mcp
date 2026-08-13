@@ -18,20 +18,48 @@ type RawQueueRecord = {
     timeleft?: string;
     errorMessage?: string;
 };
-type RawQueuePage = { records?: RawQueueRecord[] };
+type RawQueuePage = { records?: RawQueueRecord[]; totalRecords?: number };
 
-/** Radarr and Sonarr report time remaining as "HH:MM:SS", sometimes "D.HH:MM:SS". */
+/**
+ * Sent explicitly because Radarr and Sonarr default `pageSize` to 10. Asking
+ * for none meant a household with more than ten downloads was told ten was the
+ * queue, and nothing could report the truncation: `records` is everything the
+ * caller sees, so `applyLimit` counted ten items and called that the total.
+ * The captured fixture echoes `"pageSize": 10` and `"totalRecords": 0` — an
+ * empty queue at capture time, which is why no test caught it.
+ *
+ * Paged to completion rather than raised to one large number, because a bigger
+ * silent cap is the same defect with a longer fuse.
+ */
+const QUEUE_PAGE_SIZE = 200;
+
+/**
+ * Radarr and Sonarr report time remaining as a .NET `TimeSpan`, whose "c"
+ * format is `[d.]hh:mm:ss[.fffffff]` — the fraction appears whenever it is
+ * non-zero, which is most of the time. Splitting on the first dot read
+ * `00:04:32.1234567` as a day count of `00:04:32` and gave up, so the download
+ * came back with no ETA at all.
+ */
+const TIMESPAN = /^(?:(\d+)\.)?(\d+):(\d+):(\d+)(?:\.\d+)?$/;
+
 export function parseTimeleft(value: string | undefined): number | undefined {
-    if (value === undefined) return undefined;
-    const [days, clock] = value.includes('.') ? value.split('.', 2) : ['0', value];
-    const parts = (clock ?? '').split(':').map(Number);
-    if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return undefined;
-    return Number(days) * 86_400 + parts[0]! * 3600 + parts[1]! * 60 + parts[2]!;
+    const parts = value === undefined ? null : TIMESPAN.exec(value.trim());
+    if (parts === null) return undefined;
+    return Number(parts[1] ?? 0) * 86_400 + Number(parts[2]) * 3600 + Number(parts[3]) * 60 + Number(parts[4]);
 }
 
 export async function readArrQueue(http: ServiceHttp, service: string): Promise<QueueItem[]> {
-    const page = await http.get<RawQueuePage>('/api/v3/queue');
-    return (page.records ?? [])
+    const records: RawQueueRecord[] = [];
+    for (let page = 1; ; page++) {
+        const body = await http.get<RawQueuePage>(`/api/v3/queue?page=${page}&pageSize=${QUEUE_PAGE_SIZE}`);
+        const got = body.records ?? [];
+        records.push(...got);
+        // An empty page ends it whatever the count says: a service that
+        // disagrees with its own `totalRecords` must not spin here.
+        if (got.length === 0 || body.totalRecords === undefined || records.length >= body.totalRecords) break;
+    }
+
+    return records
         .filter((r): r is RawQueueRecord & { id: number } => typeof r.id === 'number')
         .map(r => {
             const eta = parseTimeleft(r.timeleft);
