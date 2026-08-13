@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-bookworm-slim AS build
+FROM node:24-trixie-slim AS build
 WORKDIR /app
 # better-sqlite3 compiles a native addon; unused in Phase 1 but proven here so
 # Phase 4 does not discover a broken build stage.
@@ -12,7 +12,11 @@ COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
-FROM node:24-bookworm-slim AS runtime
+# Trixie (glibc 2.41), not bookworm (2.36): better-sqlite3's prebuilt aarch64
+# addon imports fmod@GLIBC_2.38, so on bookworm the arm64 image died at startup
+# while amd64 — needing only 2.34 — ran fine. test/dockerGlibc.test.ts fails if
+# a future prebuild outgrows this base.
+FROM node:24-trixie-slim AS runtime
 WORKDIR /app
 
 ARG ARR_MCP_VERSION=0.0.0-dev

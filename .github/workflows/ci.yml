@@ -33,9 +33,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: Build image (no push)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
+
+      # release.yml publishes linux/arm64, but this job only built for the
+      # runner's own platform, so the arm64 image was first executed by the user
+      # who reported 1.6.0 dying on a Raspberry Pi. Building it is not enough —
+      # a native addon with an unresolvable symbol only fails when loaded.
+      #
+      # Single platform with load:true; a multi-platform build cannot be loaded
+      # into the local image store.
+      - name: Build arm64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          platforms: linux/arm64
+          tags: arr-mcp:arm64-smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the arm64 native addon
+        run: |
+          docker run --rm --platform linux/arm64 arr-mcp:arm64-smoke \
+            node -e "const D=require('better-sqlite3');const db=new D(':memory:');db.exec('create table t(x)');db.prepare('insert into t values (?)').run(1);console.log('better-sqlite3 ok:', db.prepare('select count(*) c from t').get().c)"
