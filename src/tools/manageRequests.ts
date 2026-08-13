@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
+import type { IdentityResolver } from '../core/identity.ts';
 import {
     hasRequestManage,
     hasRequests,
@@ -42,9 +43,13 @@ const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Req
  * preview names a film and a person, and so a stale id fails here rather than
  * as a bare 404.
  */
-async function findRequest(adapters: readonly ServiceAdapter[], id: string): Promise<MediaRequest> {
+async function findRequest(
+    adapters: readonly ServiceAdapter[],
+    id: string,
+    identity: IdentityResolver | undefined
+): Promise<MediaRequest> {
     const adapter = adapters.find(a => a.type === 'seerr');
-    if (adapter === undefined || !hasRequests(adapter)) {
+    if (adapter === undefined || !hasRequests(adapter) || identity === undefined) {
         throw new ServiceError('NotFound', 'seerr', 'seerr is not configured', {
             remedy: 'Add a services.seerr block to config.yaml and restart.'
         });
@@ -56,6 +61,20 @@ async function findRequest(adapters: readonly ServiceAdapter[], id: string): Pro
             remedy: 'It may already have been deleted. Call get_requests for a current list.'
         });
     }
+
+    // The same gate get_requests applies, applied here too. Without it the
+    // read side refused to list another user's requests while this one would
+    // act on them *and* name the film and the person in the preview — and
+    // request ids are small integers, so everything the read gate refused was
+    // one guess away. `PermissionDenied` rather than the identity resolver's
+    // own `AuthFailed`: nothing is wrong with the API key, and a model told
+    // "auth failed" goes looking at the wrong thing.
+    if (!identity.permits(found.requestedBy)) {
+        throw new ServiceError('PermissionDenied', 'seerr', `request ${id} belongs to another user`, {
+            remedy: 'Set services.seerr.allow_other_users: true to manage requests other people made — this also exposes their request history to get_requests.'
+        });
+    }
+
     return found;
 }
 
@@ -86,7 +105,8 @@ async function describe(adapters: readonly ServiceAdapter[], request: MediaReque
 export function registerRespondToRequest(
     server: McpServer,
     context: WriteContext,
-    adapters: readonly ServiceAdapter[]
+    adapters: readonly ServiceAdapter[],
+    identity: IdentityResolver | undefined
 ): void {
     registerWriteTool(server, context, {
         name: 'respond_to_request',
@@ -102,7 +122,7 @@ export function registerRespondToRequest(
         tier: 'safe',
 
         async plan({ id, verdict }): Promise<WritePlan> {
-            const request = await findRequest(adapters, id);
+            const request = await findRequest(adapters, id, identity);
             const label = await describe(adapters, request);
             const target = verdict === 'approve' ? 'approved' : 'declined';
 
@@ -149,7 +169,8 @@ export function registerRespondToRequest(
 export function registerDeleteRequest(
     server: McpServer,
     context: WriteContext,
-    adapters: readonly ServiceAdapter[]
+    adapters: readonly ServiceAdapter[],
+    identity: IdentityResolver | undefined
 ): void {
     registerWriteTool(server, context, {
         name: 'delete_request',
@@ -164,7 +185,7 @@ export function registerDeleteRequest(
         tier: 'destructive',
 
         async plan({ id }): Promise<WritePlan> {
-            const request = await findRequest(adapters, id);
+            const request = await findRequest(adapters, id, identity);
             const label = await describe(adapters, request);
 
             return {

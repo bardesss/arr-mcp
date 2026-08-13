@@ -40,6 +40,22 @@ export class IdentityResolver {
     }
 
     /**
+     * Whether this server may deal in the named user's data at all — the
+     * configuration half of `resolve`, with no directory lookup.
+     *
+     * The write path needs the gate *after* it knows whose request an id
+     * belongs to, which `resolve` cannot serve: it would also insist the name
+     * appear in the directory, and Seerr's display name on a request need not
+     * match. Answering from configuration alone keeps the rule identical to
+     * the read side's without inventing a second failure mode.
+     */
+    permits(name: string): boolean {
+        const fallback = this.#config.default_user;
+        if (fallback !== undefined && name.toLowerCase() === fallback.toLowerCase()) return true;
+        return this.#config.allow_other_users;
+    }
+
+    /**
      * Configuration only. Returns the username to look up, or throws — and
      * throws *before* the directory is fetched, so a refused request costs no
      * network call and cannot be influenced by what the service would say.

@@ -5,6 +5,7 @@ import type { AnyServiceConfig, MultiUserServiceConfig, ServiceId } from '../src
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { ServiceError } from '../src/core/errors.ts';
+import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
@@ -17,9 +18,13 @@ const seerrConfig: MultiUserServiceConfig = {
     url: 'http://192.0.2.10:5055',
     api_key: 'k',
     timeout_ms: 10_000,
+    default_user: 'Sam',
     allow_other_users: false,
     permissions: { safe_write: false, destructive: false }
 };
+
+/** A server whose default user is someone other than the fixture's requester. */
+const otherUserConfig: MultiUserServiceConfig = { ...seerrConfig, default_user: 'Bartus' };
 
 const tiered = (safe_write: boolean, destructive: boolean): AnyServiceConfig =>
     ({ ...seerrConfig, permissions: { safe_write, destructive } }) as AnyServiceConfig;
@@ -88,6 +93,7 @@ function harness(
         onWrite?: (path: string, method: string) => Response;
         titleLookupFails?: boolean;
         adapters?: ServiceAdapter[];
+        identity?: MultiUserServiceConfig;
     } = {}
 ) {
     const fetchImpl = recordingFetch({
@@ -114,7 +120,8 @@ function harness(
             audit,
             library: { invalidate } as unknown as LibraryLoader
         },
-        adapters
+        adapters,
+        new IdentityResolver(adapters[0] as never, opts.identity ?? seerrConfig)
     );
 
     return { call: (a: Record<string, unknown>) => call(a), fetchImpl, audit, invalidate };
@@ -243,6 +250,16 @@ describe('SeerrAdapter request writes', () => {
 // --- respond_to_request --------------------------------------------------
 
 describe('respond_to_request', () => {
+    it("refuses to act on another user's request while allow_other_users is off", async () => {
+        // get_requests will not so much as list Sam's requests to a server
+        // configured for Bartus. Acting on one — and previewing its title and
+        // requester — must not be the way around that: request ids are small
+        // integers, so anything the read gate refuses is one guess away.
+        const h = harness(registerRespondToRequest, { identity: otherUserConfig });
+
+        await expect(h.call({ id: '31', verdict: 'approve', dry_run: true })).rejects.toThrow(/allow_other_users/);
+    });
+
     it('names the film and who asked for it', async () => {
         const h = harness(registerRespondToRequest, { permissions: { seerr: tiered(true, false) } });
         const { structuredContent } = await h.call({ id: '31', verdict: 'approve', dry_run: true });

@@ -151,8 +151,8 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerDeleteMedia(server, write, adapters);
     registerDeleteEpisodeFiles(server, write, adapters);
     registerSetMonitoring(server, write, adapters);
-    registerRespondToRequest(server, write, adapters);
-    registerDeleteRequest(server, write, adapters);
+    registerRespondToRequest(server, write, adapters, seerrIdentity);
+    registerDeleteRequest(server, write, adapters, seerrIdentity);
     registerAddMedia(server, write, adapters);
 }
 
