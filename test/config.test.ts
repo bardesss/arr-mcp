@@ -399,6 +399,48 @@ describe('the metadata block', () => {
 });
 
 /**
+ * `saveConfig` walks the schema's top-level keys, so a block added to the
+ * schema cannot be left unwritten. It could once: `ui` was, and the theme
+ * switcher saved nothing while reporting that it had.
+ */
+describe('every top-level block', () => {
+    const FULL = ConfigSchema.parse({
+        auth: { bearer_token: 'f'.repeat(64), password_hash: 'scrypt$00$11', allowed_hosts: ['arr.lan'] },
+        services: { radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' } },
+        metadata: { imdb: { enabled: true } },
+        ui: { theme: 'dark' }
+    });
+
+    // Fails the moment a block joins the schema, which is the point: the round
+    // trip below can only cover what this fixture carries.
+    it('appears in the fixture below', () => {
+        expect(Object.keys(FULL).sort()).toEqual(Object.keys(ConfigSchema.shape).sort());
+    });
+
+    it('reaches a file that had none of them', async () => {
+        const dir = await freshDir();
+        await writeFile(join(dir, 'config.yaml'), `auth:\n  bearer_token: ${'f'.repeat(64)}\nservices: {}\n`, 'utf8');
+
+        await saveConfig(dir, FULL);
+
+        expect((await loadConfig(dir)).config).toEqual(FULL);
+    });
+
+    it('goes away again when the config no longer carries it', async () => {
+        const dir = await freshDir();
+        await writeFile(join(dir, 'config.yaml'), `auth:\n  bearer_token: ${'f'.repeat(64)}\nservices: {}\n`, 'utf8');
+        await saveConfig(dir, FULL);
+
+        const { metadata: _m, ui: _u, ...bare } = FULL;
+        await saveConfig(dir, bare);
+
+        const { config } = await loadConfig(dir);
+        expect(config.metadata).toBeUndefined();
+        expect(config.ui).toBeUndefined();
+    });
+});
+
+/**
  * `saveConfig` edits an existing YAML document in place rather than
  * re-serialising the parsed config, so a key it does not know about is
  * preserved by omission rather than by design. That is worth a test: the
