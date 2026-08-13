@@ -21,6 +21,10 @@ WORKDIR /app
 
 ARG ARR_MCP_VERSION=0.0.0-dev
 
+# How the MCP Registry proves we own this image: it pulls the tag `server.json`
+# names and refuses to publish unless this label matches the server name.
+LABEL io.modelcontextprotocol.server.name="io.github.bardesss/arr-mcp"
+
 # The node image already ships a non-root `node` user at 1000:1000, which is
 # also our default PUID/PGID — reuse it rather than creating a second account
 # at the same ids (groupadd -g 1000 fails outright).

@@ -110,3 +110,39 @@ jobs:
           subject-name: ghcr.io/bardesss/arr-mcp
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+
+  # Lists the release at registry.modelcontextprotocol.io, which is how MCP
+  # clients discover servers. Needs `image`, not just the tag: the registry
+  # pulls the image `server.json` names and refuses to publish unless it carries
+  # the `io.modelcontextprotocol.server.name` label the Dockerfile sets.
+  registry:
+    needs: [release-please, image]
+    if: needs.release-please.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      # release-please already bumped `.version`, but the image tag lives inside
+      # a string it cannot rewrite — so derive both from the release version
+      # rather than trusting the file to name the tag this run just pushed.
+      - name: Pin server.json to this release
+        run: |
+          v='${{ needs.release-please.outputs.version }}'
+          jq --arg v "$v" '.version = $v | .packages[0].identifier = "ghcr.io/bardesss/arr-mcp:" + $v' \
+            server.json > server.tmp && mv server.tmp server.json
+          cat server.json
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      # OIDC, so there is no token to store or rotate: the registry trusts the
+      # workflow's own identity, and `io.github.bardesss/*` is ours because the
+      # repository is.
+      - name: Publish to the MCP Registry
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
