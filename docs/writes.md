@@ -187,3 +187,30 @@ add_media { service: "radarr", external_id: "550" }
 That means **adding a second instance changes how existing prompts behave**:
 requests that used to be unambiguous start asking which instance you meant. That
 is deliberate, and it only affects writes.
+
+## Managing someone else's request
+
+`respond_to_request` and `delete_request` act on a Seerr request that belongs to
+somebody. If that somebody is not the configured `default_user`, the write is
+refused unless `services.seerr.allow_other_users` is `true`:
+
+> request 31 belongs to another user — set `services.seerr.allow_other_users:
+> true` to manage requests other people made.
+
+This is the same gate `get_requests` applies to reading them. Without it, the
+read side would refuse to so much as list a request that the write side would
+approve — and name the title and requester while previewing it. Request ids are
+small integers, so anything the read gate refused would have been one guess
+away.
+
+## Unmonitoring a season always asks
+
+`set_monitoring` previews and asks for confirmation on every season and episode
+write, even one that looks like it would change nothing. Only the whole-series
+form reports "no change was made" without asking.
+
+Sonarr's per-season `monitored` flag is an aggregate over the episode flags, and
+this tool's own episode form writes those flags without touching the aggregate —
+so a season can report itself unmonitored while its episodes are still
+monitored. Treating that as "nothing to do" wrote nothing and left Sonarr
+searching for exactly the episodes you were about to delete.
