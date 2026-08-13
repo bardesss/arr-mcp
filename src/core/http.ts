@@ -121,13 +121,27 @@ export class ServiceHttp {
                     this.#recordSuccess();
                     return result;
                 } catch (retryErr) {
-                    this.#recordFailure();
+                    this.#record(retryErr);
                     throw retryErr;
                 }
             }
-            this.#recordFailure();
+            this.#record(err);
             throw err;
         }
+    }
+
+    /**
+     * Whether a failed call is evidence the *service* is unwell.
+     *
+     * A 404 is not. Looking up ids that do not exist is an ordinary
+     * per-request outcome, and a service that answers one has plainly
+     * answered — so it counts as a success here, which is what stops five
+     * missing-id lookups in a row making a healthy Radarr unreachable for the
+     * whole cooldown, calls that would have worked included.
+     */
+    #record(err: unknown): void {
+        if (err instanceof ServiceError && err.kind === 'NotFound') this.#recordSuccess();
+        else this.#recordFailure();
     }
 
     /**

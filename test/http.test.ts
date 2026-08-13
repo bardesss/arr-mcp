@@ -242,6 +242,23 @@ describe('ServiceHttp circuit breaker', () => {
         expect(calls).toBe(callsAfterFive);
     });
 
+    it('does not count a 404 towards it — a missing id is not a sick service', async () => {
+        // Looking up ids that do not exist is an ordinary per-request outcome,
+        // not evidence the service is failing. Counting them meant five such
+        // lookups in a row made a perfectly healthy Radarr unreachable for the
+        // whole cooldown, including for the calls that would have worked.
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            return json({ message: 'not found' }, 404);
+        });
+
+        for (let i = 0; i < 6; i += 1) {
+            await expect(client.get(`/api/v3/movie/${i}`)).rejects.toThrow(/not found/i);
+        }
+        expect(calls).toBe(6);
+    });
+
     it('admits a single trial request after the cooldown', async () => {
         vi.useFakeTimers();
         try {

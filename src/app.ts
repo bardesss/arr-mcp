@@ -125,8 +125,13 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
 
         // Compared without the port: a pinned `arr.example.com` should not stop
         // working because the browser sent `arr.example.com:6060`.
+        //
+        // The port is stripped from the *end*, never by splitting on the first
+        // colon — for `[fd00::1]:6060` that split lands inside the address and
+        // yields "[", so pinning a literal IPv6 host 403'd every request,
+        // including the config page that is the only way to undo the pin.
         const host = (c.req.header('host') ?? '').toLowerCase();
-        const bare = host.split(':')[0] ?? '';
+        const bare = host.replace(/:\d{1,5}$/, '');
         if (allowed.some(a => a.toLowerCase() === host || a.toLowerCase() === bare)) return next();
 
         logger.warn({ host, ip: c.req.header('x-forwarded-for') ?? 'unknown' }, 'rejected request with an unlisted Host');
