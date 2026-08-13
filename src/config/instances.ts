@@ -64,6 +64,5 @@ export function listInstances(config: Config): ServiceInstance[] {
     return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/** Whether this service may appear more than once. Used by the config UI and
- *  by the messages that explain a refusal. */
+/** Whether this service may appear more than once. */
 export const isMultiInstance = (type: ServiceId): boolean => MULTI_INSTANCE.includes(type);

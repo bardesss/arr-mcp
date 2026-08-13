@@ -111,16 +111,26 @@ export function registerSetMonitoring(
                       ? `season ${season} of ${label}`
                       : label;
 
-            // `noop` only where the current state is a single value. The
-            // episode form targets a set that can disagree with itself — some
-            // monitored, some not — so no claim is made there; one redundant
-            // confirmation beats "already monitored" asserted across a mixture.
-            const current =
-                season !== undefined
-                    ? details.seasons?.find(s => s.season === season)?.monitored
-                    : episodes === undefined
-                      ? details.monitored
-                      : undefined;
+            // `noop` only for the whole-series form, where the current state is
+            // a single value Sonarr actually holds.
+            //
+            // The episode form targets a set that can disagree with itself —
+            // some monitored, some not — so no claim is made there. The season
+            // form *looks* like it has an answer in `seasons[].monitored`, but
+            // that is a UI aggregate over the episode flags, and this tool's
+            // own episode form writes those flags without touching it. A
+            // season therefore reads `monitored: false` while its episodes are
+            // monitored, and believing it answered "no change was made" to a
+            // request that would have changed something: no PUT, a `dry_run`
+            // audit row, and Sonarr still searching for exactly the episodes
+            // the caller went on to delete.
+            //
+            // Deriving the truth from the episode list was the alternative and
+            // is worse: it makes every season write depend on a second call for
+            // up to 500 episodes, so an episode endpoint that is down turns a
+            // working write into a failed one. One redundant confirmation is
+            // the cheaper mistake.
+            const current = season === undefined && episodes === undefined ? details.monitored : undefined;
 
             const effects = [
                 monitored

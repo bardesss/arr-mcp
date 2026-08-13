@@ -1,12 +1,31 @@
+<div align="center">
+
 # arr-mcp
 
-One MCP server for your whole self-hosted media stack — not one per service.
+### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Seerr · SABnzbd · Transmission
+**Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Seerr · SABnzbd · Transmission**
 
-Ask questions no single service can answer. *"Why isn't the film I requested on
-Tuesday showing up in Jellyfin?"* spans Seerr, Radarr, Prowlarr, SABnzbd and
-Jellyfin. arr-mcp correlates them and gives you the causal chain.
+[![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
+[![Image](https://img.shields.io/badge/ghcr.io-arr--mcp-2496ed?style=flat-square&logo=docker&logoColor=white)](https://github.com/bardesss/arr-mcp/pkgs/container/arr-mcp)
+[![Platforms](https://img.shields.io/badge/platforms-amd64%20%C2%B7%20arm64-555?style=flat-square)](https://github.com/bardesss/arr-mcp/pkgs/container/arr-mcp)
+[![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)
+
+<img src="screenshots/homepage.png" alt="The arr-mcp dashboard: every configured service tested live, with status, latency and version" width="880">
+
+</div>
+
+## Everyone else ships one MCP server per service. This is one for the stack.
+
+That difference is the whole point, because the interesting questions live
+*between* services:
+
+> *"Why isn't the film I requested on Tuesday showing up in Jellyfin?"*
+
+No single service can answer that. It spans Seerr, Radarr, Prowlarr, SABnzbd and
+Jellyfin — five APIs, five sets of ids, five half-answers. arr-mcp correlates
+them and hands back the causal chain:
 
 ```
 diagnose { query: "Blade" }
@@ -15,19 +34,22 @@ diagnose { query: "Blade" }
 > No file on disk yet. Trigger a search in Radarr or Sonarr — nothing is
 > downloading and no indexer reported a failure.
 
-- **`diagnose` answers what no single service can.** It walks the whole chain —
-  requested, managed, monitored, downloaded, indexed, imported, scanned — and
-  names the first thing that explains the absence, even with a service down.
-- **Tool output is treated as untrusted data, never instruction.** Release names
-  from public indexers are attacker-controllable and flow straight into model
-  context; arr-mcp fences them.
-- **Writes are opt-in, previewed, and recorded.** Every write is off until you
-  turn it on per service, shows you exactly what it would do before it does it,
-  and lands in an audit trail either way.
-- **A config page that diagnoses.** Add services from a browser, see what is
-  broken and what to do about it, and read the logs and the write audit.
+One call. One answer. It even answers with a service down, and tells you which
+part it could not check rather than guessing across the hole.
 
-## Quick start
+## Why people run it
+
+|  | |
+| --- | --- |
+| 🔍 **`diagnose` answers what no single service can** | Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the *first* thing that explains the absence. |
+| 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
+| ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
+| 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
+| 📚 **Twenty-two tools, one vocabulary** | Every list pages the same way, every error names the config key that would fix it, every write takes ids rather than titles. |
+
+Nothing else in this space does the last four at all.
+
+## Quick start — about two minutes
 
 Also in the repo as [`docker-compose.example.yml`](docker-compose.example.yml).
 
@@ -51,9 +73,11 @@ services:
 of the container log.
 
 **2. Claim it.** The first page is a setup form rather than a sign-in: choose a
-username and a password of at least 12 characters. Do this **before** exposing
-the port — until it is claimed, whoever loads that page first owns it, and it
-holds every service's API key.
+username and a password of at least 12 characters.
+
+> [!IMPORTANT]
+> Do this **before** exposing the port. Until it is claimed, whoever loads that
+> page first owns the instance — and it holds every service's API key.
 
 **3. Add your services** — **Add a service**, paste its URL and API key, save.
 It applies immediately; there is no restart. Configure only what you run.
@@ -62,16 +86,26 @@ Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
 the dashboard. Everything the UI does is still just `config.yaml`, and editing
 that by hand remains supported.
 
-A client that asks for `Accept: application/json` — or sends no `Accept` at
-all — gets a single JSON object back with a `Content-Length`, rather than being
-refused for not also naming `text/event-stream`. One that does accept a stream
-still gets one. Even a refusal is JSON: a body that will not parse comes back as
-a JSON-RPC parse error rather than as plain text. So a plain `curl` or
-`requests.post` works as-is, and so does a full MCP client.
+**Works with whatever you point at it.** A client asking for
+`Accept: application/json` — or sending no `Accept` at all — gets one JSON object
+back with a `Content-Length`, rather than a refusal for not also naming
+`text/event-stream`. A client that does accept a stream still gets one. Even a
+refusal is JSON. So a plain `curl` works as-is, and so does a full MCP client.
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest`, plus `main` for bleeding edge.
-Pin a minor — `:1.4` — if you would rather approve each new tool surface
-yourself.
+Pin a minor — `:1.6` — if you would rather approve each new tool surface
+yourself. Images are published for **amd64 and arm64**, so a Raspberry Pi or an
+ARM NAS runs the same build as everything else.
+
+## What you can ask it
+
+Twenty-two tools, but you never name them — you ask, and the model picks:
+
+> *"What's downloading right now, and is anything stuck?"*
+> *"What aired this week that I haven't watched?"*
+> *"Which of my indexers are failing, and what did they say?"*
+> *"Find me something highly rated from 1994 I don't already have."*
+> *"Unmonitor season 5 and delete its files."* — previewed first, always.
 
 ## Documentation
 

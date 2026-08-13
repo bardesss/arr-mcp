@@ -10,6 +10,11 @@ import type { ServiceAdapter, UserDirectoryCapable } from '../src/services/types
 const stub = (id: string, extra: Record<string, unknown>): ServiceAdapter =>
     ({
         id,
+        // Every real adapter sets `type` alongside `id` — `radarr` for both
+        // `radarr` and `radarr/4k` — and instance resolution matches on it.
+        // A double without one is not a double of anything this code runs
+        // against.
+        type: id.split('/')[0],
         testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
         getVersion: async () => '1.0.0',
         ...extra
@@ -124,6 +129,45 @@ describe('diagnose', () => {
 
         const d = await buildDiagnose(withDetails, { service: 'radarr', id: '1' });
         expect(d.resolved?.ids).toEqual({ tmdb: 550 });
+    });
+
+    it('accepts an explicit id against a named instance', async () => {
+        // A named Radarr has `id: "radarr/4k"`, so the open-coded
+        // `find(a => a.id === service)` matched nothing and diagnose answered
+        // "radarr is not configured" about a Radarr that plainly is. This is
+        // the lookup resolveInstance was written to replace, and diagnose is
+        // the one caller that was never converted.
+        const adapters = [
+            stub('radarr/4k', {
+                type: 'radarr',
+                instance: '4k',
+                listLibrary: async () => [FILM],
+                getMediaDetails: async () => ({
+                    service: 'radarr/4k',
+                    kind: 'movie',
+                    id: '1',
+                    title: 'Some Film',
+                    ids: { tmdb: 550 }
+                })
+            })
+        ];
+
+        const d = await buildDiagnose(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { service: 'radarr', id: '1' }
+        );
+        expect(d.resolved?.ids).toEqual({ tmdb: 550 });
+    });
+
+    it('refuses rather than guessing when two instances are configured and none is named', async () => {
+        const adapters = [
+            stub('radarr/hd', { type: 'radarr', instance: 'hd', listLibrary: async () => [], getMediaDetails: async () => ({}) }),
+            stub('radarr/4k', { type: 'radarr', instance: '4k', listLibrary: async () => [], getMediaDetails: async () => ({}) })
+        ];
+
+        await expect(
+            buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'radarr', id: '1' })
+        ).rejects.toThrow(/does not say which/);
     });
 
     it('diagnoses an explicit id the index does not contain', async () => {

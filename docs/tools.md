@@ -50,12 +50,19 @@ whatever the services returned, and an item can move between pages.
 its two lists, spent on failures before disks, so a single number could not say
 which list it meant to skip into — and neither is one you page through.
 
+Both halves of that contract are enforced against the services themselves, not
+only in this server: `get_queue` asks Radarr and Sonarr for the whole queue
+rather than accepting their ten-row default, and `get_requests` and
+`get_indexers` push a status filter upstream where the service supports one, so
+a filtered answer is not a filtered slice of an arbitrary window.
+
 Tools spanning several services also report which ones they could not reach, and
 how many results each contributed, so a long answer from one service can never
 silently hide another.
 
 `diagnose` takes a title, or an exact `service` plus `id`, and returns a verdict
-rather than a list.
+rather than a list. With several instances of a service configured it also takes
+`instance`, worded exactly as the write tools word it.
 
 **Every answer comes twice: a sentence and a structure.** The summary line is
 for a reader; `structuredContent` is the contract, and every tool declares its

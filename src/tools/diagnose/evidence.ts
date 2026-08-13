@@ -16,9 +16,10 @@ import {
     type ServiceAdapter
 } from '../../services/types.ts';
 import type { LibraryLoader } from '../library.ts';
+import { resolveInstance } from '../resolveInstance.ts';
 import type { Evidence } from './chain.ts';
 
-export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; user?: string };
+export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; instance?: string; user?: string };
 
 export type DiagnoseDeps = {
     adapters: readonly ServiceAdapter[];
@@ -61,15 +62,21 @@ async function resolveItem(
 
     // The explicit id wins: it is unambiguous and a title is not.
     if (target.service !== undefined && target.id !== undefined) {
-        const adapter = deps.adapters.find(a => a.id === target.service);
+        // resolveInstance rather than `find(a => a.id === service)`: `id` is
+        // `radarr/4k` for a named instance, so the open-coded form matched
+        // nothing and answered "radarr is not configured" about a Radarr that
+        // plainly was. Six tools moved off that lookup when it was written;
+        // this was the one left behind.
+        const adapter = resolveInstance(deps.adapters, target.service, target.instance);
+
         // A service the schema accepts but that has no getMediaDetails
         // (sabnzbd, say) is a configuration mistake, not a hole to degrade
         // across. Returning `undefined` would make the caller's own named
         // service read as "this does not exist" with `certain: true`. Same
         // error and remedy as get_media_details.
-        if (adapter === undefined || !hasMediaDetails(adapter)) {
-            throw new ServiceError('NotFound', target.service, `${target.service} is not configured`, {
-                remedy: `Add services.${target.service} to config.yaml, or name a configured service.`
+        if (!hasMediaDetails(adapter)) {
+            throw new ServiceError('NotFound', target.service, `${target.service} cannot look up an item by id`, {
+                remedy: `Pass a service that holds media — radarr, sonarr or jellyfin — or diagnose by query instead.`
             });
         }
 

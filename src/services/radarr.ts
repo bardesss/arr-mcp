@@ -274,8 +274,8 @@ export class RadarrAdapter
 
         if (source === 'library') {
             // Radarr has no library search endpoint, so this fetches the whole
-            // list. Costly on a 900-film instance and correct today; design
-            // spec the cache is what makes it cheap, and lands earlier.
+            // list. Costly on a 900-film instance; the library cache is what
+            // makes it cheap in practice.
             const movies = await this.#http.get<RawMovie[]>('/api/v3/movie');
             return movies.filter(m => (m.title ?? '').toLowerCase().includes(term)).map(m => this.#toHit(m, 'library'));
         }

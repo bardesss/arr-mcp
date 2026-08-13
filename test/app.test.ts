@@ -164,6 +164,20 @@ describe('DNS rebinding protection', () => {
         expect(allowed.status).toBe(200); // port-agnostic match on the hostname
         expect(foreign.status).toBe(403);
     });
+
+    it('matches a bracketed IPv6 Host, with and without a port', async () => {
+        // Splitting on the first colon to drop the port lands inside the
+        // address for `[fd00::1]:6060` and yields "[", so every request 403s —
+        // including the config page that is the only way to undo the pin.
+        // web/origin.ts already parses this shape correctly.
+        const pinned = appWith(configWith({ allowed_hosts: ['[fd00::1]'] }));
+
+        const withPort = await pinned.request('http://[fd00::1]:6060/healthz', { headers: { Host: '[fd00::1]:6060' } });
+        const withoutPort = await pinned.request('http://[fd00::1]/healthz', { headers: { Host: '[fd00::1]' } });
+
+        expect(withPort.status).toBe(200);
+        expect(withoutPort.status).toBe(200);
+    });
 });
 
 describe('the advertised tool surface', () => {

@@ -1,6 +1,5 @@
 /**
- * This cache is
- * is a TTL map, **not an LRU**.
+ * A TTL map, **not an LRU**.
  *
  * Eviction solves unbounded key growth, and the key space here is about a dozen
  * entries — one library per service, one health per service. An LRU would be
@@ -9,9 +8,15 @@
  */
 export type Clock = () => number;
 
-/** library reads ~5 min, health ~30 s. */
+/**
+ * Library reads, ~5 minutes.
+ *
+ * There was a `HEALTH_TTL_MS = 30_000` beside this for a health cache that was
+ * never built — nothing constructed a second `TtlCache`, and `mcp/resources.ts`
+ * declares its own `HEALTH_TTL_MS = 0` meaning the opposite. One name, two
+ * values, neither caching anything.
+ */
 export const LIBRARY_TTL_MS = 300_000;
-export const HEALTH_TTL_MS = 30_000;
 
 type Entry<T> = { value: Promise<T>; expiresAt: number };
 
@@ -76,7 +81,8 @@ export class TtlCache {
      * follow-up call here, specifically to reuse the identity check that
      * guards against deleting a fresher entry out from under a concurrent
      * caller — a plain `invalidate()` call has no way to make that check.
-     * `invalidate` remains the seam for 0.5's write-invalidation.
+     * Write-invalidation ended up going through `LibraryLoader.invalidate`,
+     * which clears the whole cache, so nothing in production calls this.
      */
     invalidate(key: string): void {
         this.#entries.delete(key);

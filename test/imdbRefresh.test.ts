@@ -129,6 +129,20 @@ describe('reading a staged dump', () => {
         expect(lines[2]).toBe('last');
     });
 
+    it('stitches a multibyte character that straddles the read boundary', () => {
+        // The straddle test above uses ASCII, so it never exercised the other
+        // half of the boundary problem: each 1 MiB read was decoded on its own,
+        // and a character whose bytes span two reads was two invalid halves —
+        // U+FFFD in the title, which is what discover_media then returns as
+        // the film's name. "Amélie" is exactly the kind of title this hits.
+        const pad = 'x'.repeat((1 << 20) - 1);
+        const lines = [...linesOf(write(`${pad}é\nlast`))];
+
+        expect(lines[0]?.endsWith('é')).toBe(true);
+        expect(lines[0]).not.toContain('�');
+        expect(lines[1]).toBe('last');
+    });
+
     /** Lazy, not materialised — the property the crash was caused by losing. */
     it('reads lazily rather than loading the file', () => {
         const gen = linesOf(write('a\nb\nc'));

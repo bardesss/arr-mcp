@@ -105,7 +105,24 @@ claims it.
 
 `allowed_hosts` applies at once when saved from the UI, so **a wrong hostname
 locks you out of the page you would fix it from.** Recover by editing
-`config.yaml` by hand and restarting.
+`config.yaml` by hand and restarting. A literal IPv6 address is written with its
+brackets — `"[fd00::1]"` — and matches with or without a port.
+
+### `allow_other_users`
+
+On Jellyfin and Seerr, one admin-scoped API key can answer for anybody, so
+`allow_other_users` decides whether this server will deal in anyone's data but
+`default_user`'s. It governs reading — whose watch state, whose requests — and
+also whether `respond_to_request` and `delete_request` may act on a request
+somebody else made. It defaults to `false`.
+
+### Editing `config.yaml` by hand
+
+Supported, and the comments you write in it are preserved when the config UI
+saves over it. One caveat: if you edit the file while the config page is open,
+the next save from that page is **refused** rather than applied, because it was
+assembled from a snapshot taken before your edit. Reload the page and make the
+change again.
 
 ## The IMDb dataset
 

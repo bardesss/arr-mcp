@@ -34,9 +34,32 @@ export class ServiceHttp {
         return this.#request<T>('GET', path, undefined, true);
     }
 
-    /** Writes never auto-retry — a retried add_media is a double-add. */
-    async post<T>(path: string, body: unknown): Promise<T> {
-        return this.#request<T>('POST', path, body, false);
+    /**
+     * A GET that is not a read, and so must not be retried.
+     *
+     * The retry policy above is keyed on the verb, which holds for every
+     * service but SABnzbd — whose entire API is GET, queue deletions included.
+     * That one write inherited the read retry: a delete that timed out *after*
+     * SABnzbd had processed it was sent again, and the second attempt answers
+     * `{"status": false}` for an nzo_id that is already gone, which the
+     * adapter reports as "the delete was refused". A successful deletion,
+     * reported as a failure, with the item genuinely gone.
+     */
+    async getAsWrite<T>(path: string): Promise<T> {
+        return this.#request<T>('GET', path, undefined, false);
+    }
+
+    /**
+     * Writes never auto-retry — a retried add_media is a double-add.
+     *
+     * `discardBody` for the same reason `put` and `delete` carry it: Jellyfin
+     * answers a started library scan with 204 and no body, and parsing that as
+     * JSON turned a scan already underway into "response was not valid JSON" —
+     * a failure report for work that had succeeded, inviting a retry that
+     * would start it a second time.
+     */
+    async post<T>(path: string, body: unknown, discardBody = false): Promise<T> {
+        return this.#request<T>('POST', path, body, false, discardBody);
     }
 
     /**
@@ -98,13 +121,27 @@ export class ServiceHttp {
                     this.#recordSuccess();
                     return result;
                 } catch (retryErr) {
-                    this.#recordFailure();
+                    this.#record(retryErr);
                     throw retryErr;
                 }
             }
-            this.#recordFailure();
+            this.#record(err);
             throw err;
         }
+    }
+
+    /**
+     * Whether a failed call is evidence the *service* is unwell.
+     *
+     * A 404 is not. Looking up ids that do not exist is an ordinary
+     * per-request outcome, and a service that answers one has plainly
+     * answered — so it counts as a success here, which is what stops five
+     * missing-id lookups in a row making a healthy Radarr unreachable for the
+     * whole cooldown, calls that would have worked included.
+     */
+    #record(err: unknown): void {
+        if (err instanceof ServiceError && err.kind === 'NotFound') this.#recordSuccess();
+        else this.#recordFailure();
     }
 
     /**

@@ -4,9 +4,9 @@
  * instruction. Prowlarr returns release names from public indexers — those
  * strings are attacker-controllable and flow straight into model context.
  *
- * This is two of the five mitigations It does not make injection
- * impossible; it makes injected text visibly *data*, and removes the
- * characters that let a string render as something other than what it is.
+ * This does not make injection impossible. It makes injected text visibly
+ * *data*, and removes the characters that let a string render as something
+ * other than what it is.
  */
 
 /** Long enough for any real overview; short enough that 500 of them fit. */

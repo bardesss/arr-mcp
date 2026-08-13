@@ -1,4 +1,5 @@
 import { closeSync, createWriteStream, mkdtempSync, openSync, readdirSync, readSync, rmSync, statSync } from 'node:fs';
+import { StringDecoder } from 'node:string_decoder';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -143,6 +144,13 @@ async function downloadTo(baseUrl: string, file: string, path: string): Promise<
 export function* linesOf(path: string): Generator<string> {
     const fd = openSync(path, 'r');
     const buffer = Buffer.alloc(1 << 20);
+    // A StringDecoder rather than `buffer.toString('utf8', …)`: reads land on
+    // byte boundaries, not character ones, so decoding each one alone turned
+    // every multibyte character unlucky enough to span two reads into a pair
+    // of U+FFFD. `carry` stitches half a *line*; this stitches half a
+    // *character*, and the difference is a mangled title reaching
+    // discover_media as the name of the film.
+    const decoder = new StringDecoder('utf8');
     let carry = '';
 
     try {
@@ -150,7 +158,7 @@ export function* linesOf(path: string): Generator<string> {
             const read = readSync(fd, buffer, 0, buffer.length, null);
             if (read === 0) break;
 
-            const chunk = carry + buffer.toString('utf8', 0, read);
+            const chunk = carry + decoder.write(buffer.subarray(0, read));
             const lines = chunk.split('\n');
             // The final piece may be half a line, and belongs to the next chunk.
             carry = lines.pop() ?? '';
@@ -158,7 +166,10 @@ export function* linesOf(path: string): Generator<string> {
             for (const line of lines) yield line;
         }
 
-        if (carry !== '') yield carry;
+        // Anything the decoder is still holding is a truncated character at
+        // end of file, not a boundary — flush it so the last line is whole.
+        const tail = carry + decoder.end();
+        if (tail !== '') yield tail;
     } finally {
         closeSync(fd);
     }

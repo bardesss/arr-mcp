@@ -176,6 +176,27 @@ describe('removing a queue item', () => {
         expect(seen[0]).toContain('del_files=1');
     });
 
+    it('never re-sends the SABnzbd delete on a timeout', async () => {
+        // SABnzbd's whole API is GET, so its one destructive call travels over
+        // the verb the transport retries. A delete that timed out *after*
+        // SABnzbd processed it would be sent again, and the second one answers
+        // `{"status": false}` for an nzo_id that is already gone — reporting a
+        // refusal for a deletion that succeeded.
+        let calls = 0;
+        const impl = (async () => {
+            calls += 1;
+            throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+        }) as unknown as typeof fetch;
+
+        await expect(
+            new SabnzbdAdapter(keyed(8080), impl).removeQueueItem('SABnzbd_nzo_ab12', {
+                removeFromClient: true,
+                blocklist: false
+            })
+        ).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+
     it('leaves SABnzbd partial data alone when removeFromClient is false', async () => {
         const seen: string[] = [];
         const impl = (async (input: string | URL | Request) => {
@@ -596,15 +617,45 @@ describe('set_monitoring', () => {
         expect(preview.structuredContent.confirm_token).toBeDefined();
     });
 
-    it('is a no-op when the season is already in the requested state', async () => {
-        // Season 1 is already monitored: true. Asking for true changes nothing,
-        // and a confirmation prompt for a no-op trains a model to confirm
-        // reflexively.
+    it('does not call a season a no-op when its episodes disagree with the aggregate', async () => {
+        // `seasons[].monitored` is a UI aggregate over the episode flags —
+        // delete_episode_files.ts says so at length. This tool's own episode
+        // form writes episode flags without touching the aggregate, so a
+        // season can read `monitored: false` while its episodes are monitored.
+        // Trusting the aggregate then answers "no change was made" to a
+        // request to unmonitor, writes nothing, and leaves Sonarr downloading
+        // exactly what the caller went on to delete.
+        const disagreeing = {
+            ...SERIES_FULL,
+            seasons: [
+                { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8 } },
+                { seasonNumber: 2, monitored: false, statistics: { episodeFileCount: 2 } }
+            ]
+        };
+        const { call } = harness(registerSetMonitoring, {
+            permissions: { sonarr: tiered(true, false) },
+            adapters: [
+                new SonarrAdapter(
+                    keyed(8989),
+                    recordingFetch({ '/api/v3/series/7': disagreeing, '/api/v3/episode?seriesId=7': EPISODES_S2 }).impl
+                )
+            ]
+        });
+
+        const preview = await call({ service: 'sonarr', id: '7', monitored: false, season: 2 });
+        expect(preview.structuredContent.noop).not.toBe(true);
+        expect(preview.structuredContent.confirm_token).toBeDefined();
+    });
+
+    it('is a no-op when the whole series is already in the requested state', async () => {
+        // The series' own `monitored` is a value Sonarr actually holds, so the
+        // claim is sound here — unlike the per-season aggregate. A confirmation
+        // prompt for a genuine no-op trains a model to confirm reflexively.
         const { call } = harness(registerSetMonitoring, {
             permissions: { sonarr: tiered(true, false) },
             adapters: [new SonarrAdapter(keyed(8989), recordingFetch(routes).impl)]
         });
-        const result = await call({ service: 'sonarr', id: '7', monitored: true, season: 1 });
+        const result = await call({ service: 'sonarr', id: '7', monitored: true });
         expect(result.structuredContent.noop).toBe(true);
         expect(result.structuredContent).not.toHaveProperty('confirm_token');
     });

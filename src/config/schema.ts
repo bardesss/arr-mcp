@@ -13,8 +13,8 @@ export const ServiceIdSchema = z.enum([
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
 /**
- * Permission tiers per the Both default to off: a service
- * added by hand-editing YAML must not silently acquire write access.
+ * Both default to off: a service added by hand-editing YAML must not
+ * silently acquire write access.
  */
 const PermissionsSchema = z
     .object({
@@ -102,8 +102,6 @@ const InstanceListSchema = z
  * and no upgrade step, the same reasoning that made `password_hash` optional.
  */
 const MultiInstanceServiceSchema = z.union([KeyedServiceSchema, InstanceListSchema]);
-export type NamedKeyedServiceConfig = z.infer<typeof NamedKeyedServiceSchema>;
-export type MultiInstanceServiceConfig = z.infer<typeof MultiInstanceServiceSchema>;
 
 /**
  * A service config as an adapter receives it: the same shape, plus the name
@@ -206,7 +204,6 @@ export const MetadataSchema = z
     })
     .strict();
 
-export type MetadataConfig = z.infer<typeof MetadataSchema>;
 
 export const ConfigSchema = z.object({
     // Required, not optional: loadConfig always injects a generated token

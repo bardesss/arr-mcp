@@ -84,6 +84,29 @@ describe('discovering from the dataset', () => {
         expect(db.discover({ kind: 'movie', genre: 'Drama', limit: 10 })).toHaveLength(0);
     });
 
+    it('pages with an offset, so page two is not page one again', async () => {
+        // The limit is applied in SQL, so a caller slicing the returned rows
+        // by offset was slicing inside the first page: `offset: 1, limit: 1`
+        // came back empty and discover_media could never leave page one.
+        //
+        // Both films carry a rating because `replaceAll` deletes every title
+        // that has none — an unrated title is not in the dataset at all.
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [
+                { tconst: 'tt1', kind: 'movie', title: 'Higher Rated', year: 2001, genres: 'Drama' },
+                { tconst: 'tt2', kind: 'movie', title: 'Lower Rated', year: 2002, genres: 'Drama' }
+            ],
+            ratings: [
+                { tconst: 'tt1', average: 9.2, votes: 100 },
+                { tconst: 'tt2', average: 8.1, votes: 100 }
+            ]
+        });
+
+        expect(db.discover({ kind: 'movie', limit: 1 }).map(h => h.title)).toEqual(['Higher Rated']);
+        expect(db.discover({ kind: 'movie', limit: 1, offset: 1 }).map(h => h.title)).toEqual(['Lower Rated']);
+    });
+
     /** `series` is the vocabulary the tools use; `tvSeries` is IMDb's. */
     it('maps the tool vocabulary onto IMDb title types', () => {
         expect(seed().discover({ kind: 'series', limit: 10 }).map(h => h.title)).toEqual(['Breaking Bad']);

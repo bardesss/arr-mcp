@@ -26,7 +26,7 @@ export type MergedRatings = {
  * a `jellyfin_only` series has `watched` and no denominator, an `arr_only`
  * series has denominators and no `watched`. In both cases `complete` is
  * **absent, never `false`** — the rule `has_file` already follows at
- * `getLibrary.ts:263`. A `false` here would put a season you had finished onto
+ * `getLibrary.ts`'s `has_file` rule. A `false` here would put a season you had finished onto
  * a list of things still to watch, and `watched: 0` would claim Jellyfin looked
  * and found nothing played, which is a different fact from never having asked.
  */

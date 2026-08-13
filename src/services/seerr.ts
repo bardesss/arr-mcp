@@ -132,6 +132,22 @@ export class SeerrAdapter
         const params = new URLSearchParams({ take: '500' });
         if (SEERR_FILTERS_SERVER_SIDE && opts.user !== undefined) params.set('requestedBy', opts.user.id);
 
+        // `filter` pushed down where Seerr has a matching value.
+        //
+        // The window is the newest 500 by `added`, so filtering only in memory
+        // meant a household with 600 lifetime requests got nothing at all for
+        // `status: pending` once its pending ones fell outside that window —
+        // an empty list that reads as "no pending requests" rather than as a
+        // truncation. Narrowing server-side moves the window onto the rows
+        // actually being asked for.
+        //
+        // `declined` is deliberately absent: Seerr's filter vocabulary has no
+        // value for it, and mapping it onto a near-miss like `deleted` would
+        // answer a different question. It stays an in-memory filter.
+        const SERVER_SIDE_STATUS: Partial<Record<RequestStatus, string>> = { pending: 'pending', approved: 'approved' };
+        const pushedDown = opts.status === undefined ? undefined : SERVER_SIDE_STATUS[opts.status];
+        if (SEERR_FILTERS_SERVER_SIDE && pushedDown !== undefined) params.set('filter', pushedDown);
+
         const page = await this.#http.get<RawRequestPage>(`/api/v1/request?${params.toString()}`);
 
         return (page.results ?? [])

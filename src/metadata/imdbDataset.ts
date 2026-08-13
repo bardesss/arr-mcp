@@ -129,6 +129,14 @@ CREATE TABLE IF NOT EXISTS meta (
 CREATE INDEX IF NOT EXISTS title_kind ON title(kind);
 `;
 
+/** The filters `discover` and `countDiscover` both answer to. */
+export type DiscoverQuery = {
+    kind: 'movie' | 'series';
+    genre?: string | undefined;
+    year?: number | undefined;
+    minRating?: number | undefined;
+};
+
 export class ImdbDataset {
     readonly #db: Db;
 
@@ -215,13 +223,14 @@ export class ImdbDataset {
         return found;
     }
 
-    discover(q: {
-        kind: 'movie' | 'series';
-        genre?: string | undefined;
-        year?: number | undefined;
-        minRating?: number | undefined;
-        limit: number;
-    }): DatasetTitle[] {
+    /**
+     * The WHERE clause `discover` and `countDiscover` share.
+     *
+     * Split out so the count cannot drift from the page it counts — two
+     * hand-maintained copies of these four filters is how "3 of 40" ends up
+     * printed above a list of nine.
+     */
+    #discoverFilter(q: DiscoverQuery): { where: string[]; args: (string | number)[]; joinType: string } {
         const kinds = KIND_TO_IMDB[q.kind];
         const where: string[] = [`t.kind IN (${kinds.map(() => '?').join(',')})`];
         const args: (string | number)[] = [...kinds];
@@ -243,8 +252,33 @@ export class ImdbDataset {
 
         // INNER JOIN only when a rating is required: an unrated title cannot
         // satisfy a minimum, but is a perfectly good answer without one.
-        const joinType = q.minRating === undefined ? 'LEFT JOIN' : 'JOIN';
-        args.push(q.limit);
+        return { where, args, joinType: q.minRating === undefined ? 'LEFT JOIN' : 'JOIN' };
+    }
+
+    /**
+     * How many titles match, so a paged caller learns what it is paging
+     * through. Worth the second query now that `offset` reaches SQL: the old
+     * `total` was "what came back", which reads as "that is all there is" the
+     * moment a caller asks for page two.
+     */
+    countDiscover(q: DiscoverQuery): number {
+        const { where, args, joinType } = this.#discoverFilter(q);
+        const row = this.#db
+            .prepare(
+                `SELECT COUNT(*) AS n
+                   FROM title t ${joinType} rating r ON r.tconst = t.tconst
+                  WHERE ${where.join(' AND ')}`
+            )
+            .get(...args) as { n: number };
+        return row.n;
+    }
+
+    discover(q: DiscoverQuery & { limit: number; offset?: number | undefined }): DatasetTitle[] {
+        const { where, args, joinType } = this.#discoverFilter(q);
+        // OFFSET in SQL, not a slice of the rows this returns: the limit is
+        // applied here, so slicing afterwards only ever cut into page one and
+        // every page after the first came back empty.
+        args.push(q.limit, q.offset ?? 0);
 
         const rows = this.#db
             .prepare(
@@ -252,7 +286,7 @@ export class ImdbDataset {
                    FROM title t ${joinType} rating r ON r.tconst = t.tconst
                   WHERE ${where.join(' AND ')}
                ORDER BY CASE WHEN r.average IS NULL THEN 1 ELSE 0 END, r.average DESC, t.year DESC
-                  LIMIT ?`
+                  LIMIT ? OFFSET ?`
             )
             .all(...args) as {
             tconst: string;

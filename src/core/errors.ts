@@ -65,8 +65,9 @@ export class ServiceError extends Error {
     /**
      * Deliberately just an alias for `.message` — it is `.message` that now
      * carries the remedy (see the class doc comment), so there is nothing
-     * left for this method to add. Nothing in this codebase calls it; it is
-     * kept anyway as the named, documented surface so a call site reads as
+     * left for this method to add. Nothing calls it in a throwing path — only
+     * the tests do — and it is kept as the named, documented surface so a call
+     * site reads as
      * "the text a model may see" rather than "whatever `Error.prototype`
      * happens to expose". A dead-but-plausible-looking method is exactly
      * what let the remedy go unreachable before (nothing called it, and

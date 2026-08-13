@@ -63,6 +63,22 @@ describe('JellyfinAdapter.startLibraryScan', () => {
         expect(post?.url).toBe('/ScheduledTasks/Running/guid-scan');
     });
 
+    it('accepts the empty 204 a started scan actually answers with', async () => {
+        // Every other case here stubs the POST with `{}`, a JSON body the real
+        // service never sends. Parsing the empty one failed *after* the scan
+        // had started, so the tool reported failure for work already underway
+        // and invited a retry that would start it again.
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/ScheduledTasks') return jsonResponse(TASKS);
+            return new Response(null, { status: 204 });
+        }) as unknown as typeof fetch;
+
+        await expect(new JellyfinAdapter(multiUser(8096), impl).startLibraryScan()).resolves.toMatchObject({
+            status: 'started'
+        });
+    });
+
     /** The name is localised — a Dutch install returns "Mediabibliotheek
      *  scannen" — so matching on it would work only in English. */
     it('does not post when no task carries the key', async () => {

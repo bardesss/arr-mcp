@@ -169,7 +169,7 @@ export class JellyfinAdapter
             });
         }
 
-        await this.#http.post(`/ScheduledTasks/Running/${encodeURIComponent(scan.Id)}`, undefined);
+        await this.#http.post(`/ScheduledTasks/Running/${encodeURIComponent(scan.Id)}`, undefined, true);
 
         return { service: this.id, commandId: 0, name: LIBRARY_SCAN_KEY, status: 'started' };
     }
@@ -292,10 +292,7 @@ export class JellyfinAdapter
         };
     }
 
-    /**
-     * Jellyfin is the only service that knows what has actually been *watched*,
-     * which is the gap says upstream never closed.
-     */
+    /** Jellyfin is the only service that knows what has actually been watched. */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'library') return [];
 

@@ -527,11 +527,11 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
 
     const byStage = new Map(steps.map(s => [s.stage, s]));
     const isBlocked = (s: Stage): boolean => byStage.get(s)?.status === 'blocked';
-    // A file already confirmed on disk is proof that whatever request/managed
-    // history led here already worked well enough to produce it — residual
-    // An old declined/pending request, or `monitored: false`, cannot be
-    // why playback fails when the file is sitting right there. From this
-    // point on only Jellyfin's visibility of that file matters.
+    // A file already on disk is proof that whatever request/managed history
+    // led here worked well enough to produce it. An old declined or pending
+    // request, or `monitored: false`, cannot be why playback fails when the
+    // file is sitting right there — from here only Jellyfin's visibility of
+    // it matters.
     const fileIsOk = byStage.get('file')?.status === 'ok';
     const libStep = byStage.get('library');
     // The guard for `SERIES_FILE_VISIBLE_HEDGE`, below: a file confirmed on
