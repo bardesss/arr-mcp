@@ -648,6 +648,33 @@ describe('IMDb ratings on the not-yet-owned paths', () => {
         })
     );
 
+    it('pages the dataset, and reports a total a caller can page against', async () => {
+        // The envelope decides whether a model asks for more: "another page"
+        // is `offset + returned < total`, so a `total` of "what came back"
+        // ended every walk at page one — and the offset never reached SQL, so
+        // page two was empty anyway.
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [
+                { tconst: 'tt1', kind: 'movie', title: 'First', year: 2001 },
+                { tconst: 'tt2', kind: 'movie', title: 'Second', year: 2002 },
+                { tconst: 'tt3', kind: 'movie', title: 'Third', year: 2003 }
+            ],
+            ratings: [
+                { tconst: 'tt1', average: 9.3, votes: 100 },
+                { tconst: 'tt2', average: 9.2, votes: 100 },
+                { tconst: 'tt3', average: 9.1, votes: 100 }
+            ]
+        });
+
+        const page2 = await buildDiscoverMedia(undefined, { kind: 'movie', detail: 'full', limit: 1, offset: 1 }, db);
+
+        expect(page2.items.map(i => i.title)).toEqual(['<<untrusted:imdb.title>>Second<</untrusted>>']);
+        expect(page2.total).toBe(3);
+        expect(page2.offset).toBe(1);
+        expect(page2.offset + page2.returned).toBeLessThan(page2.total);
+    });
+
     it('rates a lookup hit for something not in the library at all', async () => {
         const result = await buildLookupMedia(
             [lookupRadarr],

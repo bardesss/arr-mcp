@@ -100,7 +100,8 @@ function fromDataset(
             ...(opts.genre === undefined ? {} : { genre: opts.genre }),
             ...(opts.year === undefined ? {} : { year: opts.year }),
             ...(opts.minRating === undefined ? {} : { minRating: opts.minRating }),
-            limit: opts.limit
+            limit: opts.limit,
+            ...(opts.offset === undefined ? {} : { offset: opts.offset })
         })
         .map(
             (t): SearchHit => ({
@@ -117,12 +118,28 @@ function fromDataset(
             })
         );
 
-    // `discover` already applied the limit in SQL, so `total` is what came
-    // back rather than what exists — the dataset holds ~10^7 titles and
-    // counting the full match set would cost a second query to tell the caller
-    // a number they cannot page through anyway.
-    const shaped = applyLimit(hits, opts.limit, opts.offset);
-    return { ...shaped, items: shaped.items.map(h => project(h, opts.detail)), degraded: [], counts: {} };
+    // Not `applyLimit`: `discover` applied both the limit and the offset in
+    // SQL, so these rows *are* the requested page and slicing them again would
+    // cut page two down to nothing. `total` is a real count rather than "what
+    // came back", which is what makes `offset + returned < total` — the
+    // documented way to ask for another page — mean anything here.
+    const offset = Math.max(Math.trunc(opts.offset ?? 0), 0);
+    const total = dataset.countDiscover({
+        kind: opts.kind,
+        ...(opts.genre === undefined ? {} : { genre: opts.genre }),
+        ...(opts.year === undefined ? {} : { year: opts.year }),
+        ...(opts.minRating === undefined ? {} : { minRating: opts.minRating })
+    });
+
+    return {
+        items: hits.map(h => project(h, opts.detail)),
+        total,
+        returned: hits.length,
+        offset,
+        truncated: hits.length < total,
+        degraded: [],
+        counts: {}
+    };
 }
 
 export function registerDiscoverMedia(
