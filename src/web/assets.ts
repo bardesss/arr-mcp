@@ -62,6 +62,11 @@ p.note { color: var(--dim); font-size: .9rem; margin: .35rem 0 1rem; }
 .card dl { margin: .5rem 0 0; display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; font-size: .88rem; }
 .card dt { color: var(--dim); }
 .card dd { margin: 0; word-break: break-word; }
+.svc-icon { width: 20px; height: 20px; flex: none; color: var(--dim); }
+.svc-title { display: flex; align-items: center; gap: .5rem; margin: 0 0 .75rem; }
+/* Status to the right edge, so the dots line up down the grid rather than
+   sitting at eight different offsets after eight different service names. */
+.card h3 .dot { margin-left: auto; }
 .dot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; flex: none; }
 .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.off { background: var(--dim); }
 .remedy {

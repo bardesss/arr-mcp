@@ -12,7 +12,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%C2%B7%20arm64-555?style=flat-square)](https://github.com/bardesss/arr-mcp/pkgs/container/arr-mcp)
 [![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)
 
-<img src="screenshots/homepage.png" alt="The arr-mcp dashboard: every configured service tested live, with status, latency and version" width="880">
+<img src="screenshots/dashboard-dark.png" alt="The arr-mcp dashboard: every configured service tested live, with status, latency and version" width="880">
 
 </div>
 

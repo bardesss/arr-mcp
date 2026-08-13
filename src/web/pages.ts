@@ -2,6 +2,7 @@ import type { LogRow } from '../core/logs.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
+import { serviceIcon } from './icons.ts';
 
 /**
  * Every page, server rendered. No client framework and no build step — the
@@ -307,7 +308,7 @@ export function dashboardPage(opts: {
             : html`<div class="grid">
                   ${opts.diagnoses.map(
                       d => html`<div class="card">
-                          <h3>${statusDot(d)} ${d.service}</h3>
+                          <h3>${serviceIcon(d.service)} ${d.service} ${statusDot(d)}</h3>
                           <dl>
                               <dt>Status</dt>
                               <dd>${d.ok ? 'Reachable' : (d.error?.kind ?? 'Unreachable')}</dd>

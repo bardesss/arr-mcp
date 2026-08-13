@@ -2,6 +2,7 @@ import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import { MULTI_INSTANCE, ServiceIdSchema, type Config, type ServiceId } from '../config/schema.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
 import { html, raw, type SafeHtml } from './html.ts';
+import { serviceIcon } from './icons.ts';
 import { layout } from './pages.ts';
 
 /**
@@ -209,7 +210,8 @@ function instanceCard(
         <input type="hidden" name="csrf" value="${csrf}">
         <input type="hidden" name="instance" value="${instance.id}">
 
-        <h3 style="margin:0 0 .75rem">
+        <h3 class="svc-title">
+            ${serviceIcon(instance.id)}
             <span class="mono">${instance.id}</span>
         </h3>
 

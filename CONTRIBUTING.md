@@ -124,7 +124,7 @@ why `stack_health` reports per-instance permissions.
 
 ## Adding a service adapter
 
-The highest-value contribution, and deliberately self-contained. Six steps,
+The highest-value contribution, and deliberately self-contained. Seven steps,
 each with a worked example already in the tree.
 
 **You will have to test it yourself, properly.** The maintainer does not run
@@ -158,6 +158,11 @@ around them.
 5. **Declare its contract** in `test/contract.test.ts` — the response fields your
    adapter reads. Omit the `spec` when the service publishes no OpenAPI document.
 6. **Register it** in `src/services/registry.ts`.
+7. **Draw it an icon** in `src/web/icons.ts` — stroke-only, `currentColor`, on
+   the same 24×24 grid as the rest, saying what kind of thing the service is
+   rather than which one. The UI uses one drawn set rather than per-service
+   artwork, so a new icon is drawn to match the others instead of sourced. A
+   test fails if a service id has no icon.
 
 An adapter must:
 
@@ -279,6 +284,25 @@ Two things worth knowing before you touch this:
 - **The generated types are nullable where the spec says nullable.** If a mapper
   fails to typecheck against them, fix the mapper. Do not widen it with a cast:
   that failure is the codegen doing the job it was added for.
+
+## Screenshots
+
+`screenshots/` is regenerated, never taken by hand:
+
+```bash
+npx playwright install chromium   # once; the npm package ships no browser
+npm run screenshots
+```
+
+Every page in `docs/` and the README comes from `scripts/lib/uiFixture.ts` —
+invented services, frozen timestamps, no config read and no service contacted.
+That is deliberate rather than convenient: these pages render the bearer token,
+the MCP endpoint host and every service URL, and `screenshots/` is public.
+Frozen timestamps also mean a re-run only changes a PNG when the UI changed.
+
+The fixture is typed against the page functions' own parameters, so a page that
+gains a required field fails `npm run typecheck` here rather than quietly
+producing a screenshot of something that is no longer the product.
 
 ## Recorded fixtures
 

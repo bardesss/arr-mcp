@@ -14,6 +14,8 @@ at it.
 
 ## The dashboard
 
+<img src="../screenshots/dashboard-dark.png" alt="The dashboard: a card per service with status, latency and version, above a table of reported problems" width="880">
+
 **Connection tests diagnose rather than pass or fail.** A service that is down
 says what is wrong and what to do about it — the same `kind`, `detail` and
 `remedy` the MCP tools return — instead of showing a red cross you then have to
@@ -56,6 +58,8 @@ sign-in page is untouched — that one *should* be filled.
 
 ## Configuration
 
+<img src="../screenshots/config-dark.png" alt="The configuration page: one card per configured instance, with its URL, credentials and per-instance write permissions" width="880">
+
 **The page starts empty.** It shows a card per instance you have actually
 configured, in alphabetical order, and an **Add a service** button — not eight
 blank fieldsets for services you do not run. Each card saves on its own, so
@@ -89,6 +93,10 @@ instance asks once before it goes, because its API key is not recovered by
 re-adding it.
 
 ## Logs and the write audit
+
+<img src="../screenshots/logs-dark.png" alt="The logs page: three stream tabs above a live-refreshing table of time, level, service and message" width="880">
+
+<img src="../screenshots/audit-dark.png" alt="The write audit: one entry per write attempt, showing tool, target, tier and outcome" width="880">
 
 **Logs are a ring buffer**, kept beside your config and capped, so a chatty
 service cannot fill the disk. Full history stays in `docker logs`.
