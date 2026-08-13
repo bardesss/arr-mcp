@@ -34,6 +34,7 @@ export function registerRemoveQueueItem(
 ): void {
     registerWriteTool(server, context, {
         name: 'remove_queue_item',
+        title: 'Remove a queue item',
         description:
             'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, SABnzbd and Transmission; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr and Sonarr only, blocklists the release so it will not be grabbed again. Previews by default — call again with the returned `confirm` token to actually remove it.',
         inputSchema: z.object({

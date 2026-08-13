@@ -63,6 +63,21 @@ shape as an `outputSchema` so a client knows what it will get before it calls.
 Read `total` from there rather than parsing it out of "50 of 243 item(s)" —
 that sentence is prose and may be reworded.
 
+**A client can tell the reads from the writes without reading prose.** Every
+tool carries a title and an annotation: `readOnlyHint` on the thirteen that only
+read, and on the nine writes `destructiveHint`, taken from the same permission
+tier the write gate itself runs on — so a tool cannot be gated as destructive
+and advertised as safe. A client deciding what to auto-approve, or what to warn
+about, reads those rather than guessing from twenty-two similarly-shaped
+descriptions. `idempotentHint` is deliberately absent: the confirmation token is
+single-use, so repeating a write does not repeat it, and neither answer would be
+true.
+
+**The server's `instructions`, returned at `initialize`, carry the rules that
+hold between tools rather than inside one** — what `total` counts, and that a
+write takes two calls. It is the only documentation every client sees; prompts
+and resources are optional and support for them is uneven.
+
 **An argument a tool does not have is refused, and the refusal lists the ones it
 does have.** Dropping it silently would be worse than it sounds: the call
 succeeds, the invented argument is gone, and the answer is indistinguishable

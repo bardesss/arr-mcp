@@ -34,6 +34,7 @@ export function registerTriggerSearch(
 ): void {
     registerWriteTool(server, context, {
         name: 'trigger_search',
+        title: 'Search indexers for a release',
         description:
             'Asks Radarr or Sonarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: get those from get_media_details or get_library first. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({

@@ -39,6 +39,23 @@ export const OffsetSchema = z
     );
 
 /**
+ * What a read tool tells a client about itself.
+ *
+ * Without this, all 22 tools are the same kind of thing to a client that
+ * decides what to auto-approve, or what to badge, from annotations —
+ * `delete_media` and `get_queue` alike. Each description says which it is, but
+ * prose is only readable by the model, and the client makes that call before
+ * the model is asked.
+ *
+ * `destructiveHint` is deliberately absent rather than false: the spec defines
+ * it as meaningful only when `readOnlyHint` is false, so setting it here would
+ * be answering a question nobody asked. `openWorldHint` is likewise left at its
+ * default of true, which is already right — every one of these reads reaches a
+ * service over the network.
+ */
+export const READ_ONLY = { readOnlyHint: true } as const;
+
+/**
  * Every tool's arguments, refusing the ones it does not have.
  *
  * A plain `z.object` **strips** unknown keys, which is the quietest possible

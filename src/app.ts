@@ -1,11 +1,12 @@
 import { createMcpHonoApp } from '@modelcontextprotocol/hono';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
-import type { Context } from 'hono';
+import { Hono, type Context } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
 import type { Runtime } from './core/runtime.ts';
+import { claimJsonBody } from './mcp/jsonBody.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
 import { registerAllResources } from './mcp/resources.ts';
@@ -14,6 +15,37 @@ import { registerWebRoutes } from './web/routes.ts';
 
 const NAME = 'arr-mcp';
 const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
+
+/**
+ * What the whole server is, said once.
+ *
+ * This is the only documentation every client reads. Prompts and resources
+ * carry more, but support for both is uneven and a client that surfaces
+ * neither still gets this — which is why the rules that live here are the ones
+ * no single tool's description can hold: they are true *between* tools, and a
+ * model that learns them from `get_library` has still not learned them for
+ * `get_queue`.
+ *
+ * Deliberately not a tool index. `tools/list` already carries 22 descriptions
+ * and repeating them here would cost every session the same tokens twice; what
+ * it names instead is the shape a caller cannot infer from any one of them —
+ * that a list reports the whole count rather than the window, and that a write
+ * happens in two calls rather than one.
+ */
+const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd and Transmission downloads.
+
+Reading:
+- \`get_library\` is the join across Radarr, Sonarr and Jellyfin — the only tool that can say a file one service believes in is missing from the other.
+- \`diagnose\` answers "why can I not play this" in one call. Prefer it over assembling that answer from several reads.
+- Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window — it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
+- \`degraded\` names services that did not answer. A short list may be an outage rather than an answer, so say which it was.
+
+Writing:
+- Writes happen in two calls. The first previews: read \`summary\` and \`effects\`, then call again passing the returned \`confirm\` token to apply it. \`applied\` says which of the two just happened. \`dry_run: true\` previews without ever issuing a token.
+- Writes take a service and an id, never a title. Get the id from \`get_library\` or \`get_media_details\` first.
+- A write refused for permissions names the config key that would allow it. Report that key rather than retrying.
+
+Arguments are strict: an argument a tool does not have is refused rather than ignored, and the error lists what it does accept.`;
 
 /** Constant-time compare that does not reveal the expected length by timing. */
 function tokenMatches(presented: string, expected: string): boolean {
@@ -41,7 +73,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     // before a reload finishes against the configuration it began with.
     const handler = createMcpHandler(() => {
         const snapshot = runtime.current;
-        const server = new McpServer({ name: NAME, version: VERSION });
+        const server = new McpServer({ name: NAME, version: VERSION }, { instructions: INSTRUCTIONS });
         registerAllTools(server, snapshot.tools);
         // Registered beside the tools, never instead of them. Client support
         // for prompts and resources is uneven and arr-mcp has to work on all of
@@ -64,7 +96,20 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     //
     // Validating here instead means the list is read from the runtime on every
     // request, like the bearer token, and takes effect the moment it is saved.
-    const app = createMcpHonoApp({ host: '0.0.0.0' });
+    const transport = createMcpHonoApp({ host: '0.0.0.0' });
+
+    /**
+     * An outer app purely for ordering.
+     *
+     * The adapter installs its JSON body parser when it is constructed, so
+     * anything registered on the app it returns is already behind that parser —
+     * and a body it rejects never reaches a route of ours. Mounting it inside
+     * an app of our own is what puts `claimJsonBody` in front of it, which is
+     * the only position from which the refusal can be JSON. See `jsonBody.ts`.
+     */
+    const app = new Hono();
+    app.use('*', claimJsonBody);
+    app.route('/', transport);
 
     /**
      * An empty list means "accept any Host", which is the right default for a
@@ -115,7 +160,13 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         // a client asking for a stream. What the caller actually wanted is
         // decided on the way out, not by whether it guessed the header.
         const streaming = acceptsStream(c.req.raw);
-        const response = await handler.fetch(acceptingBoth(c.req.raw), { parsedBody: c.get('parsedBody') });
+        // `?? undefined` because a body-less request is marked with null rather
+        // than left unset — that is what makes the adapter's own parser stand
+        // down. The transport must still see "no body", or a GET would be
+        // answered as a malformed request instead of as the wrong method.
+        const response = await handler.fetch(acceptingBoth(c.req.raw), {
+            parsedBody: c.get('parsedBody') ?? undefined
+        });
 
         return streaming ? response : asPlainJson(response);
     });

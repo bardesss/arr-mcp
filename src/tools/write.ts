@@ -46,6 +46,8 @@ export type WritePlan = {
 
 export type WriteToolSpec<Schema extends z.ZodObject> = {
     name: string;
+    /** What a client shows a person in place of `delete_episode_files`. */
+    title: string;
     description: string;
     /** Tool-specific arguments. `dry_run` and `confirm` are added here, so no
      *  write tool can accidentally omit or redefine them. */
@@ -165,6 +167,22 @@ export function registerWriteTool<Schema extends z.ZodObject>(
     server.registerTool(
         spec.name,
         {
+            title: spec.title,
+            /**
+             * The permission tier, said out loud to the client.
+             *
+             * Read from `spec.tier` rather than declared a second time, because
+             * a tool gated as destructive and advertised as safe is worse than
+             * one that says nothing at all — a client auto-approving on the
+             * annotation would be reading a claim the gate itself contradicts.
+             *
+             * `idempotentHint` is deliberately omitted, which the spec reads as
+             * false. It would be a lie in either direction here: the confirm
+             * token is single-use, so an identical repeated call does not
+             * repeat the write — it fails the token check. Nothing a client
+             * would do with the hint is right for that.
+             */
+            annotations: { readOnlyHint: false, destructiveHint: spec.tier === 'destructive' },
             description: spec.description,
             // Rebuilt through `toolInput` rather than extended, and the
             // difference is the error text: strictness carried over from the

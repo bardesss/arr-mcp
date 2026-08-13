@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { IndexerCapable, IndexerRejection, IndexerSummary, ServiceAdapter } from '../services/types.ts';
 
 export type GetIndexersResult = {
@@ -62,6 +62,8 @@ export function registerGetIndexers(server: McpServer, adapter: (ServiceAdapter 
     server.registerTool(
         'get_indexers',
         {
+            title: 'Indexers',
+            annotations: READ_ONLY,
             description:
                 'Prowlarr indexer health: which indexers are enabled, which are temporarily disabled and why, per-indexer query and grab counts, and — at detail: full — the queries indexers recently rejected and the reasons they gave. Failure messages and rejection reasons come from the indexer itself and are fenced as untrusted data.',
             outputSchema: PagedOutputSchema,

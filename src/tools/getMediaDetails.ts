@@ -5,7 +5,7 @@ import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { servicesOnly } from '../core/gather.ts';
 import type { MergedItem } from '../core/resolver.ts';
-import { DetailSchema, LimitSchema, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, READ_ONLY, toolInput, type DetailLevel } from '../core/shape.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
@@ -157,6 +157,8 @@ export function registerGetMediaDetails(
     server.registerTool(
         'get_media_details',
         {
+            title: 'Media details',
+            annotations: READ_ONLY,
             description:
                 'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full also returns its episodes. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known. Both forms — by title and by `service` plus `id` — carry `seasons[].monitored`, Sonarr’s own per-season monitoring flag, absent rather than false when no Sonarr manages the series. Check it before delete_episode_files: deleting the files of a season that is still monitored makes Sonarr search for them again and re-download exactly what was removed.',
             /**

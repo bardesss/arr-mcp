@@ -167,17 +167,40 @@ describe('DNS rebinding protection', () => {
 });
 
 describe('the advertised tool surface', () => {
-    const listTools = async (): Promise<{ name: string; description?: string }[]> => {
+    type Advertised = {
+        name: string;
+        title?: string;
+        description?: string;
+        annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
+    };
+
+    const listTools = async (): Promise<Advertised[]> => {
         const res = await app().request(
             'http://localhost:6060/mcp',
             rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
         );
         const body = await res.text();
         const payload = JSON.parse(body.slice(body.indexOf('{'), body.lastIndexOf('}') + 1)) as {
-            result: { tools: { name: string; description?: string }[] };
+            result: { tools: Advertised[] };
         };
         return payload.result.tools;
     };
+
+    /** The nine that can change something. Everything else only reads. */
+    const WRITES = [
+        'add_media',
+        'delete_episode_files',
+        'delete_media',
+        'delete_request',
+        'remove_queue_item',
+        'respond_to_request',
+        'set_monitoring',
+        'trigger_scan',
+        'trigger_search'
+    ];
+
+    /** Of those nine, the four whose effect cannot be undone by calling again. */
+    const DESTRUCTIVE = ['delete_episode_files', 'delete_media', 'delete_request', 'remove_queue_item'];
 
     /**
      * Design spec §18: the tool surface is the public API, and renaming one
@@ -199,6 +222,80 @@ describe('the advertised tool surface', () => {
     it('gives every tool a description, which is the only documentation a model reads', async () => {
         const undocumented = (await listTools()).filter(t => (t.description ?? '').length < 40);
         expect(undocumented.map(t => t.name)).toEqual([]);
+    });
+
+    /**
+     * Without `readOnlyHint`, `delete_media` and `get_queue` are the same kind
+     * of thing to a client that decides what to auto-approve from annotations —
+     * so a surface with nine writes on it reads as either all safe or all
+     * dangerous. The hint is the only machine-readable way to tell them apart;
+     * the descriptions say so in prose, which nothing but a model can act on.
+     */
+    it('says which tools only read, so a client can tell the nine writes from the rest', async () => {
+        const tools = await listTools();
+        const unmarked = tools.filter(t => t.annotations?.readOnlyHint === undefined);
+        expect(unmarked.map(t => t.name)).toEqual([]);
+
+        const writes = tools.filter(t => t.annotations?.readOnlyHint === false).map(t => t.name);
+        expect(writes.sort()).toEqual(WRITES);
+    });
+
+    /**
+     * `destructiveHint` is the permission tier the write gate already runs on,
+     * said out loud. Reading it from `spec.tier` is what keeps the two from
+     * drifting: a tool cannot be gated as destructive and advertised as safe.
+     */
+    it('marks a write destructive when its own permission tier is', async () => {
+        const tools = await listTools();
+        const destructive = tools.filter(t => t.annotations?.destructiveHint === true).map(t => t.name);
+        expect(destructive.sort()).toEqual(DESTRUCTIVE);
+
+        // Meaningful only when readOnlyHint is false, so a read tool must not
+        // claim it either way — the spec leaves it undefined there.
+        const reads = tools.filter(t => t.annotations?.readOnlyHint === true);
+        expect(reads.filter(t => t.annotations?.destructiveHint !== undefined).map(t => t.name)).toEqual([]);
+    });
+
+    it('gives every tool a title, so a client shows a name a person can read', async () => {
+        const untitled = (await listTools()).filter(t => (t.title ?? '') === '' || t.title === t.name);
+        expect(untitled.map(t => t.name)).toEqual([]);
+    });
+});
+
+/**
+ * `instructions` is the one piece of documentation every client gets, whether
+ * or not it surfaces prompts or resources — and this server's two rules that
+ * are not derivable from any single tool's description live there: a list
+ * reports `total` for the whole list rather than the window, and a write
+ * previews before it applies.
+ */
+describe('what the server says about itself at initialize', () => {
+    const initialize = async (): Promise<{ instructions?: string }> => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(
+                {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'initialize',
+                    params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } }
+                },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
+        );
+        return ((await rpcPayload(res)).result ?? {}) as { instructions?: string };
+    };
+
+    it('ships instructions, which is the only documentation a client always reads', async () => {
+        const { instructions } = await initialize();
+        expect(instructions ?? '').not.toBe('');
+    });
+
+    it('names the two rules no single tool description can carry', async () => {
+        const { instructions = '' } = await initialize();
+        // The write handshake, and what `total` counts.
+        expect(instructions).toContain('confirm');
+        expect(instructions).toContain('total');
     });
 });
 

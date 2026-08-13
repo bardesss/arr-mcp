@@ -42,6 +42,7 @@ export function registerTriggerScan(
 ): void {
     registerWriteTool(server, context, {
         name: 'trigger_scan',
+        title: 'Scan for new files',
         description:
             'Asks Radarr, Sonarr or Jellyfin to rescan its library — the "it downloaded but still will not play" action, and the usual fix for what `diagnose` reports as a stale scan. Jellyfin is the one that matters when something is missing from what you can actually watch. This queues the scan and returns immediately; a large library can take minutes, so check `stack_health` afterwards rather than expecting it to be done. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
