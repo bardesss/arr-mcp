@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema } from '../../config/schema.ts';
 import { READ_ONLY, toolInput } from '../../core/shape.ts';
 import { buildChain, type Diagnosis } from './chain.ts';
+import { INSTANCE_PARAM_DESCRIPTION } from '../resolveInstance.ts';
 import { collectEvidence, type DiagnoseDeps, type DiagnoseTarget } from './evidence.ts';
 
 export type { DiagnoseDeps } from './evidence.ts';
@@ -44,6 +45,7 @@ export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
                 query: z.string().min(1).optional().describe('A title — how a person actually asks.'),
                 service: ServiceIdSchema.optional().describe('With `id`: an exact item, when one is already in hand.'),
                 id: z.string().min(1).optional(),
+                instance: z.string().min(1).optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 user: z
                     .string()
                     .min(1)
@@ -53,11 +55,12 @@ export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
                     )
             })
         },
-        async ({ query, service, id, user }) => {
+        async ({ query, service, id, instance, user }) => {
             const result = await buildDiagnose(deps, {
                 ...(query === undefined ? {} : { query }),
                 ...(service === undefined ? {} : { service }),
                 ...(id === undefined ? {} : { id }),
+                ...(instance === undefined ? {} : { instance }),
                 ...(user === undefined ? {} : { user })
             });
 

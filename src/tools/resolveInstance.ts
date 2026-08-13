@@ -5,10 +5,12 @@ import type { ServiceAdapter } from '../services/types.ts';
 /**
  * Which configured instance of a service a call means.
  *
- * Six tools open-coded `adapters.find(a => a.id === service)`, which was exactly
+ * Tools open-coded `adapters.find(a => a.id === service)`, which was exactly
  * right while `id` and service type were the same string. With two Radarrs they
- * are not, and that lookup matches *neither* — so this replaces all six rather
- * than being added beside them.
+ * are not, and that lookup matches *neither* — so this replaces every one of
+ * them rather than being added beside them. `diagnose` was missed in that first
+ * pass and kept answering "radarr is not configured" about a named Radarr until
+ * it was converted too; if you are adding a by-service lookup, it belongs here.
  *
  * The rule that matters is the last one: **several instances and none named is a
  * refusal, not a coin toss.** That is already this codebase's answer to
@@ -77,9 +79,9 @@ export const instancesOfType = (adapters: readonly ServiceAdapter[], type: Servi
     adapters.filter(a => a.type === type);
 
 /**
- * The `instance` parameter's description, shared so all six tools word it the
- * same way. The model reads these, and three phrasings of one concept is three
- * chances to conclude they mean different things.
+ * The `instance` parameter's description, shared so every tool taking one words
+ * it the same way. The model reads these, and three phrasings of one concept is
+ * three chances to conclude they mean different things.
  */
 export const INSTANCE_PARAM_DESCRIPTION =
     'Which instance, when several of this service are configured — for example "4k" or "hd". Omit it when there is only one. If several are configured and you omit it, the call is refused and the names are listed.';
