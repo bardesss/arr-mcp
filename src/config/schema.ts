@@ -13,8 +13,8 @@ export const ServiceIdSchema = z.enum([
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
 /**
- * Permission tiers per the Both default to off: a service
- * added by hand-editing YAML must not silently acquire write access.
+ * Both default to off: a service added by hand-editing YAML must not
+ * silently acquire write access.
  */
 const PermissionsSchema = z
     .object({

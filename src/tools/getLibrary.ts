@@ -6,7 +6,7 @@ import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
 
-/** The five names a film can carry, plus the one a series can. */
+/** Every rating source a title can carry. */
 export const RATING_SOURCES = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'tvdb'] as const;
 export type RatingSource = (typeof RATING_SOURCES)[number];
 

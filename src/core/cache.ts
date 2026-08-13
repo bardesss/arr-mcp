@@ -1,6 +1,5 @@
 /**
- * This cache is
- * is a TTL map, **not an LRU**.
+ * A TTL map, **not an LRU**.
  *
  * Eviction solves unbounded key growth, and the key space here is about a dozen
  * entries — one library per service, one health per service. An LRU would be
@@ -82,7 +81,8 @@ export class TtlCache {
      * follow-up call here, specifically to reuse the identity check that
      * guards against deleting a fresher entry out from under a concurrent
      * caller — a plain `invalidate()` call has no way to make that check.
-     * `invalidate` remains the seam for 0.5's write-invalidation.
+     * Write-invalidation ended up going through `LibraryLoader.invalidate`,
+     * which clears the whole cache, so nothing in production calls this.
      */
     invalidate(key: string): void {
         this.#entries.delete(key);

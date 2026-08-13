@@ -80,7 +80,10 @@ CREATE INDEX IF NOT EXISTS log_level ON log (level, id DESC);
 CREATE INDEX IF NOT EXISTS log_service ON log (service, id DESC);
 `;
 
-/** Columns of their own; everything else is folded into `fields`. */
+/**
+ * Not folded into `fields`. `time`, `level`, `msg` and `service` have columns;
+ * `app`, `hostname` and `pid` are dropped outright as noise on every line.
+ */
 const PROMOTED = new Set(['time', 'level', 'msg', 'service', 'app', 'hostname', 'pid']);
 
 export class LogStore {

@@ -11,8 +11,9 @@ import { logger } from './logger.ts';
  * SQLite rather than a JSONL file because 0.6's config page has to *read* this
  * back — filtered by service, by outcome, by date — and re-parsing an
  * append-only text file to render a table is work we would only do once before
- * regretting it. `better-sqlite3` is already a dependency (it is also the
- * intended sink for 0.6's log ring buffer), so this costs no new supply chain.
+ * regretting it. `better-sqlite3` is already a dependency, so this costs no
+ * new supply chain. The log ring buffer uses it too, in its own file and for
+ * its own reasons — see `logs.ts`.
  *
  * The file is the audit trail, so it lives beside `config.yaml` in the mounted
  * config volume, not in the container's ephemeral filesystem. A trail that

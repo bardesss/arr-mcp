@@ -146,9 +146,9 @@ export const PagedOutputSchema = TruncationSchema.extend({
 });
 
 /**
- * The truncation contract from Silent truncation is how a
- * model confidently reports that a 900-film library contains 50 films, so
- * every read tool routes its list through here and serialises all five fields.
+ * The truncation contract. Silent truncation is how a model confidently
+ * reports that a 900-film library contains 50 films, so every read tool routes
+ * its list through here and serialises all five fields.
  *
  * `limit` is clamped defensively even though LimitSchema also caps it — a
  * future internal caller that bypasses the schema must not be able to request

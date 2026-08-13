@@ -145,8 +145,8 @@ export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, Subtit
     }
 
     /**
-     * the "provider state". Bazarr reports a healthy provider as `status:
-     * "Good"` and an unhealthy one with the provider's own error text, so
+     * Bazarr reports a healthy provider as `status: "Good"` and an unhealthy
+     * one with the provider's own error text, so
      * `healthy` is derived here rather than making every caller know that
      * string. The status text is provider-supplied and therefore fenced.
      *

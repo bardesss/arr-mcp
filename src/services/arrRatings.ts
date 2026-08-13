@@ -31,9 +31,8 @@ export function flattenRatings(raw: Record<string, RawRating> | undefined): Reco
  *
  * Passing Sonarr's through `flattenRatings` treats `votes` and `value` as
  * *source names*, reporting a rating source called "votes" worth 164018. The
- * single rating is labelled `tvdb` because that is where Sonarr sources series
- * metadata from relies on the same fact when it excludes a
- * direct TVDB client as duplicated effort.
+ * single rating is labelled `tvdb` because that is where Sonarr sources its
+ * series metadata from.
  */
 export function flattenSeriesRating(raw: RawRating | undefined): Record<string, number> | undefined {
     if (typeof raw?.value !== 'number' || raw.value <= 0) return undefined;

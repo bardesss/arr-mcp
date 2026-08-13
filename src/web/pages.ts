@@ -279,9 +279,9 @@ const statusDot = (d: ConnectionDiagnosis): SafeHtml =>
 /**
  * A card per service, showing the *diagnosis* rather than a tick or a cross.
  *
- * /a connection test that returns true/false tells you nothing about
- * what to fix. `testConnection` already returns kind, detail and remedy — this
- * is the first surface that shows all three to a human.
+ * A connection test that returns true/false tells you nothing about what to
+ * fix. `testConnection` already returns kind, detail and remedy — this is the
+ * first surface that shows all three to a human.
  */
 export function dashboardPage(opts: {
     version: string;

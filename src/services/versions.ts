@@ -48,10 +48,10 @@ export function compareVersions(a: number[], b: number[]): number {
 }
 
 /**
- * Design spec requires connection tests to distinguish version-too-old
- * alongside DNS failure, connection refused and a bad key. This is what finally
- * produces `VersionUnsupported`, which had been in the taxonomy 
- * with nothing able to reach it.
+ * Connection tests distinguish version-too-old from DNS failure, connection
+ * refused and a bad key. This is the only thing that produces
+ * `VersionUnsupported`, which sat in the error taxonomy with nothing able to
+ * reach it.
  */
 export function assertVersionSupported(service: ServiceId, raw: string): void {
     const floor = MINIMUM_VERSIONS[service];

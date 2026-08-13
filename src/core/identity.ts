@@ -10,8 +10,8 @@ type IdentityConfig = Pick<MultiUserServiceConfig, 'default_user' | 'allow_other
  * anybody. `allow_other_users` exists to make that deliberate rather than
  * incidental.
  *
- * The gate runs before any network call and reads configuration only
- * requires that no value a service returns can widen what the model may do.
+ * The gate runs before any network call and reads configuration only, so no
+ * value a service returns can widen what the model may do.
  */
 export class IdentityResolver {
     readonly #adapter: ServiceAdapter & UserDirectoryCapable;
@@ -85,8 +85,7 @@ export class IdentityResolver {
     }
 
     /**
-     * Users change rarely, so the directory is fetched once per process
-     * ( makes the cache in-memory and restart-clearing). A
+     * Users change rarely, so the directory is fetched once per process. A
      * failed fetch is deliberately not cached: a service restarting during the
      * first call would otherwise poison every later one until arr-mcp itself
      * restarts.

@@ -44,7 +44,7 @@ export type DiskSpace = {
 
 export type HealthCheck = { service: string; source: string; type: string; message: string };
 
-/** Library scan staleness, the fourth thing asks stack_health for. */
+/** Library scan staleness. */
 export type ScanState = { service: string; lastCompleted?: string; running?: boolean };
 
 export interface DiskSpaceCapable {
@@ -93,7 +93,7 @@ export type IndexerSummary = {
     rejectedGrabs?: number;
 };
 
-/** A query an indexer refused, with the reason it gave. the "recent rejections". */
+/** A query an indexer refused, with the reason it gave. */
 export type IndexerRejection = { indexer: string; at: string; reason: string; query?: string };
 
 export interface IndexerCapable {
@@ -120,8 +120,8 @@ export type SubtitleGap = {
 };
 
 /**
- * the "provider state". A subtitle gap says what is missing; this says
- * whether Bazarr is currently able to do anything about it.
+ * A subtitle gap says what is missing; this says whether Bazarr is currently
+ * able to do anything about it.
  */
 export type SubtitleProvider = {
     service: string;
@@ -284,8 +284,7 @@ export type SearchHit = {
      *
      * Nothing an *arr's lookup endpoint returns populates this: their search
      * payloads are shaped for *adding* a title, not describing one. It exists
-     * for the IMDb dataset (0.8 ), which fills it for a hit carrying an
-     * imdb id.
+     * for the IMDb dataset, which fills it for a hit carrying an imdb id.
      */
     ratings?: Record<string, number>;
     hasFile?: boolean;

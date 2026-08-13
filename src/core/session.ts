@@ -6,8 +6,8 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
  * The UI is a bigger target than the MCP endpoint: it shows every service's API
  * key and can change them. So the password is never stored — only a scrypt
  * hash — and the session cookie is a signed, expiring token rather than an
- * identifier looked up in a table, which keeps the transport as stateless as
- *  asks while still expiring properly.
+ * identifier looked up in a table, which keeps the transport stateless while
+ * still expiring properly.
  */
 
 /** scrypt parameters. N=16384 is the Node default and costs ~50ms here, which

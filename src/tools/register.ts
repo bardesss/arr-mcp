@@ -115,8 +115,8 @@ export function buildToolContext(
 /**
  * One registration point.
  *
- * Tools whose service is not configured are **still registered**: they return
- * an empty result explaining the service is absent. Hiding a tool would make
+ * Tools whose service is not configured are **still registered**: reads return
+ * an empty result, writes refuse with a remedy. Hiding a tool would make
  * the surface depend on configuration, and treats the tool
  * surface as the public API — a model that learned `get_subtitles` exists must
  * not find it missing after a config edit.

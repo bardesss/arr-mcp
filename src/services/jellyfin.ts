@@ -292,10 +292,7 @@ export class JellyfinAdapter
         };
     }
 
-    /**
-     * Jellyfin is the only service that knows what has actually been *watched*,
-     * which is the gap says upstream never closed.
-     */
+    /** Jellyfin is the only service that knows what has actually been watched. */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'library') return [];
 
