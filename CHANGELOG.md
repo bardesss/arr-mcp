@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/bardesss/arr-mcp/compare/v1.6.0...v1.6.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* build on trixie so the arm64 image can load better-sqlite3 ([#110](https://github.com/bardesss/arr-mcp/issues/110)) ([1424c90](https://github.com/bardesss/arr-mcp/commit/1424c90e4213a4b8409feff660a79cfb5cd68164))
+
 ## [1.6.0](https://github.com/bardesss/arr-mcp/compare/v1.5.0...v1.6.0) (2026-08-13)
 
 
