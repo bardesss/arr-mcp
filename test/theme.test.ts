@@ -1,4 +1,9 @@
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { loadConfig } from '../src/config/load.ts';
+import { saveConfig } from '../src/config/save.ts';
 import { ConfigSchema, ThemeSchema } from '../src/config/schema.ts';
 import { CSS } from '../src/web/assets.ts';
 import { html, raw } from '../src/web/html.ts';
@@ -70,6 +75,47 @@ describe('buildAppearanceConfig', () => {
         const saved = buildAppearanceConfig(withServices, { 'ui.theme': 'dark' });
         expect(saved.metadata).toEqual({ imdb: { enabled: true } });
         expect(saved.auth).toEqual(base.auth);
+    });
+});
+
+/** `saveConfig` writes a hand-picked set of keys, and `ui` was not one of
+ *  them — so the card saved nothing and the banner claimed it had. */
+describe('the theme through a save', () => {
+    const BASE = `auth:\n  bearer_token: ${'f'.repeat(64)}\n  password_hash: scrypt$00$11\nservices: {}\n`;
+    const dirWith = async (yaml: string) => {
+        const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-theme-'));
+        await writeFile(join(dir, 'config.yaml'), yaml, 'utf8');
+        return dir;
+    };
+
+    it('reaches the file when the card chooses one', async () => {
+        const dir = await dirWith(BASE);
+        const { config } = await loadConfig(dir);
+
+        await saveConfig(dir, buildAppearanceConfig(config, { 'ui.theme': 'light' }));
+
+        expect((await loadConfig(dir)).config.ui?.theme).toBe('light');
+    });
+
+    // `system` is the block being absent, so going back to it has to delete
+    // one already on disk — which a write-only fix would miss.
+    it('leaves the file with no ui block when the card chooses system', async () => {
+        const dir = await dirWith(`${BASE}ui:\n  theme: dark\n`);
+        const { config } = await loadConfig(dir);
+        expect(config.ui?.theme).toBe('dark');
+
+        await saveConfig(dir, buildAppearanceConfig(config, { 'ui.theme': 'system' }));
+
+        expect((await loadConfig(dir)).config.ui).toBeUndefined();
+    });
+
+    it('survives a save that was about something else entirely', async () => {
+        const dir = await dirWith(`${BASE}ui:\n  theme: dark\n`);
+        const { config } = await loadConfig(dir);
+
+        await saveConfig(dir, config);
+
+        expect((await loadConfig(dir)).config.ui?.theme).toBe('dark');
     });
 });
 

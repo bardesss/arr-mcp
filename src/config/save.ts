@@ -21,6 +21,14 @@ const FILENAME = 'config.yaml';
  * need positional matching that a reordered list would get wrong.
  */
 function mergeInto(doc: Document, path: string[], value: unknown): void {
+    // `undefined` is absence, not null. `setIn` would write a null-valued key,
+    // and the schema refuses those on the next load — a save that produced an
+    // instance which will not start.
+    if (value === undefined) {
+        doc.deleteIn(path);
+        return;
+    }
+
     const existing = doc.getIn(path);
     const isPlainObject = typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -97,34 +105,21 @@ export async function saveConfig(configDir: string, next: Config, opts: { expect
         }
     }
 
-    doc.setIn(['auth', 'bearer_token'], value.auth.bearer_token);
-    doc.setIn(['auth', 'username'], value.auth.username);
-    // Deleted rather than set when absent: `setIn` with `undefined` writes a
-    // null-valued key, and a config carrying `password_hash: null` reads back
-    // as claimed-with-an-empty-hash — an instance nobody can sign in to, and
-    // one the setup page will not rescue because it no longer looks unclaimed.
-    if (value.auth.password_hash === undefined) doc.deleteIn(['auth', 'password_hash']);
-    else doc.setIn(['auth', 'password_hash'], value.auth.password_hash);
-    doc.setIn(['auth', 'allowed_hosts'], value.auth.allowed_hosts);
-
-    // Key by key, not `setIn(['services'], …)`.
+    // Driven by the schema, not by a list kept here. A list is a thing to
+    // forget, and `ui` was forgotten for a release: the Appearance card built
+    // the right config, the schema accepted it, and the save reported success
+    // over a file that had never been given a theme.
     //
-    // The wholesale form replaced the node with plain JS values, and every
-    // comment inside it went with them — which is property 1 above, broken in
-    // exactly the block people annotate most. `mergeInto` still removes what is
-    // gone (a service switched off, a field cleared), so the orphans the strict
-    // schema would reject never survive; it just leaves the nodes that remain,
-    // and their comments, in place.
-    mergeInto(doc, ['services'], value.services);
-
-    // Deleted when absent rather than written as null, for the same reason as
-    // `password_hash` above: the schema is strict, and `metadata: null` would
-    // fail to parse on the next start — turning a save into an instance that
-    // will not boot. Until 0.8 this key was preserved only because nothing
-    // here touched it, which held right up until the config page could switch
-    // the dataset on.
-    if (value.metadata === undefined) doc.deleteIn(['metadata']);
-    else mergeInto(doc, ['metadata'], value.metadata);
+    // Key by key rather than `setIn(['services'], …)`, which is property 1
+    // above: the wholesale form replaced each node with plain JS values and
+    // took every comment inside it with them. `mergeInto` still removes what is
+    // gone — a service switched off, a field cleared — and leaves the nodes
+    // that remain, and their comments, in place.
+    //
+    // Top-level keys the schema has never heard of are untouched, since nothing
+    // iterates them. They do nothing either way; the loader strips them.
+    const blocks = value as Record<string, unknown>;
+    for (const key of Object.keys(ConfigSchema.shape)) mergeInto(doc, [key], blocks[key]);
 
     // A unique temp name per save. A fixed `config.yaml.tmp` meant two
     // overlapping saves wrote into the same file and both renamed it into
