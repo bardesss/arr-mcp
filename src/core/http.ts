@@ -34,9 +34,17 @@ export class ServiceHttp {
         return this.#request<T>('GET', path, undefined, true);
     }
 
-    /** Writes never auto-retry — a retried add_media is a double-add. */
-    async post<T>(path: string, body: unknown): Promise<T> {
-        return this.#request<T>('POST', path, body, false);
+    /**
+     * Writes never auto-retry — a retried add_media is a double-add.
+     *
+     * `discardBody` for the same reason `put` and `delete` carry it: Jellyfin
+     * answers a started library scan with 204 and no body, and parsing that as
+     * JSON turned a scan already underway into "response was not valid JSON" —
+     * a failure report for work that had succeeded, inviting a retry that
+     * would start it a second time.
+     */
+    async post<T>(path: string, body: unknown, discardBody = false): Promise<T> {
+        return this.#request<T>('POST', path, body, false, discardBody);
     }
 
     /**
