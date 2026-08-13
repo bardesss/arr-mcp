@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/bardesss/arr-mcp/compare/v1.7.0...v1.8.0) (2026-08-13)
+
+
+### Features
+
+* **ui:** service icons, and reproducible screenshots ([#117](https://github.com/bardesss/arr-mcp/issues/117)) ([7763286](https://github.com/bardesss/arr-mcp/commit/77632862da2b4e620a2b338760e67adf55d7ee4a))
+
 ## [1.7.0](https://github.com/bardesss/arr-mcp/compare/v1.6.2...v1.7.0) (2026-08-13)
 
 
