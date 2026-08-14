@@ -234,6 +234,8 @@ A phase that ships without its README change is not finished.
 - [ ] `docker run` the published tag against a real stack, not just the build
 - [ ] `npm run integration` — calls every tool against a real stack and fails
       if any tool has no case at all
+- [ ] `npm run multi-instance` — the same stack with Radarr and Sonarr
+      configured twice, when the release touched instance resolution
 - [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected —
       including `/mcp?token=…` against a config with `allow_token_in_url` off
 
@@ -247,6 +249,11 @@ and obvious within seconds of a real call.
 when `TOOL_NAMES` gains a tool no case covers, so a new tool cannot ship
 uncalled — which is exactly how 0.3.0 shipped a `get_subtitles` that crashed
 on the first real request.
+
+`npm run multi-instance` covers what `integration.ts` structurally cannot: it
+configures the same Radarr and Sonarr twice, so every read fans out across two
+adapters and every write has to be told which one. The single-instance script
+would pass unchanged on a build where instance resolution was broken.
 
 It also renders every config UI page against the live stack, signs in, and
 asserts that no API key reaches the configuration form. Those cases are

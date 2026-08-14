@@ -121,7 +121,7 @@ Twenty-two tools, but you never name them — you ask, and the model picks:
 | **[Configuration](docs/configuration.md)** | `config.yaml`, several Radarrs, Jellyfin's `default_user` |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
 | **[IMDb ratings](docs/imdb.md)** | The only way to get an IMDb score for a series, and what it costs |
-| **[Contributing](CONTRIBUTING.md)** | Adding a service adapter, and the rules an AI agent tends to break |
+| **[Contributing](CONTRIBUTING.md)** | [Which services qualify](CONTRIBUTING.md#which-services-qualify), how to add an adapter, and the rules an AI agent tends to break |
 
 ## Requirements
 
@@ -139,9 +139,12 @@ model stops finding a renamed tool rather than raising an error.
 
 **Contributions are welcome, and new service adapters most of all** — Lidarr,
 Readarr, qBittorrent, Tautulli. An adapter is deliberately the most
-self-contained thing in the codebase. One thing to know first: **I cannot test a
-service I do not run**, so the bar is that you tested it against your own live
-instance and the PR says what you tested and against which version.
+self-contained thing in the codebase. Two things to know first: not every
+service qualifies, and the bar is written down rather than decided per pull
+request — [which services qualify](CONTRIBUTING.md#which-services-qualify). And
+**I cannot test a service I do not run**, so the second bar is that you tested
+it against your own live instance and the PR says what you tested and against
+which version.
 
 **AI-assisted contributions are welcome**, held to the same bar and no other;
 arr-mcp is itself built with a coding agent. Point yours at
