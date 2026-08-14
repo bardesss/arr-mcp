@@ -138,7 +138,9 @@ model stops finding a renamed tool rather than raising an error.
 ## Contributing
 
 **Contributions are welcome, and new service adapters most of all** — Lidarr,
-Readarr, qBittorrent, Tautulli. An adapter is deliberately the most
+qBittorrent, Emby and Deluge would all be accepted today, and
+[the list says so in advance](CONTRIBUTING.md#what-would-be-accepted-today),
+along with the ones that would not be. An adapter is deliberately the most
 self-contained thing in the codebase. Two things to know first: not every
 service qualifies, and the bar is written down rather than decided per pull
 request — [which services qualify](CONTRIBUTING.md#which-services-qualify). And

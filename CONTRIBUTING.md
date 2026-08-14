@@ -143,12 +143,19 @@ things it is trying to establish, and the checks that stand in for them:
 
 **Survival — will this still be here?**
 
-- The service's first public release is **at least six months old**, and it has
+- The service's first public release is **at least a year old**, and it has
   **commits within the last sixty days**. Both halves, because neither implies
   the other: self-hosted projects die overwhelmingly between months two and six
   — after the launch thread, before the first real maintenance burden — and a
   project can clear that cliff and then be abandoned with its version number
   intact.
+
+  A year rather than six months, because surviving the cliff is not the same as
+  being maintained. Six months buys a project that outlived its launch thread. A
+  year buys one that has been through a dependency bump nobody enjoyed, a
+  breaking change in something upstream, and the point where the original
+  author's spare time went somewhere else. It is also roughly the horizon the
+  adapter has to keep working over, so it is the horizon worth asking about.
 
 **Stability — will the adapter still work?**
 
@@ -188,6 +195,56 @@ accepted. Any of it can be waived — on the pull request, in writing, with the
 reason — and a rewrite shipping from a fresh repository is exactly what that is
 for. An adapter that misses on age alone is worth an issue rather than a
 weekend: the answer to that one is a date, not a no.
+
+### What would be accepted today
+
+The bar above is abstract, so here is the concrete answer, current as of
+2026-08-14. Grouped by slot on the chain rather than alphabetically, because
+that is the real question: a second service in a slot that already exists is a
+small, shaped change, and a service in no slot at all is a different product.
+
+**Managed — what decides something should exist**
+
+- **Lidarr.** The clearest yes on this page. Servarr family, the same API shape
+  Radarr and Sonarr are already written against, on the chain by construction,
+  and it very likely spends no new tool: music maps onto `get_library`,
+  `get_queue`, `get_calendar` and the existing writes.
+
+**Downloaded — where a grab actually lands**
+
+- **qBittorrent.** The most-deployed client this server cannot talk to, a
+  documented WebUI API, and the same slot Transmission and SABnzbd already fill.
+  No new tool.
+- **Deluge.** Same slot, same shape, documented JSON-RPC. Less widely deployed
+  than qBittorrent, which is the only thing separating them.
+
+**Imported and played — the library a person opens**
+
+- **Emby.** Jellyfin's ancestor, near-identical API, and therefore the cheapest
+  adapter on this list — plausibly a variant of the Jellyfin one rather than a
+  new file.
+
+Named and **not** accepted, so nobody spends a weekend finding out:
+
+- **Plex.** Not a no, but not an adapter decision either. Its auth brokers
+  through plex.tv, which is both credential brokering and an outbound request to
+  a host the operator never configured — the risk class that gets decided on its
+  own terms. Open an issue; do not open a pull request.
+- **Readarr.** Archived upstream. Nothing to track.
+- **Chaptarr.** Public since June 2026, so it misses on age alone. This is the
+  date-not-a-no case, and it is on this list so the date is visible rather than
+  discovered in review.
+- **Tautulli.** Plex watch analytics. Real and well-run, and off the chain — it
+  cannot make `diagnose` smarter, which makes it a second product.
+- **Recyclarr.** A config sync tool rather than a service with state worth
+  asking about. There is no question `diagnose` would put to it.
+- **autobrr.** Sits beside the chain rather than on it — it filters releases
+  into a client this server already reads. It would spend new tools to answer
+  questions the queue mostly already answers.
+
+Anything not named here is undecided rather than refused. Ask in an issue and it
+gets held against the four checks above, which is cheaper for everyone than
+finding out afterwards.
 
 **You will have to test it yourself, properly.** The maintainer does not run
 every service this could support — there is no Lidarr, no Plex, no qBittorrent

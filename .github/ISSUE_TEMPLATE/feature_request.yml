@@ -73,9 +73,11 @@ body:
 
         Not every service qualifies, and the bar is written down rather than
         decided per request:
-        [which services qualify](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md#which-services-qualify).
-        Asking here first is the cheap way to find out — a service that misses
-        on age alone gets a date back, not a no.
+        [which services qualify](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md#which-services-qualify),
+        with
+        [the ones that would be accepted today](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md#what-would-be-accepted-today)
+        named in advance. Asking here first is the cheap way to find out — a
+        service that misses on age alone gets a date back, not a no.
       placeholder: 'Lidarr 2.14.0'
 
   - type: dropdown
