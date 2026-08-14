@@ -23,6 +23,7 @@
     "codegen": "node scripts/codegen.mjs",
     "capture": "node scripts/capture-fixtures.ts",
     "integration": "node scripts/integration.ts",
+    "multi-instance": "node scripts/multi-instance-check.ts",
     "screenshots": "node scripts/screenshots.ts"
   },
   "dependencies": {
