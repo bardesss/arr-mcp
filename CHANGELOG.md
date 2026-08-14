@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/bardesss/arr-mcp/compare/v1.10.0...v1.11.0) (2026-08-14)
+
+
+### Features
+
+* **ui:** give the project a mark, and collapse the service cards ([#130](https://github.com/bardesss/arr-mcp/issues/130)) ([ef2c1cd](https://github.com/bardesss/arr-mcp/commit/ef2c1cd9a16bb7dcb2a917be8601d350f2c79e35))
+
 ## [1.10.0](https://github.com/bardesss/arr-mcp/compare/v1.9.0...v1.10.0) (2026-08-14)
 
 
