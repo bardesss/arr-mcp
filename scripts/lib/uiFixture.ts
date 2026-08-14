@@ -15,6 +15,7 @@
  * required field, `npm run typecheck` fails here rather than the script
  * rendering a page that quietly no longer matches production.
  */
+import { readFileSync } from 'node:fs';
 import type { Config } from '../../src/config/schema.ts';
 import type { LogRow } from '../../src/core/logs.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../../src/services/types.ts';
@@ -26,7 +27,11 @@ export const FIXTURE_TOKEN = 'screenshot-fixture-token-not-a-real-credential'.pa
 
 const HOST = 'media-host';
 
-export const VERSION = '1.7.0';
+/** Read rather than written down: hardcoded, it photographed 1.7.0 into every
+ *  screenshot for three releases after that one. */
+export const VERSION: string = JSON.parse(
+    readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
+).version;
 
 /**
  * All eight reachable. A dashboard is not the place to demonstrate a failure —
