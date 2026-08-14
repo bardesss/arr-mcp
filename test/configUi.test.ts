@@ -128,6 +128,18 @@ describe('access control', () => {
         expect(res.headers.get('content-type')).toContain('text/css');
     });
 
+    // A browser asks for the favicon before anyone has signed in, and a
+    // redirect to the login page in its place is a broken tab icon.
+    it('serves the mark without a session, and the page points at it', async () => {
+        cookie = '';
+        const icon = await call('/ui/icon.svg');
+        expect(icon.status).toBe(200);
+        expect(icon.headers.get('content-type')).toContain('image/svg+xml');
+        expect(await icon.text()).toMatch(/^<svg/);
+
+        expect(await (await call('/ui/login')).text()).toContain('rel="icon" type="image/svg+xml"');
+    });
+
     it('rejects a wrong password', async () => {
         cookie = '';
         expect((await call('/ui/login', form({ username: 'admin', password: 'nope' }))).status).toBe(401);

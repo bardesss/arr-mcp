@@ -20,6 +20,7 @@ import { buildAdapters } from '../services/registry.ts';
 import { hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
+import { MARK_SVG } from './icons.ts';
 import { addInstance, removeInstance, updateInstance, type InstanceFields } from '../config/mutate.ts';
 import { configPage } from './configPage.ts';
 import { mcpEndpoint } from './origin.ts';
@@ -58,6 +59,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // the login page render unstyled, which looks broken.
     app.get('/ui/app.css', c => c.body(CSS, 200, { 'content-type': 'text/css; charset=utf-8', ...CACHE }));
     app.get('/ui/app.js', c => c.body(JS, 200, { 'content-type': 'text/javascript; charset=utf-8', ...CACHE }));
+    app.get('/ui/icon.svg', c => c.body(MARK_SVG, 200, { 'content-type': 'image/svg+xml; charset=utf-8', ...CACHE }));
 
     // --- setup ----------------------------------------------------------
     //

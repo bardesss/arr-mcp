@@ -51,8 +51,9 @@ header {
   display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
   padding: .9rem 1.25rem; background: var(--panel); border-bottom: 1px solid var(--line);
 }
-header h1 { font-size: 1rem; margin: 0; letter-spacing: .02em; }
+header h1 { font-size: 1rem; margin: 0; letter-spacing: .02em; display: flex; align-items: center; gap: .5rem; }
 header h1 span { color: var(--dim); font-weight: 400; }
+.logo { width: 22px; height: 22px; flex: none; color: var(--accent); }
 nav { display: flex; gap: .25rem; flex: 1; flex-wrap: wrap; }
 nav a {
   padding: .35rem .7rem; border-radius: 6px; text-decoration: none;

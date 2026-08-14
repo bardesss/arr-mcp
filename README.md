@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/logo.svg" alt="" width="64" height="64">
+
 # arr-mcp
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
