@@ -393,6 +393,18 @@ Radarr, Sonarr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd and
 Transmission publish no usable spec and are hand-written against recorded
 fixtures.
 
+### The nightly compatibility check
+
+The same workflow runs `test/contract.test.ts` against the freshly fetched
+specs, so it can tell an upstream change that breaks this project from one that
+does not. A red run means a field an adapter reads is no longer declared; the
+PR body names it.
+
+The PR is opened with the default `GITHUB_TOKEN`, which GitHub refuses to let
+trigger other workflows, so it arrives with no status checks. Close and reopen
+it to run CI. The three spec-less services are invisible to this check — only a
+live call catches their drift.
+
 Two things worth knowing before you touch this:
 
 - **The generator runs through `npx` at a pinned version, not as a
