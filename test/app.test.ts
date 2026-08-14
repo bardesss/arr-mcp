@@ -166,9 +166,9 @@ describe('the token in the URL', () => {
     });
 
     // `logger` only ever forwards to the store `attachLogStore` last set, and
-    // that pointer is process-global — so these attach it themselves and undo
+    // that pointer is process-global — so this attaches it itself and undoes
     // it afterward, or a leaked sink would corrupt logs in other test files.
-    it('never writes the token to a log line, on a rejected request', async () => {
+    it('never writes the token to a log line, on a rejected request or an accepted one', async () => {
         const logs = LogStore.ephemeral();
         attachLogStore(logs);
         try {
@@ -181,29 +181,17 @@ describe('the token in the URL', () => {
             await app.request(`http://localhost:6060/mcp?token=${WRONG}`, rpc(toolsList));
 
             // Proves the sink is actually wired up — without this, an
-            // unattached store would pass the assertion below vacuously.
+            // unattached store would pass the assertions below vacuously.
+            // Nothing logs on an accepted request, so this has to come from
+            // the rejection above, not from the accepted request below.
             expect(logs.recent().length).toBeGreaterThan(0);
-            expect(JSON.stringify(logs.recent())).not.toContain(WRONG);
-        } finally {
-            detachLogStore();
-            logs.close();
-        }
-    });
-
-    it('never writes the token to a log line, on an accepted request', async () => {
-        const logs = LogStore.ephemeral();
-        attachLogStore(logs);
-        try {
-            const app = buildApp({
-                runtime: Runtime.fromConfig(allowed, audit(), { adapters: [] }),
-                audit: audit(),
-                logs
-            });
 
             const res = await app.request(`http://localhost:6060/mcp?token=${TOKEN}`, rpc(toolsList));
-
             expect(res.status).toBe(200);
-            expect(JSON.stringify(logs.recent())).not.toContain(TOKEN);
+
+            const lines = JSON.stringify(logs.recent());
+            expect(lines).not.toContain(WRONG);
+            expect(lines).not.toContain(TOKEN);
         } finally {
             detachLogStore();
             logs.close();

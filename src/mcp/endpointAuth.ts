@@ -4,11 +4,12 @@ import { timingSafeEqual } from 'node:crypto';
  *  query token showed up even when unhonoured, so a refusal can name the flag. */
 export type Presented = { via: 'header' | 'query'; token: string } | { via: 'none'; queryOffered: boolean };
 
-/** Constant-time compare that does not reveal the expected length by timing. */
+/** Constant-time compare; refuses a zero-length token outright rather than
+ *  letting an empty presented value match an empty expected one. */
 export function tokenMatches(presented: string, expected: string): boolean {
     const a = Buffer.from(presented);
     const b = Buffer.from(expected);
-    if (a.length !== b.length) {
+    if (a.length === 0 || a.length !== b.length) {
         // Burn an equivalent comparison so a wrong-length token is not
         // distinguishable from a wrong-bytes one.
         timingSafeEqual(b, b);
@@ -20,7 +21,7 @@ export function tokenMatches(presented: string, expected: string): boolean {
 /** A Bearer header always wins, right or wrong — never falls back to the query. */
 export function presentedToken(url: string, header: string | undefined, allowQuery: boolean): Presented {
     const [scheme, value] = (header ?? '').split(' ');
-    if (scheme === 'Bearer') return { via: 'header', token: value ?? '' };
+    if (scheme?.toLowerCase() === 'bearer') return { via: 'header', token: value ?? '' };
 
     const offered = queryToken(url);
     if (offered !== undefined && allowQuery) return { via: 'query', token: offered };

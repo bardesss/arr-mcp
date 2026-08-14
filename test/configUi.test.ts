@@ -292,6 +292,9 @@ describe('the URL token on the dashboard', () => {
         const page = await (await call('/ui')).text();
         expect(page).toContain('data-copy-url-token');
         expect(page).not.toContain('?token=');
+        // The masked-field occurrence only — a regression that embedded the
+        // token some other way would not necessarily contain '?token=' either.
+        expect(page.split(BEARER).length - 1).toBe(1);
     });
 });
 

@@ -12,6 +12,10 @@ describe('tokenMatches', () => {
     it('rejects a token of the wrong length without throwing', () => {
         expect(tokenMatches('short', 'a'.repeat(64))).toBe(false);
     });
+
+    it('refuses an empty presented token, even against an empty expected one', () => {
+        expect(tokenMatches('', '')).toBe(false);
+    });
 });
 
 describe('presentedToken', () => {
@@ -53,5 +57,12 @@ describe('presentedToken', () => {
         const url = `${URL_BASE}?token=right`;
         expect(presentedToken(url, 'Bearer', true)).toEqual({ via: 'header', token: '' });
         expect(presentedToken(url, 'Bearer ', true)).toEqual({ via: 'header', token: '' });
+    });
+
+    it('recognizes a lowercase scheme as decisive too, per RFC 7235', () => {
+        expect(presentedToken(`${URL_BASE}?token=right`, 'bearer wrong', true)).toEqual({
+            via: 'header',
+            token: 'wrong'
+        });
     });
 });
