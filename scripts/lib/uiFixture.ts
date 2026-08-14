@@ -93,6 +93,7 @@ export const CONFIG: Config = {
         bearer_token: FIXTURE_TOKEN,
         username: 'admin',
         password_hash: 'scrypt$fixture$fixture',
+        allow_token_in_url: false,
         allowed_hosts: []
     },
     services: {
