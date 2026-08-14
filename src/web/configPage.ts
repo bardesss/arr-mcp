@@ -203,12 +203,20 @@ function testResult(d: ConnectionDiagnosis): SafeHtml {
     </div>`;
 }
 
+/** What the collapsed row says about a card's writes, in one word. */
+function writeLabel(permissions: { safe_write: boolean; destructive: boolean }): string {
+    if (permissions.destructive) return 'destructive';
+    if (permissions.safe_write) return 'safe_write';
+    return 'read-only';
+}
+
 function instanceCard(
     instance: ServiceInstance,
     csrf: string,
     confirming: string | undefined,
     users: readonly string[] | undefined,
-    tested: ConnectionDiagnosis | undefined
+    tested: ConnectionDiagnosis | undefined,
+    open: boolean
 ): SafeHtml {
     const service = instance.config as AnyService;
     const p = `svc.${instance.id}`;
@@ -218,10 +226,13 @@ function instanceCard(
         <input type="hidden" name="csrf" value="${csrf}">
         <input type="hidden" name="instance" value="${instance.id}">
 
-        <h3 class="svc-title">
+        <details class="svc"${open ? raw(' open') : raw('')}>
+        <summary class="svc-title">
             ${serviceIcon(instance.id)}
             <span class="mono">${instance.id}</span>
-        </h3>
+            <span class="svc-host mono">${service.url}</span>
+            <span class="svc-writes">${writeLabel(service.permissions)}</span>
+        </summary>
 
         ${field({ id: `${p}.url`, name: 'url', label: 'URL', value: service.url })}
         ${serviceFields(instance, p, users)}
@@ -257,6 +268,7 @@ function instanceCard(
               </p>`
             : raw('')}
         ${tested === undefined ? raw('') : testResult(tested)}
+        </details>
     </form>`;
 }
 
@@ -402,6 +414,9 @@ export function configPage(opts: {
     users?: Record<string, readonly string[]>;
     /** The one instance whose Test button was pressed, and what came back. */
     tested?: { instance: string; diagnosis: ConnectionDiagnosis } | undefined;
+    /** The instance a submit just touched, so its card is not collapsed over
+     *  the result of what you did. */
+    openInstance?: string | undefined;
     /** The add dialog's own Test, which has no instance id to key on because
      *  the instance does not exist yet. Only the unscripted path reaches this —
      *  with scripting the result is fetched and filled in client-side. */
@@ -426,7 +441,12 @@ export function configPage(opts: {
                 opts.csrf,
                 opts.confirmingRemoval,
                 opts.users?.[i.id],
-                opts.tested?.instance === i.id ? opts.tested.diagnosis : undefined
+                opts.tested?.instance === i.id ? opts.tested.diagnosis : undefined,
+                // Collapsed by default — the page is a stack inventory first.
+                // Three things reopen a card: a Test whose result is inside it,
+                // a removal waiting on a second click, and whatever you last
+                // submitted.
+                opts.tested?.instance === i.id || opts.confirmingRemoval === i.id || opts.openInstance === i.id
             )
         )}
         ${addDialog(opts.config, opts.csrf, opts.openAdd === true, opts.testedAdd)}

@@ -303,6 +303,13 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             const session = guard(c);
             if (session === undefined) return c.redirect(entry(), 302);
 
+            const form = await c.req.parseBody();
+
+            // Cards collapse by default, so the one you just submitted has to be
+            // named or the page swallows the outcome of what you did. Absent on
+            // an add, whose form carries no instance id — there is no card yet.
+            const touched = str(form.instance) === '' ? undefined : str(form.instance);
+
             // Re-asks who the users are, as a plain page load does: a save that
             // dropped the suggestions would have the card claim the service went
             // quiet, and a save that changed a Jellyfin key is exactly when the
@@ -318,6 +325,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(session),
                         users: await usersByInstance(),
+                        ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(confirming === undefined ? {} : { confirmingRemoval: confirming }),
                         ...(reopensAdd && status !== 200 ? { openAdd: true } : {}),
                         ...(message === undefined ? {} : { message })
@@ -325,7 +333,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     status
                 );
 
-            const form = await c.req.parseBody();
             if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
                 logger.warn({ ip: ipOf(c) }, 'rejected config save with a bad CSRF token');
                 return render({ kind: 'err', text: 'That form was stale. Reload the page and try again.' }, 403);

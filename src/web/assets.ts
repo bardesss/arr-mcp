@@ -81,7 +81,27 @@ p.note { color: var(--dim); font-size: .9rem; margin: .35rem 0 1rem; }
 .card dt { color: var(--dim); }
 .card dd { margin: 0; word-break: break-word; }
 .svc-icon { width: 20px; height: 20px; flex: none; color: var(--dim); }
-.svc-title { display: flex; align-items: center; gap: .5rem; margin: 0 0 .75rem; }
+/* Collapsed, a card is one row: mark, id, host, what it may write. Open, it is
+   the form it always was. The marker is drawn here because a summary set to
+   display:flex loses the browser's own triangle. */
+.svc-title { display: flex; align-items: center; gap: .5rem; margin: 0; cursor: pointer; list-style: none; }
+.svc-title::-webkit-details-marker { display: none; }
+.svc-title::after {
+  content: ''; flex: none; width: .45rem; height: .45rem; margin-left: .25rem;
+  border-right: 2px solid var(--dim); border-bottom: 2px solid var(--dim);
+  transform: rotate(45deg); transition: transform .15s ease;
+}
+.svc[open] > .svc-title { margin-bottom: .75rem; }
+.svc[open] > .svc-title::after { transform: rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { .svc-title::after { transition: none; } }
+.svc-host {
+  color: var(--dim); font-size: .85em; margin-left: auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.svc-writes {
+  flex: none; font-size: .75rem; padding: .1rem .45rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--dim);
+}
 /* Status to the right edge, so the dots line up down the grid rather than
    sitting at eight different offsets after eight different service names. */
 .card h3 .dot { margin-left: auto; }
