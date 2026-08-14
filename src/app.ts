@@ -1,11 +1,11 @@
 import { createMcpHonoApp } from '@modelcontextprotocol/hono';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import { Hono, type Context } from 'hono';
-import { timingSafeEqual } from 'node:crypto';
 import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
 import type { Runtime } from './core/runtime.ts';
+import { presentedToken, tokenMatches } from './mcp/endpointAuth.ts';
 import { claimJsonBody } from './mcp/jsonBody.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
@@ -46,19 +46,6 @@ Writing:
 - A write refused for permissions names the config key that would allow it. Report that key rather than retrying.
 
 Arguments are strict: an argument a tool does not have is refused rather than ignored, and the error lists what it does accept.`;
-
-/** Constant-time compare that does not reveal the expected length by timing. */
-function tokenMatches(presented: string, expected: string): boolean {
-    const a = Buffer.from(presented);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length) {
-        // Burn an equivalent comparison so a wrong-length token is not
-        // distinguishable from a wrong-bytes one.
-        timingSafeEqual(b, b);
-        return false;
-    }
-    return timingSafeEqual(a, b);
-}
 
 export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore }) {
     const { runtime, audit, logs } = opts;
@@ -143,17 +130,30 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {
-        const header = c.req.header('Authorization') ?? '';
-        const [scheme, presented] = header.split(' ');
+        // From the runtime, not a captured value, so rotating the token or
+        // flipping the flag in the config UI takes effect on the very next
+        // request.
+        const { auth } = runtime.config;
+        const presented = presentedToken(c.req.url, c.req.header('Authorization'), auth.allow_token_in_url);
 
-        // From the runtime, not a captured value, so rotating the token in the
-        // config UI takes effect on the very next request.
-        if (scheme !== 'Bearer' || !presented || !tokenMatches(presented, runtime.config.auth.bearer_token)) {
+        if (presented.via === 'none' || !tokenMatches(presented.token, auth.bearer_token)) {
             logger.warn(
                 { path: '/mcp', ip: c.req.header('x-forwarded-for') ?? 'unknown' },
                 'rejected unauthenticated MCP request'
             );
-            return c.json({ error: 'unauthorized' }, 401, { 'WWW-Authenticate': 'Bearer realm="arr-mcp"' });
+            return c.json(
+                {
+                    error: 'unauthorized',
+                    ...(presented.via === 'none' && presented.queryOffered
+                        ? {
+                              detail:
+                                  'A token in the URL is refused until auth.allow_token_in_url is enabled — turn it on in the config UI, under MCP endpoint.'
+                          }
+                        : {})
+                },
+                401,
+                { 'WWW-Authenticate': 'Bearer realm="arr-mcp"' }
+            );
         }
 
         // A client that never asked for a stream gets one JSON object with a

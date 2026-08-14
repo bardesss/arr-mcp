@@ -130,6 +130,24 @@ describe('ConfigSchema', () => {
     });
 });
 
+describe('auth.allow_token_in_url', () => {
+    it('defaults to false, so an existing config gains nothing by being reparsed', () => {
+        const config = ConfigSchema.parse({
+            auth: { bearer_token: 'a'.repeat(64) },
+            services: {}
+        });
+        expect(config.auth.allow_token_in_url).toBe(false);
+    });
+
+    it('is honoured when set', () => {
+        const config = ConfigSchema.parse({
+            auth: { bearer_token: 'a'.repeat(64), allow_token_in_url: true },
+            services: {}
+        });
+        expect(config.auth.allow_token_in_url).toBe(true);
+    });
+});
+
 describe('an unclaimed config', () => {
     it('parses a config with no password_hash', () => {
         const parsed = ConfigSchema.parse({

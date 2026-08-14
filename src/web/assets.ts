@@ -281,6 +281,27 @@ document.addEventListener('click', async (e) => {
   }
 });
 
+// Assembled here for the same reason the client config is: the token is masked
+// on the page, and rendering it into a readable field would undo that.
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-copy-url-token]');
+  if (!btn) return;
+  const url = document.getElementById(btn.dataset.copyUrlToken);
+  const token = document.getElementById('bearer');
+  const box = document.getElementById('mcp-url-token');
+  if (!url || !token || !box) return;
+
+  const value = url.value + '?token=' + encodeURIComponent(token.value);
+  try {
+    await navigator.clipboard.writeText(value);
+    flash(btn, 'Copied');
+  } catch {
+    box.value = value;
+    selectIn(box);
+    flash(btn, 'Selected — copy it');
+  }
+});
+
 // Reveal a secret only on request, so a screenshot or a shoulder does not
 // capture every API key on the page by default.
 document.addEventListener('click', (e) => {

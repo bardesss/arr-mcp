@@ -236,7 +236,8 @@ A phase that ships without its README change is not finished.
       if any tool has no case at all
 - [ ] `npm run multi-instance` — the same stack with Radarr and Sonarr
       configured twice, when the release touched instance resolution
-- [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected
+- [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected —
+      including `/mcp?token=…` against a config with `allow_token_in_url` off
 
 Calling every tool matters more than it sounds. Adapters are tested against
 recorded fixtures, which prove the mapping and nothing else. Every defect that

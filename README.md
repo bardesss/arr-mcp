@@ -83,8 +83,11 @@ username and a password of at least 12 characters.
 It applies immediately; there is no restart. Configure only what you run.
 
 Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
-the dashboard. Everything the UI does is still just `config.yaml`, and editing
-that by hand remains supported. Clients that read the
+the dashboard. A client that can only be given a URL, not a header, can carry
+the token as `?token=` instead — see
+[`allow_token_in_url`](docs/configuration.md#allow_token_in_url). Everything
+the UI does is still just `config.yaml`, and editing that by hand remains
+supported. Clients that read the
 [MCP Registry](https://registry.modelcontextprotocol.io) find it there as
 `io.github.bardesss/arr-mcp`.
 

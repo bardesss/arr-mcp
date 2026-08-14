@@ -299,6 +299,8 @@ export function dashboardPage(opts: {
     diagnoses: ConnectionDiagnosis[];
     configured: string[];
     bearerToken: string;
+    /** Whether `?token=` is accepted, which decides whether the copy button is offered. */
+    urlToken: boolean;
     /** Absent when the request carried no usable `Host` — see `origin.ts`. */
     mcpUrl?: string | undefined;
     writeCounts: { applied: number; denied: number; total: number };
@@ -455,6 +457,15 @@ export function dashboardPage(opts: {
                            the token here would undo the masked field above it, and a screenshot
                            of this page would carry it. -->
                       <textarea id="mcp-config" class="mono" rows="9" readonly hidden></textarea>`}
+            ${opts.mcpUrl === undefined || !opts.urlToken
+                ? raw('')
+                : html`<div class="row" style="margin-top:.75rem">
+                          <button class="ghost" type="button" data-copy-url-token="mcp-url">
+                              Copy URL with token
+                          </button>
+                          <span class="note" style="margin:0">For clients that take a URL and nothing else.</span>
+                      </div>
+                      <input id="mcp-url-token" type="text" readonly hidden>`}
         </div>
 
         <h2>Writes</h2>

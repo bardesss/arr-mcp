@@ -532,6 +532,19 @@ export function configPage(opts: {
                 value: opts.config.auth.allowed_hosts.join(', '),
                 note: 'Leave empty to accept any Host — right for a LAN container reached by IP. Applies immediately; pin the wrong name and you will lock yourself out until you edit config.yaml by hand.'
             })}
+            ${checkbox(
+                'auth.allow_token_in_url',
+                'auth.allow_token_in_url',
+                'Accept the token in the URL (?token=…)',
+                opts.config.auth.allow_token_in_url
+            )}
+            <p class="note">
+                For clients that can only be given a URL and no headers. The token then travels in the
+                address, so a reverse proxy's access log or the client's own logs will hold a working
+                credential — rotate it above if that happens. This does not make Home Assistant work on
+                its own: its MCP client also needs the older SSE transport, which this server does not
+                serve.
+            </p>
             <div class="row" style="margin-top:1rem">
                 <button type="submit">Save MCP settings</button>
             </div>

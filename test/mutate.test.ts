@@ -11,7 +11,7 @@ import { ConfigSchema, type Config } from '../src/config/schema.ts';
  * silent rename would move a permission key out from under a live grant.
  */
 
-const AUTH = { bearer_token: 'a'.repeat(64), username: 'admin', allowed_hosts: [] };
+const AUTH = { bearer_token: 'a'.repeat(64), username: 'admin', allowed_hosts: [], allow_token_in_url: false };
 const base = (services: unknown = {}): Config => ConfigSchema.parse({ auth: AUTH, services });
 
 const ids = (config: Config) => listInstances(config).map(i => i.id);

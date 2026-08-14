@@ -244,6 +244,12 @@ export const ConfigSchema = z.object({
          */
         password_hash: z.string().min(1).optional(),
         /**
+         * Whether `/mcp` accepts the token as `?token=` when no Authorization
+         * header is sent. Off by default: it works for clients that can only be
+         * given a URL, at the cost of the token reaching proxy logs.
+         */
+        allow_token_in_url: z.boolean().default(false),
+        /**
          * Hostnames the MCP endpoint may be reached on, for the SDK's DNS
          * rebinding protection. Empty means "accept any Host", which is the
          * right default for a LAN container reached by IP; pin hostnames when

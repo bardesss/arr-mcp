@@ -94,6 +94,7 @@ auth:
   username: admin
   password_hash: "…"         # scrypt; written by the setup page, never by you
   allowed_hosts: []          # empty accepts any Host — right for a LAN container
+  allow_token_in_url: false  # accept ?token=… when no Authorization header is sent
 ```
 
 Sign-in is a username and password you choose the first time you open the UI.
@@ -107,6 +108,25 @@ claims it.
 locks you out of the page you would fix it from.** Recover by editing
 `config.yaml` by hand and restarting. A literal IPv6 address is written with its
 brackets — `"[fd00::1]"` — and matches with or without a port.
+
+### `allow_token_in_url`
+
+Some MCP clients can only be given a URL — no headers, no token field. With this
+on, `/mcp?token=<bearer token>` authenticates the same as the header does.
+
+An `Authorization: Bearer` header still wins whenever one is sent, right or
+wrong, so turning this on cannot rescue a client that is sending the wrong
+token — it fails, which is what you want.
+
+The cost is that the token travels in the address, so a reverse proxy's access
+log, a browser history or a shell history will hold a working credential. Nothing
+in arr-mcp logs a URL, but everything in front of it might. Rotate the token from
+the config UI if one leaks.
+
+**This does not make Home Assistant work on its own.** Its MCP client
+integration also speaks only the older HTTP+SSE transport, and this server
+serves Streamable HTTP, so that setup still needs a proxy to bridge the
+transport.
 
 ### `allow_other_users`
 

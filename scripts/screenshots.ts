@@ -43,6 +43,7 @@ const PAGES: { name: string; html: string }[] = [
             diagnoses: fixture.DIAGNOSES,
             configured: fixture.CONFIGURED,
             bearerToken: fixture.FIXTURE_TOKEN,
+            urlToken: fixture.CONFIG.auth.allow_token_in_url,
             mcpUrl: fixture.MCP_URL,
             writeCounts: fixture.WRITE_COUNTS,
             imdb: fixture.IMDB,
