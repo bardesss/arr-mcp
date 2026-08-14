@@ -127,6 +127,68 @@ why `stack_health` reports per-instance permissions.
 The highest-value contribution, and deliberately self-contained. Seven steps,
 each with a worked example already in the tree.
 
+### Which services qualify
+
+An adapter is not a patch that lands and is finished. It is a standing
+commitment to track someone else's release schedule, for a service the
+maintainer very likely does not run and therefore cannot exercise in review —
+only read. When it breaks, it breaks here, and the bug report arrives here.
+
+That cost is worth paying for a service people actually run, that actually
+makes arr-mcp better at its one job. It is not worth paying for a service that
+will not exist in a year. Which of the two you are looking at is genuinely hard
+to tell at the moment of the pull request, because the enthusiasm is identical.
+So the bar is written down in advance rather than decided case by case. Four
+things it is trying to establish, and the checks that stand in for them:
+
+**Survival — will this still be here?**
+
+- The service's first public release is **at least six months old**, and it has
+  **commits within the last sixty days**. Both halves, because neither implies
+  the other: self-hosted projects die overwhelmingly between months two and six
+  — after the launch thread, before the first real maintenance burden — and a
+  project can clear that cliff and then be abandoned with its version number
+  intact.
+
+**Stability — will the adapter still work?**
+
+- **1.0 or later**, or a documented, versioned API with a stated compatibility
+  policy. A pre-1.0 API is free to move, and an adapter pinned to one breaks on
+  the service's schedule rather than ours.
+- **Published API documentation.** OpenAPI is preferred and earns code
+  generation for free, but three adapters here are hand-written against a plain
+  written reference, and that is enough.
+
+**Demand — does anyone want it?**
+
+- **Packaged where people deploy** — Unraid Community Applications, TrueNAS
+  apps, linuxserver.io, or an official image with meaningful pull counts. Stars
+  can be manufactured; a place in a distribution channel is harder to.
+- **Someone other than the service's own author has asked for it.** Not a
+  judgement about anyone's motives. The author of a service is simply the last
+  person able to tell whether anyone *else* wants the integration, and their own
+  enthusiasm is not evidence that they do.
+
+**Fit — does it belong in this server?**
+
+- **It sits on the chain `diagnose` walks** — requested, managed, monitored,
+  downloaded, indexed, imported, scanned. arr-mcp exists because the interesting
+  questions live between services. A service that cannot make `diagnose` smarter
+  is a second product, not a ninth adapter.
+- **It adds no new tool**, or the pull request argues explicitly for the one it
+  adds. The forty-tool ceiling above is a hard constraint, and a new service
+  does not get to spend it quietly.
+- **It introduces no new risk class.** Code execution, credential brokering, or
+  outbound requests to hosts the operator never configured are changes to the
+  security model. Those get decided on their own terms, never as a side effect
+  of adding an adapter.
+
+This is a floor for what will be considered, not a ceiling on what can be
+accepted. Any of it can be waived — on the pull request, in writing, with the
+reason — and a rewrite shipping from a fresh repository is exactly what that is
+for. An adapter that misses on age alone is worth an issue rather than a
+weekend: the answer to that one is a date, not a no.
+
 **You will have to test it yourself, properly.** The maintainer does not run
 every service this could support — there is no Lidarr, no Plex, no qBittorrent
 here — so an adapter for one cannot be exercised in review, only read. That
