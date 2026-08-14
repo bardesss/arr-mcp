@@ -21,8 +21,11 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # Via `bash`, not `./`, and matching package.json's specs:fetch. The file
+      # is mode 100644 — it was authored on Windows and never carried an exec
+      # bit, which is what made the old job's `[ ! -x ]` guard skip green.
       - name: Re-fetch vendored specs
-        run: ./scripts/fetch-specs.sh
+        run: bash scripts/fetch-specs.sh
 
       - name: Did anything change?
         id: drift
