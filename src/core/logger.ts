@@ -16,6 +16,11 @@ export function attachLogStore(store: LogStore): void {
     sink = store;
 }
 
+/** For tests: undoes `attachLogStore` so the sink doesn't leak across files. */
+export function detachLogStore(): void {
+    sink = undefined;
+}
+
 /**
  * Writes to stdout **and** the ring buffer.
  *

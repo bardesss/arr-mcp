@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
+import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
@@ -164,18 +165,49 @@ describe('the token in the URL', () => {
         expect(res.headers.get('location')).toBe('/ui/login');
     });
 
-    it('never writes the token to a log line', async () => {
+    // `logger` only ever forwards to the store `attachLogStore` last set, and
+    // that pointer is process-global — so these attach it themselves and undo
+    // it afterward, or a leaked sink would corrupt logs in other test files.
+    it('never writes the token to a log line, on a rejected request', async () => {
         const logs = LogStore.ephemeral();
-        const app = buildApp({
-            runtime: Runtime.fromConfig(allowed, audit(), { adapters: [] }),
-            audit: audit(),
-            logs
-        });
+        attachLogStore(logs);
+        try {
+            const app = buildApp({
+                runtime: Runtime.fromConfig(allowed, audit(), { adapters: [] }),
+                audit: audit(),
+                logs
+            });
 
-        await app.request(`http://localhost:6060/mcp?token=${WRONG}`, rpc(toolsList));
+            await app.request(`http://localhost:6060/mcp?token=${WRONG}`, rpc(toolsList));
 
-        expect(JSON.stringify(logs.recent())).not.toContain(WRONG);
-        logs.close();
+            // Proves the sink is actually wired up — without this, an
+            // unattached store would pass the assertion below vacuously.
+            expect(logs.recent().length).toBeGreaterThan(0);
+            expect(JSON.stringify(logs.recent())).not.toContain(WRONG);
+        } finally {
+            detachLogStore();
+            logs.close();
+        }
+    });
+
+    it('never writes the token to a log line, on an accepted request', async () => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        try {
+            const app = buildApp({
+                runtime: Runtime.fromConfig(allowed, audit(), { adapters: [] }),
+                audit: audit(),
+                logs
+            });
+
+            const res = await app.request(`http://localhost:6060/mcp?token=${TOKEN}`, rpc(toolsList));
+
+            expect(res.status).toBe(200);
+            expect(JSON.stringify(logs.recent())).not.toContain(TOKEN);
+        } finally {
+            detachLogStore();
+            logs.close();
+        }
     });
 });
 

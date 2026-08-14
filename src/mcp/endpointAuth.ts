@@ -1,12 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 
-/**
- * What credential a request to `/mcp` presented, and through which channel.
- *
- * `queryOffered` is what lets the refusal name the flag when someone put a
- * token in the URL against a config that does not accept one — without it, the
- * two ways to arrive unauthenticated are indistinguishable.
- */
+/** What a request to `/mcp` presented, and how — `queryOffered` says whether a
+ *  query token showed up even when unhonoured, so a refusal can name the flag. */
 export type Presented = { via: 'header' | 'query'; token: string } | { via: 'none'; queryOffered: boolean };
 
 /** Constant-time compare that does not reveal the expected length by timing. */
@@ -22,13 +17,10 @@ export function tokenMatches(presented: string, expected: string): boolean {
     return timingSafeEqual(a, b);
 }
 
-/**
- * A bearer header is decisive, right or wrong. A misconfigured client should
- * fail rather than silently fall back to the weaker channel.
- */
+/** A Bearer header always wins, right or wrong — never falls back to the query. */
 export function presentedToken(url: string, header: string | undefined, allowQuery: boolean): Presented {
     const [scheme, value] = (header ?? '').split(' ');
-    if (scheme === 'Bearer' && value !== undefined && value !== '') return { via: 'header', token: value };
+    if (scheme === 'Bearer') return { via: 'header', token: value ?? '' };
 
     const offered = queryToken(url);
     if (offered !== undefined && allowQuery) return { via: 'query', token: offered };

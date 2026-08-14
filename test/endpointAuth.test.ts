@@ -48,4 +48,10 @@ describe('presentedToken', () => {
     it('ignores a non-bearer authorization scheme', () => {
         expect(presentedToken(URL_BASE, 'Basic abc', true)).toEqual({ via: 'none', queryOffered: false });
     });
+
+    it('treats a valueless Bearer header as decisive, not as no header at all', () => {
+        const url = `${URL_BASE}?token=right`;
+        expect(presentedToken(url, 'Bearer', true)).toEqual({ via: 'header', token: '' });
+        expect(presentedToken(url, 'Bearer ', true)).toEqual({ via: 'header', token: '' });
+    });
 });
