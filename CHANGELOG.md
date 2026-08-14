@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/bardesss/arr-mcp/compare/v1.8.1...v1.9.0) (2026-08-14)
+
+
+### Features
+
+* **mcp:** accept the bearer token as a URL parameter for header-less clients ([#124](https://github.com/bardesss/arr-mcp/issues/124)) ([9cb9341](https://github.com/bardesss/arr-mcp/commit/9cb9341459c914fb4bea459d4bdb8b1dfa6716b6))
+
 ## [1.8.1](https://github.com/bardesss/arr-mcp/compare/v1.8.0...v1.8.1) (2026-08-13)
 
 
