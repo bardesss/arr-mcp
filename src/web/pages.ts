@@ -3,7 +3,7 @@ import type { LogRow } from '../core/logs.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
-import { serviceIcon } from './icons.ts';
+import { LOGO, serviceIcon } from './icons.ts';
 
 /**
  * Every page, server rendered. No client framework and no build step — the
@@ -65,6 +65,7 @@ export function layout(opts: {
      page for up to an hour, which is how a button that opens a dialog becomes a
      button that does nothing. -->
 <link rel="stylesheet" href="/ui/app.css?v=${encodeURIComponent(opts.version)}">
+<link rel="icon" type="image/svg+xml" href="/ui/icon.svg?v=${encodeURIComponent(opts.version)}">
 <!-- The add form lives in a dialog element that app.js opens. With no script there is
      nothing to open it, so it is styled back into the flow as the plain panel it
      used to be: every field visible, the server still validating, and the two
@@ -75,7 +76,7 @@ dialog { display: block; position: static; max-width: none; width: auto; margin:
 </style></noscript>
 </head>
 <body>
-<header><h1>arr-mcp <span>${esc(opts.version)}</span></h1>${nav}</header>
+<header><h1>${LOGO}arr-mcp <span>${esc(opts.version)}</span></h1>${nav}</header>
 <main>${message}${opts.body}</main>
 <!-- rel="noreferrer" because this page is served over plain http on a LAN and
      the link leaves for github.com: without it the Referer header hands them

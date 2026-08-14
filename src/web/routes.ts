@@ -20,6 +20,7 @@ import { buildAdapters } from '../services/registry.ts';
 import { hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
+import { MARK_SVG } from './icons.ts';
 import { addInstance, removeInstance, updateInstance, type InstanceFields } from '../config/mutate.ts';
 import { configPage } from './configPage.ts';
 import { mcpEndpoint } from './origin.ts';
@@ -58,6 +59,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // the login page render unstyled, which looks broken.
     app.get('/ui/app.css', c => c.body(CSS, 200, { 'content-type': 'text/css; charset=utf-8', ...CACHE }));
     app.get('/ui/app.js', c => c.body(JS, 200, { 'content-type': 'text/javascript; charset=utf-8', ...CACHE }));
+    app.get('/ui/icon.svg', c => c.body(MARK_SVG, 200, { 'content-type': 'image/svg+xml; charset=utf-8', ...CACHE }));
 
     // --- setup ----------------------------------------------------------
     //
@@ -301,6 +303,13 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             const session = guard(c);
             if (session === undefined) return c.redirect(entry(), 302);
 
+            const form = await c.req.parseBody();
+
+            // Cards collapse by default, so the one you just submitted has to be
+            // named or the page swallows the outcome of what you did. Absent on
+            // an add, whose form carries no instance id — there is no card yet.
+            const touched = str(form.instance) === '' ? undefined : str(form.instance);
+
             // Re-asks who the users are, as a plain page load does: a save that
             // dropped the suggestions would have the card claim the service went
             // quiet, and a save that changed a Jellyfin key is exactly when the
@@ -316,6 +325,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(session),
                         users: await usersByInstance(),
+                        ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(confirming === undefined ? {} : { confirmingRemoval: confirming }),
                         ...(reopensAdd && status !== 200 ? { openAdd: true } : {}),
                         ...(message === undefined ? {} : { message })
@@ -323,7 +333,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     status
                 );
 
-            const form = await c.req.parseBody();
             if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
                 logger.warn({ ip: ipOf(c) }, 'rejected config save with a bad CSRF token');
                 return render({ kind: 'err', text: 'That form was stale. Reload the page and try again.' }, 403);

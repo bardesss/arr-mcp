@@ -128,6 +128,18 @@ describe('access control', () => {
         expect(res.headers.get('content-type')).toContain('text/css');
     });
 
+    // A browser asks for the favicon before anyone has signed in, and a
+    // redirect to the login page in its place is a broken tab icon.
+    it('serves the mark without a session, and the page points at it', async () => {
+        cookie = '';
+        const icon = await call('/ui/icon.svg');
+        expect(icon.status).toBe(200);
+        expect(icon.headers.get('content-type')).toContain('image/svg+xml');
+        expect(await icon.text()).toMatch(/^<svg/);
+
+        expect(await (await call('/ui/login')).text()).toContain('rel="icon" type="image/svg+xml"');
+    });
+
     it('rejects a wrong password', async () => {
         cookie = '';
         expect((await call('/ui/login', form({ username: 'admin', password: 'nope' }))).status).toBe(401);
@@ -581,6 +593,75 @@ describe('testing a connection', () => {
 
     afterEach(() => {
         globalThis.fetch = realFetch;
+    });
+
+    /**
+     * The page is a stack inventory before it is eight forms, so a card is a
+     * closed row until you open it. The risk that buys is a card collapsing
+     * over the answer to what you just did — hence the three reopen cases.
+     */
+    describe('collapsing', () => {
+        const TWO =
+            '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: saved-key\n' +
+            '  sonarr:\n    url: http://192.0.2.11:8989\n    api_key: saved-key\n' +
+            '    permissions:\n      destructive: true\n';
+
+        it('starts every card closed, with the row still saying what it is', async () => {
+            await seed(TWO);
+            await signIn();
+            const page = await (await call('/ui/config')).text();
+
+            expect(page).toContain('<details class="svc">');
+            expect(page).not.toContain('<details class="svc" open>');
+            expect(page).toContain('http://192.0.2.10:7878');
+            expect(page).toContain('read-only');
+            expect(page).toContain('destructive');
+        });
+
+        it('reopens the card you just saved', async () => {
+            await seed(TWO);
+            await signIn();
+            const page = await (
+                await call(
+                    '/ui/config/save',
+                    form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '' })
+                )
+            ).text();
+
+            // The saved one only, so the page does not simply expand.
+            expect(/<details class="svc" open>[\s\S]*?radarr/.exec(page)).not.toBeNull();
+            expect(page.match(/<details class="svc" open>/g)).toHaveLength(1);
+        });
+
+        it('reopens the card whose Test you pressed, where the result is', async () => {
+            await seed(TWO);
+            globalThis.fetch = (async () =>
+                new Response(JSON.stringify({ version: '5.1.0' }), {
+                    headers: { 'content-type': 'application/json' }
+                })) as typeof fetch;
+            await signIn();
+
+            const page = await (
+                await call(
+                    '/ui/config/test',
+                    form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '' })
+                )
+            ).text();
+
+            expect(page).toContain('Reachable in');
+            expect(page.match(/<details class="svc" open>/g)).toHaveLength(1);
+        });
+
+        it('reopens the card waiting on a removal confirmation', async () => {
+            await seed(TWO);
+            await signIn();
+            const page = await (
+                await call('/ui/config/remove', form({ csrf: await csrfFrom(), instance: 'sonarr' }))
+            ).text();
+
+            expect(page).toContain('Yes, remove');
+            expect(page.match(/<details class="svc" open>/g)).toHaveLength(1);
+        });
     });
 
     it('reports a service that answers', async () => {

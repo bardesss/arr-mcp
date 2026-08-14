@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ServiceIdSchema } from '../src/config/schema.ts';
-import { ICONS, serviceIcon } from '../src/web/icons.ts';
+import { ICONS, LOGO, MARK_SVG, serviceIcon } from '../src/web/icons.ts';
 
 describe('the service icon set', () => {
     // The point of the test: adding a service to the schema without drawing it
@@ -26,6 +28,26 @@ describe('the service icon set', () => {
     // same word twice.
     it.each(ServiceIdSchema.options)('hides %s from assistive tech', id => {
         expect(ICONS[id]).toContain('aria-hidden="true"');
+    });
+});
+
+describe('the project mark', () => {
+    it('inherits colour like the service marks, so one drawing serves both themes', () => {
+        expect(LOGO).toContain('currentColor');
+        expect(LOGO).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    });
+
+    // A favicon and an <img> have nothing to inherit from, so this one must not.
+    it('carries a literal colour in the standalone variant', () => {
+        expect(MARK_SVG).toMatch(/#[0-9a-f]{6}\b/i);
+        expect(MARK_SVG).toContain('xmlns=');
+    });
+
+    // README and Unraid read the committed file; the config UI serves the
+    // constant. Regenerate with `npm run icon:write` if this fails.
+    it('matches the committed assets/logo.svg byte for byte', () => {
+        const committed = readFileSync(join(import.meta.dirname, '..', 'assets/logo.svg'), 'utf8');
+        expect(committed).toBe(MARK_SVG);
     });
 });
 

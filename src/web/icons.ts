@@ -46,6 +46,40 @@ export const ICONS: Record<ServiceId, string> = {
     )
 };
 
+/**
+ * The project's own mark: layers gathered into one node.
+ *
+ * Drawn on the same grid and weight as the eight above, because it sits next to
+ * them. The filled node is the only solid shape in the set — it is the "one
+ * endpoint" the three layers converge on.
+ */
+export const LOGO =
+    `<svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+    `stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+    '<path d="M13 5.75h8M13 12h8M13 18.25h8"/>' +
+    '<path d="M6.7 11.1 12.6 6.1M6.7 12h5.9M6.7 12.9 12.6 17.9"/>' +
+    '<circle cx="4.3" cy="12" r="1.85" fill="currentColor" stroke="none"/>' +
+    '</svg>';
+
+/**
+ * The same mark as a standalone document, for the favicon and the README.
+ *
+ * Two things have to change at 16px. The converging strokes go, because at that
+ * size they are a smudge rather than three lines, and the weight goes up from
+ * 1.75 to 2.5. What survives is the silhouette: node, gap, layers.
+ *
+ * A literal colour rather than `currentColor`, which has nothing to inherit
+ * from in a favicon or an `<img>`. This blue holds on both a white README and a
+ * near-black one; the config UI's own accent does not, being tuned per theme.
+ */
+export const MARK_SVG =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#4c8dff" ` +
+    `stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">` +
+    '<path d="M13.5 6.5h7M13.5 12h7M13.5 17.5h7"/>' +
+    '<path d="M8 12h2.5"/>' +
+    '<circle cx="5" cy="12" r="2.6" fill="#4c8dff" stroke="none"/>' +
+    '</svg>\n';
+
 /** For an id the schema does not know — a service removed from config while its
  *  card is still on screen, or one added before this file catches up. */
 const FALLBACK = draw(
