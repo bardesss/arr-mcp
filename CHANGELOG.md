@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.10.0](https://github.com/bardesss/arr-mcp/compare/v1.9.0...v1.10.0) (2026-08-14)
+
+
+### Features
+
+* **ci:** make the nightly spec re-fetch a compatibility verdict ([#127](https://github.com/bardesss/arr-mcp/issues/127)) ([bfd2e51](https://github.com/bardesss/arr-mcp/commit/bfd2e5110caaa287bdaf2d70655fe16b5b9148de))
+
+
+### Bug Fixes
+
+* **ci:** run fetch-specs.sh via bash, not its missing exec bit ([#129](https://github.com/bardesss/arr-mcp/issues/129)) ([a42f87f](https://github.com/bardesss/arr-mcp/commit/a42f87f56fb0d33bd2d22e2bddc820645ec810ab))
+
 ## [1.9.0](https://github.com/bardesss/arr-mcp/compare/v1.8.1...v1.9.0) (2026-08-14)
 
 
