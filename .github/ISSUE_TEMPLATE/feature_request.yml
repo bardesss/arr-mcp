@@ -10,7 +10,7 @@ body:
         the work; the code that answers it is the easy half.
 
         This matters because the answer is often a new parameter or a new field
-        on a tool that already exists. Twenty-one tools is close to the ceiling
+        on a tool that already exists. Twenty-two tools is close to the ceiling
         — model accuracy degrades measurably past roughly forty — so new
         capability extends an existing tool before it adds one. A request framed
         as a question can be answered that way. One framed as a tool name
@@ -70,6 +70,12 @@ body:
         maintainer does not run cannot be tested in review, so one you are
         willing to test yourself against a live instance goes much further than
         one nobody can exercise.
+
+        Not every service qualifies, and the bar is written down rather than
+        decided per request:
+        [which services qualify](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md#which-services-qualify).
+        Asking here first is the cheap way to find out — a service that misses
+        on age alone gets a date back, not a no.
       placeholder: 'Lidarr 2.14.0'
 
   - type: dropdown
