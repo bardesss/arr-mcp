@@ -180,6 +180,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 diagnoses: health.services,
                 configured: snapshot.adapters.map(a => a.id),
                 bearerToken: snapshot.config.auth.bearer_token,
+                urlToken: snapshot.config.auth.allow_token_in_url,
                 mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
                 ...(runtime.dataset === undefined ? {} : { imdb: runtime.dataset.status() }),
                 disks: health.disks.items,
@@ -660,6 +661,7 @@ export function buildMcpConfig(current: Config, form: Record<string, unknown>): 
             bearer_token: on(form['auth.rotate_token'])
                 ? generateBearerToken()
                 : current.auth.bearer_token,
+            allow_token_in_url: on(form['auth.allow_token_in_url']),
             allowed_hosts: hosts
         }
     };

@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config/load.ts';
+import { ConfigSchema } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
+import { buildMcpConfig } from '../src/web/routes.ts';
 
 /**
  * The config UI driven through the real Hono app — same routes, same session
@@ -263,6 +265,34 @@ describe('MCP endpoint', () => {
         expect(page.split(BEARER).length - 1).toBe(1);
     });
 
+});
+
+describe('the MCP endpoint form', () => {
+    it('turns the URL token on and off', () => {
+        const base = ConfigSchema.parse({ auth: { bearer_token: 'a'.repeat(64) }, services: {} });
+
+        const on = buildMcpConfig(base, { 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' });
+        expect(on.auth.allow_token_in_url).toBe(true);
+
+        const off = buildMcpConfig(on, { 'auth.allowed_hosts': '' });
+        expect(off.auth.allow_token_in_url).toBe(false);
+    });
+});
+
+describe('the URL token on the dashboard', () => {
+    it('offers a copy button once enabled, without putting the token in the page', async () => {
+        await signIn();
+        expect(await (await call('/ui')).text()).not.toContain('data-copy-url-token');
+
+        await call(
+            '/ui/config/mcp',
+            form({ csrf: await csrfFrom(), 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' })
+        );
+
+        const page = await (await call('/ui')).text();
+        expect(page).toContain('data-copy-url-token');
+        expect(page).not.toContain('?token=');
+    });
 });
 
 describe('adding an instance', () => {
