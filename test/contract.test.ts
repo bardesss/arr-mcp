@@ -71,8 +71,8 @@ const deref = (spec: Record<string, unknown>, node: unknown): unknown => {
     return current;
 };
 
-/** Declared property names of a 200 response body, unwrapping $refs and arrays. */
-export function resolveResponseFields(spec: unknown, path: string, method: string): Set<string> | undefined {
+/** The 200 response body's schema, or undefined when the spec declares no such operation. */
+export function resolveResponseSchema(spec: unknown, path: string, method: string): unknown {
     const doc = spec as Record<string, never>;
     const operation = (doc.paths as Record<string, never> | undefined)?.[path]?.[method];
     if (operation === undefined) return undefined;
@@ -81,16 +81,50 @@ export function resolveResponseFields(spec: unknown, path: string, method: strin
     const ok = responses?.['200'] ?? responses?.default;
     const content = (ok as Record<string, never> | undefined)?.content as Record<string, never> | undefined;
     const media = content?.['application/json'] ?? Object.values(content ?? {})[0];
+    return (media as Record<string, never> | undefined)?.schema;
+}
 
-    let schema = deref(doc, (media as Record<string, never> | undefined)?.schema);
-    if ((schema as Record<string, unknown> | undefined)?.type === 'array') {
-        schema = deref(doc, (schema as Record<string, unknown>).items);
+/** Properties of a schema node, seeing through $refs, arrays and compositions. */
+function declaredProperties(spec: Record<string, unknown>, node: unknown): Record<string, unknown> | undefined {
+    let current = deref(spec, node);
+    for (let hops = 0; hops < 10; hops += 1) {
+        const here = current as Record<string, unknown> | undefined;
+        if (here === undefined || here === null) return undefined;
+        if (here.properties !== undefined) return here.properties as Record<string, unknown>;
+
+        if (here.items !== undefined) {
+            current = deref(spec, here.items);
+            continue;
+        }
+
+        const branches = (here.allOf ?? here.oneOf ?? here.anyOf) as unknown[] | undefined;
+        if (branches === undefined) return undefined;
+        if (branches.length === 1) {
+            current = deref(spec, branches[0]);
+            continue;
+        }
+
+        // Several branches: a field declared by any of them is declared.
+        const merged: Record<string, unknown> = {};
+        for (const branch of branches) Object.assign(merged, declaredProperties(spec, branch) ?? {});
+        return merged;
     }
+    return undefined;
+}
 
-    const properties = (schema as Record<string, unknown> | undefined)?.properties as
-        | Record<string, unknown>
-        | undefined;
-    return properties === undefined ? undefined : new Set(Object.keys(properties));
+/**
+ * Does the spec declare this dotted path, all the way down? Checking only the
+ * first segment would pass `Items.UserData.Played` on the strength of `Items`.
+ */
+export function specDeclaresField(spec: unknown, schema: unknown, dotted: string): boolean {
+    const doc = spec as Record<string, unknown>;
+    let node = schema;
+    for (const part of dotted.split('.')) {
+        const properties = declaredProperties(doc, node);
+        if (properties === undefined || !(part in properties)) return false;
+        node = properties[part];
+    }
+    return true;
 }
 
 /**
@@ -238,16 +272,24 @@ const CONTRACTS: Record<string, ServiceContract> = {
             // names to catch this would cost more than it is worth.
         ]
     },
-    // No spec: Jellyfin's is vendored, but the adapter uses local narrow types,
-    // so the fixture is what these are checked against.
+    // Spec-checked despite the adapter using local narrow types: a fixture is a
+    // frozen recording, so the spec is the only half that can drift.
     jellyfin: {
+        spec: 'specs/jellyfin.json',
         dependencies: [
-            { fixture: 'test/fixtures/jellyfin/system-info.json', fields: ['Version'] },
-            { fixture: 'test/fixtures/jellyfin/users.json', fields: ['Id', 'Name'] },
-            { fixture: 'test/fixtures/jellyfin/scheduled-tasks.json', fields: ['Key', 'State', 'LastExecutionResult'] },
-            { fixture: 'test/fixtures/jellyfin/sessions.json', fields: ['UserId', 'PlayState'] },
-            { fixture: 'test/fixtures/jellyfin/items-search.json', fields: ['Items'] },
+            { path: '/System/Info', method: 'get', fixture: 'test/fixtures/jellyfin/system-info.json', fields: ['Version'] },
+            { path: '/Users', method: 'get', fixture: 'test/fixtures/jellyfin/users.json', fields: ['Id', 'Name'] },
             {
+                path: '/ScheduledTasks',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/scheduled-tasks.json',
+                fields: ['Key', 'State', 'LastExecutionResult']
+            },
+            { path: '/Sessions', method: 'get', fixture: 'test/fixtures/jellyfin/sessions.json', fields: ['UserId', 'PlayState'] },
+            { path: '/Items', method: 'get', fixture: 'test/fixtures/jellyfin/items-search.json', fields: ['Items'] },
+            {
+                path: '/Items',
+                method: 'get',
                 // Only assertable now that the capture requests Fields=ProviderIds.
                 // The resolver joins on these; an upstream change here breaks the
                 // three-way join silently.
@@ -264,6 +306,8 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // directly, and `get_library`'s `watched` filter runs on both,
                 // so a rename to either would silently make that filter match
                 // nothing with a green suite.
+                path: '/Items',
+                method: 'get',
                 fixture: 'test/fixtures/jellyfin/items-library.json',
                 fields: [
                     'Items.Id',
@@ -279,10 +323,13 @@ const CONTRACTS: Record<string, ServiceContract> = {
         ]
     },
     seerr: {
+        spec: 'specs/seerr.json',
         dependencies: [
-            { fixture: 'test/fixtures/seerr/status.json', fields: ['version'] },
-            { fixture: 'test/fixtures/seerr/user.json', fields: ['results'] },
+            { path: '/status', method: 'get', fixture: 'test/fixtures/seerr/status.json', fields: ['version'] },
+            { path: '/user', method: 'get', fixture: 'test/fixtures/seerr/user.json', fields: ['results'] },
             {
+                path: '/request',
+                method: 'get',
                 // `results.media.tvdbId` is read as the diagnose matcher's
                 // fallback when a request carries no tmdbId (Task 7 Finding
                 // B). Present but null on every recorded row, since the
@@ -291,9 +338,11 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fixture: 'test/fixtures/seerr/request.json',
                 fields: ['results', 'results.media.tvdbId']
             },
-            { fixture: 'test/fixtures/seerr/discover-movies.json', fields: ['results'] }
+            { path: '/discover/movies', method: 'get', fixture: 'test/fixtures/seerr/discover-movies.json', fields: ['results'] }
         ]
     },
+    // Bazarr, SABnzbd and Transmission publish no OpenAPI document, so the
+    // nightly job cannot see their drift. Fixture-only by necessity.
     bazarr: {
         dependencies: [
             { fixture: 'test/fixtures/bazarr/system-status.json', fields: ['data.bazarr_version'] },
@@ -347,10 +396,11 @@ describe('adapter contracts', () => {
 
                 if (spec !== undefined && path !== undefined) {
                     it(`${label} still declares those fields in the vendored spec`, () => {
-                        const declared = resolveResponseFields(read(spec), path, method);
-                        expect(declared, `no ${method} ${path} in ${spec}`).toBeDefined();
+                        const doc = read(spec);
+                        const schema = resolveResponseSchema(doc, path, method);
+                        expect(schema, `no ${method} ${path} in ${spec}`).toBeDefined();
 
-                        const missing = dep.fields.filter(f => !declared?.has(f.split('.')[0] ?? f));
+                        const missing = dep.fields.filter(f => !specDeclaresField(doc, schema, f));
                         expect(missing, 'upstream renamed or removed a field we read').toEqual([]);
                     });
                 }
@@ -391,5 +441,42 @@ describe('fixtureHasField', () => {
 
     it('still reports false when no element of the array carries the field, not just the first', () => {
         expect(fixtureHasField([{ a: 1 }, { a: 2 }, { a: 3 }], 'movieFile.size')).toBe(false);
+    });
+});
+
+describe('specDeclaresField', () => {
+    const spec = {
+        components: {
+            schemas: {
+                Item: { properties: { Id: { type: 'string' }, UserData: { $ref: '#/components/schemas/UserData' } } },
+                UserData: { properties: { Played: { type: 'boolean' } } },
+                Page: { properties: { Items: { type: 'array', items: { $ref: '#/components/schemas/Item' } } } }
+            }
+        }
+    };
+
+    it('finds a top-level property', () => {
+        expect(specDeclaresField(spec, { properties: { version: {} } }, 'version')).toBe(true);
+    });
+
+    it('walks into an array of $refs', () => {
+        expect(specDeclaresField(spec, { $ref: '#/components/schemas/Page' }, 'Items.Id')).toBe(true);
+    });
+
+    it('walks two $refs deep', () => {
+        expect(specDeclaresField(spec, { $ref: '#/components/schemas/Page' }, 'Items.UserData.Played')).toBe(true);
+    });
+
+    it('reports a leaf the spec does not declare, even when its parents exist', () => {
+        expect(specDeclaresField(spec, { $ref: '#/components/schemas/Page' }, 'Items.UserData.Watched')).toBe(false);
+    });
+
+    it('merges the branches of a composition', () => {
+        const schema = { allOf: [{ properties: { a: {} } }, { properties: { b: {} } }] };
+        expect(specDeclaresField(spec, schema, 'b')).toBe(true);
+    });
+
+    it('reports false rather than throwing when a segment bottoms out on a scalar', () => {
+        expect(specDeclaresField(spec, { properties: { version: { type: 'string' } } }, 'version.major')).toBe(false);
     });
 });
