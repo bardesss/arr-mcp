@@ -234,7 +234,8 @@ A phase that ships without its README change is not finished.
 - [ ] `docker run` the published tag against a real stack, not just the build
 - [ ] `npm run integration` — calls every tool against a real stack and fails
       if any tool has no case at all
-- [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected
+- [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected —
+      including `/mcp?token=…` against a config with `allow_token_in_url` off
 
 Calling every tool matters more than it sounds. Adapters are tested against
 recorded fixtures, which prove the mapping and nothing else. Every defect that
