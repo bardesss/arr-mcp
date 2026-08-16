@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/bardesss/arr-mcp/compare/v1.13.0...v1.14.0) (2026-08-16)
+
+
+### Features
+
+* ship an Unraid Community Applications template ([#145](https://github.com/bardesss/arr-mcp/issues/145)) ([c5e1f67](https://github.com/bardesss/arr-mcp/commit/c5e1f67f09908ae3e214537ef04b0dbdef5d1cac))
+
 ## [1.13.0](https://github.com/bardesss/arr-mcp/compare/v1.12.0...v1.13.0) (2026-08-16)
 
 
