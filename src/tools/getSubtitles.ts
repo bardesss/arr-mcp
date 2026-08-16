@@ -18,7 +18,9 @@ export type GetSubtitlesResult = {
     providers?: SubtitleProvider[];
 };
 
-const project = (g: SubtitleGap, detail: DetailLevel): SubtitleGap => {
+const project = (gap: SubtitleGap, detail: DetailLevel): SubtitleGap => {
+    // A join key, not a fact about the gap — so it goes at `full` too.
+    const { seriesId: _s, ...g } = gap;
     if (detail === 'full') return g;
     if (detail === 'standard') {
         const { releaseName: _r, ...rest } = g;

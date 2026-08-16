@@ -1,6 +1,6 @@
 # Tools
 
-Twenty-two of them. The first thirteen read; the last nine write, and are off
+Twenty-three of them. The first thirteen read; the last ten write, and are off
 until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -20,6 +20,7 @@ until you turn them on — see [writes](writes.md).
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again |
 | `trigger_scan` | Rescan a library — it downloaded but still will not play |
+| `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `delete_media` | Remove this film or series, optionally from disk |
@@ -72,10 +73,10 @@ that sentence is prose and may be reworded.
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the thirteen that only
-read, and on the nine writes `destructiveHint`, taken from the same permission
+read, and on the ten writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from twenty-two similarly-shaped
+about, reads those rather than guessing from twenty-three similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -218,9 +219,26 @@ with no `seriesTitle`, `season` or `episode` (those three appear only on an
 episode), then compare `percentComplete` yourself — arr-mcp does not filter by
 how far in you are.
 
+## `trigger_subtitle_search`
+
+The write half of `get_subtitles`, and it takes its arguments straight from
+that tool's output: `kind`, `id` and one `code2` from the item's `missing`
+list. For an episode, `id` is the episode id — the series id it also needs is
+resolved here rather than being one more thing to pass.
+
+`language` is required. Bazarr searches one language at a time, and asking for
+one the item is not missing is reported as nothing to do rather than sent
+upstream — as is a mismatch on `forced` or `hearing_impaired`, which are part
+of what makes a wanted language distinct.
+
+It queues the search and returns. Whether a provider actually has the subtitle
+is not known at that point, so call `get_subtitles` again a minute later rather
+than reading success as "the subtitle is on disk". If nothing arrives, the
+`providers` block in that same response is usually the reason.
+
 ## Prompts and resources
 
-Twenty-two tools do not tell you which one to reach for, and the questions
+Twenty-three tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

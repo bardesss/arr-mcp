@@ -88,6 +88,12 @@ export class ServiceHttp {
         await this.#request<unknown>('DELETE', path, undefined, false, true);
     }
 
+    /** Bazarr's subtitle actions are PATCH with everything in the query string,
+     *  answered with an empty 204. Like every write, never auto-retried. */
+    async patch(path: string): Promise<void> {
+        await this.#request<unknown>('PATCH', path, undefined, false, true);
+    }
+
     /** Sonarr's bulk episode-file delete is a DELETE *with* a body, which
      *  `delete` cannot express. Same no-retry, same discarded body. */
     async deleteWithBody(path: string, body: unknown): Promise<void> {

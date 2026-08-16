@@ -111,6 +111,8 @@ export type SubtitleGap = {
     service: string;
     kind: 'movie' | 'episode';
     id: number;
+    /** Episodes only. Bazarr's episode subtitle endpoint needs it; get_subtitles strips it. */
+    seriesId?: number;
     title: string;
     episodeTitle?: string;
     season?: number;
@@ -139,6 +141,25 @@ export interface SubtitleCapable {
 
 export const hasSubtitles = (a: ServiceAdapter): a is ServiceAdapter & SubtitleCapable =>
     typeof (a as Partial<SubtitleCapable>).getMissingSubtitles === 'function';
+
+export type SubtitleSearchTarget = {
+    kind: 'movie' | 'episode';
+    id: number;
+    /** Required for an episode. */
+    seriesId?: number;
+    /** Two-letter code, as `SubtitleGap.missing[].code2` reports it. */
+    language: string;
+    forced: boolean;
+    hearingImpaired: boolean;
+};
+
+export interface SubtitleSearchCapable {
+    /** Asks for one language for one item. Queued upstream, so it resolves before any subtitle exists. */
+    triggerSubtitleSearch(target: SubtitleSearchTarget): Promise<void>;
+}
+
+export const hasSubtitleSearch = (a: ServiceAdapter): a is ServiceAdapter & SubtitleSearchCapable =>
+    typeof (a as Partial<SubtitleSearchCapable>).triggerSubtitleSearch === 'function';
 
 export type QueueItem = {
     service: string;

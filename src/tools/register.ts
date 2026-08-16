@@ -31,6 +31,7 @@ import { registerSearchMedia } from './searchMedia.ts';
 import { registerSetMonitoring } from './setMonitoring.ts';
 import { registerStackHealth } from './stackHealth.ts';
 import { registerTriggerScan } from './triggerScan.ts';
+import { registerTriggerSubtitleSearch } from './triggerSubtitleSearch.ts';
 import { registerTriggerSearch } from './triggerSearch.ts';
 import type { WriteContext } from './write.ts';
 
@@ -147,6 +148,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     // answer than a tool the model was told about and cannot find.
     registerTriggerSearch(server, write, adapters);
     registerTriggerScan(server, write, adapters);
+    registerTriggerSubtitleSearch(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
     registerDeleteEpisodeFiles(server, write, adapters);
@@ -179,6 +181,7 @@ export const TOOL_NAMES = [
     'discover_media',
     'trigger_search',
     'trigger_scan',
+    'trigger_subtitle_search',
     'remove_queue_item',
     'delete_media',
     'delete_episode_files',

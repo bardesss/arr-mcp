@@ -296,10 +296,11 @@ describe('the advertised tool surface', () => {
         'respond_to_request',
         'set_monitoring',
         'trigger_scan',
-        'trigger_search'
+        'trigger_search',
+        'trigger_subtitle_search'
     ];
 
-    /** Of those nine, the four whose effect cannot be undone by calling again. */
+    /** Of those ten, the four whose effect cannot be undone by calling again. */
     const DESTRUCTIVE = ['delete_episode_files', 'delete_media', 'delete_request', 'remove_queue_item'];
 
     /**
@@ -327,11 +328,11 @@ describe('the advertised tool surface', () => {
     /**
      * Without `readOnlyHint`, `delete_media` and `get_queue` are the same kind
      * of thing to a client that decides what to auto-approve from annotations —
-     * so a surface with nine writes on it reads as either all safe or all
+     * so a surface with ten writes on it reads as either all safe or all
      * dangerous. The hint is the only machine-readable way to tell them apart;
      * the descriptions say so in prose, which nothing but a model can act on.
      */
-    it('says which tools only read, so a client can tell the nine writes from the rest', async () => {
+    it('says which tools only read, so a client can tell the ten writes from the rest', async () => {
         const tools = await listTools();
         const unmarked = tools.filter(t => t.annotations?.readOnlyHint === undefined);
         expect(unmarked.map(t => t.name)).toEqual([]);

@@ -210,7 +210,7 @@ describe('a body that will not parse', () => {
         const res = await raw('POST', 'application/json; charset=utf-8', JSON.stringify(toolsList));
 
         expect(res.status).toBe(200);
-        expect((JSON.parse(await res.text()) as { result: { tools: unknown[] } }).result.tools).toHaveLength(22);
+        expect((JSON.parse(await res.text()) as { result: { tools: unknown[] } }).result.tools).toHaveLength(23);
     });
 });
 

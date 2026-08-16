@@ -31,6 +31,7 @@ re-monitor it.
 | --- | --- | --- |
 | `trigger_search` | safe | `safe_write` |
 | `trigger_scan` | safe | `safe_write` |
+| `trigger_subtitle_search` | safe | `safe_write` |
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
 | `set_monitoring` | safe | `safe_write` |

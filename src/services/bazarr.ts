@@ -13,13 +13,15 @@ import {
     type ServiceAdapter,
     type SubtitleCapable,
     type SubtitleGap,
-    type SubtitleProvider
+    type SubtitleProvider,
+    type SubtitleSearchCapable,
+    type SubtitleSearchTarget
 } from './types.ts';
 
 /**
- * Hand-written: Bazarr publishes no OpenAPI document, so
- * these shapes come from recorded fixtures and the contract test checks them
- * against those fixtures rather than against a spec.
+ * Hand-written, and checked by the contract test against recorded fixtures
+ * rather than a spec. Bazarr does serve swagger 2.0 at `/api/swagger.json` —
+ * useful for finding endpoints — but codegen here targets OpenAPI 3.
  *
  * Confirmed against a live Bazarr 1.6.0: every payload is wrapped in
  * `{ data: … }`, and the version field is `bazarr_version`.
@@ -31,6 +33,7 @@ type RawMissing = { name?: string; code2?: string; forced?: boolean; hi?: boolea
 type RawWantedMovie = { radarrId?: number; title?: string; sceneName?: string | null; missing_subtitles?: RawMissing[] };
 type RawWantedEpisode = {
     sonarrEpisodeId?: number;
+    sonarrSeriesId?: number;
     seriesTitle?: string;
     episodeTitle?: string;
     /** Combined, as `"5x2"` — Bazarr has no separate season/episode fields. */
@@ -52,7 +55,7 @@ function parseEpisodeNumber(value: string | undefined): { season?: number; episo
 }
 type RawProvider = { name?: string; status?: string; retry?: string };
 
-export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, SubtitleCapable {
+export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, SubtitleCapable, SubtitleSearchCapable {
     readonly type: ServiceId = 'bazarr';
     readonly instance: string | undefined;
     readonly id: string;
@@ -132,6 +135,7 @@ export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, Subtit
                     service: this.id,
                     kind: 'episode' as const,
                     id: e.sonarrEpisodeId,
+                    ...(typeof e.sonarrSeriesId === 'number' ? { seriesId: e.sonarrSeriesId } : {}),
                     title: fence('seriesTitle', e.seriesTitle ?? ''),
                     ...(e.episodeTitle === undefined ? {} : { episodeTitle: fence('episodeTitle', e.episodeTitle) }),
                     ...(season === undefined ? {} : { season }),
@@ -179,6 +183,33 @@ export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, Subtit
                     ...(retry === undefined ? {} : { retryAt: retry })
                 };
             });
+    }
+
+    /**
+     * Bazarr takes every argument in the query string and answers 204. It
+     * queues the search, so this resolving means asked, never found.
+     */
+    async triggerSubtitleSearch(target: SubtitleSearchTarget): Promise<void> {
+        const query = new URLSearchParams({
+            language: target.language,
+            forced: String(target.forced),
+            hi: String(target.hearingImpaired)
+        });
+
+        if (target.kind === 'movie') {
+            query.set('radarrid', String(target.id));
+            await this.#http.patch(`/api/movies/subtitles?${query.toString()}`);
+            return;
+        }
+
+        if (target.seriesId === undefined) {
+            throw new ServiceError('NotFound', this.id, 'an episode subtitle search needs the series id as well', {
+                remedy: 'Take both ids from get_subtitles.'
+            });
+        }
+        query.set('seriesid', String(target.seriesId));
+        query.set('episodeid', String(target.id));
+        await this.#http.patch(`/api/episodes/subtitles?${query.toString()}`);
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

@@ -205,6 +205,28 @@ describe('ServiceHttp put and deleteWithBody', () => {
         );
     });
 
+    it('sends a PATCH to the given path and discards the response', async () => {
+        const seen: { method?: string; url: string }[] = [];
+        const client = http(async (input: string, init?: RequestInit) => {
+            seen.push({ url: String(input), ...(init?.method === undefined ? {} : { method: init.method }) });
+            return emptyOk();
+        });
+
+        await expect(client.patch('/api/movies/subtitles?radarrid=1')).resolves.toBeUndefined();
+        expect(seen[0]?.method).toBe('PATCH');
+        expect(seen[0]?.url).toBe('http://192.168.1.20:7878/api/movies/subtitles?radarrid=1');
+    });
+
+    it('never auto-retries a PATCH — it is a write', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            throw timeoutError();
+        });
+        await expect(client.patch('/x')).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+
     it('never auto-retries a deleteWithBody either', async () => {
         let calls = 0;
         const client = http(async () => {
