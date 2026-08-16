@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>arr-mcp</Name>
+  <Repository>ghcr.io/bardesss/arr-mcp:latest</Repository>
+  <Registry>https://github.com/bardesss/arr-mcp/pkgs/container/arr-mcp</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/bardesss/arr-mcp/issues</Support>
+  <Project>https://github.com/bardesss/arr-mcp</Project>
+  <Overview>
+    One MCP server for the whole *arr stack, so an AI assistant can answer the questions that live between services rather than inside one.[br][br]
+    Speaks to Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr, SABnzbd and Transmission, correlates them on shared external ids, and answers things no single service can — "why isn't the film I requested on Tuesday showing up in Jellyfin?" walks the whole chain: requested, managed, indexed, downloaded, imported, scanned.[br][br]
+    Configuration is a web page, not a YAML file: add your services from the UI, and it diagnoses each connection instead of printing pass/fail. Several Radarrs or Sonarrs are supported. Writes are off until you turn them on.[br][br]
+    [b]Claim it before you expose the port.[/b] The first person to load the setup page chooses the username and password and owns the instance, so open the WebUI and claim it as soon as it starts.
+  </Overview>
+  <Category>Tools:Utilities Productivity:</Category>
+  <WebUI>http://[IP]:[PORT:6060]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/bardesss/arr-mcp/main/unraid/arr-mcp.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/bardesss/arr-mcp/main/assets/logo.png</Icon>
+  <Changes>
+    Template tracks the `latest` tag. Release notes: https://github.com/bardesss/arr-mcp/releases
+  </Changes>
+  <Config
+    Name="WebUI"
+    Target="6060"
+    Default="6060"
+    Mode="tcp"
+    Description="The config UI and the MCP endpoint. Claim the instance before this port is reachable from anywhere you do not trust."
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">6060</Config>
+  <Config
+    Name="Appdata"
+    Target="/config"
+    Default="/mnt/user/appdata/arr-mcp"
+    Mode="rw"
+    Description="Holds config.yaml, the audit log and the optional IMDb dataset."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/arr-mcp</Config>
+  <Config
+    Name="PUID"
+    Target="PUID"
+    Default="99"
+    Mode=""
+    Description="User id that owns the appdata share. 99 is Unraid's `nobody`."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">99</Config>
+  <Config
+    Name="PGID"
+    Target="PGID"
+    Default="100"
+    Mode=""
+    Description="Group id that owns the appdata share. 100 is Unraid's `users`."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">100</Config>
+  <Config
+    Name="TZ"
+    Target="TZ"
+    Default=""
+    Mode=""
+    Description="Timezone, e.g. Europe/Amsterdam. Affects timestamps in the audit log and the log viewer."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false"/>
+</Container>
