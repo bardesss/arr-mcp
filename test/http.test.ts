@@ -63,6 +63,64 @@ describe('ServiceHttp request shaping', () => {
 });
 
 /**
+ * A service behind a URL base — the standard arrangement behind a reverse proxy,
+ * and what the arr apps themselves call "URL Base". Every adapter path is
+ * absolute, and `new URL('/api/...', 'http://host/bazarr')` *discards* the base
+ * path, so the request landed at the host root and came back as the HTML app.
+ */
+describe('ServiceHttp with a url base', () => {
+    const capture = (url: string) => {
+        const seen: string[] = [];
+        const client = new ServiceHttp(
+            'bazarr',
+            { ...config, url },
+            apiKeyHeader('X-Api-Key', 'secret'),
+            (async (input: string) => {
+                seen.push(String(input));
+                return json({ ok: true });
+            }) as unknown as typeof fetch
+        );
+        return { client, seen };
+    };
+
+    it('keeps the base path in front of the adapter path', async () => {
+        const { client, seen } = capture('http://bazarr:6767/bazarr');
+        await client.get('/api/system/status');
+        expect(seen[0]).toBe('http://bazarr:6767/bazarr/api/system/status');
+    });
+
+    it('does not double the slash when the base url ends in one', async () => {
+        const { client, seen } = capture('http://bazarr:6767/bazarr/');
+        await client.get('/api/system/status');
+        expect(seen[0]).toBe('http://bazarr:6767/bazarr/api/system/status');
+    });
+
+    it('still keeps the query string the adapter asked for', async () => {
+        const { client, seen } = capture('http://sab:8080/sabnzbd');
+        await client.get('/api?mode=version&output=json');
+        expect(seen[0]).toBe('http://sab:8080/sabnzbd/api?mode=version&output=json');
+    });
+
+    it('leaves a base url with no path alone', async () => {
+        const { client, seen } = capture('http://192.168.1.20:7878');
+        await client.get('/api/v3/system/status');
+        expect(seen[0]).toBe('http://192.168.1.20:7878/api/v3/system/status');
+    });
+
+    it('names the full path, base included, when the response is not JSON', async () => {
+        const client = new ServiceHttp(
+            'bazarr',
+            { ...config, url: 'http://bazarr:6767/bazarr' },
+            apiKeyHeader('X-Api-Key', 'secret'),
+            (async () => new Response('<html>', { status: 200 })) as unknown as typeof fetch
+        );
+        await expect(client.get('/api/system/status')).rejects.toThrow(
+            'response from /bazarr/api/system/status was not valid JSON'
+        );
+    });
+});
+
+/**
  * `put`'s `discardBody` and `deleteWithBody` had no direct test at all, and the
  * adapter suites cannot supply one: their fake fetch answers every PUT with an
  * empty 200 regardless, which makes `put(path, body, true)` and

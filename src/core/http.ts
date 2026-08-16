@@ -14,6 +14,7 @@ export const CIRCUIT_COOLDOWN_MS = 60_000;
 export class ServiceHttp {
     readonly #id: string;
     readonly #baseUrl: string;
+    readonly #basePath: string;
     readonly #timeoutMs: number;
     readonly #auth: AuthStrategy;
     readonly #fetch: typeof fetch;
@@ -24,6 +25,7 @@ export class ServiceHttp {
     constructor(id: string, config: BaseServiceConfig, auth: AuthStrategy, fetchImpl: typeof fetch = fetch) {
         this.#id = id;
         this.#baseUrl = config.url;
+        this.#basePath = new URL(config.url).pathname.replace(/\/+$/, '');
         this.#timeoutMs = config.timeout_ms;
         this.#auth = auth;
         this.#fetch = fetchImpl;
@@ -156,7 +158,10 @@ export class ServiceHttp {
         allowRecovery = true,
         discardBody = false
     ): Promise<T> {
-        const url = new URL(path, this.#baseUrl);
+        // Prefixed, not resolved: every adapter path is absolute, and `new URL`
+        // given an absolute path throws the base's own path away — which is how
+        // a service behind a URL base got its requests sent to the host root.
+        const url = new URL(this.#basePath + path, this.#baseUrl);
         const headers = new Headers({ Accept: 'application/json' });
         if (body !== undefined) headers.set('content-type', 'application/json');
 
