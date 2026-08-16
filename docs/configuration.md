@@ -30,6 +30,22 @@ startup with the offending field named**, rather than being silently ignored.
 Each service also takes an optional `permissions` block. Both flags default to
 false, so the config above is read-only — see [writes](writes.md).
 
+## Services behind a URL base
+
+If a service runs under a subpath — the arr apps call it "URL Base", and it is
+the usual arrangement behind one reverse proxy fronting the whole stack — put
+that path in `url` and nothing else is needed:
+
+```yaml
+services:
+  bazarr:
+    url: http://192.168.1.20:6767/bazarr
+    api_key: "…"
+```
+
+Requests are sent to `…/bazarr/api/…`. Give the URL exactly as you would type it
+in a browser; a trailing slash makes no difference.
+
 ## Jellyfin needs a `default_user`
 
 Not optional flavour. `get_library`, `get_media_details` (its title-query form)
