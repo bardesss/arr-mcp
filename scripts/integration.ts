@@ -120,7 +120,10 @@ const DYNAMIC_TOOLS: ToolName[] = [
     // Sonarr-only, and both need a real series id — the same reason as the
     // five above. Driven as dry runs off the first Sonarr search hit.
     'set_monitoring',
-    'delete_episode_files'
+    'delete_episode_files',
+    // Dry runs off a scannable service and a real get_subtitles gap.
+    'trigger_scan',
+    'trigger_subtitle_search'
 ];
 
 const missing = TOOL_NAMES.filter(
@@ -247,6 +250,7 @@ let libraryResult: ToolCallResult | undefined;
 let searchResult: ToolCallResult | undefined;
 let queueResult: ToolCallResult | undefined;
 let requestsResult: ToolCallResult | undefined;
+let subtitlesResult: ToolCallResult | undefined;
 
 for (const { tool, args } of CASES) {
     const result = await run(tool, args);
@@ -254,6 +258,7 @@ for (const { tool, args } of CASES) {
     if (tool === 'search_media') searchResult = result;
     if (tool === 'get_queue') queueResult = result;
     if (tool === 'get_requests') requestsResult = result;
+    if (tool === 'get_subtitles') subtitlesResult = result;
 }
 
 /**
@@ -430,24 +435,83 @@ if (request?.id !== undefined) {
  * add_media, dry run only — it would otherwise add a film to a maintainer's
  * Radarr and start downloading it on every run.
  *
- * A **fixed, known-good** TMDB id rather than one taken from the library. The
- * first version of this case used a library item's own tmdbId and failed,
- * because a film in the library had been removed from TMDB upstream — Radarr
- * answers `[]` for it, correctly, and the case went red for a real-world data
- * condition rather than a defect. 603 is The Matrix, which is not going
- * anywhere.
- *
  * No quality profile is named on purpose, so this exercises the refusal path:
  * a real stack has nine profiles, and the tool declining to guess between them
  * — while listing them — is the behaviour most worth confirming against live
  * data. `expectError` is what makes that a pass rather than a red line.
+ *
+ * The id is chosen at run time, because a film already in the library answers
+ * the already-present no-op long before it reaches the profile refusal. A
+ * hardcoded 603 went red the day The Matrix was added.
  */
-await expectError(
-    'add_media',
-    { service: 'radarr', external_id: '603', dry_run: true },
-    /several quality profiles|Name one/,
-    'DRY RUN ONLY — expects the refuse-to-guess path, with the profiles listed'
-);
+const ADD_CANDIDATES = ['603', '13', '155', '27205', '680', '278', '238'];
+
+/** Decides on the already-present no-op, never on the refusal — that is the
+ *  assertion, and it must not select its own input. */
+const alreadyHeld = async (externalId: string): Promise<boolean> => {
+    try {
+        const result = await callTool('add_media', { service: 'radarr', external_id: externalId, dry_run: true });
+        return /already in/.test(result.content?.[0]?.text ?? '');
+    } catch {
+        return false; // Let expectError report it through the normal path.
+    }
+};
+
+let addCandidate: string | undefined;
+for (const candidate of ADD_CANDIDATES) {
+    if (!(await alreadyHeld(candidate))) {
+        addCandidate = candidate;
+        break;
+    }
+}
+
+if (addCandidate === undefined) {
+    console.log(
+        `SKIP add_media — radarr already holds every candidate (${ADD_CANDIDATES.join(', ')}), so the refuse-to-guess path cannot be reached.`
+    );
+} else {
+    await expectError(
+        'add_media',
+        { service: 'radarr', external_id: addCandidate, dry_run: true },
+        /several quality profiles|Name one/,
+        'DRY RUN ONLY — expects the refuse-to-guess path, with the profiles listed'
+    );
+}
+
+/**
+ * trigger_scan and trigger_subtitle_search, dry run only — a real scan costs a
+ * maintainer disk I/O on every run, and a real subtitle search hits providers.
+ */
+const scannable = ['jellyfin', 'radarr', 'sonarr'].find(id => id in (config.services ?? {}));
+
+if (scannable === undefined) {
+    console.log('SKIP trigger_scan — no service with a library to scan is configured.');
+} else {
+    await run('trigger_scan', { service: scannable, dry_run: true }, 'DRY RUN ONLY — never applied from this script');
+}
+
+const gap = (subtitlesResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
+    | { kind?: unknown; id?: unknown; missing?: { code2?: unknown; forced?: unknown; hearingImpaired?: unknown }[] }
+    | undefined;
+const want = gap?.missing?.[0];
+
+if (typeof gap?.kind === 'string' && gap.id !== undefined && typeof want?.code2 === 'string') {
+    await run(
+        'trigger_subtitle_search',
+        {
+            service: 'bazarr',
+            kind: gap.kind,
+            id: String(gap.id),
+            language: want.code2,
+            forced: want.forced === true,
+            hearing_impaired: want.hearingImpaired === true,
+            dry_run: true
+        },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    console.log('SKIP trigger_subtitle_search — get_subtitles reported no gap to preview against.');
+}
 
 /**
  * The config UI, against the same live stack.
@@ -460,10 +524,24 @@ await expectError(
  */
 async function checkUi(): Promise<void> {
     console.log('\n--- config UI ---');
+
+    // The password is only knowable on the run that generated it, so this
+    // signs in against a hash it sets itself rather than asking for one.
+    //
+    // Built here rather than halfway down because the anonymous cases need it
+    // too: whether /ui offers a sign-in or a setup form depends on the config
+    // carrying a password_hash. Run against `app`, those two reported the
+    // maintainer's claim state instead of the login flow.
+    const password = 'integration-only-not-persisted';
+    const { hashPassword } = await import('../src/core/session.ts');
+    const uiConfig = { ...config, auth: { ...config.auth, password_hash: hashPassword(password) } };
+    const uiRuntime = Runtime.fromConfig(uiConfig, WriteAudit.ephemeral(), { configDir: CONFIG_DIR });
+    const uiApp = buildApp({ runtime: uiRuntime, audit: WriteAudit.ephemeral(), logs: LogStore.ephemeral() });
+
     let cookie = '';
 
     const fetchUi = async (path: string, init: RequestInit = {}): Promise<Response> => {
-        const res = await app.request(`http://localhost:6060${path}`, {
+        const res = await uiApp.request(`http://localhost:6060${path}`, {
             redirect: 'manual',
             ...init,
             headers: { ...(init.headers ?? {}), ...(cookie === '' ? {} : { cookie }) }
@@ -501,13 +579,22 @@ async function checkUi(): Promise<void> {
         return res.status === 200 && (await res.text()).includes('Sign in');
     });
 
-    // The password is only knowable on the run that generated it, so this
-    // signs in against a hash it sets itself rather than asking for one.
-    const password = 'integration-only-not-persisted';
-    const { hashPassword } = await import('../src/core/session.ts');
-    const uiConfig = { ...config, auth: { ...config.auth, password_hash: hashPassword(password) } };
-    const uiRuntime = Runtime.fromConfig(uiConfig, WriteAudit.ephemeral(), { configDir: CONFIG_DIR });
-    const uiApp = buildApp({ runtime: uiRuntime, audit: WriteAudit.ephemeral(), logs: LogStore.ephemeral() });
+    // The other half of that branch, and what the two above reported by accident.
+    const { password_hash: _unset, ...unclaimedAuth } = uiConfig.auth;
+    const unclaimedApp = buildApp({
+        runtime: Runtime.fromConfig(
+            { ...config, auth: unclaimedAuth },
+            WriteAudit.ephemeral(),
+            { configDir: CONFIG_DIR }
+        ),
+        audit: WriteAudit.ephemeral(),
+        logs: LogStore.ephemeral()
+    });
+
+    await check('sends an unclaimed instance to the setup form instead', async () => {
+        const res = await unclaimedApp.request('http://localhost:6060/ui', { redirect: 'manual' });
+        return res.status === 302 && res.headers.get('location') === '/ui/setup';
+    });
 
     cookie = '';
     const signIn = await uiApp.request('http://localhost:6060/ui/login', {
