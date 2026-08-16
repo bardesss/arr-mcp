@@ -26,7 +26,7 @@ const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
  * model that learns them from `get_library` has still not learned them for
  * `get_queue`.
  *
- * Deliberately not a tool index. `tools/list` already carries 22 descriptions
+ * Deliberately not a tool index. `tools/list` already carries every description
  * and repeating them here would cost every session the same tokens twice; what
  * it names instead is the shape a caller cannot infer from any one of them —
  * that a list reports the whole count rather than the window, and that a write
