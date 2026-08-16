@@ -125,6 +125,7 @@ Twenty-four tools, but you never name them — you ask, and the model picks:
 | **[Configuration](docs/configuration.md)** | `config.yaml`, several Radarrs, Jellyfin's `default_user` |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
 | **[IMDb ratings](docs/imdb.md)** | The only way to get an IMDb score for a series, and what it costs |
+| **[Security](docs/security.md)** | The threat model, walked against the OWASP MCP Top 10, including what it does not solve |
 | **[Contributing](CONTRIBUTING.md)** | [Which services qualify](CONTRIBUTING.md#which-services-qualify), how to add an adapter, and the rules an AI agent tends to break |
 
 ## Requirements
@@ -169,6 +170,12 @@ security control — it fronts up to eight API keys and, once enabled, file
 deletion, and a home network contains guest phones and IoT devices. Put it
 behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 `allowed_hosts` if you do.
+
+Beyond the network: writes are off until you enable them, every write is
+previewed and confirmed before it acts, and everything a service returns is
+fenced as data rather than instruction. [Security](docs/security.md) walks all
+of it against the OWASP MCP Top 10 — and is equally explicit about what it does
+not solve. Found something? [SECURITY.md](SECURITY.md).
 
 ## Thanks
 
