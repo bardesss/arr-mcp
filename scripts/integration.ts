@@ -123,7 +123,8 @@ const DYNAMIC_TOOLS: ToolName[] = [
     'delete_episode_files',
     // Dry runs off a scannable service and a real get_subtitles gap.
     'trigger_scan',
-    'trigger_subtitle_search'
+    'trigger_subtitle_search',
+    'clean_queue'
 ];
 
 const missing = TOOL_NAMES.filter(
@@ -512,6 +513,9 @@ if (typeof gap?.kind === 'string' && gap.id !== undefined && typeof want?.code2 
 } else {
     console.log('SKIP trigger_subtitle_search — get_subtitles reported no gap to preview against.');
 }
+
+// Dry run without exception: this one really does delete downloaded data.
+await run('clean_queue', { service: 'radarr', dry_run: true }, 'DRY RUN ONLY — never applied from this script');
 
 /**
  * The config UI, against the same live stack.

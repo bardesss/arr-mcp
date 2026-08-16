@@ -3,6 +3,7 @@ import type { KeyedServiceConfig, TransmissionServiceConfig } from '../src/confi
 import { parseTimeleft } from '../src/services/arrQueue.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
+import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { buildGetQueue } from '../src/tools/getQueue.ts';
@@ -29,6 +30,7 @@ const RADARR_QUEUE = {
             id: 5,
             title: 'Some.Film.2026.2160p-GROUP',
             status: 'downloading',
+            movieId: 1689,
             protocol: 'usenet',
             size: 60_000_000_000,
             sizeleft: 15_000_000_000,
@@ -118,6 +120,67 @@ describe('parseTimeleft', () => {
     it('returns undefined for something that is not a TimeSpan', () => {
         expect(parseTimeleft('soon')).toBeUndefined();
         expect(parseTimeleft(undefined)).toBeUndefined();
+    });
+});
+
+describe('unknown queue items', () => {
+    const askedFor = async (adapter: { getQueue(): Promise<unknown> }, impl: { seen: string[] }) => {
+        await adapter.getQueue();
+        return impl.seen;
+    };
+
+    const recording = (records: unknown[]) => {
+        const seen: string[] = [];
+        const impl = (async (input: string) => {
+            seen.push(String(input));
+            return jsonResponse({ records, totalRecords: records.length });
+        }) as unknown as typeof fetch;
+        return { impl, seen };
+    };
+
+    it('asks Radarr for unknown movie items', async () => {
+        const { impl, seen } = recording([]);
+        const urls = await askedFor(new RadarrAdapter(keyed(7878), impl), { seen });
+        expect(urls[0]).toContain('includeUnknownMovieItems=true');
+    });
+
+    it('asks Sonarr for unknown series items, which it spells differently', async () => {
+        const { impl, seen } = recording([]);
+        const urls = await askedFor(new SonarrAdapter(keyed(8989), impl), { seen });
+        expect(urls[0]).toContain('includeUnknownSeriesItems=true');
+        expect(urls[0]).not.toContain('includeUnknownMovieItems');
+    });
+
+    it('marks an item with no movie as orphaned, and carries the import state', async () => {
+        const { impl } = recording([
+            {
+                id: 693439963,
+                title: 'Good.Boy.2025.1080p-SPHD',
+                status: 'completed',
+                trackedDownloadState: 'importBlocked',
+                trackedDownloadStatus: 'warning'
+            }
+        ]);
+        const [item] = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(item).toMatchObject({ id: '693439963', orphaned: true, importState: 'importBlocked' });
+    });
+
+    it('does not mark an item that still has its movie', async () => {
+        const { impl } = recording([
+            { id: 5, title: 'Some.Film-GROUP', status: 'downloading', movieId: 1689, trackedDownloadState: 'downloading' }
+        ]);
+        const [item] = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(item?.orphaned).toBeUndefined();
+    });
+
+    // The live Sonarr had exactly this: unlinked and mid-transfer.
+    it('marks an unlinked item orphaned even while it is still downloading', async () => {
+        const { impl } = recording([
+            { id: 731469873, title: 'Lawless.2012-CHD', status: 'downloading', trackedDownloadState: 'downloading' }
+        ]);
+        const [item] = await new SonarrAdapter(keyed(8989), impl).getQueue();
+        expect(item?.orphaned).toBe(true);
+        expect(item?.importState).toBeUndefined();
     });
 });
 

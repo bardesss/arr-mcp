@@ -145,6 +145,12 @@ describe('trigger_subtitle_search', () => {
         expect(structuredContent.confirm_token).toBeUndefined();
     });
 
+    // The harness adds the prefix; a summary carrying its own doubles it.
+    it('does not say "Nothing to do" twice', async () => {
+        const { content } = await harness().call({ ...movie, language: 'fr', dry_run: true });
+        expect(content[0]?.text).not.toMatch(/Nothing to do — Nothing to do/);
+    });
+
     it('fails naming the item when Bazarr does not know the id', async () => {
         const h = harness();
         await expect(h.call({ ...movie, id: '9999', dry_run: true })).rejects.toThrow(/9999/);

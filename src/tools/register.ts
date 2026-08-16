@@ -12,6 +12,7 @@ import { SeerrAdapter } from '../services/seerr.ts';
 import { hasIndexers, hasSubtitles, type ServiceAdapter } from '../services/types.ts';
 import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
+import { registerCleanQueue } from './cleanQueue.ts';
 import { registerDeleteMedia } from './deleteMedia.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
@@ -150,6 +151,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerTriggerScan(server, write, adapters);
     registerTriggerSubtitleSearch(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
+    registerCleanQueue(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
     registerDeleteEpisodeFiles(server, write, adapters);
     registerSetMonitoring(server, write, adapters);
@@ -183,6 +185,7 @@ export const TOOL_NAMES = [
     'trigger_scan',
     'trigger_subtitle_search',
     'remove_queue_item',
+    'clean_queue',
     'delete_media',
     'delete_episode_files',
     'set_monitoring',

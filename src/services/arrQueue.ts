@@ -17,6 +17,9 @@ type RawQueueRecord = {
     sizeleft?: number;
     timeleft?: string;
     errorMessage?: string;
+    movieId?: number;
+    seriesId?: number;
+    trackedDownloadState?: string;
 };
 type RawQueuePage = { records?: RawQueueRecord[]; totalRecords?: number };
 
@@ -48,10 +51,21 @@ export function parseTimeleft(value: string | undefined): number | undefined {
     return Number(parts[1] ?? 0) * 86_400 + Number(parts[2]) * 3600 + Number(parts[3]) * 60 + Number(parts[4]);
 }
 
-export async function readArrQueue(http: ServiceHttp, service: string): Promise<QueueItem[]> {
+/** `kind` is passed in because `service` may be an instance id like `radarr/hd`. */
+export async function readArrQueue(
+    http: ServiceHttp,
+    service: string,
+    kind: 'movie' | 'series'
+): Promise<QueueItem[]> {
+    // Off upstream by default, which hides records whose movie or series was
+    // deleted — stuck at importBlocked forever, and invisible here.
+    const includeUnknown = kind === 'movie' ? 'includeUnknownMovieItems=true' : 'includeUnknownSeriesItems=true';
+
     const records: RawQueueRecord[] = [];
     for (let page = 1; ; page++) {
-        const body = await http.get<RawQueuePage>(`/api/v3/queue?page=${page}&pageSize=${QUEUE_PAGE_SIZE}`);
+        const body = await http.get<RawQueuePage>(
+            `/api/v3/queue?page=${page}&pageSize=${QUEUE_PAGE_SIZE}&${includeUnknown}`
+        );
         const got = body.records ?? [];
         records.push(...got);
         // An empty page ends it whatever the count says: a service that
@@ -72,7 +86,12 @@ export async function readArrQueue(http: ServiceHttp, service: string): Promise<
                 ...(r.size === undefined ? {} : { sizeBytes: r.size }),
                 ...(r.sizeleft === undefined ? {} : { remainingBytes: r.sizeleft }),
                 ...(eta === undefined ? {} : { etaSeconds: eta }),
-                ...(r.errorMessage ? { errorMessage: fenceText(r.errorMessage, { service, field: 'errorMessage' }) } : {})
+                ...(r.errorMessage ? { errorMessage: fenceText(r.errorMessage, { service, field: 'errorMessage' }) } : {}),
+                ...(r.movieId === undefined && r.seriesId === undefined ? { orphaned: true } : {}),
+                // Omitted when it only repeats `status`, which is the common case.
+                ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
+                    ? {}
+                    : { importState: r.trackedDownloadState })
             };
         });
 }
