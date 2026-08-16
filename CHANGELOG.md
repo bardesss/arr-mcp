@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.0](https://github.com/bardesss/arr-mcp/compare/v1.11.1...v1.12.0) (2026-08-16)
+
+
+### Features
+
+* **tools:** add trigger_subtitle_search ([#137](https://github.com/bardesss/arr-mcp/issues/137)) ([f0ffba5](https://github.com/bardesss/arr-mcp/commit/f0ffba5b65a80d005634526827464e495a82f90b))
+
+
+### Bug Fixes
+
+* **scripts:** stop the integration script failing on the environment ([#139](https://github.com/bardesss/arr-mcp/issues/139)) ([911e9be](https://github.com/bardesss/arr-mcp/commit/911e9be05b227534056478aa378ace2463118221))
+
 ## [1.11.1](https://github.com/bardesss/arr-mcp/compare/v1.11.0...v1.11.1) (2026-08-16)
 
 
