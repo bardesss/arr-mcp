@@ -189,7 +189,7 @@ export class SonarrAdapter
     }
 
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id);
+        return readArrQueue(this.#http, this.id, 'series');
     }
 
     readonly supportsBlocklist = true;

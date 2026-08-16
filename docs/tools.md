@@ -1,6 +1,6 @@
 # Tools
 
-Twenty-three of them. The first thirteen read; the last ten write, and are off
+Twenty-four of them. The first thirteen read; the last eleven write, and are off
 until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -23,6 +23,7 @@ until you turn them on — see [writes](writes.md).
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
+| `clean_queue` | Clear out completed downloads whose film or series no longer exists |
 | `delete_media` | Remove this film or series, optionally from disk |
 | `delete_episode_files` | Free disk from one Sonarr season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
@@ -73,10 +74,10 @@ that sentence is prose and may be reworded.
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the thirteen that only
-read, and on the ten writes `destructiveHint`, taken from the same permission
+read, and on the eleven writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from twenty-three similarly-shaped
+about, reads those rather than guessing from twenty-four similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -219,6 +220,29 @@ with no `seriesTitle`, `season` or `episode` (those three appear only on an
 episode), then compare `percentComplete` yourself — arr-mcp does not filter by
 how far in you are.
 
+## `clean_queue`
+
+Radarr and Sonarr leave a completed download in the queue forever when the film
+or series it belongs to has been deleted: there is nothing to import it into,
+so it sits at `importBlocked`. Both hide these from the queue by default, which
+is why they accumulate unnoticed — `get_queue` now asks for them and marks each
+one `orphaned`.
+
+The tool removes exactly the items that are **both** `orphaned` and
+`importState: "importBlocked"`, from the queue and from the download client.
+That pairing is not configurable, and the reason is the first half on its own:
+an item can be unlinked and still transferring, and deleting one of those
+destroys a download in progress. `orphaned` describes the missing media, never
+whether the item is finished with.
+
+It never blocklists. The release was fine — the film was deleted — so any of
+these can be grabbed again later.
+
+The preview lists every item by name before anything is removed, and the
+confirmation token is bound to those exact ids, so an item that appears in the
+queue between preview and confirm is not swept up by a token issued before it
+existed.
+
 ## `trigger_subtitle_search`
 
 The write half of `get_subtitles`, and it takes its arguments straight from
@@ -238,7 +262,7 @@ than reading success as "the subtitle is on disk". If nothing arrives, the
 
 ## Prompts and resources
 
-Twenty-three tools do not tell you which one to reach for, and the questions
+Twenty-four tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

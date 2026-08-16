@@ -175,7 +175,7 @@ export class RadarrAdapter
     }
 
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id);
+        return readArrQueue(this.#http, this.id, 'movie');
     }
 
     readonly supportsBlocklist = true;

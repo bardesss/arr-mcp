@@ -78,7 +78,7 @@ export function registerTriggerSubtitleSearch(
                 const have = gap.missing.map(m => `${m.name} (${m.code2})`).join(', ');
                 return {
                     target,
-                    summary: `Nothing to do — ${adapter.id} is not missing ${language} for ${label(gap)}.`,
+                    summary: `${adapter.id} is not missing ${language} for ${label(gap)}.`,
                     effects: [],
                     noop: true,
                     ...(have === '' ? {} : { args: { missing: have } })

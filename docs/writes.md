@@ -36,6 +36,7 @@ re-monitor it.
 | `add_media` | safe | `safe_write` |
 | `set_monitoring` | safe | `safe_write` |
 | `remove_queue_item` | destructive | `destructive` |
+| `clean_queue` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
 | `delete_episode_files` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
