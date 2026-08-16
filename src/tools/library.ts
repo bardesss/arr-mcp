@@ -34,7 +34,7 @@ export class LibraryLoader {
 
     constructor(
         adapters: readonly ServiceAdapter[],
-        jellyfinIdentity: IdentityResolver | undefined,
+        mediaServerIdentity: IdentityResolver | undefined,
         cache: TtlCache = new TtlCache(),
         /**
          * Enrichment happens here, not per tool, for the reason this class
@@ -46,7 +46,7 @@ export class LibraryLoader {
         dataset?: ImdbDataset | undefined
     ) {
         this.#adapters = adapters;
-        this.#identity = jellyfinIdentity;
+        this.#identity = mediaServerIdentity;
         this.#cache = cache;
         this.#dataset = dataset;
     }
@@ -89,10 +89,9 @@ export class LibraryLoader {
      * Called after a successful write, so the next `get_library` reflects it
      * rather than up to five minutes of a library that no longer exists.
      *
-     * Clears every entry, not one key: keys are per Jellyfin user, and a film
-     * just deleted is gone from all of them. Recomputing a
-     * household's worth of snapshots costs one library read each; serving a
-     * stale one costs a wrong answer.
+     * Clears every entry, not one key: keys are per user, and a film just
+     * deleted is gone from all of them. Recomputing a household's worth of
+     * snapshots costs one library read each; a stale one costs a wrong answer.
      */
     invalidate(): void {
         this.#cache.clear();
@@ -134,52 +133,47 @@ export class LibraryLoader {
             .filter(hasLibrary)
             .map(a => ({ id: a.id, fetch: () => a.listLibrary() }));
 
-        const jellyfin = this.#adapters.find(hasUserLibrary);
-        if (jellyfin !== undefined) {
+        const mediaServer = this.#adapters.find(hasUserLibrary);
+        if (mediaServer !== undefined) {
             sources.push({
-                id: jellyfin.id,
+                id: mediaServer.id,
                 fetch:
                     user === undefined
                         ? // Reported as degraded rather than silently absent: the
                           // answer really is missing a service's contribution.
-                          () => Promise.reject(new Error('no Jellyfin user resolved'))
-                        : () => jellyfin.listUserLibrary(user)
+                          () => Promise.reject(new Error(`no ${mediaServer.id} user resolved`))
+                        : () => mediaServer.listUserLibrary(user)
             });
         }
 
         // Its own source, so `gather` degrades it by name. A try/catch inside
         // the adapter could not tell the snapshot *why* seasons were missing —
-        // the same ambiguity `BuildOptions.jellyfinGathered` exists to prevent.
+        // the same ambiguity `BuildOptions.playbackGathered` exists to prevent.
         const seasons = this.#adapters.find(hasUserSeasons);
         if (seasons !== undefined) {
             sources.push({
                 id: `${seasons.id}:episodes`,
                 fetch:
                     user === undefined
-                        ? () => Promise.reject(new Error('no Jellyfin user resolved'))
+                        ? () => Promise.reject(new Error(`no ${seasons.id} user resolved`))
                         : () => seasons.listUserSeasons(user)
             });
         }
 
         const { items, degraded, counts } = await gather(sources);
 
-        // `LibraryIndex` cannot tell "Jellyfin looked and found nothing" from
-        // "Jellyfin was never gathered" on its own (resolver.ts's
-        // `BuildOptions` doc) — this is the one place that knows which,
-        // because it owns the fetch. Gathered means both configured (a
-        // `jellyfin` source was even pushed above) *and* successful (its id
-        // is not in `degraded` — covering an outright fetch failure and the
-        // synthetic no-user-resolved rejection above alike).
-        const jellyfinGathered = jellyfin !== undefined && !degraded.includes(jellyfin.id);
+        // The one place that knows whether the media server was actually read:
+        // configured (a source was pushed above) *and* successful (its id is
+        // not in `degraded`, covering a fetch failure and the synthetic
+        // no-user-resolved rejection alike).
+        const playbackGathered = mediaServer !== undefined && !degraded.includes(mediaServer.id);
 
-        // Enriched *before* the merge rather than after it, because the index
-        // hands the same objects to `all()` and to its key map — replacing
-        // them afterwards would have to keep both in step, while an input a
-        // service never rated is simply an input with a gap to fill. It also
-        // means Jellyfin-only media gets a rating, which nothing in the stack
-        // could otherwise give it.
+        // Enriched *before* the merge: the index hands the same objects to
+        // `all()` and to its key map, so replacing them afterwards would have
+        // to keep both in step. It also means media-server-only items get a
+        // rating, which nothing else in the stack could give them.
         const rated = enrichWithImdb(items, this.#dataset);
 
-        return { index: LibraryIndex.build(rated, { jellyfinGathered }), degraded, counts };
+        return { index: LibraryIndex.build(rated, { playbackGathered }), degraded, counts };
     }
 }
