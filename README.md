@@ -54,6 +54,11 @@ Nothing else in this space does the last four at all.
 ## Quick start — about two minutes
 
 Also in the repo as [`docker-compose.example.yml`](docker-compose.example.yml).
+**On Unraid**, use [`unraid/arr-mcp.xml`](unraid/arr-mcp.xml) instead — a
+Community Applications template with the appdata path and `99:100` ownership
+already set. It is not listed in CA yet, so for now drop it into
+`/boot/config/plugins/dockerMan/templates-user/` and pick it from the template
+list under **Add Container**. Steps 1 to 3 below are the same once it starts.
 
 ```yaml
 services:

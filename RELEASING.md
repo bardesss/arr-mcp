@@ -275,15 +275,14 @@ reported a 23-hour-stale library as scanned a minute ago.
 
 ## Distribution
 
-Do this at **0.3 and later**, not for 0.1 or 0.2 — those are foundations, and
-an announcement lands once.
-
 - [x] [MCP registry](https://github.com/modelcontextprotocol/registry) listing —
       `io.github.bardesss/arr-mcp`, published from `server.json` by the release
       workflow
-- [ ] Unraid Community Applications template
-- [ ] Umbrel app store submission
-- [ ] CasaOS app store submission
+- [x] Unraid Community Applications **template** — `unraid/arr-mcp.xml`, guarded
+      against drifting from the Dockerfile by `test/unraidTemplate.test.ts`
+- [ ] Unraid Community Applications **submission** — the template is ready; what
+      is left is filing it, which happens under a personal CA account and so is
+      not something the repo can do for you. See below.
 - [ ] r/selfhosted post — lead with the differentiator, not the feature list:
       one server for the whole stack, a config page that diagnoses instead of
       printing pass/fail, and tool output treated as untrusted data
@@ -293,3 +292,29 @@ Lead every listing with what no comparable project does. Fourteen of them
 exist; none ships a config UI and none addresses untrusted tool content.
 Discovery, not capability, is the binding constraint here — the unmaintained
 project this one succeeds still leads the field on stars.
+
+Umbrel, CasaOS, TrueNAS SCALE, Proxmox LXC and Helm were each considered and
+dropped rather than left pending: low yield for an *arr audience, or a
+non-Docker install path that becomes a support surface of its own. Recorded so
+the question is not reopened every release.
+
+### Submitting to Community Applications
+
+The template is in the repo and tested; submitting it is a separate, manual act.
+The flow has changed more than once, so check it against Unraid's own docs
+before following this from memory — as of 2026-08 it is a submission portal at
+[ca.unraid.net/submit](https://ca.unraid.net/submit) rather than a pull request
+to a templates repository.
+
+What it wants beyond the XML:
+
+- **A `ca_profile.xml`** identifying the maintainer, in the repository holding
+  the template. This repo does not have one yet; the portal validates it as part
+  of the submission and is the authority on its current shape.
+- **A support URL.** `unraid/arr-mcp.xml` points at GitHub issues. If a forum
+  thread is ever opened for arr-mcp, change it there — the drift test does not
+  check where it points, only that it is set.
+- **A clean install on a real Unraid box** before submitting. The drift test
+  proves the template agrees with the Dockerfile; it cannot prove CA renders it,
+  that the appdata path is writable at 99:100, or that the WebUI button opens
+  something. Nothing in CI can.
