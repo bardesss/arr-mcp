@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/bardesss/arr-mcp/compare/v1.11.0...v1.11.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **http:** keep the url base when joining adapter paths ([#135](https://github.com/bardesss/arr-mcp/issues/135)) ([508b4d2](https://github.com/bardesss/arr-mcp/commit/508b4d2617587b52aaf8a6d77490984576e14eef)), closes [#134](https://github.com/bardesss/arr-mcp/issues/134)
+
 ## [1.11.0](https://github.com/bardesss/arr-mcp/compare/v1.10.0...v1.11.0) (2026-08-14)
 
 
