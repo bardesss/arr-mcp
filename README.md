@@ -81,8 +81,9 @@ username and a password of at least 12 characters.
 > Do this **before** exposing the port. Until it is claimed, whoever loads that
 > page first owns the instance — and it holds every service's API key.
 
-**3. Add your services** — **Add a service**, paste its URL and API key, save.
-It applies immediately; there is no restart. Configure only what you run.
+**3. Add your services** — **Add a service**, paste its URL and API key (or, for
+Transmission, its username and password), save. It applies immediately; there is
+no restart. Configure only what you run.
 
 Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
 the dashboard. A client that can only be given a URL, not a header, can carry
