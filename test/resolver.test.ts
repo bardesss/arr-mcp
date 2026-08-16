@@ -299,17 +299,17 @@ describe('LibraryIndex presence — a degraded or unconfigured Jellyfin must not
     // as `arr_only` — which `get_library`'s own description reads as "Jellyfin
     // cannot see a file the *arr believes is on disk", a broken-import claim
     // for every row, when Jellyfin was in fact never asked at all.
-    it('reports unknown, not arr_only, for an *arr-only item when jellyfinGathered is false', () => {
-        const index = LibraryIndex.build([arr()], { jellyfinGathered: false });
+    it('reports unknown, not arr_only, for an *arr-only item when playbackGathered is false', () => {
+        const index = LibraryIndex.build([arr()], { playbackGathered: false });
         expect(index.find({ tmdb: 550 })?.presence).toBe('unknown');
     });
 
     it('still reports arr_only for the same item when Jellyfin was actually gathered (the healthy case)', () => {
-        const index = LibraryIndex.build([arr()], { jellyfinGathered: true });
+        const index = LibraryIndex.build([arr()], { playbackGathered: true });
         expect(index.find({ tmdb: 550 })?.presence).toBe('arr_only');
     });
 
-    it('defaults jellyfinGathered to true, so a caller that omits it keeps reporting arr_only', () => {
+    it('defaults playbackGathered to true, so a caller that omits it keeps reporting arr_only', () => {
         // Every other call site in this codebase (and every other test in this
         // file) does not pass BuildOptions at all — the default must not
         // silently start reporting `unknown` everywhere.
@@ -319,7 +319,7 @@ describe('LibraryIndex presence — a degraded or unconfigured Jellyfin must not
 
     it('reports the whole library as unknown, not just items that also lack playback', () => {
         const index = LibraryIndex.build([arr({ ids: { tmdb: 1 } }), arr({ ids: { tmdb: 2 } })], {
-            jellyfinGathered: false
+            playbackGathered: false
         });
         for (const item of index.all()) expect(item.presence).toBe('unknown');
     });
@@ -327,12 +327,12 @@ describe('LibraryIndex presence — a degraded or unconfigured Jellyfin must not
     it('does not downgrade an item with genuine evidence from both halves', () => {
         // Real playback evidence beats a degraded-build flag meant for the
         // items that have no such evidence.
-        const index = LibraryIndex.build([arr(), jelly()], { jellyfinGathered: false });
+        const index = LibraryIndex.build([arr(), jelly()], { playbackGathered: false });
         expect(index.find({ tmdb: 550 })?.presence).toBe('both');
     });
 
-    it('leaves jellyfin_only untouched by jellyfinGathered — that claim never depended on the *arr half', () => {
-        const index = LibraryIndex.build([jelly()], { jellyfinGathered: false });
+    it('leaves jellyfin_only untouched by playbackGathered — that claim never depended on the *arr half', () => {
+        const index = LibraryIndex.build([jelly()], { playbackGathered: false });
         expect(index.find({ tmdb: 550 })?.presence).toBe('jellyfin_only');
     });
 });

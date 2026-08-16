@@ -9,6 +9,7 @@ import {
     hasQueue,
     hasRequests,
     hasScanState,
+    hasUserLibrary,
     type IndexerRejection,
     type MediaRequest,
     type QueueItem,
@@ -107,13 +108,18 @@ async function resolveItem(
         // matched under either kind — there is no signal left to disambiguate,
         // so 'movie' is the least-committal default already implied by
         // `MergedItem.kind` having no third option.
+        //
+        // A media server contributes watch state and never acquisition, so it
+        // is the capability that decides the shape, not the service's name —
+        // a second one must not need editing here.
+        const isMediaServer = hasUserLibrary(adapter);
         return {
             kind: searchKind ?? 'movie',
             title: details.title,
             ...(details.year === undefined ? {} : { year: details.year }),
             ids: details.ids,
-            presence: adapter.id === 'jellyfin' ? 'jellyfin_only' : 'arr_only',
-            ...(adapter.id === 'jellyfin'
+            presence: isMediaServer ? 'jellyfin_only' : 'arr_only',
+            ...(isMediaServer
                 ? {}
                 : {
                       acquisition: {

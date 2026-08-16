@@ -199,7 +199,7 @@ weekend: the answer to that one is a date, not a no.
 ### What would be accepted today
 
 The bar above is abstract, so here is the concrete answer, current as of
-2026-08-14. Grouped by slot on the chain rather than alphabetically, because
+2026-08-16. Grouped by slot on the chain rather than alphabetically, because
 that is the real question: a second service in a slot that already exists is a
 small, shaped change, and a service in no slot at all is a different product.
 
@@ -223,13 +223,27 @@ small, shaped change, and a service in no slot at all is a different product.
 - **Emby.** Jellyfin's ancestor, near-identical API, and therefore the cheapest
   adapter on this list — plausibly a variant of the Jellyfin one rather than a
   new file.
+- **Plex.** Wanted, on two conditions. It is the most-deployed media server this
+  server cannot talk to, and reach is the point: Plex support is what makes
+  arr-mcp useful to the many people who will never run Jellyfin.
+
+  **The design is the first condition.** Plex's usual auth brokers through
+  plex.tv — credential brokering *and* an outbound request to a host the
+  operator never configured, which is the risk class above and a no on its own
+  terms. An adapter that takes an operator-supplied `X-Plex-Token` and talks
+  only to the configured local server avoids all of it. Build that one; a pull
+  request built on the discovery flow is turned down for its architecture rather
+  than its code.
+
+  **Testers are the second, and they are what is actually missing.** Nobody here
+  runs Plex, so an adapter for it cannot be exercised in review — and one merged
+  against hand-written fixtures is a bug report waiting to be filed. I am
+  willing to do the integration work myself; what I cannot supply is a real Plex
+  library to prove it against. If you run Plex and will test a build against it
+  and report back, say so in an issue. That is the thing blocking this.
 
 Named and **not** accepted, so nobody spends a weekend finding out:
 
-- **Plex.** Not a no, but not an adapter decision either. Its auth brokers
-  through plex.tv, which is both credential brokering and an outbound request to
-  a host the operator never configured — the risk class that gets decided on its
-  own terms. Open an issue; do not open a pull request.
 - **Readarr.** Archived upstream. Nothing to track.
 - **Chaptarr.** Public since June 2026, so it misses on age alone. This is the
   date-not-a-no case, and it is on this list so the date is visible rather than

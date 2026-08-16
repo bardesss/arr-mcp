@@ -22,13 +22,9 @@ export type MergedRatings = {
 /**
  * One season's watch state, joined from two services that each know half of it.
  *
- * Every field but `season` is optional because either half can be missing:
- * a `jellyfin_only` series has `watched` and no denominator, an `arr_only`
- * series has denominators and no `watched`. In both cases `complete` is
- * **absent, never `false`** — the rule `has_file` already follows at
- * `getLibrary.ts`'s `has_file` rule. A `false` here would put a season you had finished onto
- * a list of things still to watch, and `watched: 0` would claim Jellyfin looked
- * and found nothing played, which is a different fact from never having asked.
+ * Every field but `season` is optional because either half can be missing.
+ * `complete` is **absent, never `false`**: a `false` would put a season you had
+ * finished onto a list of things still to watch.
  */
 export type SeasonSummary = {
     season: number;
@@ -92,18 +88,14 @@ export type MergedItem = {
     seasons?: SeasonSummary[];
     ratings?: MergedRatings;
     /**
-     * What no single service can tell you.
+     * What no single service can tell you. `arr_only` **with a file** means a
+     * broken import; `jellyfin_only` means media nothing is managing.
      *
-     * `arr_only` **with a file** means a broken Jellyfin import — but only
-     * when Jellyfin actually answered. An *arr-managed item looks identical
-     * whether Jellyfin found nothing or was never asked, and asserting the
-     * first across the second is the collapse this guards: empty is "looked
-     * and found nothing", undefined is "could not look". `jellyfin_only`
-     * means media nothing is managing.
+     * A degraded or unconfigured media server gets `unknown`, never
+     * `arr_only` — that claim asserts the server looked and did not find it.
      *
-     * `unknown` is what a degraded or unconfigured Jellyfin gets, instead of
-     * `arr_only` and a false "Jellyfin cannot see this file" across the whole
-     * library — the only answer that does not fabricate a source.
+     * The value is named for Jellyfin because it is the only media server
+     * today. A second one renames it, with the old name aliased for a minor.
      */
     presence: 'both' | 'arr_only' | 'jellyfin_only' | 'unknown';
 };
@@ -112,17 +104,14 @@ export type IndexInput = Omit<MergedItem, 'presence'>;
 
 export type BuildOptions = {
     /**
-     * Whether Jellyfin's half of *this* build was gathered — configured *and*
-     * read without error. Defaults to `true`, so existing call sites are
-     * unchanged.
+     * Whether the media server's half of this build was gathered — configured
+     * *and* read without error. Defaults to `true`.
      *
-     * `LibraryIndex` cannot tell "Jellyfin looked and this is genuinely absent"
-     * from "Jellyfin was never asked": both arrive with `acquisition` set and
+     * "Looked and found nothing" and "was never asked" both arrive with
      * `playback` unset, and an unset field carries no reason. `LibraryLoader`
-     * owns the fetch, so it knows which — and passes it in rather than letting
-     * the index guess.
+     * owns the fetch, so it passes in which one this was.
      */
-    jellyfinGathered?: boolean;
+    playbackGathered?: boolean;
 };
 
 /**
@@ -191,7 +180,7 @@ export class LibraryIndex {
     }
 
     static build(inputs: readonly IndexInput[], opts: BuildOptions = {}): LibraryIndex {
-        const jellyfinGathered = opts.jellyfinGathered ?? true;
+        const playbackGathered = opts.playbackGathered ?? true;
         const byKey = new Map<string, MergedItem>();
         const items: MergedItem[] = [];
 
@@ -262,13 +251,9 @@ export class LibraryIndex {
                 item.acquisition !== undefined && item.playback !== undefined
                     ? 'both'
                     : item.acquisition !== undefined
-                      ? // `arr_only` claims Jellyfin looked and found nothing —
-                        // a claim this build cannot make when Jellyfin's half
-                        // was never gathered at all (degraded, or never
-                        // configured). `unknown` is the honest answer for the
-                        // whole build in that case, not just for the items
-                        // that happen to lack acquisition too.
-                        jellyfinGathered
+                      ? // `arr_only` claims the media server looked and found
+                        // nothing — not a claim to make when it was never read.
+                        playbackGathered
                           ? 'arr_only'
                           : 'unknown'
                       : item.playback !== undefined
