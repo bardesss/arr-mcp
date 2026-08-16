@@ -29,6 +29,7 @@ const EPISODES = {
     data: [
         {
             sonarrEpisodeId: 88,
+            sonarrSeriesId: 9,
             seriesTitle: 'Some Show',
             episodeTitle: 'Pilot',
             // Bazarr combines the position into one string; there are no
@@ -78,6 +79,13 @@ describe('get_subtitles', () => {
         const episode = result.items.find(i => i.kind === 'episode');
         expect(episode).toMatchObject({ id: 88, season: 1, episode: 1 });
         expect(episode?.missing[0]?.forced).toBe(true);
+    });
+
+    it('keeps the internal series id out of the tool output', async () => {
+        const result = await buildGetSubtitles([adapter()], { detail: 'full', limit: 50 });
+        const episode = result.items.find(i => i.kind === 'episode');
+        expect(episode).toBeDefined();
+        expect(episode).not.toHaveProperty('seriesId');
     });
 
     it('fences the release name, and a release name cannot escape its fence', async () => {

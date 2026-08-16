@@ -252,6 +252,81 @@ describe('BazarrAdapter', () => {
         expect(await adapter.getFailedHealthChecks()).toEqual([]);
     });
 
+    // The wanted list is the only place the series id is offered, and the
+    // episode subtitle endpoint is keyed on it.
+    it('carries the series id an episode subtitle search needs', async () => {
+        const wanted = new BazarrAdapter(
+            keyed(6767),
+            serving({
+                '/api/movies/wanted': { data: [] },
+                '/api/episodes/wanted': fixture('bazarr/episodes-wanted.json')
+            })
+        );
+        const gaps = await wanted.getMissingSubtitles();
+        expect(gaps[0]).toMatchObject({ kind: 'episode', id: 5169, seriesId: 67 });
+    });
+
+    describe('triggerSubtitleSearch', () => {
+        const probe = () => {
+            const seen: { url: string; method?: string }[] = [];
+            const impl = (async (input: string, init?: RequestInit) => {
+                seen.push({ url: String(input), ...(init?.method === undefined ? {} : { method: init.method }) });
+                return new Response(null, { status: 204 });
+            }) as unknown as typeof fetch;
+            return { adapter: new BazarrAdapter(keyed(6767), impl), seen };
+        };
+
+        it('patches the movie endpoint with the radarr id and language', async () => {
+            const { adapter: a, seen } = probe();
+            await a.triggerSubtitleSearch({ kind: 'movie', id: 1445, language: 'nl', forced: false, hearingImpaired: false });
+            expect(seen[0]?.method).toBe('PATCH');
+            const url = new URL(seen[0]?.url ?? '');
+            expect(url.pathname).toBe('/api/movies/subtitles');
+            expect(Object.fromEntries(url.searchParams)).toMatchObject({
+                radarrid: '1445',
+                language: 'nl',
+                forced: 'false',
+                hi: 'false'
+            });
+        });
+
+        // Both ids, or Bazarr answers 404 for an episode it plainly has.
+        it('patches the episode endpoint with both ids', async () => {
+            const { adapter: a, seen } = probe();
+            await a.triggerSubtitleSearch({
+                kind: 'episode',
+                id: 5169,
+                seriesId: 67,
+                language: 'nl',
+                forced: false,
+                hearingImpaired: false
+            });
+            const url = new URL(seen[0]?.url ?? '');
+            expect(url.pathname).toBe('/api/episodes/subtitles');
+            expect(Object.fromEntries(url.searchParams)).toMatchObject({
+                seriesid: '67',
+                episodeid: '5169',
+                language: 'nl'
+            });
+        });
+
+        it('refuses an episode search with no series id rather than calling without one', async () => {
+            const { adapter: a, seen } = probe();
+            await expect(
+                a.triggerSubtitleSearch({ kind: 'episode', id: 5169, language: 'nl', forced: false, hearingImpaired: false })
+            ).rejects.toThrow(/series id/i);
+            expect(seen).toHaveLength(0);
+        });
+
+        it('passes forced and hearing-impaired through as Bazarr spells them', async () => {
+            const { adapter: a, seen } = probe();
+            await a.triggerSubtitleSearch({ kind: 'movie', id: 1, language: 'en', forced: true, hearingImpaired: true });
+            const url = new URL(seen[0]?.url ?? '');
+            expect(url.searchParams.get('forced')).toBe('true');
+            expect(url.searchParams.get('hi')).toBe('true');
+        });
+    });
+
     expectsAuthDiagnosis(new BazarrAdapter(keyed(6767), unauthorized));
 });
 
