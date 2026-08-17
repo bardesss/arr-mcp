@@ -352,12 +352,7 @@ export interface paths {
          */
         get: {
             parameters: {
-                query?: {
-                    /** @description Syncs the current libraries with the current Jellyfin server */
-                    sync?: string | null;
-                    /** @description Comma separated list of libraries to enable. Any libraries not passed will be disabled! */
-                    enable?: string | null;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -377,6 +372,121 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/jellyfin/library/{libraryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update a single Jellyfin library
+         * @description Updates a single Jellyfin library with the provided values.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    libraryId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @example true */
+                        enabled: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Jellyfin library returned */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JellyfinLibrary"];
+                    };
+                };
+                /** @description Invalid request body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Library does not exist */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/jellyfin/library/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Jellyfin libraries
+         * @description Syncs the current libraries with the current Jellyfin server. Enabled flags are preserved.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Jellyfin libraries returned */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JellyfinLibrary"][];
+                    };
+                };
+                /** @description No libraries found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Automatic library grouping is not supported */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -595,12 +705,7 @@ export interface paths {
          */
         get: {
             parameters: {
-                query?: {
-                    /** @description Syncs the current libraries with the current Plex server */
-                    sync?: string | null;
-                    /** @description Comma separated list of libraries to enable. Any libraries not passed will be disabled! */
-                    enable?: string | null;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -620,6 +725,107 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/plex/library/{libraryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update a single Plex library
+         * @description Updates a single Plex library with the provided values.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    libraryId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @example true */
+                        enabled: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Plex library returned */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlexLibrary"];
+                    };
+                };
+                /** @description Invalid request body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Library does not exist */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/plex/library/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Plex libraries
+         * @description Syncs the current libraries with the current Plex server. Enabled flags are preserved.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Plex libraries returned */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlexLibrary"][];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
