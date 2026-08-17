@@ -8,8 +8,9 @@ permissions:
   contents: write
   pull-requests: write
 
-# Re-fetches the vendored specs and runs the contract test against them, so a
-# breaking upstream change arrives as a red run rather than a user's bug report.
+# Re-fetches the vendored specs, regenerates the types from them, and checks the
+# project against both, so a breaking upstream change arrives as a red run rather
+# than a user's bug report.
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -27,15 +28,24 @@ jobs:
       - name: Re-fetch vendored specs
         run: bash scripts/fetch-specs.sh
 
+      # The specs and their generated types are committed as a pair, so they
+      # are refreshed as a pair. Committing only `specs` left the types
+      # declaring query params upstream had already dropped.
+      - name: Regenerate types
+        run: npm run codegen
+
+      # Both paths, so a spec committed by hand without codegen is caught here
+      # too: the specs come back unchanged, the regenerated types do not, and
+      # this opens the PR that reconciles them.
       - name: Did anything change?
         id: drift
         run: |
-          if git diff --quiet -- specs; then
+          if git diff --quiet -- specs src/services/generated; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Vendored specs are unchanged."
+            echo "::notice::Vendored specs and generated types are unchanged."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            git diff --stat -- specs
+            git diff --stat -- specs src/services/generated
           fi
 
       # Against the freshly fetched specs, not the committed ones. Runs even
@@ -48,23 +58,46 @@ jobs:
           npx vitest run test/contract.test.ts 2>&1 | tee contract.log
           exit "${PIPESTATUS[0]}"
 
+      # The contract test reads the specs; this reads the types generated from
+      # them, so it catches the other half — a field whose *shape* changed under
+      # a mapper that still compiles against the old one. Non-fatal for the same
+      # reason as above: the PR must still open, carrying the bad news.
+      - name: Typecheck against the regenerated types
+        id: typecheck
+        continue-on-error: true
+        run: |
+          npm run typecheck 2>&1 | tee typecheck.log
+          exit "${PIPESTATUS[0]}"
+
       - name: Summarise
         id: verdict
         if: steps.drift.outputs.changed == 'true'
         run: |
           {
-            if [ "${{ steps.contract.outcome }}" = "success" ]; then
+            if [ "${{ steps.contract.outcome }}" = "success" ] \
+            && [ "${{ steps.typecheck.outcome }}" = "success" ]; then
               echo "The nightly re-fetch found spec changes, and every field this"
               echo "project reads is still declared. Additive drift; review and merge."
             else
               echo "**Upstream shipped a change this project does not survive.**"
               echo
-              echo "The contract test failed against the newly fetched specs — a field"
-              echo "an adapter reads is no longer declared. Failing entries:"
-              echo
-              echo '```'
-              grep -E 'renamed or removed|missing from the recorded' -A 4 contract.log | head -60 || true
-              echo '```'
+              if [ "${{ steps.contract.outcome }}" = "failure" ]; then
+                echo "The contract test failed against the newly fetched specs — a field"
+                echo "an adapter reads is no longer declared. Failing entries:"
+                echo
+                echo '```'
+                grep -E 'renamed or removed|missing from the recorded' -A 4 contract.log | head -60 || true
+                echo '```'
+                echo
+              fi
+              if [ "${{ steps.typecheck.outcome }}" = "failure" ]; then
+                echo "The project no longer typechecks against the regenerated types —"
+                echo "a field an adapter reads changed shape. Failing entries:"
+                echo
+                echo '```'
+                grep -E '^[^ ].*error TS' typecheck.log | head -40 || true
+                echo '```'
+              fi
             fi
           } > body.md
 
@@ -78,12 +111,14 @@ jobs:
           branch: chore/openapi-drift
           title: 'chore: upstream OpenAPI spec drift'
           body-path: body.md
-          commit-message: 'chore: refresh vendored OpenAPI specs'
-          add-paths: specs
+          commit-message: 'chore: refresh vendored OpenAPI specs and regenerate types'
+          add-paths: |
+            specs
+            src/services/generated
           delete-branch: true
 
-      - name: Fail if the contract broke
-        if: steps.contract.outcome == 'failure'
+      - name: Fail if either check broke
+        if: steps.contract.outcome == 'failure' || steps.typecheck.outcome == 'failure'
         run: |
           echo "::error::An upstream service changed a field an adapter reads."
           exit 1

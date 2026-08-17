@@ -16,8 +16,9 @@
 //    TypeScript 6 never meet.
 //
 //    That is sound because this tool is not part of the shipped artefact. Its
-//    *output* is committed and reviewed, CI never runs codegen, and a version
-//    bump is a visible diff rather than a silent runtime change.
+//    *output* is committed and reviewed, only the nightly drift workflow runs
+//    it, and a version bump is a visible diff rather than a silent runtime
+//    change.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 

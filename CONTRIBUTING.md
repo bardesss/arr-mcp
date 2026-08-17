@@ -399,9 +399,11 @@ config edit must not log you out of the page you are editing from.
 
 `specs/*.json` are upstream OpenAPI documents, refreshed by `npm run specs:fetch`
 and regenerated into `src/services/generated/` by `npm run codegen`. Both are
-committed. A nightly workflow re-fetches them and opens a PR when upstream
-changes, so **review `specs/` in that diff** — the generated files are output,
-not source, and are not meant to be read by hand.
+committed, and they move together — a spec refreshed without a regeneration
+leaves the types describing an API that no longer exists. A nightly workflow
+does both and opens a PR when either changes, so **review `specs/` in that
+diff** — the generated files are output, not source, and are not meant to be
+read by hand.
 
 Radarr, Sonarr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd and
 Transmission publish no usable spec and are hand-written against recorded
@@ -410,9 +412,11 @@ fixtures.
 ### The nightly compatibility check
 
 The same workflow runs `test/contract.test.ts` against the freshly fetched
-specs, so it can tell an upstream change that breaks this project from one that
-does not. A red run means a field an adapter reads is no longer declared; the
-PR body names it.
+specs and `npm run typecheck` against the types regenerated from them, so it
+can tell an upstream change that breaks this project from one that does not.
+The two catch different halves: the contract test, a field an adapter reads
+that is no longer declared; the typecheck, one that changed shape under a
+mapper. A red run means either; the PR body names the failing entries.
 
 The PR is opened with the default `GITHUB_TOKEN`, which GitHub refuses to let
 trigger other workflows, so it arrives with no status checks. Close and reopen
