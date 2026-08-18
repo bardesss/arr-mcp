@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/bardesss/arr-mcp/compare/v1.14.0...v1.15.0) (2026-08-18)
+
+
+### Features
+
+* add qBittorrent as a download client ([#150](https://github.com/bardesss/arr-mcp/issues/150)) ([243284d](https://github.com/bardesss/arr-mcp/commit/243284d72a07b1631abd6fa08fbe179469742c2a))
+
 ## [1.14.0](https://github.com/bardesss/arr-mcp/compare/v1.13.0...v1.14.0) (2026-08-16)
 
 
