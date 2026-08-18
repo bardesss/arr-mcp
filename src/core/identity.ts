@@ -5,7 +5,7 @@ import { ServiceError } from './errors.ts';
 type IdentityConfig = Pick<MultiUserServiceConfig, 'default_user' | 'allow_other_users'>;
 
 /**
- * Two of the eight services have their own user concepts, and
+ * Two of the nine services have their own user concepts, and
  * both issue admin-scoped keys — so one key plus a user parameter can query as
  * anybody. `allow_other_users` exists to make that deliberate rather than
  * incidental.

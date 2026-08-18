@@ -39,7 +39,7 @@ acting on text it read somewhere else.
 ## MCP01 Token Mismanagement and Secret Exposure
 
 **The risk.** Credentials in logs, in model context, in debug traces, in the
-transcript. This server holds up to eight service API keys plus its own bearer
+transcript. This server holds every service credential you configure plus its own bearer
 token, so it is a concentrated target.
 
 **What arr-mcp does.**
@@ -255,7 +255,7 @@ Note also that the container binds `0.0.0.0` by design, because it has to be
 reachable across the LAN. That drops the MCP SDK's default localhost Host and
 Origin validation, which is exactly why the `allowed_hosts` check exists as a
 replacement. If you forward that port from your router, the bearer token is the
-only thing between the internet and eight API keys. Do not do that.
+only thing between the internet and every credential in your stack. Do not do that.
 
 ## MCP08 Lack of Audit and Telemetry
 
@@ -289,7 +289,8 @@ pretending otherwise would be dishonest.
 
 What is relevant here: arr-mcp is deliberately **one server for the whole stack**
 rather than one per service, which is one fewer thing to lose track of, and the
-reason the tool count stays at twenty-four instead of multiplying by eight. The
+reason the tool count stays at twenty-four instead of multiplying by the number
+of services. The
 published image carries the `io.modelcontextprotocol.server.name` label, and the
 MCP Registry refuses to publish unless that label matches the server name it is
 claiming, so a lookalike image cannot claim this identity. `/healthz` reports the

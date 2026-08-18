@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { KeyedServiceConfig, MultiUserServiceConfig, TransmissionServiceConfig } from '../src/config/schema.ts';
+import type { KeyedServiceConfig, MultiUserServiceConfig, CredentialServiceConfig } from '../src/config/schema.ts';
 import { BazarrAdapter } from '../src/services/bazarr.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
+import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
@@ -39,8 +40,14 @@ const multiUser = (port: number): MultiUserServiceConfig => ({
     allow_other_users: false
 });
 
-const transmissionConfig: TransmissionServiceConfig = {
+const transmissionConfig: CredentialServiceConfig = {
     url: 'http://192.0.2.10:9091',
+    timeout_ms: 10_000,
+    permissions: { safe_write: false, destructive: false }
+};
+
+const qbittorrentConfig: CredentialServiceConfig = {
+    url: 'http://192.0.2.10:8081',
     timeout_ms: 10_000,
     permissions: { safe_write: false, destructive: false }
 };
@@ -479,4 +486,65 @@ describe('when a service added something', () => {
         const items = await radarr.listLibrary();
         expect(items[0]?.acquisition?.addedAt).toBeUndefined();
     });
+});
+
+describe('QbittorrentAdapter', () => {
+    const routes = {
+        '/api/v2/app/version': (fixture('qbittorrent/version.json') as { version: string }).version,
+        '/api/v2/app/preferences': fixture('qbittorrent/preferences.json'),
+        '/api/v2/sync/maindata': fixture('qbittorrent/maindata.json'),
+        '/api/v2/torrents/info': fixture('qbittorrent/torrents-info.json')
+    };
+    const adapter = new QbittorrentAdapter(qbittorrentConfig, serving(routes));
+
+    it('reads the version from a bare string body rather than JSON', async () => {
+        expect(await adapter.getVersion()).toMatch(/^v?\d+\.\d+/);
+    });
+
+    it('reports free space with no total, naming the disk from the save path', async () => {
+        const disks = await adapter.getDiskSpace();
+        expect(disks).toHaveLength(1);
+        expect(disks[0]?.service).toBe('qbittorrent');
+        expect(disks[0]?.path).toBe('/downloads');
+        expect(disks[0]?.totalSpace).toBeUndefined();
+        expect(disks[0]?.freeSpace).toBeGreaterThan(0);
+    });
+
+    it('returns no disk rows when free space is absent', async () => {
+        const bare = new QbittorrentAdapter(
+            qbittorrentConfig,
+            serving({ ...routes, '/api/v2/sync/maindata': { server_state: {} } })
+        );
+        expect(await bare.getDiskSpace()).toEqual([]);
+    });
+
+    it('maps qBittorrent states onto readable ones and fences the release name', async () => {
+        const items = await adapter.getQueue();
+        expect(items).toHaveLength(2);
+        expect(items[0]?.status).toBe('downloading');
+        expect(items[1]?.status).toBe('seeding (no peers)');
+        expect(items[0]?.protocol).toBe('torrent');
+        expect(items[0]?.title).toContain('<<untrusted:qbittorrent.name>>');
+    });
+
+    it('keys queue items on the info hash, which is what delete takes', async () => {
+        const items = await adapter.getQueue();
+        expect(items[0]?.id).toMatch(/^[0-9a-f]{40}$/);
+    });
+
+    it('drops the 100-day placeholder rather than promising a finish date', async () => {
+        const items = await adapter.getQueue();
+        expect(items[0]?.etaSeconds).toBe(614);
+        expect(items[1]?.etaSeconds).toBeUndefined();
+    });
+
+    it('reports an unrecognised state as unknown rather than guessing', async () => {
+        const odd = new QbittorrentAdapter(
+            qbittorrentConfig,
+            serving({ ...routes, '/api/v2/torrents/info': [{ hash: 'a'.repeat(40), name: 'x', state: 'newState' }] })
+        );
+        expect((await odd.getQueue())[0]?.status).toBe('unknown');
+    });
+
+    expectsAuthDiagnosis(new QbittorrentAdapter(qbittorrentConfig, unauthorized));
 });

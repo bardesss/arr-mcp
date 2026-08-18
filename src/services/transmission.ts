@@ -1,4 +1,4 @@
-import type { ServiceId, TransmissionServiceConfig } from '../config/schema.ts';
+import type { ServiceId, CredentialServiceConfig } from '../config/schema.ts';
 import { transmissionRpc } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -55,7 +55,7 @@ export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, Qu
     readonly id: string = 'transmission';
     readonly #http: ServiceHttp;
 
-    constructor(config: TransmissionServiceConfig, fetchImpl: typeof fetch = fetch) {
+    constructor(config: CredentialServiceConfig, fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp(
             'transmission',
             config,

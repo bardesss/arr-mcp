@@ -1,0 +1,17 @@
+{
+  "server_state": {
+    "alltime_dl": 0,
+    "alltime_ul": 0,
+    "connection_status": "connected",
+    "dht_nodes": 342,
+    "dl_info_data": 1073741824,
+    "dl_info_speed": 5242880,
+    "dl_rate_limit": 0,
+    "free_space_on_disk": 419430400000,
+    "queued_io_jobs": 0,
+    "up_info_data": 268435456,
+    "up_info_speed": 1048576,
+    "up_rate_limit": 0,
+    "use_alt_speed_limits": false
+  }
+}

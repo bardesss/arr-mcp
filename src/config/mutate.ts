@@ -87,7 +87,7 @@ const validate = (config: Config, services: Record<string, unknown>): Config => 
 };
 
 const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'seerr']);
-const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission']);
+const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent']);
 
 /**
  * Applies form fields to an entry, leaving a blank credential as it was.

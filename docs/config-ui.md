@@ -42,7 +42,7 @@ holds.
 
 ## Secrets
 
-**They never come back out.** API keys, the Transmission password and the UI
+**They never come back out.** API keys, the torrent-client passwords and the UI
 password all render as empty fields meaning *unchanged*, so a saved page or a
 screenshot cannot carry them. That is also why an empty field can never mean
 "clear this" — clearing is expressed by removing the instance.
@@ -61,13 +61,13 @@ sign-in page is untouched — that one *should* be filled.
 <img src="../screenshots/config-dark.png" alt="The configuration page: one card per configured instance, with its URL, credentials and per-instance write permissions" width="880">
 
 **The page starts empty.** It shows a card per instance you have actually
-configured, in alphabetical order, and an **Add a service** button — not eight
+configured, in alphabetical order, and an **Add a service** button — not nine
 blank fieldsets for services you do not run. Each card saves on its own, so
 editing your 4K Radarr cannot disturb the HD one.
 
 **Add a service** opens a dialog that only asks what the service needs: pick
-Transmission and it wants a username and password, pick anything else and it
-wants an API key. Services that can only have one instance drop out of the list
+Transmission or qBittorrent and it wants a username and password, pick anything
+else and it wants an API key. Services that can only have one instance drop out of the list
 once you have that one, so the picker never offers a choice that ends in
 "already configured". With scripting off the dialog is the plain form it used to
 be, every field showing, and the server still refuses what does not make sense.

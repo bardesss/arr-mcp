@@ -11,7 +11,7 @@
   <Project>https://github.com/bardesss/arr-mcp</Project>
   <Overview>
     One MCP server for the whole *arr stack, so an AI assistant can answer the questions that live between services rather than inside one.[br][br]
-    Speaks to Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr, SABnzbd and Transmission, correlates them on shared external ids, and answers things no single service can — "why isn't the film I requested on Tuesday showing up in Jellyfin?" walks the whole chain: requested, managed, indexed, downloaded, imported, scanned.[br][br]
+    Speaks to Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr, SABnzbd, Transmission and qBittorrent, correlates them on shared external ids, and answers things no single service can — "why isn't the film I requested on Tuesday showing up in Jellyfin?" walks the whole chain: requested, managed, indexed, downloaded, imported, scanned.[br][br]
     Configuration is a web page, not a YAML file: add your services from the UI, and it diagnoses each connection instead of printing pass/fail. Several Radarrs or Sonarrs are supported. Writes are off until you turn them on.[br][br]
     [b]Claim it before you expose the port.[/b] The first person to load the setup page chooses the username and password and owns the instance, so open the WebUI and claim it as soon as it starts.
   </Overview>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiKeyHeader, embyToken, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
+import { apiKeyHeader, embyToken, qbittorrentSession, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
 
 const ctx = (url = 'http://h:7878/api/v3/system/status', method = 'GET') => ({
     url: new URL(url),
@@ -71,5 +71,91 @@ describe('transmissionRpc', () => {
     it('does not claim recovery for an ordinary error status', () => {
         const auth = transmissionRpc({});
         expect(auth.recover?.(new Response('', { status: 401 }))).toBe(false);
+    });
+});
+
+describe('qbittorrentSession', () => {
+    const BASE = 'http://h:8081';
+    const forbidden = () => new Response('Forbidden', { status: 403 });
+    const loggedIn = (sid = 'sid-1') =>
+        new Response('Ok.', { status: 200, headers: { 'set-cookie': `SID=${sid}; path=/; HttpOnly` } });
+
+    const session = (over: Partial<Parameters<typeof qbittorrentSession>[0]> = {}, impl?: typeof fetch) =>
+        qbittorrentSession({
+            url: BASE,
+            timeoutMs: 1000,
+            username: 'u',
+            password: 'p',
+            ...over,
+            ...(impl === undefined ? {} : { fetchImpl: impl })
+        });
+
+    it('sends no cookie until it has logged in', () => {
+        const c = ctx(`${BASE}/api/v2/app/version`);
+        session().apply(c);
+        expect(c.headers.get('Cookie')).toBeNull();
+    });
+
+    it('logs in on a 403 and replays the SID on the next request', async () => {
+        const calls: { url: string; body: string }[] = [];
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            calls.push({ url: String(input), body: (init?.body as string) ?? '' });
+            return loggedIn();
+        }) as unknown as typeof fetch;
+
+        const auth = session({}, impl);
+        expect(await auth.recover?.(forbidden())).toBe(true);
+
+        const c = ctx(`${BASE}/api/v2/app/version`);
+        auth.apply(c);
+        expect(c.headers.get('Cookie')).toBe('SID=sid-1');
+        expect(calls[0]?.url).toBe(`${BASE}/api/v2/auth/login`);
+        expect(Object.fromEntries(new URLSearchParams(calls[0]?.body ?? ''))).toEqual({
+            username: 'u',
+            password: 'p'
+        });
+    });
+
+    it('honours a base URL that carries a path prefix', async () => {
+        let seen: string | undefined;
+        const impl = (async (input: string | URL | Request) => {
+            seen = String(input);
+            return loggedIn();
+        }) as unknown as typeof fetch;
+
+        await session({ url: 'http://h/qbit/' }, impl).recover?.(forbidden());
+        expect(seen).toBe('http://h/qbit/api/v2/auth/login');
+    });
+
+    // A wrong password is HTTP 200 with the body "Fails.".
+    it('treats a 200 "Fails." as an auth failure rather than a login', async () => {
+        const impl = (async () => new Response('Fails.', { status: 200 })) as unknown as typeof fetch;
+        await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/auth failed/i);
+    });
+
+    it('fails rather than silently continuing when login sets no cookie', async () => {
+        const impl = (async () => new Response('Ok.', { status: 200 })) as unknown as typeof fetch;
+        await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/no SID cookie/i);
+    });
+
+    it('names the ban when qBittorrent refuses the login itself', async () => {
+        const impl = (async () => new Response('', { status: 403 })) as unknown as typeof fetch;
+        await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/bans a client/i);
+    });
+
+    it('does not attempt a login when no credentials are configured', async () => {
+        let called = false;
+        const impl = (async () => {
+            called = true;
+            return loggedIn();
+        }) as unknown as typeof fetch;
+
+        const auth = qbittorrentSession({ url: BASE, timeoutMs: 1000, fetchImpl: impl });
+        expect(await auth.recover?.(forbidden())).toBe(false);
+        expect(called).toBe(false);
+    });
+
+    it('recovers from 403 only — a 404 is not an expired session', async () => {
+        expect(await session().recover?.(new Response('', { status: 404 }))).toBe(false);
     });
 });

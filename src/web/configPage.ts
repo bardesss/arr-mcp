@@ -44,7 +44,7 @@ export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].s
 /** Which extra fields each service actually has, so a card matches the schema
  *  rather than showing eight identical boxes. */
 const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'seerr']);
-const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission'];
+const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent'];
 const NO_API_KEY: ReadonlySet<string> = new Set(NO_API_KEY_IDS);
 
 type AnyService = {

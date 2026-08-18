@@ -8,7 +8,8 @@ export const ServiceIdSchema = z.enum([
     'jellyfin',
     'seerr',
     'sabnzbd',
-    'transmission'
+    'transmission',
+    'qbittorrent'
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
@@ -28,7 +29,7 @@ const UrlSchema = z.url().refine(u => u.startsWith('http://') || u.startsWith('h
 });
 
 /**
- * Shared by all eight. Every concrete schema below is a *strict* object, so a
+ * Shared by all nine. Every concrete schema below is a *strict* object, so a
  * misspelled key fails at startup instead of being silently dropped — which is
  * the difference between "my timeout setting does nothing" taking a minute to
  * diagnose or an afternoon.
@@ -138,18 +139,19 @@ const MultiUserServiceSchema = z.strictObject({
 export type MultiUserServiceConfig = z.infer<typeof MultiUserServiceSchema>;
 
 /**
- * Transmission's RPC has no API key — HTTP Basic auth plus an
- * `X-Transmission-Session-Id` handshake. Both credential parts are optional
- * because LAN instances are commonly unauthenticated.
+ * The two torrent clients, neither of which has an API key: Transmission takes
+ * HTTP Basic, qBittorrent a login that returns a cookie. Both credential parts
+ * are optional because a LAN Transmission is commonly unauthenticated and
+ * qBittorrent can bypass auth for localhost.
  */
-const TransmissionServiceSchema = z.strictObject({
+const CredentialServiceSchema = z.strictObject({
     ...BaseServiceShape,
     username: z.string().min(1).optional(),
     password: z.string().optional()
 });
-export type TransmissionServiceConfig = z.infer<typeof TransmissionServiceSchema>;
+export type CredentialServiceConfig = z.infer<typeof CredentialServiceSchema>;
 
-export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | TransmissionServiceConfig;
+export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | CredentialServiceConfig;
 
 /**
  * Refuses a list, and says which services take one.
@@ -184,7 +186,8 @@ const ServicesSchema = z
         sabnzbd: singleOnly(KeyedServiceSchema).optional(),
         jellyfin: singleOnly(MultiUserServiceSchema).optional(),
         seerr: singleOnly(MultiUserServiceSchema).optional(),
-        transmission: singleOnly(TransmissionServiceSchema).optional()
+        transmission: singleOnly(CredentialServiceSchema).optional(),
+        qbittorrent: singleOnly(CredentialServiceSchema).optional()
     })
     .default({});
 

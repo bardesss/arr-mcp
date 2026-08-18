@@ -6,7 +6,7 @@
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-**Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Seerr · SABnzbd · Transmission**
+**Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Seerr · SABnzbd · Transmission · qBittorrent**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
@@ -87,7 +87,7 @@ username and a password of at least 12 characters.
 > page first owns the instance — and it holds every service's API key.
 
 **3. Add your services** — **Add a service**, paste its URL and API key (or, for
-Transmission, its username and password), save. It applies immediately; there is
+Transmission and qBittorrent, its username and password), save. It applies immediately; there is
 no restart. Configure only what you run.
 
 Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
@@ -137,7 +137,7 @@ Twenty-four tools, but you never name them — you ask, and the model picks:
 
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.8+, Seerr 1.0+, SABnzbd 3.0+,
-  Transmission 3.0+
+  Transmission 3.0+, qBittorrent 4.1+
 - Docker, or Node 24+ to run from source
 - An MCP client speaking protocol revision `2026-07-28`
 
@@ -181,7 +181,7 @@ already exists.
 
 arr-mcp is **not designed to be exposed to the internet.** The `/mcp` endpoint
 requires a bearer token because "LAN-only" is a network assumption rather than a
-security control — it fronts up to eight API keys and, once enabled, file
+security control — it fronts every service credential you configure and, once enabled, file
 deletion, and a home network contains guest phones and IoT devices. Put it
 behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 `allowed_hosts` if you do.
@@ -199,7 +199,7 @@ to is free software maintained largely by volunteers — [Radarr](https://radarr
 [Sonarr](https://sonarr.tv), [Prowlarr](https://prowlarr.com),
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
-[Transmission](https://transmissionbt.com) — as are the libraries it is built
+[Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org) — as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),
 [Vitest](https://vitest.dev), [yaml](https://eemeli.org/yaml/) and

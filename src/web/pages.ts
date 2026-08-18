@@ -213,8 +213,8 @@ function sameSize(a: number, b: number): boolean {
  * numbers.
  *
  * A mount only joins a group whose total it does not contradict, which guards
- * against a false merge and folds in Transmission, which reports free space
- * with no total to contradict.
+ * against a false merge and folds in the torrent clients, which report free
+ * space with no total to contradict.
  *
  * Paths are dropped: which mount is `/storage` is a container-mapping
  * question, and this table answers whether anything is running out of room.

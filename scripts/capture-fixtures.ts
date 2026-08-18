@@ -14,7 +14,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadConfig } from '../src/config/load.ts';
 import type { Config, ServiceId } from '../src/config/schema.ts';
-import { apiKeyHeader, embyToken, queryParamKey, transmissionRpc, type AuthStrategy } from '../src/core/auth.ts';
+import {
+    apiKeyHeader,
+    embyToken,
+    qbittorrentSession,
+    queryParamKey,
+    transmissionRpc,
+    type AuthStrategy
+} from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 import { hostsOf, redactHosts } from './lib/redact.ts';
 
@@ -42,6 +49,9 @@ type Endpoint = {
     name: string;
     path: string | ((captured: Map<string, unknown>) => string | undefined);
     body?: unknown;
+    /** The response is a bare string rather than JSON — qBittorrent only.
+     *  `anonymise` is what shapes it into something writable as a fixture. */
+    text?: boolean;
     anonymise?: (body: unknown) => unknown;
 };
 
@@ -147,6 +157,27 @@ function anonymiseEpisodeFile(row: Row, index: number): Row {
         releaseGroup: replaceIfString(row.releaseGroup, 'GROUP')
     };
 }
+
+/** A torrent name is a release name, and an info hash identifies the release
+ *  exactly — both say what the user is downloading. */
+function anonymiseTorrent(row: Row, index: number): Row {
+    const n = index + 1;
+    return {
+        ...row,
+        name: replaceIfString(row.name, `Release.Name.${n}.1080p.WEB-DL.x264-GROUP`),
+        hash: replaceIfString(row.hash, String(n).repeat(40).slice(0, 40)),
+        save_path: replaceIfString(row.save_path, '/downloads'),
+        content_path: replaceIfString(row.content_path, `/downloads/release-${n}`),
+        download_path: replaceIfString(row.download_path, '/downloads'),
+        magnet_uri: replaceIfString(row.magnet_uri, 'magnet:?xt=urn:btih:__REDACTED__'),
+        tracker: replaceIfString(row.tracker, 'https://tracker.example.test/announce'),
+        category: replaceIfString(row.category, 'category'),
+        tags: replaceIfString(row.tags, '')
+    };
+}
+
+const anonymiseTorrents = (body: unknown): unknown =>
+    Array.isArray(body) ? (body as Row[]).map(anonymiseTorrent) : body;
 
 function anonymiseSeerrUser(row: Row, index: number): Row {
     const n = index + 1;
@@ -360,7 +391,26 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'queue', path: '/api?mode=queue&output=json' },
         { name: 'server-stats', path: '/api?mode=server_stats&output=json' }
     ],
-    transmission: [{ name: 'session-get', path: '/transmission/rpc', body: { method: 'session-get' } }]
+    transmission: [{ name: 'session-get', path: '/transmission/rpc', body: { method: 'session-get' } }],
+    qbittorrent: [
+        { name: 'version', path: '/api/v2/app/version', text: true, anonymise: body => ({ version: body }) },
+        { name: 'torrents-info', path: '/api/v2/torrents/info', anonymise: anonymiseTorrents },
+        // Trimmed to `server_state`: the rest of maindata is the same torrent
+        // list again, keyed by hash.
+        {
+            name: 'maindata',
+            path: '/api/v2/sync/maindata',
+            anonymise: body => ({ server_state: (body as { server_state?: unknown }).server_state ?? {} })
+        },
+        // Trimmed to the one field the adapter reads. The full preferences
+        // object carries `web_ui_password`, proxy credentials and RSS feeds,
+        // and `SECRET_KEY` matches none of those key names.
+        {
+            name: 'preferences',
+            path: '/api/v2/app/preferences',
+            anonymise: body => ({ save_path: (body as { save_path?: unknown }).save_path ?? '' })
+        }
+    ]
 };
 
 function strategyFor(id: ServiceId, service: NonNullable<Config['services'][ServiceId]>): AuthStrategy {
@@ -369,6 +419,15 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
         return transmissionRpc({
             ...(t.username === undefined ? {} : { username: t.username }),
             ...(t.password === undefined ? {} : { password: t.password })
+        });
+    }
+    if (id === 'qbittorrent') {
+        const q = service as { url: string; timeout_ms: number; username?: string; password?: string };
+        return qbittorrentSession({
+            url: q.url,
+            timeoutMs: q.timeout_ms,
+            ...(q.username === undefined ? {} : { username: q.username }),
+            ...(q.password === undefined ? {} : { password: q.password })
         });
     }
     const key = (service as { api_key: string }).api_key;
@@ -477,10 +536,11 @@ for (const instance of listInstances(config)) {
         }
 
         try {
-            const raw =
-                endpoint.body === undefined
-                    ? await http.get<unknown>(path)
-                    : await http.post<unknown>(path, endpoint.body);
+            const raw = endpoint.text
+                ? await http.getText(path)
+                : endpoint.body === undefined
+                  ? await http.get<unknown>(path)
+                  : await http.post<unknown>(path, endpoint.body);
             soFar.set(endpoint.name, raw);
 
             // Anonymise identity first, then redact credentials — so a value
