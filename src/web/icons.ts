@@ -43,6 +43,12 @@ export const ICONS: Record<ServiceId, string> = {
     ),
     transmission: draw(
         '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>'
+    ),
+    // Transmission already holds the download tray, so this one says the other
+    // half of what a torrent client does: the two directions at once.
+    qbittorrent: draw(
+        '<rect x="3" y="3" width="18" height="18" rx="3"/>' +
+            '<path d="M9 7.5v9m0 0-2.5-2.5M9 16.5l2.5-2.5"/><path d="M15 16.5v-9m0 0-2.5 2.5M15 7.5l2.5 2.5"/>'
     )
 };
 

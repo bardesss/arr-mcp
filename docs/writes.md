@@ -52,7 +52,7 @@ confirm rather than after.
 `remove_queue_item` is destructive rather than safe because it deletes partial
 data, and because `blocklist: true` durably teaches Radarr or Sonarr to refuse a
 release — which is hard to notice and hard to undo months later, when the same
-film mysteriously never grabs. SABnzbd and Transmission have no blocklist of
+film mysteriously never grabs. SABnzbd and the torrent clients have no blocklist of
 their own; ask for one there and the preview tells you it is being ignored
 rather than silently accepting a flag that does nothing.
 

@@ -15,7 +15,7 @@ describe('buildAdapters', () => {
         expect(buildAdapters(config).map(a => a.id)).toEqual(['radarr']);
     });
 
-    it('builds all eight in a stable, alphabetical order', () => {
+    it('builds all nine in a stable, alphabetical order', () => {
         const config = ConfigSchema.parse({
             auth: AUTH,
             services: {
@@ -26,7 +26,8 @@ describe('buildAdapters', () => {
                 sabnzbd: keyed(8080),
                 jellyfin: keyed(8096),
                 seerr: keyed(5055),
-                transmission: { url: 'http://h:9091', username: 'u', password: 'p' }
+                transmission: { url: 'http://h:9091', username: 'u', password: 'p' },
+                qbittorrent: { url: 'http://h:8081', username: 'u', password: 'p' }
             }
         });
 
@@ -35,12 +36,26 @@ describe('buildAdapters', () => {
             'bazarr',
             'jellyfin',
             'prowlarr',
+            'qbittorrent',
             'radarr',
             'sabnzbd',
             'seerr',
             'sonarr',
             'transmission'
         ]);
+    });
+
+    // Two torrent clients is a real setup — one for public trackers and one for
+    // private, or a migration with both running. Nothing here is exclusive.
+    it('builds both torrent clients when both are configured', () => {
+        const config = ConfigSchema.parse({
+            auth: AUTH,
+            services: {
+                transmission: { url: 'http://h:9091' },
+                qbittorrent: { url: 'http://h:8081', username: 'u', password: 'p' }
+            }
+        });
+        expect(buildAdapters(config).map(a => a.id)).toEqual(['qbittorrent', 'transmission']);
     });
 
     it('builds transmission without credentials, which LAN RPC often has none of', () => {

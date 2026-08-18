@@ -32,7 +32,7 @@ const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
  * that a list reports the whole count rather than the window, and that a write
  * happens in two calls rather than one.
  */
-const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd and Transmission downloads.
+const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd, Transmission and qBittorrent downloads.
 
 Reading:
 - \`get_library\` is the join across Radarr, Sonarr and Jellyfin — the only tool that can say a file one service believes in is missing from the other.

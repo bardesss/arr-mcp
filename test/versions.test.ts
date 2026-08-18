@@ -121,7 +121,8 @@ describe('assertVersionSupported against captured evidence', () => {
         jellyfin: (read('test/fixtures/jellyfin/system-info.json') as { Version: string }).Version,
         seerr: (read('test/fixtures/seerr/status.json') as { version: string }).version,
         sabnzbd: (read('test/fixtures/sabnzbd/version.json') as { version: string }).version,
-        transmission: (read('test/fixtures/transmission/session-get.json') as { arguments: { version: string } }).arguments.version
+        transmission: (read('test/fixtures/transmission/session-get.json') as { arguments: { version: string } }).arguments.version,
+        qbittorrent: (read('test/fixtures/qbittorrent/version.json') as { version: string }).version
     };
 
     for (const [service, version] of Object.entries(captured)) {

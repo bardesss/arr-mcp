@@ -28,7 +28,7 @@ export interface ServiceAdapter {
     getVersion(): Promise<string>;
 }
 
-/** `service` is on every row because stack_health merges up to eight services
+/** `service` is on every row because stack_health merges up to nine services
  *  into one list, and a failure that does not say who reported it is not
  *  actionable. */
 export type DiskSpace = {

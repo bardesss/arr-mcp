@@ -341,7 +341,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { path: '/discover/movies', method: 'get', fixture: 'test/fixtures/seerr/discover-movies.json', fields: ['results'] }
         ]
     },
-    // Bazarr, SABnzbd and Transmission publish no OpenAPI document, so the
+    // Bazarr, SABnzbd, Transmission and qBittorrent publish no OpenAPI document, so the
     // nightly job cannot see their drift. Fixture-only by necessity.
     bazarr: {
         dependencies: [
@@ -372,6 +372,17 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fixture: 'test/fixtures/transmission/session-get.json',
                 fields: ['result', 'arguments.version', 'arguments.download-dir', 'arguments.download-dir-free-space']
             }
+        ]
+    },
+    qbittorrent: {
+        dependencies: [
+            { fixture: 'test/fixtures/qbittorrent/version.json', fields: ['version'] },
+            {
+                fixture: 'test/fixtures/qbittorrent/torrents-info.json',
+                fields: ['hash', 'name', 'state', 'size', 'amount_left', 'eta']
+            },
+            { fixture: 'test/fixtures/qbittorrent/maindata.json', fields: ['server_state.free_space_on_disk'] },
+            { fixture: 'test/fixtures/qbittorrent/preferences.json', fields: ['save_path'] }
         ]
     }
 };

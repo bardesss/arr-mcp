@@ -21,7 +21,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasQueueRemove(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no download queue`, {
-            remedy: 'Queue items live on radarr, sonarr, sabnzbd and transmission. Take a service and id from get_queue.'
+            remedy: 'Queue items live on radarr, sonarr, sabnzbd, transmission and qbittorrent. Take a service and id from get_queue.'
         });
     }
     return adapter;
@@ -36,9 +36,9 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, SABnzbd and Transmission; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr and Sonarr only, blocklists the release so it will not be grabbed again. Previews by default — call again with the returned `confirm` token to actually remove it.',
+            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, SABnzbd, Transmission and qBittorrent; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr and Sonarr only, blocklists the release so it will not be grabbed again. Previews by default — call again with the returned `confirm` token to actually remove it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, sabnzbd or transmission.'),
+            service: ServiceIdSchema.describe('radarr, sonarr, sabnzbd, transmission or qbittorrent.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
             remove_from_client: z

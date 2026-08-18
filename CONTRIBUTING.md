@@ -212,11 +212,11 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Downloaded — where a grab actually lands**
 
-- **qBittorrent.** The most-deployed client this server cannot talk to, a
-  documented WebUI API, and the same slot Transmission and SABnzbd already fill.
-  No new tool.
-- **Deluge.** Same slot, same shape, documented JSON-RPC. Less widely deployed
-  than qBittorrent, which is the only thing separating them.
+- **Deluge.** The last mainstream client this server cannot talk to. Same slot
+  as SABnzbd, Transmission and qBittorrent, documented JSON-RPC, no new tool.
+  Its one wrinkle is that the Web UI talks to a separate daemon, so a reachable
+  Web UI with a disconnected daemon is a failure mode `testConnection` has to
+  report as itself rather than as a generic upstream error.
 
 **Imported and played — the library a person opens**
 
@@ -279,15 +279,16 @@ around them.
 1. **Add the service id** to `ServiceIdSchema` in `src/config/schema.ts`, and a
    schema for it in `ServicesSchema`. Reuse `KeyedServiceSchema` unless the
    service authenticates differently.
-2. **Pick or write an auth strategy** in `src/core/auth.ts`. The five existing
-   shapes cover most services; write a new one only if the service does
-   something genuinely different, as Transmission's session handshake does.
+2. **Pick or write an auth strategy** in `src/core/auth.ts`. The existing shapes
+   cover most services; write a new one only if the service does something
+   genuinely different, as Transmission's session handshake and qBittorrent's
+   cookie login do.
 3. **Add its endpoints** to `ENDPOINTS` in `scripts/capture-fixtures.ts` and run
    `npm run capture` against a live instance. Review the diff.
 4. **Write the adapter** in `src/services/<id>.ts`, implementing `ServiceAdapter`
    plus whichever capability interfaces the service actually supports.
    `src/services/sonarr.ts` is the simplest example; `src/services/transmission.ts`
-   is the most unusual.
+   and `src/services/qbittorrent.ts` are the most unusual.
 5. **Declare its contract** in `test/contract.test.ts` — the response fields your
    adapter reads. Omit the `spec` when the service publishes no OpenAPI document.
 6. **Register it** in `src/services/registry.ts`.
@@ -324,7 +325,7 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Three of the eight services publish no usable OpenAPI spec, so the adapter
+Four of the nine services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
@@ -383,7 +384,7 @@ loud:
   server-rendered through the escaping template, which is sound — but that one
   surface carries indexer text on a timer, and building nodes makes an XSS
   impossible rather than merely unlikely.
-- **A secret is never rendered back.** API keys, the Transmission password and
+- **A secret is never rendered back.** API keys, the torrent-client passwords and
   the UI password all render as empty fields meaning *unchanged*. That is also
   why an empty field can never mean "clear this" — clearing is expressed by
   switching the service off.
@@ -405,9 +406,9 @@ does both and opens a PR when either changes, so **review `specs/` in that
 diff** — the generated files are output, not source, and are not meant to be
 read by hand.
 
-Radarr, Sonarr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd and
-Transmission publish no usable spec and are hand-written against recorded
-fixtures.
+Radarr, Sonarr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd,
+Transmission and qBittorrent publish no usable spec and are hand-written against
+recorded fixtures.
 
 ### The nightly compatibility check
 

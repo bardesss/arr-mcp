@@ -1,12 +1,13 @@
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
-import type { AnyServiceConfig, KeyedServiceConfig, ServiceId, TransmissionServiceConfig } from '../src/config/schema.ts';
+import type { AnyServiceConfig, KeyedServiceConfig, ServiceId, CredentialServiceConfig } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
+import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
@@ -26,7 +27,7 @@ const keyed = (port: number): KeyedServiceConfig => ({
     permissions: { safe_write: false, destructive: false }
 });
 
-const transmissionConfig: TransmissionServiceConfig = {
+const transmissionConfig: CredentialServiceConfig = {
     url: 'http://192.0.2.10:9091',
     timeout_ms: 10_000,
     permissions: { safe_write: false, destructive: false }
@@ -1119,5 +1120,65 @@ describe('delete_episode_files', () => {
         await call({ service: 'sonarr', id: '7', episodes: ['11', '12'], confirm: token });
         const del = recorder.sent.find(s => s.method === 'DELETE');
         expect(del?.body).toEqual({ episodeFileIds: [102] });
+    });
+});
+
+describe('qBittorrent queue removal', () => {
+    const qbittorrentConfig: CredentialServiceConfig = {
+        url: 'http://192.0.2.10:8081',
+        timeout_ms: 10_000,
+        permissions: { safe_write: false, destructive: false }
+    };
+
+    const HASH = 'a'.repeat(40);
+
+    /** Form-encoded, so the shared `recordingFetch` (which JSON-parses bodies) does not fit. */
+    function formRecorder(existing: unknown[]) {
+        const sent: { path: string; method: string; fields: Record<string, string> }[] = [];
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            sent.push({
+                path: url.pathname,
+                method: init?.method ?? 'GET',
+                fields: Object.fromEntries(new URLSearchParams((init?.body as string) ?? ''))
+            });
+            if (url.pathname.endsWith('/torrents/info')) return jsonResponse(existing);
+            return new Response('', { status: 200 });
+        }) as unknown as typeof fetch;
+        return { impl, sent };
+    }
+
+    it('maps removeFromClient to deleteFiles, form-encoded', async () => {
+        const { impl, sent } = formRecorder([{ hash: HASH }]);
+        await new QbittorrentAdapter(qbittorrentConfig, impl).removeQueueItem(HASH, {
+            removeFromClient: true,
+            blocklist: false
+        });
+
+        const del = sent.find(s => s.method === 'POST');
+        expect(del?.path).toBe('/api/v2/torrents/delete');
+        expect(del?.fields).toEqual({ hashes: HASH, deleteFiles: 'true' });
+    });
+
+    it('keeps downloaded data when removeFromClient is false', async () => {
+        const { impl, sent } = formRecorder([{ hash: HASH }]);
+        await new QbittorrentAdapter(qbittorrentConfig, impl).removeQueueItem(HASH, {
+            removeFromClient: false,
+            blocklist: false
+        });
+        expect(sent.find(s => s.method === 'POST')?.fields.deleteFiles).toBe('false');
+    });
+
+    // qBittorrent answers 200 for a hash it has never seen, so without the
+    // existence check a typo reports a successful removal of nothing.
+    it('refuses an unknown hash rather than reporting a phantom removal', async () => {
+        const { impl, sent } = formRecorder([]);
+        await expect(
+            new QbittorrentAdapter(qbittorrentConfig, impl).removeQueueItem('deadbeef', {
+                removeFromClient: true,
+                blocklist: false
+            })
+        ).rejects.toThrow(/not found/i);
+        expect(sent.some(s => s.method === 'POST')).toBe(false);
     });
 });

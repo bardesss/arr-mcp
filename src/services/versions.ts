@@ -27,7 +27,9 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // output=json on the query-parameter API.
     sabnzbd: '3.0.0',
     // RPC session handshake and download-dir-free-space.
-    transmission: '3.0.0'
+    transmission: '3.0.0',
+    // The v2 WebUI API, which 4.1.0 introduced and nothing before it has.
+    qbittorrent: '4.1.0'
 };
 
 /** Digits only; a build suffix such as Transmission's "(838877323f)" is dropped. */

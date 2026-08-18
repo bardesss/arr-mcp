@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { KeyedServiceConfig, TransmissionServiceConfig } from '../src/config/schema.ts';
+import type { KeyedServiceConfig, CredentialServiceConfig } from '../src/config/schema.ts';
 import { parseTimeleft } from '../src/services/arrQueue.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
+import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { buildGetQueue } from '../src/tools/getQueue.ts';
@@ -18,8 +19,14 @@ const keyed = (port: number): KeyedServiceConfig => ({
     permissions: { safe_write: false, destructive: false }
 });
 
-const transmissionConfig: TransmissionServiceConfig = {
+const transmissionConfig: CredentialServiceConfig = {
     url: 'http://192.0.2.10:9091',
+    timeout_ms: 10_000,
+    permissions: { safe_write: false, destructive: false }
+};
+
+const qbittorrentConfig: CredentialServiceConfig = {
+    url: 'http://192.0.2.10:8081',
     timeout_ms: 10_000,
     permissions: { safe_write: false, destructive: false }
 };
@@ -74,8 +81,21 @@ const TRANSMISSION_TORRENTS = {
 
 const radarr = (body: unknown = RADARR_QUEUE) => new RadarrAdapter(keyed(7878), serving({ '/api/v3/queue': body }));
 const sabnzbd = () => new SabnzbdAdapter(keyed(8080), servingModes({ queue: SAB_QUEUE }));
+const QBITTORRENT_TORRENTS = [
+    {
+        hash: 'b'.repeat(40),
+        name: 'Some.Show.S02E04-GROUP',
+        state: 'downloading',
+        size: 8_000_000_000,
+        amount_left: 2_000_000_000,
+        eta: 300
+    }
+];
+
 const transmission = () =>
     new TransmissionAdapter(transmissionConfig, (async () => jsonResponse(TRANSMISSION_TORRENTS)) as unknown as typeof fetch);
+const qbittorrent = () =>
+    new QbittorrentAdapter(qbittorrentConfig, serving({ '/api/v2/torrents/info': QBITTORRENT_TORRENTS }));
 
 const opts = { detail: 'full' as const, limit: 50 };
 
@@ -323,5 +343,20 @@ describe('get_queue', () => {
         const many = { records: repeat(RADARR_QUEUE.records[0]!, 500) };
         const result = await buildGetQueue([radarr(many)], { detail: 'full', limit: 500 });
         expectWithinBudget(result, 40_000);
+    });
+});
+
+// Two torrent clients at once is a supported setup, not a misconfiguration.
+describe('both torrent clients configured', () => {
+    it('merges them and counts each under its own id', async () => {
+        const result = await buildGetQueue([transmission(), qbittorrent()], opts);
+
+        expect(result.counts).toEqual({ transmission: 1, qbittorrent: 1 });
+        expect(result.items.map(i => i.service).sort()).toEqual(['qbittorrent', 'transmission']);
+    });
+
+    it('sorts across both by ETA rather than by adapter order', async () => {
+        const result = await buildGetQueue([transmission(), qbittorrent()], opts);
+        expect(result.items.map(i => i.etaSeconds)).toEqual([300, 900]);
     });
 });

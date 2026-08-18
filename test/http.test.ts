@@ -436,3 +436,59 @@ describe('ServiceHttp auth recovery', () => {
         expect(calls).toBe(2);
     });
 });
+
+describe('ServiceHttp body encoding and response reading', () => {
+    it('sends form fields as urlencoded, not as JSON', async () => {
+        let seen: { type: string | null; body: string } | undefined;
+        const client = http(async (_i: string, init?: RequestInit) => {
+            seen = {
+                type: new Headers(init?.headers).get('content-type'),
+                body: (init?.body as string) ?? ''
+            };
+            return new Response('', { status: 200 });
+        });
+
+        await client.postForm('/api/v2/torrents/delete', { hashes: 'abc', deleteFiles: 'true' }, true);
+        expect(seen?.type).toBe('application/x-www-form-urlencoded');
+        expect(Object.fromEntries(new URLSearchParams(seen?.body ?? ''))).toEqual({
+            hashes: 'abc',
+            deleteFiles: 'true'
+        });
+    });
+
+    it('still sends JSON bodies as JSON', async () => {
+        let seen: string | null | undefined;
+        const client = http(async (_i: string, init?: RequestInit) => {
+            seen = new Headers(init?.headers).get('content-type');
+            return json({ ok: true });
+        });
+
+        await client.post('/api/v3/command', { name: 'RefreshMovie' });
+        expect(seen).toBe('application/json');
+    });
+
+    it('reads a bare string body without trying to parse it as JSON', async () => {
+        const client = http(async () => new Response('v5.0.4\n', { status: 200 }));
+        expect(await client.getText('/api/v2/app/version')).toBe('v5.0.4');
+    });
+
+    it('awaits an async recovery before replaying the request', async () => {
+        let calls = 0;
+        const auth = {
+            id: 'async-test',
+            apply: () => undefined,
+            recover: async (response: Response) => {
+                if (response.status !== 403) return false;
+                await Promise.resolve();
+                return calls === 1;
+            }
+        };
+        const client = http(async () => {
+            calls += 1;
+            return calls === 1 ? new Response('', { status: 403 }) : json({ ok: true });
+        }, auth);
+
+        expect(await client.get('/api/v2/app/version')).toEqual({ ok: true });
+        expect(calls).toBe(2);
+    });
+});

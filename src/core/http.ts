@@ -6,8 +6,20 @@ import { logger } from './logger.ts';
 export const CIRCUIT_THRESHOLD = 5;
 export const CIRCUIT_COOLDOWN_MS = 60_000;
 
+/** JSON everywhere but qBittorrent, whose WebUI takes form fields. */
+type RequestBody = { readonly json: unknown } | { readonly form: Record<string, string> };
+
+/** `text` for qBittorrent's `/api/v2/app/version`, which answers `v5.0.4` —
+ *  a bare string that is not valid JSON. */
+type ReadAs = 'json' | 'text' | 'none';
+
+const encodeBody = (body: RequestBody): { contentType: string; payload: string } =>
+    'form' in body
+        ? { contentType: 'application/x-www-form-urlencoded', payload: new URLSearchParams(body.form).toString() }
+        : { contentType: 'application/json', payload: JSON.stringify(body.json) };
+
 /**
- * The one implementation of the resilience policy. Eight
+ * The one implementation of the resilience policy. Nine
  * adapters sharing this is what makes "the breaker opens after five failures"
  * a checkable property of the stack rather than a property of Radarr.
  */
@@ -36,6 +48,11 @@ export class ServiceHttp {
         return this.#request<T>('GET', path, undefined, true);
     }
 
+    /** A read whose response is a bare string rather than JSON. */
+    async getText(path: string): Promise<string> {
+        return this.#request<string>('GET', path, undefined, true, 'text');
+    }
+
     /**
      * A GET that is not a read, and so must not be retried.
      *
@@ -61,7 +78,18 @@ export class ServiceHttp {
      * would start it a second time.
      */
     async post<T>(path: string, body: unknown, discardBody = false): Promise<T> {
-        return this.#request<T>('POST', path, body, false, discardBody);
+        return this.#request<T>(
+            'POST',
+            path,
+            body === undefined ? undefined : { json: body },
+            false,
+            discardBody ? 'none' : 'json'
+        );
+    }
+
+    /** qBittorrent's writes are form-encoded POSTs. Never auto-retried. */
+    async postForm<T>(path: string, fields: Record<string, string>, discardBody = false): Promise<T> {
+        return this.#request<T>('POST', path, { form: fields }, false, discardBody ? 'none' : 'json');
     }
 
     /**
@@ -71,7 +99,13 @@ export class ServiceHttp {
      * JSON", the same trap `delete` already documents.
      */
     async put<T>(path: string, body: unknown, discardBody = false): Promise<T> {
-        return this.#request<T>('PUT', path, body, false, discardBody);
+        return this.#request<T>(
+            'PUT',
+            path,
+            body === undefined ? undefined : { json: body },
+            false,
+            discardBody ? 'none' : 'json'
+        );
     }
 
     /**
@@ -85,19 +119,19 @@ export class ServiceHttp {
      * Like every write, it never auto-retries.
      */
     async delete(path: string): Promise<void> {
-        await this.#request<unknown>('DELETE', path, undefined, false, true);
+        await this.#request<unknown>('DELETE', path, undefined, false, 'none');
     }
 
     /** Bazarr's subtitle actions are PATCH with everything in the query string,
      *  answered with an empty 204. Like every write, never auto-retried. */
     async patch(path: string): Promise<void> {
-        await this.#request<unknown>('PATCH', path, undefined, false, true);
+        await this.#request<unknown>('PATCH', path, undefined, false, 'none');
     }
 
     /** Sonarr's bulk episode-file delete is a DELETE *with* a body, which
      *  `delete` cannot express. Same no-retry, same discarded body. */
     async deleteWithBody(path: string, body: unknown): Promise<void> {
-        await this.#request<unknown>('DELETE', path, body, false, true);
+        await this.#request<unknown>('DELETE', path, { json: body }, false, 'none');
     }
 
     // --- internals ---
@@ -105,9 +139,9 @@ export class ServiceHttp {
     async #request<T>(
         method: string,
         path: string,
-        body: unknown,
+        body: RequestBody | undefined,
         retryOnTimeout: boolean,
-        discardBody = false
+        read: ReadAs = 'json'
     ): Promise<T> {
         if (this.#circuitOpen()) {
             throw new ServiceError(
@@ -119,13 +153,13 @@ export class ServiceHttp {
         }
 
         try {
-            const result = await this.#attempt<T>(method, path, body, true, discardBody);
+            const result = await this.#attempt<T>(method, path, body, true, read);
             this.#recordSuccess();
             return result;
         } catch (err) {
             if (retryOnTimeout && err instanceof ServiceError && err.kind === 'Timeout') {
                 try {
-                    const result = await this.#attempt<T>(method, path, body, true, discardBody);
+                    const result = await this.#attempt<T>(method, path, body, true, read);
                     this.#recordSuccess();
                     return result;
                 } catch (retryErr) {
@@ -160,16 +194,17 @@ export class ServiceHttp {
     async #attempt<T>(
         method: string,
         path: string,
-        body: unknown,
+        body: RequestBody | undefined,
         allowRecovery = true,
-        discardBody = false
+        read: ReadAs = 'json'
     ): Promise<T> {
         // Prefixed, not resolved: every adapter path is absolute, and `new URL`
         // given an absolute path throws the base's own path away — which is how
         // a service behind a URL base got its requests sent to the host root.
         const url = new URL(this.#basePath + path, this.#baseUrl);
-        const headers = new Headers({ Accept: 'application/json' });
-        if (body !== undefined) headers.set('content-type', 'application/json');
+        const headers = new Headers({ Accept: read === 'text' ? '*/*' : 'application/json' });
+        const encoded = body === undefined ? undefined : encodeBody(body);
+        if (encoded !== undefined) headers.set('content-type', encoded.contentType);
 
         this.#auth.apply({ url, headers, method });
 
@@ -184,14 +219,14 @@ export class ServiceHttp {
                 method,
                 headers,
                 signal: AbortSignal.timeout(this.#timeoutMs),
-                ...(body === undefined ? {} : { body: JSON.stringify(body) })
+                ...(encoded === undefined ? {} : { body: encoded.payload })
             });
         } catch (err) {
             throw classifyFetchError(err, this.#id, safeUrl);
         }
 
-        if (allowRecovery && this.#auth.recover?.(response) === true) {
-            return this.#attempt<T>(method, path, body, false, discardBody);
+        if (allowRecovery && (await this.#auth.recover?.(response)) === true) {
+            return this.#attempt<T>(method, path, body, false, read);
         }
 
         const httpError = classifyHttpStatus(response.status, this.#id, safeUrl);
@@ -199,7 +234,8 @@ export class ServiceHttp {
 
         // The status line already said it worked, and nothing reads what comes
         // back. Parsing it anyway is how a successful delete becomes an error.
-        if (discardBody) return undefined as T;
+        if (read === 'none') return undefined as T;
+        if (read === 'text') return (await response.text()).trim() as T;
 
         try {
             return (await response.json()) as T;

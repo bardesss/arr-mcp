@@ -16,16 +16,27 @@ services:
     default_user: "you"      # required if jellyfin is configured — see below
   transmission:
     url: http://192.168.1.20:9091
-    username: "…"            # Transmission has no API key
+    username: "…"            # neither torrent client has an API key
+    password: "…"
+  qbittorrent:
+    url: http://192.168.1.20:8081
+    username: "…"
     password: "…"
 ```
 
-All eight service ids: `radarr`, `sonarr`, `prowlarr`, `bazarr`, `jellyfin`,
-`seerr`, `sabnzbd`, `transmission`. Configure only what you run — anything you
-leave out is simply absent, not broken.
+All nine service ids: `radarr`, `sonarr`, `prowlarr`, `bazarr`, `jellyfin`,
+`seerr`, `sabnzbd`, `transmission`, `qbittorrent`. Configure only what you run —
+anything you leave out is simply absent, not broken. Running both torrent
+clients at once is supported; their queues merge, each item labelled with the
+client it came from.
 
-A misspelled key, an unknown service, or an `api_key` on Transmission **fails at
-startup with the offending field named**, rather than being silently ignored.
+A misspelled key, an unknown service, or an `api_key` on a torrent client
+**fails at startup with the offending field named**, rather than being silently
+ignored.
+
+Both credential fields are optional on either client: Transmission's RPC is
+often unauthenticated on a LAN, and qBittorrent can bypass authentication for
+localhost. Leave them out and nothing logs in.
 
 Each service also takes an optional `permissions` block. Both flags default to
 false, so the config above is read-only — see [writes](writes.md).

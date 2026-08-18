@@ -229,7 +229,7 @@ const QUEUE_IMPORT_REMEDY =
 
 /** The download clients `queue` evidence can come from, so `degraded` folds
  *  into "could not fully look" the way `scan` and `indexers` already do. */
-const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'sabnzbd', 'transmission'];
+const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'sabnzbd', 'transmission', 'qbittorrent'];
 
 type QueueResult = { step: Step; remedy?: string };
 
