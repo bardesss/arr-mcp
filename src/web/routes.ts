@@ -3,6 +3,7 @@ import { saveConfig } from '../config/save.ts';
 import { ServiceIdSchema, ThemeSchema, type Config, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
+import { LoginThrottle } from '../core/loginThrottle.ts';
 import type { LogStore } from '../core/logs.ts';
 import type { Runtime } from '../core/runtime.ts';
 import {
@@ -144,6 +145,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     // --- login ----------------------------------------------------------
 
+    // Per app, not per module: tests build many apps and must not share a
+    // counter, and a real deployment builds exactly one.
+    const loginThrottle = new LoginThrottle();
+
     app.get('/ui/login', c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
         if (sessionOf(c, runtime) !== undefined) return c.redirect('/ui', 302);
@@ -152,6 +157,21 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.post('/ui/login', async c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
+
+        const waitMs = loginThrottle.blockedFor();
+        if (waitMs > 0) {
+            const seconds = Math.ceil(waitMs / 1000);
+            logger.warn({ ip: ipOf(c), seconds }, 'throttled config UI sign-in');
+            c.header('retry-after', String(seconds));
+            return c.html(
+                loginPage({
+                    version,
+                    error: `Too many failed attempts. Try again in ${seconds}s.`,
+                    theme: theme()
+                }),
+                429
+            );
+        }
 
         const form = await c.req.parseBody();
         const username = str(form.username);
@@ -166,12 +186,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const passOk = auth.password_hash !== undefined && (await verifyPassword(password, auth.password_hash));
 
         if (!nameOk || !passOk) {
+            loginThrottle.recordFailure();
             // No username: this field routinely catches a password typed into
             // the wrong box, and the record is rendered at /ui/logs.
             logger.warn({ ip: ipOf(c) }, 'rejected config UI sign-in');
             return c.html(loginPage({ version, error: 'Wrong username or password.', theme: theme() }), 401);
         }
 
+        loginThrottle.recordSuccess();
         const token = runtime.sessions.issue();
         c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
         logger.info({ ip: ipOf(c), username }, 'config UI sign-in');

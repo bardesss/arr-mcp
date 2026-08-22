@@ -184,6 +184,29 @@ describe('access control', () => {
         expect(written).not.toContain(typo);
     });
 
+    it('blocks sign-in after repeated failures, and says so', async () => {
+        cookie = '';
+
+        for (let i = 0; i < 5; i++) {
+            const res = await call('/ui/login', form({ username: 'admin', password: 'wrong' }));
+            expect(res.status).toBe(401);
+        }
+
+        const blocked = await call('/ui/login', form({ username: 'admin', password: 'wrong' }));
+        expect(blocked.status).toBe(429);
+        expect(blocked.headers.get('retry-after')).not.toBeNull();
+    });
+
+    it('does not reveal which field was wrong', async () => {
+        cookie = '';
+
+        const badUser = await call('/ui/login', form({ username: 'nobody', password: 'wrong' }));
+        const badPass = await call('/ui/login', form({ username: 'admin', password: 'wrong' }));
+
+        expect(badUser.status).toBe(badPass.status);
+        expect(await badUser.text()).toBe(await badPass.text());
+    });
+
     it('signs in and reaches the dashboard', async () => {
         await signIn();
         const res = await call('/ui');
