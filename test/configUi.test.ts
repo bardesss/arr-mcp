@@ -116,6 +116,13 @@ describe('access control', () => {
         expect(res.headers.get('location')).toBe('/ui/login');
     });
 
+    it('treats an undecodable session cookie as signed out rather than failing', async () => {
+        cookie = 'arr_mcp_session=%E0%A4';
+        const res = await call('/ui');
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/login');
+    });
+
     it('refuses the log API without a session rather than redirecting it', async () => {
         cookie = '';
         expect((await call('/ui/logs.json')).status).toBe(401);
@@ -185,7 +192,7 @@ describe('access control', () => {
 
     it('signs out', async () => {
         await signIn();
-        await call('/ui/logout', { method: 'POST' });
+        await call('/ui/logout', form({ csrf: await csrfFrom() }));
         expect((await call('/ui')).status).toBe(302);
     });
 });
@@ -1528,5 +1535,126 @@ describe('authenticated page caching', () => {
     it('does not send no-store on the stylesheet, which is cacheable and reveals nothing', async () => {
         cookie = '';
         expect((await call('/ui/app.css')).headers.get('cache-control')).not.toBe('no-store');
+    });
+});
+
+describe('ending sessions', () => {
+    it('signs existing sessions out when the password changes', async () => {
+        await signIn();
+        expect((await call('/ui')).status).toBe(200);
+
+        const before = cookie;
+        await call(
+            '/ui/config/account',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password-1234' })
+        );
+
+        // A cookie captured before the change no longer opens the dashboard.
+        cookie = before;
+        expect((await call('/ui')).status).toBe(302);
+    });
+
+    it('keeps the editor signed in after they change their own password', async () => {
+        await signIn();
+        await call(
+            '/ui/config/account',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password-1234' })
+        );
+
+        // `call` follows the Set-Cookie the save issued.
+        expect((await call('/ui')).status).toBe(200);
+    });
+
+    it('does not sign anyone out when only the username changed', async () => {
+        await signIn();
+        const before = cookie;
+        await call('/ui/config/account', form({ csrf: await csrfFrom(), 'auth.username': 'someone-else' }));
+
+        cookie = before;
+        expect((await call('/ui')).status).toBe(200);
+    });
+
+    it('a signed-out session cookie no longer works if replayed', async () => {
+        await signIn();
+        const stolen = cookie;
+        await call('/ui/logout', form({ csrf: await csrfFrom() }));
+
+        cookie = stolen;
+        expect((await call('/ui')).status).toBe(302);
+    });
+
+    // Every other state-changing form carries one, and sign-out now ends a
+    // session rather than only clearing a cookie.
+    it('refuses a sign-out with no CSRF token', async () => {
+        await signIn();
+        await call('/ui/logout', { method: 'POST' });
+
+        expect((await call('/ui')).status).toBe(200);
+    });
+});
+
+describe('claiming an instance', () => {
+    const claimBody = (password: string) => ({
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ username: 'admin', password, confirm: password }).toString()
+    });
+
+    it('refuses a claim carrying a foreign origin', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        const req = claimBody('a-good-password-1234');
+        const res = await call('/ui/setup', {
+            ...req,
+            headers: { ...req.headers, origin: 'http://evil.example' }
+        });
+
+        expect(res.status).toBe(403);
+        expect((await loadConfig(dir)).config.auth.password_hash).toBeUndefined();
+    });
+
+    it('refuses a claim the browser marked cross-site', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        const req = claimBody('a-good-password-1234');
+        const res = await call('/ui/setup', {
+            ...req,
+            headers: { ...req.headers, 'sec-fetch-site': 'cross-site' }
+        });
+
+        expect(res.status).toBe(403);
+    });
+
+    it('accepts a claim from its own origin', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        const req = claimBody('a-good-password-1234');
+        const res = await call('/ui/setup', {
+            ...req,
+            headers: { ...req.headers, origin: 'http://localhost:6060' }
+        });
+
+        expect(res.status).toBe(302);
+    });
+
+    // curl and the setup script send neither header; absence is not evidence.
+    it('accepts a claim from a client that sends no origin at all', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        expect((await call('/ui/setup', claimBody('a-good-password-1234'))).status).toBe(302);
+    });
+
+    it('only the first of two concurrent claims wins', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        const results = await Promise.all([
+            call('/ui/setup', claimBody('first-password-here')),
+            call('/ui/setup', claimBody('second-password-here'))
+        ]);
+
+        // Both redirect; only the winner is sent to the dashboard. The loser
+        // goes to the login page, because the instance is now claimed.
+        const destinations = results.map(r => r.headers.get('location')).sort();
+        expect(destinations).toEqual(['/ui', '/ui/login']);
     });
 });

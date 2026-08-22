@@ -213,7 +213,7 @@ describe('the write audit', () => {
     });
 
     it('renders each recorded argument as its own field', () => {
-        const page = auditPage({ version: '1.4.1', rows: [row()] });
+        const page = auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row()] });
 
         expect(page).toContain('<dt class="mono">delete_files</dt>');
         expect(page).toContain('<dd class="mono">true</dd>');
@@ -222,28 +222,29 @@ describe('the write audit', () => {
     });
 
     it('shows arguments that do not parse verbatim rather than dropping them', () => {
-        const page = auditPage({ version: '1.4.1', rows: [row({ args: 'not json at all' })] });
+        const page = auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ args: 'not json at all' })] });
         expect(page).toContain('not json at all');
     });
 
     // A log's value is that nothing goes missing from it, so a shape nobody
     // expected is a reason to print it, not to skip the row.
     it('survives arguments that are valid JSON but not an object', () => {
-        const page = auditPage({ version: '1.4.1', rows: [row({ args: '[1,2]' })] });
+        const page = auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ args: '[1,2]' })] });
         expect(page).toContain('[1,2]');
         expect(page).toContain('delete_media');
     });
 
     it('marks the outcomes worth stopping on, and leaves a preview unmarked', () => {
-        const marked = auditPage({ version: '1.4.1', rows: [row({ outcome: 'failed' })] });
+        const marked = auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ outcome: 'failed' })] });
         expect(marked).toContain('<span class="badge failed">failed</span>');
 
-        const plain = auditPage({ version: '1.4.1', rows: [row({ outcome: 'unconfirmed' })] });
+        const plain = auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ outcome: 'unconfirmed' })] });
         expect(plain).toContain('<span class="badge unconfirmed">unconfirmed</span>');
     });
 
     it('escapes a detail the service handed back', () => {
         const page = auditPage({
+            csrf: 'test-csrf',
             version: '1.4.1',
             rows: [row({ outcome: 'failed', detail: '<img src=x onerror=alert(1)>' })]
         });

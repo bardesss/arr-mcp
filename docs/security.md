@@ -243,6 +243,9 @@ so far.
   and a signed, expiring session cookie (12 hours). It is a bigger target than
   the MCP endpoint, because it displays every service's API key and can change
   them.
+- Sessions end when you end them: signing out revokes that token, and changing
+  the password revokes every session issued before it. Neither waits for the
+  cookie to expire or for a restart.
 - `allowed_hosts` is validated per request rather than frozen at startup, for
   the same reason: a security setting that appears to have applied when it has
   not is the worst kind.

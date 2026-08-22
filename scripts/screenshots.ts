@@ -35,10 +35,15 @@ const SCALE = 2;
 /** Never resolved. Every request under it is answered from memory. */
 const ORIGIN = 'http://arr-mcp.fixture';
 
+/** These pages render a sign-out form, which carries a CSRF token bound to a
+ *  session. There is no session here — this is a static render. */
+const SCREENSHOT_CSRF = 'screenshot';
+
 const PAGES: { name: string; html: string }[] = [
     {
         name: 'dashboard',
         html: dashboardPage({
+            csrf: SCREENSHOT_CSRF,
             version: fixture.VERSION,
             diagnoses: fixture.DIAGNOSES,
             configured: fixture.CONFIGURED,
@@ -63,6 +68,7 @@ const PAGES: { name: string; html: string }[] = [
     {
         name: 'logs',
         html: logsPage({
+            csrf: SCREENSHOT_CSRF,
             version: fixture.VERSION,
             services: fixture.LOG_SERVICES,
             selectedService: '',
@@ -73,7 +79,7 @@ const PAGES: { name: string; html: string }[] = [
     },
     {
         name: 'audit',
-        html: auditPage({ version: fixture.VERSION, rows: fixture.AUDIT_ROWS })
+        html: auditPage({ csrf: SCREENSHOT_CSRF, version: fixture.VERSION, rows: fixture.AUDIT_ROWS })
     }
 ];
 

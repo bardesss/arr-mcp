@@ -164,3 +164,55 @@ describe('cookies', () => {
         expect(clearedSessionCookie()).toContain('Max-Age=0');
     });
 });
+
+describe('readCookie with a malformed value', () => {
+    // decodeURIComponent throws on a bad escape, and sessionOf is called
+    // outside any try block with no onError handler registered.
+    it('treats a malformed percent-encoding as absent rather than throwing', () => {
+        expect(() => readCookie('arr_mcp_session=%E0%A4', 'arr_mcp_session')).not.toThrow();
+        expect(readCookie('arr_mcp_session=%E0%A4', 'arr_mcp_session')).toBeUndefined();
+    });
+
+    it('still decodes a well-formed encoded value', () => {
+        expect(readCookie('k=a%20b', 'k')).toBe('a b');
+    });
+});
+
+describe('ending sessions', () => {
+    it('rotating the key invalidates an outstanding session', () => {
+        const sessions = new Sessions();
+        const token = sessions.issue();
+        expect(sessions.verify(token).valid).toBe(true);
+
+        sessions.rotateKey();
+        expect(sessions.verify(token).valid).toBe(false);
+    });
+
+    it('issues usable sessions again after a rotation', () => {
+        const sessions = new Sessions();
+        sessions.rotateKey();
+        expect(sessions.verify(sessions.issue()).valid).toBe(true);
+    });
+
+    it('a revoked session stops verifying', () => {
+        const sessions = new Sessions();
+        const token = sessions.issue();
+        sessions.revoke(token);
+        expect(sessions.verify(token).valid).toBe(false);
+    });
+
+    it('revoking one session leaves another working', () => {
+        const sessions = new Sessions();
+        const mine = sessions.issue();
+        const theirs = sessions.issue();
+        sessions.revoke(mine);
+        expect(sessions.verify(theirs).valid).toBe(true);
+    });
+
+    // A forged string must not be able to grow the revocation set.
+    it('ignores a token it never issued', () => {
+        const sessions = new Sessions();
+        expect(() => sessions.revoke('not.a.token')).not.toThrow();
+        expect(() => sessions.revoke(undefined)).not.toThrow();
+    });
+});
