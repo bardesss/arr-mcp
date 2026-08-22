@@ -81,10 +81,24 @@ async function resolveItem(
             });
         }
 
-        const details = await probe(adapter.id, degraded, () =>
-            adapter.getMediaDetails(target.id as string, { includeEpisodes: false, episodeLimit: 1 })
-        );
-        if (details === undefined) return undefined;
+        // Not wrapped in `probe` wholesale: `probe` catches everything, so the
+        // NotFound a nonexistent id produces pushed the adapter into `degraded`
+        // and answered "radarr could not be checked" when Radarr had answered
+        // definitively — steering the caller toward reporting an outage instead
+        // of fixing the id. Degradation is for reachability, not for a service
+        // saying no. get_media_details throws legibly in the same situation.
+        let details;
+        try {
+            details = await adapter.getMediaDetails(target.id as string, {
+                includeEpisodes: false,
+                episodeLimit: 1
+            });
+        } catch (err) {
+            if (err instanceof ServiceError && err.kind === 'NotFound') throw err;
+            logger.warn({ service: adapter.id, err }, 'diagnose probe failed; the stage will report unknown');
+            if (!degraded.includes(adapter.id)) degraded.push(adapter.id);
+            return undefined;
+        }
 
         // Jellyfin's MediaDetails never says 'movie' or 'series' — it is the
         // one adapter that reports `kind: 'item'` for everything. Passing a
@@ -139,6 +153,16 @@ async function resolveItem(
 export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget): Promise<Evidence> {
     if (target.query === undefined && (target.service === undefined || target.id === undefined)) {
         throw new Error('Name either a query (a title) or both service and id.');
+    }
+
+    // Refused rather than dropped. `service` and `instance` scope an id
+    // lookup; a query is answered from the merged library index, which has no
+    // per-service keyspace to narrow. Ignoring them silently answered a
+    // different question than the one asked.
+    if (target.query !== undefined && (target.service !== undefined || target.instance !== undefined)) {
+        throw new Error(
+            'service and instance only apply when diagnosing by id. Pass an id with them, or a query on its own.'
+        );
     }
 
     const degraded: string[] = [];

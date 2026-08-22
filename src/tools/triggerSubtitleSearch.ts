@@ -92,18 +92,30 @@ export function registerTriggerSubtitleSearch(
                     `Queries every enabled subtitle provider for ${wanted.name} subtitles and downloads the best match it finds.`,
                     'Runs in the background — check get_subtitles again in a minute rather than expecting it to be done now.'
                 ],
-                args: { kind, id, language, forced, hearing_impaired }
+                // `seriesId` travels in the plan. `apply` used to re-fetch the
+                // whole wanted list to recover it, so a list that had refreshed
+                // in between silently dropped the id and Bazarr answered "an
+                // episode subtitle search needs the series id" — blaming a
+                // caller whose ids were right, after the token was consumed.
+                args: {
+                    kind,
+                    id,
+                    language,
+                    forced,
+                    hearing_impaired,
+                    ...(gap.seriesId === undefined ? {} : { seriesId: gap.seriesId })
+                }
             };
         },
 
-        async apply(_plan, { service, instance, kind, id, language, forced, hearing_impaired }) {
+        async apply(plan, { service, instance, kind, id, language, forced, hearing_impaired }) {
             const adapter = findAdapter(adapters, service, instance);
-            const gap = (await adapter.getMissingSubtitles()).find(g => g.kind === kind && String(g.id) === id);
+            const seriesId = plan.args?.seriesId as number | undefined;
 
             await adapter.triggerSubtitleSearch({
                 kind,
                 id: Number(id),
-                ...(gap?.seriesId === undefined ? {} : { seriesId: gap.seriesId }),
+                ...(seriesId === undefined ? {} : { seriesId }),
                 language,
                 forced,
                 hearingImpaired: hearing_impaired

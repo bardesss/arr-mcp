@@ -116,3 +116,48 @@ describe('get_calendar', () => {
         expectWithinBudget(result, 30_000);
     });
 });
+
+/**
+ * The summary counted `!i.hasFile` over the *projected* items, and `minimal`
+ * drops `hasFile` — so `!undefined` was true for every row and a fully
+ * downloaded calendar read "N without a file".
+ */
+describe('counting files at minimal detail', () => {
+    const DOWNLOADED = [
+        { id: 300, title: 'Have It', digitalRelease: '2026-08-07T00:00:00Z', hasFile: true, monitored: true },
+        { id: 301, title: 'Have It Too', digitalRelease: '2026-08-08T00:00:00Z', hasFile: true, monitored: true }
+    ];
+
+    it('reports nothing missing when every item has a file, even at minimal', async () => {
+        const result = await buildGetCalendar([radarr(DOWNLOADED)], {
+            detail: 'minimal',
+            limit: 50,
+            daysBack: 7,
+            daysAhead: 14,
+            now
+        });
+
+        expect(result.items[0]?.hasFile).toBeUndefined(); // the premise: minimal drops it
+        expect(result.missingFiles).toBe(0);
+    });
+
+    it('still counts the ones actually missing a file', async () => {
+        const result = await buildGetCalendar([radarr()], {
+            detail: 'minimal',
+            limit: 50,
+            daysBack: 7,
+            daysAhead: 14,
+            now
+        });
+
+        expect(result.missingFiles).toBe(2);
+    });
+
+    it('agrees with the full-detail count', async () => {
+        const opts = { limit: 50, daysBack: 7, daysAhead: 14, now };
+        const minimal = await buildGetCalendar([radarr()], { ...opts, detail: 'minimal' as const });
+        const full = await buildGetCalendar([radarr()], { ...opts, detail: 'full' as const });
+
+        expect(minimal.missingFiles).toBe(full.missingFiles);
+    });
+});

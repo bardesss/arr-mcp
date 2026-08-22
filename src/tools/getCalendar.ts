@@ -11,6 +11,9 @@ export type GetCalendarResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
+    /** How many returned items have no file yet. Counted before the detail
+     *  projection, which drops `hasFile` at `minimal`. */
+    missingFiles: number;
     /**
      * Keyed by **adapter id**, not by service type: a named instance reports
      * under `radarr/4k`. Widened from `ServiceId` for the reason
@@ -64,7 +67,18 @@ export async function buildGetCalendar(
     items.sort((a, b) => a.date.localeCompare(b.date));
 
     const shaped = applyLimit(items, opts.limit, opts.offset);
-    return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
+
+    // Counted before projecting. `minimal` drops `hasFile`, and `!undefined`
+    // is true, so counting the projected items reported every row as missing.
+    const missingFiles = shaped.items.filter(i => !i.hasFile).length;
+
+    return {
+        ...shaped,
+        items: shaped.items.map(i => project(i, opts.detail)),
+        degraded,
+        counts,
+        missingFiles
+    };
 }
 
 export function registerGetCalendar(server: McpServer, adapters: readonly ServiceAdapter[]): void {
@@ -75,7 +89,13 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             annotations: READ_ONLY,
             description:
                 'Films and episodes due in a date window, merged from Radarr and Sonarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file.',
-            outputSchema: PagedOutputSchema,
+            outputSchema: PagedOutputSchema.extend({
+                missingFiles: z
+                    .number()
+                    .describe(
+                        'How many of the returned items have no file yet. Counted before the detail projection, so it is right at every detail level.'
+                    )
+            }),
             inputSchema: toolInput({
                 detail: DetailSchema,
                 limit: LimitSchema,
@@ -92,7 +112,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
                 daysBack: days_back,
                 daysAhead: days_ahead
             });
-            const missing = result.items.filter(i => !i.hasFile).length;
+            const missing = result.missingFiles;
             const summary =
                 `${result.returned} of ${result.total} item(s) between ${days_back} days back and ${days_ahead} ahead` +
                 (missing > 0 ? `, ${missing} without a file` : '') +

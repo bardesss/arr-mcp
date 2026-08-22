@@ -179,3 +179,49 @@ describe('clean_queue', () => {
         await expect(h.call({ service: 'jellyfin', dry_run: true })).rejects.toThrow(/queue/i);
     });
 });
+
+/**
+ * Removal used to throw on the first failure, which audited the whole write as
+ * failed and told the caller nothing about the items that *had* been removed —
+ * so a retry re-planned against a queue that had already changed underneath it.
+ */
+describe('partial removal', () => {
+    const failingOn = (bad: (id: string) => boolean): ServiceAdapter => {
+        const adapter = {
+            id: 'radarr',
+            type: 'radarr',
+            getVersion: async () => '5.0.0',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+            getQueue: async () => [
+                { service: 'radarr', id: 'a', title: 'A', status: 'completed', importState: 'importBlocked', orphaned: true, protocol: 'torrent' },
+                { service: 'radarr', id: 'b', title: 'B', status: 'completed', importState: 'importBlocked', orphaned: true, protocol: 'torrent' }
+            ],
+            supportsBlocklist: true,
+            removeQueueItem: async (id: string) => {
+                if (bad(id)) throw new Error('gone already');
+            }
+        } as unknown as ServiceAdapter;
+        return adapter;
+    };
+
+    it('reports how many were removed when one fails', async () => {
+        const h = harness([], { adapters: [failingOn(id => id === 'b')] });
+        const first = await h.call(args);
+        const second = await h.call({ ...args, confirm: first.structuredContent.confirm_token });
+
+        // The apply return travels in structuredContent.result; content[0] is
+        // the plan summary the harness reports for every write.
+        const result = String((second.structuredContent as { result?: unknown }).result ?? '');
+        expect(result).toContain('1 of 2');
+        expect(result).toContain('gone already');
+    });
+
+    it('still fails outright when nothing could be removed', async () => {
+        const h = harness([], { adapters: [failingOn(() => true)] });
+        const first = await h.call(args);
+
+        await expect(h.call({ ...args, confirm: first.structuredContent.confirm_token })).rejects.toThrow(
+            /none of the 2/i
+        );
+    });
+});

@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import { logger } from '../core/logger.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -69,11 +70,42 @@ export function registerCleanQueue(
             const adapter = findAdapter(adapters, service, instance);
             const ids = (plan.args?.ids ?? []) as string[];
 
+            // Caught per item. Throwing on the first failure audited the whole
+            // write as failed and told the caller nothing about the ones that
+            // *had* been removed — so a retry re-planned against a queue that
+            // had already changed underneath it.
+            //
+            // Deliberately still serial: removal is two calls per item on some
+            // clients, and qBittorrent bans a client that bursts at it.
+            const removed: string[] = [];
+            const failed: string[] = [];
             for (const id of ids) {
-                await adapter.removeQueueItem(id, { removeFromClient: true, blocklist: false });
+                try {
+                    await adapter.removeQueueItem(id, { removeFromClient: true, blocklist: false });
+                    removed.push(id);
+                } catch (err) {
+                    logger.warn({ service: adapter.id, id, err }, 'queue item removal failed; continuing');
+                    failed.push(`${id} (${(err as Error).message})`);
+                }
             }
 
-            return `Removed ${ids.length} orphaned item(s) from ${adapter.id}'s queue.`;
+            if (removed.length === 0 && failed.length > 0) {
+                throw new ServiceError(
+                    'UpstreamError',
+                    adapter.id,
+                    `none of the ${failed.length} orphaned item(s) could be removed: ${failed.join('; ')}`
+                );
+            }
+
+            if (failed.length > 0) {
+                return (
+                    `Removed ${removed.length} of ${ids.length} orphaned item(s) from ${adapter.id}'s queue. ` +
+                    `${failed.length} could not be removed: ${failed.join('; ')}. ` +
+                    `Run the preview again — the queue has changed.`
+                );
+            }
+
+            return `Removed ${removed.length} orphaned item(s) from ${adapter.id}'s queue.`;
         }
     });
 }

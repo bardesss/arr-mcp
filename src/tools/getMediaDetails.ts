@@ -201,9 +201,14 @@ export function registerGetMediaDetails(
                         ? `${result.kind}, presence could not be determined.`
                         : `${result.kind}, present in: ${result.presence}.`
                     : `${result.kind} from ${result.service}` +
+                      // `episodes` is only fetched at detail: full. Reporting
+                      // "0 of 62" below that read as an empty series rather
+                      // than as episodes nobody asked for.
                       (result.episodeCount === undefined
                           ? '.'
-                          : `, ${result.episodes?.length ?? 0} of ${result.episodeCount} episode(s).`);
+                          : result.episodes === undefined
+                            ? `, ${result.episodeCount} episode(s) — ask for detail: full to list them.`
+                            : `, ${result.episodes.length} of ${result.episodeCount} episode(s).`);
 
             return { content: [{ type: 'text', text: summary }], structuredContent: result };
         }

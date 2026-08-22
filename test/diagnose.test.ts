@@ -485,3 +485,63 @@ describe('diagnose', () => {
         );
     });
 });
+
+describe('a definitive answer is not an outage', () => {
+    /**
+     * `probe` catches everything, so the NotFound a nonexistent id produces
+     * pushed the adapter into `degraded` and answered "radarr could not be
+     * checked" — steering the caller toward reporting an outage rather than
+     * fixing the id. get_media_details throws legibly in the same situation.
+     */
+    it('reports a bad id as not found rather than degrading the service', async () => {
+        const adapters = [
+            stub('radarr', {
+                listLibrary: async () => [FILM],
+                getQueue: async () => [],
+                getMediaDetails: async () => {
+                    throw new ServiceError('NotFound', 'radarr', 'radarr not found: no movie with id 9999');
+                }
+            })
+        ];
+        const withMissing: DiagnoseDeps = { adapters, library: new LibraryLoader(adapters, undefined) };
+
+        await expect(buildDiagnose(withMissing, { service: 'radarr', id: '9999' })).rejects.toThrow(/not found/i);
+    });
+
+    it('still degrades when the service is unreachable', async () => {
+        const adapters = [
+            stub('radarr', {
+                listLibrary: async () => [FILM],
+                getQueue: async () => [],
+                getMediaDetails: async () => {
+                    throw new ServiceError('Unreachable', 'radarr', 'radarr unreachable: connection refused');
+                }
+            })
+        ];
+        const withDown: DiagnoseDeps = { adapters, library: new LibraryLoader(adapters, undefined) };
+
+        const d = await buildDiagnose(withDown, { service: 'radarr', id: '1' });
+        expect(d.degraded).toContain('radarr');
+    });
+});
+
+describe('scoping that cannot be applied', () => {
+    // A query is answered from the merged index, which has no per-service
+    // keyspace to narrow — so a service or instance alongside one was silently
+    // dropped, answering a different question than the one asked.
+    it('refuses a query scoped to a service', async () => {
+        await expect(collectEvidence(deps(), { query: 'some film', service: 'radarr' })).rejects.toThrow(
+            /only apply when diagnosing by id/i
+        );
+    });
+
+    it('refuses a query scoped to an instance', async () => {
+        await expect(collectEvidence(deps(), { query: 'some film', instance: '4k' })).rejects.toThrow(
+            /only apply when diagnosing by id/i
+        );
+    });
+
+    it('still accepts a query on its own, and a service with an id', async () => {
+        await expect(collectEvidence(deps(), { query: 'some film' })).resolves.toBeDefined();
+    });
+});
