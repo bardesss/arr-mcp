@@ -116,6 +116,13 @@ describe('access control', () => {
         expect(res.headers.get('location')).toBe('/ui/login');
     });
 
+    it('treats an undecodable session cookie as signed out rather than failing', async () => {
+        cookie = 'arr_mcp_session=%E0%A4';
+        const res = await call('/ui');
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/login');
+    });
+
     it('refuses the log API without a session rather than redirecting it', async () => {
         cookie = '';
         expect((await call('/ui/logs.json')).status).toBe(401);

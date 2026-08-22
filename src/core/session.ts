@@ -165,7 +165,15 @@ export function readCookie(header: string | undefined, name: string): string | u
     for (const part of header.split(';')) {
         const index = part.indexOf('=');
         if (index === -1) continue;
-        if (part.slice(0, index).trim() === name) return decodeURIComponent(part.slice(index + 1).trim());
+        if (part.slice(0, index).trim() === name) {
+            try {
+                return decodeURIComponent(part.slice(index + 1).trim());
+            } catch {
+                // A cookie we cannot decode is one we did not issue. Throwing
+                // here reached the route guard, which has no handler above it.
+                return undefined;
+            }
+        }
     }
     return undefined;
 }

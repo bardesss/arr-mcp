@@ -164,3 +164,16 @@ describe('cookies', () => {
         expect(clearedSessionCookie()).toContain('Max-Age=0');
     });
 });
+
+describe('readCookie with a malformed value', () => {
+    // decodeURIComponent throws on a bad escape, and sessionOf is called
+    // outside any try block with no onError handler registered.
+    it('treats a malformed percent-encoding as absent rather than throwing', () => {
+        expect(() => readCookie('arr_mcp_session=%E0%A4', 'arr_mcp_session')).not.toThrow();
+        expect(readCookie('arr_mcp_session=%E0%A4', 'arr_mcp_session')).toBeUndefined();
+    });
+
+    it('still decodes a well-formed encoded value', () => {
+        expect(readCookie('k=a%20b', 'k')).toBe('a b');
+    });
+});
