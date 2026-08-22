@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.4](https://github.com/bardesss/arr-mcp/compare/v1.15.3...v1.15.4) (2026-08-22)
+
+
+### Bug Fixes
+
+* run the IMDb ingest off the event loop ([#163](https://github.com/bardesss/arr-mcp/issues/163)) ([e56d5b9](https://github.com/bardesss/arr-mcp/commit/e56d5b99238f36950f5edd82e4b3023bf77fa332))
+* stop tools answering a different question than the one asked ([#162](https://github.com/bardesss/arr-mcp/issues/162)) ([f874c83](https://github.com/bardesss/arr-mcp/commit/f874c83707efc14a939aaa185828b9c101330095))
+
 ## [1.15.3](https://github.com/bardesss/arr-mcp/compare/v1.15.2...v1.15.3) (2026-08-22)
 
 
