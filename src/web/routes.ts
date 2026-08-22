@@ -161,10 +161,15 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // a session predating a credential reset must not outlive it.
     const guard = (c: Context): string | undefined => (unclaimed() ? undefined : sessionOf(c, runtime));
 
+    // Every page behind `guard` sends `cache-control: no-store`. The dashboard
+    // renders the MCP bearer token into its own HTML, and signing out does not
+    // invalidate a cached copy of it.
+
     app.get('/', c => c.redirect(guard(c) === undefined ? entry() : '/ui', 302));
 
     app.get('/ui', async c => {
         if (guard(c) === undefined) return c.redirect(entry(), 302);
+        c.header('cache-control', 'no-store');
 
         const snapshot = runtime.current;
 
@@ -203,6 +208,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.get('/ui/logs', c => {
         if (guard(c) === undefined) return c.redirect(entry(), 302);
+        c.header('cache-control', 'no-store');
 
         const { stream, minLevel, service } = logQuery(c, logs);
         const url = `/ui/logs.json?stream=${stream}&service=${encodeURIComponent(service ?? '')}`;
@@ -233,6 +239,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.get('/ui/audit', c => {
         if (guard(c) === undefined) return c.redirect(entry(), 302);
+        c.header('cache-control', 'no-store');
         return c.html(auditPage({ version, rows: audit.recent(300) as AuditRow[], theme: theme() }));
     });
 
@@ -275,6 +282,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.get('/ui/config', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
+        c.header('cache-control', 'no-store');
         return c.html(
             configPage({
                 version,

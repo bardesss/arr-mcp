@@ -1504,3 +1504,29 @@ describe('the IMDb dataset in the config UI', () => {
         expect(runtime.config.metadata).toBeUndefined();
     });
 });
+
+/**
+ * The dashboard renders the MCP bearer token into its own HTML. /ui/logs.json
+ * already sends no-store; the pages carrying the credential sent nothing, so
+ * they persisted in disk cache and bfcache after a sign-out.
+ */
+describe('authenticated page caching', () => {
+    it('sends no-store on the dashboard, which renders the bearer token', async () => {
+        await signIn();
+        const res = await call('/ui');
+        expect(await res.text()).toContain(BEARER); // the premise: the token really is in the page
+        expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('sends no-store on every authenticated page', async () => {
+        await signIn();
+        for (const path of ['/ui', '/ui/logs', '/ui/audit', '/ui/config']) {
+            expect((await call(path)).headers.get('cache-control'), path).toBe('no-store');
+        }
+    });
+
+    it('does not send no-store on the stylesheet, which is cacheable and reveals nothing', async () => {
+        cookie = '';
+        expect((await call('/ui/app.css')).headers.get('cache-control')).not.toBe('no-store');
+    });
+});
