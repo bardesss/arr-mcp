@@ -767,10 +767,19 @@ describe('request body limit', () => {
     const oversized = 'x'.repeat(5 * 1024 * 1024);
 
     it('refuses an oversized body on /mcp before checking the token', async () => {
+        // With a declared Content-Length, hono/body-limit takes its early-return
+        // branch — the one `@hono/node-server` actually forwards the client's
+        // header into in production. No header (the other test below) exercises
+        // the streaming/counting branch instead; both need coverage.
+        const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { pad: oversized } });
         const res = await app().request('http://localhost:6060/mcp', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
-            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { pad: oversized } })
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json, text/event-stream',
+                'Content-Length': String(Buffer.byteLength(body))
+            },
+            body
         });
 
         // 413 rather than 401: the point is that the limit runs first. A 401

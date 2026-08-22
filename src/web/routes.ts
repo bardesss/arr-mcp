@@ -122,14 +122,17 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // uses: `parseBody` and `saveConfig` both yield, so the check at the top
         // of this handler is not still true by the time the write lands.
         if (!unclaimed()) return c.redirect('/ui/login', 302);
+        // Captured before hashPassword yields, so a concurrent reload cannot
+        // make `expected` newer than the config this write was built from.
+        const expected = runtime.config;
         try {
             await saveConfig(
                 runtime.configDir,
                 {
-                    ...runtime.config,
-                    auth: { ...runtime.config.auth, username, password_hash: await hashPassword(password) }
+                    ...expected,
+                    auth: { ...expected.auth, username, password_hash: await hashPassword(password) }
                 },
-                { expected: runtime.config }
+                { expected }
             );
         } catch {
             // Someone else claimed it while this request was in flight.
@@ -161,7 +164,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const waitMs = loginThrottle.blockedFor();
         if (waitMs > 0) {
             const seconds = Math.ceil(waitMs / 1000);
-            logger.warn({ ip: ipOf(c), seconds }, 'throttled config UI sign-in');
             c.header('retry-after', String(seconds));
             return c.html(
                 loginPage({
@@ -171,6 +173,17 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 }),
                 429
             );
+        }
+
+        // Reserved before the first await, not after verifying: a burst of
+        // concurrent posts all read `blockedFor() === 0` before any of them
+        // resolves `verifyPassword`, so without this every one of them would
+        // reach the scrypt hash regardless of FREE_ATTEMPTS. A real login
+        // clears the reservation below, via `recordSuccess`.
+        const justBlocked = loginThrottle.recordFailure();
+        if (justBlocked) {
+            const seconds = Math.ceil(loginThrottle.blockedFor() / 1000);
+            logger.warn({ ip: ipOf(c), seconds }, 'throttled config UI sign-in');
         }
 
         const form = await c.req.parseBody();
@@ -186,7 +199,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const passOk = auth.password_hash !== undefined && (await verifyPassword(password, auth.password_hash));
 
         if (!nameOk || !passOk) {
-            loginThrottle.recordFailure();
             // No username: this field routinely catches a password typed into
             // the wrong box, and the record is rendered at /ui/logs.
             logger.warn({ ip: ipOf(c) }, 'rejected config UI sign-in');
@@ -395,6 +407,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
             const form = await c.req.parseBody();
 
+            // Captured before `next(form)` yields (`buildAccountConfig` awaits
+            // `hashPassword`), so a concurrent reload cannot make this newer
+            // than the config the form below was built from.
+            const expected = runtime.config;
+
             // Cards collapse by default, so the one you just submitted has to be
             // named or the page swallows the outcome of what you did. Absent on
             // an add, whose form carries no instance id — there is no card yet.
@@ -442,7 +459,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // `expected` is the snapshot this page's form was built from,
                 // so a service hand-added to config.yaml since then is a
                 // refusal rather than a silent deletion under a "Saved" banner.
-                await saveConfig(runtime.configDir, updated, { expected: runtime.config });
+                await saveConfig(runtime.configDir, updated, { expected });
                 await runtime.reload();
 
                 if (opts.endsSessions?.(form) === true) {

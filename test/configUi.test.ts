@@ -1,15 +1,17 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
+import { FREE_ATTEMPTS } from '../src/core/loginThrottle.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
+import * as session from '../src/core/session.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
 
 /**
@@ -195,6 +197,26 @@ describe('access control', () => {
         const blocked = await call('/ui/login', form({ username: 'admin', password: 'wrong' }));
         expect(blocked.status).toBe(429);
         expect(blocked.headers.get('retry-after')).not.toBeNull();
+    });
+
+    // Regression guard for the race the throttle exists to close: a burst of
+    // concurrent posts all read `blockedFor() === 0` before any of them
+    // resolves `verifyPassword`, so the reservation has to happen ahead of
+    // that await or the free-attempt count bounds nothing under concurrency.
+    it('reserves an attempt before verifying, so a concurrent burst cannot outrun the throttle', async () => {
+        cookie = '';
+        const spy = vi.spyOn(session, 'verifyPassword');
+        try {
+            const total = FREE_ATTEMPTS + 5;
+            await Promise.all(
+                Array.from({ length: total }, () =>
+                    call('/ui/login', form({ username: 'admin', password: 'wrong' }))
+                )
+            );
+            expect(spy.mock.calls.length).toBeLessThanOrEqual(FREE_ATTEMPTS);
+        } finally {
+            spy.mockRestore();
+        }
     });
 
     it('does not reveal which field was wrong', async () => {

@@ -13,8 +13,8 @@ export const FREE_ATTEMPTS = 5;
 
 const BASE_DELAY_MS = 1_000;
 
-/** The ceiling matters more than the growth: a permanent lockout of the only
- *  account is a worse outcome than a slow attacker. */
+/** Caps how long any one block lasts. A persistent attacker renews it
+ *  indefinitely, so this buys recovery once they stop, not a lockout ceiling. */
 const MAX_DELAY_MS = 5 * 60_000;
 
 export class LoginThrottle {
@@ -31,13 +31,16 @@ export class LoginThrottle {
         return Math.max(0, this.#blockedUntil - this.#now());
     }
 
-    recordFailure(): void {
+    /** Returns whether this call just entered (or re-entered) a block, so a
+     *  caller can log once per block rather than once per attempt. */
+    recordFailure(): boolean {
         this.#failures++;
-        if (this.#failures < FREE_ATTEMPTS) return;
+        if (this.#failures < FREE_ATTEMPTS) return false;
 
         const over = this.#failures - FREE_ATTEMPTS;
         const delay = Math.min(BASE_DELAY_MS * 2 ** over, MAX_DELAY_MS);
         this.#blockedUntil = this.#now() + delay;
+        return true;
     }
 
     recordSuccess(): void {

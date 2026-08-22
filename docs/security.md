@@ -243,6 +243,10 @@ so far.
   and a signed, expiring session cookie (12 hours). It is a bigger target than
   the MCP endpoint, because it displays every service's API key and can change
   them.
+- `/ui/login` throttles itself after 5 free failed attempts, then delays each
+  further one with a growing backoff capped at 5 minutes. The counter is
+  global rather than per-IP — deliberate, since nothing validates the client's
+  claimed address.
 - Sessions end when you end them: signing out revokes that token, and changing
   the password revokes every session issued before it. Neither waits for the
   cookie to expire or for a restart.

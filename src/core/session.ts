@@ -17,8 +17,14 @@ import { promisify } from 'node:util';
 const SCRYPT_N = 16_384;
 const KEY_LENGTH = 64;
 
-/** Async, not `scryptSync`: at N=16384 the sync form blocks the one thread the
- *  MCP endpoint runs on, so a burst of logins stalls every tool call. */
+/**
+ * Async, not `scryptSync`: at N=16384 the sync form blocks the one thread the
+ * MCP endpoint runs on, so a burst of logins stalls every tool call.
+ *
+ * `SCRYPT_N` equals `crypto.scrypt`'s own default cost, so the cast's
+ * `options` field is currently belt-and-braces — it stops being redundant the
+ * day `SCRYPT_N` changes.
+ */
 const scrypt = promisify(scryptCallback) as (
     password: string,
     salt: Buffer,
