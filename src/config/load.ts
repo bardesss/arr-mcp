@@ -95,7 +95,18 @@ export async function loadConfig(
     }
 
     const obj = parsed as Record<string, unknown>;
-    const auth = (obj.auth ?? {}) as { bearer_token?: string; password_hash?: string; username?: string };
+
+    // A non-object `auth:` has to reach safeParse to be reported properly.
+    // Backfilling into it first threw from assigning a property to a primitive,
+    // pre-empting the schema message with a raw TypeError.
+    const rawAuth = obj.auth;
+    const authIsMapping =
+        rawAuth === undefined || (rawAuth !== null && typeof rawAuth === 'object' && !Array.isArray(rawAuth));
+    const auth = (authIsMapping ? (rawAuth ?? {}) : {}) as {
+        bearer_token?: string;
+        password_hash?: string;
+        username?: string;
+    };
     const generated: GeneratedCredentials = {};
 
     // The bearer token is backfilled rather than refused because it has no
@@ -107,7 +118,7 @@ export async function loadConfig(
     // here would claim the instance on the user's behalf with a password
     // nobody would ever see. Deleting the line is the documented way to ask
     // for a new password, and this is what makes that work.
-    if (!auth.bearer_token) {
+    if (authIsMapping && !auth.bearer_token) {
         auth.bearer_token = generateToken();
         generated.bearerToken = auth.bearer_token;
         obj.auth = auth;

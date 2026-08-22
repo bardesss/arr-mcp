@@ -72,6 +72,28 @@ describe('reading without writing', () => {
         expect(await readFile(path, 'utf8')).toContain('bearer_token');
     });
 
+    // `auth: "abc"` reached `auth.bearer_token = ...`, which in strict mode is
+    // assigning a property to a string primitive — a raw TypeError instead of
+    // the schema message the user can act on.
+    it('reports a non-object auth block through the schema, not as a TypeError', async () => {
+        const dir = await freshDir();
+        await writeFile(join(dir, 'config.yaml'), `auth: "abc"
+services: {}
+`, 'utf8');
+
+        await expect(loadConfig(dir)).rejects.toThrow(/config\.yaml is invalid/i);
+    });
+
+    it('reports a list-shaped auth block the same way', async () => {
+        const dir = await freshDir();
+        await writeFile(join(dir, 'config.yaml'), `auth:
+  - bearer_token: x
+services: {}
+`, 'utf8');
+
+        await expect(loadConfig(dir)).rejects.toThrow(/config\.yaml is invalid/i);
+    });
+
     // A script pointed at the wrong directory should say so, not create one.
     it('refuses to invent a config directory when reading only', async () => {
         const dir = await freshDir();
