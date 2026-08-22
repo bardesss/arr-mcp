@@ -9,6 +9,7 @@ import { hashPassword } from '../src/core/session.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
+import { rpcPayload as parseRpcPayload } from '../scripts/lib/rpc.ts';
 
 const TOKEN = 'a'.repeat(64);
 const WRONG = 'b'.repeat(64);
@@ -41,11 +42,13 @@ const rpc = (body: unknown, headers: Record<string, string> = {}) => ({
 
 const toolsList = { jsonrpc: '2.0', id: 1, method: 'tools/list' };
 
-/** Parses the JSON-RPC payload out of the SDK's response, which may frame it as SSE. */
-const rpcPayload = async (res: Response): Promise<{ result?: Record<string, unknown> }> => {
-    const body = await res.text();
-    return JSON.parse(body.slice(body.indexOf('{'), body.lastIndexOf('}') + 1)) as { result?: Record<string, unknown> };
-};
+/**
+ * Through the shared parser, not a fourth copy of the same slice: the framing
+ * assumption lives in one place so it cannot drift between the scripts and
+ * this suite.
+ */
+const rpcPayload = async (res: Response): Promise<{ result?: Record<string, unknown> }> =>
+    parseRpcPayload<Record<string, unknown>>(await res.text());
 
 describe('GET /healthz', () => {
     it('is reachable without a token — it is a container probe, not an API', async () => {

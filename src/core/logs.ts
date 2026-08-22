@@ -202,7 +202,10 @@ export class LogStore {
     #prune(): void {
         this.#db
             .prepare(
-                `DELETE FROM log WHERE id <= (
+                // `<`, not `<=`: the subquery returns the id of the row that
+                // should be the *oldest survivor*, so including it kept
+                // LOG_RING_SIZE - 1 rows.
+                `DELETE FROM log WHERE id < (
                      SELECT id FROM log ORDER BY id DESC LIMIT 1 OFFSET ?
                  )`
             )

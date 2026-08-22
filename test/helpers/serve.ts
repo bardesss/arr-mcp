@@ -17,16 +17,16 @@ export const serving = (routes: Record<string, unknown>): typeof fetch =>
     (async (input: string | URL | Request) => {
         const raw = input instanceof Request ? input.url : String(input);
         const url = new URL(raw);
-        const matched = routes[`${url.pathname}${url.search}`] ?? routes[url.pathname];
-        if (typeof matched === 'string') return textResponse(matched);
-        // Query string included first, so a route keyed on the full path (e.g.
-        // Jellyfin's `/Items?userId=…`) can be matched exactly rather than only
-        // by its pathname. Falling back to pathname-only keeps every existing
-        // route registered without a query string working unchanged.
+        // Query string first, so a route keyed on the full path (e.g.
+        // Jellyfin's `/Items?userId=…`) matches exactly rather than only by its
+        // pathname. Falling back to pathname-only keeps every route registered
+        // without a query string working unchanged.
         const withQuery = `${url.pathname}${url.search}`;
-        if (withQuery in routes) return jsonResponse(routes[withQuery]);
-        if (url.pathname in routes) return jsonResponse(routes[url.pathname]);
-        return jsonResponse({ message: 'not found' }, 404);
+        const key = withQuery in routes ? withQuery : url.pathname;
+        if (!(key in routes)) return jsonResponse({ message: 'not found' }, 404);
+
+        const matched = routes[key];
+        return typeof matched === 'string' ? textResponse(matched) : jsonResponse(matched);
     }) as unknown as typeof fetch;
 
 /** SABnzbd routes on the `mode` query parameter rather than on the path. */

@@ -118,7 +118,9 @@ describe('ring behaviour', () => {
         for (let i = 0; i < LOG_RING_SIZE + 250; i += 1) logs.write(line({ msg: `line ${i}` }));
         logs.prune();
 
-        expect(logs.count()).toBeLessThanOrEqual(LOG_RING_SIZE);
+        // Exactly the size, not "at most": `<=` is what let the ring keep
+        // LOG_RING_SIZE - 1 rows unnoticed.
+        expect(logs.count()).toBe(LOG_RING_SIZE);
         // The newest survived, the oldest did not.
         expect(logs.recent(  { limit: 1 })[0]?.msg).toBe(`line ${LOG_RING_SIZE + 249}`);
         expect(logs.recent({ limit: LOG_RING_SIZE }).some(r => r.msg === 'line 0')).toBe(false);
