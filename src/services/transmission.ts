@@ -139,6 +139,20 @@ export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, Qu
             });
         }
 
+        // Not redundant: `torrent-remove` ignores an id it has never seen and
+        // still answers "success", so without this a stale id reported a
+        // successful removal of nothing. qBittorrent's adapter pre-checks for
+        // the same reason, and SABnzbd reads its own status flag.
+        const found = await this.#http.post<RpcResponse<{ torrents?: { id?: number }[] }>>(RPC_PATH, {
+            method: 'torrent-get',
+            arguments: { ids: [torrentId], fields: ['id'] }
+        });
+        if (found.result !== 'success' || (found.arguments?.torrents ?? []).length === 0) {
+            throw new ServiceError('NotFound', this.id, `no torrent with id "${id}"`, {
+                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
+            });
+        }
+
         const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
             method: 'torrent-remove',
             arguments: { ids: [torrentId], 'delete-local-data': opts.removeFromClient }
