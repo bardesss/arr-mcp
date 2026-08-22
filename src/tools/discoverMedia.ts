@@ -86,7 +86,19 @@ function fromDataset(
     dataset: ImdbDataset | undefined
 ): GetSearchResult {
     const empty = { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [], counts: {} };
-    if (dataset === undefined) return empty;
+
+    // An empty envelope with nothing degraded reads as "nothing matched", so a
+    // model reported that nothing is trending when the truth is that this
+    // stack has nothing configured that can answer at all. Said in a note
+    // rather than thrown, matching get_library's ratingCoverage.note: an
+    // unconfigured optional source is a fact about the stack, not a failure of
+    // the call.
+    if (dataset === undefined) {
+        return {
+            ...empty,
+            note: 'Discovery is answered by Seerr or the IMDb dataset, and neither is configured — this is not a statement about what exists. Add a Seerr instance, or set metadata.imdb.enabled in config.yaml.'
+        };
+    }
 
     if (opts.genre !== undefined && /^\d+$/.test(opts.genre)) {
         throw new Error(
@@ -154,7 +166,14 @@ export function registerDiscoverMedia(
             annotations: READ_ONLY,
             description:
                 'Browse what exists rather than what you have: films or series by genre, year and minimum rating. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so `genre` is a TMDB genre id and the rating is TMDB’s. With no Seerr it is answered from the local IMDb dataset instead, where `genre` is a name such as `Crime` and the rating is IMDb’s; passing a numeric id there is refused rather than silently matching nothing.',
-            outputSchema: PagedOutputSchema,
+            outputSchema: PagedOutputSchema.extend({
+                note: z
+                    .string()
+                    .optional()
+                    .describe(
+                        'Present when an empty list needs defending — for example when neither Seerr nor the IMDb dataset is configured, so nothing could answer. Report the reason rather than saying nothing matched.'
+                    )
+            }),
             inputSchema: toolInput({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Defaults to films.'),
                 // Undocumented on purpose: the spelling this tool had when the
@@ -192,7 +211,9 @@ export function registerDiscoverMedia(
             const summary =
                 result.degraded.length > 0
                     ? 'Seerr could not be reached; nothing to discover.'
-                    : `${result.returned} of ${result.total} ${resolved === 'series' ? 'series' : 'film(s)'} found.`;
+                    : result.note !== undefined
+                      ? result.note
+                      : `${result.returned} of ${result.total} ${resolved === 'series' ? 'series' : 'film(s)'} found.`;
 
             return { content: [{ type: 'text', text: summary }], structuredContent: result };
         }

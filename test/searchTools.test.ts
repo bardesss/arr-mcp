@@ -777,6 +777,19 @@ describe('discovering without Seerr', () => {
         ).rejects.toThrow(/TMDB id/);
     });
 
+    // An empty envelope with nothing degraded reads as "nothing matched", so a
+    // model reported that nothing is trending when nothing could answer at all.
+    it('says why the list is empty when nothing can answer discovery', async () => {
+        const result = await buildDiscoverMedia(undefined, { ...query, kind: 'movie' }, undefined);
+        expect(result.items).toEqual([]);
+        expect(result.note).toMatch(/neither is configured/i);
+    });
+
+    it('sets no note when the dataset can answer', async () => {
+        const result = await buildDiscoverMedia(undefined, { ...query, kind: 'movie' }, dataset());
+        expect(result.note).toBeUndefined();
+    });
+
     it('returns the same empty result as before when neither is available', async () => {
         const result = await buildDiscoverMedia(undefined, { ...query, kind: 'movie' }, undefined);
         expect(result).toMatchObject({ items: [], total: 0 });

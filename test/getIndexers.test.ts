@@ -222,3 +222,39 @@ describe('ProwlarrAdapter.getRecentRejections', () => {
         expect(urls.find(u => u.includes('/api/v1/history'))).toContain('successful=false');
     });
 });
+
+/**
+ * Same root cause as the calendar's missing-file count, in the other
+ * direction: `disabled` was counted over the *projected* items, and `minimal`
+ * strips `disabledUntil`, so the cheap "is anything broken" question answered
+ * "3 of 3 indexer(s)." with two of them disabled.
+ */
+describe('counting disabled indexers at minimal detail', () => {
+    const rows = {
+        '/api/v1/indexer': [
+            { id: 1, name: 'One', enable: true, protocol: 'usenet', priority: 25 },
+            { id: 2, name: 'Two', enable: true, protocol: 'usenet', priority: 25 },
+            { id: 3, name: 'Three', enable: true, protocol: 'usenet', priority: 25 }
+        ],
+        '/api/v1/indexerstatus': [
+            { id: 9, indexerId: 2, disabledTill: '2099-01-01T00:00:00Z' },
+            { id: 10, indexerId: 3, disabledTill: '2099-01-01T00:00:00Z' }
+        ],
+        '/api/v1/indexerstats': { indexers: [] },
+        '/api/v1/history': { records: [] }
+    };
+
+    it('counts the disabled ones even when the projection drops the field', async () => {
+        const result = await buildGetIndexers(adapter(rows), { detail: 'minimal', limit: 50 });
+
+        expect(result.items[0]?.disabledUntil).toBeUndefined(); // the premise
+        expect(result.disabledCount).toBe(2);
+    });
+
+    it('agrees with the full-detail count', async () => {
+        const minimal = await buildGetIndexers(adapter(rows), { detail: 'minimal', limit: 50 });
+        const full = await buildGetIndexers(adapter(rows), { detail: 'full', limit: 50 });
+
+        expect(minimal.disabledCount).toBe(full.disabledCount);
+    });
+});

@@ -22,6 +22,9 @@ export type GetSearchResult = {
      * held. Every existing key is unchanged.
      */
     counts: Record<string, number>;
+    /** Set only when the count needs defending — an empty list that is a fact
+     *  about the stack rather than about what exists. */
+    note?: string;
 };
 
 const project = (h: SearchHit, detail: DetailLevel): SearchHit => {
