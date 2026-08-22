@@ -23,7 +23,7 @@ import {
     type AuthStrategy
 } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
-import { hostsOf, redactHosts } from './lib/redact.ts';
+import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 
 const REDACTED = '__REDACTED__';
 
@@ -439,23 +439,10 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
 
 const ANONYMOUS_HOST = 'service.example.test';
 
-// `hostsOf` is shared with `integration.ts` (`scripts/lib/redact.ts`) — both
-// scripts need the same "every host the user configured" list, one to
-// anonymise fixture files, the other to keep a live error message off the
-// terminal, and a second hand-written copy is exactly the kind of drift this
-// phase exists to eliminate.
-
-/** Every configured credential, so the post-write scan can look for them exactly. */
-function secretsOf(config: Config): string[] {
-    const out: string[] = [];
-    for (const service of Object.values(config.services)) {
-        if (service === undefined) continue;
-        const s = service as { api_key?: string; password?: string };
-        if (s.api_key) out.push(s.api_key);
-        if (s.password) out.push(s.password);
-    }
-    return out;
-}
+// `hostsOf` and `secretsOf` are shared with `integration.ts`
+// (`scripts/lib/redact.ts`) — all three scripts need the same "every host the
+// user configured" and "every credential" lists, and a second hand-written
+// copy is exactly the kind of drift this phase exists to eliminate.
 
 /**
  * Private and loopback IPv4 literals, for addresses a service reports about

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
-import { hostsOf, redactHosts } from '../scripts/lib/redact.ts';
+import { hostsOf, redactHosts, secretsOf } from '../scripts/lib/redact.ts';
 
 const TOKEN = 'a'.repeat(64);
 
@@ -9,6 +9,23 @@ const configWith = (url: string) =>
     ConfigSchema.parse({
         auth: { bearer_token: TOKEN, password_hash: 'scrypt$00$11' },
         services: { radarr: { url, api_key: 'k' } }
+    });
+
+/**
+ * The shape the flat `(service as { url: string }).url` cast could not see:
+ * radarr as a *list* of named instances. Every host and key below was invisible
+ * to redaction, so the refuse-to-write gate had nothing to match on.
+ */
+const multiInstanceConfig = () =>
+    ConfigSchema.parse({
+        auth: { bearer_token: TOKEN, password_hash: 'scrypt$00$11' },
+        services: {
+            radarr: [
+                { name: 'hd', url: 'http://192.168.1.20:7878', api_key: 'hdkey' },
+                { name: '4k', url: 'http://192.168.1.21:7878', api_key: 'fourkkey' }
+            ],
+            sabnzbd: { url: 'http://192.168.1.30:8080', api_key: 'sabkey' }
+        }
     });
 
 describe('hostsOf', () => {
@@ -20,6 +37,38 @@ describe('hostsOf', () => {
     it('sorts longest first, so a host:port match wins before the bare hostname inside it', () => {
         const hosts = hostsOf(configWith('http://192.168.1.20:7878'));
         expect(hosts.indexOf('192.168.1.20:7878')).toBeLessThan(hosts.indexOf('192.168.1.20'));
+    });
+
+    it('extracts the host of every instance of a multi-instance service', () => {
+        expect(hostsOf(multiInstanceConfig())).toEqual(
+            expect.arrayContaining(['192.168.1.20:7878', '192.168.1.21:7878'])
+        );
+    });
+
+    it('still extracts hosts of single-block services alongside them', () => {
+        expect(hostsOf(multiInstanceConfig())).toEqual(expect.arrayContaining(['192.168.1.30:8080']));
+    });
+
+    it('redacts a message naming the second instance, which the flat cast missed entirely', () => {
+        expect(redactHosts('reached 192.168.1.21:7878', hostsOf(multiInstanceConfig()))).not.toContain('192.168.1.21');
+    });
+});
+
+describe('secretsOf', () => {
+    it('collects the api_key of every instance of a multi-instance service', () => {
+        expect(secretsOf(multiInstanceConfig())).toEqual(expect.arrayContaining(['hdkey', 'fourkkey']));
+    });
+
+    it('collects credentials of single-block services alongside them', () => {
+        expect(secretsOf(multiInstanceConfig())).toContain('sabkey');
+    });
+
+    it('collects a password as well as an api_key', () => {
+        const config = ConfigSchema.parse({
+            auth: { bearer_token: TOKEN, password_hash: 'scrypt$00$11' },
+            services: { transmission: { url: 'http://10.0.0.5:9091', username: 'u', password: 'pw' } }
+        });
+        expect(secretsOf(config)).toContain('pw');
     });
 });
 
