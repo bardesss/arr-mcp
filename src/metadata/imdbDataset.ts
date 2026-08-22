@@ -74,6 +74,10 @@ const STORED_KINDS: ReadonlySet<string> = new Set([...Object.values(KIND_TO_IMDB
  */
 const VARIABLE_LIMIT = 900;
 
+/** `%`, `_` and the escape character itself, for a LIKE pattern built from
+ *  user input. Unescaped, `genre: "%"` matched every genre there is. */
+const escapeLike = (value: string): string => value.replace(/[\\%_]/g, m => `\\${m}`);
+
 export type RawTitle = {
     tconst: string;
     kind: string;
@@ -140,8 +144,18 @@ export type DiscoverQuery = {
 export class ImdbDataset {
     readonly #db: Db;
 
-    private constructor(db: Db) {
+    /**
+     * Where the file lives, or `undefined` for an ephemeral one.
+     *
+     * The refresher needs it to hand the ingest to a worker thread: a
+     * better-sqlite3 handle cannot cross a thread boundary, so the worker
+     * opens its own connection to the same path.
+     */
+    readonly dir: string | undefined;
+
+    private constructor(db: Db, dir?: string) {
         this.#db = db;
+        this.dir = dir;
         // WAL for the reason audit.ts uses it: the weekly ingest writes while
         // tool calls read, and a reader must never block on a twenty-minute
         // rebuild.
@@ -187,7 +201,7 @@ export class ImdbDataset {
     }
 
     static open(dir: string): ImdbDataset {
-        return new ImdbDataset(new Database(join(dir, IMDB_FILENAME)));
+        return new ImdbDataset(new Database(join(dir, IMDB_FILENAME)), dir);
     }
 
     /** For tests: a real database, no file. */
@@ -238,8 +252,8 @@ export class ImdbDataset {
         if (q.genre !== undefined) {
             // Genres ship as one comma-separated string. The commas on both
             // sides of the pattern are what stop "Drama" matching "Docudrama".
-            where.push(`(',' || LOWER(t.genres) || ',') LIKE ?`);
-            args.push(`%,${q.genre.toLowerCase()},%`);
+            where.push(`(',' || LOWER(t.genres) || ',') LIKE ? ESCAPE '\\'`);
+            args.push(`%,${escapeLike(q.genre.toLowerCase())},%`);
         }
         if (q.year !== undefined) {
             where.push('t.year = ?');

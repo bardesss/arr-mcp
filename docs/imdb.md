@@ -35,6 +35,11 @@ IMDb's published files and keeps them in a local SQLite database beside the
 audit log. The first ingest takes a few minutes; every tool answers exactly as
 it did before until it lands, and the dashboard says when it has finished.
 
+The ingest runs in its own thread and writes to its own connection, so the
+server keeps answering throughout — reads see the previous dataset until the
+new one is committed, whole. That holds for the weekly refresh as much as the
+first one.
+
 ## What it costs
 
 Measured against the live dumps on 2026-08-10:

@@ -50,6 +50,13 @@ export const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 export const STAGING_PREFIX = 'arr-mcp-imdb-';
 
 /**
+ * Generous, because these are hundreds of megabytes over whatever connection
+ * the user has — but bounded, because every other network call in this project
+ * is. Without it a hung socket wedged the refresh until the process restarted.
+ */
+export const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
  * How long a staging directory must have gone untouched before it counts as
  * abandoned rather than in use.
  *
@@ -123,7 +130,7 @@ export function sweepStaging(root: string, opts: { now?: number } = {}): number 
  * be finished with before the write begins.
  */
 async function downloadTo(baseUrl: string, file: string, path: string): Promise<void> {
-    const res = await fetch(`${baseUrl}/${file}`);
+    const res = await fetch(`${baseUrl}/${file}`, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
     if (!res.ok || res.body === null) {
         // Names the file: "HTTP 404" alone would not say which of them, and they
         // fail independently.
@@ -223,6 +230,47 @@ export async function ingestOnce(dataset: ImdbDataset, opts: { baseUrl?: string 
 }
 
 /**
+ * Where the worker's entry point is, resolved at runtime.
+ *
+ * `tsc` rewrites `.ts` to `.js` in *import specifiers*, but this is a string
+ * inside `new URL(...)`, which it leaves alone. `npm run dev` runs the .ts
+ * sources directly and the image runs the compiled .js, so the extension is
+ * taken from whichever of the two this module itself is.
+ */
+const workerEntry = (): URL =>
+    new URL(import.meta.url.endsWith('.ts') ? './ingestWorker.ts' : './ingestWorker.js', import.meta.url);
+
+/**
+ * One ingest, off the event loop.
+ *
+ * `replaceAll` is a synchronous transaction over millions of rows plus a
+ * VACUUM, so running it here froze every tool call and web request for minutes
+ * — see `ingestWorker.ts`. A worker cannot be handed the open handle, so it
+ * opens its own connection to the same file; WAL is what lets the main thread
+ * keep reading meanwhile.
+ *
+ * An ephemeral dataset has no file for a second connection to open, so it runs
+ * in-process. That is every test that does not specifically exercise the
+ * worker.
+ */
+export async function runIngest(dataset: ImdbDataset, opts: { baseUrl?: string } = {}): Promise<void> {
+    if (dataset.dir === undefined) return ingestOnce(dataset, opts);
+
+    const { Worker } = await import('node:worker_threads');
+    const worker = new Worker(workerEntry(), {
+        workerData: { dir: dataset.dir, ...(opts.baseUrl === undefined ? {} : { baseUrl: opts.baseUrl }) }
+    });
+
+    await new Promise<void>((resolve, reject) => {
+        worker.once('error', reject);
+        worker.once('exit', code => {
+            if (code === 0) resolve();
+            else reject(new Error(`the IMDb ingest worker exited with code ${code}`));
+        });
+    });
+}
+
+/**
  * Start the weekly refresh, returning a function that stops it.
  *
  * Runs once immediately, then on the interval — which is what makes switching
@@ -234,19 +282,47 @@ export async function ingestOnce(dataset: ImdbDataset, opts: { baseUrl?: string 
  * minutes of normal service, not a container that looks broken — every tool
  * answers exactly as before until the first ingest lands.
  */
-export function startRefresh(dataset: ImdbDataset, opts: { baseUrl?: string } = {}): () => void {
+export function startRefresh(
+    dataset: ImdbDataset,
+    opts: {
+        baseUrl?: string;
+        /** Seams, for tests: the default reaches the network and spawns a
+         *  worker, and the default interval is a week. */
+        ingest?: (dataset: ImdbDataset, o: { baseUrl?: string }) => Promise<void>;
+        intervalMs?: number;
+    } = {}
+): () => void {
+    const ingest = opts.ingest ?? runIngest;
+    const ingestOpts = opts.baseUrl === undefined ? {} : { baseUrl: opts.baseUrl };
+
+    // An ingest takes minutes and the interval is a week, so an overlap means
+    // something is already wrong — but two of them sharing one staging sweep
+    // and one database is worse than skipping a beat.
+    let running = false;
+
     const run = (): void => {
-        ingestOnce(dataset, opts).catch((err: unknown) => {
-            // A failed refresh keeps the previous dataset, so this is a degraded
-            // answer rather than an outage — it warns instead of becoming an
-            // unhandled rejection that would take the process down over a 503.
-            logger.warn({ err }, 'IMDb dataset refresh failed; keeping the previous one');
-        });
+        if (running) {
+            logger.warn('an IMDb refresh is still running; skipping this one');
+            return;
+        }
+        running = true;
+
+        ingest(dataset, ingestOpts)
+            .catch((err: unknown) => {
+                // A failed refresh keeps the previous dataset, so this is a
+                // degraded answer rather than an outage — it warns instead of
+                // becoming an unhandled rejection that would take the process
+                // down over a 503.
+                logger.warn({ err }, 'IMDb dataset refresh failed; keeping the previous one');
+            })
+            .finally(() => {
+                running = false;
+            });
     };
 
     run();
 
-    const timer = setInterval(run, REFRESH_INTERVAL_MS);
+    const timer = setInterval(run, opts.intervalMs ?? REFRESH_INTERVAL_MS);
     // Unreffed so a pending refresh never holds the process open at shutdown.
     timer.unref();
 
