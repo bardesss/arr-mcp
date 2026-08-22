@@ -758,3 +758,40 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         expect(TOOL_NAMES.length).toBeLessThan(40);
     });
 });
+
+describe('request body limit', () => {
+    // Comfortably over the 4 MB cap without building a string so large the
+    // test itself is slow.
+    const oversized = 'x'.repeat(5 * 1024 * 1024);
+
+    it('refuses an oversized body on /mcp before checking the token', async () => {
+        const res = await app().request('http://localhost:6060/mcp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { pad: oversized } })
+        });
+
+        // 413 rather than 401: the point is that the limit runs first. A 401
+        // here would mean the body was buffered before it was rejected.
+        expect(res.status).toBe(413);
+        expect(res.headers.get('content-type')).toContain('application/json');
+        expect(await res.json()).toMatchObject({ error: { code: -32600 } });
+    });
+
+    it('refuses an oversized body on the login form', async () => {
+        const res = await app().request('http://localhost:6060/ui/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `username=admin&password=${oversized}`
+        });
+        expect(res.status).toBe(413);
+    });
+
+    it('lets an ordinary tool call through', async () => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
+        );
+        expect(res.status).toBe(200);
+    });
+});

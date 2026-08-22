@@ -250,6 +250,10 @@ so far.
   the same reason: a security setting that appears to have applied when it has
   not is the worst kind.
 
+Request bodies are capped at 4 MB, refused with `413` before authentication
+runs. The cap is deliberately not configurable — every legitimate request is
+orders of magnitude below it.
+
 **What it does not solve.** There is no OAuth, no per-client identity, and no
 scoping of one token differently from another. One operator, one token. TLS is
 the reverse proxy's job; arr-mcp speaks plain HTTP and says so.
