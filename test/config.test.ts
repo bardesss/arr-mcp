@@ -585,6 +585,34 @@ describe('comments through a save', () => {
         await expect(saveConfig(dir, config, { expected: config })).rejects.toThrow(/changed on disk/i);
     });
 
+    // saveConfig goes to four documented properties of effort to keep comments
+    // and replace atomically; the loader's own backfill bypassed all of it.
+    it('keeps comments and key order when backfilling a missing bearer token', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(
+            path,
+            `# my stack, hand-written
+auth:
+  password_hash: scrypt$00$11
+` +
+                `services:
+  radarr:
+    url: http://192.0.2.10:7878 # LAN only
+    api_key: k
+`,
+            'utf8'
+        );
+
+        const { generated } = await loadConfig(dir);
+        expect(generated.bearerToken).toBeDefined();
+
+        const written = await readFile(path, 'utf8');
+        expect(written).toContain('# my stack, hand-written');
+        expect(written).toContain('# LAN only');
+        expect(written).toContain(generated.bearerToken as string);
+    });
+
     // The other half of the property: a stricter check must not start refusing
     // saves over comments or key order, neither of which is data.
     it('still saves when nothing changed on disk, including comments and key order', async () => {

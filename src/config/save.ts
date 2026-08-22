@@ -130,13 +130,21 @@ export async function saveConfig(configDir: string, next: Config, opts: { expect
     const blocks = value as Record<string, unknown>;
     for (const key of Object.keys(ConfigSchema.shape)) mergeInto(doc, [key], blocks[key]);
 
-    // A unique temp name per save. A fixed `config.yaml.tmp` meant two
-    // overlapping saves wrote into the same file and both renamed it into
-    // place, so one could rename a half-written copy of the other — defeating
-    // the atomicity property 3 promises.
+    await writeConfigAtomic(path, doc.toString());
+}
+
+/**
+ * Replaces `path` atomically, 0o600. Property 3 above, reusable — the loader's
+ * bearer-token backfill needs the same guarantee.
+ *
+ * A unique temp name per write: a fixed `config.yaml.tmp` meant two overlapping
+ * writes shared one file and both renamed it into place, so one could rename a
+ * half-written copy of the other. 0o600 on the temp file too — it holds the
+ * same secrets for the moment it exists, and a default-umask temp file is a
+ * readable one.
+ */
+export async function writeConfigAtomic(path: string, text: string): Promise<void> {
     const tmp = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    // 0o600 on the temp file too — it holds the same secrets for the moment it
-    // exists, and a default-umask temp file is a readable one.
-    await writeFile(tmp, doc.toString(), { mode: 0o600 });
+    await writeFile(tmp, text, { mode: 0o600 });
     await rename(tmp, path);
 }
