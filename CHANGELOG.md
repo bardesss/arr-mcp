@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.15.3](https://github.com/bardesss/arr-mcp/compare/v1.15.2...v1.15.3) (2026-08-22)
+
+
+### Bug Fixes
+
+* correct Seerr paging, id handling and phantom deletes ([#160](https://github.com/bardesss/arr-mcp/issues/160)) ([407f50c](https://github.com/bardesss/arr-mcp/commit/407f50c82cc0b2bf6e243021a6894fbe433fadd1))
+* give the suite timeout headroom instead of the 5s default ([#159](https://github.com/bardesss/arr-mcp/issues/159)) ([8f10e80](https://github.com/bardesss/arr-mcp/commit/8f10e8031ee6a31893ed6396142d1b0f0946973d))
+* harden config UI sessions and first-run claim ([#157](https://github.com/bardesss/arr-mcp/issues/157)) ([6415872](https://github.com/bardesss/arr-mcp/commit/64158725f026cc939220eaa6231ee27bf28a6ca2))
+
 ## [1.15.2](https://github.com/bardesss/arr-mcp/compare/v1.15.1...v1.15.2) (2026-08-22)
 
 
