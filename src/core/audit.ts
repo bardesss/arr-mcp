@@ -71,12 +71,20 @@ CREATE INDEX IF NOT EXISTS write_audit_service ON write_audit (service, at DESC)
  *  rather than by everyone remembering. */
 const SECRET_KEY = /(api[_-]?key|token|password|secret|authorization)/i;
 
-function safeArgs(args: Record<string, unknown>): string {
-    const clean: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(args)) {
-        clean[key] = SECRET_KEY.test(key) ? '__REDACTED__' : value;
+/** Recursive: matching key names only at the top level left a secret one
+ *  level down to be serialised verbatim. */
+const scrub = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(scrub);
+    if (value !== null && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value).map(([key, v]) => [key, SECRET_KEY.test(key) ? '__REDACTED__' : scrub(v)])
+        );
     }
-    return JSON.stringify(clean);
+    return value;
+};
+
+function safeArgs(args: Record<string, unknown>): string {
+    return JSON.stringify(scrub(args));
 }
 
 /**

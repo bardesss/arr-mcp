@@ -8,6 +8,7 @@ import { ConfigSchema } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
+import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
 
@@ -151,6 +152,28 @@ describe('access control', () => {
         expect(res.status).toBe(401);
         // Naming which half was wrong would confirm valid usernames.
         expect(await res.text()).toContain('Wrong username or password');
+    });
+
+    // The username field routinely catches a password typed into the wrong
+    // box, and this record is rendered at /ui/logs and in `docker logs`.
+    //
+    // `attachLogStore` is what routes logger output into the store — without
+    // it `recent()` is empty and the assertion below cannot fail, which is how
+    // this test first passed against the unfixed route.
+    it('does not log the attempted username when a sign-in is rejected', async () => {
+        cookie = '';
+        const typo = 'hunter2-typed-in-the-wrong-box';
+
+        attachLogStore(logs);
+        try {
+            await call('/ui/login', form({ username: typo, password: 'nope' }));
+        } finally {
+            detachLogStore();
+        }
+
+        const written = JSON.stringify(logs.recent({ limit: 50 }));
+        expect(written).toContain('rejected config UI sign-in'); // the premise: the store saw it
+        expect(written).not.toContain(typo);
     });
 
     it('signs in and reaches the dashboard', async () => {
@@ -1479,5 +1502,31 @@ describe('the IMDb dataset in the config UI', () => {
         expect(onDisk).not.toContain('metadata:');
         expect(onDisk).not.toContain('null');
         expect(runtime.config.metadata).toBeUndefined();
+    });
+});
+
+/**
+ * The dashboard renders the MCP bearer token into its own HTML. /ui/logs.json
+ * already sends no-store; the pages carrying the credential sent nothing, so
+ * they persisted in disk cache and bfcache after a sign-out.
+ */
+describe('authenticated page caching', () => {
+    it('sends no-store on the dashboard, which renders the bearer token', async () => {
+        await signIn();
+        const res = await call('/ui');
+        expect(await res.text()).toContain(BEARER); // the premise: the token really is in the page
+        expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('sends no-store on every authenticated page', async () => {
+        await signIn();
+        for (const path of ['/ui', '/ui/logs', '/ui/audit', '/ui/config']) {
+            expect((await call(path)).headers.get('cache-control'), path).toBe('no-store');
+        }
+    });
+
+    it('does not send no-store on the stylesheet, which is cacheable and reveals nothing', async () => {
+        cookie = '';
+        expect((await call('/ui/app.css')).headers.get('cache-control')).not.toBe('no-store');
     });
 });
