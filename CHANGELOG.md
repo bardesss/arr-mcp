@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.2](https://github.com/bardesss/arr-mcp/compare/v1.15.1...v1.15.2) (2026-08-22)
+
+
+### Bug Fixes
+
+* hold the config write guarantees on every path ([#154](https://github.com/bardesss/arr-mcp/issues/154)) ([05804a8](https://github.com/bardesss/arr-mcp/commit/05804a8801b1a7042cf2c98fdfb40a900ec2d95c))
+* read fixtures in one pass so the guard stops timing out ([#155](https://github.com/bardesss/arr-mcp/issues/155)) ([4e303ce](https://github.com/bardesss/arr-mcp/commit/4e303cea1fdc8b83988bb0a84bdcbecfabeaf37b))
+
 ## [1.15.1](https://github.com/bardesss/arr-mcp/compare/v1.15.0...v1.15.1) (2026-08-22)
 
 
