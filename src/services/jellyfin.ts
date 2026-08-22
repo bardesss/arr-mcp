@@ -100,9 +100,12 @@ type RawEpisodeItem = {
  * here would silently fail every join — convert at the boundary.
  */
 const numericId = (value: string | undefined): number | undefined => {
-    if (value === undefined) return undefined;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
+    // Digits required, not just finiteness: `Number('')` is 0 and passes
+    // `Number.isFinite`, so an empty provider id — which Jellyfin does emit —
+    // became `tmdb: 0` and joined against every other item missing one.
+    // Same trap `yearOf` documents in seerr.ts.
+    if (value === undefined || !/^\d+$/.test(value.trim())) return undefined;
+    return Number(value.trim());
 };
 
 export class JellyfinAdapter

@@ -185,6 +185,23 @@ describe('unknown queue items', () => {
         expect(item).toMatchObject({ id: '693439963', orphaned: true, importState: 'importBlocked' });
     });
 
+    // The generated spec types movieId as `number | null`, so a build that
+    // serialises the null rather than omitting the key must not hide the row.
+    it('marks an item whose movieId is null, not just absent', async () => {
+        const { impl } = recording([
+            {
+                id: 42,
+                title: 'Orphan.2025.1080p-GROUP',
+                status: 'completed',
+                movieId: null,
+                trackedDownloadState: 'importBlocked',
+                trackedDownloadStatus: 'warning'
+            }
+        ]);
+        const [item] = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(item?.orphaned).toBe(true);
+    });
+
     it('does not mark an item that still has its movie', async () => {
         const { impl } = recording([
             { id: 5, title: 'Some.Film-GROUP', status: 'downloading', movieId: 1689, trackedDownloadState: 'downloading' }

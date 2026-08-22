@@ -127,8 +127,11 @@ async function lookupRaw(
         candidate: {
             title: fenceText(first.title, { service, field: 'title' }),
             ...(first.year === undefined || first.year === 0 ? {} : { year: first.year }),
-            // Both services return `id: 0` for something not in the library, so
-            // a real id here means it is already added — a no-op, not an error.
+            // A lookup for something not in the library carries no `id` at all
+            // (verified live against Radarr and Sonarr, and matching the
+            // recorded fixtures), so an id here means it is already added — a
+            // no-op, not an error. The `> 0` also rules out a zero, which some
+            // builds are reported to send instead of omitting the field.
             ...(typeof first.id === 'number' && first.id > 0 ? { existingId: first.id } : {})
         }
     };

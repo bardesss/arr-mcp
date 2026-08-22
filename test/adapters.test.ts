@@ -213,6 +213,78 @@ describe('SeerrAdapter', () => {
         expect(hasUserDirectory(adapter)).toBe(true);
     });
 
+    // Seerr paginates /user at 10 by default. A household that lost its 11th
+    // user got "that user doesn't exist" rather than a truncation.
+    it('pages past the first page of users', async () => {
+        const users = (from: number, count: number) =>
+            Array.from({ length: count }, (_, i) => ({ id: from + i, displayName: `User ${from + i}` }));
+
+        const paged = new SeerrAdapter(
+            multiUser(5055),
+            serving({
+                '/api/v1/user?take=100&skip=0': { pageInfo: { results: 101 }, results: users(1, 100) },
+                '/api/v1/user?take=100&skip=100': { pageInfo: { results: 101 }, results: users(101, 1) }
+            })
+        );
+
+        const found = await paged.listUsers();
+        expect(found).toHaveLength(101);
+        expect(found.at(-1)?.name).toBe('User 101');
+    });
+
+    it('pages past the first page of requests', async () => {
+        const requests = (from: number, count: number) =>
+            Array.from({ length: count }, (_, i) => ({
+                id: from + i,
+                status: 1,
+                media: { tmdbId: from + i, mediaType: 'movie', title: `Film ${from + i}` },
+                requestedBy: { id: 1, displayName: 'Someone' }
+            }));
+
+        const paged = new SeerrAdapter(
+            multiUser(5055),
+            serving({
+                '/api/v1/request?take=100&skip=0': { pageInfo: { results: 101 }, results: requests(1, 100) },
+                '/api/v1/request?take=100&skip=100': { pageInfo: { results: 101 }, results: requests(101, 1) }
+            })
+        );
+
+        expect(await paged.getRequests({})).toHaveLength(101);
+    });
+
+    // The recorded fixture holds 2 person rows beside 14 movies and 4 tv, so
+    // this is the real shape, not an invented one.
+    it('drops the person rows in the recorded search fixture', async () => {
+        const real = new SeerrAdapter(multiUser(5055), serving({ '/api/v1/search': fixture('seerr/search.json') }));
+        const page = fixture('seerr/search.json') as { results: { mediaType?: string }[] };
+        const titles = page.results.filter(r => r.mediaType === 'movie' || r.mediaType === 'tv').length;
+
+        const hits = await real.search('anything', 'discover');
+        expect(page.results.length).toBeGreaterThan(titles); // the premise: people are in there
+        expect(hits).toHaveLength(titles);
+    });
+
+    // /api/v1/search is a TMDB multi-search: it returns people alongside
+    // titles, and a person id is not a movie id in any namespace.
+    it('drops person results rather than calling them films', async () => {
+        const multi = new SeerrAdapter(
+            multiUser(5055),
+            serving({
+                '/api/v1/search': {
+                    results: [
+                        { id: 31, mediaType: 'person', name: 'Tom Hanks' },
+                        { id: 13, mediaType: 'movie', title: 'Forrest Gump' },
+                        { id: 1396, mediaType: 'tv', name: 'Breaking Bad' }
+                    ]
+                }
+            })
+        );
+
+        const hits = await multi.search('tom hanks', 'discover');
+        expect(hits.map(h => h.ids.tmdb)).toEqual([13, 1396]);
+        expect(hits.map(h => h.kind)).toEqual(['movie', 'series']);
+    });
+
     expectsAuthDiagnosis(new SeerrAdapter(multiUser(5055), unauthorized));
 });
 
@@ -386,7 +458,99 @@ describe('SabnzbdAdapter', () => {
     expectsAuthDiagnosis(new SabnzbdAdapter(keyed(8080), unauthorized));
 });
 
+describe('id conversion at the boundary', () => {
+    // Verified live: an *arr lookup for something not in the library omits
+    // `id` entirely, so the fallback to the external id is what runs. A build
+    // that sends 0 instead must not turn into the id "0".
+    it('falls through to the external id when a lookup carries no id', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie/lookup': [{ title: 'Some Film', tmdbId: 550, year: 1999 }] })
+        );
+        expect((await radarr.search('some', 'discover'))[0]?.id).toBe('550');
+    });
+
+    it('does not let a zero id become the string "0"', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie/lookup': [{ id: 0, title: 'Some Film', tmdbId: 550 }] })
+        );
+        expect((await radarr.search('some', 'discover'))[0]?.id).toBe('550');
+    });
+
+    it('keeps a real library id when the lookup has one', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie/lookup': [{ id: 12, title: 'Some Film', tmdbId: 550 }] })
+        );
+        expect((await radarr.search('some', 'discover'))[0]?.id).toBe('12');
+    });
+
+    // Number('') is 0, and Number.isFinite(0) is true, so an empty provider id
+    // became tmdb: 0 and poisoned the identity join. seerr.ts's yearOf
+    // documents the same trap.
+    it('treats an empty Jellyfin provider id as absent, not as zero', async () => {
+        const jelly = new JellyfinAdapter(
+            multiUser(8096),
+            serving({
+                '/Items': {
+                    Items: [{ Id: 'abc', Name: 'Some Film', Type: 'Movie', ProviderIds: { Tmdb: '', Imdb: 'tt1' } }],
+                    TotalRecordCount: 1
+                },
+                '/Users': [{ Id: 'u1', Name: 'someone' }]
+            })
+        );
+
+        const hits = await jelly.search('some', 'library');
+        expect(hits[0]?.ids.tmdb).toBeUndefined();
+    });
+
+    it('still converts a real Jellyfin provider id', async () => {
+        const jelly = new JellyfinAdapter(
+            multiUser(8096),
+            serving({
+                '/Items': {
+                    Items: [{ Id: 'abc', Name: 'Some Film', Type: 'Movie', ProviderIds: { Tmdb: '550' } }],
+                    TotalRecordCount: 1
+                },
+                '/Users': [{ Id: 'u1', Name: 'someone' }]
+            })
+        );
+
+        expect((await jelly.search('some', 'library'))[0]?.ids.tmdb).toBe(550);
+    });
+});
+
 describe('TransmissionAdapter', () => {
+    // torrent-remove ignores unknown ids and answers success, so without a
+    // pre-check a stale id reported a successful removal of nothing.
+    // qBittorrent already checks; SABnzbd checks its own status flag.
+    it('refuses to report success removing a torrent it does not have', async () => {
+        const rpc = (async (_i: string, init?: RequestInit) => {
+            const body = JSON.parse((init?.body as string) ?? '{}') as { method?: string };
+            if (body.method === 'torrent-get') return jsonResponse({ result: 'success', arguments: { torrents: [] } });
+            return jsonResponse({ result: 'success', arguments: {} });
+        }) as unknown as typeof fetch;
+
+        await expect(
+            new TransmissionAdapter(transmissionConfig, rpc).removeQueueItem('999', { removeFromClient: false, blocklist: false })
+        ).rejects.toThrow(/no torrent/i);
+    });
+
+    it('removes a torrent it does have', async () => {
+        const rpc = (async (_i: string, init?: RequestInit) => {
+            const body = JSON.parse((init?.body as string) ?? '{}') as { method?: string };
+            if (body.method === 'torrent-get') {
+                return jsonResponse({ result: 'success', arguments: { torrents: [{ id: 7 }] } });
+            }
+            return jsonResponse({ result: 'success', arguments: {} });
+        }) as unknown as typeof fetch;
+
+        await expect(
+            new TransmissionAdapter(transmissionConfig, rpc).removeQueueItem('7', { removeFromClient: false, blocklist: false })
+        ).resolves.toBeUndefined();
+    });
+
     const session = fixture('transmission/session-get.json');
     const adapter = new TransmissionAdapter(transmissionConfig, (async () =>
         jsonResponse(session)) as unknown as typeof fetch);
