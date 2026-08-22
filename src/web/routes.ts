@@ -151,6 +151,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     });
 
     app.post('/ui/logout', c => {
+        // Clearing the cookie only ends the session for the browser holding it.
+        // Anyone with a copy of the token kept access until it expired.
+        runtime.sessions.revoke(sessionOf(c, runtime));
         c.header('set-cookie', clearedSessionCookie());
         return c.redirect('/ui/login', 302);
     });
@@ -305,13 +308,23 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         (
             what: string,
             next: (form: Record<string, unknown>) => Config | { ask: string },
-            /** The add form is a dialog, so a refusal has to bring it back — a
-             *  message about a form nobody can see explains nothing. */
-            reopensAdd = false
+            opts: {
+                /** The add form is a dialog, so a refusal has to bring it back —
+                 *  a message about a form nobody can see explains nothing. */
+                reopensAdd?: boolean;
+                /** Whether this save changed the credentials, and so has to end
+                 *  sessions signed with the old key. */
+                endsSessions?: (form: Record<string, unknown>) => boolean;
+            } = {}
         ): ((c: Context) => Promise<Response>) =>
         async (c: Context) => {
             const session = guard(c);
             if (session === undefined) return c.redirect(entry(), 302);
+
+            // Reassigned when the credentials change: the page rendered below
+            // has to carry a CSRF token bound to the *new* session, or the next
+            // form post from it is rejected.
+            let activeSession = session;
 
             const form = await c.req.parseBody();
 
@@ -333,11 +346,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     configPage({
                         version,
                         config: runtime.config,
-                        csrf: runtime.sessions.csrfFor(session),
+                        csrf: runtime.sessions.csrfFor(activeSession),
                         users: await usersByInstance(),
                         ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(confirming === undefined ? {} : { confirmingRemoval: confirming }),
-                        ...(reopensAdd && status !== 200 ? { openAdd: true } : {}),
+                        ...(opts.reopensAdd === true && status !== 200 ? { openAdd: true } : {}),
                         ...(message === undefined ? {} : { message })
                     }),
                     status
@@ -364,6 +377,16 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // refusal rather than a silent deletion under a "Saved" banner.
                 await saveConfig(runtime.configDir, updated, { expected: runtime.config });
                 await runtime.reload();
+
+                if (opts.endsSessions?.(form) === true) {
+                    // Sessions signed with the old key must not outlive the
+                    // credentials they were issued under. The editor gets a
+                    // fresh one so changing your own password does not sign
+                    // you out of the page you changed it on.
+                    runtime.sessions.rotateKey();
+                    activeSession = runtime.sessions.issue();
+                    c.header('set-cookie', sessionCookie(activeSession, Math.floor(SESSION_TTL_MS / 1000)));
+                }
             } catch (err) {
                 // The file is written atomically and validated first, so
                 // reaching here means the config on disk is still the working
@@ -378,7 +401,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.post(
         '/ui/config/add',
-        configMutation('Added.', form => addCandidateFrom(runtime.config, form).candidate, true)
+        configMutation('Added.', form => addCandidateFrom(runtime.config, form).candidate, { reopensAdd: true })
     );
 
     app.post(
@@ -404,7 +427,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // taking all three was what let the page grow a button that looked global.
     app.post(
         '/ui/config/account',
-        configMutation('Config UI sign-in saved.', form => buildAccountConfig(runtime.config, form))
+        configMutation('Config UI sign-in saved.', form => buildAccountConfig(runtime.config, form), {
+            // Only when the password field was actually filled in — a username
+            // edit is not a credential change.
+            endsSessions: form => str(form['auth.password']) !== ''
+        })
     );
 
     app.post(

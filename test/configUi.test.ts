@@ -1537,3 +1537,48 @@ describe('authenticated page caching', () => {
         expect((await call('/ui/app.css')).headers.get('cache-control')).not.toBe('no-store');
     });
 });
+
+describe('ending sessions', () => {
+    it('signs existing sessions out when the password changes', async () => {
+        await signIn();
+        expect((await call('/ui')).status).toBe(200);
+
+        const before = cookie;
+        await call(
+            '/ui/config/account',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password-1234' })
+        );
+
+        // A cookie captured before the change no longer opens the dashboard.
+        cookie = before;
+        expect((await call('/ui')).status).toBe(302);
+    });
+
+    it('keeps the editor signed in after they change their own password', async () => {
+        await signIn();
+        await call(
+            '/ui/config/account',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password-1234' })
+        );
+
+        // `call` follows the Set-Cookie the save issued.
+        expect((await call('/ui')).status).toBe(200);
+    });
+
+    it('does not sign anyone out when only the username changed', async () => {
+        await signIn();
+        const before = cookie;
+        await call('/ui/config/account', form({ csrf: await csrfFrom(), 'auth.username': 'someone-else' }));
+
+        cookie = before;
+        expect((await call('/ui')).status).toBe(200);
+    });
+
+    it('a signed-out session cookie no longer works if replayed', async () => {
+        await signIn();
+        const stolen = cookie;
+        await call('/ui/logout', { method: 'POST' });
+
+        cookie = stolen;
+        expect((await call('/ui')).status).toBe(302);    });
+});

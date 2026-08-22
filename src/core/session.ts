@@ -22,6 +22,9 @@ export const SESSION_COOKIE = 'arr_mcp_session';
  *  browser on a shared machine stops mattering the same day. */
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
+/** Defensive bound on the revoked-nonce set, which is otherwise TTL-swept. */
+const MAX_REVOKED = 1024;
+
 /** `scrypt$<saltHex>$<hashHex>`, so the format names its own algorithm and a
  *  future change can be detected rather than guessed. */
 export function hashPassword(password: string): string {
@@ -61,7 +64,9 @@ export function generatePassword(length = 18): string {
     return out;
 }
 
-export type SessionVerdict = { valid: true } | { valid: false; reason: 'malformed' | 'expired' | 'bad-signature' };
+export type SessionVerdict =
+    | { valid: true }
+    | { valid: false; reason: 'malformed' | 'expired' | 'bad-signature' | 'revoked' };
 
 /**
  * Signed cookies over a server-side session table, deliberately.
@@ -70,13 +75,19 @@ export type SessionVerdict = { valid: true } | { valid: false; reason: 'malforme
  * the restart a config change already causes, or SQLite, which is a third
  * database for something with no audit value. A signed token needs neither,
  * and the key being per-process means a restart invalidates outstanding
- * sessions, which is the correct behaviour after the credentials may have
- * changed.
+ * sessions.
+ *
+ * A restart is not the only way credentials change, though: the config UI
+ * changes them through `reload()`, and `runtime.sessions` deliberately
+ * survives that. So ending sessions is explicit — `rotateKey` for all of them,
+ * `revoke` for one — rather than a side effect of the process lifecycle.
  */
 export class Sessions {
-    readonly #key: Buffer;
+    #key: Buffer;
     readonly #ttlMs: number;
     readonly #now: () => number;
+    /** nonce → the moment that token would have expired anyway. */
+    readonly #revoked = new Map<string, number>();
 
     constructor(opts: { ttlMs?: number; now?: () => number; key?: Buffer } = {}) {
         this.#key = opts.key ?? randomBytes(32);
@@ -122,8 +133,47 @@ export class Sessions {
             return { valid: false, reason: 'bad-signature' };
         }
         if (this.#now() >= expiresAt) return { valid: false, reason: 'expired' };
+        if (this.#revoked.has(nonce)) return { valid: false, reason: 'revoked' };
 
         return { valid: true };
+    }
+
+    /**
+     * Ends every outstanding session.
+     *
+     * The stateless-token design above assumes a restart follows a credential
+     * change. Changing the password from the config UI reloads rather than
+     * restarts, and `sessions` deliberately survives a reload, so the rotation
+     * has to be explicit.
+     */
+    rotateKey(): void {
+        this.#key = randomBytes(32);
+        // Nonces signed with the old key can no longer verify anyway.
+        this.#revoked.clear();
+    }
+
+    /**
+     * Ends one session. Only a token that verifies is remembered, so a forged
+     * string cannot grow the set, and only until it would have expired anyway.
+     */
+    revoke(token: string | undefined): void {
+        if (token === undefined || !this.verify(token).valid) return;
+        const parts = token.split('.');
+        const nonce = parts[1] ?? '';
+        this.#revoked.set(nonce, Number.parseInt(parts[0] ?? '', 36));
+        this.#sweep();
+    }
+
+    #sweep(): void {
+        const now = this.#now();
+        for (const [nonce, deadAt] of this.#revoked) {
+            if (deadAt <= now) this.#revoked.delete(nonce);
+        }
+        while (this.#revoked.size > MAX_REVOKED) {
+            const oldest = this.#revoked.keys().next().value;
+            if (oldest === undefined) break;
+            this.#revoked.delete(oldest);
+        }
     }
 
     /**
