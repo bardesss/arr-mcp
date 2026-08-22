@@ -28,6 +28,8 @@ const NAV: { key: Nav; href: string; label: string }[] = [
 export function layout(opts: {
     title: string;
     nav?: Nav;
+    /** Required wherever `nav` is, because the nav carries the sign-out form. */
+    csrf?: string;
     version: string;
     body: SafeHtml;
     message?: { kind: 'ok' | 'err'; text: string } | undefined;
@@ -52,7 +54,10 @@ export function layout(opts: {
                       item => html`<a href="${item.href}" class="${item.key === opts.nav ? 'on' : ''}">${item.label}</a>`
                   )}
               </nav>
-              <form method="post" action="/ui/logout"><button class="ghost" type="submit">Sign out</button></form>`;
+              <form method="post" action="/ui/logout">
+                  <input type="hidden" name="csrf" value="${opts.csrf ?? ''}">
+                  <button class="ghost" type="submit">Sign out</button>
+              </form>`;
 
     return `<!doctype html>
 <html lang="en"${theme}>
@@ -296,6 +301,7 @@ const statusDot = (d: ConnectionDiagnosis): SafeHtml =>
  * first surface that shows all three to a human.
  */
 export function dashboardPage(opts: {
+    csrf: string;
     version: string;
     diagnoses: ConnectionDiagnosis[];
     configured: string[];
@@ -482,7 +488,7 @@ export function dashboardPage(opts: {
             </div>
         </div>`;
 
-    return layout({ title: 'Dashboard', nav: 'dashboard', version: opts.version, body, theme: opts.theme });
+    return layout({ title: 'Dashboard', nav: 'dashboard', csrf: opts.csrf, version: opts.version, body, theme: opts.theme });
 }
 
 /**
@@ -515,6 +521,7 @@ export const LOG_STREAMS = [
 export type LogStreamKey = (typeof LOG_STREAMS)[number]['key'];
 
 export function logsPage(opts: {
+    csrf: string;
     version: string;
     services: string[];
     selectedService: string;
@@ -578,7 +585,7 @@ export function logsPage(opts: {
 
         <div class="scroll" id="log-stream" data-url="${opts.streamUrl}">${logTable(opts.rows)}</div>`;
 
-    return layout({ title: 'Logs', nav: 'logs', version: opts.version, body, theme: opts.theme });
+    return layout({ title: 'Logs', nav: 'logs', csrf: opts.csrf, version: opts.version, body, theme: opts.theme });
 }
 
 /** The no-JavaScript rendering. The live one is rebuilt client-side from JSON
@@ -670,7 +677,7 @@ function auditEntry(r: AuditRow): SafeHtml {
     </article>`;
 }
 
-export function auditPage(opts: { version: string; rows: AuditRow[]; theme?: Theme | undefined }): string {
+export function auditPage(opts: { csrf: string; version: string; rows: AuditRow[]; theme?: Theme | undefined }): string {
     const body = html`<h2>Write audit</h2>
         <p class="note">
             Every write attempt, including previews and refusals. An entry still reading
@@ -681,6 +688,6 @@ export function auditPage(opts: { version: string; rows: AuditRow[]; theme?: The
             ? html`<p class="note">Nothing has tried to write yet.</p>`
             : html`<div class="trail">${opts.rows.map(auditEntry)}</div>`}`;
 
-    return layout({ title: 'Write audit', nav: 'audit', version: opts.version, body, theme: opts.theme });
+    return layout({ title: 'Write audit', nav: 'audit', csrf: opts.csrf, version: opts.version, body, theme: opts.theme });
 }
 
