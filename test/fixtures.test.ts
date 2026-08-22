@@ -104,18 +104,27 @@ async function fixtureFiles(): Promise<string[]> {
     return entries.filter(e => e.isFile() && e.name.endsWith('.json')).map(e => join(e.parentPath, e.name));
 }
 
+/**
+ * One pass, not one awaited read per file: serialised, these took over 3s of
+ * the 5s default timeout inside a full `vitest run` and flaked.
+ */
+async function fixtureContents(): Promise<{ file: string; text: string }[]> {
+    const files = await fixtureFiles();
+    return Promise.all(files.map(async file => ({ file, text: await readFile(file, 'utf8') })));
+}
+
 describe('committed fixtures', () => {
     it('contain no secret-shaped content', async () => {
         const findings: Finding[] = [];
-        for (const file of await fixtureFiles()) {
-            findings.push(...scan(file, JSON.parse(await readFile(file, 'utf8'))));
+        for (const { file, text } of await fixtureContents()) {
+            findings.push(...scan(file, JSON.parse(text)));
         }
         expect(findings).toEqual([]);
     });
 
     it('are valid JSON objects or arrays, not accidental HTML error pages', async () => {
-        for (const file of await fixtureFiles()) {
-            const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
+        for (const { text } of await fixtureContents()) {
+            const parsed: unknown = JSON.parse(text);
             expect(typeof parsed).toBe('object');
         }
     });
