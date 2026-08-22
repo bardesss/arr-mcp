@@ -87,12 +87,26 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
             cacheHint: { ttlMs: HEALTH_TTL_MS, cacheScope: 'private' }
         },
         async uri => {
-            const health = await buildStackHealth(adapters, { detail: 'standard', limit: 50 }, instances);
-            return json(uri, {
-                services: health.services,
-                failures: health.failures.items,
-                degraded: health.degraded
-            });
+            // Caught like `library-summary`'s: a resource read that throws is a
+            // client-visible error, and "health could not be taken" is itself
+            // health information. buildStackHealth degrades internally today,
+            // so this is defence in depth rather than a live path.
+            try {
+                const health = await buildStackHealth(adapters, { detail: 'standard', limit: 50 }, instances);
+                return json(uri, {
+                    services: health.services,
+                    failures: health.failures.items,
+                    degraded: health.degraded
+                });
+            } catch (err) {
+                logger.warn({ err }, 'stack health snapshot failed; reporting it as unavailable');
+                return json(uri, {
+                    services: [],
+                    failures: [],
+                    degraded: [],
+                    note: 'The health snapshot could not be taken. Call stack_health for the live answer.'
+                });
+            }
         }
     );
 

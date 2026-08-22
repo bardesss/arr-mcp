@@ -17,8 +17,8 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hostsOf, redactHosts } from './lib/redact.ts';
+import { callTool, type ToolCallResult } from './lib/rpc.ts';
 
-type ToolCallResult = { isError?: boolean; content?: { type: string; text?: string }[]; structuredContent?: unknown };
 
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? './config';
 const { config: real } = await loadConfig(CONFIG_DIR, { persist: false });
@@ -45,34 +45,6 @@ const appFor = (config: Config) =>
         logs: LogStore.ephemeral()
     });
 
-let nextId = 1;
-
-async function callTool(
-    app: ReturnType<typeof buildApp>,
-    token: string,
-    name: string,
-    args: Record<string, unknown>
-): Promise<ToolCallResult> {
-    const res = await app.request('http://localhost:6060/mcp', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json, text/event-stream',
-            Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method: 'tools/call', params: { name, arguments: args } })
-    });
-
-    const text = await res.text();
-    if (!res.ok) throw new Error(`transport error: HTTP ${res.status}`);
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start === -1 || end === -1) throw new Error('transport error: no JSON-RPC payload');
-    const payload = JSON.parse(text.slice(start, end + 1)) as { result?: ToolCallResult; error?: { message?: string } };
-    if (payload.error !== undefined) throw new Error(`protocol error: ${payload.error.message ?? 'unnamed'}`);
-    if (payload.result === undefined) throw new Error('protocol error: no result');
-    return payload.result;
-}
 
 let passes = 0;
 let failures = 0;
@@ -150,9 +122,18 @@ type Envelope = { total?: number; counts?: Record<string, number>; degraded?: st
 const one = singleLibrary.structuredContent as Envelope | undefined;
 const two = multiLibrary?.structuredContent as Envelope | undefined;
 
-if (one?.total !== undefined && two?.total !== undefined) {
-    if (one.total === two.total) pass('library total is unchanged by doubling', `${two.total} items either way`);
-    else fail('library total is unchanged by doubling', `single ${one.total} vs doubled ${two.total} — duplicates did not merge`);
+// The point of this script. Reported as a failure rather than skipped when a
+// total is missing: passing silently over the one assertion that matters is
+// how renaming `total` would turn the whole run into a green no-op.
+if (one?.total === undefined || two?.total === undefined) {
+    fail(
+        'library total is unchanged by doubling',
+        `no total in the envelope — single: ${JSON.stringify(one?.total)}, doubled: ${JSON.stringify(two?.total)}`
+    );
+} else if (one.total === two.total) {
+    pass('library total is unchanged by doubling', `${two.total} items either way`);
+} else {
+    fail('library total is unchanged by doubling', `single ${one.total} vs doubled ${two.total} — duplicates did not merge`);
 }
 console.log(`     counts single: ${JSON.stringify(one?.counts ?? {})}`);
 console.log(`     counts doubled: ${JSON.stringify(two?.counts ?? {})}`);

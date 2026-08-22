@@ -13,6 +13,21 @@ type RequestBody = { readonly json: unknown } | { readonly form: Record<string, 
  *  a bare string that is not valid JSON. */
 type ReadAs = 'json' | 'text' | 'none';
 
+/**
+ * Release a response nobody will read.
+ *
+ * undici keeps the connection checked out until the body is consumed or
+ * cancelled, so an unread error body pinned it until garbage collection. Never
+ * throws: this is cleanup on a path that already has a real outcome to report.
+ */
+const discard = async (response: Response): Promise<void> => {
+    try {
+        await response.body?.cancel();
+    } catch {
+        // A body already consumed or already errored needs no releasing.
+    }
+};
+
 const encodeBody = (body: RequestBody): { contentType: string; payload: string } =>
     'form' in body
         ? { contentType: 'application/x-www-form-urlencoded', payload: new URLSearchParams(body.form).toString() }
@@ -226,15 +241,26 @@ export class ServiceHttp {
         }
 
         if (allowRecovery && (await this.#auth.recover?.(response)) === true) {
+            // Nothing will read this one — the retry below supersedes it — and
+            // an unread body pins its keep-alive connection until GC. A burst
+            // of Transmission 409s or qBittorrent 403s otherwise degraded
+            // connection reuse for everything behind the same origin.
+            await discard(response);
             return this.#attempt<T>(method, path, body, false, read);
         }
 
         const httpError = classifyHttpStatus(response.status, this.#id, safeUrl);
-        if (httpError) throw httpError;
+        if (httpError) {
+            await discard(response);
+            throw httpError;
+        }
 
         // The status line already said it worked, and nothing reads what comes
         // back. Parsing it anyway is how a successful delete becomes an error.
-        if (read === 'none') return undefined as T;
+        if (read === 'none') {
+            await discard(response);
+            return undefined as T;
+        }
         if (read === 'text') return (await response.text()).trim() as T;
 
         try {
