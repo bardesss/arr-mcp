@@ -213,6 +213,57 @@ describe('SeerrAdapter', () => {
         expect(hasUserDirectory(adapter)).toBe(true);
     });
 
+    // Seerr paginates /user at 10 by default. A household that lost its 11th
+    // user got "that user doesn't exist" rather than a truncation.
+    it('pages past the first page of users', async () => {
+        const users = (from: number, count: number) =>
+            Array.from({ length: count }, (_, i) => ({ id: from + i, displayName: `User ${from + i}` }));
+
+        const paged = new SeerrAdapter(
+            multiUser(5055),
+            serving({
+                '/api/v1/user?take=100&skip=0': { pageInfo: { results: 101 }, results: users(1, 100) },
+                '/api/v1/user?take=100&skip=100': { pageInfo: { results: 101 }, results: users(101, 1) }
+            })
+        );
+
+        const found = await paged.listUsers();
+        expect(found).toHaveLength(101);
+        expect(found.at(-1)?.name).toBe('User 101');
+    });
+
+    it('pages past the first page of requests', async () => {
+        const requests = (from: number, count: number) =>
+            Array.from({ length: count }, (_, i) => ({
+                id: from + i,
+                status: 1,
+                media: { tmdbId: from + i, mediaType: 'movie', title: `Film ${from + i}` },
+                requestedBy: { id: 1, displayName: 'Someone' }
+            }));
+
+        const paged = new SeerrAdapter(
+            multiUser(5055),
+            serving({
+                '/api/v1/request?take=100&skip=0': { pageInfo: { results: 101 }, results: requests(1, 100) },
+                '/api/v1/request?take=100&skip=100': { pageInfo: { results: 101 }, results: requests(101, 1) }
+            })
+        );
+
+        expect(await paged.getRequests({})).toHaveLength(101);
+    });
+
+    // The recorded fixture holds 2 person rows beside 14 movies and 4 tv, so
+    // this is the real shape, not an invented one.
+    it('drops the person rows in the recorded search fixture', async () => {
+        const real = new SeerrAdapter(multiUser(5055), serving({ '/api/v1/search': fixture('seerr/search.json') }));
+        const page = fixture('seerr/search.json') as { results: { mediaType?: string }[] };
+        const titles = page.results.filter(r => r.mediaType === 'movie' || r.mediaType === 'tv').length;
+
+        const hits = await real.search('anything', 'discover');
+        expect(page.results.length).toBeGreaterThan(titles); // the premise: people are in there
+        expect(hits).toHaveLength(titles);
+    });
+
     // /api/v1/search is a TMDB multi-search: it returns people alongside
     // titles, and a person id is not a movie id in any namespace.
     it('drops person results rather than calling them films', async () => {

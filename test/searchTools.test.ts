@@ -247,7 +247,7 @@ describe('lookup_media', () => {
             seerrConfig,
             serving({
                 '/api/v1/search': {
-                    results: [{ id: 550, kind: 'movie', title: 'Some Film', releaseDate: '2026-03-01' }]
+                    results: [{ id: 550, mediaType: 'movie', title: 'Some Film', releaseDate: '2026-03-01' }]
                 }
             })
         );
@@ -260,7 +260,7 @@ describe('lookup_media', () => {
             seerrConfig,
             serving({
                 '/api/v1/search': {
-                    results: [{ id: 1, kind: 'series', name: 'Some Show', firstAirDate: '2024-06-01' }]
+                    results: [{ id: 1, mediaType: 'tv', name: 'Some Show', firstAirDate: '2024-06-01' }]
                 }
             })
         );

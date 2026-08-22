@@ -56,7 +56,6 @@ type RawRequest = {
     media?: { tmdbId?: number; tvdbId?: number | null; mediaType?: string; title?: string };
     requestedBy?: { id?: number; displayName?: string; username?: string; email?: string };
 };
-type RawRequestPage = { results?: RawRequest[] };
 
 /** Seerr's numeric request statuses. */
 const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 'declined' };
@@ -72,6 +71,10 @@ const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 
  * one user sees of another's requests.
  */
 const SEERR_FILTERS_SERVER_SIDE = true;
+
+/** Rows per request while paging. Large enough that a household is one call,
+ *  small enough that a page is not a large response to hold. */
+const PAGE_SIZE = 100;
 
 /**
  * A release year, or nothing.
@@ -92,7 +95,9 @@ const yearOf = (date: string | undefined): number | undefined => {
 const mediaTypeOf = (value: string | undefined): MediaRequest['mediaType'] =>
     value === 'movie' || value === 'tv' ? value : 'unknown';
 type RawUser = { id?: number; displayName?: string; username?: string; email?: string };
-type RawUserPage = { results?: RawUser[] };
+
+/** Every paginated Seerr list answers with this envelope. */
+type PageInfo = { results?: number };
 
 /**
  * Seerr users may have no display name. The email local part is the fallback
@@ -120,37 +125,65 @@ export class SeerrAdapter
         return status.version;
     }
 
+    /**
+     * Every row, not the first page.
+     *
+     * Seerr paginates — /user defaults to 10 — and a first-page-only read is a
+     * truncation that reads as absence. Same shape as the *arr queue reader in
+     * arrQueue.ts: an empty page ends it whatever the count says, so a service
+     * that disagrees with its own total cannot spin here.
+     */
+    async #allPages<T>(path: string, params: URLSearchParams = new URLSearchParams()): Promise<T[]> {
+        const out: T[] = [];
+        for (let skip = 0; ; skip += PAGE_SIZE) {
+            const query = new URLSearchParams(params);
+            query.set('take', String(PAGE_SIZE));
+            query.set('skip', String(skip));
+
+            const page = await this.#http.get<{ pageInfo?: PageInfo; results?: T[] }>(
+                `${path}?${query.toString()}`
+            );
+            const got = page.results ?? [];
+            out.push(...got);
+
+            const total = page.pageInfo?.results;
+            if (got.length === 0 || total === undefined || out.length >= total) break;
+        }
+        return out;
+    }
+
     async listUsers(): Promise<ServiceUser[]> {
-        const page = await this.#http.get<RawUserPage>('/api/v1/user');
-        return (page.results ?? [])
+        const rows = await this.#allPages<RawUser>('/api/v1/user');
+        return rows
             .map(u => ({ id: u.id, name: nameOf(u) }))
             .filter((u): u is { id: number; name: string } => u.id !== undefined && u.name !== undefined)
             .map(u => ({ id: String(u.id), name: u.name }));
     }
 
     async getRequests(opts: { user?: ServiceUser; status?: RequestStatus }): Promise<MediaRequest[]> {
-        const params = new URLSearchParams({ take: '500' });
+        const params = new URLSearchParams();
         if (SEERR_FILTERS_SERVER_SIDE && opts.user !== undefined) params.set('requestedBy', opts.user.id);
 
         // `filter` pushed down where Seerr has a matching value.
         //
-        // The window is the newest 500 by `added`, so filtering only in memory
-        // meant a household with 600 lifetime requests got nothing at all for
-        // `status: pending` once its pending ones fell outside that window —
-        // an empty list that reads as "no pending requests" rather than as a
-        // truncation. Narrowing server-side moves the window onto the rows
-        // actually being asked for.
+        // This used to be the difference between an answer and an empty list:
+        // the read was one page of the newest 500, so a household with more
+        // lifetime requests than that got nothing for `status: pending` once
+        // its pending ones fell outside the window. Now that the read pages to
+        // completion, pushing down is an efficiency rather than a correctness
+        // fix — it still fetches fewer rows.
         //
         // `declined` is deliberately absent: Seerr's filter vocabulary has no
         // value for it, and mapping it onto a near-miss like `deleted` would
-        // answer a different question. It stays an in-memory filter.
+        // answer a different question. It stays an in-memory filter, and now
+        // one that sees every row rather than the newest page.
         const SERVER_SIDE_STATUS: Partial<Record<RequestStatus, string>> = { pending: 'pending', approved: 'approved' };
         const pushedDown = opts.status === undefined ? undefined : SERVER_SIDE_STATUS[opts.status];
         if (SEERR_FILTERS_SERVER_SIDE && pushedDown !== undefined) params.set('filter', pushedDown);
 
-        const page = await this.#http.get<RawRequestPage>(`/api/v1/request?${params.toString()}`);
+        const rows = await this.#allPages<RawRequest>('/api/v1/request', params);
 
-        return (page.results ?? [])
+        return rows
             .filter((r): r is RawRequest & { id: number } => typeof r.id === 'number')
             .map(r => this.#toRequest(r))
             // The in-memory user filter runs unconditionally, even when the
