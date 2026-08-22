@@ -144,8 +144,18 @@ export type DiscoverQuery = {
 export class ImdbDataset {
     readonly #db: Db;
 
-    private constructor(db: Db) {
+    /**
+     * Where the file lives, or `undefined` for an ephemeral one.
+     *
+     * The refresher needs it to hand the ingest to a worker thread: a
+     * better-sqlite3 handle cannot cross a thread boundary, so the worker
+     * opens its own connection to the same path.
+     */
+    readonly dir: string | undefined;
+
+    private constructor(db: Db, dir?: string) {
         this.#db = db;
+        this.dir = dir;
         // WAL for the reason audit.ts uses it: the weekly ingest writes while
         // tool calls read, and a reader must never block on a twenty-minute
         // rebuild.
@@ -191,7 +201,7 @@ export class ImdbDataset {
     }
 
     static open(dir: string): ImdbDataset {
-        return new ImdbDataset(new Database(join(dir, IMDB_FILENAME)));
+        return new ImdbDataset(new Database(join(dir, IMDB_FILENAME)), dir);
     }
 
     /** For tests: a real database, no file. */

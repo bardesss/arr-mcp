@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { createGzip } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
-import { ingestOnce, linesOf } from '../src/metadata/refresh.ts';
+import { ingestOnce, linesOf, startRefresh } from '../src/metadata/refresh.ts';
 
 /**
  * The one file that touches the network, driven against a stubbed `fetch`
@@ -148,5 +148,64 @@ describe('reading a staged dump', () => {
         const gen = linesOf(write('a\nb\nc'));
         expect(gen.next().value).toBe('a');
         gen.return(undefined);
+    });
+});
+
+describe('the weekly schedule', () => {
+    /**
+     * `setInterval` fired regardless of whether the previous ingest had
+     * finished, so two of them could share one staging sweep and one database.
+     */
+    it('does not start a second ingest while the first is still running', async () => {
+        let started = 0;
+        let release: (() => void) | undefined;
+        const blocked = new Promise<void>(resolve => {
+            release = resolve;
+        });
+
+        const stop = startRefresh({ dir: undefined } as unknown as ImdbDataset, {
+            ingest: async () => {
+                started += 1;
+                await blocked;
+            },
+            intervalMs: 5
+        });
+
+        await new Promise(r => setTimeout(r, 60));
+        expect(started).toBe(1);
+
+        release?.();
+        stop();
+        await blocked;
+    });
+
+    it('starts the next one once the previous has finished', async () => {
+        let started = 0;
+        const stop = startRefresh({ dir: undefined } as unknown as ImdbDataset, {
+            ingest: async () => {
+                started += 1;
+            },
+            intervalMs: 5
+        });
+
+        await new Promise(r => setTimeout(r, 60));
+        stop();
+        expect(started).toBeGreaterThan(1);
+    });
+
+    // A failing ingest must not wedge the guard shut for ever.
+    it('clears the guard when an ingest fails', async () => {
+        let started = 0;
+        const stop = startRefresh({ dir: undefined } as unknown as ImdbDataset, {
+            ingest: async () => {
+                started += 1;
+                throw new Error('nope');
+            },
+            intervalMs: 5
+        });
+
+        await new Promise(r => setTimeout(r, 60));
+        stop();
+        expect(started).toBeGreaterThan(1);
     });
 });
