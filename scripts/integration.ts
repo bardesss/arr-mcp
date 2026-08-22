@@ -38,10 +38,10 @@ import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
+import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
 
 type ToolName = (typeof TOOL_NAMES)[number];
 type Case = { tool: ToolName; args: Record<string, unknown> };
-type ToolCallResult = { isError?: boolean; content?: { type: string; text?: string }[]; structuredContent?: unknown };
 
 /**
  * Arguments chosen to exercise the path a user actually takes, not the
@@ -137,7 +137,6 @@ if (missing.length > 0) {
     process.exitCode = 1;
 }
 
-let nextId = 1;
 
 /**
  * One `tools/call` JSON-RPC request, in-process through Hono — no listening
@@ -146,32 +145,9 @@ let nextId = 1;
  * not one of these — it comes back as a normal 200 with `isError: true`,
  * which the caller inspects.
  */
-async function callTool(name: string, args: Record<string, unknown>): Promise<ToolCallResult> {
-    const res = await app.request('http://localhost:6060/mcp', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json, text/event-stream',
-            Authorization: `Bearer ${config.auth.bearer_token}`
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method: 'tools/call', params: { name, arguments: args } })
-    });
-
-    const text = await res.text();
-    if (!res.ok) throw new Error(`transport error: HTTP ${res.status}`);
-
-    // The SDK may frame the body as SSE rather than plain JSON; the payload
-    // is always the one top-level JSON object in it. Same approach
-    // test/app.test.ts's rpcPayload() uses.
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start === -1 || end === -1) throw new Error('transport error: no JSON-RPC payload in the response body');
-
-    const payload = JSON.parse(text.slice(start, end + 1)) as { result?: ToolCallResult; error?: { message?: string } };
-    if (payload.error !== undefined) throw new Error(`protocol error: ${payload.error.message ?? 'unnamed'}`);
-    if (payload.result === undefined) throw new Error('protocol error: no result in the response');
-    return payload.result;
-}
+/** Bound to this run's app and token, so call sites read as before. */
+const callTool = (name: string, args: Record<string, unknown>): Promise<ToolCallResult> =>
+    rpcCallTool(app, config.auth.bearer_token, name, args);
 
 let passes = 0;
 let failures = 0;

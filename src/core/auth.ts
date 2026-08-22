@@ -115,6 +115,16 @@ export function qbittorrentSession(creds: {
 }): AuthStrategy {
     const doFetch = creds.fetchImpl ?? fetch;
     let sid: string | undefined;
+    /**
+     * The in-flight login, shared.
+     *
+     * N concurrent requests that all hit 403 each started their own login.
+     * Beyond the wasted round trips, qBittorrent's WebUI bans a client after
+     * repeated auth attempts — the very remedy text this strategy's failure
+     * points at — so a burst against briefly-wrong credentials accelerated the
+     * ban it warns about. Same single-flight shape as IdentityResolver's list.
+     */
+    let inFlight: Promise<string> | undefined;
 
     return {
         id: 'qbittorrent-session',
@@ -126,7 +136,11 @@ export function qbittorrentSession(creds: {
             // Nothing to retry with; let the 403 stand as AuthFailed.
             if (creds.username === undefined) return false;
 
-            sid = await qbittorrentLogin(creds, doFetch);
+            inFlight ??= qbittorrentLogin(creds, doFetch).finally(() => {
+                inFlight = undefined;
+            });
+
+            sid = await inFlight;
             return true;
         }
     };

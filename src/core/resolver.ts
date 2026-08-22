@@ -184,6 +184,14 @@ export class LibraryIndex {
         const byKey = new Map<string, MergedItem>();
         const items: MergedItem[] = [];
 
+        // Membership as a Set, order as the array. `items.includes` per key per
+        // input and `indexOf`/`splice` per fusion made this quadratic: a 10k
+        // item library is 10^8+ comparisons on every cache-miss build, which on
+        // a NAS is seconds of user-facing latency behind a 5-minute TTL.
+        // Absorbed groups are dropped from `live` and the array is compacted
+        // once, after the loop.
+        const live = new Set<MergedItem>();
+
         for (const input of inputs) {
             const keys = keysOf(input.kind, input.ids);
             // A record can carry ids that already belong to *two* separate
@@ -204,13 +212,14 @@ export class LibraryIndex {
             // present nowhere in the final `all()`. Filtering to objects still
             // in `items` is what keeps a spliced-out group from ever winning a
             // later merge.
-            const matches = [...new Set(keys.map(k => byKey.get(k)).filter((v): v is MergedItem => v !== undefined))].filter(m =>
-                items.includes(m)
-            );
+            const matches = [
+                ...new Set(keys.map(k => byKey.get(k)).filter((v): v is MergedItem => v !== undefined))
+            ].filter(m => live.has(m));
 
             if (matches.length === 0) {
                 const created: MergedItem = { ...input, presence: 'arr_only' };
                 items.push(created);
+                live.add(created);
                 for (const key of keys) byKey.set(key, created);
                 continue;
             }
@@ -222,8 +231,7 @@ export class LibraryIndex {
             const survivor = matches[0]!;
             for (const loser of matches.slice(1)) {
                 mergeInto(survivor, loser);
-                const index = items.indexOf(loser);
-                if (index !== -1) items.splice(index, 1);
+                live.delete(loser);
             }
             mergeInto(survivor, input);
 
@@ -245,8 +253,12 @@ export class LibraryIndex {
         // can never return an object `all()` does not contain, and it is
         // also the natural place to compute `presence`: every item here has
         // reached its final, fully-merged shape.
+        // Compacted once rather than spliced per fusion — same order, same
+        // contents, linear instead of quadratic.
+        const merged = items.filter(i => live.has(i));
+
         const finalByKey = new Map<string, MergedItem>();
-        for (const item of items) {
+        for (const item of merged) {
             item.presence =
                 item.acquisition !== undefined && item.playback !== undefined
                     ? 'both'
@@ -274,7 +286,7 @@ export class LibraryIndex {
             for (const key of keysOf(item.kind, item.ids)) finalByKey.set(key, item);
         }
 
-        return new LibraryIndex(items, finalByKey);
+        return new LibraryIndex(merged, finalByKey);
     }
 
     /**
