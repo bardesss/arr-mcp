@@ -15,8 +15,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
           cache: npm
@@ -40,12 +40,18 @@ jobs:
       - name: Did anything change?
         id: drift
         run: |
-          if git diff --quiet -- specs src/services/generated; then
+          # `git status --porcelain`, not `git diff`: diff only compares files
+          # git already tracks, so codegen emitting a file under a *new* name —
+          # a new service, a renamed spec — reported "unchanged" and shipped
+          # the drift while the run stayed green.
+          if [ -z "$(git status --porcelain -- specs src/services/generated)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Vendored specs and generated types are unchanged."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            git diff --stat -- specs src/services/generated
+            # --short, for the same reason: --stat would log nothing for a file
+            # that is new rather than modified.
+            git status --short -- specs src/services/generated
           fi
 
       # Against the freshly fetched specs, not the committed ones. Runs even
@@ -106,7 +112,7 @@ jobs:
       # itself will show no status checks; close and reopen it to get them.
       - name: Open a PR
         if: steps.drift.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
           branch: chore/openapi-drift
           title: 'chore: upstream OpenAPI spec drift'

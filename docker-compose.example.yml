@@ -2,8 +2,13 @@ services:
   arr-mcp:
     image: ghcr.io/bardesss/arr-mcp:latest
     container_name: arr-mcp
-    ports: 
-      - 6060:6060
+    ports:
+      # Loopback on purpose. The first person to load the setup page owns the
+      # instance, and that instance then holds API keys to the whole stack —
+      # publishing it on every interface during exactly that window is not a
+      # default to ship. Change to `6060:6060` once you have claimed it, or
+      # put it behind your reverse proxy.
+      - 127.0.0.1:6060:6060
     volumes:
       - ./config:/config
     environment:
