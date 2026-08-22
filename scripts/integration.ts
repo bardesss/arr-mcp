@@ -37,7 +37,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
-import { hostsOf, redactHosts } from './lib/redact.ts';
+import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 
 type ToolName = (typeof TOOL_NAMES)[number];
 type Case = { tool: ToolName; args: Record<string, unknown> };
@@ -635,9 +635,10 @@ async function checkUi(): Promise<void> {
 
     await check('no API key is ever rendered into the configuration form', async () => {
         const body = await (await authed('/ui/config')).text();
-        const keys = Object.values(config.services)
-            .map(s => (s as { api_key?: string } | undefined)?.api_key)
-            .filter((k): k is string => typeof k === 'string' && k.length > 0);
+        // Through `secretsOf` so named instances are covered: the flat cast
+        // here contributed no keys for them, and one flat service was enough
+        // to satisfy the `length > 0` guard and report green.
+        const keys = secretsOf(config);
         return keys.length > 0 && keys.every(k => !body.includes(k));
     });
 }
