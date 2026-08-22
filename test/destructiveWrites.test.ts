@@ -238,8 +238,14 @@ describe('removing a queue item', () => {
 
     it('maps removeFromClient to Transmission delete-local-data', async () => {
         const { impl, sent } = recordingFetch({});
+        // The adapter checks the torrent exists before removing it, so the
+        // torrent-get leg has to answer before torrent-remove is reached.
         const impl2 = (async (input: string | URL | Request, init?: RequestInit) => {
             await impl(input, init);
+            const body = JSON.parse((init?.body as string) ?? '{}') as { method?: string };
+            if (body.method === 'torrent-get') {
+                return jsonResponse({ result: 'success', arguments: { torrents: [{ id: 3 }] } });
+            }
             return jsonResponse({ result: 'success' });
         }) as unknown as typeof fetch;
 
@@ -248,7 +254,9 @@ describe('removing a queue item', () => {
             blocklist: false
         });
 
-        const rpc = sent.find(s => s.method === 'POST')?.body as {
+        const rpc = sent.find(
+            s => s.method === 'POST' && (s.body as { method?: string })?.method === 'torrent-remove'
+        )?.body as {
             method: string;
             arguments: Record<string, unknown>;
         };
@@ -258,7 +266,13 @@ describe('removing a queue item', () => {
 
     // Transmission reports failure as HTTP 200 with a non-success result.
     it('treats a non-success Transmission result as a failure', async () => {
-        const impl = (async () => jsonResponse({ result: 'invalid argument' })) as unknown as typeof fetch;
+        const impl = (async (_i: string | URL | Request, init?: RequestInit) => {
+            const body = JSON.parse((init?.body as string) ?? '{}') as { method?: string };
+            if (body.method === 'torrent-get') {
+                return jsonResponse({ result: 'success', arguments: { torrents: [{ id: 3 }] } });
+            }
+            return jsonResponse({ result: 'invalid argument' });
+        }) as unknown as typeof fetch;
         await expect(
             new TransmissionAdapter(transmissionConfig, impl).removeQueueItem('3', {
                 removeFromClient: true,

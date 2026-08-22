@@ -458,7 +458,99 @@ describe('SabnzbdAdapter', () => {
     expectsAuthDiagnosis(new SabnzbdAdapter(keyed(8080), unauthorized));
 });
 
+describe('id conversion at the boundary', () => {
+    // Verified live: an *arr lookup for something not in the library omits
+    // `id` entirely, so the fallback to the external id is what runs. A build
+    // that sends 0 instead must not turn into the id "0".
+    it('falls through to the external id when a lookup carries no id', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie/lookup': [{ title: 'Some Film', tmdbId: 550, year: 1999 }] })
+        );
+        expect((await radarr.search('some', 'discover'))[0]?.id).toBe('550');
+    });
+
+    it('does not let a zero id become the string "0"', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie/lookup': [{ id: 0, title: 'Some Film', tmdbId: 550 }] })
+        );
+        expect((await radarr.search('some', 'discover'))[0]?.id).toBe('550');
+    });
+
+    it('keeps a real library id when the lookup has one', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie/lookup': [{ id: 12, title: 'Some Film', tmdbId: 550 }] })
+        );
+        expect((await radarr.search('some', 'discover'))[0]?.id).toBe('12');
+    });
+
+    // Number('') is 0, and Number.isFinite(0) is true, so an empty provider id
+    // became tmdb: 0 and poisoned the identity join. seerr.ts's yearOf
+    // documents the same trap.
+    it('treats an empty Jellyfin provider id as absent, not as zero', async () => {
+        const jelly = new JellyfinAdapter(
+            multiUser(8096),
+            serving({
+                '/Items': {
+                    Items: [{ Id: 'abc', Name: 'Some Film', Type: 'Movie', ProviderIds: { Tmdb: '', Imdb: 'tt1' } }],
+                    TotalRecordCount: 1
+                },
+                '/Users': [{ Id: 'u1', Name: 'someone' }]
+            })
+        );
+
+        const hits = await jelly.search('some', 'library');
+        expect(hits[0]?.ids.tmdb).toBeUndefined();
+    });
+
+    it('still converts a real Jellyfin provider id', async () => {
+        const jelly = new JellyfinAdapter(
+            multiUser(8096),
+            serving({
+                '/Items': {
+                    Items: [{ Id: 'abc', Name: 'Some Film', Type: 'Movie', ProviderIds: { Tmdb: '550' } }],
+                    TotalRecordCount: 1
+                },
+                '/Users': [{ Id: 'u1', Name: 'someone' }]
+            })
+        );
+
+        expect((await jelly.search('some', 'library'))[0]?.ids.tmdb).toBe(550);
+    });
+});
+
 describe('TransmissionAdapter', () => {
+    // torrent-remove ignores unknown ids and answers success, so without a
+    // pre-check a stale id reported a successful removal of nothing.
+    // qBittorrent already checks; SABnzbd checks its own status flag.
+    it('refuses to report success removing a torrent it does not have', async () => {
+        const rpc = (async (_i: string, init?: RequestInit) => {
+            const body = JSON.parse((init?.body as string) ?? '{}') as { method?: string };
+            if (body.method === 'torrent-get') return jsonResponse({ result: 'success', arguments: { torrents: [] } });
+            return jsonResponse({ result: 'success', arguments: {} });
+        }) as unknown as typeof fetch;
+
+        await expect(
+            new TransmissionAdapter(transmissionConfig, rpc).removeQueueItem('999', { removeFromClient: false, blocklist: false })
+        ).rejects.toThrow(/no torrent/i);
+    });
+
+    it('removes a torrent it does have', async () => {
+        const rpc = (async (_i: string, init?: RequestInit) => {
+            const body = JSON.parse((init?.body as string) ?? '{}') as { method?: string };
+            if (body.method === 'torrent-get') {
+                return jsonResponse({ result: 'success', arguments: { torrents: [{ id: 7 }] } });
+            }
+            return jsonResponse({ result: 'success', arguments: {} });
+        }) as unknown as typeof fetch;
+
+        await expect(
+            new TransmissionAdapter(transmissionConfig, rpc).removeQueueItem('7', { removeFromClient: false, blocklist: false })
+        ).resolves.toBeUndefined();
+    });
+
     const session = fixture('transmission/session-get.json');
     const adapter = new TransmissionAdapter(transmissionConfig, (async () =>
         jsonResponse(session)) as unknown as typeof fetch);

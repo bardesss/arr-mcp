@@ -87,7 +87,11 @@ export async function readArrQueue(
                 ...(r.sizeleft === undefined ? {} : { remainingBytes: r.sizeleft }),
                 ...(eta === undefined ? {} : { etaSeconds: eta }),
                 ...(r.errorMessage ? { errorMessage: fenceText(r.errorMessage, { service, field: 'errorMessage' }) } : {}),
-                ...(r.movieId === undefined && r.seriesId === undefined ? { orphaned: true } : {}),
+                // `== null` rather than `=== undefined`: the generated spec types
+                // these as `number | null`, so a build that serialises the null
+                // instead of omitting the key would hide the very rows
+                // `includeUnknownMovieItems=true` was added to surface.
+                ...(r.movieId == null && r.seriesId == null ? { orphaned: true } : {}),
                 // Omitted when it only repeats `status`, which is the common case.
                 ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
                     ? {}

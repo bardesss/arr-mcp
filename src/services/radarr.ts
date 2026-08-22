@@ -295,7 +295,10 @@ export class RadarrAdapter
             service: this.id,
             source,
             kind: 'movie',
-            id: String(m.id ?? m.tmdbId ?? ''),
+            // `?? ` alone would keep a zero: a lookup omits `id` for something
+            // not in the library, but a build that sends 0 instead must not
+            // produce the id "0". Matches arrAdd's own `> 0` guard.
+            id: String((m.id !== undefined && m.id > 0 ? m.id : undefined) ?? m.tmdbId ?? ''),
             title: fenceText(m.title ?? '', { service: this.id, field: 'title' }),
             ...(m.year === undefined ? {} : { year: m.year }),
             ids: {

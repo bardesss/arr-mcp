@@ -400,7 +400,10 @@ export class SonarrAdapter
             service: this.id,
             source,
             kind: 'series',
-            id: String(s.id ?? s.tvdbId ?? ''),
+            // `?? ` alone would keep a zero: a lookup omits `id` for something
+            // not in the library, but a build that sends 0 instead must not
+            // produce the id "0". Matches arrAdd's own `> 0` guard.
+            id: String((s.id !== undefined && s.id > 0 ? s.id : undefined) ?? s.tvdbId ?? ''),
             title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
             ...(s.year === undefined ? {} : { year: s.year }),
             ids: {
