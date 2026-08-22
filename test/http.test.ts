@@ -509,6 +509,7 @@ describe('ServiceHttp recovery failures', () => {
 
         const boom = new Error('login refused');
         const client = http(async () => failed, {
+            id: 'test-throw',
             apply: () => {},
             recover: async () => {
                 throw boom;
@@ -530,7 +531,7 @@ describe('ServiceHttp recovery failures', () => {
             };
         }
 
-        const client = http(async () => failed, { apply: () => {}, recover: async () => false });
+        const client = http(async () => failed, { id: 'test-decline', apply: () => {}, recover: async () => false });
 
         await expect(client.get('/api/v3/system/status')).rejects.toThrow();
         expect(cancelled).toBe(true);

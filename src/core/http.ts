@@ -241,9 +241,9 @@ export class ServiceHttp {
         }
 
         let recovered = false;
-        if (allowRecovery && this.#auth.recover !== undefined) {
+        if (allowRecovery) {
             try {
-                recovered = (await this.#auth.recover(response)) === true;
+                recovered = (await this.#auth.recover?.(response)) === true;
             } catch (err) {
                 // A recover that throws leaves the original response unread on
                 // every other path out of this function.
