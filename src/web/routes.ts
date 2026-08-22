@@ -138,7 +138,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const passOk = auth.password_hash !== undefined && verifyPassword(password, auth.password_hash);
 
         if (!nameOk || !passOk) {
-            logger.warn({ ip: ipOf(c), username }, 'rejected config UI sign-in');
+            // No username: this field routinely catches a password typed into
+            // the wrong box, and the record is rendered at /ui/logs.
+            logger.warn({ ip: ipOf(c) }, 'rejected config UI sign-in');
             return c.html(loginPage({ version, error: 'Wrong username or password.', theme: theme() }), 401);
         }
 

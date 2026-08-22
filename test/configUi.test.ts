@@ -8,6 +8,7 @@ import { ConfigSchema } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
+import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
 
@@ -151,6 +152,28 @@ describe('access control', () => {
         expect(res.status).toBe(401);
         // Naming which half was wrong would confirm valid usernames.
         expect(await res.text()).toContain('Wrong username or password');
+    });
+
+    // The username field routinely catches a password typed into the wrong
+    // box, and this record is rendered at /ui/logs and in `docker logs`.
+    //
+    // `attachLogStore` is what routes logger output into the store — without
+    // it `recent()` is empty and the assertion below cannot fail, which is how
+    // this test first passed against the unfixed route.
+    it('does not log the attempted username when a sign-in is rejected', async () => {
+        cookie = '';
+        const typo = 'hunter2-typed-in-the-wrong-box';
+
+        attachLogStore(logs);
+        try {
+            await call('/ui/login', form({ username: typo, password: 'nope' }));
+        } finally {
+            detachLogStore();
+        }
+
+        const written = JSON.stringify(logs.recent({ limit: 50 }));
+        expect(written).toContain('rejected config UI sign-in'); // the premise: the store saw it
+        expect(written).not.toContain(typo);
     });
 
     it('signs in and reaches the dashboard', async () => {
