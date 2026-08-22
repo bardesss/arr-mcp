@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { parse, stringify } from 'yaml';
+import { parse, parseDocument, stringify } from 'yaml';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
+import { writeConfigAtomic } from './save.ts';
 import { ConfigSchema, type Config } from './schema.ts';
 
 const FILENAME = 'config.yaml';
@@ -94,7 +95,18 @@ export async function loadConfig(
     }
 
     const obj = parsed as Record<string, unknown>;
-    const auth = (obj.auth ?? {}) as { bearer_token?: string; password_hash?: string; username?: string };
+
+    // A non-object `auth:` has to reach safeParse to be reported properly.
+    // Backfilling into it first threw from assigning a property to a primitive,
+    // pre-empting the schema message with a raw TypeError.
+    const rawAuth = obj.auth;
+    const authIsMapping =
+        rawAuth === undefined || (rawAuth !== null && typeof rawAuth === 'object' && !Array.isArray(rawAuth));
+    const auth = (authIsMapping ? (rawAuth ?? {}) : {}) as {
+        bearer_token?: string;
+        password_hash?: string;
+        username?: string;
+    };
     const generated: GeneratedCredentials = {};
 
     // The bearer token is backfilled rather than refused because it has no
@@ -106,12 +118,18 @@ export async function loadConfig(
     // here would claim the instance on the user's behalf with a password
     // nobody would ever see. Deleting the line is the documented way to ask
     // for a new password, and this is what makes that work.
-    if (!auth.bearer_token) {
+    if (authIsMapping && !auth.bearer_token) {
         auth.bearer_token = generateToken();
         generated.bearerToken = auth.bearer_token;
         obj.auth = auth;
         if (persist) {
-            await writeFile(path, stringify(obj), { mode: 0o600 });
+            // Through the document and the same atomic write saveConfig uses:
+            // `stringify(obj)` dropped every comment in the file, and writing
+            // straight over it could leave a truncated config holding every
+            // API key — the two things save.ts exists to prevent.
+            const doc = parseDocument(raw);
+            doc.setIn(['auth', 'bearer_token'], auth.bearer_token);
+            await writeConfigAtomic(path, doc.toString());
             logger.warn({ path }, 'config.yaml was missing its bearer token; generated one');
         }
     }

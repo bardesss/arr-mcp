@@ -45,15 +45,28 @@ function mergeInto(doc: Document, path: string[], value: unknown): void {
     for (const [key, child] of Object.entries(wanted)) mergeInto(doc, [...path, key], child);
 }
 
+/** Key order is not data, so a stable ordering is what makes two configs
+ *  comparable. */
+function stableJson(value: unknown): string {
+    return JSON.stringify(value, (_key, node: unknown) =>
+        node !== null && typeof node === 'object' && !Array.isArray(node)
+            ? Object.fromEntries(Object.entries(node as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+            : node
+    );
+}
+
 /**
- * The services on disk, by name, for the drift check below. Read from the
- * document rather than through the schema: a file that has since become
- * invalid still has to be detectable as *changed*.
+ * Whether the file still says what the page believed.
+ *
+ * Compared through the schema, not by service name: the name check saw a
+ * service added or removed and nothing else, so a hand-edited `api_key` — or
+ * anything under `auth` — passed it and was then overwritten. A file that no
+ * longer parses has certainly changed.
  */
-function serviceNames(doc: Document): string[] {
-    const services = doc.getIn(['services']);
-    if (!isMap(services)) return [];
-    return services.items.map(item => String((item.key as { value?: unknown })?.value ?? '')).sort();
+function driftedFrom(doc: Document, expected: Config): boolean {
+    const onDisk = ConfigSchema.safeParse(doc.toJS());
+    if (!onDisk.success) return true;
+    return stableJson(onDisk.data) !== stableJson(expected);
 }
 
 /**
@@ -94,15 +107,11 @@ export async function saveConfig(configDir: string, next: Config, opts: { expect
     // snapshot, so writing it back deleted the service — under a "Saved.
     // Applied immediately" message. Refusing is the only honest answer: this
     // cannot tell "the user removed it" from "the user never saw it".
-    if (opts.expected !== undefined) {
-        const onDisk = serviceNames(doc).join(',');
-        const believed = Object.keys(opts.expected.services).sort().join(',');
-        if (onDisk !== believed) {
-            throw new Error(
-                'config.yaml changed on disk since this page was loaded, so saving would overwrite that change. ' +
-                    'Reload the page and make the edit again.'
-            );
-        }
+    if (opts.expected !== undefined && driftedFrom(doc, opts.expected)) {
+        throw new Error(
+            'config.yaml changed on disk since this page was loaded, so saving would overwrite that change. ' +
+                'Reload the page and make the edit again.'
+        );
     }
 
     // Driven by the schema, not by a list kept here. A list is a thing to
@@ -121,13 +130,21 @@ export async function saveConfig(configDir: string, next: Config, opts: { expect
     const blocks = value as Record<string, unknown>;
     for (const key of Object.keys(ConfigSchema.shape)) mergeInto(doc, [key], blocks[key]);
 
-    // A unique temp name per save. A fixed `config.yaml.tmp` meant two
-    // overlapping saves wrote into the same file and both renamed it into
-    // place, so one could rename a half-written copy of the other — defeating
-    // the atomicity property 3 promises.
+    await writeConfigAtomic(path, doc.toString());
+}
+
+/**
+ * Replaces `path` atomically, 0o600. Property 3 above, reusable — the loader's
+ * bearer-token backfill needs the same guarantee.
+ *
+ * A unique temp name per write: a fixed `config.yaml.tmp` meant two overlapping
+ * writes shared one file and both renamed it into place, so one could rename a
+ * half-written copy of the other. 0o600 on the temp file too — it holds the
+ * same secrets for the moment it exists, and a default-umask temp file is a
+ * readable one.
+ */
+export async function writeConfigAtomic(path: string, text: string): Promise<void> {
     const tmp = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    // 0o600 on the temp file too — it holds the same secrets for the moment it
-    // exists, and a default-umask temp file is a readable one.
-    await writeFile(tmp, doc.toString(), { mode: 0o600 });
+    await writeFile(tmp, text, { mode: 0o600 });
     await rename(tmp, path);
 }

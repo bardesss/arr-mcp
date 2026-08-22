@@ -72,6 +72,28 @@ describe('reading without writing', () => {
         expect(await readFile(path, 'utf8')).toContain('bearer_token');
     });
 
+    // `auth: "abc"` reached `auth.bearer_token = ...`, which in strict mode is
+    // assigning a property to a string primitive — a raw TypeError instead of
+    // the schema message the user can act on.
+    it('reports a non-object auth block through the schema, not as a TypeError', async () => {
+        const dir = await freshDir();
+        await writeFile(join(dir, 'config.yaml'), `auth: "abc"
+services: {}
+`, 'utf8');
+
+        await expect(loadConfig(dir)).rejects.toThrow(/config\.yaml is invalid/i);
+    });
+
+    it('reports a list-shaped auth block the same way', async () => {
+        const dir = await freshDir();
+        await writeFile(join(dir, 'config.yaml'), `auth:
+  - bearer_token: x
+services: {}
+`, 'utf8');
+
+        await expect(loadConfig(dir)).rejects.toThrow(/config\.yaml is invalid/i);
+    });
+
     // A script pointed at the wrong directory should say so, not create one.
     it('refuses to invent a config directory when reading only', async () => {
         const dir = await freshDir();
@@ -536,5 +558,97 @@ describe('comments through a save', () => {
 
         await expect(saveConfig(dir, config, { expected: config })).rejects.toThrow(/changed on disk/i);
         expect(await readFile(path, 'utf8')).toContain('sonarr');
+    });
+
+    // The check compared service *names*, so every edit that left the key set
+    // intact — a rotated key, anything under auth — passed it and was then
+    // overwritten under a "Saved." message.
+    it('refuses when a service field was hand-edited, not just when a service was added', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        const base =
+            `auth:\n  bearer_token: ${'d'.repeat(64)}\n  password_hash: scrypt$00$11\n` +
+            `services:\n  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n`;
+        await writeFile(path, base, 'utf8');
+        const { config } = await loadConfig(dir);
+
+        await writeFile(path, base.replace('api_key: k', 'api_key: rotated-by-hand'), 'utf8');
+
+        await expect(saveConfig(dir, config, { expected: config })).rejects.toThrow(/changed on disk/i);
+        expect(await readFile(path, 'utf8')).toContain('rotated-by-hand');
+    });
+
+    it('refuses when auth was hand-edited', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        const base =
+            `auth:\n  bearer_token: ${'d'.repeat(64)}\n  password_hash: scrypt$00$11\n  username: admin\n` +
+            `services:\n  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n`;
+        await writeFile(path, base, 'utf8');
+        const { config } = await loadConfig(dir);
+
+        await writeFile(path, base.replace('username: admin', 'username: someone-else'), 'utf8');
+
+        await expect(saveConfig(dir, config, { expected: config })).rejects.toThrow(/changed on disk/i);
+    });
+
+    it('refuses when the file on disk no longer parses under the schema', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(
+            path,
+            `auth:\n  bearer_token: ${'d'.repeat(64)}\n  password_hash: scrypt$00$11\nservices: {}\n`,
+            'utf8'
+        );
+        const { config } = await loadConfig(dir);
+
+        await writeFile(path, `auth:\n  bearer_token: too-short\nservices: {}\n`, 'utf8');
+
+        await expect(saveConfig(dir, config, { expected: config })).rejects.toThrow(/changed on disk/i);
+    });
+
+    // saveConfig goes to four documented properties of effort to keep comments
+    // and replace atomically; the loader's own backfill bypassed all of it.
+    it('keeps comments and key order when backfilling a missing bearer token', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(
+            path,
+            `# my stack, hand-written
+auth:
+  password_hash: scrypt$00$11
+` +
+                `services:
+  radarr:
+    url: http://192.0.2.10:7878 # LAN only
+    api_key: k
+`,
+            'utf8'
+        );
+
+        const { generated } = await loadConfig(dir);
+        expect(generated.bearerToken).toBeDefined();
+
+        const written = await readFile(path, 'utf8');
+        expect(written).toContain('# my stack, hand-written');
+        expect(written).toContain('# LAN only');
+        expect(written).toContain(generated.bearerToken as string);
+    });
+
+    // The other half of the property: a stricter check must not start refusing
+    // saves over comments or key order, neither of which is data.
+    it('still saves when nothing changed on disk, including comments and key order', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(
+            path,
+            `# my stack\nauth:\n  password_hash: scrypt$00$11\n  bearer_token: ${'d'.repeat(64)}\n` +
+                `services:\n  radarr:\n    api_key: k # LAN only\n    url: http://192.0.2.10:7878\n`,
+            'utf8'
+        );
+        const { config } = await loadConfig(dir);
+
+        await expect(saveConfig(dir, config, { expected: config })).resolves.toBeUndefined();
+        expect(await readFile(path, 'utf8')).toContain('# my stack');
     });
 });
