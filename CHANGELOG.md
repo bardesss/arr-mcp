@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.5](https://github.com/bardesss/arr-mcp/compare/v1.15.4...v1.15.5) (2026-08-22)
+
+
+### Performance Improvements
+
+* remove the quadratic library build and six smaller cleanups ([#166](https://github.com/bardesss/arr-mcp/issues/166)) ([607b13c](https://github.com/bardesss/arr-mcp/commit/607b13c6b87c5443b2038c6556fde0ac45d77e1d))
+
 ## [1.15.4](https://github.com/bardesss/arr-mcp/compare/v1.15.3...v1.15.4) (2026-08-22)
 
 
