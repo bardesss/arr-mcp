@@ -192,7 +192,7 @@ describe('access control', () => {
 
     it('signs out', async () => {
         await signIn();
-        await call('/ui/logout', { method: 'POST' });
+        await call('/ui/logout', form({ csrf: await csrfFrom() }));
         expect((await call('/ui')).status).toBe(302);
     });
 });
@@ -1577,10 +1577,20 @@ describe('ending sessions', () => {
     it('a signed-out session cookie no longer works if replayed', async () => {
         await signIn();
         const stolen = cookie;
-        await call('/ui/logout', { method: 'POST' });
+        await call('/ui/logout', form({ csrf: await csrfFrom() }));
 
         cookie = stolen;
-        expect((await call('/ui')).status).toBe(302);    });
+        expect((await call('/ui')).status).toBe(302);
+    });
+
+    // Every other state-changing form carries one, and sign-out now ends a
+    // session rather than only clearing a cookie.
+    it('refuses a sign-out with no CSRF token', async () => {
+        await signIn();
+        await call('/ui/logout', { method: 'POST' });
+
+        expect((await call('/ui')).status).toBe(200);
+    });
 });
 
 describe('claiming an instance', () => {

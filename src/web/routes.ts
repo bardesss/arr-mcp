@@ -178,10 +178,15 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         return c.redirect('/ui', 302);
     });
 
-    app.post('/ui/logout', c => {
+    app.post('/ui/logout', async c => {
+        const session = sessionOf(c, runtime);
+        const form = await c.req.parseBody();
+        if (session === undefined || !runtime.sessions.csrfValid(session, str(form.csrf))) {
+            return c.redirect(entry(), 302);
+        }
         // Clearing the cookie only ends the session for the browser holding it.
         // Anyone with a copy of the token kept access until it expired.
-        runtime.sessions.revoke(sessionOf(c, runtime));
+        runtime.sessions.revoke(session);
         c.header('set-cookie', clearedSessionCookie());
         return c.redirect('/ui/login', 302);
     });
@@ -199,7 +204,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.get('/', c => c.redirect(guard(c) === undefined ? entry() : '/ui', 302));
 
     app.get('/ui', async c => {
-        if (guard(c) === undefined) return c.redirect(entry(), 302);
+        const session = guard(c);
+        if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
 
         const snapshot = runtime.current;
@@ -215,6 +221,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         return c.html(
             dashboardPage({
+                csrf: runtime.sessions.csrfFor(session),
                 theme: theme(),
                 version,
                 diagnoses: health.services,
@@ -238,7 +245,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // --- logs -----------------------------------------------------------
 
     app.get('/ui/logs', c => {
-        if (guard(c) === undefined) return c.redirect(entry(), 302);
+        const session = guard(c);
+        if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
 
         const { stream, minLevel, service } = logQuery(c, logs);
@@ -246,6 +254,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         return c.html(
             logsPage({
+                csrf: runtime.sessions.csrfFor(session),
                 theme: theme(),
                 version,
                 services: logs.services(),
@@ -269,9 +278,17 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // --- write audit ----------------------------------------------------
 
     app.get('/ui/audit', c => {
-        if (guard(c) === undefined) return c.redirect(entry(), 302);
+        const session = guard(c);
+        if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
-        return c.html(auditPage({ version, rows: audit.recent(300) as AuditRow[], theme: theme() }));
+        return c.html(
+            auditPage({
+                csrf: runtime.sessions.csrfFor(session),
+                version,
+                rows: audit.recent(300) as AuditRow[],
+                theme: theme()
+            })
+        );
     });
 
     // --- configuration --------------------------------------------------
