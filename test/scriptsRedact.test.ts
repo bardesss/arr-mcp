@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
-import { hostsOf, redactHosts, secretsOf } from '../scripts/lib/redact.ts';
+import { hostsOf, redact, redactHosts, secretsOf } from '../scripts/lib/redact.ts';
 
 const TOKEN = 'a'.repeat(64);
 
@@ -98,5 +98,57 @@ describe('redactHosts', () => {
 
         expect(err.message).toContain('192.168.1.20:7878'); // the premise: it really is embedded
         expect(redactHosts(err.message, hostsOf(config))).not.toContain('192.168.1.20');
+    });
+});
+
+/**
+ * The pipeline that stands between a live credential and a public repository.
+ * It had no test at all: the review found the multi-instance hole above only
+ * by reading it, and nothing here would have caught a regression.
+ */
+describe('redact', () => {
+    const secrets = ['hdkey'];
+    const hosts = ['192.168.1.20:7878', '192.168.1.20'];
+
+    it('replaces an exact secret wherever it appears in a string', () => {
+        expect(redact('key=hdkey', secrets, hosts)).toBe('key=__REDACTED__');
+    });
+
+    it('replaces a value by key name even when the value was never in the config', () => {
+        expect(redact({ api_key: 'somethingelse' }, secrets, hosts)).toEqual({ api_key: '__REDACTED__' });
+    });
+
+    it('redacts a session id, which rotates and looks exactly like a credential', () => {
+        expect(redact({ 'session-id': 'abc' }, secrets, hosts)).toEqual({ 'session-id': '__REDACTED__' });
+    });
+
+    it('recurses into nested objects and arrays', () => {
+        expect(redact({ outer: [{ inner: { api_key: 'x' } }] }, secrets, hosts)).toEqual({
+            outer: [{ inner: { api_key: '__REDACTED__' } }]
+        });
+    });
+
+    it('rewrites a private IPv4 address that was never a configured host', () => {
+        expect(redact('seeded from 10.1.2.3', secrets, hosts)).toBe('seeded from 192.0.2.10');
+    });
+
+    it('leaves a version-shaped number alone, which a blanket IPv4 pattern would have eaten', () => {
+        expect(redact('version 4.0.14.2939', secrets, hosts)).toBe('version 4.0.14.2939');
+    });
+
+    it('replaces a configured host with the anonymous host', () => {
+        expect(redact('http://192.168.1.20:7878/api', secrets, hosts)).toContain('service.example.test');
+    });
+
+    it('leaves an empty or null value at a secret key alone, so shape is preserved', () => {
+        expect(redact({ api_key: '' }, secrets, hosts)).toEqual({ api_key: '' });
+        expect(redact({ api_key: null }, secrets, hosts)).toEqual({ api_key: null });
+    });
+
+    it('leaves ordinary values untouched', () => {
+        expect(redact({ title: 'The Fellowship of the Ring', year: 2001 }, secrets, hosts)).toEqual({
+            title: 'The Fellowship of the Ring',
+            year: 2001
+        });
     });
 });

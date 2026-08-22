@@ -52,3 +52,47 @@ export function secretsOf(config: Config): string[] {
 export function redactHosts(text: string, hosts: readonly string[]): string {
     return hosts.reduce((acc, host) => acc.split(host).join(PLACEHOLDER), text);
 }
+
+export const REDACTED = '__REDACTED__';
+export const ANONYMOUS_HOST = 'service.example.test';
+
+/**
+ * `session[-_]id` is not a credential — Transmission hands one to any client
+ * that asks, and that handshake is the whole point. It is redacted anyway for
+ * two reasons: it rotates, so leaving it in produces a spurious diff on every
+ * recapture, and it looks exactly like a secret to anyone reading the fixture.
+ * The adapter reads the session id from the response *header*, never the body,
+ * so nothing depends on the recorded value.
+ */
+export const SECRET_KEY =
+    /^(api_?key|apikey|token|access_?token|auth_?token|password|passwd|secret|nzb_?key|session[-_]?id)$/i;
+
+/**
+ * Private and loopback IPv4 literals, for addresses a service reports about
+ * *itself* rather than ones we configured. Restricted to RFC1918, loopback and
+ * link-local on purpose: a blanket IPv4 pattern would rewrite version strings,
+ * and scoping it to ranges that cannot be a version number keeps that
+ * impossible. Replaced with TEST-NET-1, reserved for documentation.
+ */
+export const PRIVATE_IPV4 =
+    /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b/g;
+
+/** Secrets by exact value, configured hosts by exact value, then private IPv4
+ *  literals by shape — recursively, so a nested credential cannot survive. */
+export function redact(node: unknown, secrets: string[], hosts: string[]): unknown {
+    if (typeof node === 'string') {
+        const withoutSecrets = secrets.reduce((acc, secret) => acc.split(secret).join(REDACTED), node);
+        const withoutHosts = hosts.reduce((acc, host) => acc.split(host).join(ANONYMOUS_HOST), withoutSecrets);
+        return withoutHosts.replace(PRIVATE_IPV4, '192.0.2.10');
+    }
+    if (Array.isArray(node)) return node.map(v => redact(v, secrets, hosts));
+    if (node !== null && typeof node === 'object') {
+        return Object.fromEntries(
+            Object.entries(node).map(([key, value]) => [
+                key,
+                SECRET_KEY.test(key) && value !== null && value !== '' ? REDACTED : redact(value, secrets, hosts)
+            ])
+        );
+    }
+    return node;
+}
