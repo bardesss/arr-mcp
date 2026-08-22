@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-trixie-slim AS build
+# Pinned by digest, not by tag. This file records an arm64 startup death
+# caused by a glibc mismatch; a silent upstream re-tag would change glibc
+# under a release build with no diff to review. Renovate keeps it current.
+FROM node:24-trixie-slim@sha256:0711b541c1c33a8a530ac4f0d391baa9a15b3d804695b1b24a47daa5fb60e74d AS build
 WORKDIR /app
 # better-sqlite3 compiles a native addon; unused in Phase 1 but proven here so
 # Phase 4 does not discover a broken build stage.
@@ -16,7 +19,7 @@ RUN npm run build && npm prune --omit=dev
 # addon imports fmod@GLIBC_2.38, so on bookworm the arm64 image died at startup
 # while amd64 — needing only 2.34 — ran fine. test/dockerGlibc.test.ts fails if
 # a future prebuild outgrows this base.
-FROM node:24-trixie-slim AS runtime
+FROM node:24-trixie-slim@sha256:0711b541c1c33a8a530ac4f0d391baa9a15b3d804695b1b24a47daa5fb60e74d AS runtime
 WORKDIR /app
 
 ARG ARR_MCP_VERSION=0.0.0-dev
@@ -47,8 +50,12 @@ ENV NODE_ENV=production \
 VOLUME ["/config"]
 EXPOSE 6060
 
+# ${ARR_MCP_PORT}, not a literal: the env is documented above and honoured by
+# src/index.ts, so a container told to listen elsewhere was probed on 6060 and
+# marked unhealthy for ever — which stalls `depends_on: service_healthy` and
+# restart-loops under autoheal.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost:6060/healthz || exit 1
+    CMD wget -qO- "http://localhost:${ARR_MCP_PORT}/healthz" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 # tsc emits under dist/src because rootDir is the repo root.
