@@ -573,6 +573,7 @@ export function configPage(opts: {
         <p class="note"><a href="/ui">Back to the dashboard</a></p>`;
 
     return layout({
+        csrf: opts.csrf,
         title: 'Configuration',
         nav: 'config',
         version: opts.version,

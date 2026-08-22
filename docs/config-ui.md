@@ -136,7 +136,14 @@ delete the `password_hash` line from `config.yaml` and restart, and the setup
 page comes back exactly as it does on a fresh install.
 
 An instance with no `password_hash` is *unclaimed*, and every page redirects to
-setup until someone claims it.
+setup until someone claims it. Claiming requires a request from the setup page
+itself, so a form posted from anywhere else is refused.
+
+**Signing out ends the session for good.** Not just in that browser — the token
+stops working everywhere, so a copied cookie is worth nothing afterwards.
+Changing the password does the same to every *other* session, and leaves you
+signed in on the page you changed it on. Changing only the username signs nobody
+out.
 
 ## Applying changes
 
