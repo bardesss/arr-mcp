@@ -240,7 +240,19 @@ export class ServiceHttp {
             throw classifyFetchError(err, this.#id, safeUrl);
         }
 
-        if (allowRecovery && (await this.#auth.recover?.(response)) === true) {
+        let recovered = false;
+        if (allowRecovery && this.#auth.recover !== undefined) {
+            try {
+                recovered = (await this.#auth.recover(response)) === true;
+            } catch (err) {
+                // A recover that throws leaves the original response unread on
+                // every other path out of this function.
+                await discard(response);
+                throw err;
+            }
+        }
+
+        if (recovered) {
             // Nothing will read this one — the retry below supersedes it — and
             // an unread body pins its keep-alive connection until GC. A burst
             // of Transmission 409s or qBittorrent 403s otherwise degraded
