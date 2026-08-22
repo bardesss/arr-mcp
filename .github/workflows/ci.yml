@@ -16,8 +16,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
           cache: npm
@@ -32,14 +32,24 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      # `load: true`, so the image is actually in the local store and can be
+      # run. Building it was not enough for arm64 and is not enough here
+      # either: a native addon with an unresolvable symbol only fails when
+      # loaded, and amd64 is the platform most users are on.
       - name: Build image (no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: false
+          load: true
+          tags: arr-mcp:amd64-smoke
+
+      - name: Smoke-test the native-platform native addon
+        run: |
+          docker run --rm arr-mcp:amd64-smoke             node -e "const D=require('better-sqlite3');const db=new D(':memory:');db.exec('create table t(x)');db.prepare('insert into t values (?)').run(1);console.log('better-sqlite3 ok:', db.prepare('select count(*) c from t').get().c)"
 
       # release.yml publishes linux/arm64, but this job only built for the
       # runner's own platform, so the arm64 image was first executed by the user
@@ -49,7 +59,7 @@ jobs:
       # Single platform with load:true; a multi-platform build cannot be loaded
       # into the local image store.
       - name: Build arm64 image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: false

@@ -19,6 +19,13 @@ jellyfin https://api.jellyfin.org/openapi/jellyfin-openapi-stable.json
 seerr https://raw.githubusercontent.com/seerr-team/seerr/develop/seerr-api.yml
 "
 
+# Trapped rather than removed at the end of the loop: `set -e` means a failed
+# curl or a spec that will not parse exits from inside the loop, and the `rm`
+# below never runs.
+tmp=""
+cleanup() { [ -n "$tmp" ] && rm -f "$tmp"; }
+trap cleanup EXIT
+
 echo "$SERVICES" | while read -r name url; do
   [ -z "$name" ] && continue
   echo "fetching ${name} <- ${url}"
