@@ -275,3 +275,25 @@ describe('replacing the dataset', () => {
         expect(store.ratingsFor(['tt0903747']).get('tt0903747')).toBe(9.5);
     });
 });
+
+/**
+ * The genre goes into a LIKE pattern, so an unescaped `%` or `_` made a filter
+ * that could not fail to match. Local read-only data, so this is a correctness
+ * wrinkle rather than an injection — but a filter that matches everything is
+ * worse than one that matches nothing.
+ */
+describe('genre wildcards', () => {
+    it('does not let a wildcard genre match everything', () => {
+        const db = seed();
+        expect(db.discover({ kind: 'movie', limit: 50 }).length).toBeGreaterThan(0); // the premise
+        expect(db.discover({ kind: 'movie', genre: '%', limit: 50 })).toHaveLength(0);
+    });
+
+    it('does not let a single-character wildcard match a real genre', () => {
+        expect(seed().discover({ kind: 'movie', genre: 'dram_', limit: 50 })).toHaveLength(0);
+    });
+
+    it('still matches a real genre exactly', () => {
+        expect(seed().discover({ kind: 'movie', genre: 'Drama', limit: 50 }).length).toBeGreaterThan(0);
+    });
+});

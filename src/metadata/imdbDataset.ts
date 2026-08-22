@@ -74,6 +74,10 @@ const STORED_KINDS: ReadonlySet<string> = new Set([...Object.values(KIND_TO_IMDB
  */
 const VARIABLE_LIMIT = 900;
 
+/** `%`, `_` and the escape character itself, for a LIKE pattern built from
+ *  user input. Unescaped, `genre: "%"` matched every genre there is. */
+const escapeLike = (value: string): string => value.replace(/[\\%_]/g, m => `\\${m}`);
+
 export type RawTitle = {
     tconst: string;
     kind: string;
@@ -238,8 +242,8 @@ export class ImdbDataset {
         if (q.genre !== undefined) {
             // Genres ship as one comma-separated string. The commas on both
             // sides of the pattern are what stop "Drama" matching "Docudrama".
-            where.push(`(',' || LOWER(t.genres) || ',') LIKE ?`);
-            args.push(`%,${q.genre.toLowerCase()},%`);
+            where.push(`(',' || LOWER(t.genres) || ',') LIKE ? ESCAPE '\\'`);
+            args.push(`%,${escapeLike(q.genre.toLowerCase())},%`);
         }
         if (q.year !== undefined) {
             where.push('t.year = ?');
