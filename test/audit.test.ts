@@ -120,3 +120,40 @@ describe('write audit', () => {
         expect(row?.args).not.toContain('hunter2');
     });
 });
+
+/**
+ * The redactor matched key names at the top level only, so a secret one level
+ * down was serialised into a durable row verbatim. The module's stated goal is
+ * that no write tool can leak one "by construction".
+ */
+describe('argument redaction', () => {
+    it('redacts a secret nested inside an object argument', () => {
+        const trail = open();
+        trail.begin(record({ args: { options: { api_key: 'supersecret' } } }));
+
+        const [row] = trail.recent() as Row[];
+        expect(row?.args).not.toContain('supersecret');
+        expect(row?.args).toContain('__REDACTED__');
+    });
+
+    it('redacts a secret nested inside an array argument', () => {
+        const trail = open();
+        trail.begin(record({ args: { items: [{ token: 'supersecret' }] } }));
+
+        expect((trail.recent() as Row[])[0]?.args).not.toContain('supersecret');
+    });
+
+    it('still redacts a secret at the top level', () => {
+        const trail = open();
+        trail.begin(record({ args: { api_key: 'supersecret' } }));
+
+        expect((trail.recent() as Row[])[0]?.args).not.toContain('supersecret');
+    });
+
+    it('leaves non-secret nested values intact', () => {
+        const trail = open();
+        trail.begin(record({ args: { options: { quality: 'HD-1080p' } } }));
+
+        expect((trail.recent() as Row[])[0]?.args).toContain('HD-1080p');
+    });
+});
