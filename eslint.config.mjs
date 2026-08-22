@@ -8,7 +8,12 @@ export default tseslint.config(
     // `tmp-config` is the gitignored scratch directory. It is not source, and
     // linting throwaway probe scripts only produces noise that hides real
     // errors in the output.
-    { ignores: ['dist', 'node_modules', 'coverage', 'src/services/generated', 'tmp-config'] },
+    // `.claude` holds git worktrees, each a full checkout with its own
+    // tsconfig.json. Without this, having one open fails the whole run with
+    // "No tsconfigRootDir was set, and multiple candidate TSConfigRootDirs are
+    // present" — a lint that breaks depending on what you have checked out
+    // elsewhere.
+    { ignores: ['dist', 'node_modules', 'coverage', 'src/services/generated', 'tmp-config', '.claude'] },
     js.configs.recommended,
     ...tseslint.configs.recommended,
     {
