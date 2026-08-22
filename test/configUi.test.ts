@@ -22,6 +22,7 @@ import { buildMcpConfig } from '../src/web/routes.ts';
  */
 
 const PASSWORD = 'test-password-1234';
+const PASSWORD_HASH = await hashPassword(PASSWORD);
 const BEARER = 'a'.repeat(64);
 
 let dir: string;
@@ -60,7 +61,7 @@ const seed = async (extra = '') => {
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
     await writeFile(
         join(dir, 'config.yaml'),
-        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hashPassword(PASSWORD)}\n  allowed_hosts: []\nservices:${extra === '' ? ' {}' : `\n${extra}`}\n`,
+        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\nservices:${extra === '' ? ' {}' : `\n${extra}`}\n`,
         'utf8'
     );
 
@@ -1003,7 +1004,7 @@ describe('each access card saves only itself', () => {
     const withDataset = async () => {
         await writeFile(
             join(dir, 'config.yaml'),
-            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hashPassword(PASSWORD)}\n  allowed_hosts: [${PINNED}]\nservices: {}\nmetadata:\n  imdb:\n    enabled: true\n`,
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: [${PINNED}]\nservices: {}\nmetadata:\n  imdb:\n    enabled: true\n`,
             'utf8'
         );
         await runtime.reload();
@@ -1460,7 +1461,7 @@ describe('the IMDb dataset in the config UI', () => {
         await seed();
         await writeFile(
             join(dir, 'config.yaml'),
-            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hashPassword(PASSWORD)}\n  allowed_hosts: []\nservices: {}\nmetadata:\n  imdb:\n    enabled: true\n`,
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\nservices: {}\nmetadata:\n  imdb:\n    enabled: true\n`,
             'utf8'
         );
         await runtime.reload();

@@ -126,7 +126,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 runtime.configDir,
                 {
                     ...runtime.config,
-                    auth: { ...runtime.config.auth, username, password_hash: hashPassword(password) }
+                    auth: { ...runtime.config.auth, username, password_hash: await hashPassword(password) }
                 },
                 { expected: runtime.config }
             );
@@ -163,7 +163,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // user tells an attacker which names exist. A missing hash must never
         // read as a valid login.
         const nameOk = username === auth.username;
-        const passOk = auth.password_hash !== undefined && verifyPassword(password, auth.password_hash);
+        const passOk = auth.password_hash !== undefined && (await verifyPassword(password, auth.password_hash));
 
         if (!nameOk || !passOk) {
             // No username: this field routinely catches a password typed into
@@ -352,7 +352,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const configMutation =
         (
             what: string,
-            next: (form: Record<string, unknown>) => Config | { ask: string },
+            next: (form: Record<string, unknown>) => Config | { ask: string } | Promise<Config | { ask: string }>,
             opts: {
                 /** The add form is a dialog, so a refusal has to bring it back —
                  *  a message about a form nobody can see explains nothing. */
@@ -408,7 +408,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
             let updated: Config;
             try {
-                const result = next(form);
+                const result = await next(form);
                 // Not an error: the removal is waiting for a second click.
                 if ('ask' in result) return render(undefined, 200, result.ask);
                 updated = result;
@@ -680,7 +680,7 @@ export function addCandidateFrom(
  */
 
 /** The Config UI's own credentials. Owns `username` and `password_hash`. */
-export function buildAccountConfig(current: Config, form: Record<string, unknown>): Config {
+export async function buildAccountConfig(current: Config, form: Record<string, unknown>): Promise<Config> {
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
 
@@ -689,7 +689,7 @@ export function buildAccountConfig(current: Config, form: Record<string, unknown
     // this guard stops a blank password field on a config save from writing a
     // config with no hash — silently un-claiming a live instance and handing it
     // to whoever loads /ui/setup next.
-    const carriedHash = password === '' ? current.auth.password_hash : hashPassword(password);
+    const carriedHash = password === '' ? current.auth.password_hash : await hashPassword(password);
     if (carriedHash === undefined) {
         throw new Error('This instance has no password set yet. Reload the page and set one up.');
     }

@@ -17,9 +17,11 @@ const WRONG = 'b'.repeat(64);
 /** In-memory, so these tests never touch a config directory. */
 const audit = () => WriteAudit.ephemeral();
 
+const PASSWORD_HASH = await hashPassword('unused-here');
+
 const configWith = (over: Record<string, unknown> = {}): Config =>
     ConfigSchema.parse({
-        auth: { bearer_token: TOKEN, password_hash: hashPassword('unused-here'), ...over },
+        auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH, ...over },
         services: {}
     });
 
@@ -642,7 +644,7 @@ describe('every tool declares the shape it answers in', () => {
      * shape this is here to validate.
      */
     const writable = ConfigSchema.parse({
-        auth: { bearer_token: TOKEN, password_hash: hashPassword('unused-here') },
+        auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH },
         services: { radarr: { url: 'http://192.0.2.10:7878', api_key: 'k', permissions: { safe_write: true } } }
     });
 

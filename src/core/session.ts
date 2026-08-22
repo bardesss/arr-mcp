@@ -1,4 +1,5 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
 
 /**
  * Password storage and browser sessions for the config UI.
@@ -16,6 +17,15 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 const SCRYPT_N = 16_384;
 const KEY_LENGTH = 64;
 
+/** Async, not `scryptSync`: at N=16384 the sync form blocks the one thread the
+ *  MCP endpoint runs on, so a burst of logins stalls every tool call. */
+const scrypt = promisify(scryptCallback) as (
+    password: string,
+    salt: Buffer,
+    keylen: number,
+    options: { N: number }
+) => Promise<Buffer>;
+
 export const SESSION_COOKIE = 'arr_mcp_session';
 
 /** Long enough not to interrupt a config edit; short enough that a forgotten
@@ -27,13 +37,13 @@ const MAX_REVOKED = 1024;
 
 /** `scrypt$<saltHex>$<hashHex>`, so the format names its own algorithm and a
  *  future change can be detected rather than guessed. */
-export function hashPassword(password: string): string {
+export async function hashPassword(password: string): Promise<string> {
     const salt = randomBytes(16);
-    const hash = scryptSync(password, salt, KEY_LENGTH, { N: SCRYPT_N });
+    const hash = await scrypt(password, salt, KEY_LENGTH, { N: SCRYPT_N });
     return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
     const [scheme, saltHex, hashHex] = stored.split('$');
     if (scheme !== 'scrypt' || saltHex === undefined || hashHex === undefined) return false;
 
@@ -45,7 +55,7 @@ export function verifyPassword(password: string, stored: string): boolean {
     }
     if (expected.length !== KEY_LENGTH) return false;
 
-    const actual = scryptSync(password, Buffer.from(saltHex, 'hex'), KEY_LENGTH, { N: SCRYPT_N });
+    const actual = await scrypt(password, Buffer.from(saltHex, 'hex'), KEY_LENGTH, { N: SCRYPT_N });
     return timingSafeEqual(actual, expected);
 }
 
