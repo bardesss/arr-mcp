@@ -1582,3 +1582,69 @@ describe('ending sessions', () => {
         cookie = stolen;
         expect((await call('/ui')).status).toBe(302);    });
 });
+
+describe('claiming an instance', () => {
+    const claimBody = (password: string) => ({
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ username: 'admin', password, confirm: password }).toString()
+    });
+
+    it('refuses a claim carrying a foreign origin', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        const req = claimBody('a-good-password-1234');
+        const res = await call('/ui/setup', {
+            ...req,
+            headers: { ...req.headers, origin: 'http://evil.example' }
+        });
+
+        expect(res.status).toBe(403);
+        expect((await loadConfig(dir)).config.auth.password_hash).toBeUndefined();
+    });
+
+    it('refuses a claim the browser marked cross-site', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        const req = claimBody('a-good-password-1234');
+        const res = await call('/ui/setup', {
+            ...req,
+            headers: { ...req.headers, 'sec-fetch-site': 'cross-site' }
+        });
+
+        expect(res.status).toBe(403);
+    });
+
+    it('accepts a claim from its own origin', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        const req = claimBody('a-good-password-1234');
+        const res = await call('/ui/setup', {
+            ...req,
+            headers: { ...req.headers, origin: 'http://localhost:6060' }
+        });
+
+        expect(res.status).toBe(302);
+    });
+
+    // curl and the setup script send neither header; absence is not evidence.
+    it('accepts a claim from a client that sends no origin at all', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        expect((await call('/ui/setup', claimBody('a-good-password-1234'))).status).toBe(302);
+    });
+
+    it('only the first of two concurrent claims wins', async () => {
+        await seedUnclaimed();
+        cookie = '';
+        const results = await Promise.all([
+            call('/ui/setup', claimBody('first-password-here')),
+            call('/ui/setup', claimBody('second-password-here'))
+        ]);
+
+        // Both redirect; only the winner is sent to the dashboard. The loser
+        // goes to the login page, because the instance is now claimed.
+        const destinations = results.map(r => r.headers.get('location')).sort();
+        expect(destinations).toEqual(['/ui', '/ui/login']);
+    });
+});

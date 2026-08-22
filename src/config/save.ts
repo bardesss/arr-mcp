@@ -90,7 +90,27 @@ function driftedFrom(doc: Document, expected: Config): boolean {
  *    file edited since that snapshot was taken is a refusal, not a silent
  *    deletion of whatever was added.
  */
-export async function saveConfig(configDir: string, next: Config, opts: { expected?: Config } = {}): Promise<void> {
+/**
+ * Serialises saves within the process.
+ *
+ * Property 4 reads the file, compares, then writes, and every step awaits — so
+ * two overlapping saves both read the *old* file, both find no drift, and the
+ * second silently overwrote the first. Atomic replacement (property 3) does not
+ * help: both writes are individually atomic and the last one still wins.
+ */
+let writes: Promise<unknown> = Promise.resolve();
+
+export function saveConfig(configDir: string, next: Config, opts: { expected?: Config } = {}): Promise<void> {
+    const run = writes.then(
+        () => writeConfig(configDir, next, opts),
+        () => writeConfig(configDir, next, opts)
+    );
+    // Swallowed on the queue only — `run` still rejects for the caller.
+    writes = run.catch(() => undefined);
+    return run;
+}
+
+async function writeConfig(configDir: string, next: Config, opts: { expected?: Config }): Promise<void> {
     // Validated first: the caller assembles `next` from form fields, and a
     // typo there must fail before anything touches the file.
     const parsed = ConfigSchema.safeParse(next);

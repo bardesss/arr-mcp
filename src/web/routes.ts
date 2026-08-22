@@ -70,6 +70,24 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const unclaimed = (): boolean => runtime.config.auth.password_hash === undefined;
     const entry = (): string => (unclaimed() ? '/ui/setup' : '/ui/login');
 
+    /**
+     * Whether this request came from the page it claims to.
+     *
+     * A browser sets `Origin` on any cross-origin form post and `Sec-Fetch-Site`
+     * on every request, so a mismatch is decisive. Their absence is not — a
+     * non-browser client sends neither — so absence is allowed through.
+     */
+    const sameOrigin = (c: Context): boolean => {
+        if (c.req.header('sec-fetch-site') === 'cross-site') return false;
+        const origin = c.req.header('origin');
+        if (origin === undefined) return true;
+        try {
+            return new URL(origin).host === new URL(c.req.url).host;
+        } catch {
+            return false;
+        }
+    };
+
     // Read per render rather than captured: `runtime.config` is replaced on
     // reload, and saving the theme is itself a reload — so a captured value
     // would leave the page that just saved showing the previous theme.
@@ -81,15 +99,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     });
 
     /**
-     * No CSRF token on this form, deliberately.
-     *
-     * There is no session to bind one to, and forging a claim against an
-     * unclaimed instance gets an attacker precisely what loading the page
-     * directly would have got them. Every other form in this file keeps its
-     * token, because every other form acts on an instance someone owns.
+     * No CSRF token on this form: there is no session yet to bind one to. The
+     * request's origin is the binding that does exist, so it is checked
+     * instead. Every other form in this file carries a token, because every
+     * other form acts on an instance someone already owns.
      */
     app.post('/ui/setup', async c => {
         if (!unclaimed()) return c.redirect('/ui/login', 302);
+        if (!sameOrigin(c)) return c.text('cross-origin setup request refused', 403);
 
         const body = await c.req.parseBody();
         const username = str(body.username).trim();
@@ -100,12 +117,23 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (password.length < MIN_PASSWORD) return reject(`Use a password of at least ${MIN_PASSWORD} characters.`);
         if (password !== str(body.confirm)) return reject('Those two passwords do not match.');
 
-        // Single-threaded through the await below, so no second request can
-        // interleave between the `unclaimed()` check above and the write.
-        await saveConfig(runtime.configDir, {
-            ...runtime.config,
-            auth: { ...runtime.config.auth, username, password_hash: hashPassword(password) }
-        });
+        // Re-checked, and with the compare-and-swap every other config mutation
+        // uses: `parseBody` and `saveConfig` both yield, so the check at the top
+        // of this handler is not still true by the time the write lands.
+        if (!unclaimed()) return c.redirect('/ui/login', 302);
+        try {
+            await saveConfig(
+                runtime.configDir,
+                {
+                    ...runtime.config,
+                    auth: { ...runtime.config.auth, username, password_hash: hashPassword(password) }
+                },
+                { expected: runtime.config }
+            );
+        } catch {
+            // Someone else claimed it while this request was in flight.
+            return c.redirect('/ui/login', 302);
+        }
         await runtime.reload();
 
         const token = runtime.sessions.issue();
