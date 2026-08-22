@@ -213,6 +213,27 @@ describe('SeerrAdapter', () => {
         expect(hasUserDirectory(adapter)).toBe(true);
     });
 
+    // /api/v1/search is a TMDB multi-search: it returns people alongside
+    // titles, and a person id is not a movie id in any namespace.
+    it('drops person results rather than calling them films', async () => {
+        const multi = new SeerrAdapter(
+            multiUser(5055),
+            serving({
+                '/api/v1/search': {
+                    results: [
+                        { id: 31, mediaType: 'person', name: 'Tom Hanks' },
+                        { id: 13, mediaType: 'movie', title: 'Forrest Gump' },
+                        { id: 1396, mediaType: 'tv', name: 'Breaking Bad' }
+                    ]
+                }
+            })
+        );
+
+        const hits = await multi.search('tom hanks', 'discover');
+        expect(hits.map(h => h.ids.tmdb)).toEqual([13, 1396]);
+        expect(hits.map(h => h.kind)).toEqual(['movie', 'series']);
+    });
+
     expectsAuthDiagnosis(new SeerrAdapter(multiUser(5055), unauthorized));
 });
 

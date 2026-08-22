@@ -329,8 +329,15 @@ export class SeerrAdapter
             `/api/v1/search?query=${encodeURIComponent(query)}`
         );
 
+        // A TMDB multi-search, so `results` carries people as well as titles.
+        // Anything not explicitly a movie or a series is dropped rather than
+        // defaulted to `movie`: a person id shares no namespace with a movie
+        // id, so it would resolve to an unrelated film on the way to add_media.
         return (page.results ?? [])
-            .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
+            .filter(
+                (r): r is RawSearchResult & { id: number; mediaType: 'movie' | 'tv' } =>
+                    typeof r.id === 'number' && (r.mediaType === 'movie' || r.mediaType === 'tv')
+            )
             .map(r => this.#toHit(r, r.mediaType === 'tv' ? 'series' : 'movie'));
     }
 
