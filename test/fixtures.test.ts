@@ -1,12 +1,12 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+// The same pattern the capture script redacts with, not a second copy: the two
+// had already drifted, and the guard silently stopped covering session ids.
+import { SECRET_KEY } from '../scripts/lib/redact.ts';
 
 const FIXTURES = join(import.meta.dirname, 'fixtures');
 const REDACTED = '__REDACTED__';
-
-/** Key names whose value must always be the placeholder. */
-const SECRET_KEY = /^(api_?key|apikey|token|access_?token|auth_?token|password|passwd|secret|nzb_?key)$/i;
 
 /**
  * Values long enough to be a credential rather than an identifier.
@@ -131,6 +131,11 @@ describe('committed fixtures', () => {
 });
 
 describe('the guard itself', () => {
+    it('flags a session id, which the capture script also redacts', () => {
+        expect(scan('t', { 'session-id': 'abc123' })).toHaveLength(1);
+        expect(scan('t', { session_id: 'abc123' })).toHaveLength(1);
+    });
+
     it('flags a secret-named key holding a real value', () => {
         expect(scan('t', { indexers: [{ apiKey: 'abc123' }] })).toHaveLength(1);
     });

@@ -23,20 +23,7 @@ import {
     type AuthStrategy
 } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
-import { hostsOf, redactHosts } from './lib/redact.ts';
-
-const REDACTED = '__REDACTED__';
-
-/**
- * `session[-_]id` is not a credential — Transmission hands one to any client
- * that asks, and that handshake is the whole point. It is redacted anyway for
- * two reasons: it rotates, so leaving it in produces a spurious diff on every
- * recapture, and it looks exactly like a secret to anyone reading the fixture.
- * The adapter reads the session id from the response *header*, never the body,
- * so nothing depends on the recorded value.
- */
-const SECRET_KEY =
-    /^(api_?key|apikey|token|access_?token|auth_?token|password|passwd|secret|nzb_?key|session[-_]?id)$/i;
+import { hostsOf, redact, redactHosts, secretsOf } from './lib/redact.ts';
 
 /**
  * `path` may be a function when the endpoint needs an id from something
@@ -437,56 +424,12 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     return apiKeyHeader('X-Api-Key', key);
 }
 
-const ANONYMOUS_HOST = 'service.example.test';
-
-// `hostsOf` is shared with `integration.ts` (`scripts/lib/redact.ts`) — both
-// scripts need the same "every host the user configured" list, one to
-// anonymise fixture files, the other to keep a live error message off the
-// terminal, and a second hand-written copy is exactly the kind of drift this
-// phase exists to eliminate.
-
-/** Every configured credential, so the post-write scan can look for them exactly. */
-function secretsOf(config: Config): string[] {
-    const out: string[] = [];
-    for (const service of Object.values(config.services)) {
-        if (service === undefined) continue;
-        const s = service as { api_key?: string; password?: string };
-        if (s.api_key) out.push(s.api_key);
-        if (s.password) out.push(s.password);
-    }
-    return out;
-}
-
-/**
- * Private and loopback IPv4 literals, for addresses a service reports about
- * *itself* rather than ones we configured — Jellyfin's `LocalAddress` is its
- * Docker bridge address, which no host substitution would ever match.
- *
- * Restricted to RFC1918, loopback and link-local on purpose. A blanket IPv4
- * pattern would rewrite version strings; scoping it to ranges that cannot be a
- * version number keeps that impossible. Replaced with TEST-NET-1, which is
- * reserved for documentation.
- */
-const PRIVATE_IPV4 =
-    /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b/g;
-
-function redact(node: unknown, secrets: string[], hosts: string[]): unknown {
-    if (typeof node === 'string') {
-        const withoutSecrets = secrets.reduce((acc, secret) => acc.split(secret).join(REDACTED), node);
-        const withoutHosts = hosts.reduce((acc, host) => acc.split(host).join(ANONYMOUS_HOST), withoutSecrets);
-        return withoutHosts.replace(PRIVATE_IPV4, '192.0.2.10');
-    }
-    if (Array.isArray(node)) return node.map(v => redact(v, secrets, hosts));
-    if (node !== null && typeof node === 'object') {
-        return Object.fromEntries(
-            Object.entries(node).map(([key, value]) => [
-                key,
-                SECRET_KEY.test(key) && value !== null && value !== '' ? REDACTED : redact(value, secrets, hosts)
-            ])
-        );
-    }
-    return node;
-}
+// `hostsOf`, `secretsOf` and `redact` live in `scripts/lib/redact.ts`, shared
+// with `integration.ts` — all three scripts need the same "every host the user
+// configured" and "every credential" lists, and a second hand-written copy is
+// exactly the kind of drift this phase exists to eliminate. They are also the
+// only code standing between a live credential and a public repository, which
+// is why they are tested (`test/scriptsRedact.test.ts`) rather than inlined.
 
 const configDir = process.env.ARR_MCP_CAPTURE_CONFIG ?? './config';
 // `persist: false` — capturing fixtures reads the user's config; it must never

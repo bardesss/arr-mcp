@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.1](https://github.com/bardesss/arr-mcp/compare/v1.15.0...v1.15.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* close credential leakage paths ([#152](https://github.com/bardesss/arr-mcp/issues/152)) ([fb6a095](https://github.com/bardesss/arr-mcp/commit/fb6a0959e17fa42c789efa2cb38e3259f294d2ee))
+
 ## [1.15.0](https://github.com/bardesss/arr-mcp/compare/v1.14.0...v1.15.0) (2026-08-18)
 
 
