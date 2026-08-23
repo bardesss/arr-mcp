@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/bardesss/arr-mcp/compare/v1.17.0...v1.18.0) (2026-08-23)
+
+
+### Features
+
+* align with the 2026-07-28 protocol revision — list caching, coverage, honest capabilities ([#178](https://github.com/bardesss/arr-mcp/issues/178)) ([54657b0](https://github.com/bardesss/arr-mcp/commit/54657b053caf5a929d1365d246381dbcb2f29e3a))
+
 ## [1.17.0](https://github.com/bardesss/arr-mcp/compare/v1.16.0...v1.17.0) (2026-08-23)
 
 
