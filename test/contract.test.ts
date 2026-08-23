@@ -166,7 +166,13 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'movieFile.quality.quality.name'
                 ]
             },
-            { fixture: 'test/fixtures/radarr/movie-lookup.json', fields: ['title', 'tmdbId'] }
+            { fixture: 'test/fixtures/radarr/movie-lookup.json', fields: ['title', 'tmdbId'] },
+            {
+                path: '/api/v3/blocklist',
+                method: 'get',
+                fixture: 'test/fixtures/radarr/blocklist.json',
+                fields: ['records.id', 'records.movieId', 'records.sourceTitle', 'records.date', 'records.indexer', 'records.message']
+            }
             // No `queue` entry: the queue was empty at capture time, and an
             // empty array confirms nothing. Add it when something is downloading.
         ]
@@ -249,7 +255,13 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fixture: 'test/fixtures/sonarr/episodefile.json',
                 fields: ['id', 'seasonNumber', 'size']
             },
-            { fixture: 'test/fixtures/sonarr/series-lookup.json', fields: ['title', 'tvdbId'] }
+            { fixture: 'test/fixtures/sonarr/series-lookup.json', fields: ['title', 'tvdbId'] },
+            {
+                path: '/api/v3/blocklist',
+                method: 'get',
+                fixture: 'test/fixtures/sonarr/blocklist.json',
+                fields: ['records.id', 'records.seriesId', 'records.sourceTitle', 'records.date', 'records.indexer', 'records.message']
+            }
         ]
     },
     prowlarr: {
@@ -319,6 +331,12 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'Items.UserData.PlayCount',
                     'Items.Genres'
                 ]
+            },
+            {
+                path: '/Shows/{seriesId}/Episodes',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/show-episodes.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.IndexNumber', 'Items.ParentIndexNumber', 'Items.UserData.Played']
             }
         ]
     },
@@ -363,7 +381,13 @@ const CONTRACTS: Record<string, ServiceContract> = {
     sabnzbd: {
         dependencies: [
             { fixture: 'test/fixtures/sabnzbd/version.json', fields: ['version'] },
-            { fixture: 'test/fixtures/sabnzbd/queue.json', fields: ['queue.diskspace1', 'queue.diskspacetotal1'] }
+            { fixture: 'test/fixtures/sabnzbd/queue.json', fields: ['queue.diskspace1', 'queue.diskspacetotal1'] },
+            // Hand-written from a live `mode=pause`, not captured: the capture
+            // script only issues reads. The point of contracting a two-field
+            // body is `status` itself — SABnzbd answers a *failure* with HTTP
+            // 200 and `status: false`, so this is the field that tells a pause
+            // that happened from one that did not.
+            { fixture: 'test/fixtures/sabnzbd/pause.json', fields: ['status'] }
         ]
     },
     transmission: {
@@ -371,7 +395,11 @@ const CONTRACTS: Record<string, ServiceContract> = {
             {
                 fixture: 'test/fixtures/transmission/session-get.json',
                 fields: ['result', 'arguments.version', 'arguments.download-dir', 'arguments.download-dir-free-space']
-            }
+            },
+            // Also hand-written from a live call. Same reason as SABnzbd's:
+            // every Transmission failure arrives as HTTP 200, so `result` is
+            // the only thing separating success from "no such torrent".
+            { fixture: 'test/fixtures/transmission/torrent-stop.json', fields: ['result'] }
         ]
     },
     qbittorrent: {
