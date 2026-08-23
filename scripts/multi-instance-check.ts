@@ -205,7 +205,10 @@ console.log(`\n     search_media reported service labels: ${serviceLabels.join('
 
 const { hashPassword } = await import('../src/core/session.ts');
 const password = 'multi-instance-check-not-persisted';
-const uiApp = appFor({ ...multiConfig, auth: { ...multiConfig.auth, password_hash: hashPassword(password) } });
+const uiApp = appFor({
+    ...multiConfig,
+    auth: { ...multiConfig.auth, password_hash: await hashPassword(password) }
+});
 
 const signIn = await uiApp.request('http://localhost:6060/ui/login', {
     method: 'POST',
