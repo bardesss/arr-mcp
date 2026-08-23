@@ -617,6 +617,84 @@ describe('discover_media', () => {
 });
 
 /**
+ * Live capture against Seerr 3.4.1: `genre=Crime` returns total 0 with no
+ * error, while `genre=80` returns thousands. TMDB wants a numeric id, and
+ * Seerr does not validate the value, only the parameter name — so a genre
+ * name silently reads as "nothing matched" unless it is translated first.
+ *
+ * The second live finding: `/genres/movie` answers in the instance's own
+ * locale (`80=Misdaad` on a Dutch stack) unless `?language=en` is passed,
+ * which genuinely changes the response (confirmed against two invented
+ * parameter names, both 400). A model overwhelmingly says the English name,
+ * so both lists are fetched and matched against.
+ */
+describe('seerr genre names', () => {
+    const RESULTS = { results: [{ id: 550, kind: 'movie', title: 'Some Film', releaseDate: '2026-03-01' }] };
+
+    const MOVIE_GENRES_EN = [
+        { id: 80, name: 'Crime' },
+        { id: 18, name: 'Drama' }
+    ];
+    const MOVIE_GENRES_NL = [
+        { id: 80, name: 'Misdaad' },
+        { id: 18, name: 'Drama' }
+    ];
+
+    const recordingWithGenres = () => {
+        const urls: string[] = [];
+        let genreCalls = 0;
+        const fetchImpl = (async (input: string) => {
+            urls.push(String(input));
+            const url = new URL(String(input));
+            if (url.pathname === '/api/v1/genres/movie') {
+                genreCalls++;
+                return jsonResponse(url.searchParams.get('language') === 'en' ? MOVIE_GENRES_EN : MOVIE_GENRES_NL);
+            }
+            return jsonResponse(RESULTS);
+        }) as unknown as typeof fetch;
+        return { urls, genreCalls: () => genreCalls, adapter: new SeerrAdapter(seerrConfig, fetchImpl) };
+    };
+
+    it('translates the English genre name to its TMDB id', async () => {
+        const { urls, adapter } = recordingWithGenres();
+        await adapter.discover({ mediaType: 'movie', genre: 'Crime' });
+        expect(urls.some(u => u.includes('/discover/movies') && u.includes('genre=80'))).toBe(true);
+    });
+
+    it("translates the instance's own localised name to the same id", async () => {
+        const { urls, adapter } = recordingWithGenres();
+        await adapter.discover({ mediaType: 'movie', genre: 'Misdaad' });
+        expect(urls.some(u => u.includes('/discover/movies') && u.includes('genre=80'))).toBe(true);
+    });
+
+    it('still passes a numeric id straight through, untranslated', async () => {
+        const { urls, adapter } = recordingWithGenres();
+        await adapter.discover({ mediaType: 'movie', genre: '80' });
+        expect(urls.some(u => u.includes('/discover/movies') && u.includes('genre=80'))).toBe(true);
+        expect(urls.some(u => u.includes('/genres/movie'))).toBe(false);
+    });
+
+    it('refuses an unknown genre, naming the real ones rather than matching nothing', async () => {
+        const { adapter } = recordingWithGenres();
+        await expect(adapter.discover({ mediaType: 'movie', genre: 'Zombie' })).rejects.toThrow(/Crime/);
+    });
+
+    it('fetches the genre lists once, not once per discover call', async () => {
+        const { adapter, genreCalls } = recordingWithGenres();
+        await adapter.discover({ mediaType: 'movie', genre: 'Crime' });
+        await adapter.discover({ mediaType: 'movie', genre: 'Drama' });
+        // One localised + one English fetch total, not one pair per call.
+        expect(genreCalls()).toBe(2);
+    });
+
+    it('exposes genreId() directly for callers other than discover', async () => {
+        const { adapter } = recordingWithGenres();
+        await expect(adapter.genreId('movie', 'Crime')).resolves.toBe(80);
+        await expect(adapter.genreId('movie', 'Misdaad')).resolves.toBe(80);
+    });
+});
+
+/**
  * Spec §4.1 calls this the path that matters most: a rating is usually wanted
  * for something you have *not* got, which is `lookup_media` rather than
  * `get_library`. The *arr lookup endpoints are shaped for adding a title, so

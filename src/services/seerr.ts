@@ -1,5 +1,6 @@
 import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
@@ -76,6 +77,12 @@ const SEERR_FILTERS_SERVER_SIDE = true;
  *  small enough that a page is not a large response to hold. */
 const PAGE_SIZE = 100;
 
+/** TMDB's genre list changes on the order of years, not requests. */
+const GENRE_TTL_MS = 24 * 60 * 60 * 1000;
+
+type RawGenre = { id?: number; name?: string };
+type GenreTable = { byLowerName: Map<string, number>; names: string[] };
+
 /**
  * A release year, or nothing.
  *
@@ -112,6 +119,7 @@ export class SeerrAdapter
     readonly type: ServiceId = 'seerr';
     readonly id: string = 'seerr';
     readonly #http: ServiceHttp;
+    readonly #genreCache = new TtlCache();
 
     constructor(config: MultiUserServiceConfig, fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp('seerr', config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
@@ -375,6 +383,48 @@ export class SeerrAdapter
     }
 
     /**
+     * `/genres/movie` and `/genres/tv` answer in the instance's own locale —
+     * `80=Misdaad` on a Dutch stack — unless `?language=en` is passed, which
+     * genuinely changes the response (confirmed live: two invented parameter
+     * names both 400, so Seerr is not just ignoring it). A model overwhelmingly
+     * says the English name, so both lists are fetched and merged by name; a
+     * name present in either resolves.
+     */
+    async #genreTable(mediaType: 'movie' | 'tv'): Promise<GenreTable> {
+        return this.#genreCache.get(`genres:${mediaType}`, GENRE_TTL_MS, async () => {
+            const [english, localised] = await Promise.all([
+                this.#http.get<RawGenre[]>(`/api/v1/genres/${mediaType}?language=en`),
+                this.#http.get<RawGenre[]>(`/api/v1/genres/${mediaType}`)
+            ]);
+
+            const byLowerName = new Map<string, number>();
+            const names = new Set<string>();
+            for (const g of [...english, ...localised]) {
+                if (typeof g.id !== 'number' || typeof g.name !== 'string') continue;
+                byLowerName.set(g.name.toLowerCase(), g.id);
+                names.add(g.name);
+            }
+            return { byLowerName, names: [...names].sort() };
+        });
+    }
+
+    /**
+     * A numeric TMDB id passes straight through in `discover` without ever
+     * reaching here — this is only for a name, which Seerr's own `genre` query
+     * param does not understand and matches nothing against, silently.
+     */
+    async genreId(mediaType: 'movie' | 'tv', name: string): Promise<number> {
+        const table = await this.#genreTable(mediaType);
+        const id = table.byLowerName.get(name.toLowerCase());
+        if (id === undefined) {
+            throw new ServiceError('NotFound', this.id, `"${name}" is not a ${mediaType} genre Seerr knows`, {
+                remedy: `Valid genres: ${table.names.join(', ')}`
+            });
+        }
+        return id;
+    }
+
+    /**
      * Seerr's discover is TMDB-backed, so the rating floor is applied by TMDB
      * rather than by us. Design spec defers rating filters over your *own*
      * library to the IMDb dataset — that is get_library earlier, not this.
@@ -386,7 +436,10 @@ export class SeerrAdapter
         minRating?: number;
     }): Promise<SearchHit[]> {
         const params = new URLSearchParams();
-        if (opts.genre !== undefined) params.set('genre', opts.genre);
+        if (opts.genre !== undefined) {
+            const id = /^\d+$/.test(opts.genre) ? opts.genre : String(await this.genreId(opts.mediaType, opts.genre));
+            params.set('genre', id);
+        }
         if (opts.minRating !== undefined) params.set('voteAverageGte', String(opts.minRating));
         if (opts.year !== undefined) {
             const [gte, lte] =

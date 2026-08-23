@@ -76,10 +76,10 @@ export async function buildDiscoverMedia(
  * dataset knows a year column. Merging two orderings that mean different
  * things would produce a ranking that means neither.
  *
- * One deliberate difference the caller has to know about: `genre` is a TMDB
- * genre *id* for Seerr and a genre *name* here, because that is what each
- * source actually holds. A numeric id would match no IMDb genre, so it is
- * rejected rather than silently returning nothing.
+ * `genre` is a name on both paths now — Seerr translates it to a TMDB id
+ * internally. This path has no id table to translate against, so a numeric id
+ * would match no IMDb genre and is rejected here rather than silently
+ * returning nothing.
  */
 function fromDataset(
     opts: { kind: 'movie' | 'series'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number; offset?: number },
@@ -165,7 +165,7 @@ export function registerDiscoverMedia(
             title: 'Discover trending media',
             annotations: READ_ONLY,
             description:
-                'Browse what exists rather than what you have: films or series by genre, year and minimum rating. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so `genre` is a TMDB genre id and the rating is TMDB’s. With no Seerr it is answered from the local IMDb dataset instead, where `genre` is a name such as `Crime` and the rating is IMDb’s; passing a numeric id there is refused rather than silently matching nothing.',
+                'Browse what exists rather than what you have: films or series by genre, year and minimum rating. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so the rating is TMDB’s. With no Seerr it is answered from the local IMDb dataset instead, where the rating is IMDb’s.',
             outputSchema: PagedOutputSchema.extend({
                 note: z
                     .string()
@@ -181,7 +181,7 @@ export function registerDiscoverMedia(
                 // would break a saved prompt silently — but described nowhere,
                 // so nothing new is written against it.
                 media_type: z.enum(['movie', 'tv']).optional(),
-                genre: z.string().optional().describe('TMDB genre id, e.g. 28 for Action.'),
+                genre: z.string().optional().describe('Genre name, e.g. "Crime" or "Action". A TMDB numeric id is also accepted.'),
                 year: z.number().int().min(1900).max(2100).optional().describe('Restrict to one release year.'),
                 min_rating: z.number().min(0).max(10).optional().describe('Minimum TMDB rating out of 10.'),
                 detail: DetailSchema,
