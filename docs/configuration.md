@@ -66,9 +66,9 @@ naming `default_user` and how to fix it, rather than silently answering as if
 Jellyfin were not there.
 
 Omitting `default_user` is supported — the service still appears in
-`stack_health`. `get_library` and `diagnose` then return the Radarr and Sonarr
-halves with Jellyfin marked degraded and a note naming the key, rather than
-failing the whole read.
+`stack_health`. `get_library` then returns the Radarr and Sonarr halves with
+Jellyfin marked degraded and a note naming the key, rather than failing the
+whole read.
 
 Leaving `jellyfin` out of `config.yaml` entirely is still fine — those tools
 just work from Radarr and Sonarr alone.

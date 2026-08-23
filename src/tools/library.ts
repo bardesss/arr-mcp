@@ -121,13 +121,11 @@ export class LibraryLoader {
      *
      * - `AuthFailed` — the named user was refused. Propagates: a model must
      *   not retry a refusal.
-     * - `NotFound` with a name — that user does not exist in Jellyfin.
-     *   Propagates: the caller asked about a specific person and must not
-     *   quietly get an answer about nobody.
-     * - `NotFound` with no name — no `default_user` is configured, which the
-     *   schema explicitly allows for a service present only in stack_health.
-     *   Degrades with `unconfigured: true`, so the caller learns the remedy
-     *   names a config key rather than an outage.
+     * - `NotFound` with a name propagates too — the caller asked about a
+     *   specific person and must not quietly get an answer about nobody.
+     *   With no name and none configured, it degrades instead
+     *   (`unconfigured: true`), so the caller learns the remedy names a
+     *   config key rather than an outage.
      * - Everything else degrades: a reachability problem, not a config one.
      */
     async #resolveUser(
