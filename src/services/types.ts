@@ -584,6 +584,27 @@ export interface QueueRemoveCapable {
 export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>
     typeof (a as Partial<QueueRemoveCapable>).removeQueueItem === 'function';
 
+/** What a client reports about its own paused state, and what that state is
+ *  *of* — "the SABnzbd queue", "2 torrents" — so a preview can say it. */
+export type PauseState = { paused: boolean; scope: string };
+
+/**
+ * Stopping and restarting a download client.
+ *
+ * Only the three download clients have it; the *arrs do not. Pausing SABnzbd
+ * does not stop Radarr grabbing — it stops the grabs being *downloaded* — and
+ * `pause_downloads` says so rather than letting "paused" read as "nothing is
+ * happening".
+ */
+export interface PauseCapable {
+    /** `id` narrows to one queue item; omitted means the whole client. */
+    readPauseState(id?: string): Promise<PauseState>;
+    setPaused(paused: boolean, id?: string): Promise<void>;
+}
+
+export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable =>
+    typeof (a as Partial<PauseCapable>).setPaused === 'function';
+
 /**
  * `name` raw and `display` fenced, for the same reason `RootFolder` splits its
  * path — and discovered the same way, by a match that could never succeed.

@@ -396,6 +396,37 @@ requesting as anyone but `default_user` needs
 `respond_to_request` apply. Without it, one household member's assistant
 could spend another's quota.
 
+## `pause_downloads`
+
+The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
+download client — SABnzbd, Transmission or qBittorrent — or one item in its
+queue when `id` is given.
+
+Safe tier, because the undo is this same tool with the other `action`.
+
+**It does not stop Radarr or Sonarr grabbing.** They carry on searching and
+sending releases, which then sit in the paused client until it is resumed.
+The preview says so out loud, because a bare "paused" would let someone
+believe nothing is happening at all.
+
+`service` is required, and names one client. That is deliberate rather than a
+missing convenience: every write's permissions are checked against exactly
+one resolved service id, so a tool that defaulted to "every configured
+client" would have to nominate one of them for that check — which would mean
+enabling `safe_write` on SABnzbd quietly enabled it on Transmission too.
+Pausing everything is one call per client.
+
+Already-paused is a no-op, with no token and no confirmation prompt. Only
+SABnzbd publishes a client-wide paused flag; for the two torrent clients
+"paused" means every torrent is stopped, and a client holding no torrents at
+all reads as *not* paused — nothing to pause is a different state from
+everything paused, and treating them alike would refuse a legitimate call.
+
+The qBittorrent path is **spec-derived and unverified against a live
+instance**: there is no qBittorrent on the stack these adapters were probed
+against. v5 renamed `pause`/`resume` to `stop`/`start`, so both verbs are
+attempted — the new one first, the old one only if it 404s.
+
 ## `discover_media`
 
 `similar_to` takes a TMDB numeric id and answers from Seerr's

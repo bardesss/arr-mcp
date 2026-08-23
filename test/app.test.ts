@@ -299,6 +299,7 @@ describe('the advertised tool surface', () => {
         'delete_media',
         'delete_request',
         'grab_release',
+        'pause_downloads',
         'remove_queue_item',
         'request_media',
         'respond_to_request',
@@ -308,7 +309,7 @@ describe('the advertised tool surface', () => {
         'trigger_subtitle_search'
     ];
 
-    /** Of those thirteen, the five whose effect cannot be undone by calling again. */
+    /** Of those fourteen, the five whose effect cannot be undone by calling again. */
     const DESTRUCTIVE = ['clean_queue', 'delete_episode_files', 'delete_media', 'delete_request', 'remove_queue_item'];
 
     /**

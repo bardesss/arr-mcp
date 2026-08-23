@@ -8,6 +8,8 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type PauseCapable,
+    type PauseState,
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
@@ -16,6 +18,10 @@ import {
 } from './types.ts';
 
 const API = '/api/v2';
+
+/** Both spellings, for the same reason `TORRENT_STATE` keeps both: 5.0 renamed
+ *  the paused states to stopped. */
+const PAUSED_STATES = new Set(['pausedDL', 'pausedUP', 'stoppedDL', 'stoppedUP']);
 
 /**
  * Hand-written: qBittorrent publishes no OpenAPI document. Its WebUI API mixes
@@ -65,7 +71,7 @@ const TORRENT_STATE: Record<string, string> = {
  *  estimate, so passing it through would promise a finish date it never made. */
 const ETA_UNKNOWN = 8_640_000;
 
-export class QbittorrentAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable {
+export class QbittorrentAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable {
     readonly type: ServiceId = 'qbittorrent';
     readonly id: string = 'qbittorrent';
     readonly #http: ServiceHttp;
@@ -162,6 +168,60 @@ export class QbittorrentAdapter implements ServiceAdapter, DiskSpaceCapable, Que
             { hashes: hash, deleteFiles: String(opts.removeFromClient) },
             true
         );
+    }
+
+    /**
+     * qBittorrent has no client-wide paused flag, so this is the same
+     * every-torrent-is-stopped reading Transmission gets — and it counts both
+     * spellings, because 5.0 renamed the paused states to stopped and this
+     * adapter serves 4.x and 5.x alike, exactly as `TORRENT_STATE` already
+     * does.
+     *
+     * **Spec-derived, like every pause path here.** There is no qBittorrent on
+     * the stack these adapters were probed against, so nothing below was
+     * confirmed against a live instance.
+     */
+    async readPauseState(id?: string): Promise<PauseState> {
+        const torrents = await this.#torrents(id);
+        const stopped = torrents.filter(t => PAUSED_STATES.has(t.state ?? '')).length;
+
+        if (id !== undefined) return { paused: torrents.length > 0 && stopped === torrents.length, scope: `torrent ${id}` };
+        return {
+            paused: torrents.length > 0 && stopped === torrents.length,
+            scope: torrents.length === 1 ? '1 torrent' : `${torrents.length} torrents`
+        };
+    }
+
+    /**
+     * v5 renamed `pause`/`resume` to `stop`/`start`. Both are attempted — the
+     * new verb first, the old one only if that 404s — because this adapter has
+     * no version gate and guessing wrong would silently do nothing.
+     */
+    async setPaused(paused: boolean, id?: string): Promise<void> {
+        if (id !== undefined && (await this.#torrents(id)).length === 0) {
+            throw new ServiceError('NotFound', this.id, `no torrent with hash "${id}"`, {
+                remedy: 'qBittorrent torrent ids are info hashes. Take one from get_queue.'
+            });
+        }
+
+        const hashes = id === undefined ? 'all' : id.trim().toLowerCase();
+        const [modern, legacy] = paused ? ['stop', 'pause'] : ['start', 'resume'];
+
+        try {
+            await this.#http.postForm(`${API}/torrents/${modern}`, { hashes }, true);
+        } catch (err) {
+            if (!(err instanceof ServiceError) || err.kind !== 'NotFound') throw err;
+            await this.#http.postForm(`${API}/torrents/${legacy}`, { hashes }, true);
+        }
+    }
+
+    async #torrents(id?: string): Promise<RawTorrent[]> {
+        const path =
+            id === undefined
+                ? `${API}/torrents/info`
+                : `${API}/torrents/info?hashes=${encodeURIComponent(id.trim().toLowerCase())}`;
+        const torrents = await this.#http.get<RawTorrent[]>(path);
+        return Array.isArray(torrents) ? torrents : [];
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
