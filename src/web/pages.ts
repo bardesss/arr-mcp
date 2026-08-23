@@ -1,4 +1,5 @@
 import type { Theme } from '../config/schema.ts';
+import type { AuditRow } from '../core/audit.ts';
 import type { LogRow } from '../core/logs.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
@@ -609,18 +610,6 @@ export function logTable(rows: LogRow[]): SafeHtml {
         </tbody>
     </table>`;
 }
-
-export type AuditRow = {
-    at: string;
-    tool: string;
-    service: string;
-    operation: string;
-    tier: string;
-    target: string;
-    args: string;
-    outcome: string;
-    detail: string | null;
-};
 
 /**
  * The recorded arguments, as fields rather than as the blob they are stored as.

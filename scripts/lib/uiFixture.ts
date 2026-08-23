@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import type { Config } from '../../src/config/schema.ts';
 import type { LogRow } from '../../src/core/logs.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../../src/services/types.ts';
-import type { AuditRow } from '../../src/web/pages.ts';
+import type { AuditRow } from '../../src/core/audit.ts';
 
 /** 64 characters because the schema demands it, and self-describing because it
  *  is about to be photographed and put in a README. */
@@ -193,6 +193,7 @@ export const LOG_ROWS: LogRow[] = [
 
 export const AUDIT_ROWS: AuditRow[] = [
     {
+        id: 3,
         at: '2026-08-13T09:40:44.317Z',
         tool: 'trigger_search',
         service: 'sonarr',
@@ -201,9 +202,11 @@ export const AUDIT_ROWS: AuditRow[] = [
         target: 'The Expanse (2015) S04',
         args: '{"series_id":114,"season":4}',
         outcome: 'applied',
-        detail: null
+        detail: null,
+        settled_at: '2026-08-13T09:40:44.552Z'
     },
     {
+        id: 2,
         at: '2026-08-13T09:22:10.550Z',
         tool: 'manage_queue',
         service: 'radarr/hd',
@@ -212,9 +215,11 @@ export const AUDIT_ROWS: AuditRow[] = [
         target: 'Dune.Part.Two.2024.2160p',
         args: '{"queue_id":88,"blocklist":true}',
         outcome: 'denied',
-        detail: 'destructive writes are off for radarr/hd'
+        detail: 'destructive writes are off for radarr/hd',
+        settled_at: '2026-08-13T09:22:10.551Z'
     },
     {
+        id: 1,
         at: '2026-08-13T08:57:41.208Z',
         tool: 'manage_requests',
         service: 'seerr',
@@ -223,6 +228,7 @@ export const AUDIT_ROWS: AuditRow[] = [
         target: 'request 412 — Poor Things (2023)',
         args: '{"request_id":412,"verdict":"approve"}',
         outcome: 'applied',
-        detail: null
+        detail: null,
+        settled_at: '2026-08-13T08:57:41.402Z'
     }
 ];

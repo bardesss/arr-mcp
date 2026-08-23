@@ -157,3 +157,35 @@ describe('argument redaction', () => {
         expect((trail.recent() as Row[])[0]?.args).toContain('HD-1080p');
     });
 });
+
+describe('WriteAudit.counts', () => {
+    it('agrees with counting the rows by hand', () => {
+        const audit = WriteAudit.ephemeral();
+        const record = { tool: 't', service: 'radarr', operation: 'op', tier: 'safe' as const, target: 'x', args: {} };
+
+        audit.settle(audit.begin(record), 'applied');
+        audit.settle(audit.begin(record), 'applied');
+        audit.settle(audit.begin(record), 'denied');
+        audit.settle(audit.begin(record), 'dry_run');
+
+        const rows = audit.recent(500);
+        expect(audit.counts()).toEqual({
+            applied: rows.filter(r => r.outcome === 'applied').length,
+            denied: rows.filter(r => r.outcome === 'denied').length,
+            total: rows.length
+        });
+        audit.close();
+    });
+
+    it('counts every row, not just the page recent() returns', () => {
+        const audit = WriteAudit.ephemeral();
+        const record = { tool: 't', service: 'radarr', operation: 'op', tier: 'safe' as const, target: 'x', args: {} };
+        for (let i = 0; i < 60; i++) audit.settle(audit.begin(record), 'applied');
+
+        // recent() defaults to 50. The count must not inherit that window —
+        // the dashboard was reporting min(total, 500) as the total.
+        expect(audit.recent().length).toBe(50);
+        expect(audit.counts().total).toBe(60);
+        audit.close();
+    });
+});
