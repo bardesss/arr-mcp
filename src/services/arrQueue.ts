@@ -1,6 +1,7 @@
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import { pageArr } from './arrPaging.ts';
 import type { CalendarEntry, DeleteMediaOptions, QueueItem, RemoveQueueOptions } from './types.ts';
 
 /**
@@ -21,20 +22,6 @@ type RawQueueRecord = {
     seriesId?: number;
     trackedDownloadState?: string;
 };
-type RawQueuePage = { records?: RawQueueRecord[]; totalRecords?: number };
-
-/**
- * Sent explicitly because Radarr and Sonarr default `pageSize` to 10. Asking
- * for none meant a household with more than ten downloads was told ten was the
- * queue, and nothing could report the truncation: `records` is everything the
- * caller sees, so `applyLimit` counted ten items and called that the total.
- * The captured fixture echoes `"pageSize": 10` and `"totalRecords": 0` — an
- * empty queue at capture time, which is why no test caught it.
- *
- * Paged to completion rather than raised to one large number, because a bigger
- * silent cap is the same defect with a longer fuse.
- */
-const QUEUE_PAGE_SIZE = 200;
 
 /**
  * Radarr and Sonarr report time remaining as a .NET `TimeSpan`, whose "c"
@@ -60,18 +47,7 @@ export async function readArrQueue(
     // Off upstream by default, which hides records whose movie or series was
     // deleted — stuck at importBlocked forever, and invisible here.
     const includeUnknown = kind === 'movie' ? 'includeUnknownMovieItems=true' : 'includeUnknownSeriesItems=true';
-
-    const records: RawQueueRecord[] = [];
-    for (let page = 1; ; page++) {
-        const body = await http.get<RawQueuePage>(
-            `/api/v3/queue?page=${page}&pageSize=${QUEUE_PAGE_SIZE}&${includeUnknown}`
-        );
-        const got = body.records ?? [];
-        records.push(...got);
-        // An empty page ends it whatever the count says: a service that
-        // disagrees with its own `totalRecords` must not spin here.
-        if (got.length === 0 || body.totalRecords === undefined || records.length >= body.totalRecords) break;
-    }
+    const records = await pageArr<RawQueueRecord>(http, '/api/v3/queue', includeUnknown);
 
     return records
         .filter((r): r is RawQueueRecord & { id: number } => typeof r.id === 'number')
