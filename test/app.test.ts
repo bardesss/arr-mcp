@@ -49,8 +49,45 @@ const toolsList = { jsonrpc: '2.0', id: 1, method: 'tools/list' };
  * assumption lives in one place so it cannot drift between the scripts and
  * this suite.
  */
-const rpcPayload = async (res: Response): Promise<{ result?: Record<string, unknown> }> =>
+const rpcPayload = async (
+    res: Response
+): Promise<{ result?: Record<string, unknown>; error?: { code?: number; message?: string } }> =>
     parseRpcPayload<Record<string, unknown>>(await res.text());
+
+/**
+ * The 2026-07-28 envelope.
+ *
+ * `Mcp-Method` is mandatory on Streamable HTTP POSTs as of that revision
+ * (SEP-2243), and a request without it is refused -32020 whatever the body
+ * says — which looks exactly like an unimplemented method if you are not
+ * expecting it.
+ */
+const modernRpc = (body: { method: string; params?: Record<string, unknown>; name?: string }) => ({
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${TOKEN}`,
+        'Mcp-Method': body.method,
+        // And `Mcp-Name` alongside it whenever the body names a target — a
+        // resource uri, a tool name. `resources/read` without it is refused
+        // -32020 exactly like a missing `Mcp-Method`, naming the header it
+        // wanted.
+        ...(body.name === undefined ? {} : { 'Mcp-Name': body.name })
+    },
+    body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: body.method,
+        params: {
+            ...(body.params ?? {}),
+            _meta: {
+                'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+                'io.modelcontextprotocol/clientCapabilities': {}
+            }
+        }
+    })
+});
 
 describe('GET /healthz', () => {
     it('is reachable without a token — it is a container probe, not an API', async () => {
@@ -804,5 +841,44 @@ describe('request body limit', () => {
             rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
         );
         expect(res.status).toBe(200);
+    });
+});
+
+
+const LIST_TTL_MS = 60 * 60 * 1000;
+
+describe('list caching', () => {
+    it('tells clients the tool list is cacheable for an hour', async () => {
+        const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'tools/list' }));
+        const { result } = await rpcPayload(res);
+
+        expect(result?.ttlMs).toBe(LIST_TTL_MS);
+        expect(result?.cacheScope).toBe('private');
+    });
+
+    it('says the same for prompts and resources', async () => {
+        for (const method of ['prompts/list', 'resources/list']) {
+            const res = await app().request('http://localhost:6060/mcp', modernRpc({ method }));
+            const { result } = await rpcPayload(res);
+            expect(result?.ttlMs, method).toBe(LIST_TTL_MS);
+        }
+    });
+
+    it('leaves the per-resource hints alone', async () => {
+        // A per-resource `cacheHint` wins over the per-operation one, field by
+        // field. Both are asserted, because arr://health's deliberate 0 — a
+        // dashboard showing a cached dead service is the failure that hint
+        // exists to prevent — is indistinguishable from the SDK's default 0.
+        // arr://instances' hour is what proves the hints reach the wire at all.
+        const read = async (uri: string) => {
+            const res = await app().request(
+                'http://localhost:6060/mcp',
+                modernRpc({ method: 'resources/read', params: { uri }, name: uri })
+            );
+            return (await rpcPayload(res)).result;
+        };
+
+        expect((await read('arr://health'))?.ttlMs).toBe(0);
+        expect((await read('arr://instances'))?.ttlMs).toBe(60 * 60 * 1000);
     });
 });
