@@ -9,6 +9,7 @@ import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
+import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import type { components } from './generated/sonarr.ts';
 import {
     diagnoseConnection,
@@ -87,10 +88,6 @@ type RawEpisode = {
 
 type RawEpisodeFile = { id?: number; seasonNumber?: number; size?: number };
 
-type RawStatus = components['schemas']['SystemResource'];
-type RawDiskSpace = components['schemas']['DiskSpaceResource'];
-type RawHealthCheck = components['schemas']['HealthResource'];
-type RawTask = components['schemas']['TaskResource'];
 type RawCommand = components['schemas']['CommandResource'];
 
 /**
@@ -135,57 +132,23 @@ export class SonarrAdapter
     }
 
     async getVersion(): Promise<string> {
-        const status = await this.#http.get<RawStatus>('/api/v3/system/status');
-        if (!status.version) {
-            throw new ServiceError('UpstreamError', this.id, 'system/status returned no version field');
-        }
-        return status.version;
+        return arrVersion(this.#http, this.id);
     }
 
     async getDiskSpace(): Promise<DiskSpace[]> {
-        const rows = await this.#http.get<RawDiskSpace[]>('/api/v3/diskspace');
-        // The generated types mark these nullable, not merely optional.
-        return rows.map(r => ({
-            service: this.id,
-            ...(typeof r.path === 'string' ? { path: r.path } : {}),
-            label: r.label ?? '',
-            freeSpace: r.freeSpace ?? 0,
-            ...(typeof r.totalSpace === 'number' ? { totalSpace: r.totalSpace } : {})
-        }));
+        return arrDiskSpace(this.#http, this.id);
     }
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        const all = await this.#http.get<RawHealthCheck[]>('/api/v3/health');
-        return all
-            .filter(c => c.type !== 'ok')
-            .map(c => ({
-                service: this.id,
-                source: c.source ?? 'unknown',
-                type: String(c.type ?? 'warning'),
-                message: c.message ?? ''
-            }));
+        return arrFailedHealthChecks(this.#http, this.id);
     }
 
-    /**
-     * Queues the same command `getScanState` reads the last run of, so what
-     * this starts and what that reports can never drift apart.
-     */
     async startLibraryScan(): Promise<CommandHandle> {
-        const command = await this.#http.post<RawCommand>('/api/v3/command', { name: 'RefreshSeries' });
-
-        return {
-            service: this.id,
-            commandId: command.id ?? 0,
-            name: command.name ?? 'RefreshSeries',
-            ...(typeof command.status === 'string' ? { status: command.status } : {})
-        };
+        return arrStartLibraryScan(this.#http, this.id, 'RefreshSeries');
     }
 
     async getScanState(): Promise<ScanState> {
-        const tasks = await this.#http.get<RawTask[]>('/api/v3/system/task');
-        const scan = tasks.find(t => t.taskName === LIBRARY_SCAN_TASK);
-        const lastCompleted = scan?.lastExecution;
-        return { service: this.id, ...(typeof lastCompleted === 'string' ? { lastCompleted } : {}) };
+        return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
     }
 
     async getQueue(): Promise<QueueItem[]> {
