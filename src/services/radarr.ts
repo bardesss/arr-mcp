@@ -1,6 +1,7 @@
 import { instanceId } from '../config/instances.ts';
 import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
@@ -8,6 +9,7 @@ import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders } from './arrAdd.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
+import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
     type CalendarCapable,
@@ -63,10 +65,6 @@ import type { components } from './generated/radarr.ts';
  * Generated from the vendored spec, so an upstream field rename becomes a
  * typecheck failure here rather than a runtime surprise for a user.
  */
-type RawStatus = components['schemas']['SystemResource'];
-type RawDiskSpace = components['schemas']['DiskSpaceResource'];
-type RawHealthCheck = components['schemas']['HealthResource'];
-type RawTask = components['schemas']['TaskResource'];
 type RawCommand = components['schemas']['CommandResource'];
 
 /**
@@ -104,6 +102,11 @@ export class RadarrAdapter
     readonly id: string;
     readonly #http: ServiceHttp;
 
+    /** The whole-library read, shared by `search(_, 'library')` and
+     *  `listLibrary` — both hit `/api/v3/movie`. Discarded on config reload
+     *  for free: `buildAdapters` constructs a new adapter. */
+    readonly #libraryCache = new TtlCache();
+
     constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('radarr', config.name);
@@ -114,64 +117,23 @@ export class RadarrAdapter
     }
 
     async getVersion(): Promise<string> {
-        const status = await this.#http.get<RawStatus>('/api/v3/system/status');
-        if (!status.version) {
-            throw new ServiceError('UpstreamError', this.id, 'system/status returned no version field');
-        }
-        return status.version;
+        return arrVersion(this.#http, this.id);
     }
 
     async getDiskSpace(): Promise<DiskSpace[]> {
-        const rows = await this.#http.get<RawDiskSpace[]>('/api/v3/diskspace');
-        // The generated types mark these nullable, not merely optional — the
-        // spec really does allow nulls. Narrowing on the value rather than on
-        // `!== undefined` is what keeps a null out of a `string` field.
-        return rows.map(r => ({
-            service: this.id,
-            ...(typeof r.path === 'string' ? { path: r.path } : {}),
-            label: r.label ?? '',
-            freeSpace: r.freeSpace ?? 0,
-            ...(typeof r.totalSpace === 'number' ? { totalSpace: r.totalSpace } : {})
-        }));
+        return arrDiskSpace(this.#http, this.id);
     }
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        const all = await this.#http.get<RawHealthCheck[]>('/api/v3/health');
-        // Radarr generally returns only entries worth surfacing, but some
-        // versions include `ok` rows — filter rather than trust.
-        return all
-            .filter(c => c.type !== 'ok')
-            .map(c => ({
-                service: this.id,
-                source: c.source ?? 'unknown',
-                type: c.type ?? 'warning',
-                message: c.message ?? ''
-            }));
+        return arrFailedHealthChecks(this.#http, this.id);
     }
 
-    /**
-     * Queues the same command `getScanState` reads the last run of, so what
-     * this starts and what that reports can never drift apart.
-     */
     async startLibraryScan(): Promise<CommandHandle> {
-        const command = await this.#http.post<RawCommand>('/api/v3/command', { name: 'RefreshMovie' });
-
-        return {
-            service: this.id,
-            commandId: command.id ?? 0,
-            name: command.name ?? 'RefreshMovie',
-            ...(typeof command.status === 'string' ? { status: command.status } : {})
-        };
+        return arrStartLibraryScan(this.#http, this.id, 'RefreshMovie');
     }
 
     async getScanState(): Promise<ScanState> {
-        const tasks = await this.#http.get<RawTask[]>('/api/v3/system/task');
-        const scan = tasks.find(t => t.taskName === LIBRARY_SCAN_TASK);
-        const lastCompleted = scan?.lastExecution;
-        return {
-            service: this.id,
-            ...(typeof lastCompleted === 'string' ? { lastCompleted } : {})
-        };
+        return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
     }
 
     async getQueue(): Promise<QueueItem[]> {
@@ -269,14 +231,25 @@ export class RadarrAdapter
         };
     }
 
+    /** The `/api/v3/movie` read behind both `search(_, 'library')` and
+     *  `listLibrary` — Radarr has no server-side filter, so both need the
+     *  whole list, and this is where they share one fetch for it. */
+    #allMovies(): Promise<RawMovie[]> {
+        return this.#libraryCache.get('movies', LIBRARY_TTL_MS, () => this.#http.get<RawMovie[]>('/api/v3/movie'));
+    }
+
+    /** Drop the cached whole-library read, e.g. after a write. */
+    invalidateLibrary(): void {
+        this.#libraryCache.clear();
+    }
+
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 
         if (source === 'library') {
-            // Radarr has no library search endpoint, so this fetches the whole
-            // list. Costly on a 900-film instance; the library cache is what
-            // makes it cheap in practice.
-            const movies = await this.#http.get<RawMovie[]>('/api/v3/movie');
+            // Radarr has no library search endpoint, so this filters the whole
+            // list. `#allMovies` caches that read, shared with `listLibrary`.
+            const movies = await this.#allMovies();
             return movies.filter(m => (m.title ?? '').toLowerCase().includes(term)).map(m => this.#toHit(m, 'library'));
         }
 
@@ -312,11 +285,10 @@ export class RadarrAdapter
 
     /**
      * The whole film library in one call — Radarr has no server-side filter, so
-     * this is the same `/api/v3/movie` read `search` already does. The cache
-     * is what makes it affordable, and it lives in the tool layer.
+     * this is the same `/api/v3/movie` read `search` already does, via `#allMovies`.
      */
     async listLibrary(): Promise<IndexInput[]> {
-        const movies = await this.#http.get<RawMovie[]>('/api/v3/movie');
+        const movies = await this.#allMovies();
 
         return movies.map(m => ({
             kind: 'movie' as const,

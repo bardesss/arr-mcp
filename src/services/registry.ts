@@ -2,8 +2,7 @@ import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import type {
     Config,
     KeyedServiceConfig,
-    MultiUserServiceConfig,
-    CredentialServiceConfig
+    MultiUserServiceConfig
 } from '../config/schema.ts';
 import { BazarrAdapter } from './bazarr.ts';
 import { JellyfinAdapter } from './jellyfin.ts';
@@ -43,7 +42,7 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
         case 'prowlarr':
             return new ProwlarrAdapter(keyed);
         case 'qbittorrent':
-            return new QbittorrentAdapter(instance.config as CredentialServiceConfig);
+            return new QbittorrentAdapter(instance.config);
         case 'radarr':
             return new RadarrAdapter(keyed);
         case 'sabnzbd':
@@ -53,6 +52,6 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
         case 'sonarr':
             return new SonarrAdapter(keyed);
         case 'transmission':
-            return new TransmissionAdapter(instance.config as CredentialServiceConfig);
+            return new TransmissionAdapter(instance.config);
     }
 }

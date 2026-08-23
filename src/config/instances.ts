@@ -28,7 +28,7 @@ export type ServiceInstance = {
  * widening rather than a migration: existing audit rows, log filters and error
  * messages stay correct with no backfill and no dual-read.
  */
-export const instanceId = (type: ServiceId, name?: string | undefined): string =>
+export const instanceId = (type: ServiceId, name?: string): string =>
     name === undefined ? type : `${type}/${name}`;
 
 /**

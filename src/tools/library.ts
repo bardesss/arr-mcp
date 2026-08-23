@@ -8,6 +8,16 @@ import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasLibrary, hasUserLibrary, hasUserSeasons, type ServiceAdapter, type ServiceUser } from '../services/types.ts';
 
+/**
+ * A degraded snapshot is worth caching, briefly.
+ *
+ * Declining outright meant that while any one source was down — a Jellyfin
+ * restarting for an hour — every read did the full fan-out with no cache at
+ * all, hammering the healthy services hardest exactly when the stack was
+ * fragile. Short enough that recovery is noticed almost immediately.
+ */
+const DEGRADED_TTL_MS = 20_000;
+
 export type LibrarySnapshot = {
     index: LibraryIndex;
     degraded: string[];
@@ -17,6 +27,8 @@ export type LibrarySnapshot = {
      * reason; every existing key is unchanged.
      */
     counts: Record<string, number>;
+    /** Set when Jellyfin is degraded because no `default_user` is configured. */
+    note?: string;
 };
 
 /**
@@ -43,7 +55,7 @@ export class LibraryLoader {
          * TTL rather than once per call. Last and optional, so existing call
          * sites keep compiling.
          */
-        dataset?: ImdbDataset | undefined
+        dataset?: ImdbDataset
     ) {
         this.#adapters = adapters;
         this.#identity = mediaServerIdentity;
@@ -76,13 +88,15 @@ export class LibraryLoader {
 
         // Keyed by user, or one household member's watch history appears in
         // another's answer — a correctness bug that reads as a privacy one.
-        const key = `library:${resolved?.id ?? 'none'}`;
+        const key = `library:${resolved.user?.id ?? 'none'}`;
 
-        // A partial load is not worth five minutes of cache. Declined via
-        // `shouldCache` rather than a later `invalidate()`, which cannot tell
-        // "my degraded load lost a race to a complete one" from "nothing raced
-        // me" and would delete the good entry.
-        return this.#cache.get(key, LIBRARY_TTL_MS, () => this.#build(resolved), snapshot => snapshot.degraded.length === 0);
+        // A degraded snapshot gets a short TTL rather than none, via `ttlFor`
+        // instead of a later `invalidate()`, which cannot tell "my degraded
+        // load lost a race to a complete one" from "nothing raced me" and
+        // would delete the good entry.
+        return this.#cache.get(key, LIBRARY_TTL_MS, () => this.#build(resolved), snapshot =>
+            snapshot.degraded.length === 0 ? LIBRARY_TTL_MS : DEGRADED_TTL_MS
+        );
     }
 
     /**
@@ -95,10 +109,14 @@ export class LibraryLoader {
      */
     invalidate(): void {
         this.#cache.clear();
+        // The adapters hold their own copy of the same bytes now, and a write
+        // that only cleared the join would leave search_media answering from
+        // pre-write data.
+        for (const adapter of this.#adapters) adapter.invalidateLibrary?.();
     }
 
     /**
-     * Undefined when there is no Jellyfin half to fetch.
+     * `user` is undefined when there is no Jellyfin half to fetch.
      *
      * Propagate or degrade turns on the error's **kind**, never on whether a
      * user was named — naming someone must not turn a plain Jellyfin outage
@@ -107,28 +125,34 @@ export class LibraryLoader {
      *
      * - `AuthFailed` — the named user was refused. Propagates: a model must
      *   not retry a refusal.
-     * - `NotFound` — no `default_user` configured, or the name does not exist
-     *   in Jellyfin. Propagates, because it is a config error carrying a
-     *   remedy that names the exact key. Degrading here instead reported
-     *   "jellyfin could not be reached" forever — indistinguishable from a
-     *   transient outage, and while `stack_health` called Jellyfin healthy.
+     * - `NotFound` with a name, or with none but a (wrong) `default_user`
+     *   configured, propagates too — both are actionable config errors, not
+     *   outages. Only "no name, no `default_user`" degrades
+     *   (`unconfigured: true`), so the remedy names the missing key.
      * - Everything else degrades: a reachability problem, not a config one.
      */
-    async #resolveUser(requested: string | undefined): Promise<ServiceUser | undefined> {
-        if (this.#identity === undefined) return undefined;
+    async #resolveUser(
+        requested: string | undefined
+    ): Promise<{ user: ServiceUser | undefined; unconfigured: boolean }> {
+        if (this.#identity === undefined) return { user: undefined, unconfigured: false };
         try {
-            return await this.#identity.resolve(requested);
+            return { user: await this.#identity.resolve(requested), unconfigured: false };
         } catch (err) {
-            if (err instanceof ServiceError && (err.kind === 'AuthFailed' || err.kind === 'NotFound')) throw err;
+            if (err instanceof ServiceError && err.kind === 'AuthFailed') throw err;
+            if (err instanceof ServiceError && err.kind === 'NotFound') {
+                if (requested !== undefined || this.#identity.hasDefaultUser) throw err;
+                return { user: undefined, unconfigured: true };
+            }
             logger.warn(
                 { service: 'jellyfin', err },
                 'jellyfin identity unavailable; building the library without watch state'
             );
-            return undefined;
+            return { user: undefined, unconfigured: false };
         }
     }
 
-    async #build(user: ServiceUser | undefined): Promise<LibrarySnapshot> {
+    async #build(resolved: { user: ServiceUser | undefined; unconfigured: boolean }): Promise<LibrarySnapshot> {
+        const { user } = resolved;
         const sources: Source<IndexInput>[] = this.#adapters
             .filter(hasLibrary)
             .map(a => ({ id: a.id, fetch: () => a.listLibrary() }));
@@ -174,6 +198,15 @@ export class LibraryLoader {
         // rating, which nothing else in the stack could give them.
         const rated = enrichWithImdb(items, this.#dataset);
 
-        return { index: LibraryIndex.build(rated, { playbackGathered }), degraded, counts };
+        const note = resolved.unconfigured
+            ? 'Jellyfin is configured without a default_user, so watch state is not included. Set `services.jellyfin.default_user` in config.yaml, or pass `user` explicitly.'
+            : undefined;
+
+        return {
+            index: LibraryIndex.build(rated, { playbackGathered }),
+            degraded,
+            counts,
+            ...(note === undefined ? {} : { note })
+        };
     }
 }

@@ -39,7 +39,7 @@ const project = (h: SearchHit, detail: DetailLevel): SearchHit => {
 export async function buildSearchMedia(
     adapters: readonly ServiceAdapter[],
     opts: { query: string; source: SearchSource; detail: DetailLevel; limit: number; offset?: number },
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): Promise<GetSearchResult> {
     const { items, degraded, counts } = await gather(
         adapters.filter(hasSearch).map(a => ({ id: a.id, fetch: () => a.search(opts.query, opts.source) }))
@@ -66,7 +66,7 @@ export async function buildSearchMedia(
 export function registerSearchMedia(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): void {
     server.registerTool(
         'search_media',

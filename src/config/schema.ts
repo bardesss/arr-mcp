@@ -128,7 +128,7 @@ export type BaseServiceConfig = Pick<KeyedServiceConfig, 'url' | 'timeout_ms' | 
  * `default_user` is optional on purpose: configuring a service purely so it
  * appears in stack_health is legitimate, and guessing an identity is the silent
  * mismatch warns about. A per-user tool called with nothing configured
- * fails naming this key.
+ * degrades instead, naming this key in the note.
  */
 const MultiUserServiceSchema = z.strictObject({
     ...BaseServiceShape,

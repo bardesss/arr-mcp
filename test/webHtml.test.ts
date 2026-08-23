@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { AuditRow } from '../src/core/audit.ts';
 import type { DiskSpace } from '../src/services/types.ts';
 import { JS } from '../src/web/assets.ts';
 import { esc, html, humanBytes, raw, shortTime } from '../src/web/html.ts';
-import { auditPage, groupDisks, loginPage, type AuditRow } from '../src/web/pages.ts';
+import { auditPage, groupDisks, loginPage } from '../src/web/pages.ts';
 
 describe('escaping', () => {
     it('neutralises the characters that end a tag or an attribute', () => {
@@ -200,6 +201,7 @@ describe('grouping the disks a stack reports', () => {
  */
 describe('the write audit', () => {
     const row = (over: Partial<AuditRow> = {}): AuditRow => ({
+        id: 1,
         at: '2026-08-12T14:03:11.000Z',
         tool: 'delete_media',
         service: 'radarr/4k',
@@ -209,6 +211,7 @@ describe('the write audit', () => {
         args: '{"id":"1535","delete_files":true}',
         outcome: 'applied',
         detail: null,
+        settled_at: null,
         ...over
     });
 

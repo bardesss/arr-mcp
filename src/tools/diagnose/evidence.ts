@@ -89,7 +89,7 @@ async function resolveItem(
         // saying no. get_media_details throws legibly in the same situation.
         let details;
         try {
-            details = await adapter.getMediaDetails(target.id as string, {
+            details = await adapter.getMediaDetails(target.id, {
                 includeEpisodes: false,
                 episodeLimit: 1
             });

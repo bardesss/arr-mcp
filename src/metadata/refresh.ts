@@ -137,7 +137,7 @@ async function downloadTo(baseUrl: string, file: string, path: string): Promise<
         throw new Error(`could not fetch ${file}: HTTP ${res.status}`);
     }
 
-    const body = Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]);
+    const body = Readable.fromWeb(res.body);
     await pipeline(body, createGunzip(), createWriteStream(path));
 }
 

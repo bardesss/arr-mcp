@@ -32,7 +32,6 @@ import {
     logsPage,
     setupPage,
     LOG_STREAMS,
-    type AuditRow,
     type LogStreamKey
 } from './pages.ts';
 
@@ -251,7 +250,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // that tells you a dead service is fine, and it degrades rather than
         // failing when a service is unreachable.
         const health = await buildStackHealth(snapshot.adapters, { detail: 'full', limit: 50 });
-        const rows = audit.recent(500) as { outcome: string }[];
 
         return c.html(
             dashboardPage({
@@ -267,11 +265,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 disks: health.disks.items,
                 failures: health.failures.items,
                 scans: health.scans,
-                writeCounts: {
-                    applied: rows.filter(r => r.outcome === 'applied').length,
-                    denied: rows.filter(r => r.outcome === 'denied').length,
-                    total: rows.length
-                }
+                writeCounts: audit.counts()
             })
         );
     });
@@ -319,7 +313,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             auditPage({
                 csrf: runtime.sessions.csrfFor(session),
                 version,
-                rows: audit.recent(300) as AuditRow[],
+                rows: audit.recent(300),
                 theme: theme()
             })
         );

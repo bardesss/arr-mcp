@@ -1,4 +1,5 @@
 import type { Theme } from '../config/schema.ts';
+import type { AuditRow } from '../core/audit.ts';
 import type { LogRow } from '../core/logs.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
@@ -60,7 +61,7 @@ export function layout(opts: {
               </form>`;
 
     return `<!doctype html>
-<html lang="en"${theme}>
+<html lang="en"${theme.value}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -81,8 +82,8 @@ dialog { display: block; position: static; max-width: none; width: auto; margin:
 </style></noscript>
 </head>
 <body>
-<header><h1>${LOGO}arr-mcp <span>${esc(opts.version)}</span></h1>${nav}</header>
-<main>${message}${opts.body}</main>
+<header><h1>${LOGO}arr-mcp <span>${esc(opts.version)}</span></h1>${nav.value}</header>
+<main>${message.value}${opts.body.value}</main>
 <!-- rel="noreferrer" because this page is served over plain http on a LAN and
      the link leaves for github.com: without it the Referer header hands them
      the hostname and port your instance is reachable on. -->
@@ -609,18 +610,6 @@ export function logTable(rows: LogRow[]): SafeHtml {
         </tbody>
     </table>`;
 }
-
-export type AuditRow = {
-    at: string;
-    tool: string;
-    service: string;
-    operation: string;
-    tier: string;
-    target: string;
-    args: string;
-    outcome: string;
-    detail: string | null;
-};
 
 /**
  * The recorded arguments, as fields rather than as the blob they are stored as.

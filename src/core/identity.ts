@@ -23,6 +23,11 @@ export class IdentityResolver {
         this.#config = config;
     }
 
+    /** Whether `default_user` is set at all — distinct from whether it names a real user. */
+    get hasDefaultUser(): boolean {
+        return this.#config.default_user !== undefined;
+    }
+
     async resolve(requested?: string): Promise<ServiceUser> {
         const wanted = this.#authorize(requested);
         const users = await this.#list();
