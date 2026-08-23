@@ -25,6 +25,22 @@ const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 /**
+ * An hour, for every list the SDK builds itself.
+ *
+ * The lists are static by construction: `registerAllTools`, `registerAllPrompts`
+ * and `registerAllResources` register unconditionally — nothing is filtered by
+ * configuration, which is the same property that makes hiding a tool behind a
+ * config key a non-option — so what a client caches for an hour cannot go
+ * stale under it. Without this the SDK emits the conservative default
+ * `ttlMs: 0` and every client reloads thirty-three tool descriptions every
+ * session.
+ *
+ * `resources/read` is deliberately absent: each resource carries its own
+ * `cacheHint` (`src/mcp/resources.ts`), and arr://health's is zero on purpose.
+ */
+const LIST_CACHE_TTL_MS = 60 * 60 * 1000;
+
+/**
  * What the whole server is, said once.
  *
  * This is the only documentation every client reads. Prompts and resources
@@ -68,7 +84,40 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     // before a reload finishes against the configuration it began with.
     const handler = createMcpHandler(() => {
         const snapshot = runtime.current;
-        const server = new McpServer({ name: NAME, version: VERSION }, { instructions: INSTRUCTIONS });
+        const server = new McpServer(
+            { name: NAME, version: VERSION },
+            {
+                instructions: INSTRUCTIONS,
+                /**
+                 * Declared false rather than left to default true.
+                 *
+                 * `registerTool`/`registerPrompt`/`registerResource` each set
+                 * `listChanged: getCapabilities().<kind>?.listChanged ?? true`,
+                 * so declaring it here is what makes the answer false — and it
+                 * should be. The lists are static by construction (the same
+                 * property `LIST_CACHE_TTL_MS` rests on): nothing changes them,
+                 * not a config reload, not the weekly IMDb refresh. A modern-era
+                 * client reads these bits to decide which notifications to
+                 * request on its `subscriptions/listen` filter, so advertising
+                 * true means subscribing to an event that will never arrive.
+                 */
+                capabilities: {
+                    tools: { listChanged: false },
+                    prompts: { listChanged: false },
+                    resources: { listChanged: false }
+                },
+                // A server option, not a `createMcpHandler` one — the hint
+                // travels from the era-blind server configuration to the
+                // era-aware encode seam, so a 2025-era response is unaffected.
+                cacheHints: {
+                    'tools/list': { ttlMs: LIST_CACHE_TTL_MS, cacheScope: 'private' },
+                    'prompts/list': { ttlMs: LIST_CACHE_TTL_MS, cacheScope: 'private' },
+                    'resources/list': { ttlMs: LIST_CACHE_TTL_MS, cacheScope: 'private' },
+                    'resources/templates/list': { ttlMs: LIST_CACHE_TTL_MS, cacheScope: 'private' },
+                    'server/discover': { ttlMs: LIST_CACHE_TTL_MS, cacheScope: 'private' }
+                }
+            }
+        );
         registerAllTools(server, snapshot.tools);
         // Registered beside the tools, never instead of them. Client support
         // for prompts and resources is uneven and arr-mcp has to work on all of

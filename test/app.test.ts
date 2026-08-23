@@ -49,8 +49,45 @@ const toolsList = { jsonrpc: '2.0', id: 1, method: 'tools/list' };
  * assumption lives in one place so it cannot drift between the scripts and
  * this suite.
  */
-const rpcPayload = async (res: Response): Promise<{ result?: Record<string, unknown> }> =>
+const rpcPayload = async (
+    res: Response
+): Promise<{ result?: Record<string, unknown>; error?: { code?: number; message?: string } }> =>
     parseRpcPayload<Record<string, unknown>>(await res.text());
+
+/**
+ * The 2026-07-28 envelope.
+ *
+ * `Mcp-Method` is mandatory on Streamable HTTP POSTs as of that revision
+ * (SEP-2243), and a request without it is refused -32020 whatever the body
+ * says — which looks exactly like an unimplemented method if you are not
+ * expecting it.
+ */
+const modernRpc = (body: { method: string; params?: Record<string, unknown>; name?: string }) => ({
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${TOKEN}`,
+        'Mcp-Method': body.method,
+        // And `Mcp-Name` alongside it whenever the body names a target — a
+        // resource uri, a tool name. `resources/read` without it is refused
+        // -32020 exactly like a missing `Mcp-Method`, naming the header it
+        // wanted.
+        ...(body.name === undefined ? {} : { 'Mcp-Name': body.name })
+    },
+    body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: body.method,
+        params: {
+            ...(body.params ?? {}),
+            _meta: {
+                'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+                'io.modelcontextprotocol/clientCapabilities': {}
+            }
+        }
+    })
+});
 
 describe('GET /healthz', () => {
     it('is reachable without a token — it is a container probe, not an API', async () => {
@@ -807,6 +844,217 @@ describe('request body limit', () => {
         const res = await app().request(
             'http://localhost:6060/mcp',
             rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
+        );
+        expect(res.status).toBe(200);
+    });
+});
+
+
+const LIST_TTL_MS = 60 * 60 * 1000;
+
+describe('list caching', () => {
+    it('tells clients the tool list is cacheable for an hour', async () => {
+        const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'tools/list' }));
+        const { result } = await rpcPayload(res);
+
+        expect(result?.ttlMs).toBe(LIST_TTL_MS);
+        expect(result?.cacheScope).toBe('private');
+    });
+
+    it('says the same for prompts and resources', async () => {
+        for (const method of ['prompts/list', 'resources/list']) {
+            const res = await app().request('http://localhost:6060/mcp', modernRpc({ method }));
+            const { result } = await rpcPayload(res);
+            expect(result?.ttlMs, method).toBe(LIST_TTL_MS);
+        }
+    });
+
+    it('leaves the per-resource hints alone', async () => {
+        // A per-resource `cacheHint` wins over the per-operation one, field by
+        // field. Both are asserted, because arr://health's deliberate 0 — a
+        // dashboard showing a cached dead service is the failure that hint
+        // exists to prevent — is indistinguishable from the SDK's default 0.
+        // arr://instances' hour is what proves the hints reach the wire at all.
+        const read = async (uri: string) => {
+            const res = await app().request(
+                'http://localhost:6060/mcp',
+                modernRpc({ method: 'resources/read', params: { uri }, name: uri })
+            );
+            return (await rpcPayload(res)).result;
+        };
+
+        expect((await read('arr://health'))?.ttlMs).toBe(0);
+        expect((await read('arr://instances'))?.ttlMs).toBe(60 * 60 * 1000);
+    });
+});
+
+
+describe('2026-07-28 protocol', () => {
+    it('answers server/discover with its identity and capabilities', async () => {
+        const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'server/discover' }));
+        expect(res.status).toBe(200);
+
+        const { result } = await rpcPayload(res);
+        expect(result?.resultType).toBe('complete');
+        expect(result?.capabilities).toMatchObject({ tools: {}, prompts: {}, resources: {} });
+    });
+
+    it('marks an ordinary result complete and names the server', async () => {
+        const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'tools/list' }));
+        const { result } = await rpcPayload(res);
+
+        expect(result?.resultType).toBe('complete');
+        // Servers SHOULD identify themselves in each result's _meta.
+        expect((result?._meta as Record<string, unknown>)?.['io.modelcontextprotocol/serverInfo']).toMatchObject({
+            name: 'arr-mcp'
+        });
+    });
+
+    it('still serves the whole tool surface on the modern path', async () => {
+        const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'tools/list' }));
+        const { result } = await rpcPayload(res);
+        expect((result?.tools as unknown[]).length).toBe(TOOL_NAMES.length);
+    });
+
+    it('refuses a POST whose Mcp-Method header is missing', async () => {
+        // Mandatory as of this revision (SEP-2243). -32020 is the renumbered
+        // HeaderMismatch code; a request without the header is refused
+        // whatever the body says, which reads exactly like an unimplemented
+        // method if you are not expecting it.
+        //
+        // `clientCapabilities` is present deliberately: without it the
+        // envelope itself is invalid and the refusal is -32602 before the
+        // header check ever runs — which would make this test pass for
+        // something other than the reason it claims.
+        const res = await app().request('http://localhost:6060/mcp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json, text/event-stream',
+                Authorization: `Bearer ${TOKEN}`
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'tools/list',
+                params: {
+                    _meta: {
+                        'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+                        'io.modelcontextprotocol/clientCapabilities': {}
+                    }
+                }
+            })
+        });
+
+        const { error } = await rpcPayload(res);
+        expect(error?.code).toBe(-32020);
+    });
+
+    it('refuses a POST whose Mcp-Method header disagrees with its body', async () => {
+        const { headers, ...rest } = modernRpc({ method: 'tools/list' });
+        const res = await app().request('http://localhost:6060/mcp', {
+            ...rest,
+            headers: { ...headers, 'Mcp-Method': 'prompts/list' }
+        });
+
+        const { error } = await rpcPayload(res);
+        expect(error?.code).toBe(-32020);
+    });
+
+    it('refuses a resources/read whose Mcp-Name header is missing', async () => {
+        // The same rule, for the header that names the target rather than the
+        // operation. Pinned because it is the one that is easy to forget: the
+        // body carries the uri, so the request looks complete.
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            modernRpc({ method: 'resources/read', params: { uri: 'arr://health' } })
+        );
+
+        const { error } = await rpcPayload(res);
+        expect(error?.code).toBe(-32020);
+    });
+
+    it('does not claim a list-changed notification it never sends', async () => {
+        // The lists are static by construction. A modern-era client reads
+        // these bits to decide what to request on its subscriptions/listen
+        // filter, so advertising true would have it wait for an event that
+        // does not exist.
+        const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'server/discover' }));
+        const { result } = await rpcPayload(res);
+        const caps = result?.capabilities as Record<string, { listChanged?: boolean }>;
+
+        expect(caps.tools?.listChanged).toBe(false);
+        expect(caps.prompts?.listChanged).toBe(false);
+        expect(caps.resources?.listChanged).toBe(false);
+    });
+
+    it('no longer answers ping', async () => {
+        // Removed in this revision.
+        const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'ping' }));
+        const { error } = await rpcPayload(res);
+        expect(error?.code).toBe(-32601);
+    });
+});
+
+describe('2025-era back-compat', () => {
+    it('still serves a bare request with no _meta', async () => {
+        // The old era is deprecated, not removed. A client that never learned
+        // the new envelope must keep working.
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
+        );
+        expect(res.status).toBe(200);
+
+        const { result } = await rpcPayload(res);
+        expect((result?.tools as unknown[]).length).toBe(TOOL_NAMES.length);
+        // The 2026 fields are absent on this path, by design — the 2025-era
+        // codec has no cache code path at all.
+        expect(result?.resultType).toBeUndefined();
+        expect(result?.ttlMs).toBeUndefined();
+    });
+
+    it('says the same about list-changed on the 2025 path', async () => {
+        // The capability set is era-blind, so turning it off must not have
+        // been a modern-era-only change.
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(
+                {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'initialize',
+                    params: {
+                        protocolVersion: '2025-06-18',
+                        capabilities: {},
+                        clientInfo: { name: 'old', version: '1' }
+                    }
+                },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
+        );
+        const { result } = await rpcPayload(res);
+        const caps = result?.capabilities as Record<string, { listChanged?: boolean }>;
+
+        expect(caps.tools?.listChanged).toBe(false);
+    });
+
+    it('still answers initialize', async () => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(
+                {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'initialize',
+                    params: {
+                        protocolVersion: '2025-06-18',
+                        capabilities: {},
+                        clientInfo: { name: 'old', version: '1' }
+                    }
+                },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
         );
         expect(res.status).toBe(200);
     });
