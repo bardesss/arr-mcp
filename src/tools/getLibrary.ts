@@ -96,6 +96,8 @@ export type GetLibraryResult = {
      * `source`/`rated`/`unrated` is unaffected.
      */
     ratingCoverage?: { source: RatingSource; rated: number; unrated: number; note?: string };
+    /** Carried from `LibrarySnapshot.note` — a fact about the stack's config, not this call. */
+    note?: string;
 };
 
 const ratingOf = (item: MergedItem, source: RatingSource): number | undefined => item.ratings?.[source];
@@ -242,7 +244,7 @@ function imdbUnavailableNote(state: 'off' | 'ingesting' | 'ready'): string | und
 export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery): Promise<GetLibraryResult> {
     rejectImpossibleFilters(opts);
 
-    const { index, degraded, counts } = await loader.load(opts.watched_by);
+    const { index, degraded, counts, note: libraryNote } = await loader.load(opts.watched_by);
 
     const genre = opts.genre?.toLowerCase();
     const quality = opts.quality?.toLowerCase();
@@ -295,7 +297,13 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         // computing one would be work whose result is discarded.
         const ordered = opts.sort === undefined ? filtered : applySort(filtered, opts.sort, 'imdb');
         const shaped = applyLimit(ordered, opts.limit, opts.offset);
-        return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
+        return {
+            ...shaped,
+            items: shaped.items.map(i => project(i, opts.detail)),
+            degraded,
+            counts,
+            ...(libraryNote === undefined ? {} : { note: libraryNote })
+        };
     }
 
     // coverage is measured over everything the other filters kept, before
@@ -330,7 +338,8 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
             rated: rated.length,
             unrated: filtered.length - rated.length,
             ...(note === undefined ? {} : { note })
-        }
+        },
+        ...(libraryNote === undefined ? {} : { note: libraryNote })
     };
 }
 
@@ -342,7 +351,12 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
             annotations: READ_ONLY,
             description:
                 'Your library, joined across Radarr, Sonarr and Jellyfin on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means Jellyfin *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means nothing here is managing it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. If Jellyfin is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If Jellyfin is not configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — so check whether `jellyfin` even appears in your config instead. `has_file: false` with `monitored: true` is "what am I still waiting for". Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered. A series at `detail: "full"` also carries `seasons`: per season, how many episodes you have watched (`watched`), how many are on disk (`onDisk`), how many have aired (`aired`), and how many exist in total (`total`, which is TVDB\'s count via Sonarr). `complete` is true only when every episode of the season has been watched — and is **absent, not false**, when either half is unknown: a series no *arr manages has no `total`, and one Jellyfin has never seen has no `watched`. Season 0 is specials and is reported like any other season. `seasons` is omitted below `detail: "full"`. Each season row also carries `monitored`, Sonarr’s own per-season flag — the same field `get_media_details` reports — absent rather than false when no Sonarr manages the series.',
-            outputSchema: PagedOutputSchema,
+            outputSchema: PagedOutputSchema.extend({
+                note: z
+                    .string()
+                    .optional()
+                    .describe('Present when a fact about the stack\'s config, not this call, needs stating — for example Jellyfin configured with no default_user.')
+            }),
             inputSchema: toolInput({
                 kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.'),
                 year: z.number().int().optional(),
@@ -412,9 +426,12 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                       (result.ratingCoverage.note === undefined ? '' : ` ${result.ratingCoverage.note}`);
             const missing =
                 result.degraded.length === 0 ? '' : ` ${result.degraded.join(', ')} could not be reached.`;
+            // Same reasoning as `coverage` above: the summary line is what a
+            // reader who never opens `structuredContent` actually sees.
+            const note = result.note === undefined ? '' : ` ${result.note}`;
 
             return {
-                content: [{ type: 'text', text: `${result.returned} of ${result.total} item(s).${coverage}${missing}` }],
+                content: [{ type: 'text', text: `${result.returned} of ${result.total} item(s).${coverage}${missing}${note}` }],
                 structuredContent: result
             };
         }

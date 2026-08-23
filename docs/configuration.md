@@ -13,7 +13,7 @@ services:
   jellyfin:
     url: http://192.168.1.20:8096
     api_key: "…"
-    default_user: "you"      # required if jellyfin is configured — see below
+    default_user: "you"      # optional, but the per-user tools want it — see below
   transmission:
     url: http://192.168.1.20:9091
     username: "…"            # neither torrent client has an API key
@@ -59,10 +59,16 @@ in a browser; a trailing slash makes no difference.
 
 ## Jellyfin needs a `default_user`
 
-Not optional flavour. `get_library`, `get_media_details` (its title-query form)
-and `diagnose` all join Radarr/Sonarr against Jellyfin's per-user watch state,
-and without a resolvable user they fail outright, naming `default_user` and how
-to set it, rather than silently answering as if Jellyfin were not there.
+`get_library`, `get_media_details` (its title-query form) and `diagnose` all
+join Radarr/Sonarr against Jellyfin's per-user watch state. A user that does
+not exist in Jellyfin, or one that is refused, fails those tools outright,
+naming `default_user` and how to fix it, rather than silently answering as if
+Jellyfin were not there.
+
+Omitting `default_user` is supported — the service still appears in
+`stack_health`. `get_library` and `diagnose` then return the Radarr and Sonarr
+halves with Jellyfin marked degraded and a note naming the key, rather than
+failing the whole read.
 
 Leaving `jellyfin` out of `config.yaml` entirely is still fine — those tools
 just work from Radarr and Sonarr alone.

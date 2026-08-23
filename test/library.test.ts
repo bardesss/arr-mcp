@@ -176,35 +176,48 @@ describe('LibraryLoader', () => {
         await expect(loader.load('Someone Else')).rejects.toThrow(/not permitted/);
     });
 
-    // Whole-phase review item 5: no-user-configured is a configuration error
-    // with an actionable remedy, not a reachability problem — src/config/schema.ts
-    // documents that "a per-user tool called with nothing configured fails
-    // naming this key." Before this fix, #resolveUser only propagated NotFound
-    // when `requested !== undefined`, so this exact case (nobody named,
-    // nothing configured) degraded silently and permanently: every call
-    // reported "jellyfin could not be reached" forever, indistinguishable
-    // from a real, self-healing outage, while stack_health kept calling
-    // Jellyfin healthy.
-    it('fails naming default_user, rather than degrading forever, when no Jellyfin user is configured and none was requested', async () => {
+    // Whole-phase review item 5, revised: no-user-configured is a
+    // configuration gap with an actionable remedy, not a reachability
+    // problem — but it is also not a reason to lose the Radarr and Sonarr
+    // halves of a read that never needed a Jellyfin user. Before this fix,
+    // #resolveUser propagated NotFound whenever `requested === undefined`,
+    // so this exact case (nobody named, nothing configured) threw and the
+    // whole read failed, even though the schema explicitly allows Jellyfin
+    // to be configured with no `default_user` (present only in stack_health).
+    it('degrades to the arrs, with a note naming default_user, when no Jellyfin user is configured and none was requested', async () => {
         const noDefault = identity(
             new ServiceError('NotFound', 'jellyfin', 'no user was named and none is configured', {
                 remedy: 'Set services.jellyfin.default_user in config.yaml, or pass a user explicitly.'
             })
         );
         const loader = new LibraryLoader([radarr(), jellyfin({})], noDefault);
-        await expect(loader.load()).rejects.toThrow(/default_user/);
+
+        const snapshot = await loader.load();
+
+        // The Radarr half is the point: a config choice the schema explicitly
+        // allows must not lose it.
+        expect(snapshot.index.size()).toBeGreaterThan(0);
+        expect(snapshot.degraded).toContain('jellyfin');
+        expect(snapshot.note).toContain('default_user');
     });
 
-    it('fails naming default_user the same way when a configured default_user does not match any real Jellyfin user', async () => {
+    it('degrades the same way when a configured default_user does not match any real Jellyfin user', async () => {
         // A different NotFound path through IdentityResolver.resolve (not
         // #authorize): `default_user` is configured, but is a typo or a
         // deleted account, so the directory lookup itself comes up empty.
         // `requested` (the argument to #resolveUser) is still undefined here
-        // — nobody named anyone, the *default* was used internally — so this
-        // is the other case the old `requested !== undefined` check missed.
+        // — nobody named anyone, the *default* was used internally —
+        // and #resolveUser cannot tell this apart from nothing being
+        // configured at all, so it degrades the same way rather than
+        // propagating.
         const badDefault = identity(new ServiceError('NotFound', 'jellyfin', 'no user named "Bartsu"'));
         const loader = new LibraryLoader([radarr(), jellyfin({})], badDefault);
-        await expect(loader.load()).rejects.toThrow(/no user named/);
+
+        const snapshot = await loader.load();
+
+        expect(snapshot.index.size()).toBeGreaterThan(0);
+        expect(snapshot.degraded).toContain('jellyfin');
+        expect(snapshot.note).toContain('default_user');
     });
 
     it('still propagates AuthFailed rather than degrading — a refusal is not a configuration gap', async () => {
