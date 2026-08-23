@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
@@ -23,13 +24,43 @@ export async function buildDiscoverMedia(
         genre?: string;
         year?: number;
         minRating?: number;
+        similarTo?: string;
         detail: DetailLevel;
         limit: number;
         offset?: number;
     },
     dataset?: ImdbDataset
 ): Promise<GetSearchResult> {
+    if (opts.similarTo !== undefined && (opts.genre !== undefined || opts.year !== undefined || opts.minRating !== undefined)) {
+        // Two different questions. Silently picking one is how a model gets
+        // a confident answer to a question it did not ask.
+        throw new Error('similar_to cannot be combined with genre, year or min_rating — pass similar_to on its own.');
+    }
+    if (opts.similarTo !== undefined && !/^\d+$/.test(opts.similarTo)) {
+        // Seerr answers an unknown TMDB id with an HTTP 500, which is not
+        // distinguishable from an outage once it reaches the catch below.
+        // Rejecting an obviously-wrong id here is the only informative move
+        // available for that case.
+        throw new Error(`similar_to "${opts.similarTo}" is not a TMDB id. Pass the numeric id, e.g. "693134".`);
+    }
+
     if (adapter === undefined) {
+        if (opts.similarTo !== undefined) {
+            // The IMDb dataset has no similarity data — genre, year and
+            // rating are the only join it can do. An empty list here would
+            // misreport "nothing is similar" as the answer, when the truth
+            // is that nothing could answer at all.
+            return {
+                items: [],
+                total: 0,
+                returned: 0,
+                offset: 0,
+                truncated: false,
+                degraded: [],
+                counts: {},
+                note: 'similar_to needs Seerr — the IMDb dataset has no similarity data, only genre, year and rating. Add a Seerr instance to answer this.'
+            };
+        }
         // Without Seerr this used to return an empty result, which reads as
         // "nothing matched" rather than "nobody could answer". The IMDb
         // dataset can answer it: genre, year and a minimum rating are a join
@@ -37,18 +68,33 @@ export async function buildDiscoverMedia(
         return fromDataset(opts, dataset);
     }
 
+    // Translated here, at the boundary that needs it: Seerr is TMDB-backed
+    // and TMDB says `tv`. Everything on our side of this call says `series`,
+    // including the items Seerr hands back.
+    const mediaType = opts.kind === 'series' ? 'tv' : 'movie';
+
     let hits: SearchHit[];
     try {
-        hits = await adapter.discover({
-            // Translated here, at the boundary that needs it: Seerr is
-            // TMDB-backed and TMDB says `tv`. Everything on our side of this
-            // call says `series`, including the items Seerr hands back.
-            mediaType: opts.kind === 'series' ? 'tv' : 'movie',
-            ...(opts.genre === undefined ? {} : { genre: opts.genre }),
-            ...(opts.year === undefined ? {} : { year: opts.year }),
-            ...(opts.minRating === undefined ? {} : { minRating: opts.minRating })
-        });
+        hits =
+            opts.similarTo !== undefined
+                ? await adapter.recommendations({ mediaType, id: opts.similarTo })
+                : await adapter.discover({
+                      mediaType,
+                      ...(opts.genre === undefined ? {} : { genre: opts.genre }),
+                      ...(opts.year === undefined ? {} : { year: opts.year }),
+                      ...(opts.minRating === undefined ? {} : { minRating: opts.minRating })
+                  });
     } catch (err) {
+        // Propagate vs. degrade turns on the error's kind, same rule as
+        // LibraryLoader#resolveUser. `NotFound` covers two cases that both
+        // deserve a real error rather than `degraded`, which reports only
+        // services that could NOT be reached: genreId() rejecting a genre
+        // name before any request left for Seerr, and an upstream 404 (e.g.
+        // an unknown TMDB id on `similar_to`) — Seerr answered fine in both,
+        // the input was wrong. The genre case's remedy names the real
+        // genres, which a model needs to see rather than lose to a silent
+        // empty list — the exact failure mode this task exists to fix.
+        if (err instanceof ServiceError && err.kind === 'NotFound') throw err;
         logger.warn({ service: adapter.id, err }, 'discover failed; degrading');
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id], counts: {} };
     }
@@ -76,10 +122,10 @@ export async function buildDiscoverMedia(
  * dataset knows a year column. Merging two orderings that mean different
  * things would produce a ranking that means neither.
  *
- * One deliberate difference the caller has to know about: `genre` is a TMDB
- * genre *id* for Seerr and a genre *name* here, because that is what each
- * source actually holds. A numeric id would match no IMDb genre, so it is
- * rejected rather than silently returning nothing.
+ * `genre` is a name on both paths now — Seerr translates it to a TMDB id
+ * internally. This path has no id table to translate against, so a numeric id
+ * would match no IMDb genre and is rejected here rather than silently
+ * returning nothing.
  */
 function fromDataset(
     opts: { kind: 'movie' | 'series'; genre?: string; year?: number; minRating?: number; detail: DetailLevel; limit: number; offset?: number },
@@ -165,7 +211,7 @@ export function registerDiscoverMedia(
             title: 'Discover trending media',
             annotations: READ_ONLY,
             description:
-                'Browse what exists rather than what you have: films or series by genre, year and minimum rating. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so `genre` is a TMDB genre id and the rating is TMDB’s. With no Seerr it is answered from the local IMDb dataset instead, where `genre` is a name such as `Crime` and the rating is IMDb’s; passing a numeric id there is refused rather than silently matching nothing.',
+                'Browse what exists rather than what you have: films or series by genre, year and minimum rating, or things similar to one you know via similar_to. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so the rating is TMDB’s. With no Seerr, genre/year/min_rating are answered from the local IMDb dataset instead, where the rating is IMDb’s; similar_to needs Seerr and has no dataset fallback.',
             outputSchema: PagedOutputSchema.extend({
                 note: z
                     .string()
@@ -181,15 +227,21 @@ export function registerDiscoverMedia(
                 // would break a saved prompt silently — but described nowhere,
                 // so nothing new is written against it.
                 media_type: z.enum(['movie', 'tv']).optional(),
-                genre: z.string().optional().describe('TMDB genre id, e.g. 28 for Action.'),
+                genre: z.string().optional().describe('Genre name, e.g. "Crime" or "Action". A TMDB numeric id is also accepted.'),
                 year: z.number().int().min(1900).max(2100).optional().describe('Restrict to one release year.'),
                 min_rating: z.number().min(0).max(10).optional().describe('Minimum TMDB rating out of 10.'),
+                similar_to: z
+                    .string()
+                    .optional()
+                    .describe(
+                        'A TMDB numeric id — find something like it. Seerr only, and mutually exclusive with genre/year/min_rating: it answers a different question.'
+                    ),
                 detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema
             }, { undocumented: ['media_type'] })
         },
-        async ({ kind, media_type, genre, year, min_rating, detail, limit, offset }) => {
+        async ({ kind, media_type, genre, year, min_rating, similar_to, detail, limit, offset }) => {
             const resolved =
                 preferred({
                     name: 'kind',
@@ -204,13 +256,14 @@ export function registerDiscoverMedia(
                 ...(genre === undefined ? {} : { genre }),
                 ...(year === undefined ? {} : { year }),
                 ...(min_rating === undefined ? {} : { minRating: min_rating }),
+                ...(similar_to === undefined ? {} : { similarTo: similar_to }),
                 detail,
                 limit,
                 offset
             }, dataset);
             const summary =
                 result.degraded.length > 0
-                    ? 'Seerr could not be reached; nothing to discover.'
+                    ? 'Seerr could not answer; nothing to discover.'
                     : result.note !== undefined
                       ? result.note
                       : `${result.returned} of ${result.total} ${resolved === 'series' ? 'series' : 'film(s)'} found.`;

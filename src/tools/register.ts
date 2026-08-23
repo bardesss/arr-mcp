@@ -17,13 +17,16 @@ import { registerDeleteMedia } from './deleteMedia.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
 import { registerGetCalendar } from './getCalendar.ts';
+import { registerGetHistory } from './getHistory.ts';
 import { registerGetIndexers } from './getIndexers.ts';
 import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
 import { registerGetPlayback } from './getPlayback.ts';
 import { registerGetQueue } from './getQueue.ts';
+import { registerGetReleases } from './getReleases.ts';
 import { registerGetRequests } from './getRequests.ts';
 import { registerGetSubtitles } from './getSubtitles.ts';
+import { registerGetWanted } from './getWanted.ts';
 import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
@@ -133,6 +136,9 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetIndexers(server, adapters.find(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
     registerGetQueue(server, adapters);
+    registerGetHistory(server, adapters);
+    registerGetWanted(server, adapters);
+    registerGetReleases(server, adapters);
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, jellyfin, jellyfinIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
@@ -173,6 +179,9 @@ export const TOOL_NAMES = [
     'get_indexers',
     'get_subtitles',
     'get_queue',
+    'get_history',
+    'get_wanted',
+    'get_releases',
     'get_calendar',
     'get_playback',
     'get_requests',

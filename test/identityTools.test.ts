@@ -69,6 +69,16 @@ const jellyfin = (over: Partial<MultiUserServiceConfig> = {}, routes: Record<str
     return { adapter, resolver: new IdentityResolver(adapter, config) };
 };
 
+// Captured against a live 10.11.11 — see task-5-brief.md.
+const NEXT_UP = {
+    Items: [
+        { Id: 'nu-1', Name: 'Faceless Men', SeriesName: 'House of the Dragon', ParentIndexNumber: 3, IndexNumber: 6 }
+    ]
+};
+const historyRoute = (userId: string) =>
+    `/Items?userId=${userId}&SortBy=DatePlayed&SortOrder=Descending&Filters=IsPlayed&IncludeItemTypes=Episode,Movie&Recursive=true&Limit=500&Fields=UserData`;
+const HISTORY = { Items: [{ Id: 'h-1', Name: 'Some Film', UserData: { LastPlayedDate: '2026-08-19T18:29:55Z' } }] };
+
 describe('get_playback', () => {
     it('returns what the configured user is watching now', async () => {
         const { adapter, resolver } = jellyfin();
@@ -163,6 +173,55 @@ describe('get_playback', () => {
         const result = await buildGetPlayback(adapter, resolver, { detail: 'full', limit: 500 });
 
         expectWithinBudget(result, 40_000);
+    });
+
+    it('defaults to the current behaviour', async () => {
+        // The extension must not move what existing callers see.
+        const { adapter, resolver } = jellyfin();
+        const withScope = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50, scope: 'active' });
+        const without = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50 });
+        expect(without).toEqual(withScope);
+    });
+
+    it('reads Next Up for the resolved user', async () => {
+        const seen: string[] = [];
+        const routes = { ...jellyfinRoutes, [`/Shows/NextUp?userId=${USER_ID}`]: NEXT_UP };
+        const base = serving(routes);
+        const config = jellyfinConfig();
+        const recording = (async (input: string | URL | Request) => {
+            seen.push(input instanceof Request ? input.url : String(input));
+            return base(String(input));
+        }) as unknown as typeof fetch;
+        const adapter = new JellyfinAdapter(config, recording);
+        const resolver = new IdentityResolver(adapter, config);
+
+        const result = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50, scope: 'next_up' });
+        expect(seen.some(u => u.includes('/Shows/NextUp'))).toBe(true);
+        expect(result.items.length).toBeGreaterThan(0);
+        expect(result.items[0]).toMatchObject({ kind: 'next_up', season: 3, episode: 6 });
+    });
+
+    it('degrades rather than failing when the Next Up read errors', async () => {
+        const { adapter, resolver } = jellyfin({}, { '/Users': USERS });
+        const result = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50, scope: 'next_up' });
+        expect(result.degraded).toContain('jellyfin');
+        expect(result.items).toEqual([]);
+    });
+
+    it('reads watch history for the resolved user', async () => {
+        const routes = { ...jellyfinRoutes, [historyRoute(USER_ID)]: HISTORY };
+        const { adapter, resolver } = jellyfin({}, routes);
+        const result = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50, scope: 'history' });
+
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0]).toMatchObject({ kind: 'watched', lastPlayed: '2026-08-19T18:29:55Z' });
+    });
+
+    it('degrades rather than failing when the watch history read errors', async () => {
+        const { adapter, resolver } = jellyfin({}, { '/Users': USERS });
+        const result = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50, scope: 'history' });
+        expect(result.degraded).toContain('jellyfin');
+        expect(result.items).toEqual([]);
     });
 });
 

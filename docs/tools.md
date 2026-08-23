@@ -1,6 +1,6 @@
 # Tools
 
-Twenty-four of them. The first thirteen read; the last eleven write, and are off
+Twenty-seven of them. The first sixteen read; the last eleven write, and are off
 until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -11,6 +11,9 @@ until you turn them on — see [writes](writes.md).
 | `get_media_details` | Everything about one item |
 | `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
 | `get_queue` | What is downloading, across all four download paths |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted |
+| `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
+| `get_releases` | What an interactive search actually found, rejects included |
 | `get_calendar` | What is due, and what just aired |
 | `get_subtitles` | What is missing subtitles, and which providers are throttled |
 | `get_playback` | What am I watching, and what can I continue |
@@ -18,7 +21,7 @@ until you turn them on — see [writes](writes.md).
 | `get_requests` | What has been requested, and what is still pending |
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
-| `trigger_search` | Go look for this again |
+| `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
 | `trigger_scan` | Rescan a library — it downloaded but still will not play |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
@@ -73,11 +76,11 @@ Read `total` from there rather than parsing it out of "50 of 243 item(s)" —
 that sentence is prose and may be reworded.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the thirteen that only
+tool carries a title and an annotation: `readOnlyHint` on the sixteen that only
 read, and on the eleven writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from twenty-four similarly-shaped
+about, reads those rather than guessing from twenty-seven similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -203,22 +206,152 @@ state and `presence` are unaffected.
 
 ## `get_playback`
 
-What can be continued comes from `/Users/{id}/Items/Resume`, Jellyfin's own
-answer to the question. `/Items?IsResumable=true` looks like the right query,
-but Jellyfin 10.11 silently ignores it and returns the whole library rather than
-the resumable set.
+`scope` picks which of three Jellyfin reads answers the call, and defaults to
+`active` — every existing caller sees the same output it always has.
 
-The call sends an explicit `Limit=500`, so truncation is decided by `limit`
-(default 50, like every other tool) and reported honestly through `truncated`,
-rather than by however many rows an undocumented server page size happens to
-hand back.
-
-Each entry carries `percentComplete`, `positionSeconds` and `runtimeSeconds`.
+`scope: "active"` (the default): what can be continued comes from
+`/Users/{id}/Items/Resume`, Jellyfin's own answer to the question.
+`/Items?IsResumable=true` looks like the right query, but Jellyfin 10.11
+silently ignores it and returns the whole library rather than the resumable
+set. Each entry carries `percentComplete`, `positionSeconds` and
+`runtimeSeconds`.
 
 To find films you are partway through: keep only `kind: "resume"`, keep entries
 with no `seriesTitle`, `season` or `episode` (those three appear only on an
 episode), then compare `percentComplete` yourself — arr-mcp does not filter by
 how far in you are.
+
+`scope: "next_up"`: the next unwatched episode of every series a user has in
+progress, from `/Shows/NextUp` — Jellyfin's own answer to "what should we watch
+tonight," one row per series. `kind: "next_up"`; `title` is the episode, and
+`seriesTitle`, `season` and `episode` say which show and where.
+
+`scope: "history"`: recently watched movies and episodes, newest first, from
+a sort-by-`DatePlayed` read over played items. `kind: "watched"`; `lastPlayed`
+carries the timestamp and survives even at `detail: "standard"`, since it is
+the one field this scope exists to answer.
+
+Every scope sends an explicit `Limit=500` (`next_up` gets whatever Jellyfin
+reports, which does not grow unbounded), so truncation is decided by `limit`
+(default 50, like every other tool) and reported honestly through `truncated`,
+rather than by however many rows an undocumented server page size happens to
+hand back.
+
+## `get_history`
+
+`get_queue` only ever sees what is still in-flight — once a download fails,
+imports, or its file gets deleted, it leaves the queue and `get_queue` has
+nothing to say about it. `trigger_search` cannot fill that gap either: it hands
+back a command handle, and Radarr and Sonarr do not report a search's outcome
+through it. `get_history` is Radarr and Sonarr's own history log, merged, and
+is the only tool that can answer "why did last night's download fail".
+
+Both services' events are normalised to one vocabulary — `grabbed`,
+`imported`, `failed`, `deleted`, `renamed`, `ignored` — because they mostly
+already agree: both spell a grab `grabbed` and an import
+`downloadFolderImported`. The one place they diverge is deletion,
+`movieFileDeleted` versus `episodeFileDeleted`, and that is normalised too.
+Upstream's own spelling survives as `rawEvent`, and an event this server does
+not yet recognise becomes `unknown` rather than being dropped.
+
+A failure's `reason` comes straight from the download client and is fenced
+like any other untrusted string — it is not translated, and on a non-English
+setup it will not read as English.
+
+Pass `service` and `id` together to scope to one movie or series, via a
+`movieIds`/`seriesIds` filter on the same paged endpoint the unscoped read
+uses — not the per-item endpoint (`/api/v3/history/movie`), which answers a
+bare array rather than the paginated envelope this server needs.
+`id` without `service` is refused: Radarr's movie ids and Sonarr's series ids
+are different namespaces, and a shared number would otherwise merge two
+unrelated items' history into one answer.
+
+`mediaId` is the movie or series id — hand it straight to `get_media_details`
+or `trigger_search`. Sonarr also reports `episodeId` separately; it is never
+folded into `mediaId`.
+
+## `get_wanted`
+
+`get_library` can say a movie is missing — `monitored` with no file — but a
+season's aggregate counts cannot say *which* episodes of a show are missing,
+and neither tool can say what already has a file but not yet the quality a
+profile wants. `get_wanted` answers both, straight from Radarr and Sonarr's
+own wanted lists.
+
+`scope` is required, with no default: `missing` is monitored items with no
+file at all; `upgradable` is monitored items that have a file but sit below
+the quality profile's cutoff. The two answer different questions, and
+defaulting to one would silently hide the other.
+
+Radarr's wanted rows are movies. Sonarr's are episodes, and the shapes differ
+in what matters most: `id` always names the **series** — the id
+`trigger_search` and `get_media_details` take — never the episode, even
+though the episode is what the row is actually about. `title` names the show;
+`season`, `episode` and `episodeTitle` describe which episode of it. Radarr
+rows never set the three episode fields.
+
+Sonarr's missing list is monitored-only, which matches what "wanted" means
+here — an unmonitored gap is not something anyone asked for, and it will not
+appear in this list.
+
+`detail: "minimal"` drops `episodeTitle` and `airDate`, keeping the identity,
+`season`/`episode` and `monitored`. Neither field is grab-plumbing the way
+`get_history`'s `guid` is — there is nothing to trim between `standard` and
+`full` here, since every field is one a reader wants.
+
+## `get_releases`
+
+`trigger_search` asks Radarr or Sonarr to look for a release, but hands back
+only a queued command — it cannot show what was found, so nothing can
+actually be picked. `get_releases` runs the same interactive search Radarr
+and Sonarr's own web UI does and returns every candidate, so a model can
+compare them and — once a grab tool exists — choose one.
+
+`service` and `id` are both required: this searches one movie or series,
+never merges across services the way `get_history` and `get_wanted` do.
+`season` is Sonarr-only, and passing it to a Radarr search is refused rather
+than silently dropped.
+
+Rejected releases are returned, not filtered out. A live capture found
+*every* candidate rejected on both a Radarr and a Sonarr search — 2 of 2 and
+516 of 516 — almost always because the library already held a file at an
+equal or higher quality score. That is the ordinary outcome, and a tool that
+hid rejects would have answered empty both times. Each row carries
+`rejected` and the `rejections` upstream gave, fenced like every other
+release-supplied string.
+
+`guid` and `indexerId` travel together — that pair is what a future grab
+tool will bind a chosen release to. `seeders` is torrent-only and is absent,
+not zero, on a usenet result, which has no seeder count to report.
+
+`detail: "full"` keeps `guid`, `indexerId` and `rejections`. `standard` (the
+default) trims all three — the largest response on this server's surface can
+carry hundreds of rejected rows, each with its own reasons, so the token
+budget guarantee holds at the default detail level rather than at `full`,
+which is documented as intentionally the biggest a caller can ask for.
+`minimal` keeps only `service`, `indexer`, `title`, `quality` and `rejected`.
+`guid` is never fenced, since a grab tool needs it verbatim, but it is still
+stripped of the same dangerous code points fenced text is and length-capped —
+an indexer chose it, and it is not trusted any more than a release title is.
+
+This call is slow. Radarr and Sonarr poll every configured indexer
+synchronously before answering, and a live capture measured a Sonarr season
+search at 14.3 seconds — a cold search across more indexers can run longer.
+The tool's own per-call timeout is 120 seconds, well past the 10-second
+default every other call uses, specifically so a real search has room to
+finish rather than being cut off. A long wait here is not a hang; retrying
+it starts a second full indexer sweep.
+
+## `discover_media`
+
+`similar_to` takes a TMDB numeric id and answers from Seerr's
+`recommendations` endpoint, not `similar` — a live check found `similar`
+close to genre-bucket matching, and empty outright for series. It is
+mutually exclusive with `genre`/`year`/`min_rating`: they are different
+questions, so combining them is refused rather than one winning silently.
+With no Seerr configured there is no fallback — the IMDb dataset has no
+similarity data — and the response carries a `note` instead of a bare empty
+list.
 
 ## `clean_queue`
 
@@ -262,7 +395,7 @@ than reading success as "the subtitle is on disk". If nothing arrives, the
 
 ## Prompts and resources
 
-Twenty-four tools do not tell you which one to reach for, and the questions
+Twenty-seven tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

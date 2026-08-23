@@ -8,7 +8,10 @@ import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
+import { readArrHistory } from './arrHistory.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
+import { findArrReleases } from './arrRelease.ts';
+import { readArrWanted } from './arrWanted.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import type { components } from './generated/sonarr.ts';
@@ -21,6 +24,8 @@ import {
     type DiskSpaceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type HistoryCapable,
+    type HistoryEntry,
     type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
@@ -40,13 +45,19 @@ import {
     type MonitoringTarget,
     type QualityProfile,
     type QueueRemoveCapable,
+    type ReleaseCandidate,
+    type ReleaseSearchCapable,
     type RootFolder,
     type RemoveQueueOptions,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
+    type SearchTarget,
     type SearchTriggerCapable,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type WantedCapable,
+    type WantedItem,
+    type WantedScope
 } from './types.ts';
 
 type RawSeries = {
@@ -119,7 +130,10 @@ export class SonarrAdapter
         MediaDeleteCapable,
         MediaAddCapable,
         MonitoringCapable,
-        EpisodeFileCapable
+        EpisodeFileCapable,
+        HistoryCapable,
+        WantedCapable,
+        ReleaseSearchCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -159,6 +173,18 @@ export class SonarrAdapter
 
     async getQueue(): Promise<QueueItem[]> {
         return readArrQueue(this.#http, this.id, 'series');
+    }
+
+    async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
+        return readArrHistory(this.#http, this.id, 'series', opts);
+    }
+
+    async readWanted(scope: WantedScope): Promise<WantedItem[]> {
+        return readArrWanted(this.#http, this.id, 'series', scope);
+    }
+
+    async findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]> {
+        return findArrReleases(this.#http, this.id, 'series', opts);
     }
 
     readonly supportsBlocklist = true;
@@ -262,12 +288,14 @@ export class SonarrAdapter
      * `MoviesSearch` takes `movieIds: []`. Passing Radarr's shape here is
      * accepted and searches nothing.
      *
-     * Whole-series scope is deliberate for this first slice: per-episode search
-     * is a different command (`EpisodeSearch`) keyed on episode ids, and
-     * conflating the two behind one argument is how a model asking for one
-     * episode triggers a season-wide grab.
+     * `target` picks a different command entirely rather than overloading
+     * `id` — conflating whole-series and per-episode scope behind one
+     * argument is how a model asking for one episode triggers a season-wide
+     * grab. `SeasonSearch` and `EpisodeSearch` are spec-derived: unlike
+     * `SeriesSearch`, no live call has confirmed their payload shape, because
+     * posting one runs a real search on the user's stack.
      */
-    async triggerSearch(id: string): Promise<CommandHandle> {
+    async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
         const seriesId = Number(id);
         if (!Number.isInteger(seriesId)) {
             throw new ServiceError('NotFound', this.id, `"${id}" is not a Sonarr series id`, {
@@ -275,15 +303,19 @@ export class SonarrAdapter
             });
         }
 
-        const command = await this.#http.post<RawCommand>('/api/v3/command', {
-            name: 'SeriesSearch',
-            seriesId
-        });
+        const payload =
+            target?.episodes !== undefined
+                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(Number) }
+                : target?.season !== undefined
+                  ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
+                  : { name: 'SeriesSearch', seriesId };
+
+        const command = await this.#http.post<RawCommand>('/api/v3/command', payload);
 
         return {
             service: this.id,
             commandId: command.id ?? 0,
-            name: command.name ?? 'SeriesSearch',
+            name: command.name ?? payload.name,
             ...(typeof command.status === 'string' ? { status: command.status } : {})
         };
     }

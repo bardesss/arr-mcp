@@ -106,6 +106,15 @@ That is how you answer *"what would this do?"* without granting anything first.
 monitoring on or off for a whole series, one season, or specific episodes: give
 `season` or `episodes`, never both, and giving neither targets the whole series.
 
+`trigger_search` takes the same `season` and `episodes` pair, refusing both
+together for the same reason: on Sonarr they select a different command
+entirely (`SeasonSearch` or `EpisodeSearch` instead of `SeriesSearch`), and
+conflating the two is how a request for one episode ends up re-grabbing a
+whole season. A season the series does not have, or an episode id that does
+not resolve, is refused — naming the seasons that do exist — rather than
+posted, because Sonarr accepts a command matching nothing and reports success.
+Radarr has no seasons, so `season` and `episodes` are refused there outright.
+
 `delete_episode_files` (destructive) deletes the files for one season or
 specific episodes. There is no whole-series form, because that is what
 `delete_media` already does.

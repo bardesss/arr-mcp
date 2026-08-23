@@ -187,6 +187,122 @@ export interface QueueCapable {
 export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>
     typeof (a as Partial<QueueCapable>).getQueue === 'function';
 
+export const HISTORY_EVENT_TYPES = ['grabbed', 'imported', 'failed', 'deleted', 'renamed', 'ignored', 'unknown'] as const;
+export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
+
+/**
+ * What happened to a grab after it left the queue — the answer `get_queue`
+ * cannot give once an item has failed, imported or been deleted, and
+ * `trigger_search` cannot give at all, since it only hands back a command
+ * handle.
+ */
+export type HistoryEntry = {
+    service: string;
+    id: string;
+    at: string; // ISO
+    event: HistoryEventType;
+    /** Upstream's own spelling, e.g. `downloadFolderImported`. Always set by
+     *  the adapter, so an event this server does not yet recognise is not
+     *  silently hidden — optional here only because get_history trims it
+     *  below `detail: full`. */
+    rawEvent?: string;
+    title: string; // fenced
+    /** The movie or series id — hand it to get_media_details or trigger_search. */
+    mediaId?: string;
+    /** Sonarr only. Kept separate from `mediaId`, which always names the series. */
+    episodeId?: string;
+    indexer?: string; // fenced
+    quality?: string;
+    reason?: string; // fenced
+    /** `grabbed` only. Not fenced: an opaque id, not prose, and future
+     *  release-grab tooling needs it verbatim. */
+    guid?: string;
+    indexerId?: number;
+};
+
+export interface HistoryCapable {
+    readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]>;
+}
+
+export const hasHistory = (a: ServiceAdapter): a is ServiceAdapter & HistoryCapable =>
+    typeof (a as Partial<HistoryCapable>).readHistory === 'function';
+
+export type WantedScope = 'missing' | 'upgradable';
+
+/**
+ * Episode- and movie-level detail `get_library`'s aggregate season counts
+ * cannot give: which titles are actually missing, or which already have a
+ * file but not yet the quality the profile wants.
+ *
+ * Radarr's wanted rows are movies, so `season`/`episode`/`episodeTitle` stay
+ * unset. Sonarr's are episodes: `id` still names the **series** — the one
+ * `trigger_search` and `get_media_details` take — never the episode, and
+ * `title` names the show while `episodeTitle` names the episode.
+ */
+export type WantedItem = {
+    service: string;
+    kind: 'movie' | 'series';
+    id: string;
+    title: string; // fenced
+    season?: number;
+    episode?: number;
+    episodeTitle?: string; // fenced
+    airDate?: string;
+    monitored: boolean;
+};
+
+export interface WantedCapable {
+    readWanted(scope: WantedScope): Promise<WantedItem[]>;
+}
+
+export const hasWanted = (a: ServiceAdapter): a is ServiceAdapter & WantedCapable =>
+    typeof (a as Partial<WantedCapable>).readWanted === 'function';
+
+/**
+ * One row from an interactive release search — what `trigger_search` cannot
+ * show, since it only hands back a queued command.
+ *
+ * A real capture found *every* release rejected on both a Radarr and a
+ * Sonarr search: 2 of 2 and 516 of 516, both times because the library
+ * already held an equal-or-better file. That is the ordinary case, not a
+ * failure — a tool that dropped rejected rows would have answered empty on
+ * both, so this returns every release, marked, with the reasons upstream
+ * gave.
+ */
+export type ReleaseCandidate = {
+    service: string;
+    /** With `indexerId`, what a future grab tool binds to. Often a URL, not
+     *  an opaque token — never treat it as one. Always set by the adapter;
+     *  optional here only so get_releases can trim it below `detail: full`,
+     *  the same reason HistoryEntry's `guid` is optional. */
+    guid?: string;
+    indexerId?: number;
+    indexer: string; // fenced
+    title: string; // fenced — uploader-chosen
+    sizeBytes?: number;
+    /** Torrent-only. Absent on a usenet release, which has no seeder count —
+     *  never defaulted to 0, which would read as "nobody has this". */
+    seeders?: number;
+    age?: number;
+    quality?: string;
+    language?: string;
+    protocol?: string;
+    rejected: boolean;
+    /** Fenced. Always set by the adapter; optional here only so get_releases
+     *  can trim it below `detail: full` — `rejected` alone survives at
+     *  `minimal`, without the (often several) reasons attached. */
+    rejections?: string[];
+};
+
+export interface ReleaseSearchCapable {
+    /** `season` is Sonarr-only; a Radarr adapter refuses rather than ignoring
+     *  it. Slow upstream — see `RELEASE_SEARCH_TIMEOUT_MS`. */
+    findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]>;
+}
+
+export const hasReleaseSearch = (a: ServiceAdapter): a is ServiceAdapter & ReleaseSearchCapable =>
+    typeof (a as Partial<ReleaseSearchCapable>).findReleases === 'function';
+
 export type CalendarEntry = {
     service: string;
     kind: 'movie' | 'episode';
@@ -210,7 +326,7 @@ export const hasCalendar = (a: ServiceAdapter): a is ServiceAdapter & CalendarCa
 
 export type PlaybackEntry = {
     service: string;
-    kind: 'now_playing' | 'resume';
+    kind: 'now_playing' | 'resume' | 'next_up' | 'watched';
     itemId: string;
     title: string;
     seriesTitle?: string;
@@ -341,9 +457,22 @@ export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapabl
  */
 export type CommandHandle = { service: string; commandId: number; name: string; status?: string };
 
+/**
+ * `season` and `episodeIds` are mutually exclusive — the tool refuses both
+ * rather than picking one, so this type never has to define a precedence.
+ * Films have no seasons, so Radarr's `triggerSearch` never sees one.
+ */
+export type SearchTarget = {
+    /** One season. Omit with `episodes` to target the whole series. */
+    season?: number;
+    /** Specific episodes, as integer strings. */
+    episodes?: string[];
+};
+
 export interface SearchTriggerCapable {
-    /** Asks the service to look for releases for one item it already tracks. */
-    triggerSearch(id: string): Promise<CommandHandle>;
+    /** Asks the service to look for releases for one item it already tracks,
+     *  or a season or set of episodes of it when `target` narrows the scope. */
+    triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle>;
 }
 
 export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & SearchTriggerCapable =>
