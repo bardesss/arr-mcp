@@ -60,12 +60,12 @@ const rows = (count: number) => ({
 
 describe('the physical schema', () => {
     /**
-     * Both tables key on `tconst` and nothing else, so the default rowid btree
+     * `title` keys on `tconst` and nothing else, so the default rowid btree
      * plus the implicit unique index on the key stored every id twice.
      */
-    it.each(['title', 'rating'])('stores %s without a redundant rowid index', table => {
+    it('stores title without a redundant rowid index', () => {
         db = ImdbDataset.open(dir);
-        expect(schemaOf(table)).toContain('WITHOUT ROWID');
+        expect(schemaOf('title')).toContain('WITHOUT ROWID');
     });
 
     /**
@@ -89,7 +89,9 @@ describe('the physical schema', () => {
 
         db = ImdbDataset.open(dir);
 
-        expect(schemaOf('rating')).toContain('WITHOUT ROWID');
+        expect(schemaOf('title')).toContain('WITHOUT ROWID');
+        // The `rating` table is superseded outright and is not recreated.
+        expect(schemaOf('rating')).toBe('');
         // The stale row went with the old table. An empty dataset reports
         // itself as empty, and the next ingest refills it.
         expect(db.status().ratings).toBe(0);

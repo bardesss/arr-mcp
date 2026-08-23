@@ -282,6 +282,133 @@ describe('replacing the dataset', () => {
  * wrinkle rather than an injection — but a filter that matches everything is
  * worse than one that matches nothing.
  */
+describe('discover schema', () => {
+    it('buckets discoverable kinds and leaves the rest null', () => {
+        const ds = ImdbDataset.ephemeral();
+        ds.replaceAll({
+            titles: [
+                { tconst: 'tt1', kind: 'movie', title: 'A' },
+                { tconst: 'tt2', kind: 'tvMovie', title: 'B' },
+                { tconst: 'tt3', kind: 'tvSeries', title: 'C' },
+                { tconst: 'tt4', kind: 'tvMiniSeries', title: 'D' },
+                { tconst: 'tt5', kind: 'short', title: 'E' },
+                { tconst: 'tt6', kind: 'video', title: 'F' }
+            ],
+            ratings: [
+                { tconst: 'tt1', average: 8, votes: 10 },
+                { tconst: 'tt2', average: 7, votes: 10 },
+                { tconst: 'tt3', average: 6, votes: 10 },
+                { tconst: 'tt4', average: 5, votes: 10 },
+                { tconst: 'tt5', average: 4, votes: 10 },
+                { tconst: 'tt6', average: 3, votes: 10 }
+            ]
+        });
+
+        // Reaching into the database directly: this is the storage invariant
+        // the index depends on, and no public method exposes it.
+        const rows = ds.debugRows();
+        expect(new Map(rows.map(r => [r.tconst, r.bucket]))).toEqual(
+            new Map([
+                ['tt1', 'movie'],
+                ['tt2', 'movie'],
+                ['tt3', 'series'],
+                ['tt4', 'series'],
+                ['tt5', null],
+                ['tt6', null]
+            ])
+        );
+        ds.close();
+    });
+
+    it('answers a kind-only discover without a temp b-tree', () => {
+        const ds = ImdbDataset.ephemeral();
+        ds.replaceAll({
+            titles: [{ tconst: 'tt1', kind: 'movie', title: 'A', year: 2001 }],
+            ratings: [{ tconst: 'tt1', average: 8, votes: 10 }]
+        });
+
+        // The one test that guards what this change actually buys. Brittle on
+        // purpose: a future CASE or IN in the ORDER BY gives the index back.
+        const plan = ds.explainDiscover({ kind: 'movie' });
+        expect(plan.join('\n')).not.toContain('TEMP B-TREE');
+        expect(plan.join('\n')).toContain('title_bucket_rating');
+        ds.close();
+    });
+});
+
+describe('discover ordering', () => {
+    const seeded = () => {
+        const ds = ImdbDataset.ephemeral();
+        ds.replaceAll({
+            titles: [
+                { tconst: 'tt1', kind: 'movie', title: 'Best', year: 1999, genres: 'Crime,Drama' },
+                { tconst: 'tt2', kind: 'movie', title: 'Mid', year: 2005, genres: 'Drama' },
+                { tconst: 'tt3', kind: 'movie', title: 'Tie older', year: 1990, genres: 'Crime' },
+                { tconst: 'tt4', kind: 'movie', title: 'Tie newer', year: 2010, genres: 'Crime' },
+                { tconst: 'tt5', kind: 'tvSeries', title: 'A series', year: 2000, genres: 'Drama' }
+            ],
+            ratings: [
+                { tconst: 'tt1', average: 9.1, votes: 100 },
+                { tconst: 'tt2', average: 6.4, votes: 100 },
+                { tconst: 'tt3', average: 7.5, votes: 100 },
+                { tconst: 'tt4', average: 7.5, votes: 100 },
+                { tconst: 'tt5', average: 8.8, votes: 100 }
+            ]
+        });
+        return ds;
+    };
+
+    it('orders by rating, then by year descending', () => {
+        const ds = seeded();
+        expect(ds.discover({ kind: 'movie', limit: 10 }).map(t => t.tconst)).toEqual([
+            'tt1',
+            'tt4',
+            'tt3',
+            'tt2'
+        ]);
+        ds.close();
+    });
+
+    it('keeps series out of a movie browse', () => {
+        const ds = seeded();
+        expect(ds.discover({ kind: 'movie', limit: 10 }).map(t => t.tconst)).not.toContain('tt5');
+        ds.close();
+    });
+
+    it('counts what it pages through', () => {
+        const ds = seeded();
+        expect(ds.countDiscover({ kind: 'movie' })).toBe(4);
+        expect(ds.countDiscover({ kind: 'movie', genre: 'Crime' })).toBe(3);
+        ds.close();
+    });
+
+    it('pages without repeating or skipping', () => {
+        const ds = seeded();
+        const page1 = ds.discover({ kind: 'movie', limit: 2, offset: 0 }).map(t => t.tconst);
+        const page2 = ds.discover({ kind: 'movie', limit: 2, offset: 2 }).map(t => t.tconst);
+        expect([...page1, ...page2]).toEqual(['tt1', 'tt4', 'tt3', 'tt2']);
+        ds.close();
+    });
+
+    it('still applies a rating floor', () => {
+        const ds = seeded();
+        expect(ds.discover({ kind: 'movie', minRating: 7.5, limit: 10 }).map(t => t.tconst)).toEqual([
+            'tt1',
+            'tt4',
+            'tt3'
+        ]);
+        ds.close();
+    });
+
+    it('carries the rating and votes onto every result', () => {
+        const ds = seeded();
+        const [top] = ds.discover({ kind: 'movie', limit: 1 });
+        expect(top?.rating).toBe(9.1);
+        expect(top?.votes).toBe(100);
+        ds.close();
+    });
+});
+
 describe('genre wildcards', () => {
     it('does not let a wildcard genre match everything', () => {
         const db = seed();
