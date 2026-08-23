@@ -452,9 +452,22 @@ export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapabl
  */
 export type CommandHandle = { service: string; commandId: number; name: string; status?: string };
 
+/**
+ * `season` and `episodeIds` are mutually exclusive — the tool refuses both
+ * rather than picking one, so this type never has to define a precedence.
+ * Films have no seasons, so Radarr's `triggerSearch` never sees one.
+ */
+export type SearchTarget = {
+    /** One season. Omit with `episodes` to target the whole series. */
+    season?: number;
+    /** Specific episodes, as integer strings. */
+    episodes?: string[];
+};
+
 export interface SearchTriggerCapable {
-    /** Asks the service to look for releases for one item it already tracks. */
-    triggerSearch(id: string): Promise<CommandHandle>;
+    /** Asks the service to look for releases for one item it already tracks,
+     *  or a season or set of episodes of it when `target` narrows the scope. */
+    triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle>;
 }
 
 export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & SearchTriggerCapable =>

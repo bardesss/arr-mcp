@@ -76,13 +76,38 @@ describe('RadarrAdapter.triggerSearch', () => {
 describe('SonarrAdapter.triggerSearch', () => {
     // Upstream's own asymmetry: a bare id here, an array in Radarr. Passing
     // Radarr's shape is accepted and searches nothing.
-    it('posts SeriesSearch with a bare seriesId, not an array', async () => {
+    it('posts SeriesSearch with a bare seriesId, not an array when no target is given', async () => {
         const { impl, sent } = recordingFetch({ '/api/v3/command': { id: 99, name: 'SeriesSearch' } });
         const handle = await new SonarrAdapter(keyed(8989), impl).triggerSearch('7');
 
         expect(sent.find(s => s.method === 'POST')?.body).toEqual({ name: 'SeriesSearch', seriesId: 7 });
         expect(handle.service).toBe('sonarr');
         expect(handle.commandId).toBe(99);
+    });
+
+    // These two payloads are spec-derived, not verified against a live
+    // Sonarr: posting one runs a real search on the user's stack, and Sonarr
+    // accepts a command matching nothing and reports success — a probe
+    // cannot tell a right field name from a wrong one.
+    it('posts SeasonSearch with the series id and season number for a season target', async () => {
+        const { impl, sent } = recordingFetch({ '/api/v3/command': { id: 100, name: 'SeasonSearch' } });
+        const handle = await new SonarrAdapter(keyed(8989), impl).triggerSearch('7', { season: 2 });
+
+        expect(sent.find(s => s.method === 'POST')?.body).toEqual({
+            name: 'SeasonSearch',
+            seriesId: 7,
+            seasonNumber: 2
+        });
+        expect(handle.commandId).toBe(100);
+    });
+
+    it('posts EpisodeSearch with numeric episode ids for an episode target', async () => {
+        const { impl, sent } = recordingFetch({ '/api/v3/command': { id: 101, name: 'EpisodeSearch' } });
+        await new SonarrAdapter(keyed(8989), impl).triggerSearch('7', { episodes: ['901', '902'] });
+
+        const body = sent.find(s => s.method === 'POST')?.body as { episodeIds: unknown[] };
+        expect(body).toEqual({ name: 'EpisodeSearch', episodeIds: [901, 902] });
+        expect(body.episodeIds.every(v => typeof v === 'number')).toBe(true);
     });
 });
 
@@ -224,5 +249,154 @@ describe('trigger_search', () => {
 
         expect(second.structuredContent.result).toMatchObject({ commandId: 4321, name: 'MoviesSearch' });
         expect(second.content[0]?.text).not.toContain('found');
+    });
+});
+
+// --- season and episode scope ---------------------------------------------
+
+const SERIES_WITH_SEASONS = {
+    id: 7,
+    title: 'Alien: Earth',
+    year: 2025,
+    monitored: true,
+    seasons: [
+        { seasonNumber: 1, monitored: true, statistics: { episodeFileCount: 8 } },
+        { seasonNumber: 2, monitored: true, statistics: { episodeFileCount: 2 } }
+    ]
+};
+
+const EPISODES_S2 = [
+    { id: 901, seriesId: 7, seasonNumber: 2, episodeNumber: 1, title: 'Ep1', hasFile: true, monitored: true },
+    { id: 902, seriesId: 7, seasonNumber: 2, episodeNumber: 2, title: 'Ep2', hasFile: true, monitored: true }
+];
+
+describe('trigger_search scope', () => {
+    it('applies a whole-series search when neither season nor episodes is given', async () => {
+        const sonarrFetch = recordingFetch({
+            '/api/v3/series/7': SERIES_WITH_SEASONS,
+            '/api/v3/command': { id: 200, name: 'SeriesSearch' }
+        });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarrFetch.impl)],
+            permissions: { sonarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'sonarr', id: '7' });
+        await h.call({ service: 'sonarr', id: '7', confirm: first.structuredContent.confirm_token });
+
+        expect(sonarrFetch.sent.find(s => s.method === 'POST')?.body).toEqual({ name: 'SeriesSearch', seriesId: 7 });
+    });
+
+    it('applies a SeasonSearch once confirmed', async () => {
+        const sonarrFetch = recordingFetch({
+            '/api/v3/series/7': SERIES_WITH_SEASONS,
+            '/api/v3/command': { id: 201, name: 'SeasonSearch' }
+        });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarrFetch.impl)],
+            permissions: { sonarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'sonarr', id: '7', season: 2 });
+        expect(first.structuredContent.summary).toContain('season 2');
+        await h.call({ service: 'sonarr', id: '7', season: 2, confirm: first.structuredContent.confirm_token });
+
+        expect(sonarrFetch.sent.find(s => s.method === 'POST')?.body).toEqual({
+            name: 'SeasonSearch',
+            seriesId: 7,
+            seasonNumber: 2
+        });
+    });
+
+    it('applies an EpisodeSearch once confirmed', async () => {
+        const sonarrFetch = recordingFetch({
+            '/api/v3/series/7': SERIES_WITH_SEASONS,
+            '/api/v3/episode': EPISODES_S2,
+            '/api/v3/command': { id: 202, name: 'EpisodeSearch' }
+        });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarrFetch.impl)],
+            permissions: { sonarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'sonarr', id: '7', episodes: ['901', '902'] });
+        await h.call({ service: 'sonarr', id: '7', episodes: ['901', '902'], confirm: first.structuredContent.confirm_token });
+
+        expect(sonarrFetch.sent.find(s => s.method === 'POST')?.body).toEqual({
+            name: 'EpisodeSearch',
+            episodeIds: [901, 902]
+        });
+    });
+
+    it('refuses season and episodes together instead of picking one', async () => {
+        const sonarrFetch = recordingFetch({ '/api/v3/series/7': SERIES_WITH_SEASONS });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarrFetch.impl)],
+            permissions: { sonarr: permissive(true) }
+        });
+
+        await expect(h.call({ service: 'sonarr', id: '7', season: 2, episodes: ['901'] })).rejects.toThrow(/send one/);
+        expect(sonarrFetch.sent.filter(s => s.method === 'POST')).toHaveLength(0);
+    });
+
+    // Sonarr accepts a command matching nothing and reports success, so an
+    // unvalidated write here is a search that silently searches for nothing.
+    it('refuses a season the series does not have, naming the ones it does', async () => {
+        const sonarrFetch = recordingFetch({ '/api/v3/series/7': SERIES_WITH_SEASONS });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarrFetch.impl)],
+            permissions: { sonarr: permissive(true) }
+        });
+
+        await expect(h.call({ service: 'sonarr', id: '7', season: 9 })).rejects.toThrow(/1, 2/);
+        expect(sonarrFetch.sent.filter(s => s.method === 'POST')).toHaveLength(0);
+    });
+
+    it('refuses an episode id it could not find', async () => {
+        const sonarrFetch = recordingFetch({
+            '/api/v3/series/7': SERIES_WITH_SEASONS,
+            '/api/v3/episode': EPISODES_S2
+        });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarrFetch.impl)],
+            permissions: { sonarr: permissive(true) }
+        });
+
+        await expect(h.call({ service: 'sonarr', id: '7', episodes: ['901', '999'] })).rejects.toThrow(/999/);
+        expect(sonarrFetch.sent.filter(s => s.method === 'POST')).toHaveLength(0);
+    });
+
+    it('refuses season on radarr, which has no seasons', async () => {
+        const h = harness({ permissions: { radarr: permissive(true) } });
+        await expect(h.call({ service: 'radarr', id: '5', season: 1 })).rejects.toThrow(/no seasons/);
+    });
+
+    it('refuses episodes on radarr, which has no seasons', async () => {
+        const h = harness({ permissions: { radarr: permissive(true) } });
+        await expect(h.call({ service: 'radarr', id: '5', episodes: ['1'] })).rejects.toThrow(/no seasons/);
+    });
+
+    // The token is bound to `args`, so a token issued for one scope must not
+    // authorise a write with a different one — a season-2 token replayed
+    // against a whole-series call is the scope-conflation failure this task
+    // exists to prevent, now caught by the confirm handshake instead of Sonarr.
+    it('does not let a token issued for one season apply to a whole-series search', async () => {
+        const sonarrFetch = recordingFetch({
+            '/api/v3/series/7': SERIES_WITH_SEASONS,
+            '/api/v3/command': { id: 203, name: 'SeriesSearch' }
+        });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarrFetch.impl)],
+            permissions: { sonarr: permissive(true) }
+        });
+
+        const seasonPreview = await h.call({ service: 'sonarr', id: '7', season: 2 });
+        const token = seasonPreview.structuredContent.confirm_token;
+        expect(token).toBeTypeOf('string');
+
+        const wholeSeriesAttempt = await h.call({ service: 'sonarr', id: '7', confirm: token });
+        expect(wholeSeriesAttempt.structuredContent.applied).toBe(false);
+        expect(wholeSeriesAttempt.structuredContent.confirm_error).toBeDefined();
+        expect(sonarrFetch.sent.filter(s => s.method === 'POST')).toHaveLength(0);
     });
 });

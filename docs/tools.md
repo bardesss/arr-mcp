@@ -18,7 +18,7 @@ until you turn them on — see [writes](writes.md).
 | `get_requests` | What has been requested, and what is still pending |
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
-| `trigger_search` | Go look for this again |
+| `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
 | `trigger_scan` | Rescan a library — it downloaded but still will not play |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |

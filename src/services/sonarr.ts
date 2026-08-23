@@ -52,6 +52,7 @@ import {
     type SearchCapable,
     type SearchHit,
     type SearchSource,
+    type SearchTarget,
     type SearchTriggerCapable,
     type ServiceAdapter,
     type WantedCapable,
@@ -287,12 +288,14 @@ export class SonarrAdapter
      * `MoviesSearch` takes `movieIds: []`. Passing Radarr's shape here is
      * accepted and searches nothing.
      *
-     * Whole-series scope is deliberate for this first slice: per-episode search
-     * is a different command (`EpisodeSearch`) keyed on episode ids, and
-     * conflating the two behind one argument is how a model asking for one
-     * episode triggers a season-wide grab.
+     * `target` picks a different command entirely rather than overloading
+     * `id` — conflating whole-series and per-episode scope behind one
+     * argument is how a model asking for one episode triggers a season-wide
+     * grab. `SeasonSearch` and `EpisodeSearch` are spec-derived: unlike
+     * `SeriesSearch`, no live call has confirmed their payload shape, because
+     * posting one runs a real search on the user's stack.
      */
-    async triggerSearch(id: string): Promise<CommandHandle> {
+    async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
         const seriesId = Number(id);
         if (!Number.isInteger(seriesId)) {
             throw new ServiceError('NotFound', this.id, `"${id}" is not a Sonarr series id`, {
@@ -300,15 +303,19 @@ export class SonarrAdapter
             });
         }
 
-        const command = await this.#http.post<RawCommand>('/api/v3/command', {
-            name: 'SeriesSearch',
-            seriesId
-        });
+        const payload =
+            target?.episodes !== undefined
+                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(Number) }
+                : target?.season !== undefined
+                  ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
+                  : { name: 'SeriesSearch', seriesId };
+
+        const command = await this.#http.post<RawCommand>('/api/v3/command', payload);
 
         return {
             service: this.id,
             commandId: command.id ?? 0,
-            name: command.name ?? 'SeriesSearch',
+            name: command.name ?? payload.name,
             ...(typeof command.status === 'string' ? { status: command.status } : {})
         };
     }
