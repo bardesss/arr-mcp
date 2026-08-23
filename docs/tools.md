@@ -369,6 +369,33 @@ A release Radarr or Sonarr rejected on its own criteria can still be grabbed
 — that is most of what this tool is for — but the preview says which
 rejections are being overridden before you confirm.
 
+## `request_media`
+
+Asks Seerr for something, the way a household member would through its web
+UI: it enters the approval queue and counts against that user's quota.
+
+The line against `add_media` is the whole reason both exist. `add_media`
+writes straight into Radarr or Sonarr — no approval, no quota, and it needs
+*that service's* write permission. `request_media` goes through Seerr and
+needs Seerr's. Asked to "request" something, a model should reach for this
+one.
+
+`media_id` is a TMDB id. Seerr resolves the TVDB id itself, so there is no
+second id to supply. For a series, `seasons` defaults to every season — a
+live Seerr answers HTTP 500 for a tv request carrying no seasons at all, so
+"all" is sent explicitly rather than omitted. Passing `seasons` for a film is
+refused rather than ignored.
+
+Already-requested is a **no-op**, not an error and not a second request. That
+check happens here because Seerr does not do it: requesting the same media
+twice creates two rows on a live 3.4.1.
+
+`user` names whose quota and approval trail the request lands in, and
+requesting as anyone but `default_user` needs
+`services.seerr.allow_other_users` — the same gate `get_requests` and
+`respond_to_request` apply. Without it, one household member's assistant
+could spend another's quota.
+
 ## `discover_media`
 
 `similar_to` takes a TMDB numeric id and answers from Seerr's

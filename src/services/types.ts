@@ -667,6 +667,33 @@ export const hasRequestManage = (a: ServiceAdapter): a is ServiceAdapter & Reque
     typeof (a as Partial<RequestManageCapable>).respondToRequest === 'function';
 
 /**
+ * `seasons` is `'all'` rather than omitted for a whole series, because a live
+ * Seerr answers HTTP 500 for a tv request carrying no `seasons` at all — the
+ * absent case is not "every season", it is a malformed request.
+ *
+ * Separate from `RequestManageCapable` for the same reason approving and
+ * deleting are separate: creating a request is a different permission question
+ * from ruling on one, and it is the only one that spends somebody's quota.
+ */
+export type CreateRequestOptions = {
+    mediaType: 'movie' | 'tv';
+    /** TMDB id. Seerr resolves the TVDB id itself, confirmed live. */
+    mediaId: number;
+    seasons?: number[] | 'all';
+    /** Whose quota and approval trail this lands in. */
+    userId?: number;
+};
+
+export interface RequestCreateCapable {
+    /** Returns the request as created, so the caller reports what exists rather
+     *  than what it asked for. */
+    createRequest(opts: CreateRequestOptions): Promise<MediaRequest>;
+}
+
+export const hasRequestCreate = (a: ServiceAdapter): a is ServiceAdapter & RequestCreateCapable =>
+    typeof (a as Partial<RequestCreateCapable>).createRequest === 'function';
+
+/**
  * A whole-library read, shaped for the identity resolver rather than for a
  * tool. The resolver joins three of these into one index; nothing else consumes it.
  */

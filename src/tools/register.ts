@@ -32,6 +32,7 @@ import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
 import { registerRemoveQueueItem } from './removeQueueItem.ts';
+import { registerRequestMedia } from './requestMedia.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerSetMonitoring } from './setMonitoring.ts';
 import { registerStackHealth } from './stackHealth.ts';
@@ -166,6 +167,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerDeleteRequest(server, write, adapters, seerrIdentity);
     registerAddMedia(server, write, adapters);
     registerGrabRelease(server, write, adapters);
+    registerRequestMedia(server, write, adapters, seerrIdentity);
 }
 
 /**
@@ -203,5 +205,6 @@ export const TOOL_NAMES = [
     'respond_to_request',
     'delete_request',
     'add_media',
-    'grab_release'
+    'grab_release',
+    'request_media'
 ] as const;
