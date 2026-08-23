@@ -232,6 +232,43 @@ async function expectError(
     }
 }
 
+/**
+ * Runs a case whose whole point is that the result must not be empty —
+ * `run` alone would pass just as happily against `total: 0` as against a
+ * real result, which is exactly how the scoped-get_history defect (a bare
+ * array from Radarr's per-item history endpoint silently read as zero
+ * records) survived the unit suite: every fixture asserted on the request
+ * URL, never on what came back. This is that missing assertion, made live.
+ */
+async function expectNonEmpty(tool: string, args: Record<string, unknown>, note: string): Promise<void> {
+    const label = `${tool} ${JSON.stringify(args)} — ${note}`;
+    const started = performance.now();
+
+    try {
+        const result = await callTool(tool, args);
+        const ms = Math.round(performance.now() - started);
+        const text = redactHosts(result.content?.[0]?.text ?? '', hosts);
+
+        if (result.isError === true) {
+            console.error(`FAIL ${label} (${ms}ms) — ${text}`);
+            failures += 1;
+            return;
+        }
+        const total = (result.structuredContent as { total?: number } | undefined)?.total;
+        if (typeof total === 'number' && total > 0) {
+            console.log(`PASS ${label} (${ms}ms) — ${text}`);
+            passes += 1;
+            return;
+        }
+        console.error(`FAIL ${label} (${ms}ms) — expected total > 0, got: ${text}`);
+        failures += 1;
+    } catch (err) {
+        const ms = Math.round(performance.now() - started);
+        console.error(`FAIL ${label} (${ms}ms) — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+}
+
 let libraryResult: ToolCallResult | undefined;
 let searchResult: ToolCallResult | undefined;
 let queueResult: ToolCallResult | undefined;
@@ -337,6 +374,33 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
     );
 } else {
     console.log('SKIP get_releases — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+}
+
+/**
+ * get_history, scoped to the same service+id — the exact path a live call
+ * would have caught the Critical this phase shipped with: the CASES entry
+ * above only ever calls get_history unscoped, which hits `/api/v3/history`
+ * and was never broken. The defect was in the *scoped* read, which hit
+ * `/api/v3/history/movie|series` — an endpoint that answers a bare array,
+ * not the envelope the (now-removed) code expected, so a scoped call always
+ * came back empty regardless of whether the item actually had history.
+ *
+ * `searchableHit` is not guaranteed to have history — it is search_media's
+ * first Radarr/Sonarr hit, and a freshly-added title could genuinely have
+ * none yet — so this can occasionally false-fail on an otherwise-healthy
+ * stack. It is still worth more than the unscoped case above, which cannot
+ * fail this way at all, so `expectNonEmpty` is used deliberately rather than
+ * `run`: an assertion that would also pass against `total: 0` is exactly
+ * the gap that let this defect ship.
+ */
+if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+    await expectNonEmpty(
+        'get_history',
+        { service: searchableHit.service, id: String(searchableHit.id), detail: 'full', limit: 20 },
+        'scoped — the exact path the Critical was in; searchableHit is usually, not guaranteed, non-empty'
+    );
+} else {
+    console.log('SKIP scoped get_history — search_media returned no Radarr or Sonarr hit to take a service+id from.');
 }
 
 /**
