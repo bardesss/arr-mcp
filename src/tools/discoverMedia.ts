@@ -86,12 +86,14 @@ export async function buildDiscoverMedia(
                   });
     } catch (err) {
         // Propagate vs. degrade turns on the error's kind, same rule as
-        // LibraryLoader#resolveUser: `NotFound` here means genreId() rejected
-        // the genre name before any request left for Seerr — Seerr was
-        // reached, the input was wrong, and `degraded` (a set of services
-        // that could NOT be reached) would misreport that. Its remedy names
-        // the real genres, which a model needs to see rather than lose to a
-        // silent empty list — the exact failure mode this task exists to fix.
+        // LibraryLoader#resolveUser. `NotFound` covers two cases that both
+        // deserve a real error rather than `degraded`, which reports only
+        // services that could NOT be reached: genreId() rejecting a genre
+        // name before any request left for Seerr, and an upstream 404 (e.g.
+        // an unknown TMDB id on `similar_to`) — Seerr answered fine in both,
+        // the input was wrong. The genre case's remedy names the real
+        // genres, which a model needs to see rather than lose to a silent
+        // empty list — the exact failure mode this task exists to fix.
         if (err instanceof ServiceError && err.kind === 'NotFound') throw err;
         logger.warn({ service: adapter.id, err }, 'discover failed; degrading');
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id], counts: {} };
@@ -261,7 +263,7 @@ export function registerDiscoverMedia(
             }, dataset);
             const summary =
                 result.degraded.length > 0
-                    ? 'Seerr could not be reached; nothing to discover.'
+                    ? 'Seerr could not answer; nothing to discover.'
                     : result.note !== undefined
                       ? result.note
                       : `${result.returned} of ${result.total} ${resolved === 'series' ? 'series' : 'film(s)'} found.`;

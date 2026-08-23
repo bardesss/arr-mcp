@@ -60,6 +60,9 @@ const CASES: Case[] = [
     { tool: 'get_indexers', args: { detail: 'full' } },
     { tool: 'get_subtitles', args: { detail: 'full', limit: 100 } },
     { tool: 'get_queue', args: { detail: 'full' } },
+    { tool: 'get_history', args: { detail: 'full', limit: 20 } },
+    { tool: 'get_wanted', args: { scope: 'missing', detail: 'full', limit: 20 } },
+    { tool: 'get_wanted', args: { scope: 'upgradable', limit: 20 } },
     // The brief's case used `days: 14`, a field this schema does not have —
     // get_calendar takes `days_back` and `days_ahead` separately. Using the
     // brief's field name would silently no-op back to the defaults (7/14)
@@ -112,6 +115,12 @@ const hosts = hostsOf(config);
  */
 const DYNAMIC_TOOLS: ToolName[] = [
     'trigger_search',
+    // Needs a real service+id the same way trigger_search does. Driven off
+    // the same searchableHit, but kept to one call: this one polls every
+    // configured indexer synchronously (up to the tool's own 120s budget),
+    // so it is the slowest thing this script runs — one conservative case at
+    // a small limit is enough to prove the mapping, not a stress test.
+    'get_releases',
     'remove_queue_item',
     'delete_media',
     'respond_to_request',
@@ -310,6 +319,24 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
     );
 } else {
     console.log('SKIP trigger_search — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+}
+
+/**
+ * get_releases against the same service+id — read-only (READ_ONLY annotated,
+ * no dry_run to gate), but the one call in this whole script that reaches
+ * out to real indexers rather than just Radarr/Sonarr/Jellyfin themselves.
+ * `limit: 5` keeps the response small; it does not make the search faster,
+ * since Radarr/Sonarr poll every indexer before this tool ever sees a
+ * result.
+ */
+if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+    await run(
+        'get_releases',
+        { service: searchableHit.service, id: String(searchableHit.id), limit: 5 },
+        'slow — polls every configured indexer'
+    );
+} else {
+    console.log('SKIP get_releases — search_media returned no Radarr or Sonarr hit to take a service+id from.');
 }
 
 /**

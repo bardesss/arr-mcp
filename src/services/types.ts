@@ -272,9 +272,11 @@ export const hasWanted = (a: ServiceAdapter): a is ServiceAdapter & WantedCapabl
 export type ReleaseCandidate = {
     service: string;
     /** With `indexerId`, what a future grab tool binds to. Often a URL, not
-     *  an opaque token — never treat it as one. */
-    guid: string;
-    indexerId: number;
+     *  an opaque token — never treat it as one. Always set by the adapter;
+     *  optional here only so get_releases can trim it below `detail: full`,
+     *  the same reason HistoryEntry's `guid` is optional. */
+    guid?: string;
+    indexerId?: number;
     indexer: string; // fenced
     title: string; // fenced — uploader-chosen
     sizeBytes?: number;
@@ -286,7 +288,10 @@ export type ReleaseCandidate = {
     language?: string;
     protocol?: string;
     rejected: boolean;
-    rejections: string[]; // fenced
+    /** Fenced. Always set by the adapter; optional here only so get_releases
+     *  can trim it below `detail: full` — `rejected` alone survives at
+     *  `minimal`, without the (often several) reasons attached. */
+    rejections?: string[];
 };
 
 export interface ReleaseSearchCapable {

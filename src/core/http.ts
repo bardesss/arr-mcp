@@ -59,15 +59,22 @@ export class ServiceHttp {
     }
 
     /**
-     * Reads retry once on timeout.
+     * Reads retry once on timeout, by default.
      *
      * `timeoutMs`, when given, overrides the configured default for this one
      * call — for a release search, whose upstream is tens of seconds even on
-     * a healthy stack. It never touches `#timeoutMs`, so every other caller,
-     * and the retry this same call makes, are unaffected by one slow read.
+     * a healthy stack. It never touches `#timeoutMs`, so every other caller
+     * is unaffected by one slow read.
+     *
+     * `retry: false` opts a read out of that one retry. It exists for a call
+     * whose retry cost is not "wait a bit longer" but "do the expensive work
+     * twice" — a release search polls every configured indexer synchronously,
+     * so a timed-out first attempt retrying by default turned a 120s budget
+     * into two full indexer sweeps stacked on top of each other, against
+     * indexers with real rate limits and ban policies.
      */
-    async get<T>(path: string, opts?: { timeoutMs?: number }): Promise<T> {
-        return this.#request<T>('GET', path, undefined, true, 'json', opts?.timeoutMs);
+    async get<T>(path: string, opts?: { timeoutMs?: number; retry?: boolean }): Promise<T> {
+        return this.#request<T>('GET', path, undefined, opts?.retry ?? true, 'json', opts?.timeoutMs);
     }
 
     /** A read whose response is a bare string rather than JSON. */

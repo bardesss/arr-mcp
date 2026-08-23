@@ -24,6 +24,23 @@ const EventTypeSchema = z
     .describe('Only entries of this normalised type. Omit for all.');
 
 /**
+ * Both the paging early-exit and the final filter in `readArrHistory` compare
+ * `since` against a record's own `date` as plain strings — cheap and correct
+ * for ISO 8601, but silently wrong for anything else: `'2026-08-…' < 'last
+ * week'` is true, so a value like that ends paging after page one and then
+ * filters out everything that made it through, answering a confident empty
+ * list rather than an error.
+ */
+const SinceSchema = z
+    .string()
+    .regex(
+        /^\d{4}-\d{2}-\d{2}/,
+        'must start with an ISO 8601 date (YYYY-MM-DD), e.g. "2026-08-01" or "2026-08-01T00:00:00Z" — it is compared as a plain string against each record\'s own date.'
+    )
+    .optional()
+    .describe('ISO 8601. Only entries at or after this time.');
+
+/**
  * `guid` and `indexerId` ride along for a future release-grab tool and are
  * not otherwise useful reading; `rawEvent` is upstream's own spelling, kept
  * for the same "inspect the raw thing" reason `service`+`id` is on
@@ -121,7 +138,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 id: z.string().min(1).optional().describe('One movie or series id, from get_media_details or get_library. Requires `service`.'),
                 event_type: EventTypeSchema,
-                since: z.string().optional().describe('ISO 8601. Only entries at or after this time.'),
+                since: SinceSchema,
                 detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema

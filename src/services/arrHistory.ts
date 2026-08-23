@@ -1,4 +1,4 @@
-import { fenceText } from '../core/fence.ts';
+import { fenceText, sanitizeGuid } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { pageArr } from './arrPaging.ts';
 import type { HistoryEntry, HistoryEventType } from './types.ts';
@@ -60,10 +60,12 @@ export async function readArrHistory(
     kind: 'movie' | 'series',
     opts: { id?: string | undefined; since?: string | undefined }
 ): Promise<HistoryEntry[]> {
-    // The scoped endpoint when an item was named, so a busy history does not
-    // have to be paged through and filtered client-side.
-    const scoped = kind === 'movie' ? 'movieId' : 'seriesId';
-    const path = opts.id === undefined ? '/api/v3/history' : `/api/v3/history/${kind}`;
+    // Confirmed live: /api/v3/history/movie?movieId=<id> answers a bare
+    // HistoryResource[], not the {records, totalRecords} envelope pageArr
+    // expects, so a scoped read through it always looked empty. The paged
+    // /api/v3/history endpoint takes the same movieIds/seriesIds filter and
+    // answers the real envelope, so scoping happens there instead.
+    const scoped = kind === 'movie' ? 'movieIds' : 'seriesIds';
 
     // Explicit, not assumed: the early exit below only works if the service
     // is actually sorted newest first, and a live capture showing that order
@@ -81,11 +83,17 @@ export async function readArrHistory(
         since === undefined
             ? undefined
             : (page: RawHistory[]): boolean => {
+                  const newest = page[0]?.date;
                   const oldest = page[page.length - 1]?.date;
-                  return oldest !== undefined && oldest < since;
+                  // Trust the early exit only when this page is actually
+                  // newest-first, as asked — a service that silently ignored
+                  // the sort params (this project has seen that happen) must
+                  // not have paging cut short on an assumption it broke.
+                  if (newest === undefined || oldest === undefined || newest < oldest) return false;
+                  return oldest < since;
               };
 
-    const records = await pageArr<RawHistory>(http, path, query, stopWhen);
+    const records = await pageArr<RawHistory>(http, '/api/v3/history', query, stopWhen);
     const fence = (value: string, field: string) => fenceText(value, { service, field });
 
     return records
@@ -107,8 +115,10 @@ export async function readArrHistory(
                 ...(r.quality?.quality?.name === undefined ? {} : { quality: r.quality.quality.name }),
                 ...(reason === undefined ? {} : { reason: fence(reason, 'reason') }),
                 // Not fenced: an opaque id pair a later release-grab tool needs
-                // verbatim, not prose reaching model context.
-                ...(r.data?.guid === undefined ? {} : { guid: r.data.guid }),
+                // verbatim, not prose reaching model context. Still an
+                // indexer-chosen string, so it is stripped of the same
+                // dangerous code points fenced text is, and length-capped.
+                ...(r.data?.guid === undefined ? {} : { guid: sanitizeGuid(r.data.guid) }),
                 ...(r.data?.indexerId === undefined ? {} : { indexerId: r.data.indexerId })
             };
         })

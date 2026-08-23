@@ -106,35 +106,53 @@ describe('readArrHistory', () => {
         expect(row?.title.startsWith('<<untrusted:radarr.sourceTitle>>')).toBe(true);
     });
 
-    it('scopes to one item through the per-media endpoint', async () => {
+    it('scopes to one movie via movieIds on the paged endpoint, not the per-item endpoint', async () => {
+        // Regression case for a live defect: /api/v3/history/movie?movieId=1701
+        // answers a bare HistoryResource[], not the {records, totalRecords}
+        // envelope pageArr expects, so a scoped read through it always came
+        // back empty. Scoping now happens on the paged /api/v3/history
+        // endpoint instead, via movieIds — confirmed live to return the real
+        // envelope and to actually filter (2 of 1134 records for one movie).
         const seen: string[] = [];
-        await readArrHistory(
+        const rows = await readArrHistory(
             http(async (input: string) => {
                 seen.push(String(input));
-                return json({ records: [], totalRecords: 0 });
+                return json({
+                    records: [
+                        { id: 1, eventType: 'grabbed', date: '2026-08-01T10:00:00Z', sourceTitle: 'Alien.1979', movieId: 42 },
+                        { id: 2, eventType: 'downloadFolderImported', date: '2026-08-01T11:00:00Z', sourceTitle: 'Alien.1979', movieId: 42 }
+                    ],
+                    totalRecords: 2
+                });
             }),
             'radarr',
             'movie',
             { id: '42' }
         );
-        // The scoped endpoint, not a client-side filter over the whole history.
-        expect(seen[0]).toContain('/api/v3/history/movie');
-        expect(seen[0]).toContain('movieId=42');
+        expect(rows).toHaveLength(2);
+        expect(seen[0]).toContain('/api/v3/history?');
+        expect(seen[0]).not.toContain('/api/v3/history/movie');
+        expect(seen[0]).toContain('movieIds=42');
     });
 
-    it('scopes Sonarr through seriesId, not movieId', async () => {
+    it('scopes Sonarr through seriesIds, not movieIds', async () => {
         const seen: string[] = [];
-        await readArrHistory(
+        const rows = await readArrHistory(
             http(async (input: string) => {
                 seen.push(String(input));
-                return json({ records: [], totalRecords: 0 });
+                return json({
+                    records: [{ id: 3, eventType: 'grabbed', date: '2026-08-02T09:00:00Z', sourceTitle: 'Some.Show.S01E01', seriesId: 7 }],
+                    totalRecords: 1
+                });
             }),
             'sonarr',
             'series',
             { id: '7' }
         );
-        expect(seen[0]).toContain('/api/v3/history/series');
-        expect(seen[0]).toContain('seriesId=7');
+        expect(rows).toHaveLength(1);
+        expect(seen[0]).toContain('/api/v3/history?');
+        expect(seen[0]).not.toContain('/api/v3/history/series');
+        expect(seen[0]).toContain('seriesIds=7');
     });
 
     it('reads data.indexer, present only on grabbed and failed records', async () => {
@@ -335,6 +353,43 @@ describe('readArrHistory', () => {
 
             expect(counter.fetches).toBe(3); // 200 + 200 + 50
             expect(rows).toHaveLength(total);
+        });
+
+        it('does not trust the early exit against a page whose first record is not actually its newest', async () => {
+            // A service that silently ignores sortKey/sortDirection (this
+            // project has seen that happen elsewhere) can hand back a page
+            // where the first and last records are inverted relative to
+            // what was asked for. Page one here has an old record first, a
+            // genuinely recent one in the middle, and an old-but-not-as-old
+            // one last — so the naive "check only the last record" reading
+            // would (wrongly) conclude the whole page, and everything after
+            // it, predates `since`, and stop before ever fetching page two,
+            // which holds three more records that are genuinely recent and
+            // must not be lost.
+            const since = dateAt(300);
+            const page1 = [
+                { id: 1, eventType: 'grabbed', date: dateAt(1000), sourceTitle: 'x' }, // oldest — first
+                { id: 2, eventType: 'grabbed', date: dateAt(0), sourceTitle: 'x' }, // genuinely recent — middle
+                { id: 3, eventType: 'grabbed', date: dateAt(400), sourceTitle: 'x' } // old, but newer than page[0] — last
+            ];
+            const page2 = [
+                { id: 4, eventType: 'grabbed', date: dateAt(0), sourceTitle: 'x' },
+                { id: 5, eventType: 'grabbed', date: dateAt(0), sourceTitle: 'x' },
+                { id: 6, eventType: 'grabbed', date: dateAt(0), sourceTitle: 'x' }
+            ];
+
+            const inverted: typeof fetch = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const page = Number(url.searchParams.get('page') ?? 1);
+                const records = page === 1 ? page1 : page2;
+                return json({ page, pageSize: 200, totalRecords: 6, records });
+            }) as unknown as typeof fetch;
+
+            const rows = await readArrHistory(http(inverted), 'radarr', 'movie', { since });
+
+            // Page two's three records survived — the early exit did not
+            // fire on page one's inverted first/last pair.
+            expect(rows.map(r => r.id)).toEqual(expect.arrayContaining(['4', '5', '6']));
         });
     });
 });

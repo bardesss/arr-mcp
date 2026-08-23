@@ -112,6 +112,21 @@ describe('readArrWanted', () => {
         expect(item?.airDate).toBe('2026-06-12T01:00:00Z');
     });
 
+    it('omits episodeTitle for a Sonarr row with no title, rather than an empty string', async () => {
+        const [item] = await readArrWanted(
+            http(async () =>
+                json({
+                    records: [{ id: 1, seriesId: 12, monitored: true, series: { title: 'The Terror' } }],
+                    totalRecords: 1
+                })
+            ),
+            'sonarr',
+            'series',
+            'missing'
+        );
+        expect(item).not.toHaveProperty('episodeTitle');
+    });
+
     it('does not set season or episode for Radarr rows', async () => {
         const [item] = await readArrWanted(
             http(async () => json({ records: [{ id: 1, title: 'Alien', monitored: true }], totalRecords: 1 })),

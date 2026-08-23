@@ -1,4 +1,4 @@
-import { fenceText } from '../core/fence.ts';
+import { fenceText, sanitizeGuid } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { ServiceError } from '../core/errors.ts';
 import type { ReleaseCandidate } from './types.ts';
@@ -50,7 +50,22 @@ export async function findArrReleases(
                   opts.season === undefined ? '' : `&seasonNumber=${opts.season}`
               }`;
 
-    const raw = await http.get<RawRelease[]>(`/api/v3/release?${query}`, { timeoutMs: RELEASE_SEARCH_TIMEOUT_MS });
+    // `retry: false`: the default timeout retry re-issues the whole request,
+    // which here means a second full synchronous poll of every configured
+    // indexer stacked on the first — the exact "starts a second sweep" this
+    // tool's own description warns a caller against causing by retrying.
+    const raw = await http.get<RawRelease[]>(`/api/v3/release?${query}`, {
+        timeoutMs: RELEASE_SEARCH_TIMEOUT_MS,
+        retry: false
+    });
+
+    // Every other adapter guards its top-level shape before iterating it;
+    // this one did not, and a non-array body (an error page, a changed
+    // response shape) would throw a bare TypeError out of `.filter` instead
+    // of the ServiceError vocabulary every other failure here uses.
+    if (!Array.isArray(raw)) {
+        throw new ServiceError('UpstreamError', service, '/api/v3/release did not return an array');
+    }
 
     const fence = (value: string, field: string) => fenceText(value, { service, field });
 
@@ -61,7 +76,11 @@ export async function findArrReleases(
         )
         .map(r => ({
             service,
-            guid: r.guid,
+            // Not fenced — a future grab tool needs this verbatim, and its
+            // own type comment says as much — but still an indexer-chosen
+            // string, stripped of the code points that let one render as
+            // something it is not, and length-capped.
+            guid: sanitizeGuid(r.guid),
             indexerId: r.indexerId,
             indexer: fence(r.indexer ?? '', 'indexer'),
             title: fence(r.title ?? '', 'title'),

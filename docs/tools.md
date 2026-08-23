@@ -11,6 +11,9 @@ until you turn them on — see [writes](writes.md).
 | `get_media_details` | Everything about one item |
 | `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
 | `get_queue` | What is downloading, across all four download paths |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted |
+| `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
+| `get_releases` | What an interactive search actually found, rejects included |
 | `get_calendar` | What is due, and what just aired |
 | `get_subtitles` | What is missing subtitles, and which providers are throttled |
 | `get_playback` | What am I watching, and what can I continue |
@@ -255,8 +258,10 @@ A failure's `reason` comes straight from the download client and is fenced
 like any other untrusted string — it is not translated, and on a non-English
 setup it will not read as English.
 
-Pass `service` and `id` together to scope to one movie or series, via the
-per-item endpoint rather than a client-side filter over the whole history.
+Pass `service` and `id` together to scope to one movie or series, via a
+`movieIds`/`seriesIds` filter on the same paged endpoint the unscoped read
+uses — not the per-item endpoint (`/api/v3/history/movie`), which answers a
+bare array rather than the paginated envelope this server needs.
 `id` without `service` is refused: Radarr's movie ids and Sonarr's series ids
 are different namespaces, and a shared number would otherwise merge two
 unrelated items' history into one answer.
@@ -289,6 +294,11 @@ Sonarr's missing list is monitored-only, which matches what "wanted" means
 here — an unmonitored gap is not something anyone asked for, and it will not
 appear in this list.
 
+`detail: "minimal"` drops `episodeTitle` and `airDate`, keeping the identity,
+`season`/`episode` and `monitored`. Neither field is grab-plumbing the way
+`get_history`'s `guid` is — there is nothing to trim between `standard` and
+`full` here, since every field is one a reader wants.
+
 ## `get_releases`
 
 `trigger_search` asks Radarr or Sonarr to look for a release, but hands back
@@ -314,6 +324,16 @@ release-supplied string.
 tool will bind a chosen release to. `seeders` is torrent-only and is absent,
 not zero, on a usenet result, which has no seeder count to report.
 
+`detail: "full"` keeps `guid`, `indexerId` and `rejections`. `standard` (the
+default) trims all three — the largest response on this server's surface can
+carry hundreds of rejected rows, each with its own reasons, so the token
+budget guarantee holds at the default detail level rather than at `full`,
+which is documented as intentionally the biggest a caller can ask for.
+`minimal` keeps only `service`, `indexer`, `title`, `quality` and `rejected`.
+`guid` is never fenced, since a grab tool needs it verbatim, but it is still
+stripped of the same dangerous code points fenced text is and length-capped —
+an indexer chose it, and it is not trusted any more than a release title is.
+
 This call is slow. Radarr and Sonarr poll every configured indexer
 synchronously before answering, and a live capture measured a Sonarr season
 search at 14.3 seconds — a cold search across more indexers can run longer.
@@ -321,6 +341,17 @@ The tool's own per-call timeout is 120 seconds, well past the 10-second
 default every other call uses, specifically so a real search has room to
 finish rather than being cut off. A long wait here is not a hang; retrying
 it starts a second full indexer sweep.
+
+## `discover_media`
+
+`similar_to` takes a TMDB numeric id and answers from Seerr's
+`recommendations` endpoint, not `similar` — a live check found `similar`
+close to genre-bucket matching, and empty outright for series. It is
+mutually exclusive with `genre`/`year`/`min_rating`: they are different
+questions, so combining them is refused rather than one winning silently.
+With no Seerr configured there is no fallback — the IMDb dataset has no
+similarity data — and the response carries a `note` instead of a bare empty
+list.
 
 ## `clean_queue`
 
@@ -361,17 +392,6 @@ It queues the search and returns. Whether a provider actually has the subtitle
 is not known at that point, so call `get_subtitles` again a minute later rather
 than reading success as "the subtitle is on disk". If nothing arrives, the
 `providers` block in that same response is usually the reason.
-
-## `discover_media`
-
-`similar_to` takes a TMDB numeric id and answers from Seerr's
-`recommendations` endpoint, not `similar` — a live check found `similar`
-close to genre-bucket matching, and empty outright for series. It is
-mutually exclusive with `genre`/`year`/`min_rating`: they are different
-questions, so combining them is refused rather than one winning silently.
-With no Seerr configured there is no fallback — the IMDb dataset has no
-similarity data — and the response carries a `note` instead of a bare empty
-list.
 
 ## Prompts and resources
 

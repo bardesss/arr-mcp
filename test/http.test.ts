@@ -365,6 +365,27 @@ describe('ServiceHttp retry policy', () => {
         await expect(client.post('/x', {})).rejects.toThrow(/timed out/);
         expect(calls).toBe(1);
     });
+
+    it('honours `retry: false` on a read whose retry would repeat expensive upstream work', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            throw timeoutError();
+        });
+        await expect(client.get('/x', { retry: false })).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+
+    it('still retries a plain get() with no opts — `retry: false` is opt-in, not the new default', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            if (calls === 1) throw timeoutError();
+            return json({ version: '1.0' });
+        });
+        expect(await client.get('/x')).toEqual({ version: '1.0' });
+        expect(calls).toBe(2);
+    });
 });
 
 describe('ServiceHttp circuit breaker', () => {

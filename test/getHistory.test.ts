@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type * as z from 'zod/v4';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
-import { buildGetHistory } from '../src/tools/getHistory.ts';
+import { buildGetHistory, registerGetHistory } from '../src/tools/getHistory.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
@@ -86,21 +87,33 @@ describe('get_history', () => {
         expect(result.items.map(i => i.id)).toEqual(['3']);
     });
 
-    it('scopes to one item via service and id, using the per-media endpoint', async () => {
+    it('scopes to one item via service and id, through the paged endpoint filtered with movieIds', async () => {
+        // Regression case: the scoped per-item endpoint (/api/v3/history/movie)
+        // answers a bare array, which broke pageArr's envelope guard and made
+        // every scoped get_history call answer empty. Scoping now goes through
+        // /api/v3/history?movieIds=<id>, which answers the real envelope.
         const seen: string[] = [];
         const scopedRadarr = new RadarrAdapter(
             keyed(7878),
             (async (input: string) => {
                 seen.push(String(input));
-                return new Response(JSON.stringify({ records: [], totalRecords: 0 }), {
-                    status: 200,
-                    headers: { 'content-type': 'application/json' }
-                });
+                return new Response(
+                    JSON.stringify({
+                        records: [
+                            { id: 1, eventType: 'grabbed', date: '2026-08-01T10:00:00Z', sourceTitle: 'Alien.1979', movieId: 1689 },
+                            { id: 2, eventType: 'downloadFolderImported', date: '2026-08-01T11:00:00Z', sourceTitle: 'Alien.1979', movieId: 1689 }
+                        ],
+                        totalRecords: 2
+                    }),
+                    { status: 200, headers: { 'content-type': 'application/json' } }
+                );
             }) as unknown as typeof fetch
         );
-        await buildGetHistory([scopedRadarr, sonarr()], { ...opts, service: 'radarr', id: '1689' });
-        expect(seen[0]).toContain('/api/v3/history/movie');
-        expect(seen[0]).toContain('movieId=1689');
+        const result = await buildGetHistory([scopedRadarr, sonarr()], { ...opts, service: 'radarr', id: '1689' });
+        expect(result.items).toHaveLength(2);
+        expect(seen[0]).toContain('/api/v3/history?');
+        expect(seen[0]).not.toContain('/api/v3/history/movie');
+        expect(seen[0]).toContain('movieIds=1689');
     });
 
     it('refuses an id with no service, rather than matching a coincidental id in the wrong service', async () => {
@@ -229,5 +242,31 @@ describe('get_history', () => {
         const many = { records: repeat(RADARR_HISTORY.records[0]!, 500) };
         const result = await buildGetHistory([radarr(many)], { detail: 'full', limit: 500 });
         expectWithinBudget(result, 40_000);
+    });
+
+    describe('since validation', () => {
+        const schema = (): z.ZodObject => {
+            let inputSchema: z.ZodObject | undefined;
+            const server = {
+                registerTool(_name: string, config: { inputSchema: z.ZodObject }) {
+                    inputSchema = config.inputSchema;
+                }
+            };
+            registerGetHistory(server as never, []);
+            return inputSchema!;
+        };
+
+        it('refuses a since value that is not ISO 8601, naming the expected format', () => {
+            // A plausible model output that string-comparison would otherwise
+            // turn into a silent, confident empty list rather than an error.
+            const result = schema().safeParse({ since: 'last week' });
+            expect(result.success).toBe(false);
+            expect(JSON.stringify(result.error?.issues)).toMatch(/ISO 8601/);
+        });
+
+        it('accepts a bare ISO date and a full ISO datetime', () => {
+            expect(schema().safeParse({ since: '2026-08-01' }).success).toBe(true);
+            expect(schema().safeParse({ since: '2026-08-01T00:00:00Z' }).success).toBe(true);
+        });
     });
 });

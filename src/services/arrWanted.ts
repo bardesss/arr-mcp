@@ -70,7 +70,7 @@ export async function readArrWanted(
             title: fence(r.series?.title ?? '', 'series.title'),
             ...(r.seasonNumber === undefined ? {} : { season: r.seasonNumber }),
             ...(r.episodeNumber === undefined ? {} : { episode: r.episodeNumber }),
-            episodeTitle: fence(r.title ?? '', 'episode.title'),
+            ...(r.title === undefined ? {} : { episodeTitle: fence(r.title, 'episode.title') }),
             ...(r.airDateUtc === undefined ? {} : { airDate: r.airDateUtc }),
             monitored: r.monitored ?? false
         }));

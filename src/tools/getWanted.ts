@@ -5,7 +5,7 @@ import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
-import { LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasWanted, type ServiceAdapter, type WantedCapable, type WantedItem, type WantedScope } from '../services/types.ts';
 
 export type GetWantedResult = {
@@ -24,12 +24,35 @@ const WantedScopeSchema = z
         '`missing`: monitored items with no file at all. `upgradable`: monitored items that have a file but not yet at the quality profile\'s cutoff. Required — the two answer different questions, and a default would silently hide one of them.'
     );
 
+/**
+ * Unlike get_history and get_releases, nothing here is grab-plumbing to hide
+ * below `full` — every field is something a reader would want. `minimal`
+ * still exists for the same reason every other tool has one: the identity
+ * and the one flag ("wanted") a quick scan needs, dropping `episodeTitle`
+ * and `airDate` as the two fields most useful only when reading closely.
+ */
+const project = (w: WantedItem, detail: DetailLevel): WantedItem => {
+    if (detail === 'minimal') {
+        return {
+            service: w.service,
+            kind: w.kind,
+            id: w.id,
+            title: w.title,
+            monitored: w.monitored,
+            ...(w.season === undefined ? {} : { season: w.season }),
+            ...(w.episode === undefined ? {} : { episode: w.episode })
+        };
+    }
+    return w;
+};
+
 export async function buildGetWanted(
     adapters: readonly ServiceAdapter[],
     opts: {
         service?: ServiceId;
         instance?: string;
         scope: WantedScope;
+        detail: DetailLevel;
         limit: number;
         offset?: number;
     }
@@ -56,7 +79,7 @@ export async function buildGetWanted(
     );
 
     const shaped = applyLimit(items, opts.limit, opts.offset);
-    return { ...shaped, degraded, counts };
+    return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }
 
 export function registerGetWanted(server: McpServer, adapters: readonly ServiceAdapter[]): void {
@@ -66,21 +89,23 @@ export function registerGetWanted(server: McpServer, adapters: readonly ServiceA
             title: 'Missing and upgradable',
             annotations: READ_ONLY,
             description:
-                '`get_library` can say a movie is missing (`monitored` with no file), but not which episodes of a show are missing, and neither tool can say what already has a file but not yet the wanted quality. `get_wanted` answers both, from Radarr and Sonarr\'s own wanted lists. `scope: "missing"` is monitored items with no file; `scope: "upgradable"` is monitored items with a file below the quality profile\'s cutoff — both required, since a default would hide one. Sonarr rows carry `season`, `episode` and the episode\'s own `episodeTitle`, with `title` naming the show; Radarr rows are movies, and only ever set `title`. Sonarr\'s missing list is monitored-only, matching what "wanted" means here — an unmonitored gap will not appear.',
+                '`get_library` can say a movie is missing (`monitored` with no file), but not which episodes of a show are missing, and neither tool can say what already has a file but not yet the wanted quality. `get_wanted` answers both, from Radarr and Sonarr\'s own wanted lists. `scope: "missing"` is monitored items with no file; `scope: "upgradable"` is monitored items with a file below the quality profile\'s cutoff — both required, since a default would hide one. Sonarr rows carry `season`, `episode` and the episode\'s own `episodeTitle`, with `title` naming the show; Radarr rows are movies, and only ever set `title`. Sonarr\'s missing list is monitored-only, matching what "wanted" means here — an unmonitored gap will not appear. `detail: "minimal"` drops `episodeTitle` and `airDate`, keeping the identity and whether it is monitored.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 scope: WantedScopeSchema,
                 service: ServiceIdSchema.optional().describe('Scope to one service.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+                detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema
             })
         },
-        async ({ scope, service, instance, limit, offset }) => {
+        async ({ scope, service, instance, detail, limit, offset }) => {
             const result = await buildGetWanted(adapters, {
                 scope,
                 ...(service === undefined ? {} : { service }),
                 ...(instance === undefined ? {} : { instance }),
+                detail,
                 limit,
                 offset
             });

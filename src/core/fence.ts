@@ -59,6 +59,22 @@ export function stripDangerous(value: string): string {
     return out;
 }
 
+/** Long enough for any real guid (usually a URL); short enough to bound a
+ *  hostile one. */
+export const GUID_MAX_LENGTH = 500;
+
+/**
+ * For a guid: opaque-id-shaped text a later grab tool needs verbatim, so it
+ * is never fenced or escaped like prose. It still reaches model context from
+ * an indexer nobody vetted, so the same dangerous code points `fenceText`
+ * strips — bidi overrides, C1 controls — come out here too, and the length
+ * is capped so one hostile row cannot blow the token budget on its own.
+ */
+export function sanitizeGuid(value: string): string {
+    const clean = stripDangerous(value);
+    return clean.length > GUID_MAX_LENGTH ? clean.slice(0, GUID_MAX_LENGTH) : clean;
+}
+
 /**
  * Wraps free text in a labelled boundary. The value's own angle brackets are
  * escaped first, so a release name cannot close the fence and continue outside
