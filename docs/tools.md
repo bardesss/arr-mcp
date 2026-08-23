@@ -362,6 +362,17 @@ is not known at that point, so call `get_subtitles` again a minute later rather
 than reading success as "the subtitle is on disk". If nothing arrives, the
 `providers` block in that same response is usually the reason.
 
+## `discover_media`
+
+`similar_to` takes a TMDB numeric id and answers from Seerr's
+`recommendations` endpoint, not `similar` — a live check found `similar`
+close to genre-bucket matching, and empty outright for series. It is
+mutually exclusive with `genre`/`year`/`min_rating`: they are different
+questions, so combining them is refused rather than one winning silently.
+With no Seerr configured there is no fallback — the IMDb dataset has no
+similarity data — and the response carries a `note` instead of a bare empty
+list.
+
 ## Prompts and resources
 
 Twenty-four tools do not tell you which one to reach for, and the questions

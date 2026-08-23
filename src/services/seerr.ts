@@ -465,6 +465,23 @@ export class SeerrAdapter
             .map(r => this.#toHit(r, opts.mediaType === 'tv' ? 'series' : 'movie'));
     }
 
+    /**
+     * "Similar" is not implemented: live capture against Dune Part Two
+     * (693134) had `/similar` answer with The Count of Monte Cristo, The
+     * Musketeer, National Lampoon's European Vacation — genre-bucket
+     * matching, not similarity. `/tv/{id}/similar` returned zero results
+     * outright for a series that `/recommendations` answered for with over a
+     * thousand. `recommendations` is the only one worth exposing.
+     */
+    async recommendations(opts: { mediaType: 'movie' | 'tv'; id: string }): Promise<SearchHit[]> {
+        const path = opts.mediaType === 'movie' ? `/api/v1/movie/${opts.id}/recommendations` : `/api/v1/tv/${opts.id}/recommendations`;
+        const page = await this.#http.get<{ results?: RawSearchResult[] }>(path);
+
+        return (page.results ?? [])
+            .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
+            .map(r => this.#toHit(r, opts.mediaType === 'tv' ? 'series' : 'movie'));
+    }
+
     async testConnection(): Promise<ConnectionDiagnosis> {
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }

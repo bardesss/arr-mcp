@@ -617,6 +617,97 @@ describe('discover_media', () => {
 });
 
 /**
+ * Live capture against Seerr 3.4.1, for Dune Part Two (693134):
+ * `/movie/{id}/recommendations` answered with Dune, Star Wars, Chaos Walking —
+ * plausibly similar. `/movie/{id}/similar` answered with The Count of Monte
+ * Cristo, The Musketeer, National Lampoon's European Vacation: genre-bucket
+ * matching, not similarity. For a series, `/tv/{id}/similar` returned zero
+ * results outright while `/recommendations` returned over a thousand.
+ * `similar` is not implemented anywhere as a result.
+ */
+describe('discover_media similar_to', () => {
+    const RECOMMENDATIONS = {
+        results: [
+            { id: 693134, mediaType: 'movie', title: 'Dune', releaseDate: '2021-10-01' },
+            { id: 1895, mediaType: 'movie', title: 'Star Wars: Revenge of the Sith', releaseDate: '2005-05-01' }
+        ]
+    };
+
+    const recording = () => {
+        const urls: string[] = [];
+        const fetchImpl = (async (input: string) => {
+            urls.push(String(input));
+            return jsonResponse(RECOMMENDATIONS);
+        }) as unknown as typeof fetch;
+        return { urls, adapter: new SeerrAdapter(seerrConfig, fetchImpl) };
+    };
+
+    it('answers from /recommendations, not /similar', async () => {
+        const { adapter, urls } = recording();
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', similarTo: '693134', detail: 'standard', limit: 10 });
+
+        expect(urls[0]).toContain('/api/v1/movie/693134/recommendations');
+        expect(urls.some(u => u.includes('/similar'))).toBe(false);
+        expect(result.items.map(i => i.ids.tmdb)).toEqual([693134, 1895]);
+    });
+
+    it('uses the tv endpoint for series', async () => {
+        const { adapter, urls } = recording();
+        await buildDiscoverMedia(adapter, { kind: 'series', similarTo: '84332', detail: 'standard', limit: 10 });
+
+        expect(urls[0]).toContain('/api/v1/tv/84332/recommendations');
+    });
+
+    // Two different questions. Silently picking one is how a model gets a
+    // confident answer to a question it did not ask.
+    it('refuses similar_to together with the browse filters', async () => {
+        const { adapter } = recording();
+        await expect(
+            buildDiscoverMedia(adapter, { kind: 'movie', similarTo: '693134', genre: 'Crime', detail: 'standard', limit: 10 })
+        ).rejects.toThrow(/similar_to/);
+        await expect(
+            buildDiscoverMedia(adapter, { kind: 'movie', similarTo: '693134', year: 2024, detail: 'standard', limit: 10 })
+        ).rejects.toThrow(/similar_to/);
+        await expect(
+            buildDiscoverMedia(adapter, { kind: 'movie', similarTo: '693134', minRating: 7, detail: 'standard', limit: 10 })
+        ).rejects.toThrow(/similar_to/);
+    });
+
+    // The IMDb dataset has no similarity data at all, so an empty list here
+    // would misreport "nothing is similar" when the truth is "nothing here
+    // could answer" — the exact failure discover_media's note pattern exists
+    // to prevent.
+    it('notes that similarity needs Seerr rather than returning an empty list', async () => {
+        const db = ImdbDataset.ephemeral();
+        try {
+            db.replaceAll({
+                titles: [{ tconst: 'tt0068646', kind: 'movie', title: 'The Godfather', year: 1972, genres: 'Crime,Drama' }],
+                ratings: [{ tconst: 'tt0068646', average: 9.2, votes: 2_000_000 }]
+            });
+            const result = await buildDiscoverMedia(undefined, { kind: 'movie', similarTo: '693134', detail: 'standard', limit: 10 }, db);
+            expect(result.items).toEqual([]);
+            expect(result.note).toContain('Seerr');
+            expect(result.note).toMatch(/similar/i);
+        } finally {
+            db.close();
+        }
+    });
+
+    it('refuses a non-numeric similar_to before any HTTP call', async () => {
+        let called = false;
+        const adapter = new SeerrAdapter(seerrConfig, (async () => {
+            called = true;
+            return jsonResponse(RECOMMENDATIONS);
+        }) as unknown as typeof fetch);
+
+        await expect(
+            buildDiscoverMedia(adapter, { kind: 'movie', similarTo: 'dune', detail: 'standard', limit: 10 })
+        ).rejects.toThrow(/similar_to/);
+        expect(called).toBe(false);
+    });
+});
+
+/**
  * Live capture against Seerr 3.4.1: `genre=Crime` returns total 0 with no
  * error, while `genre=80` returns thousands. TMDB wants a numeric id, and
  * Seerr does not validate the value, only the parameter name — so a genre
