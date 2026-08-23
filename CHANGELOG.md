@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/bardesss/arr-mcp/compare/v1.15.8...v1.16.0) (2026-08-23)
+
+
+### Features
+
+* three read tools and four extensions — history, wanted, releases ([#174](https://github.com/bardesss/arr-mcp/issues/174)) ([88b67b3](https://github.com/bardesss/arr-mcp/commit/88b67b3ea862749269a1deae410299d2cacabb59))
+
 ## [1.15.8](https://github.com/bardesss/arr-mcp/compare/v1.15.7...v1.15.8) (2026-08-23)
 
 
