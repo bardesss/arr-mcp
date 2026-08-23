@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.6](https://github.com/bardesss/arr-mcp/compare/v1.15.5...v1.15.6) (2026-08-23)
+
+
+### Bug Fixes
+
+* harden the HTTP and transport boundary ([#168](https://github.com/bardesss/arr-mcp/issues/168)) ([e7dd9a2](https://github.com/bardesss/arr-mcp/commit/e7dd9a2d45de83ad7e15e4b8f161a4e88b26af99))
+
 ## [1.15.5](https://github.com/bardesss/arr-mcp/compare/v1.15.4...v1.15.5) (2026-08-22)
 
 
