@@ -23,19 +23,33 @@ export const UserSchema = z
         'Whose playback to read. Defaults to the configured default_user; any other value requires allow_other_users.'
     );
 
+export type PlaybackScope = 'active' | 'next_up' | 'history';
+
+export const ScopeSchema = z
+    .enum(['active', 'next_up', 'history'])
+    .default('active')
+    .describe(
+        '`active` (default): now playing and what can be resumed. `next_up`: the next unwatched episode of every ' +
+            "series this user has in progress — Jellyfin's own answer to what to watch next. `history`: recently " +
+            'watched movies and episodes, newest first.'
+    );
+
 const project = (e: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
     if (detail === 'full') return e;
     if (detail === 'minimal') {
         return { service: e.service, kind: e.kind, itemId: e.itemId, title: e.title, user: e.user };
     }
     const { device: _d, lastPlayed: _l, ...rest } = e;
-    return rest;
+    // `lastPlayed` is the one field `history` exists to answer, so a watched
+    // entry keeps it even at standard detail. `active` and `next_up` entries
+    // never carry `kind: 'watched'`, so this cannot move their output.
+    return e.kind === 'watched' && e.lastPlayed !== undefined ? { ...rest, lastPlayed: e.lastPlayed } : rest;
 };
 
 export async function buildGetPlayback(
     adapter: JellyfinAdapter | undefined,
     resolver: IdentityResolver | undefined,
-    opts: { detail: DetailLevel; limit: number; offset?: number; user?: string }
+    opts: { detail: DetailLevel; limit: number; offset?: number; user?: string; scope?: PlaybackScope }
 ): Promise<GetPlaybackResult> {
     if (adapter === undefined || resolver === undefined) {
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [] };
@@ -47,9 +61,17 @@ export async function buildGetPlayback(
     // forever; one told it was refused will not.
     const user = await resolver.resolve(opts.user);
 
+    const scope = opts.scope ?? 'active';
+    const read =
+        scope === 'next_up'
+            ? () => adapter.getNextUp(user)
+            : scope === 'history'
+              ? () => adapter.getWatchHistory(user)
+              : () => adapter.getPlayback(user);
+
     let entries: PlaybackEntry[];
     try {
-        entries = await adapter.getPlayback(user);
+        entries = await read();
     } catch (err) {
         logger.warn({ service: adapter.id, err }, 'playback read failed; degrading');
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id] };
@@ -58,6 +80,14 @@ export async function buildGetPlayback(
     const shaped = applyLimit(entries, opts.limit, opts.offset);
     return { ...shaped, items: shaped.items.map(e => project(e, opts.detail)), degraded: [] };
 }
+
+const summarize = (scope: PlaybackScope, result: GetPlaybackResult): string => {
+    if (result.degraded.length > 0) return 'Jellyfin could not be reached; no playback information available.';
+    if (scope === 'next_up') return `${result.total} series with a next episode to watch.`;
+    if (scope === 'history') return `${result.total} recently watched item(s).`;
+    const playing = result.items.filter(i => i.kind === 'now_playing').length;
+    return `${playing} item(s) playing now, ${result.total - playing} to continue.`;
+};
 
 export function registerGetPlayback(
     server: McpServer,
@@ -70,24 +100,26 @@ export function registerGetPlayback(
             title: 'Playback activity',
             annotations: READ_ONLY,
             description:
-                'What a Jellyfin user is watching now and what they can continue watching, with position and completion. Watch state exists only in Jellyfin — Radarr and Sonarr have no concept of it. Defaults to the configured user; reading another requires allow_other_users.',
+                'What a Jellyfin user is watching, has queued up next, or has already watched. Watch state exists only in Jellyfin — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users.',
             outputSchema: PagedOutputSchema,
-            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema, user: UserSchema })
+            inputSchema: toolInput({
+                detail: DetailSchema,
+                limit: LimitSchema,
+                offset: OffsetSchema,
+                user: UserSchema,
+                scope: ScopeSchema
+            })
         },
-        async ({ detail, limit, offset, user }) => {
+        async ({ detail, limit, offset, user, scope }) => {
             const result = await buildGetPlayback(adapter, resolver, {
                 detail,
                 limit,
                 offset,
+                scope,
                 ...(user === undefined ? {} : { user })
             });
-            const playing = result.items.filter(i => i.kind === 'now_playing').length;
-            const summary =
-                result.degraded.length > 0
-                    ? 'Jellyfin could not be reached; no playback information available.'
-                    : `${playing} item(s) playing now, ${result.total - playing} to continue.`;
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: summarize(scope, result) }], structuredContent: result };
         }
     );
 }

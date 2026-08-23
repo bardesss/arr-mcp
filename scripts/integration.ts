@@ -60,6 +60,9 @@ const CASES: Case[] = [
     { tool: 'get_indexers', args: { detail: 'full' } },
     { tool: 'get_subtitles', args: { detail: 'full', limit: 100 } },
     { tool: 'get_queue', args: { detail: 'full' } },
+    { tool: 'get_history', args: { detail: 'full', limit: 20 } },
+    { tool: 'get_wanted', args: { scope: 'missing', detail: 'full', limit: 20 } },
+    { tool: 'get_wanted', args: { scope: 'upgradable', limit: 20 } },
     // The brief's case used `days: 14`, a field this schema does not have —
     // get_calendar takes `days_back` and `days_ahead` separately. Using the
     // brief's field name would silently no-op back to the defaults (7/14)
@@ -112,6 +115,12 @@ const hosts = hostsOf(config);
  */
 const DYNAMIC_TOOLS: ToolName[] = [
     'trigger_search',
+    // Needs a real service+id the same way trigger_search does. Driven off
+    // the same searchableHit, but kept to one call: this one polls every
+    // configured indexer synchronously (up to the tool's own 120s budget),
+    // so it is the slowest thing this script runs — one conservative case at
+    // a small limit is enough to prove the mapping, not a stress test.
+    'get_releases',
     'remove_queue_item',
     'delete_media',
     'respond_to_request',
@@ -223,6 +232,43 @@ async function expectError(
     }
 }
 
+/**
+ * Runs a case whose whole point is that the result must not be empty —
+ * `run` alone would pass just as happily against `total: 0` as against a
+ * real result, which is exactly how the scoped-get_history defect (a bare
+ * array from Radarr's per-item history endpoint silently read as zero
+ * records) survived the unit suite: every fixture asserted on the request
+ * URL, never on what came back. This is that missing assertion, made live.
+ */
+async function expectNonEmpty(tool: string, args: Record<string, unknown>, note: string): Promise<void> {
+    const label = `${tool} ${JSON.stringify(args)} — ${note}`;
+    const started = performance.now();
+
+    try {
+        const result = await callTool(tool, args);
+        const ms = Math.round(performance.now() - started);
+        const text = redactHosts(result.content?.[0]?.text ?? '', hosts);
+
+        if (result.isError === true) {
+            console.error(`FAIL ${label} (${ms}ms) — ${text}`);
+            failures += 1;
+            return;
+        }
+        const total = (result.structuredContent as { total?: number } | undefined)?.total;
+        if (typeof total === 'number' && total > 0) {
+            console.log(`PASS ${label} (${ms}ms) — ${text}`);
+            passes += 1;
+            return;
+        }
+        console.error(`FAIL ${label} (${ms}ms) — expected total > 0, got: ${text}`);
+        failures += 1;
+    } catch (err) {
+        const ms = Math.round(performance.now() - started);
+        console.error(`FAIL ${label} (${ms}ms) — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+}
+
 let libraryResult: ToolCallResult | undefined;
 let searchResult: ToolCallResult | undefined;
 let queueResult: ToolCallResult | undefined;
@@ -310,6 +356,51 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
     );
 } else {
     console.log('SKIP trigger_search — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+}
+
+/**
+ * get_releases against the same service+id — read-only (READ_ONLY annotated,
+ * no dry_run to gate), but the one call in this whole script that reaches
+ * out to real indexers rather than just Radarr/Sonarr/Jellyfin themselves.
+ * `limit: 5` keeps the response small; it does not make the search faster,
+ * since Radarr/Sonarr poll every indexer before this tool ever sees a
+ * result.
+ */
+if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+    await run(
+        'get_releases',
+        { service: searchableHit.service, id: String(searchableHit.id), limit: 5 },
+        'slow — polls every configured indexer'
+    );
+} else {
+    console.log('SKIP get_releases — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+}
+
+/**
+ * get_history, scoped to the same service+id — the exact path a live call
+ * would have caught the Critical this phase shipped with: the CASES entry
+ * above only ever calls get_history unscoped, which hits `/api/v3/history`
+ * and was never broken. The defect was in the *scoped* read, which hit
+ * `/api/v3/history/movie|series` — an endpoint that answers a bare array,
+ * not the envelope the (now-removed) code expected, so a scoped call always
+ * came back empty regardless of whether the item actually had history.
+ *
+ * `searchableHit` is not guaranteed to have history — it is search_media's
+ * first Radarr/Sonarr hit, and a freshly-added title could genuinely have
+ * none yet — so this can occasionally false-fail on an otherwise-healthy
+ * stack. It is still worth more than the unscoped case above, which cannot
+ * fail this way at all, so `expectNonEmpty` is used deliberately rather than
+ * `run`: an assertion that would also pass against `total: 0` is exactly
+ * the gap that let this defect ship.
+ */
+if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+    await expectNonEmpty(
+        'get_history',
+        { service: searchableHit.service, id: String(searchableHit.id), detail: 'full', limit: 20 },
+        'scoped — the exact path the Critical was in; searchableHit is usually, not guaranteed, non-empty'
+    );
+} else {
+    console.log('SKIP scoped get_history — search_media returned no Radarr or Sonarr hit to take a service+id from.');
 }
 
 /**

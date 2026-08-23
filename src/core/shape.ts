@@ -41,7 +41,7 @@ export const OffsetSchema = z
 /**
  * What a read tool tells a client about itself.
  *
- * Without this, all 22 tools are the same kind of thing to a client that
+ * Without this, all 27 tools are the same kind of thing to a client that
  * decides what to auto-approve, or what to badge, from annotations —
  * `delete_media` and `get_queue` alike. Each description says which it is, but
  * prose is only readable by the model, and the client makes that call before

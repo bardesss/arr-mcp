@@ -194,9 +194,34 @@ export class JellyfinAdapter
      * that this user may be queried; this is the mechanical narrowing, not the
      * authorization decision.
      */
-    async getPlayback(user: ServiceUser): Promise<PlaybackEntry[]> {
-        const fence = (field: string, value: string) => fenceText(value, { service: this.id, field });
+    #fence(field: string, value: string): string {
+        return fenceText(value, { service: this.id, field });
+    }
 
+    #commonPlayback(user: ServiceUser, item: RawItem) {
+        return {
+            service: this.id,
+            itemId: item.Id ?? '',
+            title: this.#fence('Name', item.Name ?? ''),
+            ...(item.SeriesName === undefined ? {} : { seriesTitle: this.#fence('SeriesName', item.SeriesName) }),
+            ...(item.ParentIndexNumber === undefined ? {} : { season: item.ParentIndexNumber }),
+            ...(item.IndexNumber === undefined ? {} : { episode: item.IndexNumber }),
+            user: user.name
+        };
+    }
+
+    #progress(position: number | undefined, runtime: number | undefined) {
+        return {
+            ...(position === undefined ? {} : { positionSeconds: position }),
+            ...(runtime === undefined ? {} : { runtimeSeconds: runtime }),
+            // Guarded against a zero runtime, which would divide to Infinity.
+            ...(position !== undefined && runtime !== undefined && runtime > 0
+                ? { percentComplete: Math.round((position / runtime) * 100) }
+                : {})
+        };
+    }
+
+    async getPlayback(user: ServiceUser): Promise<PlaybackEntry[]> {
         const [sessions, resume] = await Promise.all([
             this.#http.get<RawSession[]>('/Sessions'),
             /**
@@ -212,45 +237,60 @@ export class JellyfinAdapter
             this.#http.get<RawItemsPage>(`/Users/${encodeURIComponent(user.id)}/Items/Resume?Limit=500`)
         ]);
 
-        const common = (item: RawItem) => ({
-            service: this.id,
-            itemId: item.Id ?? '',
-            title: fence('Name', item.Name ?? ''),
-            ...(item.SeriesName === undefined ? {} : { seriesTitle: fence('SeriesName', item.SeriesName) }),
-            ...(item.ParentIndexNumber === undefined ? {} : { season: item.ParentIndexNumber }),
-            ...(item.IndexNumber === undefined ? {} : { episode: item.IndexNumber }),
-            user: user.name
-        });
-
-        const progress = (position: number | undefined, runtime: number | undefined) => ({
-            ...(position === undefined ? {} : { positionSeconds: position }),
-            ...(runtime === undefined ? {} : { runtimeSeconds: runtime }),
-            // Guarded against a zero runtime, which would divide to Infinity.
-            ...(position !== undefined && runtime !== undefined && runtime > 0
-                ? { percentComplete: Math.round((position / runtime) * 100) }
-                : {})
-        });
-
         const nowPlaying: PlaybackEntry[] = sessions
             .filter(s => s.UserId === user.id && s.NowPlayingItem !== undefined)
             .map(s => {
                 const item = s.NowPlayingItem as RawItem;
                 return {
-                    ...common(item),
+                    ...this.#commonPlayback(user, item),
                     kind: 'now_playing' as const,
-                    ...progress(ticksToSeconds(s.PlayState?.PositionTicks), ticksToSeconds(item.RunTimeTicks)),
+                    ...this.#progress(ticksToSeconds(s.PlayState?.PositionTicks), ticksToSeconds(item.RunTimeTicks)),
                     ...(s.DeviceName === undefined ? {} : { device: s.DeviceName })
                 };
             });
 
         const resuming: PlaybackEntry[] = (resume.Items ?? []).map(item => ({
-            ...common(item),
+            ...this.#commonPlayback(user, item),
             kind: 'resume' as const,
-            ...progress(ticksToSeconds(item.UserData?.PlaybackPositionTicks), ticksToSeconds(item.RunTimeTicks)),
+            ...this.#progress(ticksToSeconds(item.UserData?.PlaybackPositionTicks), ticksToSeconds(item.RunTimeTicks)),
             ...(item.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: item.UserData.LastPlayedDate })
         }));
 
         return [...nowPlaying, ...resuming];
+    }
+
+    /**
+     * `/Shows/NextUp` is Jellyfin's own per-user answer to "what next" — one
+     * row per series with an unwatched episode after the last one this user
+     * finished. Confirmed against a live 10.11.11: 19 rows for a household
+     * with several in-progress shows.
+     */
+    async getNextUp(user: ServiceUser): Promise<PlaybackEntry[]> {
+        const page = await this.#http.get<RawItemsPage>(`/Shows/NextUp?userId=${encodeURIComponent(user.id)}`);
+        return (page.Items ?? []).map(item => ({
+            ...this.#commonPlayback(user, item),
+            kind: 'next_up' as const
+        }));
+    }
+
+    /**
+     * Recently watched movies and episodes, newest first. `Filters=IsPlayed`
+     * plus the DatePlayed sort are both real — confirmed against a live
+     * 10.11.11 with an invented-parameter control, since Jellyfin silently
+     * ignores a query param it does not recognise. `Limit=500` matches
+     * `getPlayback`'s resumable read: truncation is decided by `applyLimit`,
+     * not an undocumented server page size.
+     */
+    async getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]> {
+        const page = await this.#http.get<RawItemsPage>(
+            `/Items?userId=${encodeURIComponent(user.id)}&SortBy=DatePlayed&SortOrder=Descending` +
+                '&Filters=IsPlayed&IncludeItemTypes=Episode,Movie&Recursive=true&Limit=500&Fields=UserData'
+        );
+        return (page.Items ?? []).map(item => ({
+            ...this.#commonPlayback(user, item),
+            kind: 'watched' as const,
+            ...(item.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: item.UserData.LastPlayedDate })
+        }));
     }
 
     /**

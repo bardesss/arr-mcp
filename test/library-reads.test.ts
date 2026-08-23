@@ -446,3 +446,65 @@ describe('Jellyfin.getPlayback', () => {
         expect(film).not.toHaveProperty('seriesTitle');
     });
 });
+
+const NEXT_UP_ROUTE = '/Shows/NextUp?userId=u1';
+
+// Captured against a live 10.11.11 — see task-5-brief.md.
+const NEXT_UP = {
+    Items: [
+        {
+            Id: 'nu-1',
+            Name: 'Faceless Men',
+            Type: 'Episode',
+            SeriesName: 'House of the Dragon',
+            SeriesId: 'series-1',
+            ParentIndexNumber: 3,
+            IndexNumber: 6,
+            PremiereDate: '2026-07-25T22:00:00.0000000Z',
+            UserData: { PlaybackPositionTicks: 0, PlayCount: 0, IsFavorite: false, Played: false }
+        }
+    ]
+};
+
+describe('Jellyfin.getNextUp', () => {
+    const someone = { id: 'u1', name: 'Someone' };
+    const adapter = () => new JellyfinAdapter(multi, serving({ [NEXT_UP_ROUTE]: NEXT_UP }));
+
+    it('reads the per-user Next Up list', async () => {
+        const entries = await adapter().getNextUp(someone);
+        expect(entries).toHaveLength(1);
+        expect(entries[0]).toMatchObject({ kind: 'next_up', itemId: 'nu-1', season: 3, episode: 6 });
+    });
+
+    it('carries the episode title and the series name distinguishably', async () => {
+        const [entry] = await adapter().getNextUp(someone);
+        expect(entry?.title).toContain('Faceless Men');
+        expect(entry?.seriesTitle).toContain('House of the Dragon');
+    });
+});
+
+const HISTORY_ROUTE =
+    '/Items?userId=u1&SortBy=DatePlayed&SortOrder=Descending&Filters=IsPlayed&IncludeItemTypes=Episode,Movie&Recursive=true&Limit=500&Fields=UserData';
+
+// Captured against a live 10.11.11 — see task-5-brief.md.
+const HISTORY = {
+    Items: [
+        {
+            Id: 'h-1',
+            Name: 'Some Film',
+            Type: 'Movie',
+            UserData: { LastPlayedDate: '2026-08-19T18:29:55.0574726Z' }
+        }
+    ]
+};
+
+describe('Jellyfin.getWatchHistory', () => {
+    const someone = { id: 'u1', name: 'Someone' };
+    const adapter = () => new JellyfinAdapter(multi, serving({ [HISTORY_ROUTE]: HISTORY }));
+
+    it('reads played items from the sort-by-DatePlayed query', async () => {
+        const entries = await adapter().getWatchHistory(someone);
+        expect(entries).toHaveLength(1);
+        expect(entries[0]).toMatchObject({ kind: 'watched', itemId: 'h-1', lastPlayed: '2026-08-19T18:29:55.0574726Z' });
+    });
+});

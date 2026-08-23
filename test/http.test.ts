@@ -238,6 +238,68 @@ describe('ServiceHttp put and deleteWithBody', () => {
     });
 });
 
+/**
+ * A release search runs tens of seconds against a real Radarr/Sonarr — well
+ * past the 10s default this config carries. `get`'s optional `timeoutMs`
+ * exists so one caller can ask for longer without raising the adapter-wide
+ * timeout, which would make every other call on a dead service wait just as
+ * long. These assert the override reaches `AbortSignal.timeout` and that
+ * every other call — including a plain `get` — still gets the configured
+ * default.
+ */
+describe('ServiceHttp per-call timeout override', () => {
+    it('passes an override through to AbortSignal.timeout', async () => {
+        const spy = vi.spyOn(AbortSignal, 'timeout');
+        try {
+            const client = http(async () => json({ ok: true }));
+            await client.get('/x', { timeoutMs: 120_000 });
+            expect(spy).toHaveBeenCalledWith(120_000);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it('falls back to the configured timeout when no override is given', async () => {
+        const spy = vi.spyOn(AbortSignal, 'timeout');
+        try {
+            const client = http(async () => json({ ok: true }));
+            await client.get('/x');
+            expect(spy).toHaveBeenCalledWith(config.timeout_ms);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it('leaves every other verb at the configured default', async () => {
+        const spy = vi.spyOn(AbortSignal, 'timeout');
+        try {
+            const client = http(async () => json({ ok: true }));
+            await client.post('/x', { a: 1 });
+            await client.put('/x', { a: 1 }, true);
+            await client.delete('/x');
+            for (const call of spy.mock.calls) expect(call[0]).toBe(config.timeout_ms);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it('applies the override to the retry attempt too', async () => {
+        const spy = vi.spyOn(AbortSignal, 'timeout');
+        let calls = 0;
+        try {
+            const client = http(async () => {
+                calls += 1;
+                if (calls === 1) throw timeoutError();
+                return json({ ok: true });
+            });
+            await client.get('/x', { timeoutMs: 120_000 });
+            expect(spy.mock.calls.map(c => c[0])).toEqual([120_000, 120_000]);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+});
+
 describe('ServiceHttp error mapping', () => {
     it('maps a 401 to AuthFailed without retrying — auth failure is not transient', async () => {
         let calls = 0;
@@ -302,6 +364,27 @@ describe('ServiceHttp retry policy', () => {
         });
         await expect(client.post('/x', {})).rejects.toThrow(/timed out/);
         expect(calls).toBe(1);
+    });
+
+    it('honours `retry: false` on a read whose retry would repeat expensive upstream work', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            throw timeoutError();
+        });
+        await expect(client.get('/x', { retry: false })).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+
+    it('still retries a plain get() with no opts — `retry: false` is opt-in, not the new default', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            if (calls === 1) throw timeoutError();
+            return json({ version: '1.0' });
+        });
+        expect(await client.get('/x')).toEqual({ version: '1.0' });
+        expect(calls).toBe(2);
     });
 });
 

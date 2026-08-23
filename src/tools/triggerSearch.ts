@@ -36,11 +36,17 @@ export function registerTriggerSearch(
         name: 'trigger_search',
         title: 'Search indexers for a release',
         description:
-            'Asks Radarr or Sonarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: get those from get_media_details or get_library first. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks Radarr or Sonarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: get those from get_media_details or get_library first. On Sonarr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr or sonarr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-            id: z.string().min(1).describe("The item's id within that service, as an integer string.")
+            id: z.string().min(1).describe("The item's id within that service, as an integer string."),
+            season: z.number().int().min(0).optional().describe('Sonarr only. One season. 0 is specials. Omit for the whole series.'),
+            episodes: z
+                .array(z.string().min(1))
+                .min(1)
+                .optional()
+                .describe('Sonarr only. Specific episode ids, as integer strings. Mutually exclusive with `season`.')
         }),
         // The permission check follows the argument, so enabling `safe_write`
         // on Radarr does not quietly enable it on Sonarr.
@@ -51,7 +57,18 @@ export function registerTriggerSearch(
         operation: 'trigger_search',
         tier: 'safe',
 
-        async plan({ service, instance, id }): Promise<WritePlan> {
+        async plan({ service, instance, id, season, episodes }): Promise<WritePlan> {
+            if (season !== undefined && episodes !== undefined) {
+                throw new Error(
+                    '`season` and `episodes` were both given. They are different targets — send one. Omit both to search the whole series.'
+                );
+            }
+            if ((season !== undefined || episodes !== undefined) && service !== 'sonarr') {
+                throw new ServiceError('NotFound', service, `${service} has no seasons`, {
+                    remedy: 'Season and episode scope apply to sonarr only. Films have no seasons — omit season and episodes for radarr.'
+                });
+            }
+
             const adapter = findAdapter(adapters, service, instance);
 
             // A read before the write, for two reasons: it fails early and
@@ -62,11 +79,51 @@ export function registerTriggerSearch(
             if (!hasMediaDetails(adapter)) {
                 throw new ServiceError('NotFound', service, `${service} cannot describe its own items`);
             }
-            const details = await adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 });
+            const details = await adapter.getMediaDetails(id, {
+                includeEpisodes: episodes !== undefined,
+                episodeLimit: 500
+            });
             const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
 
+            // A season or episode id that does not resolve is not "search
+            // nothing interesting" — Sonarr accepts a command matching nothing
+            // and reports success, so an unvalidated write here is a search
+            // that silently searches for nothing at all.
+            if (season !== undefined && details.seasons !== undefined) {
+                const known = details.seasons.map(s => s.season);
+                if (!known.includes(season)) {
+                    throw new ServiceError('NotFound', service, `${label} has no season ${season}`, {
+                        remedy: `Seasons on this series: ${known.join(', ')}. Get them from get_media_details.`
+                    });
+                }
+            }
+            if (episodes !== undefined) {
+                const found = new Set((details.episodes ?? []).map(e => String(e.id)));
+                const unresolved = episodes.filter(eid => !found.has(eid));
+                if (unresolved.length > 0) {
+                    throw new ServiceError(
+                        'NotFound',
+                        service,
+                        `Could not find episode(s) ${unresolved.join(', ')} on ${label}` +
+                            (details.episodesTruncated === true
+                                ? ' — the episode list was truncated at 500, so they may simply not have been fetched.'
+                                : '.'),
+                        { remedy: 'Check the episode ids from get_media_details.' }
+                    );
+                }
+            }
+
+            const scope =
+                episodes !== undefined
+                    ? `${episodes.length} episode(s) of ${label}`
+                    : season !== undefined
+                      ? `season ${season} of ${label}`
+                      : label;
+            const scopeKind =
+                episodes !== undefined ? 'episode' : season !== undefined ? 'season' : service === 'sonarr' ? 'whole-series' : 'movie';
+
             const effects = [
-                `Queues a ${service === 'sonarr' ? 'whole-series' : 'movie'} search on ${service} for ${label}.`,
+                `Queues a ${scopeKind} search on ${service} for ${scope}.`,
                 'May grab and start downloading a release, which will appear in get_queue.'
             ];
 
@@ -84,14 +141,22 @@ export function registerTriggerSearch(
 
             return {
                 target: `${service}:${id}`,
-                summary: `Ask ${service} to search for releases for ${label}.`,
+                summary: `Ask ${service} to search for releases for ${scope}.`,
                 effects,
-                args: { service, id }
+                args: {
+                    service,
+                    id,
+                    ...(season === undefined ? {} : { season }),
+                    ...(episodes === undefined ? {} : { episodes })
+                }
             };
         },
 
-        async apply(_plan, { service, instance, id }) {
-            return findAdapter(adapters, service, instance).triggerSearch(id);
+        async apply(_plan, { service, instance, id, season, episodes }) {
+            return findAdapter(adapters, service, instance).triggerSearch(id, {
+                ...(season === undefined ? {} : { season }),
+                ...(episodes === undefined ? {} : { episodes })
+            });
         }
     });
 }
