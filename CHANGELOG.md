@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/bardesss/arr-mcp/compare/v1.16.0...v1.17.0) (2026-08-23)
+
+
+### Features
+
+* five new writes and the blocklist pair — grab, request, pause, watched ([#176](https://github.com/bardesss/arr-mcp/issues/176)) ([a33409d](https://github.com/bardesss/arr-mcp/commit/a33409d5666c145f0cfcffecaee0105084961a94))
+
 ## [1.16.0](https://github.com/bardesss/arr-mcp/compare/v1.15.8...v1.16.0) (2026-08-23)
 
 
