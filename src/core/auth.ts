@@ -168,6 +168,11 @@ async function qbittorrentLogin(
         throw new ServiceError('AuthFailed', 'qbittorrent', 'the login request failed', { cause: err });
     }
 
+    // Read before the status check, not after: a banned client sees 403 on
+    // every future login, and skipping this on that path would leak one
+    // pinned connection per attempt for as long as the ban lasts.
+    const body = (await response.text()).trim();
+
     if (response.status === 403) {
         throw new ServiceError('AuthFailed', 'qbittorrent', 'login refused', {
             remedy: 'qBittorrent bans a client after repeated failed logins. Wait, or clear the ban in Options → Web UI.'
@@ -176,7 +181,6 @@ async function qbittorrentLogin(
 
     // A wrong password is HTTP 200 with the body "Fails.", so the status line
     // alone would read as a successful login that set no cookie.
-    const body = (await response.text()).trim();
     if (!response.ok || body !== 'Ok.') {
         throw new ServiceError('AuthFailed', 'qbittorrent', `login returned "${body || response.status}"`, {
             remedy: 'Check username and password against Options → Web UI in qBittorrent.'

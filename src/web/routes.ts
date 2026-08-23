@@ -3,6 +3,7 @@ import { saveConfig } from '../config/save.ts';
 import { ServiceIdSchema, ThemeSchema, type Config, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
+import { LoginThrottle } from '../core/loginThrottle.ts';
 import type { LogStore } from '../core/logs.ts';
 import type { Runtime } from '../core/runtime.ts';
 import {
@@ -121,14 +122,17 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // uses: `parseBody` and `saveConfig` both yield, so the check at the top
         // of this handler is not still true by the time the write lands.
         if (!unclaimed()) return c.redirect('/ui/login', 302);
+        // Captured before hashPassword yields, so a concurrent reload cannot
+        // make `expected` newer than the config this write was built from.
+        const expected = runtime.config;
         try {
             await saveConfig(
                 runtime.configDir,
                 {
-                    ...runtime.config,
-                    auth: { ...runtime.config.auth, username, password_hash: hashPassword(password) }
+                    ...expected,
+                    auth: { ...expected.auth, username, password_hash: await hashPassword(password) }
                 },
-                { expected: runtime.config }
+                { expected }
             );
         } catch {
             // Someone else claimed it while this request was in flight.
@@ -144,6 +148,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     // --- login ----------------------------------------------------------
 
+    // Per app, not per module: tests build many apps and must not share a
+    // counter, and a real deployment builds exactly one.
+    const loginThrottle = new LoginThrottle();
+
     app.get('/ui/login', c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
         if (sessionOf(c, runtime) !== undefined) return c.redirect('/ui', 302);
@@ -152,6 +160,31 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.post('/ui/login', async c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
+
+        const waitMs = loginThrottle.blockedFor();
+        if (waitMs > 0) {
+            const seconds = Math.ceil(waitMs / 1000);
+            c.header('retry-after', String(seconds));
+            return c.html(
+                loginPage({
+                    version,
+                    error: `Too many failed attempts. Try again in ${seconds}s.`,
+                    theme: theme()
+                }),
+                429
+            );
+        }
+
+        // Reserved before the first await, not after verifying: a burst of
+        // concurrent posts all read `blockedFor() === 0` before any of them
+        // resolves `verifyPassword`, so without this every one of them would
+        // reach the scrypt hash regardless of FREE_ATTEMPTS. A real login
+        // clears the reservation below, via `recordSuccess`.
+        const justBlocked = loginThrottle.recordFailure();
+        if (justBlocked) {
+            const seconds = Math.ceil(loginThrottle.blockedFor() / 1000);
+            logger.warn({ ip: ipOf(c), seconds }, 'throttled config UI sign-in');
+        }
 
         const form = await c.req.parseBody();
         const username = str(form.username);
@@ -163,7 +196,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // user tells an attacker which names exist. A missing hash must never
         // read as a valid login.
         const nameOk = username === auth.username;
-        const passOk = auth.password_hash !== undefined && verifyPassword(password, auth.password_hash);
+        const passOk = auth.password_hash !== undefined && (await verifyPassword(password, auth.password_hash));
 
         if (!nameOk || !passOk) {
             // No username: this field routinely catches a password typed into
@@ -172,6 +205,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return c.html(loginPage({ version, error: 'Wrong username or password.', theme: theme() }), 401);
         }
 
+        loginThrottle.recordSuccess();
         const token = runtime.sessions.issue();
         c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
         logger.info({ ip: ipOf(c), username }, 'config UI sign-in');
@@ -352,7 +386,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const configMutation =
         (
             what: string,
-            next: (form: Record<string, unknown>) => Config | { ask: string },
+            next: (form: Record<string, unknown>) => Config | { ask: string } | Promise<Config | { ask: string }>,
             opts: {
                 /** The add form is a dialog, so a refusal has to bring it back —
                  *  a message about a form nobody can see explains nothing. */
@@ -372,6 +406,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             let activeSession = session;
 
             const form = await c.req.parseBody();
+
+            // Captured before `next(form)` yields (`buildAccountConfig` awaits
+            // `hashPassword`), so a concurrent reload cannot make this newer
+            // than the config the form below was built from.
+            const expected = runtime.config;
 
             // Cards collapse by default, so the one you just submitted has to be
             // named or the page swallows the outcome of what you did. Absent on
@@ -408,7 +447,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
             let updated: Config;
             try {
-                const result = next(form);
+                const result = await next(form);
                 // Not an error: the removal is waiting for a second click.
                 if ('ask' in result) return render(undefined, 200, result.ask);
                 updated = result;
@@ -420,7 +459,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // `expected` is the snapshot this page's form was built from,
                 // so a service hand-added to config.yaml since then is a
                 // refusal rather than a silent deletion under a "Saved" banner.
-                await saveConfig(runtime.configDir, updated, { expected: runtime.config });
+                await saveConfig(runtime.configDir, updated, { expected });
                 await runtime.reload();
 
                 if (opts.endsSessions?.(form) === true) {
@@ -680,7 +719,7 @@ export function addCandidateFrom(
  */
 
 /** The Config UI's own credentials. Owns `username` and `password_hash`. */
-export function buildAccountConfig(current: Config, form: Record<string, unknown>): Config {
+export async function buildAccountConfig(current: Config, form: Record<string, unknown>): Promise<Config> {
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
 
@@ -689,7 +728,7 @@ export function buildAccountConfig(current: Config, form: Record<string, unknown
     // this guard stops a blank password field on a config save from writing a
     // config with no hash — silently un-claiming a live instance and handing it
     // to whoever loads /ui/setup next.
-    const carriedHash = password === '' ? current.auth.password_hash : hashPassword(password);
+    const carriedHash = password === '' ? current.auth.password_hash : await hashPassword(password);
     if (carriedHash === undefined) {
         throw new Error('This instance has no password set yet. Reload the page and set one up.');
     }

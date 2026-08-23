@@ -1,6 +1,7 @@
 import { createMcpHonoApp } from '@modelcontextprotocol/hono';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import { Hono, type Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
@@ -15,6 +16,13 @@ import { registerWebRoutes } from './web/routes.ts';
 
 const NAME = 'arr-mcp';
 const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
+
+/**
+ * A tool call is a few kilobytes and the largest legitimate body is a config
+ * form. Not configurable: the only reason to raise it would be to work around
+ * a problem that is never actually this.
+ */
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 /**
  * What the whole server is, said once.
@@ -95,6 +103,29 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
      * the only position from which the refusal can be JSON. See `jsonBody.ts`.
      */
     const app = new Hono();
+    // First, ahead of `claimJsonBody` and therefore ahead of the Host
+    // allowlist and the bearer check below: both body parsers buffer the whole
+    // request, so an unauthenticated peer could otherwise spend our memory.
+    app.use(
+        '*',
+        bodyLimit({
+            maxSize: MAX_BODY_BYTES,
+            onError: c =>
+                c.json(
+                    {
+                        jsonrpc: '2.0',
+                        id: null,
+                        error: {
+                            // Invalid Request, not -32700: the body was never
+                            // parsed, so calling it a parse error is wrong.
+                            code: -32600,
+                            message: `Request body exceeds the ${MAX_BODY_BYTES} byte limit.`
+                        }
+                    },
+                    413
+                )
+        })
+    );
     app.use('*', claimJsonBody);
     app.route('/', transport);
 

@@ -514,7 +514,7 @@ async function checkUi(): Promise<void> {
     // maintainer's claim state instead of the login flow.
     const password = 'integration-only-not-persisted';
     const { hashPassword } = await import('../src/core/session.ts');
-    const uiConfig = { ...config, auth: { ...config.auth, password_hash: hashPassword(password) } };
+    const uiConfig = { ...config, auth: { ...config.auth, password_hash: await hashPassword(password) } };
     const uiRuntime = Runtime.fromConfig(uiConfig, WriteAudit.ephemeral(), { configDir: CONFIG_DIR });
     const uiApp = buildApp({ runtime: uiRuntime, audit: WriteAudit.ephemeral(), logs: LogStore.ephemeral() });
 

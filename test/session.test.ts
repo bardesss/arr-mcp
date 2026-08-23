@@ -12,31 +12,42 @@ import {
 } from '../src/core/session.ts';
 
 describe('password storage', () => {
-    it('accepts the right password', () => {
-        const stored = hashPassword('correct horse battery staple');
-        expect(verifyPassword('correct horse battery staple', stored)).toBe(true);
+    it('accepts the password it hashed', async () => {
+        const stored = await hashPassword('correct horse battery staple');
+        expect(await verifyPassword('correct horse battery staple', stored)).toBe(true);
     });
 
-    it('rejects the wrong one', () => {
-        const stored = hashPassword('correct horse');
-        expect(verifyPassword('wrong horse', stored)).toBe(false);
+    it('rejects a wrong password', async () => {
+        const stored = await hashPassword('correct horse');
+        expect(await verifyPassword('wrong horse', stored)).toBe(false);
     });
 
     // The password must not be recoverable from config.yaml, only replaceable.
-    it('never stores the password itself', () => {
-        const stored = hashPassword('hunter2');
+    it('never stores the password itself', async () => {
+        const stored = await hashPassword('hunter2');
         expect(stored).not.toContain('hunter2');
         expect(stored.startsWith('scrypt$')).toBe(true);
     });
 
-    it('salts, so the same password hashes differently every time', () => {
-        expect(hashPassword('same')).not.toBe(hashPassword('same'));
+    it('salts, so the same password hashes differently every time', async () => {
+        expect(await hashPassword('same')).not.toBe(await hashPassword('same'));
     });
 
-    it('rejects a malformed or truncated stored value rather than throwing', () => {
+    it('rejects a malformed or truncated stored value rather than throwing', async () => {
         for (const bad of ['', 'nonsense', 'scrypt$', 'scrypt$aa', 'bcrypt$aa$bb', 'scrypt$aa$bb']) {
-            expect(verifyPassword('x', bad), bad).toBe(false);
+            expect(await verifyPassword('x', bad), bad).toBe(false);
         }
+    });
+
+    it('does not block the event loop while hashing', async () => {
+        let ticked = false;
+        // A macrotask scheduled before the hash starts. With scryptSync it
+        // could not run until hashing finished; with async scrypt it does.
+        setTimeout(() => {
+            ticked = true;
+        }, 0);
+        await hashPassword('some password');
+        expect(ticked).toBe(true);
     });
 });
 

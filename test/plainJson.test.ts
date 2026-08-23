@@ -24,8 +24,10 @@ import { acceptingBoth, acceptsStream, asPlainJson } from '../src/mcp/plainJson.
 
 const TOKEN = 'a'.repeat(64);
 
+const PASSWORD_HASH = await hashPassword('unused-here');
+
 const config: Config = ConfigSchema.parse({
-    auth: { bearer_token: TOKEN, password_hash: hashPassword('unused-here') },
+    auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH },
     services: {}
 });
 

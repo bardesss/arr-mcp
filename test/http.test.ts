@@ -492,3 +492,48 @@ describe('ServiceHttp body encoding and response reading', () => {
         expect(calls).toBe(2);
     });
 });
+
+describe('ServiceHttp recovery failures', () => {
+    it('cancels the failed response body when recover throws', async () => {
+        let cancelled = false;
+        const failed = new Response('denied', { status: 403 });
+        // Spying on the real body stream: `discard` calls `body.cancel()`, and
+        // an uncancelled body is what pins the connection.
+        const original = failed.body?.cancel.bind(failed.body);
+        if (failed.body !== null) {
+            failed.body.cancel = async (reason?: unknown) => {
+                cancelled = true;
+                return original?.(reason);
+            };
+        }
+
+        const boom = new Error('login refused');
+        const client = http(async () => failed, {
+            id: 'test-throw',
+            apply: () => {},
+            recover: async () => {
+                throw boom;
+            }
+        });
+
+        await expect(client.get('/api/v3/system/status')).rejects.toBe(boom);
+        expect(cancelled).toBe(true);
+    });
+
+    it('still discards an error response when recover declines', async () => {
+        let cancelled = false;
+        const failed = new Response('denied', { status: 403 });
+        const original = failed.body?.cancel.bind(failed.body);
+        if (failed.body !== null) {
+            failed.body.cancel = async (reason?: unknown) => {
+                cancelled = true;
+                return original?.(reason);
+            };
+        }
+
+        const client = http(async () => failed, { id: 'test-decline', apply: () => {}, recover: async () => false });
+
+        await expect(client.get('/api/v3/system/status')).rejects.toThrow();
+        expect(cancelled).toBe(true);
+    });
+});
