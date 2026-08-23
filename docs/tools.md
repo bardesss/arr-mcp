@@ -1,6 +1,6 @@
 # Tools
 
-Twenty-four of them. The first thirteen read; the last eleven write, and are off
+Twenty-seven of them. The first sixteen read; the last eleven write, and are off
 until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -77,7 +77,7 @@ tool carries a title and an annotation: `readOnlyHint` on the thirteen that only
 read, and on the eleven writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from twenty-four similarly-shaped
+about, reads those rather than guessing from twenty-seven similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -375,7 +375,7 @@ list.
 
 ## Prompts and resources
 
-Twenty-four tools do not tell you which one to reach for, and the questions
+Twenty-seven tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

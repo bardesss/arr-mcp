@@ -300,8 +300,7 @@ pretending otherwise would be dishonest.
 
 What is relevant here: arr-mcp is deliberately **one server for the whole stack**
 rather than one per service, which is one fewer thing to lose track of, and the
-reason the tool count stays at twenty-four instead of multiplying by the number
-of services. The
+reason the tool count does not multiply by the number of services. The
 published image carries the `io.modelcontextprotocol.server.name` label, and the
 MCP Registry refuses to publish unless that label matches the server name it is
 claiming, so a lookalike image cannot claim this identity. `/healthz` reports the
