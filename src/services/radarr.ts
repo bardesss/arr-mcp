@@ -7,6 +7,7 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders } from './arrAdd.ts';
+import { readArrHistory } from './arrHistory.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
@@ -19,6 +20,8 @@ import {
     type DiskSpaceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type HistoryCapable,
+    type HistoryEntry,
     type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
@@ -95,7 +98,8 @@ export class RadarrAdapter
         SearchTriggerCapable,
         QueueRemoveCapable,
         MediaDeleteCapable,
-        MediaAddCapable
+        MediaAddCapable,
+        HistoryCapable
 {
     readonly type: ServiceId = 'radarr';
     readonly instance: string | undefined;
@@ -138,6 +142,10 @@ export class RadarrAdapter
 
     async getQueue(): Promise<QueueItem[]> {
         return readArrQueue(this.#http, this.id, 'movie');
+    }
+
+    async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
+        return readArrHistory(this.#http, this.id, 'movie', opts);
     }
 
     readonly supportsBlocklist = true;

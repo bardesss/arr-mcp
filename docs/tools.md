@@ -220,6 +220,37 @@ with no `seriesTitle`, `season` or `episode` (those three appear only on an
 episode), then compare `percentComplete` yourself — arr-mcp does not filter by
 how far in you are.
 
+## `get_history`
+
+`get_queue` only ever sees what is still in-flight — once a download fails,
+imports, or its file gets deleted, it leaves the queue and `get_queue` has
+nothing to say about it. `trigger_search` cannot fill that gap either: it hands
+back a command handle, and Radarr and Sonarr do not report a search's outcome
+through it. `get_history` is Radarr and Sonarr's own history log, merged, and
+is the only tool that can answer "why did last night's download fail".
+
+Both services' events are normalised to one vocabulary — `grabbed`,
+`imported`, `failed`, `deleted`, `renamed`, `ignored` — because they mostly
+already agree: both spell a grab `grabbed` and an import
+`downloadFolderImported`. The one place they diverge is deletion,
+`movieFileDeleted` versus `episodeFileDeleted`, and that is normalised too.
+Upstream's own spelling survives as `rawEvent`, and an event this server does
+not yet recognise becomes `unknown` rather than being dropped.
+
+A failure's `reason` comes straight from the download client and is fenced
+like any other untrusted string — it is not translated, and on a non-English
+setup it will not read as English.
+
+Pass `service` and `id` together to scope to one movie or series, via the
+per-item endpoint rather than a client-side filter over the whole history.
+`id` without `service` is refused: Radarr's movie ids and Sonarr's series ids
+are different namespaces, and a shared number would otherwise merge two
+unrelated items' history into one answer.
+
+`mediaId` is the movie or series id — hand it straight to `get_media_details`
+or `trigger_search`. Sonarr also reports `episodeId` separately; it is never
+folded into `mediaId`.
+
 ## `clean_queue`
 
 Radarr and Sonarr leave a completed download in the queue forever when the film

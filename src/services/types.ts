@@ -187,6 +187,47 @@ export interface QueueCapable {
 export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>
     typeof (a as Partial<QueueCapable>).getQueue === 'function';
 
+export const HISTORY_EVENT_TYPES = ['grabbed', 'imported', 'failed', 'deleted', 'renamed', 'ignored', 'unknown'] as const;
+export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
+
+/**
+ * What happened to a grab after it left the queue — the answer `get_queue`
+ * cannot give once an item has failed, imported or been deleted, and
+ * `trigger_search` cannot give at all, since it only hands back a command
+ * handle.
+ */
+export type HistoryEntry = {
+    service: string;
+    id: string;
+    at: string; // ISO
+    event: HistoryEventType;
+    /** Upstream's own spelling, e.g. `downloadFolderImported`. Always set by
+     *  the adapter, so an event this server does not yet recognise is not
+     *  silently hidden — optional here only because get_history trims it
+     *  below `detail: full`. */
+    rawEvent?: string;
+    title: string; // fenced
+    /** The movie or series id — hand it to get_media_details or trigger_search. */
+    mediaId?: string;
+    /** Sonarr only. Kept separate from `mediaId`, which always names the series. */
+    episodeId?: string;
+    releaseName?: string; // fenced
+    indexer?: string; // fenced
+    quality?: string;
+    reason?: string; // fenced
+    /** `grabbed` only. Not fenced: an opaque id, not prose, and future
+     *  release-grab tooling needs it verbatim. */
+    guid?: string;
+    indexerId?: number;
+};
+
+export interface HistoryCapable {
+    readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]>;
+}
+
+export const hasHistory = (a: ServiceAdapter): a is ServiceAdapter & HistoryCapable =>
+    typeof (a as Partial<HistoryCapable>).readHistory === 'function';
+
 export type CalendarEntry = {
     service: string;
     kind: 'movie' | 'episode';

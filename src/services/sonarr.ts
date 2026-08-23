@@ -8,6 +8,7 @@ import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
+import { readArrHistory } from './arrHistory.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
@@ -21,6 +22,8 @@ import {
     type DiskSpaceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type HistoryCapable,
+    type HistoryEntry,
     type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
@@ -119,7 +122,8 @@ export class SonarrAdapter
         MediaDeleteCapable,
         MediaAddCapable,
         MonitoringCapable,
-        EpisodeFileCapable
+        EpisodeFileCapable,
+        HistoryCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -159,6 +163,10 @@ export class SonarrAdapter
 
     async getQueue(): Promise<QueueItem[]> {
         return readArrQueue(this.#http, this.id, 'series');
+    }
+
+    async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
+        return readArrHistory(this.#http, this.id, 'series', opts);
     }
 
     readonly supportsBlocklist = true;

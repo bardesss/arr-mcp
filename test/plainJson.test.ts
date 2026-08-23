@@ -6,6 +6,7 @@ import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from '../src/mcp/plainJson.ts';
+import { TOOL_NAMES } from '../src/tools/register.ts';
 
 /**
  * The transport half of #103, which cost the reporter two failures before they
@@ -212,7 +213,9 @@ describe('a body that will not parse', () => {
         const res = await raw('POST', 'application/json; charset=utf-8', JSON.stringify(toolsList));
 
         expect(res.status).toBe(200);
-        expect((JSON.parse(await res.text()) as { result: { tools: unknown[] } }).result.tools).toHaveLength(24);
+        expect((JSON.parse(await res.text()) as { result: { tools: unknown[] } }).result.tools).toHaveLength(
+            TOOL_NAMES.length
+        );
     });
 });
 
