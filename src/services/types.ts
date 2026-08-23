@@ -211,7 +211,6 @@ export type HistoryEntry = {
     mediaId?: string;
     /** Sonarr only. Kept separate from `mediaId`, which always names the series. */
     episodeId?: string;
-    releaseName?: string; // fenced
     indexer?: string; // fenced
     quality?: string;
     reason?: string; // fenced

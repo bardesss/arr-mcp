@@ -46,7 +46,6 @@ type RawHistory = {
         indexer?: string;
         indexerId?: number;
         guid?: string;
-        releaseGroup?: string;
         // Present on `*Deleted` (observed value: "Upgrade"), not on failures.
         reason?: string;
         // The failure text on `downloadFailed`. Whatever locale the download
@@ -65,9 +64,28 @@ export async function readArrHistory(
     // have to be paged through and filtered client-side.
     const scoped = kind === 'movie' ? 'movieId' : 'seriesId';
     const path = opts.id === undefined ? '/api/v3/history' : `/api/v3/history/${kind}`;
-    const query = opts.id === undefined ? '' : `${scoped}=${encodeURIComponent(opts.id)}`;
 
-    const records = await pageArr<RawHistory>(http, path, query);
+    // Explicit, not assumed: the early exit below only works if the service
+    // is actually sorted newest first, and a live capture showing that order
+    // by default is not the same as asking for it.
+    const sort = 'sortKey=date&sortDirection=descending';
+    const query = opts.id === undefined ? sort : `${scoped}=${encodeURIComponent(opts.id)}&${sort}`;
+
+    // Once a page's oldest record predates `since`, every later page does
+    // too — a live Sonarr capture held 12,614 records, and paging all of
+    // them to answer "history since last week" is dozens of round-trips to
+    // fetch and discard nearly everything. `since` is captured by value, not
+    // read through `opts`, so this stays a pure predicate over one page.
+    const since = opts.since;
+    const stopWhen =
+        since === undefined
+            ? undefined
+            : (page: RawHistory[]): boolean => {
+                  const oldest = page[page.length - 1]?.date;
+                  return oldest !== undefined && oldest < since;
+              };
+
+    const records = await pageArr<RawHistory>(http, path, query, stopWhen);
     const fence = (value: string, field: string) => fenceText(value, { service, field });
 
     return records
@@ -95,7 +113,8 @@ export async function readArrHistory(
             };
         })
         // Filtered here rather than upstream: neither service takes a date
-        // range on this endpoint, and paging to completion has already
-        // happened.
+        // range on this endpoint. `stopWhen` above only ends the *paging*
+        // early — the page holding the boundary still has older records on
+        // it, and this is what drops them.
         .filter(e => opts.since === undefined || e.at >= opts.since);
 }

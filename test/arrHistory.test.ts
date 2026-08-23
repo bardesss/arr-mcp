@@ -275,4 +275,66 @@ describe('readArrHistory', () => {
         );
         expect(rows).toEqual([]);
     });
+
+    it('asks for newest-first order explicitly, which the early exit below depends on', async () => {
+        const seen: string[] = [];
+        await readArrHistory(
+            http(async (input: string) => {
+                seen.push(String(input));
+                return json({ records: [], totalRecords: 0 });
+            }),
+            'radarr',
+            'movie',
+            {}
+        );
+        expect(seen[0]).toContain('sortKey=date');
+        expect(seen[0]).toContain('sortDirection=descending');
+    });
+
+    describe('paging against `since`', () => {
+        // 450 records, newest first, one minute apart — enough to span three
+        // 200-record pages (ARR_PAGE_SIZE), so an early exit is distinguishable
+        // from paging to completion by the fetch count alone.
+        const total = 450;
+        const base = new Date('2026-08-23T00:00:00Z').getTime();
+        const dateAt = (i: number) => new Date(base - i * 60_000).toISOString();
+
+        const paging = (counter: { fetches: number }): typeof fetch =>
+            (async (input: string | URL | Request) => {
+                counter.fetches++;
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+                const page = Number(url.searchParams.get('page') ?? 1);
+                const start = (page - 1) * pageSize;
+                const records = Array.from({ length: Math.max(0, Math.min(pageSize, total - start)) }, (_, i) => ({
+                    id: start + i + 1,
+                    eventType: 'grabbed',
+                    date: dateAt(start + i),
+                    sourceTitle: 'x'
+                }));
+                return json({ page, pageSize, totalRecords: total, records });
+            }) as unknown as typeof fetch;
+
+        it('stops fetching once a page predates `since`, rather than paging the whole history', async () => {
+            const counter = { fetches: 0 };
+            // Falls inside the second page (records 200..399): the third page
+            // (400..449) must never be requested.
+            const since = dateAt(300);
+
+            const rows = await readArrHistory(http(paging(counter)), 'radarr', 'movie', { since });
+
+            expect(counter.fetches).toBe(2);
+            expect(rows).toHaveLength(301); // indices 0..300 inclusive
+            expect(rows.every(r => r.at >= since)).toBe(true);
+        });
+
+        it('still pages to completion when `since` is omitted', async () => {
+            const counter = { fetches: 0 };
+
+            const rows = await readArrHistory(http(paging(counter)), 'radarr', 'movie', {});
+
+            expect(counter.fetches).toBe(3); // 200 + 200 + 50
+            expect(rows).toHaveLength(total);
+        });
+    });
 });

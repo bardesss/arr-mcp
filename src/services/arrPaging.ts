@@ -12,8 +12,22 @@ export const ARR_PAGE_SIZE = 200;
 
 type Page<Raw> = { records?: Raw[]; totalRecords?: number };
 
-/** Every record from a paged Radarr/Sonarr endpoint. */
-export async function pageArr<Raw>(http: ServiceHttp, path: string, query?: string): Promise<Raw[]> {
+/**
+ * Every record from a paged Radarr/Sonarr endpoint.
+ *
+ * `stopWhen`, when given, is an *additional* reason to stop — never a
+ * replacement for the guards below. It is checked against each page's own
+ * records, after that page has already been kept, so a caller opting in
+ * (e.g. `readArrHistory`'s `since`) can end a walk early once it knows every
+ * later page is out of range, without changing behaviour for anyone who
+ * does not pass one.
+ */
+export async function pageArr<Raw>(
+    http: ServiceHttp,
+    path: string,
+    query?: string,
+    stopWhen?: (records: Raw[]) => boolean
+): Promise<Raw[]> {
     const extra = query === undefined || query === '' ? '' : `&${query}`;
     const records: Raw[] = [];
 
@@ -24,6 +38,7 @@ export async function pageArr<Raw>(http: ServiceHttp, path: string, query?: stri
         // An empty page ends it whatever the count says: a service that
         // disagrees with its own `totalRecords` must not spin here.
         if (got.length === 0 || body.totalRecords === undefined || records.length >= body.totalRecords) break;
+        if (stopWhen?.(got) === true) break;
     }
 
     return records;

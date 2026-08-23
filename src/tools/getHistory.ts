@@ -3,9 +3,10 @@ import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
+import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
-import { HISTORY_EVENT_TYPES, hasHistory, type HistoryEntry, type HistoryEventType, type ServiceAdapter } from '../services/types.ts';
+import { HISTORY_EVENT_TYPES, hasHistory, type HistoryCapable, type HistoryEntry, type HistoryEventType, type ServiceAdapter } from '../services/types.ts';
 
 export type GetHistoryResult = {
     items: HistoryEntry[];
@@ -65,8 +66,22 @@ export async function buildGetHistory(
         throw new Error('`id` scopes to one movie or series; pass `service` (and `instance` if it is named) to say which.');
     }
 
-    const scoped =
-        opts.service === undefined ? adapters.filter(hasHistory) : [resolveInstance(adapters, opts.service, opts.instance)].filter(hasHistory);
+    let scoped: (ServiceAdapter & HistoryCapable)[];
+    if (opts.service === undefined) {
+        scoped = adapters.filter(hasHistory);
+    } else {
+        const adapter = resolveInstance(adapters, opts.service, opts.instance);
+        // A valid, configured service with no history capability (e.g.
+        // Jellyfin) must refuse rather than silently answer empty — an empty
+        // result reads as "this item has no history", which is a different
+        // and more misleading claim than "this service cannot answer that".
+        if (!hasHistory(adapter)) {
+            throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no history to return`, {
+                remedy: 'Only radarr and sonarr can answer get_history.'
+            });
+        }
+        scoped = [adapter];
+    }
 
     const { items, degraded, counts } = await gather(
         scoped.map(a => ({

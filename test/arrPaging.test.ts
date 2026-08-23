@@ -70,4 +70,36 @@ describe('pageArr', () => {
         expect(seen[0]).toContain('pageSize=');
         expect(seen[0]).toContain('sortKey=airDateUtc');
     });
+
+    it('stops early when stopWhen says so, without fetching the page after', async () => {
+        const pages = [
+            { records: [{ id: 1 }, { id: 2 }], totalRecords: 3 },
+            { records: [{ id: 3 }], totalRecords: 3 }
+        ];
+        let call = 0;
+        const rows = await pageArr<{ id: number }>(
+            http(async () => json(pages[call++])),
+            '/api/v3/history',
+            undefined,
+            // True on the first page already — the second must never be fetched.
+            records => records.some(r => r.id === 2)
+        );
+        expect(rows.map(r => r.id)).toEqual([1, 2]);
+        expect(call).toBe(1);
+    });
+
+    it('never calls stopWhen once the empty-page guard has already ended it — an additional reason to stop, not a replacement', async () => {
+        let stopWhenCalls = 0;
+        const rows = await pageArr<{ id: number }>(
+            http(async () => json({ records: [], totalRecords: 9999 })),
+            '/api/v3/history',
+            undefined,
+            () => {
+                stopWhenCalls++;
+                return false;
+            }
+        );
+        expect(rows).toEqual([]);
+        expect(stopWhenCalls).toBe(0);
+    });
 });

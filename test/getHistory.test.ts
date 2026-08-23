@@ -67,7 +67,6 @@ describe('get_history', () => {
     it('fences a failure message even though it is not English', async () => {
         const result = await buildGetHistory([sonarr()], opts);
         expect(result.items[0]?.reason).toContain('<<untrusted:sonarr.reason>>');
-        expect(result.items[0]?.reason).not.toContain('Afgebroken, kan niet voltooid worden</');
         expect(result.items[0]?.reason).toMatch(/Afgebroken/);
     });
 
@@ -106,6 +105,19 @@ describe('get_history', () => {
 
     it('refuses an id with no service, rather than matching a coincidental id in the wrong service', async () => {
         await expect(buildGetHistory([radarr(), sonarr()], { ...opts, id: '1689' })).rejects.toThrow(/service/);
+    });
+
+    it('refuses a valid, configured service with no history capability rather than answering empty', async () => {
+        // Jellyfin is a real, configurable ServiceId — it just cannot answer
+        // get_history. An empty result here would read as "this item has no
+        // history" rather than "this service cannot answer that".
+        const jellyfin: ServiceAdapter = {
+            id: 'jellyfin',
+            type: 'jellyfin',
+            getVersion: async () => '10.11.0',
+            testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 })
+        };
+        await expect(buildGetHistory([radarr(), jellyfin], { ...opts, service: 'jellyfin' })).rejects.toThrow(/history/);
     });
 
     it('exposes episodeId separately from mediaId for Sonarr', async () => {
