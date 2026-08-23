@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
@@ -49,6 +50,14 @@ export async function buildDiscoverMedia(
             ...(opts.minRating === undefined ? {} : { minRating: opts.minRating })
         });
     } catch (err) {
+        // Propagate vs. degrade turns on the error's kind, same rule as
+        // LibraryLoader#resolveUser: `NotFound` here means genreId() rejected
+        // the genre name before any request left for Seerr — Seerr was
+        // reached, the input was wrong, and `degraded` (a set of services
+        // that could NOT be reached) would misreport that. Its remedy names
+        // the real genres, which a model needs to see rather than lose to a
+        // silent empty list — the exact failure mode this task exists to fix.
+        if (err instanceof ServiceError && err.kind === 'NotFound') throw err;
         logger.warn({ service: adapter.id, err }, 'discover failed; degrading');
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id], counts: {} };
     }

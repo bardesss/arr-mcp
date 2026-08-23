@@ -399,6 +399,11 @@ export class SeerrAdapter
 
             const byLowerName = new Map<string, number>();
             const names = new Set<string>();
+            // Last write wins if the same lowercased name ever appeared in
+            // both lists pointing at different ids. Not seen on live TMDB
+            // data (19/16 genres, no cross-language collisions) and TMDB's
+            // taxonomy gives no reason to expect one, but nothing here
+            // enforces that assumption.
             for (const g of [...english, ...localised]) {
                 if (typeof g.id !== 'number' || typeof g.name !== 'string') continue;
                 byLowerName.set(g.name.toLowerCase(), g.id);

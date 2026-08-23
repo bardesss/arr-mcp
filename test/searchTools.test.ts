@@ -692,6 +692,34 @@ describe('seerr genre names', () => {
         await expect(adapter.genreId('movie', 'Crime')).resolves.toBe(80);
         await expect(adapter.genreId('movie', 'Misdaad')).resolves.toBe(80);
     });
+
+    /**
+     * `buildDiscoverMedia`'s catch-all used to swallow every error from
+     * `adapter.discover`, including this one, and report it exactly like a
+     * Seerr outage: `degraded: ['seerr']`, no note, no remedy. That is the
+     * same uninformative empty list this task exists to replace — Seerr was
+     * reached, the genre name was rejected, and `degraded` (services that
+     * could NOT be reached) would have been a lie.
+     */
+    it('rejects an unknown genre at the tool boundary rather than degrading', async () => {
+        const { adapter } = recordingWithGenres();
+        await expect(buildDiscoverMedia(adapter, { kind: 'movie', genre: 'Zombie', detail: 'full', limit: 50 })).rejects.toThrow(
+            /Crime/
+        );
+    });
+
+    /** The property genuinely at risk from that change: a real outage must
+     *  still degrade, not propagate, so the two stay distinguishable. */
+    it('still degrades, rather than propagating, on a genuine connectivity failure', async () => {
+        const broken = new SeerrAdapter(
+            seerrConfig,
+            (async () => {
+                throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' });
+            }) as unknown as typeof fetch
+        );
+        const result = await buildDiscoverMedia(broken, { kind: 'movie', genre: 'Crime', detail: 'full', limit: 50 });
+        expect(result.degraded).toEqual(['seerr']);
+    });
 });
 
 /**
