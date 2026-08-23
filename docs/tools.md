@@ -1,6 +1,6 @@
 # Tools
 
-Twenty-seven of them. The first sixteen read; the last eleven write, and are off
+Thirty-three of them. The first seventeen read; the last sixteen write, and are off
 until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -76,11 +76,11 @@ Read `total` from there rather than parsing it out of "50 of 243 item(s)" —
 that sentence is prose and may be reworded.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the sixteen that only
-read, and on the eleven writes `destructiveHint`, taken from the same permission
+tool carries a title and an annotation: `readOnlyHint` on the seventeen that only
+read, and on the sixteen writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from twenty-seven similarly-shaped
+about, reads those rather than guessing from thirty-three similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -527,7 +527,7 @@ than reading success as "the subtitle is on disk". If nothing arrives, the
 
 ## Prompts and resources
 
-Twenty-seven tools do not tell you which one to reach for, and the questions
+Thirty-three tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:
