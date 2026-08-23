@@ -157,14 +157,14 @@ describe('discovering from the dataset', () => {
 });
 
 /**
- * Three changes made to get the file down, and the coverage each one must not
- * cost. `rating` held 1.7M rows against `title`'s 546K, so two thirds of it
- * was rows for titles that were filtered out at ingest.
+ * The coverage a rating-arrives-unfiltered ingest must not cost: a title of a
+ * kind nothing queries reaches must not carry a rating into the database it
+ * has no use for.
  */
 describe('keeping the file small', () => {
     /**
-     * The saving. Ratings for titles nothing stores are the bulk of the table
-     * — episodes above all, at roughly ten million rows.
+     * The saving. Ratings for titles nothing stores are dropped rather than
+     * carried in — episodes above all, at roughly ten million rows.
      */
     it('drops a rating for a title it did not store', () => {
         db = ImdbDataset.ephemeral();
@@ -345,14 +345,18 @@ describe('discover ordering', () => {
                 { tconst: 'tt2', kind: 'movie', title: 'Mid', year: 2005, genres: 'Drama' },
                 { tconst: 'tt3', kind: 'movie', title: 'Tie older', year: 1990, genres: 'Crime' },
                 { tconst: 'tt4', kind: 'movie', title: 'Tie newer', year: 2010, genres: 'Crime' },
-                { tconst: 'tt5', kind: 'tvSeries', title: 'A series', year: 2000, genres: 'Drama' }
+                { tconst: 'tt5', kind: 'tvSeries', title: 'A series', year: 2000, genres: 'Drama' },
+                // A `\N` startYear is ordinary in IMDb. Tied with tt3/tt4 on
+                // rating, so where it lands among them is what this guards.
+                { tconst: 'tt6', kind: 'movie', title: 'Tie no year', genres: 'Drama' }
             ],
             ratings: [
                 { tconst: 'tt1', average: 9.1, votes: 100 },
                 { tconst: 'tt2', average: 6.4, votes: 100 },
                 { tconst: 'tt3', average: 7.5, votes: 100 },
                 { tconst: 'tt4', average: 7.5, votes: 100 },
-                { tconst: 'tt5', average: 8.8, votes: 100 }
+                { tconst: 'tt5', average: 8.8, votes: 100 },
+                { tconst: 'tt6', average: 7.5, votes: 100 }
             ]
         });
         return ds;
@@ -364,8 +368,18 @@ describe('discover ordering', () => {
             'tt1',
             'tt4',
             'tt3',
+            'tt6',
             'tt2'
         ]);
+        ds.close();
+    });
+
+    /** SQLite sorts NULL last in a DESC order, and both the old sort and the
+     *  index walk that replaced it depend on that. */
+    it('sorts a title with no year after its same-rating, dated peers', () => {
+        const ds = seeded();
+        const tied = ds.discover({ kind: 'movie', minRating: 7.5, limit: 10 }).map(t => t.tconst);
+        expect(tied.indexOf('tt6')).toBe(tied.length - 1);
         ds.close();
     });
 
@@ -377,7 +391,7 @@ describe('discover ordering', () => {
 
     it('counts what it pages through', () => {
         const ds = seeded();
-        expect(ds.countDiscover({ kind: 'movie' })).toBe(4);
+        expect(ds.countDiscover({ kind: 'movie' })).toBe(5);
         expect(ds.countDiscover({ kind: 'movie', genre: 'Crime' })).toBe(3);
         ds.close();
     });
@@ -386,7 +400,8 @@ describe('discover ordering', () => {
         const ds = seeded();
         const page1 = ds.discover({ kind: 'movie', limit: 2, offset: 0 }).map(t => t.tconst);
         const page2 = ds.discover({ kind: 'movie', limit: 2, offset: 2 }).map(t => t.tconst);
-        expect([...page1, ...page2]).toEqual(['tt1', 'tt4', 'tt3', 'tt2']);
+        const page3 = ds.discover({ kind: 'movie', limit: 2, offset: 4 }).map(t => t.tconst);
+        expect([...page1, ...page2, ...page3]).toEqual(['tt1', 'tt4', 'tt3', 'tt6', 'tt2']);
         ds.close();
     });
 
@@ -395,7 +410,8 @@ describe('discover ordering', () => {
         expect(ds.discover({ kind: 'movie', minRating: 7.5, limit: 10 }).map(t => t.tconst)).toEqual([
             'tt1',
             'tt4',
-            'tt3'
+            'tt3',
+            'tt6'
         ]);
         ds.close();
     });

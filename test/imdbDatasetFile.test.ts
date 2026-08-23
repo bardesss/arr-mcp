@@ -98,6 +98,45 @@ describe('the physical schema', () => {
         expect(db.status().ingestedAt).toBeUndefined();
     });
 
+    /**
+     * The upgrade path every real 1.15.5 install takes, not the pre-`WITHOUT
+     * ROWID` one above: `title` was already `WITHOUT ROWID` by then, just
+     * without `bucket`. That is the shape `#dropSuperseded`'s
+     * `OR sql NOT LIKE '%bucket%'` disjunct exists for — without it, a table
+     * that already satisfies `WITHOUT ROWID` is left in place, and the first
+     * `discover` against it throws for a missing column.
+     */
+    it('rebuilds a 1.15.5 database that is WITHOUT ROWID but has no bucket column', () => {
+        const legacy = new Database(path());
+        legacy.exec(`
+            CREATE TABLE title (
+                tconst  TEXT PRIMARY KEY,
+                kind    TEXT NOT NULL,
+                title   TEXT NOT NULL,
+                year    INTEGER,
+                runtime INTEGER,
+                genres  TEXT
+            ) WITHOUT ROWID;
+            CREATE TABLE rating (tconst TEXT PRIMARY KEY, average REAL NOT NULL, votes INTEGER NOT NULL);
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        `);
+        legacy.prepare('INSERT INTO title (tconst, kind, title, year) VALUES (?, ?, ?, ?)').run(
+            'tt0903747',
+            'tvSeries',
+            'Breaking Bad',
+            2008
+        );
+        legacy.prepare('INSERT INTO rating VALUES (?, ?, ?)').run('tt0903747', 9.5, 2_200_000);
+        legacy.prepare("INSERT INTO meta VALUES ('ingested_at', ?)").run(new Date().toISOString());
+        legacy.close();
+
+        db = ImdbDataset.open(dir);
+
+        expect(schemaOf('title')).toContain('bucket');
+        expect(schemaOf('rating')).toBe('');
+        expect(db.status().ingestedAt).toBeUndefined();
+    });
+
     /** A database already on the new schema keeps its contents. */
     it('leaves an up-to-date database alone', () => {
         db = ImdbDataset.open(dir);

@@ -65,13 +65,16 @@ const ALSO_STORED = ['video', 'tvSpecial', 'tvShort', 'short'] as const;
  */
 const STORED_KINDS: ReadonlySet<string> = new Set([...Object.values(KIND_TO_IMDB).flat(), ...ALSO_STORED]);
 
+/** Built once, not per call: the ingest loop runs this 810K times, and
+ *  `Object.entries` inside `bucketFor` was allocating on every one of them. */
+const BUCKET_BY_KIND: ReadonlyMap<string, 'movie' | 'series'> = new Map(
+    Object.entries(KIND_TO_IMDB).flatMap(([bucket, kinds]) => kinds.map(kind => [kind, bucket as 'movie' | 'series']))
+);
+
 /** The browse axis. `kind` says what a row *is*; this says where `discover`
  *  may surface it, and null keeps a stored-but-not-discoverable kind out. */
-function bucketFor(kind: string): string | null {
-    for (const [bucket, kinds] of Object.entries(KIND_TO_IMDB)) {
-        if (kinds.includes(kind)) return bucket;
-    }
-    return null;
+function bucketFor(kind: string): ('movie' | 'series') | null {
+    return BUCKET_BY_KIND.get(kind) ?? null;
 }
 
 /**
@@ -288,6 +291,20 @@ export class ImdbDataset {
     }
 
     /**
+     * The SELECT `discover` runs and `explainDiscover` plans — one source of
+     * text, so a change to the `ORDER BY` cannot land in one and not the other.
+     * `explainDiscover` existing to catch exactly that kind of silent drift is
+     * pointless if it is checking a hand-duplicated copy of the query.
+     */
+    #discoverSql(where: string[]): string {
+        return `SELECT t.tconst, t.title, t.year, t.runtime, t.genres, t.rating, t.votes
+                   FROM title t
+                  WHERE ${where.join(' AND ')}
+               ORDER BY t.rating DESC, t.year DESC
+                  LIMIT ? OFFSET ?`;
+    }
+
+    /**
      * How many titles match, so a paged caller learns what it is paging
      * through. Worth the second query now that `offset` reaches SQL: the old
      * `total` was "what came back", which reads as "that is all there is" the
@@ -308,15 +325,7 @@ export class ImdbDataset {
         // every page after the first came back empty.
         args.push(q.limit, q.offset ?? 0);
 
-        const rows = this.#db
-            .prepare(
-                `SELECT t.tconst, t.title, t.year, t.runtime, t.genres, t.rating, t.votes
-                   FROM title t
-                  WHERE ${where.join(' AND ')}
-               ORDER BY t.rating DESC, t.year DESC
-                  LIMIT ? OFFSET ?`
-            )
-            .all(...args) as {
+        const rows = this.#db.prepare(this.#discoverSql(where)).all(...args) as {
             tconst: string;
             title: string;
             year: number | null;
@@ -369,14 +378,7 @@ export class ImdbDataset {
     explainDiscover(q: DiscoverQuery): string[] {
         const { where, args } = this.#discoverFilter(q);
         const rows = this.#db
-            .prepare(
-                `EXPLAIN QUERY PLAN
-                 SELECT t.tconst, t.title, t.year, t.runtime, t.genres, t.rating, t.votes
-                   FROM title t
-                  WHERE ${where.join(' AND ')}
-               ORDER BY t.rating DESC, t.year DESC
-                  LIMIT ? OFFSET ?`
-            )
+            .prepare(`EXPLAIN QUERY PLAN ${this.#discoverSql(where)}`)
             .all(...args, 20, 0) as { detail: string }[];
         return rows.map(r => r.detail);
     }
@@ -409,8 +411,9 @@ export class ImdbDataset {
             // written without one. `rating` arrives unfiltered — a row for
             // every episode, video game and short IMDb has ever rated — so
             // this is the larger of the two inputs and the one worth being
-            // careful about. Only the average and vote count are kept, not the
-            // whole row, and only for ids a title may claim.
+            // careful about. Every rated id, not just the ones a title
+            // claims — the titles have not been read yet. Only the average
+            // and vote count are kept, not the whole row.
             const ratings = new Map<string, { average: number; votes: number }>();
             for (const r of rows.ratings) ratings.set(r.tconst, { average: r.average, votes: r.votes });
 

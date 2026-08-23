@@ -49,13 +49,18 @@ Measured against the live dumps on 2026-08-23:
 | Download, per refresh | **224 MB** |
 | Refreshed | **weekly** |
 | On disk | **~81 MB** |
-| First ingest | ~1.5 minutes |
+| Peak ingest memory | **~650 MB** |
+| First ingest | ~2 minutes |
 | Titles stored / rated | 811K / 811K |
 
 Only rated titles of a kind something can actually reach are stored — the other
-12 million rows are episodes and video games no query can touch. The rating
-lives on the title row itself: a title with no rating is never stored, which is
-what takes the 1.7M raw rating rows down to 811K.
+12 million rows are episodes and video games no query can touch. IMDb's
+`title.ratings.tsv` carries ~1.7M rows, all of it read into memory during
+ingest and none of it kept as a table: only a title's average and vote count
+survive, denormalised onto the title row itself, so a title with no rating is
+never stored in the first place. The ~1.7M ratings held transiently in memory
+is also where the peak ingest memory above comes from — it happens in the
+ingest worker thread and is released as soon as the ingest finishes.
 
 The dataset stores each title's rating alongside the title itself and indexes
 the browse order, so `discover_media` answers from an index walk rather than
@@ -65,7 +70,7 @@ ratings table and its index went away in exchange.
 The on-disk figure is what a running server actually leaves behind, and it has
 not moved. It used to be ~125 MB, and the same reasons still explain the drop —
 `title` is `WITHOUT ROWID` (keyed on `tconst` alone, so the old layout stored
-every id twice), ratings with no stored title are pruned, and the database is
+every id twice), titles with no rating are never stored, and the database is
 vacuumed after each replace so freed pages go back to the OS rather than
 leaving the file at its high-water mark for ever. That last one is also why the
 number is honest: the old ~125 MB was measured post-`VACUUM` by the script, and
