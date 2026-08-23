@@ -1,6 +1,7 @@
 import { instanceId } from '../config/instances.ts';
 import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
@@ -100,6 +101,11 @@ export class RadarrAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
+
+    /** The whole-library read, shared by `search(_, 'library')` and
+     *  `listLibrary` — both hit `/api/v3/movie`. Discarded on config reload
+     *  for free: `buildAdapters` constructs a new adapter. */
+    readonly #libraryCache = new TtlCache();
 
     constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
@@ -225,14 +231,25 @@ export class RadarrAdapter
         };
     }
 
+    /** The `/api/v3/movie` read behind both `search(_, 'library')` and
+     *  `listLibrary` — Radarr has no server-side filter, so both need the
+     *  whole list, and this is where they share one fetch for it. */
+    #allMovies(): Promise<RawMovie[]> {
+        return this.#libraryCache.get('movies', LIBRARY_TTL_MS, () => this.#http.get<RawMovie[]>('/api/v3/movie'));
+    }
+
+    /** Drop the cached whole-library read, e.g. after a write. */
+    invalidateLibrary(): void {
+        this.#libraryCache.clear();
+    }
+
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 
         if (source === 'library') {
-            // Radarr has no library search endpoint, so this fetches the whole
-            // list. Costly on a 900-film instance; the library cache is what
-            // makes it cheap in practice.
-            const movies = await this.#http.get<RawMovie[]>('/api/v3/movie');
+            // Radarr has no library search endpoint, so this filters the whole
+            // list. `#allMovies` caches that read, shared with `listLibrary`.
+            const movies = await this.#allMovies();
             return movies.filter(m => (m.title ?? '').toLowerCase().includes(term)).map(m => this.#toHit(m, 'library'));
         }
 
@@ -268,11 +285,10 @@ export class RadarrAdapter
 
     /**
      * The whole film library in one call — Radarr has no server-side filter, so
-     * this is the same `/api/v3/movie` read `search` already does. The cache
-     * is what makes it affordable, and it lives in the tool layer.
+     * this is the same `/api/v3/movie` read `search` already does, via `#allMovies`.
      */
     async listLibrary(): Promise<IndexInput[]> {
-        const movies = await this.#http.get<RawMovie[]>('/api/v3/movie');
+        const movies = await this.#allMovies();
 
         return movies.map(m => ({
             kind: 'movie' as const,

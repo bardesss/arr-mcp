@@ -26,6 +26,9 @@ export interface ServiceAdapter {
     readonly instance?: string | undefined;
     testConnection(): Promise<ConnectionDiagnosis>;
     getVersion(): Promise<string>;
+    /** Drop any cached whole-library read. Internal cache plumbing rather than
+     *  a tool capability, so an optional method rather than a `has*` guard. */
+    invalidateLibrary?(): void;
 }
 
 /** `service` is on every row because stack_health merges up to nine services

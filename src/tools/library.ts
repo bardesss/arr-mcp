@@ -109,6 +109,10 @@ export class LibraryLoader {
      */
     invalidate(): void {
         this.#cache.clear();
+        // The adapters hold their own copy of the same bytes now, and a write
+        // that only cleared the join would leave search_media answering from
+        // pre-write data.
+        for (const adapter of this.#adapters) adapter.invalidateLibrary?.();
     }
 
     /**

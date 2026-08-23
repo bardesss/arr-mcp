@@ -4,7 +4,7 @@ import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { hasLibrary, hasUserLibrary, hasUserSeasons } from '../src/services/types.ts';
-import { serving } from './helpers/serve.ts';
+import { jsonResponse, serving } from './helpers/serve.ts';
 
 const keyed: KeyedServiceConfig = {
     url: 'http://192.0.2.10:7878',
@@ -70,6 +70,18 @@ const ITEMS = {
     ]
 };
 
+/** Counts requests to one path, so a cache can be proven to skip the rest. */
+const countingFetch = (path: string, body: unknown) => {
+    let fetches = 0;
+    const fetchImpl = (async (input: string | URL | Request) => {
+        const raw = input instanceof Request ? input.url : String(input);
+        if (new URL(raw).pathname !== path) return jsonResponse({ message: 'not found' }, 404);
+        fetches += 1;
+        return jsonResponse(body);
+    }) as unknown as typeof fetch;
+    return { fetchImpl, fetches: () => fetches };
+};
+
 describe('Radarr.listLibrary', () => {
     const adapter = () => new RadarrAdapter(keyed, serving({ '/api/v3/movie': MOVIES }));
 
@@ -107,6 +119,49 @@ describe('Radarr.listLibrary', () => {
     it('keeps only rating sources the merged type names', async () => {
         const [item] = await adapter().listLibrary();
         expect(item?.ratings).toEqual({ imdb: 8.8, rottenTomatoes: 96 });
+    });
+});
+
+describe('Radarr library cache', () => {
+    it('serves a repeated library search from one upstream read', async () => {
+        const { fetchImpl, fetches } = countingFetch('/api/v3/movie', MOVIES);
+        const radarr = new RadarrAdapter(keyed, fetchImpl);
+
+        await radarr.search('some', 'library');
+        await radarr.search('film', 'library');
+
+        expect(fetches()).toBe(1);
+    });
+
+    it('shares that read with listLibrary', async () => {
+        const { fetchImpl, fetches } = countingFetch('/api/v3/movie', MOVIES);
+        const radarr = new RadarrAdapter(keyed, fetchImpl);
+
+        await radarr.listLibrary();
+        await radarr.search('some', 'library');
+
+        expect(fetches()).toBe(1);
+    });
+
+    it('reads upstream again after the cache is invalidated', async () => {
+        const { fetchImpl, fetches } = countingFetch('/api/v3/movie', MOVIES);
+        const radarr = new RadarrAdapter(keyed, fetchImpl);
+
+        await radarr.listLibrary();
+        radarr.invalidateLibrary?.();
+        await radarr.listLibrary();
+
+        expect(fetches()).toBe(2);
+    });
+
+    it('does not cache a discover lookup', async () => {
+        const { fetchImpl, fetches } = countingFetch('/api/v3/movie/lookup', MOVIES);
+        const radarr = new RadarrAdapter(keyed, fetchImpl);
+
+        await radarr.search('some', 'discover');
+        await radarr.search('some', 'discover');
+
+        expect(fetches()).toBe(2);
     });
 });
 
@@ -184,6 +239,49 @@ describe('Sonarr.listLibrary', () => {
         const bare = new SonarrAdapter(keyed, serving({ '/api/v3/series': [{ id: 7, title: 'Bare', tvdbId: 1 }] }));
         const [item] = await bare.listLibrary();
         expect(item).not.toHaveProperty('seasons');
+    });
+});
+
+describe('Sonarr library cache', () => {
+    it('serves a repeated library search from one upstream read', async () => {
+        const { fetchImpl, fetches } = countingFetch('/api/v3/series', SERIES);
+        const sonarr = new SonarrAdapter(keyed, fetchImpl);
+
+        await sonarr.search('some', 'library');
+        await sonarr.search('show', 'library');
+
+        expect(fetches()).toBe(1);
+    });
+
+    it('shares that read with listLibrary', async () => {
+        const { fetchImpl, fetches } = countingFetch('/api/v3/series', SERIES);
+        const sonarr = new SonarrAdapter(keyed, fetchImpl);
+
+        await sonarr.listLibrary();
+        await sonarr.search('some', 'library');
+
+        expect(fetches()).toBe(1);
+    });
+
+    it('reads upstream again after the cache is invalidated', async () => {
+        const { fetchImpl, fetches } = countingFetch('/api/v3/series', SERIES);
+        const sonarr = new SonarrAdapter(keyed, fetchImpl);
+
+        await sonarr.listLibrary();
+        sonarr.invalidateLibrary?.();
+        await sonarr.listLibrary();
+
+        expect(fetches()).toBe(2);
+    });
+
+    it('does not cache a discover lookup', async () => {
+        const { fetchImpl, fetches } = countingFetch('/api/v3/series/lookup', SERIES);
+        const sonarr = new SonarrAdapter(keyed, fetchImpl);
+
+        await sonarr.search('some', 'discover');
+        await sonarr.search('some', 'discover');
+
+        expect(fetches()).toBe(2);
     });
 });
 

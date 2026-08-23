@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { TtlCache } from '../src/core/cache.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
+import { RadarrAdapter } from '../src/services/radarr.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import type { ServiceAdapter, ServiceUser } from '../src/services/types.ts';
 
@@ -79,6 +81,36 @@ describe('LibraryLoader', () => {
         await loader.load();
 
         expect(listLibrary).toHaveBeenCalledTimes(1);
+    });
+
+    // A real adapter, not a stub: `invalidate` clearing only the join cache
+    // would pass this with a spy on `invalidateLibrary`, but a stale reply
+    // sitting under the adapter's own cache would leak straight past the
+    // join being cleared. Counting the actual upstream reads is what proves
+    // the adapter cache was cleared too, not just called.
+    it('reads upstream again after invalidate, not just past the join cache', async () => {
+        const radarrConfig: KeyedServiceConfig = {
+            url: 'http://192.0.2.10:7878',
+            api_key: 'k',
+            timeout_ms: 10_000,
+            permissions: { safe_write: false, destructive: false }
+        };
+        let fetches = 0;
+        const fetchImpl = (async () => {
+            fetches += 1;
+            return new Response(JSON.stringify([{ id: 1, title: 'Some Film', year: 2026, tmdbId: 550 }]), {
+                status: 200,
+                headers: { 'content-type': 'application/json' }
+            });
+        }) as unknown as typeof fetch;
+
+        const loader = new LibraryLoader([new RadarrAdapter(radarrConfig, fetchImpl)], undefined);
+
+        await loader.load();
+        loader.invalidate();
+        await loader.load();
+
+        expect(fetches).toBe(2);
     });
 
     it('caches per Jellyfin user, so one household member cannot see another', async () => {

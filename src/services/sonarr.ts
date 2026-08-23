@@ -1,6 +1,7 @@
 import { instanceId } from '../config/instances.ts';
 import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
@@ -124,6 +125,11 @@ export class SonarrAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
+
+    /** The whole-library read, shared by `search(_, 'library')` and
+     *  `listLibrary` — both hit `/api/v3/series`. Discarded on config reload
+     *  for free: `buildAdapters` constructs a new adapter. */
+    readonly #libraryCache = new TtlCache();
 
     constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
@@ -340,11 +346,25 @@ export class SonarrAdapter
         };
     }
 
+    /** The `/api/v3/series` read behind both `search(_, 'library')` and
+     *  `listLibrary` — Sonarr has no server-side filter, so both need the
+     *  whole list, and this is where they share one fetch for it. */
+    #allSeries(): Promise<RawSeries[]> {
+        return this.#libraryCache.get('series', LIBRARY_TTL_MS, () => this.#http.get<RawSeries[]>('/api/v3/series'));
+    }
+
+    /** Drop the cached whole-library read, e.g. after a write. */
+    invalidateLibrary(): void {
+        this.#libraryCache.clear();
+    }
+
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 
         if (source === 'library') {
-            const series = await this.#http.get<RawSeries[]>('/api/v3/series');
+            // Sonarr has no library search endpoint, so this filters the whole
+            // list. `#allSeries` caches that read, shared with `listLibrary`.
+            const series = await this.#allSeries();
             return series.filter(s => (s.title ?? '').toLowerCase().includes(term)).map(s => this.#toHit(s, 'library'));
         }
 
@@ -402,8 +422,10 @@ export class SonarrAdapter
         return rows.length === 0 ? undefined : rows;
     }
 
+    /** The whole series library in one call, via `#allSeries` — the same read
+     *  `search(_, 'library')` shares. */
     async listLibrary(): Promise<IndexInput[]> {
-        const series = await this.#http.get<RawSeries[]>('/api/v3/series');
+        const series = await this.#allSeries();
 
         return series.map(s => {
             const seasons = this.#seasonsOf(s);
