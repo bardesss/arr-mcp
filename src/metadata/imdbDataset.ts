@@ -65,6 +65,18 @@ const ALSO_STORED = ['video', 'tvSpecial', 'tvShort', 'short'] as const;
  */
 const STORED_KINDS: ReadonlySet<string> = new Set([...Object.values(KIND_TO_IMDB).flat(), ...ALSO_STORED]);
 
+/** Built once, not per call: the ingest loop runs this 810K times, and
+ *  `Object.entries` inside `bucketFor` was allocating on every one of them. */
+const BUCKET_BY_KIND: ReadonlyMap<string, 'movie' | 'series'> = new Map(
+    Object.entries(KIND_TO_IMDB).flatMap(([bucket, kinds]) => kinds.map(kind => [kind, bucket as 'movie' | 'series']))
+);
+
+/** The browse axis. `kind` says what a row *is*; this says where `discover`
+ *  may surface it, and null keeps a stored-but-not-discoverable kind out. */
+function bucketFor(kind: string): ('movie' | 'series') | null {
+    return BUCKET_BY_KIND.get(kind) ?? null;
+}
+
 /**
  * SQLite's compiled-in default variable limit, minus room to spare.
  *
@@ -102,13 +114,18 @@ export type DatasetTitle = {
 export type DatasetStatus = { ingestedAt?: string; titles: number; ratings: number };
 
 /**
- * `WITHOUT ROWID` on both big tables.
+ * `WITHOUT ROWID` on `title`.
  *
- * Each keys on `tconst` and nothing else, so the default layout stored every
- * id twice — once in the rowid btree holding the row, and again in the
- * implicit unique index enforcing the primary key. `WITHOUT ROWID` puts the
- * row in the key's own btree and drops the second copy. The rows here are
- * small and the key is most of them, which is exactly the shape it is for.
+ * It keys on `tconst` and nothing else, so the default layout stored every id
+ * twice — once in the rowid btree holding the row, and again in the implicit
+ * unique index enforcing the primary key. `WITHOUT ROWID` puts the row in the
+ * key's own btree and drops the second copy.
+ *
+ * `rating` and `votes` live here rather than in a table of their own because
+ * `replaceAll` forces both to hold the same id set anyway, so a second table
+ * was a duplicate — and because a rating in a joined table cannot be indexed
+ * together with the browse filter, which is what made `discover` sort its
+ * whole candidate set on every call.
  *
  * `meta` holds two rows and is left alone; the pragma would be noise.
  */
@@ -116,21 +133,19 @@ const SCHEMA = `
 CREATE TABLE IF NOT EXISTS title (
     tconst  TEXT PRIMARY KEY,
     kind    TEXT    NOT NULL,
+    bucket  TEXT,
     title   TEXT    NOT NULL,
     year    INTEGER,
     runtime INTEGER,
-    genres  TEXT
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS rating (
-    tconst  TEXT PRIMARY KEY,
-    average REAL    NOT NULL,
+    genres  TEXT,
+    rating  REAL    NOT NULL,
     votes   INTEGER NOT NULL
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS title_kind ON title(kind);
+CREATE INDEX IF NOT EXISTS title_bucket_rating ON title(bucket, rating DESC, year DESC);
 `;
 
 /** The filters `discover` and `countDiscover` both answer to. */
@@ -176,28 +191,33 @@ export class ImdbDataset {
      *
      * - `episode` was written through 1.0 and never read by a single query —
      *   52 MB a day and millions of rows for a table nothing consulted.
-     * - `title` and `rating` predating `WITHOUT ROWID` cannot be changed in
-     *   place: `CREATE TABLE IF NOT EXISTS` is a no-op against a table that
-     *   already exists, so without this an existing `imdb.db` would keep the
-     *   old layout for ever and quietly never get the saving.
+     * - `title` predating `WITHOUT ROWID` or the `bucket` column cannot be
+     *   changed in place: `CREATE TABLE IF NOT EXISTS` is a no-op against a
+     *   table that already exists, so without this an existing `imdb.db`
+     *   would keep the old layout for ever and quietly never get the saving.
+     * - `rating` is superseded outright: its columns live on `title` now.
      */
     #dropSuperseded(): void {
         this.#db.exec('DROP INDEX IF EXISTS episode_parent; DROP TABLE IF EXISTS episode;');
 
-        const legacy = this.#db
+        const stale = this.#db
             .prepare(
                 `SELECT name FROM sqlite_master
-                  WHERE type = 'table' AND name IN ('title', 'rating')
-                    AND sql NOT LIKE '%WITHOUT ROWID%'`
+                  WHERE type = 'table' AND name = 'title'
+                    AND (sql NOT LIKE '%WITHOUT ROWID%' OR sql NOT LIKE '%bucket%')`
             )
             .all() as { name: string }[];
 
-        if (legacy.length === 0) return;
+        // The `rating` table is superseded outright: its columns live on
+        // `title` now, and leaving it would be a stale duplicate nothing reads.
+        this.#db.exec('DROP TABLE IF EXISTS rating; DROP INDEX IF EXISTS title_kind;');
+
+        if (stale.length === 0) return;
 
         // `meta` goes too, and it matters: it holds `ingested_at`, and leaving
         // it would have `status()` report a date for rows that no longer
         // exist — the dashboard claiming a fresh dataset over an empty one.
-        this.#db.exec('DROP TABLE IF EXISTS title; DROP TABLE IF EXISTS rating; DROP TABLE IF EXISTS meta;');
+        this.#db.exec('DROP TABLE IF EXISTS title; DROP TABLE IF EXISTS meta;');
     }
 
     static open(dir: string): ImdbDataset {
@@ -228,10 +248,10 @@ export class ImdbDataset {
         for (let i = 0; i < tconsts.length; i += VARIABLE_LIMIT) {
             const chunk = tconsts.slice(i, i + VARIABLE_LIMIT);
             const rows = this.#db
-                .prepare(`SELECT tconst, average FROM rating WHERE tconst IN (${chunk.map(() => '?').join(',')})`)
-                .all(...chunk) as { tconst: string; average: number }[];
+                .prepare(`SELECT tconst, rating FROM title WHERE tconst IN (${chunk.map(() => '?').join(',')})`)
+                .all(...chunk) as { tconst: string; rating: number }[];
 
-            for (const row of rows) found.set(row.tconst, row.average);
+            for (const row of rows) found.set(row.tconst, row.rating);
         }
 
         return found;
@@ -241,13 +261,16 @@ export class ImdbDataset {
      * The WHERE clause `discover` and `countDiscover` share.
      *
      * Split out so the count cannot drift from the page it counts — two
-     * hand-maintained copies of these four filters is how "3 of 40" ends up
-     * printed above a list of nine.
+     * hand-maintained copies of these filters is how "3 of 40" ends up printed
+     * above a list of nine.
+     *
+     * `bucket = ?` rather than `kind IN (?,?)`: an IN over the index's leading
+     * column stops SQLite walking it in sorted order, which is the whole
+     * reason `title_bucket_rating` exists.
      */
-    #discoverFilter(q: DiscoverQuery): { where: string[]; args: (string | number)[]; joinType: string } {
-        const kinds = KIND_TO_IMDB[q.kind];
-        const where: string[] = [`t.kind IN (${kinds.map(() => '?').join(',')})`];
-        const args: (string | number)[] = [...kinds];
+    #discoverFilter(q: DiscoverQuery): { where: string[]; args: (string | number)[] } {
+        const where: string[] = ['t.bucket = ?'];
+        const args: (string | number)[] = [q.kind];
 
         if (q.genre !== undefined) {
             // Genres ship as one comma-separated string. The commas on both
@@ -260,13 +283,25 @@ export class ImdbDataset {
             args.push(q.year);
         }
         if (q.minRating !== undefined) {
-            where.push('r.average >= ?');
+            where.push('t.rating >= ?');
             args.push(q.minRating);
         }
 
-        // INNER JOIN only when a rating is required: an unrated title cannot
-        // satisfy a minimum, but is a perfectly good answer without one.
-        return { where, args, joinType: q.minRating === undefined ? 'LEFT JOIN' : 'JOIN' };
+        return { where, args };
+    }
+
+    /**
+     * The SELECT `discover` runs and `explainDiscover` plans — one source of
+     * text, so a change to the `ORDER BY` cannot land in one and not the other.
+     * `explainDiscover` existing to catch exactly that kind of silent drift is
+     * pointless if it is checking a hand-duplicated copy of the query.
+     */
+    #discoverSql(where: string[]): string {
+        return `SELECT t.tconst, t.title, t.year, t.runtime, t.genres, t.rating, t.votes
+                   FROM title t
+                  WHERE ${where.join(' AND ')}
+               ORDER BY t.rating DESC, t.year DESC
+                  LIMIT ? OFFSET ?`;
     }
 
     /**
@@ -276,40 +311,28 @@ export class ImdbDataset {
      * moment a caller asks for page two.
      */
     countDiscover(q: DiscoverQuery): number {
-        const { where, args, joinType } = this.#discoverFilter(q);
+        const { where, args } = this.#discoverFilter(q);
         const row = this.#db
-            .prepare(
-                `SELECT COUNT(*) AS n
-                   FROM title t ${joinType} rating r ON r.tconst = t.tconst
-                  WHERE ${where.join(' AND ')}`
-            )
+            .prepare(`SELECT COUNT(*) AS n FROM title t WHERE ${where.join(' AND ')}`)
             .get(...args) as { n: number };
         return row.n;
     }
 
     discover(q: DiscoverQuery & { limit: number; offset?: number | undefined }): DatasetTitle[] {
-        const { where, args, joinType } = this.#discoverFilter(q);
+        const { where, args } = this.#discoverFilter(q);
         // OFFSET in SQL, not a slice of the rows this returns: the limit is
         // applied here, so slicing afterwards only ever cut into page one and
         // every page after the first came back empty.
         args.push(q.limit, q.offset ?? 0);
 
-        const rows = this.#db
-            .prepare(
-                `SELECT t.tconst, t.title, t.year, t.runtime, t.genres, r.average, r.votes
-                   FROM title t ${joinType} rating r ON r.tconst = t.tconst
-                  WHERE ${where.join(' AND ')}
-               ORDER BY CASE WHEN r.average IS NULL THEN 1 ELSE 0 END, r.average DESC, t.year DESC
-                  LIMIT ? OFFSET ?`
-            )
-            .all(...args) as {
+        const rows = this.#db.prepare(this.#discoverSql(where)).all(...args) as {
             tconst: string;
             title: string;
             year: number | null;
             runtime: number | null;
             genres: string | null;
-            average: number | null;
-            votes: number | null;
+            rating: number;
+            votes: number;
         }[];
 
         return rows.map(row => ({
@@ -318,25 +341,46 @@ export class ImdbDataset {
             ...(row.year === null ? {} : { year: row.year }),
             ...(row.runtime === null ? {} : { runtime: row.runtime }),
             genres: row.genres === null || row.genres === '' ? [] : row.genres.split(','),
-            ...(row.average === null ? {} : { rating: row.average }),
-            ...(row.votes === null ? {} : { votes: row.votes })
+            rating: row.rating,
+            votes: row.votes
         }));
     }
 
     /** What the dashboard needs to say whether this is working. */
     status(): DatasetStatus {
-        const count = (table: string): number =>
-            (this.#db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
-
         const at = this.#db.prepare('SELECT value FROM meta WHERE key = ?').get('ingested_at') as
             | { value: string }
             | undefined;
 
+        const titles = (this.#db.prepare('SELECT COUNT(*) AS n FROM title').get() as { n: number }).n;
+
         return {
             ...(at === undefined ? {} : { ingestedAt: at.value }),
-            titles: count('title'),
-            ratings: count('rating')
+            titles,
+            // Every stored title is rated, so these are the same number. Kept
+            // as a separate field because the dashboard renders both and the
+            // shape is public.
+            ratings: titles
         };
+    }
+
+    /** For tests: the storage invariants no public method exposes. */
+    debugRows(): { tconst: string; kind: string; bucket: string | null }[] {
+        return this.#db.prepare('SELECT tconst, kind, bucket FROM title ORDER BY tconst').all() as {
+            tconst: string;
+            kind: string;
+            bucket: string | null;
+        }[];
+    }
+
+    /** For tests: the query plan for a discover, so a change that gives the
+     *  index back fails loudly rather than quietly costing 180ms a call. */
+    explainDiscover(q: DiscoverQuery): string[] {
+        const { where, args } = this.#discoverFilter(q);
+        const rows = this.#db
+            .prepare(`EXPLAIN QUERY PLAN ${this.#discoverSql(where)}`)
+            .all(...args, 20, 0) as { detail: string }[];
+        return rows.map(r => r.detail);
     }
 
     /**
@@ -355,39 +399,46 @@ export class ImdbDataset {
      */
     replaceAll(rows: { titles: Iterable<RawTitle>; ratings: Iterable<RawRating> }): void {
         const insertTitle = this.#db.prepare(
-            'INSERT OR REPLACE INTO title (tconst, kind, title, year, runtime, genres) VALUES (?, ?, ?, ?, ?, ?)'
-        );
-        const insertRating = this.#db.prepare(
-            'INSERT OR REPLACE INTO rating (tconst, average, votes) VALUES (?, ?, ?)'
+            `INSERT OR REPLACE INTO title (tconst, kind, bucket, title, year, runtime, genres, rating, votes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
         const setMeta = this.#db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)');
 
         this.#db.transaction(() => {
-            this.#db.exec('DELETE FROM title; DELETE FROM rating;');
+            this.#db.exec('DELETE FROM title;');
 
-            for (const r of rows.ratings) insertRating.run(r.tconst, r.average, r.votes);
+            // Ratings first and held in memory, because a title row cannot be
+            // written without one. `rating` arrives unfiltered — a row for
+            // every episode, video game and short IMDb has ever rated — so
+            // this is the larger of the two inputs and the one worth being
+            // careful about. Every rated id, not just the ones a title
+            // claims — the titles have not been read yet. Only the average
+            // and vote count are kept, not the whole row.
+            const ratings = new Map<string, { average: number; votes: number }>();
+            for (const r of rows.ratings) ratings.set(r.tconst, { average: r.average, votes: r.votes });
 
             for (const t of rows.titles) {
                 if (!STORED_KINDS.has(t.kind)) continue;
-                insertTitle.run(t.tconst, t.kind, t.title, t.year ?? null, t.runtime ?? null, t.genres ?? null);
+                // An unrated title is one nothing here can do anything with:
+                // every rating lookup misses it and `discover` orders by
+                // rating. Skipped on the way in rather than deleted afterwards,
+                // which is what the two mutual `DELETE ... NOT IN` passes used
+                // to do.
+                const rated = ratings.get(t.tconst);
+                if (rated === undefined) continue;
+
+                insertTitle.run(
+                    t.tconst,
+                    t.kind,
+                    bucketFor(t.kind),
+                    t.title,
+                    t.year ?? null,
+                    t.runtime ?? null,
+                    t.genres ?? null,
+                    rated.average,
+                    rated.votes
+                );
             }
-
-            // An unrated title is one nothing here can do anything with: every
-            // rating lookup misses it, and `discover` only surfaces it when no
-            // minimum was asked for. Deleted in SQL against the index rather
-            // than checked per row, which would mean holding 1.7M ids in heap —
-            // the mistake that crashed the first real ingest.
-            this.#db.exec('DELETE FROM title WHERE tconst NOT IN (SELECT tconst FROM rating)');
-
-            // And the mirror image, which is the larger half: `rating` arrives
-            // unfiltered, so it carried a row for every episode, video game and
-            // short IMDb has ever rated — 1.7M rows against 546K titles. After
-            // this the two tables hold the same set of ids.
-            //
-            // Safe only because `ALSO_STORED` widened what a title *is*: these
-            // orphans were what kept a direct-to-video film rated back when
-            // `ratingsFor` could reach a rating whose title was never stored.
-            this.#db.exec('DELETE FROM rating WHERE tconst NOT IN (SELECT tconst FROM title)');
 
             setMeta.run('ingested_at', new Date().toISOString());
         })();
