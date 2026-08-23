@@ -749,6 +749,37 @@ export interface UserSeasonsCapable {
 export const hasUserSeasons = (a: ServiceAdapter): a is ServiceAdapter & UserSeasonsCapable =>
     typeof (a as Partial<UserSeasonsCapable>).listUserSeasons === 'function';
 
+/** One thing whose watch state can be set, named well enough to appear in a
+ *  preview. `title` is fenced. */
+export type WatchTarget = {
+    id: string;
+    title: string;
+    kind: 'movie' | 'series' | 'episode' | 'item';
+    watched: boolean;
+    season?: number;
+    episode?: number;
+};
+
+/**
+ * Marking things watched and unwatched, per user.
+ *
+ * The ids are Jellyfin's own item ids, which deliberately never enter the
+ * library index (`listUserLibrary` carries external ids only). So a target can
+ * only have come from `get_playback` or a Jellyfin search hit, and an id from
+ * anywhere else has to be refused legibly rather than 404'd.
+ */
+export interface WatchStateCapable {
+    /** Refuses an id that is not shaped like a Jellyfin item id, before any
+     *  network call. */
+    readWatchTarget(user: ServiceUser, itemId: string): Promise<WatchTarget>;
+    /** Episodes of one series, optionally one season. */
+    listEpisodeItems(user: ServiceUser, seriesItemId: string, season?: number): Promise<WatchTarget[]>;
+    setWatched(user: ServiceUser, itemId: string, watched: boolean): Promise<void>;
+}
+
+export const hasWatchState = (a: ServiceAdapter): a is ServiceAdapter & WatchStateCapable =>
+    typeof (a as Partial<WatchStateCapable>).setWatched === 'function';
+
 export interface DiscoverCapable {
     discover(opts: {
         mediaType: 'movie' | 'tv';

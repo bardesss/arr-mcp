@@ -36,6 +36,7 @@ import { registerRemoveQueueItem } from './removeQueueItem.ts';
 import { registerRequestMedia } from './requestMedia.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerSetMonitoring } from './setMonitoring.ts';
+import { registerSetWatched } from './setWatched.ts';
 import { registerStackHealth } from './stackHealth.ts';
 import { registerTriggerScan } from './triggerScan.ts';
 import { registerTriggerSubtitleSearch } from './triggerSubtitleSearch.ts';
@@ -170,6 +171,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGrabRelease(server, write, adapters);
     registerRequestMedia(server, write, adapters, seerrIdentity);
     registerPauseDownloads(server, write, adapters);
+    registerSetWatched(server, write, adapters, jellyfinIdentity);
 }
 
 /**
@@ -209,5 +211,6 @@ export const TOOL_NAMES = [
     'add_media',
     'grab_release',
     'request_media',
-    'pause_downloads'
+    'pause_downloads',
+    'set_watched'
 ] as const;

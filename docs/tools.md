@@ -396,6 +396,31 @@ requesting as anyone but `default_user` needs
 `respond_to_request` apply. Without it, one household member's assistant
 could spend another's quota.
 
+## `set_watched`
+
+The write half of `get_playback`. Marks a film, series, season or episode
+watched or unwatched in Jellyfin.
+
+`item_id` is a **Jellyfin** item id, and that constraint is deliberate rather
+than incidental. Jellyfin's own ids never enter the library index —
+`listUserLibrary` carries TMDB, TVDB and IMDb ids only — so an id here can
+only have come from the `itemId` `get_playback` reports or from a jellyfin
+hit in `search_media`. A Radarr or Sonarr id is a small integer and is
+refused before any network call, rather than becoming a 404 that names
+nothing.
+
+A series id with `season` marks that season. The preview reports the **number
+of episodes**, not just the season number: "marks season 2 watched" is not
+something anyone can weigh. It counts only the episodes that would actually
+change, so re-running it on a mostly-watched season says so.
+
+Safe tier, with one caveat stated in every preview: unmarking and re-marking
+restores the watched flag but **not** the original play date or resume
+position. That history is not recoverable.
+
+`user` names whose watch state changes; anyone but `default_user` needs
+`services.jellyfin.allow_other_users`.
+
 ## `pause_downloads`
 
 The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
