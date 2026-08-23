@@ -303,6 +303,22 @@ export interface ReleaseSearchCapable {
 export const hasReleaseSearch = (a: ServiceAdapter): a is ServiceAdapter & ReleaseSearchCapable =>
     typeof (a as Partial<ReleaseSearchCapable>).findReleases === 'function';
 
+/**
+ * Taking one specific release from that list.
+ *
+ * Separate from `ReleaseSearchCapable` because it is a write: the two always
+ * arrive together on the *arrs, but a service that could only list releases
+ * would still be a legitimate implementation of the read half.
+ */
+export interface ReleaseGrabCapable {
+    /** `guid` and `indexerId` come from a `ReleaseCandidate` verbatim; nothing
+     *  else identifies a release. */
+    grabRelease(opts: { guid: string; indexerId: number }): Promise<void>;
+}
+
+export const hasReleaseGrab = (a: ServiceAdapter): a is ServiceAdapter & ReleaseGrabCapable =>
+    typeof (a as Partial<ReleaseGrabCapable>).grabRelease === 'function';
+
 export type CalendarEntry = {
     service: string;
     kind: 'movie' | 'episode';

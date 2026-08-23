@@ -35,6 +35,7 @@ re-monitor it.
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
 | `set_monitoring` | safe | `safe_write` |
+| `grab_release` | safe | `safe_write` |
 | `remove_queue_item` | destructive | `destructive` |
 | `clean_queue` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |

@@ -342,6 +342,33 @@ default every other call uses, specifically so a real search has room to
 finish rather than being cut off. A long wait here is not a hang; retrying
 it starts a second full indexer sweep.
 
+## `grab_release`
+
+The write half of `get_releases`. Takes `guid` and `indexer_id` from a
+`get_releases` row verbatim and tells Radarr or Sonarr to grab that one
+release — "not that one, the 1080p remux".
+
+Safe tier, not destructive: a grab starts a download, and a download comes
+back off with `remove_queue_item`. Nothing on disk is lost.
+
+Previewing is slow, and deliberately so. The preview re-runs the interactive
+search before it will issue a token, which polls every indexer again and can
+take tens of seconds. It buys two things. Indexer results expire, and a bare
+grab of an expired guid answers a 404 that is indistinguishable from a wrong
+base path — the re-search turns that into *"that release is no longer on
+offer, call get_releases again"*. And it puts the release's real name in the
+preview: "grab release abc" is not something a person can approve.
+
+The confirmation token binds to **both** `guid` and `indexer_id`. That pair
+is what identifies a release, and the candidate list is written by indexers,
+so a search running between the preview and the confirmation must not be able
+to swap which release the confirmation applies to. A token issued for one
+guid is refused for another, and the same for the indexer.
+
+A release Radarr or Sonarr rejected on its own criteria can still be grabbed
+— that is most of what this tool is for — but the preview says which
+rejections are being overridden before you confirm.
+
 ## `discover_media`
 
 `similar_to` takes a TMDB numeric id and answers from Seerr's

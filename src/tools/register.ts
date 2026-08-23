@@ -27,6 +27,7 @@ import { registerGetReleases } from './getReleases.ts';
 import { registerGetRequests } from './getRequests.ts';
 import { registerGetSubtitles } from './getSubtitles.ts';
 import { registerGetWanted } from './getWanted.ts';
+import { registerGrabRelease } from './grabRelease.ts';
 import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
@@ -164,6 +165,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerRespondToRequest(server, write, adapters, seerrIdentity);
     registerDeleteRequest(server, write, adapters, seerrIdentity);
     registerAddMedia(server, write, adapters);
+    registerGrabRelease(server, write, adapters);
 }
 
 /**
@@ -200,5 +202,6 @@ export const TOOL_NAMES = [
     'set_monitoring',
     'respond_to_request',
     'delete_request',
-    'add_media'
+    'add_media',
+    'grab_release'
 ] as const;
