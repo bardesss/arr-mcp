@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.8](https://github.com/bardesss/arr-mcp/compare/v1.15.7...v1.15.8) (2026-08-23)
+
+
+### Performance Improvements
+
+* six internals fixes — library caching, arr consolidation, type-aware lint ([#172](https://github.com/bardesss/arr-mcp/issues/172)) ([66cf9d6](https://github.com/bardesss/arr-mcp/commit/66cf9d6faf6f7305eb78a8671c0ff0039188fc40))
+
 ## [1.15.7](https://github.com/bardesss/arr-mcp/compare/v1.15.6...v1.15.7) (2026-08-23)
 
 
