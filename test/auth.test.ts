@@ -143,6 +143,19 @@ describe('qbittorrentSession', () => {
         await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/bans a client/i);
     });
 
+    // A banned client sees this 403 on every login attempt for the ban's
+    // duration, so leaving its body unread pins one connection per attempt.
+    it('reads the login response body even when the login itself is refused', async () => {
+        let loginResponse: Response | undefined;
+        const impl = (async () => {
+            loginResponse = new Response('', { status: 403 });
+            return loginResponse;
+        }) as unknown as typeof fetch;
+
+        await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/bans a client/i);
+        expect(loginResponse?.bodyUsed).toBe(true);
+    });
+
     it('does not attempt a login when no credentials are configured', async () => {
         let called = false;
         const impl = (async () => {
