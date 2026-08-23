@@ -1,19 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { WriteAudit, type AuditRecord } from '../src/core/audit.ts';
 
-type Row = {
-    tool: string;
-    service: string;
-    operation: string;
-    tier: string;
-    target: string;
-    args: string;
-    outcome: string;
-    detail: string | null;
-    settled_at: string | null;
-    at: string;
-};
-
 const record = (over: Partial<AuditRecord> = {}): AuditRecord => ({
     tool: 'delete_media',
     service: 'radarr',
@@ -37,7 +24,7 @@ describe('write audit', () => {
         const trail = open();
         trail.begin(record());
 
-        const [row] = trail.recent() as Row[];
+        const [row] = trail.recent();
         expect(row?.outcome).toBe('attempted');
         expect(row?.tool).toBe('delete_media');
         expect(row?.target).toBe('5');
@@ -48,7 +35,7 @@ describe('write audit', () => {
         const id = trail.begin(record());
         trail.settle(id, 'applied');
 
-        const [row] = trail.recent() as Row[];
+        const [row] = trail.recent();
         expect(row?.outcome).toBe('applied');
         expect(row?.settled_at).not.toBeNull();
     });
@@ -58,7 +45,7 @@ describe('write audit', () => {
     it('leaves a row reading attempted when nothing settles it', () => {
         const trail = open();
         trail.begin(record());
-        const [row] = trail.recent() as Row[];
+        const [row] = trail.recent();
         expect(row?.outcome).toBe('attempted');
         expect(row?.settled_at).toBeNull();
     });
@@ -73,7 +60,7 @@ describe('write audit', () => {
     it('carries the failure detail so the trail says why', () => {
         const trail = open();
         trail.settle(trail.begin(record()), 'failed', 'radarr upstream error: HTTP 500');
-        const [row] = trail.recent() as Row[];
+        const [row] = trail.recent();
         expect(row?.detail).toContain('HTTP 500');
     });
 
@@ -82,7 +69,7 @@ describe('write audit', () => {
         trail.settle(trail.begin(record()), 'denied', 'destructive writes are disabled for radarr');
         trail.settle(trail.begin(record({ target: '6' })), 'dry_run');
 
-        const outcomes = (trail.recent() as Row[]).map(r => r.outcome);
+        const outcomes = trail.recent().map(r => r.outcome);
         expect(outcomes).toEqual(['dry_run', 'denied']);
     });
 
@@ -90,7 +77,7 @@ describe('write audit', () => {
         const trail = open();
         trail.begin(record({ target: 'first' }));
         trail.begin(record({ target: 'second' }));
-        expect((trail.recent() as Row[])[0]?.target).toBe('second');
+        expect(trail.recent()[0]?.target).toBe('second');
     });
 
     it('honours the limit', () => {
@@ -102,7 +89,7 @@ describe('write audit', () => {
     it('stores the arguments as JSON so the trail says what was asked for', () => {
         const trail = open();
         trail.begin(record({ args: { deleteFiles: true, addImportExclusion: false } }));
-        const [row] = trail.recent() as Row[];
+        const [row] = trail.recent();
         expect(JSON.parse(row?.args ?? '{}')).toEqual({ deleteFiles: true, addImportExclusion: false });
     });
 
@@ -112,7 +99,7 @@ describe('write audit', () => {
         const trail = open();
         trail.begin(record({ args: { api_key: 'sk-secret', password: 'hunter2', deleteFiles: true } }));
 
-        const [row] = trail.recent() as Row[];
+        const [row] = trail.recent();
         const args = JSON.parse(row?.args ?? '{}') as Record<string, unknown>;
         expect(args.api_key).toBe('__REDACTED__');
         expect(args.password).toBe('__REDACTED__');
@@ -131,7 +118,7 @@ describe('argument redaction', () => {
         const trail = open();
         trail.begin(record({ args: { options: { api_key: 'supersecret' } } }));
 
-        const [row] = trail.recent() as Row[];
+        const [row] = trail.recent();
         expect(row?.args).not.toContain('supersecret');
         expect(row?.args).toContain('__REDACTED__');
     });
@@ -140,21 +127,21 @@ describe('argument redaction', () => {
         const trail = open();
         trail.begin(record({ args: { items: [{ token: 'supersecret' }] } }));
 
-        expect((trail.recent() as Row[])[0]?.args).not.toContain('supersecret');
+        expect(trail.recent()[0]?.args).not.toContain('supersecret');
     });
 
     it('still redacts a secret at the top level', () => {
         const trail = open();
         trail.begin(record({ args: { api_key: 'supersecret' } }));
 
-        expect((trail.recent() as Row[])[0]?.args).not.toContain('supersecret');
+        expect(trail.recent()[0]?.args).not.toContain('supersecret');
     });
 
     it('leaves non-secret nested values intact', () => {
         const trail = open();
         trail.begin(record({ args: { options: { quality: 'HD-1080p' } } }));
 
-        expect((trail.recent() as Row[])[0]?.args).toContain('HD-1080p');
+        expect(trail.recent()[0]?.args).toContain('HD-1080p');
     });
 });
 

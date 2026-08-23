@@ -57,7 +57,7 @@ services:
 Requests are sent to `…/bazarr/api/…`. Give the URL exactly as you would type it
 in a browser; a trailing slash makes no difference.
 
-## Jellyfin needs a `default_user`
+## Jellyfin and `default_user`
 
 `get_library`, `get_media_details` (its title-query form) and `diagnose` all
 join Radarr/Sonarr against Jellyfin's per-user watch state. A user that does

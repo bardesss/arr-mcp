@@ -128,7 +128,7 @@ const checkbox = (id: string, name: string, label: string, checked: boolean): Sa
 function defaultUserNote(type: string, users: readonly string[] | undefined): string {
     const purpose =
         type === 'jellyfin'
-            ? 'Required if Jellyfin is configured — get_library, get_media_details and diagnose all need it.'
+            ? 'Optional. Without it, get_library returns the Radarr and Sonarr halves with Jellyfin marked degraded.'
             : 'Optional.';
 
     if (users === undefined) {

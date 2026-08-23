@@ -125,11 +125,10 @@ export class LibraryLoader {
      *
      * - `AuthFailed` — the named user was refused. Propagates: a model must
      *   not retry a refusal.
-     * - `NotFound` with a name propagates too — the caller asked about a
-     *   specific person and must not quietly get an answer about nobody.
-     *   With no name and none configured, it degrades instead
-     *   (`unconfigured: true`), so the caller learns the remedy names a
-     *   config key rather than an outage.
+     * - `NotFound` with a name, or with none but a (wrong) `default_user`
+     *   configured, propagates too — both are actionable config errors, not
+     *   outages. Only "no name, no `default_user`" degrades
+     *   (`unconfigured: true`), so the remedy names the missing key.
      * - Everything else degrades: a reachability problem, not a config one.
      */
     async #resolveUser(
@@ -141,7 +140,7 @@ export class LibraryLoader {
         } catch (err) {
             if (err instanceof ServiceError && err.kind === 'AuthFailed') throw err;
             if (err instanceof ServiceError && err.kind === 'NotFound') {
-                if (requested !== undefined) throw err;
+                if (requested !== undefined || this.#identity.hasDefaultUser) throw err;
                 return { user: undefined, unconfigured: true };
             }
             logger.warn(

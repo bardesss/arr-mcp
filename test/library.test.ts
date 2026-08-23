@@ -40,7 +40,7 @@ const radarr = (items = [film(550)]) => stub('radarr', { listLibrary: async () =
 const jellyfin = (byUser: Record<string, IndexInput[]>) =>
     stub('jellyfin', { listUserLibrary: async (u: ServiceUser) => byUser[u.name] ?? [] });
 
-const identity = (user: ServiceUser | Error): IdentityResolver =>
+const identity = (user: ServiceUser | Error, hasDefaultUser = true): IdentityResolver =>
     ({
         resolve: async (requested?: string) => {
             if (user instanceof Error) throw user;
@@ -48,7 +48,8 @@ const identity = (user: ServiceUser | Error): IdentityResolver =>
                 throw new ServiceError('AuthFailed', 'jellyfin', `not permitted to query as "${requested}"`);
             }
             return user;
-        }
+        },
+        hasDefaultUser
     }) as unknown as IdentityResolver;
 
 const someone = { id: 'u1', name: 'Someone' };
@@ -220,7 +221,8 @@ describe('LibraryLoader', () => {
         const noDefault = identity(
             new ServiceError('NotFound', 'jellyfin', 'no user was named and none is configured', {
                 remedy: 'Set services.jellyfin.default_user in config.yaml, or pass a user explicitly.'
-            })
+            }),
+            false
         );
         const loader = new LibraryLoader([radarr(), jellyfin({})], noDefault);
 
@@ -233,23 +235,19 @@ describe('LibraryLoader', () => {
         expect(snapshot.note).toContain('default_user');
     });
 
-    it('degrades the same way when a configured default_user does not match any real Jellyfin user', async () => {
+    it('propagates when a configured default_user does not match any real Jellyfin user', async () => {
         // A different NotFound path through IdentityResolver.resolve (not
         // #authorize): `default_user` is configured, but is a typo or a
         // deleted account, so the directory lookup itself comes up empty.
         // `requested` (the argument to #resolveUser) is still undefined here
-        // — nobody named anyone, the *default* was used internally —
-        // and #resolveUser cannot tell this apart from nothing being
-        // configured at all, so it degrades the same way rather than
-        // propagating.
-        const badDefault = identity(new ServiceError('NotFound', 'jellyfin', 'no user named "Bartsu"'));
+        // — nobody named anyone, the *default* was used internally — but a
+        // *wrong* default_user is a config error, not the "nothing
+        // configured" case the spec blesses for degrading, so this must
+        // still throw the actionable error naming the bad value.
+        const badDefault = identity(new ServiceError('NotFound', 'jellyfin', 'no user named "Bartsu"'), true);
         const loader = new LibraryLoader([radarr(), jellyfin({})], badDefault);
 
-        const snapshot = await loader.load();
-
-        expect(snapshot.index.size()).toBeGreaterThan(0);
-        expect(snapshot.degraded).toContain('jellyfin');
-        expect(snapshot.note).toContain('default_user');
+        await expect(loader.load()).rejects.toThrow(/no user named "Bartsu"/);
     });
 
     it('still propagates AuthFailed rather than degrading — a refusal is not a configuration gap', async () => {

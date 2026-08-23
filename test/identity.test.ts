@@ -69,6 +69,14 @@ describe('IdentityResolver', () => {
         expect((await r.resolve('Bartus')).name).toBe('Bartus');
     });
 
+    it('reports hasDefaultUser from configuration alone, before any resolve call', () => {
+        const { adapter } = directory();
+        expect(new IdentityResolver(adapter, { default_user: 'Bartus', allow_other_users: false }).hasDefaultUser).toBe(
+            true
+        );
+        expect(new IdentityResolver(adapter, { allow_other_users: false }).hasDefaultUser).toBe(false);
+    });
+
     it('names the config key when no default user is configured and none was asked for', async () => {
         const { adapter, listUsers } = directory();
         const r = new IdentityResolver(adapter, { allow_other_users: false });

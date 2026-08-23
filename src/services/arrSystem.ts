@@ -25,7 +25,7 @@ export async function arrVersion(http: ServiceHttp, id: string): Promise<string>
 
 export async function arrDiskSpace(http: ServiceHttp, id: string): Promise<DiskSpace[]> {
     const rows = await http.get<RawDiskSpace[]>('/api/v3/diskspace');
-    // The generated types mark these nullable, not merely optional — the spec
+    // The vendored spec marks these nullable, not merely optional — the spec
     // really does allow nulls. Narrowing on the value rather than on
     // `!== undefined` is what keeps a null out of a `string` field.
     return rows.map(r => ({
