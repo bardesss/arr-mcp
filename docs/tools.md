@@ -203,22 +203,36 @@ state and `presence` are unaffected.
 
 ## `get_playback`
 
-What can be continued comes from `/Users/{id}/Items/Resume`, Jellyfin's own
-answer to the question. `/Items?IsResumable=true` looks like the right query,
-but Jellyfin 10.11 silently ignores it and returns the whole library rather than
-the resumable set.
+`scope` picks which of three Jellyfin reads answers the call, and defaults to
+`active` — every existing caller sees the same output it always has.
 
-The call sends an explicit `Limit=500`, so truncation is decided by `limit`
-(default 50, like every other tool) and reported honestly through `truncated`,
-rather than by however many rows an undocumented server page size happens to
-hand back.
-
-Each entry carries `percentComplete`, `positionSeconds` and `runtimeSeconds`.
+`scope: "active"` (the default): what can be continued comes from
+`/Users/{id}/Items/Resume`, Jellyfin's own answer to the question.
+`/Items?IsResumable=true` looks like the right query, but Jellyfin 10.11
+silently ignores it and returns the whole library rather than the resumable
+set. Each entry carries `percentComplete`, `positionSeconds` and
+`runtimeSeconds`.
 
 To find films you are partway through: keep only `kind: "resume"`, keep entries
 with no `seriesTitle`, `season` or `episode` (those three appear only on an
 episode), then compare `percentComplete` yourself — arr-mcp does not filter by
 how far in you are.
+
+`scope: "next_up"`: the next unwatched episode of every series a user has in
+progress, from `/Shows/NextUp` — Jellyfin's own answer to "what should we watch
+tonight," one row per series. `kind: "next_up"`; `title` is the episode, and
+`seriesTitle`, `season` and `episode` say which show and where.
+
+`scope: "history"`: recently watched movies and episodes, newest first, from
+a sort-by-`DatePlayed` read over played items. `kind: "watched"`; `lastPlayed`
+carries the timestamp and survives even at `detail: "standard"`, since it is
+the one field this scope exists to answer.
+
+Every scope sends an explicit `Limit=500` (`next_up` gets whatever Jellyfin
+reports, which does not grow unbounded), so truncation is decided by `limit`
+(default 50, like every other tool) and reported honestly through `truncated`,
+rather than by however many rows an undocumented server page size happens to
+hand back.
 
 ## `get_history`
 

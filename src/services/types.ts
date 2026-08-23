@@ -321,7 +321,7 @@ export const hasCalendar = (a: ServiceAdapter): a is ServiceAdapter & CalendarCa
 
 export type PlaybackEntry = {
     service: string;
-    kind: 'now_playing' | 'resume';
+    kind: 'now_playing' | 'resume' | 'next_up' | 'watched';
     itemId: string;
     title: string;
     seriesTitle?: string;
