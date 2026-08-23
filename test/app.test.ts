@@ -969,6 +969,20 @@ describe('2026-07-28 protocol', () => {
         expect(error?.code).toBe(-32020);
     });
 
+    it('does not claim a list-changed notification it never sends', async () => {
+        // The lists are static by construction. A modern-era client reads
+        // these bits to decide what to request on its subscriptions/listen
+        // filter, so advertising true would have it wait for an event that
+        // does not exist.
+        const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'server/discover' }));
+        const { result } = await rpcPayload(res);
+        const caps = result?.capabilities as Record<string, { listChanged?: boolean }>;
+
+        expect(caps.tools?.listChanged).toBe(false);
+        expect(caps.prompts?.listChanged).toBe(false);
+        expect(caps.resources?.listChanged).toBe(false);
+    });
+
     it('no longer answers ping', async () => {
         // Removed in this revision.
         const res = await app().request('http://localhost:6060/mcp', modernRpc({ method: 'ping' }));
@@ -993,6 +1007,31 @@ describe('2025-era back-compat', () => {
         // codec has no cache code path at all.
         expect(result?.resultType).toBeUndefined();
         expect(result?.ttlMs).toBeUndefined();
+    });
+
+    it('says the same about list-changed on the 2025 path', async () => {
+        // The capability set is era-blind, so turning it off must not have
+        // been a modern-era-only change.
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc(
+                {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'initialize',
+                    params: {
+                        protocolVersion: '2025-06-18',
+                        capabilities: {},
+                        clientInfo: { name: 'old', version: '1' }
+                    }
+                },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
+        );
+        const { result } = await rpcPayload(res);
+        const caps = result?.capabilities as Record<string, { listChanged?: boolean }>;
+
+        expect(caps.tools?.listChanged).toBe(false);
     });
 
     it('still answers initialize', async () => {

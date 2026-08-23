@@ -88,6 +88,24 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
             { name: NAME, version: VERSION },
             {
                 instructions: INSTRUCTIONS,
+                /**
+                 * Declared false rather than left to default true.
+                 *
+                 * `registerTool`/`registerPrompt`/`registerResource` each set
+                 * `listChanged: getCapabilities().<kind>?.listChanged ?? true`,
+                 * so declaring it here is what makes the answer false — and it
+                 * should be. The lists are static by construction (the same
+                 * property `LIST_CACHE_TTL_MS` rests on): nothing changes them,
+                 * not a config reload, not the weekly IMDb refresh. A modern-era
+                 * client reads these bits to decide which notifications to
+                 * request on its `subscriptions/listen` filter, so advertising
+                 * true means subscribing to an event that will never arrive.
+                 */
+                capabilities: {
+                    tools: { listChanged: false },
+                    prompts: { listChanged: false },
+                    resources: { listChanged: false }
+                },
                 // A server option, not a `createMcpHandler` one — the hint
                 // travels from the era-blind server configuration to the
                 // era-aware encode seam, so a 2025-era response is unaffected.
