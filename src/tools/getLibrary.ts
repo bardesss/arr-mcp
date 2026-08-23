@@ -413,7 +413,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
             const result = await buildGetLibrary(loader, {
                 ...rest,
                 ...(watchedBy === undefined ? {} : { watched_by: watchedBy })
-            } as LibraryQuery);
+            });
 
             const coverage =
                 result.ratingCoverage === undefined

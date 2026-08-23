@@ -55,7 +55,7 @@ export class LibraryLoader {
          * TTL rather than once per call. Last and optional, so existing call
          * sites keep compiling.
          */
-        dataset?: ImdbDataset | undefined
+        dataset?: ImdbDataset
     ) {
         this.#adapters = adapters;
         this.#identity = mediaServerIdentity;

@@ -29,8 +29,8 @@ const HOST = 'media-host';
 
 /** Read rather than written down: hardcoded, it photographed 1.7.0 into every
  *  screenshot for three releases after that one. */
-export const VERSION: string = JSON.parse(
-    readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
+export const VERSION: string = (
+    JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }
 ).version;
 
 /**

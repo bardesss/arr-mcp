@@ -61,7 +61,7 @@ export function layout(opts: {
               </form>`;
 
     return `<!doctype html>
-<html lang="en"${theme}>
+<html lang="en"${String(theme)}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -82,8 +82,8 @@ dialog { display: block; position: static; max-width: none; width: auto; margin:
 </style></noscript>
 </head>
 <body>
-<header><h1>${LOGO}arr-mcp <span>${esc(opts.version)}</span></h1>${nav}</header>
-<main>${message}${opts.body}</main>
+<header><h1>${LOGO}arr-mcp <span>${esc(opts.version)}</span></h1>${String(nav)}</header>
+<main>${String(message)}${String(opts.body)}</main>
 <!-- rel="noreferrer" because this page is served over plain http on a LAN and
      the link leaves for github.com: without it the Referer header hands them
      the hostname and port your instance is reachable on. -->

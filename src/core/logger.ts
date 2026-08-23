@@ -61,7 +61,7 @@ export const logger = pino(
             // field. `kind`/`service`/`detail` stay, since those are structured
             // fields the config UI's log streams can filter on and are not
             // themselves duplicated prose.
-            err: err => {
+            err: (err: Error) => {
                 const { remedy: _remedy, ...rest } = pino.stdSerializers.err(err);
                 return rest;
             }

@@ -20,7 +20,7 @@ import type { LibraryLoader } from './library.ts';
 export async function buildGetMediaDetails(
     adapters: readonly ServiceAdapter[],
     opts: { service: ServiceId; instance?: string | undefined; id: string; detail: DetailLevel; limit: number },
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): Promise<MediaDetails> {
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
     if (!hasMediaDetails(adapter)) {
@@ -125,7 +125,7 @@ export async function resolveMediaDetails(
     opts: MediaDetailsQuery,
     /** Only the by-id branch needs this. The by-title branch resolves through
      *  the library index, which `LibraryLoader` has already enriched. */
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): Promise<MediaDetails | MergedItem> {
     // The explicit id wins when both are given: an id is unambiguous and a
     // title is not.
@@ -152,7 +152,7 @@ export function registerGetMediaDetails(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
     loader: LibraryLoader,
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): void {
     server.registerTool(
         'get_media_details',
