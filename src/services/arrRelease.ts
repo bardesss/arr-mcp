@@ -94,3 +94,18 @@ export async function findArrReleases(
             rejections: (r.rejections ?? []).map(reason => fence(reason, 'rejection'))
         }));
 }
+
+/**
+ * Sends one already-listed release to the download client.
+ *
+ * `discardBody`: both services answer a successful grab with the release
+ * echoed back, and nothing here reads it. A guid the indexer no longer serves
+ * answers 404, which is the failure this cannot distinguish from a bad path —
+ * so `grab_release` re-runs the search first and refuses before reaching here.
+ */
+export async function grabArrRelease(
+    http: ServiceHttp,
+    opts: { guid: string; indexerId: number }
+): Promise<void> {
+    await http.post('/api/v3/release', { guid: opts.guid, indexerId: opts.indexerId }, true);
+}

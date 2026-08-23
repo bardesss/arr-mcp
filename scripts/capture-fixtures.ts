@@ -68,6 +68,28 @@ const firstSeriesWithFiles = (body: unknown): number | undefined => {
     return undefined;
 };
 
+/**
+ * The captured series most likely to actually enumerate episodes.
+ *
+ * Deliberately not the *first* series: a Jellyfin `Series` row exists whether
+ * or not any episode of it is present, and `/Shows/{id}/Episodes` for one with
+ * none answers `TotalRecordCount: 0` — a fixture that guards nothing, for the
+ * same reason `test/contract.test.ts` refuses to contract an empty queue.
+ * `UnplayedItemCount` is the only episode count `items-library` already asks
+ * for, so the row with the most unwatched episodes is the one picked.
+ */
+const richestSeriesId = (body: unknown): string | undefined => {
+    type SeriesRow = { Id?: unknown; Type?: unknown; UserData?: { UnplayedItemCount?: unknown } };
+    const items = (body as { Items?: SeriesRow[] }).Items;
+    const unplayed = (row: SeriesRow) =>
+        typeof row.UserData?.UnplayedItemCount === 'number' ? row.UserData.UnplayedItemCount : 0;
+
+    const best = (Array.isArray(items) ? items : [])
+        .filter(i => i.Type === 'Series' && typeof i.Id === 'string')
+        .sort((a, b) => unplayed(b) - unplayed(a))[0];
+    return best?.Id as string | undefined;
+};
+
 type Row = Record<string, unknown>;
 
 /**
@@ -90,6 +112,47 @@ const scrubUrls = (value: string): string => value.replace(/https?:\/\/[^\s"',\]
 /** Keeps a field present and typed, but replaces a string value. */
 const replaceIfString = (value: unknown, replacement: string): unknown =>
     typeof value === 'string' ? replacement : value;
+
+/**
+ * Watch history is the one genuinely personal thing in the fixture set — the
+ * library titles are already public in radarr/movie.json, but who has watched
+ * what is not. Keys and types are preserved, which is all the contract test
+ * reads; the values are synthetic.
+ *
+ * A live 10.11.11 response carries more per-item watch signal than
+ * Played/PlayCount/LastPlayedDate: PlaybackPositionTicks (exact resume point),
+ * PlayedPercentage and UnplayedItemCount (partial series progress) and
+ * IsFavorite are all real behavioural data that the adapter never reads, so
+ * they are neutralised here too rather than left to leak past the three fields
+ * the adapter does.
+ */
+const neutraliseWatchState = (body: unknown): unknown => {
+    const page = body as { Items?: Row[] };
+    if (!Array.isArray(page.Items)) return body;
+    return {
+        ...page,
+        Items: page.Items.map((item, i) => ({
+            ...item,
+            UserData:
+                item.UserData === undefined
+                    ? undefined
+                    : {
+                          ...(item.UserData as Row),
+                          Played: i % 2 === 0,
+                          PlayCount: i % 2 === 0 ? 1 : 0,
+                          LastPlayedDate: undefined,
+                          PlaybackPositionTicks: 0,
+                          IsFavorite: false,
+                          ...('PlayedPercentage' in (item.UserData as Row)
+                              ? { PlayedPercentage: i % 2 === 0 ? 100 : 0 }
+                              : {}),
+                          ...('UnplayedItemCount' in (item.UserData as Row)
+                              ? { UnplayedItemCount: i % 2 === 0 ? 0 : 1 }
+                              : {})
+                      }
+        }))
+    };
+};
 
 function anonymiseIndexer(row: Row, index: number): Row {
     const fields = Array.isArray(row.fields)
@@ -192,6 +255,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'health', path: '/api/v3/health' },
         { name: 'system-task', path: '/api/v3/system/task' },
         { name: 'queue', path: '/api/v3/queue' },
+        { name: 'blocklist', path: '/api/v3/blocklist?page=1&pageSize=10' },
         { name: 'calendar', path: '/api/v3/calendar' },
         { name: 'movie', path: '/api/v3/movie' },
         // The detail endpoint returns the same shape as a list element, so the
@@ -212,6 +276,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'health', path: '/api/v3/health' },
         { name: 'system-task', path: '/api/v3/system/task' },
         { name: 'queue', path: '/api/v3/queue' },
+        { name: 'blocklist', path: '/api/v3/blocklist?page=1&pageSize=10' },
         { name: 'calendar', path: '/api/v3/calendar' },
         { name: 'series', path: '/api/v3/series' },
         {
@@ -300,44 +365,22 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                     : `/Items?userId=${id}&Recursive=true&IncludeItemTypes=Movie,Series` +
                       '&Fields=ProviderIds,Genres&EnableUserData=true&EnableImages=false&Limit=20';
             },
-            // Watch history is the one genuinely personal thing in the fixture
-            // set — the library titles are already public in radarr/movie.json,
-            // but who has watched what is not. Keys and types are preserved,
-            // which is all the contract test reads; the values are synthetic.
-            //
-            // A live 10.11.11 response carries more per-item watch signal than
-            // Played/PlayCount/LastPlayedDate: PlaybackPositionTicks (exact
-            // resume point), PlayedPercentage and UnplayedItemCount (partial
-            // series progress) and IsFavorite are all real behavioural data
-            // that the adapter never reads, so they are neutralised here too
-            // rather than left to leak past the three fields the adapter does.
-            anonymise: body => {
-                const page = body as { Items?: Row[] };
-                if (!Array.isArray(page.Items)) return body;
-                return {
-                    ...page,
-                    Items: page.Items.map((item, i) => ({
-                        ...item,
-                        UserData:
-                            item.UserData === undefined
-                                ? undefined
-                                : {
-                                      ...(item.UserData as Row),
-                                      Played: i % 2 === 0,
-                                      PlayCount: i % 2 === 0 ? 1 : 0,
-                                      LastPlayedDate: undefined,
-                                      PlaybackPositionTicks: 0,
-                                      IsFavorite: false,
-                                      ...('PlayedPercentage' in (item.UserData as Row)
-                                          ? { PlayedPercentage: i % 2 === 0 ? 100 : 0 }
-                                          : {}),
-                                      ...('UnplayedItemCount' in (item.UserData as Row)
-                                          ? { UnplayedItemCount: i % 2 === 0 ? 0 : 1 }
-                                          : {})
-                                  }
-                    }))
-                };
-            }
+            anonymise: neutraliseWatchState
+        },
+        {
+            name: 'show-episodes',
+            // What set_watched enumerates before marking a season. Per-user
+            // for the same reason items-library is: UserData is the only thing
+            // that tells a watched episode from an unwatched one.
+            path: captured => {
+                const users = captured.get('users');
+                const userId = Array.isArray(users) ? (users[0] as { Id?: string } | undefined)?.Id : undefined;
+                const seriesId = richestSeriesId(captured.get('items-library'));
+                return userId === undefined || seriesId === undefined
+                    ? undefined
+                    : `/Shows/${seriesId}/Episodes?userId=${userId}&EnableUserData=true&EnableImages=false`;
+            },
+            anonymise: neutraliseWatchState
         }
     ],
     seerr: [

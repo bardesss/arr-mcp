@@ -1,6 +1,6 @@
 # Tools
 
-Twenty-seven of them. The first sixteen read; the last eleven write, and are off
+Thirty-three of them. The first seventeen read; the last sixteen write, and are off
 until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -87,11 +87,11 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the sixteen that only
-read, and on the eleven writes `destructiveHint`, taken from the same permission
+tool carries a title and an annotation: `readOnlyHint` on the seventeen that only
+read, and on the sixteen writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from twenty-seven similarly-shaped
+about, reads those rather than guessing from thirty-three similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -353,6 +353,138 @@ default every other call uses, specifically so a real search has room to
 finish rather than being cut off. A long wait here is not a hang; retrying
 it starts a second full indexer sweep.
 
+## `grab_release`
+
+The write half of `get_releases`. Takes `guid` and `indexer_id` from a
+`get_releases` row verbatim and tells Radarr or Sonarr to grab that one
+release — "not that one, the 1080p remux".
+
+Safe tier, not destructive: a grab starts a download, and a download comes
+back off with `remove_queue_item`. Nothing on disk is lost.
+
+Previewing is slow, and deliberately so. The preview re-runs the interactive
+search before it will issue a token, which polls every indexer again and can
+take tens of seconds. It buys two things. Indexer results expire, and a bare
+grab of an expired guid answers a 404 that is indistinguishable from a wrong
+base path — the re-search turns that into *"that release is no longer on
+offer, call get_releases again"*. And it puts the release's real name in the
+preview: "grab release abc" is not something a person can approve.
+
+The confirmation token binds to **both** `guid` and `indexer_id`. That pair
+is what identifies a release, and the candidate list is written by indexers,
+so a search running between the preview and the confirmation must not be able
+to swap which release the confirmation applies to. A token issued for one
+guid is refused for another, and the same for the indexer.
+
+A release Radarr or Sonarr rejected on its own criteria can still be grabbed
+— that is most of what this tool is for — but the preview says which
+rejections are being overridden before you confirm.
+
+## `request_media`
+
+Asks Seerr for something, the way a household member would through its web
+UI: it enters the approval queue and counts against that user's quota.
+
+The line against `add_media` is the whole reason both exist. `add_media`
+writes straight into Radarr or Sonarr — no approval, no quota, and it needs
+*that service's* write permission. `request_media` goes through Seerr and
+needs Seerr's. Asked to "request" something, a model should reach for this
+one.
+
+`media_id` is a TMDB id. Seerr resolves the TVDB id itself, so there is no
+second id to supply. For a series, `seasons` defaults to every season — a
+live Seerr answers HTTP 500 for a tv request carrying no seasons at all, so
+"all" is sent explicitly rather than omitted. Passing `seasons` for a film is
+refused rather than ignored.
+
+Already-requested is a **no-op**, not an error and not a second request. That
+check happens here because Seerr does not do it: requesting the same media
+twice creates two rows on a live 3.4.1.
+
+`user` names whose quota and approval trail the request lands in, and
+requesting as anyone but `default_user` needs
+`services.seerr.allow_other_users` — the same gate `get_requests` and
+`respond_to_request` apply. Without it, one household member's assistant
+could spend another's quota.
+
+## `get_blocklist` and `remove_blocklist_item`
+
+The question that sends people here is "it keeps finding the same release and
+never downloading it". `get_history` shows that as a grab followed by a
+failure, over and over, and explains none of it. The blocklist does: Radarr
+and Sonarr record what they will not grab again, and why — usually in the
+download client's own words.
+
+Rows carry `mediaId` for `get_media_details` and `id` for
+`remove_blocklist_item`, and are newest first, because a blocklist is read to
+explain something that has just gone wrong.
+
+`remove_blocklist_item` withdraws one refusal, so the release can be grabbed
+again. Safe tier: nothing on disk changes, and the inverse already exists —
+`remove_queue_item`'s `blocklist: true` puts a release back on the list.
+
+Its preview reads the live blocklist first, and that is not a courtesy. Both
+services answer a `DELETE` of a blocklist id that **does not exist** with
+success — probed against a live Radarr and a live Sonarr — so a stale id
+would otherwise be reported as removed when nothing had happened. It is the
+same trap `remove_queue_item` documents, and it is checked the same way.
+
+## `set_watched`
+
+The write half of `get_playback`. Marks a film, series, season or episode
+watched or unwatched in Jellyfin.
+
+`item_id` is a **Jellyfin** item id, and that constraint is deliberate rather
+than incidental. Jellyfin's own ids never enter the library index —
+`listUserLibrary` carries TMDB, TVDB and IMDb ids only — so an id here can
+only have come from the `itemId` `get_playback` reports or from a jellyfin
+hit in `search_media`. A Radarr or Sonarr id is a small integer and is
+refused before any network call, rather than becoming a 404 that names
+nothing.
+
+A series id with `season` marks that season. The preview reports the **number
+of episodes**, not just the season number: "marks season 2 watched" is not
+something anyone can weigh. It counts only the episodes that would actually
+change, so re-running it on a mostly-watched season says so.
+
+Safe tier, with one caveat stated in every preview: unmarking and re-marking
+restores the watched flag but **not** the original play date or resume
+position. That history is not recoverable.
+
+`user` names whose watch state changes; anyone but `default_user` needs
+`services.jellyfin.allow_other_users`.
+
+## `pause_downloads`
+
+The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
+download client — SABnzbd, Transmission or qBittorrent — or one item in its
+queue when `id` is given.
+
+Safe tier, because the undo is this same tool with the other `action`.
+
+**It does not stop Radarr or Sonarr grabbing.** They carry on searching and
+sending releases, which then sit in the paused client until it is resumed.
+The preview says so out loud, because a bare "paused" would let someone
+believe nothing is happening at all.
+
+`service` is required, and names one client. That is deliberate rather than a
+missing convenience: every write's permissions are checked against exactly
+one resolved service id, so a tool that defaulted to "every configured
+client" would have to nominate one of them for that check — which would mean
+enabling `safe_write` on SABnzbd quietly enabled it on Transmission too.
+Pausing everything is one call per client.
+
+Already-paused is a no-op, with no token and no confirmation prompt. Only
+SABnzbd publishes a client-wide paused flag; for the two torrent clients
+"paused" means every torrent is stopped, and a client holding no torrents at
+all reads as *not* paused — nothing to pause is a different state from
+everything paused, and treating them alike would refuse a legitimate call.
+
+The qBittorrent path is **spec-derived and unverified against a live
+instance**: there is no qBittorrent on the stack these adapters were probed
+against. v5 renamed `pause`/`resume` to `stop`/`start`, so both verbs are
+attempted — the new one first, the old one only if it 404s.
+
 ## `discover_media`
 
 `similar_to` takes a TMDB numeric id and answers from Seerr's
@@ -406,7 +538,7 @@ than reading success as "the subtitle is on disk". If nothing arrives, the
 
 ## Prompts and resources
 
-Twenty-seven tools do not tell you which one to reach for, and the questions
+Thirty-three tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

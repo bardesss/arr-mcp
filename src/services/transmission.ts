@@ -8,6 +8,8 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type PauseCapable,
+    type PauseState,
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
@@ -50,7 +52,7 @@ const TORRENT_STATUS: Record<number, string> = {
     6: 'seeding'
 };
 
-export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable {
+export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable {
     readonly type: ServiceId = 'transmission';
     readonly id: string = 'transmission';
     readonly #http: ServiceHttp;
@@ -161,6 +163,76 @@ export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, Qu
         if (body.result !== 'success') {
             throw new ServiceError('UpstreamError', this.id, `torrent-remove failed: ${body.result ?? 'no result field'}`);
         }
+    }
+
+    /**
+     * "Stopped" is Transmission's word for paused, and it is per-torrent —
+     * there is no client-wide flag. So the whole client counts as paused only
+     * when every torrent is stopped, and an empty client counts as *not*
+     * paused: nothing to pause is not the same state as everything paused, and
+     * reporting it as a no-op would refuse a legitimate call.
+     */
+    async readPauseState(id?: string): Promise<PauseState> {
+        const torrents = await this.#torrents(id);
+        const stopped = torrents.filter(t => t.status === 0).length;
+
+        if (id !== undefined) {
+            return { paused: stopped === torrents.length && torrents.length > 0, scope: `torrent ${id}` };
+        }
+        return {
+            paused: torrents.length > 0 && stopped === torrents.length,
+            scope: torrents.length === 1 ? '1 torrent' : `${torrents.length} torrents`
+        };
+    }
+
+    async setPaused(paused: boolean, id?: string): Promise<void> {
+        // The same pre-check `removeQueueItem` makes, for the same reason:
+        // probed live, `torrent-stop` for an id Transmission has never seen
+        // answers `result: "success"` and does nothing.
+        if (id !== undefined && (await this.#torrents(id)).length === 0) {
+            throw new ServiceError('NotFound', this.id, `no torrent with id "${id}"`, {
+                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
+            });
+        }
+
+        const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
+            method: paused ? 'torrent-stop' : 'torrent-start',
+            ...(id === undefined ? {} : { arguments: { ids: [this.#torrentId(id)] } })
+        });
+
+        if (body.result !== 'success') {
+            throw new ServiceError(
+                'UpstreamError',
+                this.id,
+                `${paused ? 'torrent-stop' : 'torrent-start'} failed: ${body.result ?? 'no result field'}`
+            );
+        }
+    }
+
+    #torrentId(id: string): number {
+        const torrentId = Number(id);
+        if (!Number.isInteger(torrentId)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a Transmission torrent id`, {
+                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
+            });
+        }
+        return torrentId;
+    }
+
+    /** Id and status only — enough to answer "is it stopped", without the
+     *  whole queue payload `getQueue` needs. */
+    async #torrents(id?: string): Promise<{ id?: number; status?: number }[]> {
+        const body = await this.#http.post<RpcResponse<{ torrents?: { id?: number; status?: number }[] }>>(RPC_PATH, {
+            method: 'torrent-get',
+            arguments: {
+                ...(id === undefined ? {} : { ids: [this.#torrentId(id)] }),
+                fields: ['id', 'status']
+            }
+        });
+        if (body.result !== 'success') {
+            throw new ServiceError('UpstreamError', this.id, `torrent-get failed: ${body.result ?? 'no result field'}`);
+        }
+        return body.arguments?.torrents ?? [];
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
