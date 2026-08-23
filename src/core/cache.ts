@@ -33,17 +33,25 @@ export class TtlCache {
      * makes this single-flight: two concurrent callers find the same in-flight
      * promise and share one fetch rather than both hitting the service.
      *
-     * `shouldCache`, when given, runs on the resolved value and can decline to
-     * keep it — e.g. a library snapshot from a degraded load, not worth five
-     * minutes of cache when the missing service is usually just restarting.
-     * It is not a second `invalidate()` call from the caller's side on
-     * purpose: a bare `invalidate()` after the fact cannot tell "my load lost
-     * a race to a fresher, complete one" from "nothing raced me," and would
-     * delete the good entry in the first case. Deciding here, under the same
-     * identity check the failure path below uses, means only this exact
-     * load's entry is ever dropped.
+     * `ttlFor`, when given, runs on the resolved value and decides how long to
+     * keep it: `false` not at all, or a shorter window than `ttlMs` — a
+     * degraded library snapshot is worth twenty seconds, not five minutes, and
+     * worth more than nothing, which is what refusing to cache it meant while
+     * a service was down.
+     *
+     * It is not a second `invalidate()` call from the caller's side on purpose:
+     * a bare `invalidate()` after the fact cannot tell "my load lost a race to
+     * a fresher, complete one" from "nothing raced me," and would delete the
+     * good entry in the first case. Deciding here, under the same identity
+     * check the failure path below uses, means only this exact load's entry is
+     * ever touched.
      */
-    async get<T>(key: string, ttlMs: number, load: () => Promise<T>, shouldCache?: (value: T) => boolean): Promise<T> {
+    async get<T>(
+        key: string,
+        ttlMs: number,
+        load: () => Promise<T>,
+        ttlFor?: (value: T) => number | false
+    ): Promise<T> {
         const existing = this.#entries.get(key);
         if (existing !== undefined && existing.expiresAt > this.#now()) {
             return existing.value as Promise<T>;
@@ -54,11 +62,18 @@ export class TtlCache {
 
         try {
             const resolved = await value;
-            if (shouldCache !== undefined && !shouldCache(resolved)) {
+            if (ttlFor !== undefined) {
+                const decided = ttlFor(resolved);
                 // Guarded on identity for the same reason as the failure path
                 // below: a later successful load may already have replaced
-                // this entry, and dropping that would be a second bug.
-                if (this.#entries.get(key)?.value === value) this.#entries.delete(key);
+                // this entry, and touching that would be a second bug.
+                if (this.#entries.get(key)?.value === value) {
+                    if (decided === false) this.#entries.delete(key);
+                    // From now, not from the start: the caller is saying how
+                    // long *this value* stays good, and the load's own duration
+                    // is not part of that.
+                    else this.#entries.set(key, { value, expiresAt: this.#now() + decided });
+                }
             }
             return resolved;
         } catch (err) {
@@ -77,7 +92,7 @@ export class TtlCache {
      * The seam for write-invalidation. Still nothing in production code
      * calls it (only `test/cache.test.ts` exercises it
      * directly): `LibraryLoader` needed "do not cache a degraded load," but
-     * implemented it via `get`'s `shouldCache` predicate instead of a
+     * implemented it via `get`'s `ttlFor` predicate instead of a
      * follow-up call here, specifically to reuse the identity check that
      * guards against deleting a fresher entry out from under a concurrent
      * caller — a plain `invalidate()` call has no way to make that check.

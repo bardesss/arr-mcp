@@ -1,9 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
+import { TtlCache } from '../src/core/cache.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import type { ServiceAdapter, ServiceUser } from '../src/services/types.ts';
+
+/** A hand-cranked clock, so expiry is testable without waiting real seconds. */
+const clock = (start = 0) => {
+    let now = start;
+    return { now: () => now, advance: (ms: number) => (now += ms) };
+};
 
 const film = (tmdb: number): IndexInput => ({
     kind: 'movie',
@@ -103,7 +110,8 @@ describe('LibraryLoader', () => {
         expect(snapshot.counts.sonarr).toBeUndefined();
     });
 
-    it('does not cache a degraded load, so a restarted service recovers', async () => {
+    it('recovers past the short degraded ttl, once the service is back', async () => {
+        const c = clock();
         let calls = 0;
         const flaky = stub('radarr', {
             listLibrary: async () => {
@@ -112,10 +120,53 @@ describe('LibraryLoader', () => {
                 return [film(550)];
             }
         });
-        const loader = new LibraryLoader([flaky], undefined);
+        const loader = new LibraryLoader([flaky], undefined, new TtlCache(c.now));
 
         expect((await loader.load()).degraded).toEqual(['radarr']);
+        c.advance(25_000);
         expect((await loader.load()).index.size()).toBe(1);
+    });
+
+    it('caches a degraded snapshot briefly rather than not at all', async () => {
+        const c = clock();
+        let calls = 0;
+        const flaky = stub('radarr', {
+            listLibrary: async () => {
+                calls += 1;
+                return [film(550)];
+            }
+        });
+        const broken = stub('sonarr', {
+            listLibrary: async () => {
+                throw new ServiceError('Unreachable', 'sonarr', 'connection refused');
+            }
+        });
+        const loader = new LibraryLoader([flaky, broken], undefined, new TtlCache(c.now));
+
+        await loader.load();
+        await loader.load();
+        expect(calls).toBe(1);
+
+        c.advance(25_000);
+        await loader.load();
+        expect(calls).toBe(2);
+    });
+
+    it('still gives a complete snapshot the full TTL', async () => {
+        const c = clock();
+        let calls = 0;
+        const counted = stub('radarr', {
+            listLibrary: async () => {
+                calls += 1;
+                return [film(550)];
+            }
+        });
+        const loader = new LibraryLoader([counted], undefined, new TtlCache(c.now));
+
+        await loader.load();
+        c.advance(25_000);
+        await loader.load();
+        expect(calls).toBe(1);
     });
 
     it('propagates an authorization refusal instead of degrading', async () => {

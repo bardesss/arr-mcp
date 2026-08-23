@@ -8,6 +8,16 @@ import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasLibrary, hasUserLibrary, hasUserSeasons, type ServiceAdapter, type ServiceUser } from '../services/types.ts';
 
+/**
+ * A degraded snapshot is worth caching, briefly.
+ *
+ * Declining outright meant that while any one source was down — a Jellyfin
+ * restarting for an hour — every read did the full fan-out with no cache at
+ * all, hammering the healthy services hardest exactly when the stack was
+ * fragile. Short enough that recovery is noticed almost immediately.
+ */
+const DEGRADED_TTL_MS = 20_000;
+
 export type LibrarySnapshot = {
     index: LibraryIndex;
     degraded: string[];
@@ -78,11 +88,13 @@ export class LibraryLoader {
         // another's answer — a correctness bug that reads as a privacy one.
         const key = `library:${resolved?.id ?? 'none'}`;
 
-        // A partial load is not worth five minutes of cache. Declined via
-        // `shouldCache` rather than a later `invalidate()`, which cannot tell
-        // "my degraded load lost a race to a complete one" from "nothing raced
-        // me" and would delete the good entry.
-        return this.#cache.get(key, LIBRARY_TTL_MS, () => this.#build(resolved), snapshot => snapshot.degraded.length === 0);
+        // A degraded snapshot gets a short TTL rather than none, via `ttlFor`
+        // instead of a later `invalidate()`, which cannot tell "my degraded
+        // load lost a race to a complete one" from "nothing raced me" and
+        // would delete the good entry.
+        return this.#cache.get(key, LIBRARY_TTL_MS, () => this.#build(resolved), snapshot =>
+            snapshot.degraded.length === 0 ? LIBRARY_TTL_MS : DEGRADED_TTL_MS
+        );
     }
 
     /**
