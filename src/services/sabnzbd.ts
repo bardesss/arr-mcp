@@ -8,6 +8,8 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type PauseCapable,
+    type PauseState,
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
@@ -28,6 +30,9 @@ type RawQueue = {
         diskspace2?: string;
         diskspacetotal2?: string;
         status?: string;
+        /** Queue-wide, and the only client-level paused flag any of the three
+         *  download clients publishes. */
+        paused?: boolean;
         slots?: RawSlot[];
     };
 };
@@ -69,7 +74,7 @@ const gigabytesToBytes = (value: string | undefined): number | undefined => {
     return Number.isFinite(parsed) ? Math.round(parsed * BYTES_PER_GB) : undefined;
 };
 
-export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable {
+export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable {
     readonly type: ServiceId = 'sabnzbd';
     readonly id: string = 'sabnzbd';
     readonly #http: ServiceHttp;
@@ -161,6 +166,55 @@ export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCa
                     body.error ??
                     'SABnzbd reported no failure reason. Check the item is still in the queue — take a current id from get_queue.'
             });
+        }
+    }
+
+    /**
+     * SABnzbd is the one client with a real queue-wide paused flag, so this
+     * reads it directly rather than inferring it from the items.
+     *
+     * With an id, the answer comes from that slot's own status — and a slot
+     * that is no longer in the queue is refused, not reported as paused.
+     */
+    async readPauseState(id?: string): Promise<PauseState> {
+        const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+
+        if (id === undefined) {
+            return { paused: body.queue?.paused === true, scope: 'the SABnzbd queue' };
+        }
+
+        const slot = (body.queue?.slots ?? []).find(s => s.nzo_id === id);
+        if (slot === undefined) {
+            throw new ServiceError('NotFound', this.id, `nothing in the queue has id "${id}"`, {
+                remedy: 'Take a current nzo id from get_queue — ids do not survive an item leaving the queue.'
+            });
+        }
+        return { paused: (slot.status ?? '').toLowerCase() === 'paused', scope: `queue item ${id}` };
+    }
+
+    /**
+     * Like every SABnzbd write, a GET — and like every SABnzbd write, a
+     * failure arrives as HTTP 200 with `status: false`, so the body is what
+     * says whether anything happened.
+     */
+    async setPaused(paused: boolean, id?: string): Promise<void> {
+        const path =
+            id === undefined
+                ? `/api?mode=${paused ? 'pause' : 'resume'}&output=json`
+                : `/api?mode=queue&name=${paused ? 'pause' : 'resume'}&value=${encodeURIComponent(id)}&output=json`;
+
+        const body = await this.#http.getAsWrite<{ status?: boolean; error?: string }>(path);
+        if (body.status !== true) {
+            throw new ServiceError(
+                'UpstreamError',
+                this.id,
+                `${paused ? 'pause' : 'resume'} was refused`,
+                {
+                    remedy:
+                        body.error ??
+                        'SABnzbd reported no failure reason. Check the queue is reachable — call get_queue.'
+                }
+            );
         }
     }
 

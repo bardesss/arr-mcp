@@ -70,6 +70,7 @@ const CASES: Case[] = [
     // to catch, so it is fixed here rather than reproduced.
     { tool: 'get_calendar', args: { detail: 'full', days_back: 14, days_ahead: 14 } },
     { tool: 'get_playback', args: { detail: 'full' } },
+    { tool: 'get_blocklist', args: { detail: 'full', limit: 20 } },
     { tool: 'get_requests', args: { detail: 'full' } },
     { tool: 'get_library', args: { detail: 'standard', limit: 10 } },
     { tool: 'get_library', args: { presence: 'arr_only', limit: 10 } },
@@ -115,6 +116,15 @@ const hosts = hostsOf(config);
  */
 const DYNAMIC_TOOLS: ToolName[] = [
     'trigger_search',
+    // Needs a guid and an indexer id that only a live get_releases can
+    // produce — inventing one would capture a 404, not a mapping.
+    'grab_release',
+    // Needs, respectively: a real TMDB id, a configured download client, a
+    // real Jellyfin item id, and a real blocklist row. All dry runs.
+    'request_media',
+    'pause_downloads',
+    'set_watched',
+    'remove_blocklist_item',
     // Needs a real service+id the same way trigger_search does. Driven off
     // the same searchableHit, but kept to one call: this one polls every
     // configured indexer synchronously (up to the tool's own 120s budget),
@@ -274,6 +284,9 @@ let searchResult: ToolCallResult | undefined;
 let queueResult: ToolCallResult | undefined;
 let requestsResult: ToolCallResult | undefined;
 let subtitlesResult: ToolCallResult | undefined;
+let playbackResult: ToolCallResult | undefined;
+let releasesResult: ToolCallResult | undefined;
+let blocklistResult: ToolCallResult | undefined;
 
 for (const { tool, args } of CASES) {
     const result = await run(tool, args);
@@ -282,6 +295,8 @@ for (const { tool, args } of CASES) {
     if (tool === 'get_queue') queueResult = result;
     if (tool === 'get_requests') requestsResult = result;
     if (tool === 'get_subtitles') subtitlesResult = result;
+    if (tool === 'get_playback') playbackResult = result;
+    if (tool === 'get_blocklist') blocklistResult = result;
 }
 
 /**
@@ -367,13 +382,45 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
  * result.
  */
 if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
-    await run(
+    releasesResult = await run(
         'get_releases',
-        { service: searchableHit.service, id: String(searchableHit.id), limit: 5 },
+        { service: searchableHit.service, id: String(searchableHit.id), limit: 5, detail: 'full' },
         'slow — polls every configured indexer'
     );
 } else {
     console.log('SKIP get_releases — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+}
+
+/**
+ * grab_release, dry run, against a candidate the call above actually
+ * produced. `detail: "full"` up there is what makes this possible at all —
+ * `guid` and `indexerId` are trimmed below it, and they are the entire
+ * identity of a release.
+ *
+ * Never applied: a grab starts a real download.
+ */
+const candidate = (releasesResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
+    | { service?: unknown; guid?: unknown; indexerId?: unknown }
+    | undefined;
+
+if (
+    typeof searchableHit?.service === 'string' &&
+    typeof candidate?.guid === 'string' &&
+    typeof candidate.indexerId === 'number'
+) {
+    await run(
+        'grab_release',
+        {
+            service: searchableHit.service,
+            id: String(searchableHit.id),
+            guid: candidate.guid,
+            indexer_id: candidate.indexerId,
+            dry_run: true
+        },
+        'DRY RUN ONLY — never applied from this script; slow, the preview re-runs the search'
+    );
+} else {
+    console.log('SKIP grab_release — get_releases returned no candidate carrying a guid and an indexer id.');
 }
 
 /**
@@ -583,6 +630,93 @@ if (typeof gap?.kind === 'string' && gap.id !== undefined && typeof want?.code2 
 
 // Dry run without exception: this one really does delete downloaded data.
 await run('clean_queue', { service: 'radarr', dry_run: true }, 'DRY RUN ONLY — never applied from this script');
+
+/**
+ * The four remaining writes, all dry runs, each driven off something a
+ * read above actually returned rather than an invented id.
+ */
+const blocklistRow = (blocklistResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
+    | { service?: unknown; id?: unknown }
+    | undefined;
+
+if (typeof blocklistRow?.service === 'string' && blocklistRow.id !== undefined) {
+    await run(
+        'remove_blocklist_item',
+        { service: blocklistRow.service, id: String(blocklistRow.id), dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    // Routine: a stack that has never had a failed grab has an empty blocklist.
+    console.log('SKIP remove_blocklist_item — the blocklist is empty, so there is no real entry to preview against.');
+}
+
+/**
+ * set_watched needs a **Jellyfin** item id, which is exactly the constraint
+ * the tool exists to enforce — so it is driven off get_playback's `itemId`,
+ * the place its own description sends a caller.
+ */
+const playing = (playbackResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
+    | { itemId?: unknown }
+    | undefined;
+
+// Falls back to a Jellyfin search hit, whose `id` is the same item id — a
+// stack with nothing currently playing is the normal case, and skipping the
+// tool every time on a healthy stack is coverage that never runs.
+const jellyfinHit = ((searchResult?.structuredContent as { items?: unknown[] } | undefined)?.items ?? []).find(
+    (h): h is { service: string; id: string } =>
+        (h as SearchHitLike).service === 'jellyfin' && typeof (h as SearchHitLike).id === 'string'
+);
+const watchableId = typeof playing?.itemId === 'string' ? playing.itemId : jellyfinHit?.id;
+
+if (watchableId !== undefined) {
+    await run(
+        'set_watched',
+        { item_id: watchableId, watched: true, dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+    // The refusal that is the whole reason this tool validates ids: a Radarr
+    // id here has to name where a real one comes from, not 404.
+    await expectError(
+        'set_watched',
+        { item_id: '12', watched: true, dry_run: true },
+        /get_playback/,
+        'a Radarr-shaped id is refused, naming where a Jellyfin one comes from'
+    );
+} else {
+    console.log('SKIP set_watched — neither get_playback nor search_media returned a Jellyfin item id.');
+}
+
+/**
+ * request_media against something already in the library: a dry run either
+ * previews a real request or reports the no-op, and both prove the mapping.
+ */
+const withTmdb = libraryItems.find(i => typeof i.ids?.tmdb === 'number');
+if (withTmdb?.ids?.tmdb !== undefined) {
+    await run(
+        'request_media',
+        { media_type: withTmdb.kind === 'series' ? 'tv' : 'movie', media_id: withTmdb.ids.tmdb, dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    console.log('SKIP request_media — no library item carried a TMDB id.');
+}
+
+/**
+ * pause_downloads names one client, so this picks the first configured one
+ * rather than assuming any particular stack has SABnzbd.
+ */
+const client = (['sabnzbd', 'transmission', 'qbittorrent'] as const).find(
+    id => config.services?.[id] !== undefined
+);
+if (client !== undefined) {
+    await run(
+        'pause_downloads',
+        { service: client, action: 'pause', dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    console.log('SKIP pause_downloads — no download client is configured.');
+}
 
 /**
  * The config UI, against the same live stack.

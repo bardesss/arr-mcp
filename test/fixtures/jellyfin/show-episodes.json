@@ -1,0 +1,931 @@
+{
+  "Items": [
+    {
+      "Name": "To You, in 2,000 Years: The Fall of Shiganshina (1)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "c85a90971b21970d5159be16cf08ff9f",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-04-06T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 71210350000,
+      "ProductionYear": 2013,
+      "IndexNumber": 1,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001001",
+        "ItemId": "c85a90971b21970d5159be16cf08ff9f"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "That Day: The Fall of Shiganshina (2)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "0abe5463451b558ff3afcc3fd876e62d",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-04-13T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 72042030000,
+      "ProductionYear": 2013,
+      "IndexNumber": 2,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001002",
+        "ItemId": "0abe5463451b558ff3afcc3fd876e62d"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "A Dim Light Amid Despair: Humanity's Comeback (1)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "0a6367f2e1aa589d9841f01d4ad688bd",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-04-20T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14509949999,
+      "ProductionYear": 2013,
+      "IndexNumber": 3,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001003",
+        "ItemId": "0a6367f2e1aa589d9841f01d4ad688bd"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "The Night of the Closing Ceremony: Humanity's Comeback (2)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "0b936a2c6a01c5a0225bd8ec160d5438",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-04-27T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14509949999,
+      "ProductionYear": 2013,
+      "IndexNumber": 4,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001004",
+        "ItemId": "0b936a2c6a01c5a0225bd8ec160d5438"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "First Battle: The Struggle for Trost (1)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "94fa86fd993d53e823fd76634dddf47b",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-05-04T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479500000,
+      "ProductionYear": 2013,
+      "IndexNumber": 5,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001005",
+        "ItemId": "94fa86fd993d53e823fd76634dddf47b"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "The World the Girl Saw: The Struggle for Trost (2)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "7ace96bdca52f085d6b77ac0eba46f52",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-05-11T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14480640000,
+      "ProductionYear": 2013,
+      "IndexNumber": 6,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001006",
+        "ItemId": "7ace96bdca52f085d6b77ac0eba46f52"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Small Blade: The Struggle for Trost (3)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "8cd1f05120928246c64ab4a63a806412",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-05-18T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479900000,
+      "ProductionYear": 2013,
+      "IndexNumber": 7,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001007",
+        "ItemId": "8cd1f05120928246c64ab4a63a806412"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "I Can Hear His Heartbeat: The Struggle for Trost (4)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "4eb5421abc23eba062f82e4b3e46619e",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-05-25T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14480300000,
+      "ProductionYear": 2013,
+      "IndexNumber": 8,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001008",
+        "ItemId": "4eb5421abc23eba062f82e4b3e46619e"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Whereabouts of His Left Arm: The Struggle for Trost (5)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "b1efa95a09ea59e87b656565a06c8382",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-06-01T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479900000,
+      "ProductionYear": 2013,
+      "IndexNumber": 9,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001009",
+        "ItemId": "b1efa95a09ea59e87b656565a06c8382"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Response: The Struggle for Trost (6)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "5a691bb262f41bdc37fa5aef2e74bd7a",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-06-08T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14480300000,
+      "ProductionYear": 2013,
+      "IndexNumber": 10,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001010",
+        "ItemId": "5a691bb262f41bdc37fa5aef2e74bd7a"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Idol: The Struggle for Trost (7)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "416a47f0e097e8819b40b284144c4d3d",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-06-15T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479900000,
+      "ProductionYear": 2013,
+      "IndexNumber": 11,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001011",
+        "ItemId": "416a47f0e097e8819b40b284144c4d3d"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Wound: The Struggle for Trost (8)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "cc7049aa48503e26d5b73a7191a3741b",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-06-22T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479900000,
+      "ProductionYear": 2013,
+      "IndexNumber": 12,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001012",
+        "ItemId": "cc7049aa48503e26d5b73a7191a3741b"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Primal Desire: The Struggle for Trost (9)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "31100040d8b153c7f5b17906818a1ebb",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-06-29T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14475500000,
+      "ProductionYear": 2013,
+      "IndexNumber": 13,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001013",
+        "ItemId": "31100040d8b153c7f5b17906818a1ebb"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Can't Look into His Eyes Yet: Eve of the Counterattack (1)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "ec9dc4e519f536117268124f768ae52c",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-07-13T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14480300000,
+      "ProductionYear": 2013,
+      "IndexNumber": 14,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001014",
+        "ItemId": "ec9dc4e519f536117268124f768ae52c"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Special Operations Squad: Eve of the Counterattack (2)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "da91e28358aa9d25c7d865dce037b316",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-07-20T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14480500000,
+      "ProductionYear": 2013,
+      "IndexNumber": 15,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001015",
+        "ItemId": "da91e28358aa9d25c7d865dce037b316"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "What Needs to Be Done Now: Eve of the Counterattack (3)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "f7848774be3022a6bd59f4d9100cc015",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-07-27T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14480300000,
+      "ProductionYear": 2013,
+      "IndexNumber": 16,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001016",
+        "ItemId": "f7848774be3022a6bd59f4d9100cc015"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Female Titan: The 57th Exterior Scouting Mission (1)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "5d1f8c19756874f6472591e387587edb",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-08-03T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14481150000,
+      "ProductionYear": 2013,
+      "IndexNumber": 17,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001017",
+        "ItemId": "5d1f8c19756874f6472591e387587edb"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Forest of Giant Trees: The 57th Exterior Scouting Mission (2)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "6631db4d5e411c3960b3dcf575cc5e5e",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-08-10T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479900000,
+      "ProductionYear": 2013,
+      "IndexNumber": 18,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001018",
+        "ItemId": "6631db4d5e411c3960b3dcf575cc5e5e"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Bite: The 57th Exterior Scouting Mission (3)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "2ab276365caeb02e77656ed2c7ce84cb",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-08-17T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479900000,
+      "ProductionYear": 2013,
+      "IndexNumber": 19,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001019",
+        "ItemId": "2ab276365caeb02e77656ed2c7ce84cb"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Erwin Smith: The 57th Exterior Scouting Mission (4)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "e6a0ad6bd786e2c09347f74903918538",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-08-24T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14476800000,
+      "ProductionYear": 2013,
+      "IndexNumber": 20,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001020",
+        "ItemId": "e6a0ad6bd786e2c09347f74903918538"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Crushing Blow: The 57th Exterior Scouting Mission (5)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "a8774bcc637d3bc1ea0403e2be56e80c",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-08-31T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 15000000000,
+      "ProductionYear": 2013,
+      "IndexNumber": 21,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001021",
+        "ItemId": "a8774bcc637d3bc1ea0403e2be56e80c"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "The Defeated: The 57th Exterior Scouting Mission (6)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "08c8a5720da41845c08ce661b793ba1d",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-09-07T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479900000,
+      "ProductionYear": 2013,
+      "IndexNumber": 22,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001022",
+        "ItemId": "08c8a5720da41845c08ce661b793ba1d"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Smile: Assault on Stohess (1)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "bf9adfa80faec8b8d4fd68cf1e933f22",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-09-14T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14489500000,
+      "ProductionYear": 2013,
+      "IndexNumber": 23,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001023",
+        "ItemId": "bf9adfa80faec8b8d4fd68cf1e933f22"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Mercy: Assault on Stohess (2)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "bf9c9227c59e0fd0e0681ed40a986456",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-09-21T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14479900000,
+      "ProductionYear": 2013,
+      "IndexNumber": 24,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "267440001024",
+        "ItemId": "bf9c9227c59e0fd0e0681ed40a986456"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Wall: Assault on Stohess (3)",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "7c512e423eac75d5a7732aa34b020fd1",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2013-09-28T22:00:00.0000000Z",
+      "ChannelId": null,
+      "RunTimeTicks": 14330150000,
+      "ProductionYear": 2013,
+      "IndexNumber": 25,
+      "ParentIndexNumber": 1,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true,
+        "Key": "267440001025",
+        "ItemId": "7c512e423eac75d5a7732aa34b020fd1"
+      },
+      "SeriesName": "Attack on Titan",
+      "SeriesId": "d9b4602426bd51fb2ee5737ad3396180",
+      "SeasonId": "1b33276d2d1cbd8dc5ba94b85b3fed2a",
+      "PrimaryImageAspectRatio": 0.7055503292568204,
+      "SeriesPrimaryImageTag": "3a0922b3eed6403b40126c042d30b364",
+      "SeasonName": "Seizoen 1",
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3a0922b3eed6403b40126c042d30b364": "dIFZpRMx15k@.l%gyYkrE*xu-.jF%~R5r;Mx%gofIURj"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 25,
+  "StartIndex": 0
+}

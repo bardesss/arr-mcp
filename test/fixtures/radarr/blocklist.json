@@ -1,0 +1,1751 @@
+{
+  "page": 1,
+  "pageSize": 10,
+  "sortKey": "date",
+  "sortDirection": "descending",
+  "totalRecords": 25,
+  "records": [
+    {
+      "movieId": 1654,
+      "sourceTitle": "Creed.III.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "webdl",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 97,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 3,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 43,
+          "name": "Atmos"
+        },
+        {
+          "id": 141,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 38,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 135,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 76,
+          "name": "HDR"
+        },
+        {
+          "id": 7,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 100,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-06-18T08:25:00Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "Creed III",
+        "originalTitle": "Creed III",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "creed iii",
+        "status": "released",
+        "overview": "After dominating the boxing world, Adonis Creed has thrived in his career and family life. When a childhood friend and former boxing prodigy, Damian Anderson, resurfaces after serving a long sentence in prison, he is eager to prove that he deserves his shot in the ring. The face-off between former friends is more than just a fight. To settle the score, Adonis must put his future on the line to battle Damian — a fighter with nothing to lose.",
+        "inCinemas": "2023-03-01T00:00:00Z",
+        "physicalRelease": "2023-05-23T00:00:00Z",
+        "digitalRelease": "2023-03-03T00:00:00Z",
+        "releaseDate": "2023-03-03T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/cvsXj3I9Q2iyyIo95AecSd1tad7.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/gOIztYywR291pC4k3IpDq7Vj3Kj.jpg"
+          }
+        ],
+        "website": "https://www.mgmstudios.com/creed-iii",
+        "year": 2023,
+        "youTubeTrailerId": "xTaIZo8OJYE",
+        "studio": "Metro-Goldwyn-Mayer",
+        "path": "/storage/movies/Creed III (2023) [tmdbid-677179]",
+        "qualityProfileId": 8,
+        "movieFileId": 2293,
+        "monitored": true,
+        "minimumAvailability": "released",
+        "isAvailable": true,
+        "folderName": "/storage/movies/Creed III (2023) [tmdbid-677179]",
+        "runtime": 116,
+        "cleanTitle": "creediii",
+        "imdbId": "tt11145118",
+        "tmdbId": 677179,
+        "titleSlug": "677179",
+        "certification": "PG-13",
+        "genres": [
+          "Drama",
+          "Action"
+        ],
+        "keywords": [
+          "assertive",
+          "audacious",
+          "boxing",
+          "childhood friends",
+          "deaf",
+          "ex-con",
+          "former best friend",
+          "husband wife relationship",
+          "intense",
+          "juvenile detention center",
+          "orphan",
+          "philadelphia, pennsylvania",
+          "prodigy",
+          "sequel",
+          "sports"
+        ],
+        "tags": [],
+        "added": "2026-06-18T08:00:39Z",
+        "ratings": {
+          "imdb": {
+            "votes": 109389,
+            "value": 6.7,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 2915,
+            "value": 7.088,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 73,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 89,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 5703,
+            "value": 6.98159,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "Creed Collection",
+          "tmdbId": 553717
+        },
+        "popularity": 7.4622,
+        "lastSearchTime": "2026-06-18T08:25:02Z",
+        "id": 1654
+      },
+      "id": 487
+    },
+    {
+      "movieId": 1654,
+      "sourceTitle": "Creed.III.2023.2160p.WEB-DL | Creed.III.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "webdl",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 97,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 3,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 43,
+          "name": "Atmos"
+        },
+        {
+          "id": 141,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 38,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 135,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 76,
+          "name": "HDR"
+        },
+        {
+          "id": 7,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 100,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-06-18T08:17:00Z",
+      "protocol": "usenet",
+      "indexer": "Spotarr (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "Creed III",
+        "originalTitle": "Creed III",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "creed iii",
+        "status": "released",
+        "overview": "After dominating the boxing world, Adonis Creed has thrived in his career and family life. When a childhood friend and former boxing prodigy, Damian Anderson, resurfaces after serving a long sentence in prison, he is eager to prove that he deserves his shot in the ring. The face-off between former friends is more than just a fight. To settle the score, Adonis must put his future on the line to battle Damian — a fighter with nothing to lose.",
+        "inCinemas": "2023-03-01T00:00:00Z",
+        "physicalRelease": "2023-05-23T00:00:00Z",
+        "digitalRelease": "2023-03-03T00:00:00Z",
+        "releaseDate": "2023-03-03T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/cvsXj3I9Q2iyyIo95AecSd1tad7.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/gOIztYywR291pC4k3IpDq7Vj3Kj.jpg"
+          }
+        ],
+        "website": "https://www.mgmstudios.com/creed-iii",
+        "year": 2023,
+        "youTubeTrailerId": "xTaIZo8OJYE",
+        "studio": "Metro-Goldwyn-Mayer",
+        "path": "/storage/movies/Creed III (2023) [tmdbid-677179]",
+        "qualityProfileId": 8,
+        "movieFileId": 2293,
+        "monitored": true,
+        "minimumAvailability": "released",
+        "isAvailable": true,
+        "folderName": "/storage/movies/Creed III (2023) [tmdbid-677179]",
+        "runtime": 116,
+        "cleanTitle": "creediii",
+        "imdbId": "tt11145118",
+        "tmdbId": 677179,
+        "titleSlug": "677179",
+        "certification": "PG-13",
+        "genres": [
+          "Drama",
+          "Action"
+        ],
+        "keywords": [
+          "assertive",
+          "audacious",
+          "boxing",
+          "childhood friends",
+          "deaf",
+          "ex-con",
+          "former best friend",
+          "husband wife relationship",
+          "intense",
+          "juvenile detention center",
+          "orphan",
+          "philadelphia, pennsylvania",
+          "prodigy",
+          "sequel",
+          "sports"
+        ],
+        "tags": [],
+        "added": "2026-06-18T08:00:39Z",
+        "ratings": {
+          "imdb": {
+            "votes": 109389,
+            "value": 6.7,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 2915,
+            "value": 7.088,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 73,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 89,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 5703,
+            "value": 6.98159,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "Creed Collection",
+          "tmdbId": 553717
+        },
+        "popularity": 7.4622,
+        "lastSearchTime": "2026-06-18T08:25:02Z",
+        "id": 1654
+      },
+      "id": 486
+    },
+    {
+      "movieId": 1654,
+      "sourceTitle": "Creed.III.2023.2160p.WEB-DL | Creed.III.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "webdl",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 97,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 3,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 43,
+          "name": "Atmos"
+        },
+        {
+          "id": 141,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 38,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 135,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 76,
+          "name": "HDR"
+        },
+        {
+          "id": 7,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 100,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-06-18T08:16:00Z",
+      "protocol": "usenet",
+      "indexer": "Spotarr (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "Creed III",
+        "originalTitle": "Creed III",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "creed iii",
+        "status": "released",
+        "overview": "After dominating the boxing world, Adonis Creed has thrived in his career and family life. When a childhood friend and former boxing prodigy, Damian Anderson, resurfaces after serving a long sentence in prison, he is eager to prove that he deserves his shot in the ring. The face-off between former friends is more than just a fight. To settle the score, Adonis must put his future on the line to battle Damian — a fighter with nothing to lose.",
+        "inCinemas": "2023-03-01T00:00:00Z",
+        "physicalRelease": "2023-05-23T00:00:00Z",
+        "digitalRelease": "2023-03-03T00:00:00Z",
+        "releaseDate": "2023-03-03T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/cvsXj3I9Q2iyyIo95AecSd1tad7.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/gOIztYywR291pC4k3IpDq7Vj3Kj.jpg"
+          }
+        ],
+        "website": "https://www.mgmstudios.com/creed-iii",
+        "year": 2023,
+        "youTubeTrailerId": "xTaIZo8OJYE",
+        "studio": "Metro-Goldwyn-Mayer",
+        "path": "/storage/movies/Creed III (2023) [tmdbid-677179]",
+        "qualityProfileId": 8,
+        "movieFileId": 2293,
+        "monitored": true,
+        "minimumAvailability": "released",
+        "isAvailable": true,
+        "folderName": "/storage/movies/Creed III (2023) [tmdbid-677179]",
+        "runtime": 116,
+        "cleanTitle": "creediii",
+        "imdbId": "tt11145118",
+        "tmdbId": 677179,
+        "titleSlug": "677179",
+        "certification": "PG-13",
+        "genres": [
+          "Drama",
+          "Action"
+        ],
+        "keywords": [
+          "assertive",
+          "audacious",
+          "boxing",
+          "childhood friends",
+          "deaf",
+          "ex-con",
+          "former best friend",
+          "husband wife relationship",
+          "intense",
+          "juvenile detention center",
+          "orphan",
+          "philadelphia, pennsylvania",
+          "prodigy",
+          "sequel",
+          "sports"
+        ],
+        "tags": [],
+        "added": "2026-06-18T08:00:39Z",
+        "ratings": {
+          "imdb": {
+            "votes": 109389,
+            "value": 6.7,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 2915,
+            "value": 7.088,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 73,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 89,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 5703,
+            "value": 6.98159,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "Creed Collection",
+          "tmdbId": 553717
+        },
+        "popularity": 7.4622,
+        "lastSearchTime": "2026-06-18T08:25:02Z",
+        "id": 1654
+      },
+      "id": 485
+    },
+    {
+      "movieId": 1654,
+      "sourceTitle": "Creed.III.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "webdl",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 97,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 3,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 43,
+          "name": "Atmos"
+        },
+        {
+          "id": 141,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 38,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 135,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 76,
+          "name": "HDR"
+        },
+        {
+          "id": 7,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 100,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-06-18T08:13:00Z",
+      "protocol": "usenet",
+      "indexer": "DrunkenSlug (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "Creed III",
+        "originalTitle": "Creed III",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "creed iii",
+        "status": "released",
+        "overview": "After dominating the boxing world, Adonis Creed has thrived in his career and family life. When a childhood friend and former boxing prodigy, Damian Anderson, resurfaces after serving a long sentence in prison, he is eager to prove that he deserves his shot in the ring. The face-off between former friends is more than just a fight. To settle the score, Adonis must put his future on the line to battle Damian — a fighter with nothing to lose.",
+        "inCinemas": "2023-03-01T00:00:00Z",
+        "physicalRelease": "2023-05-23T00:00:00Z",
+        "digitalRelease": "2023-03-03T00:00:00Z",
+        "releaseDate": "2023-03-03T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/cvsXj3I9Q2iyyIo95AecSd1tad7.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/gOIztYywR291pC4k3IpDq7Vj3Kj.jpg"
+          }
+        ],
+        "website": "https://www.mgmstudios.com/creed-iii",
+        "year": 2023,
+        "youTubeTrailerId": "xTaIZo8OJYE",
+        "studio": "Metro-Goldwyn-Mayer",
+        "path": "/storage/movies/Creed III (2023) [tmdbid-677179]",
+        "qualityProfileId": 8,
+        "movieFileId": 2293,
+        "monitored": true,
+        "minimumAvailability": "released",
+        "isAvailable": true,
+        "folderName": "/storage/movies/Creed III (2023) [tmdbid-677179]",
+        "runtime": 116,
+        "cleanTitle": "creediii",
+        "imdbId": "tt11145118",
+        "tmdbId": 677179,
+        "titleSlug": "677179",
+        "certification": "PG-13",
+        "genres": [
+          "Drama",
+          "Action"
+        ],
+        "keywords": [
+          "assertive",
+          "audacious",
+          "boxing",
+          "childhood friends",
+          "deaf",
+          "ex-con",
+          "former best friend",
+          "husband wife relationship",
+          "intense",
+          "juvenile detention center",
+          "orphan",
+          "philadelphia, pennsylvania",
+          "prodigy",
+          "sequel",
+          "sports"
+        ],
+        "tags": [],
+        "added": "2026-06-18T08:00:39Z",
+        "ratings": {
+          "imdb": {
+            "votes": 109389,
+            "value": 6.7,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 2915,
+            "value": 7.088,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 73,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 89,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 5703,
+            "value": 6.98159,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "Creed Collection",
+          "tmdbId": 553717
+        },
+        "popularity": 7.4622,
+        "lastSearchTime": "2026-06-18T08:25:02Z",
+        "id": 1654
+      },
+      "id": 484
+    },
+    {
+      "movieId": 1185,
+      "sourceTitle": "Apartment.7A.2024.REPACK.2160p.PMTP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "webdl",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 2,
+          "real": 0,
+          "isRepack": true
+        }
+      },
+      "customFormats": [
+        {
+          "id": 97,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 3,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 43,
+          "name": "Atmos"
+        },
+        {
+          "id": 141,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 38,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 135,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 76,
+          "name": "HDR"
+        },
+        {
+          "id": 58,
+          "name": "PMTP"
+        },
+        {
+          "id": 17,
+          "name": "Repack/Proper"
+        },
+        {
+          "id": 20,
+          "name": "Repack1"
+        },
+        {
+          "id": 7,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 100,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-04-06T08:12:03Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "Apartment 7A",
+        "originalTitle": "Apartment 7A",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "apartment 7a",
+        "status": "released",
+        "overview": "A struggling young dancer finds herself drawn in by dark forces when a peculiar, well-connected older couple promise her a shot at fame.",
+        "physicalRelease": "2024-12-04T00:00:00Z",
+        "digitalRelease": "2024-09-26T00:00:00Z",
+        "releaseDate": "2024-09-26T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/uipHKJHY1nNEQyprXjfNzH0GIOF.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/bGwBlxl9Ht2zljBHfNQD0YCEtrk.jpg"
+          }
+        ],
+        "website": "",
+        "year": 2024,
+        "youTubeTrailerId": "Kj2GqMvhbNM",
+        "studio": "Sunday Night Productions",
+        "path": "/storage/movies/Apartment 7A (2024)",
+        "qualityProfileId": 8,
+        "movieFileId": 1439,
+        "monitored": false,
+        "minimumAvailability": "announced",
+        "isAvailable": true,
+        "folderName": "/storage/movies/Apartment 7A (2024)",
+        "runtime": 104,
+        "cleanTitle": "apartment7a",
+        "imdbId": "tt14371860",
+        "tmdbId": 807339,
+        "titleSlug": "807339",
+        "certification": "R",
+        "genres": [
+          "Horror",
+          "Thriller"
+        ],
+        "keywords": [
+          "1960s",
+          "apartment",
+          "manhattan, new york city",
+          "new york city",
+          "occult",
+          "prequel",
+          "pretentious",
+          "satanic cult",
+          "satanism"
+        ],
+        "tags": [],
+        "added": "2024-09-05T17:49:13Z",
+        "ratings": {
+          "imdb": {
+            "votes": 20956,
+            "value": 5.9,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 415,
+            "value": 6.119,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 49,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 45,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 2101,
+            "value": 6.17563,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "Rosemary's Baby Collection",
+          "tmdbId": 264338
+        },
+        "popularity": 2.3167,
+        "lastSearchTime": "2026-05-26T08:01:53Z",
+        "id": 1185
+      },
+      "id": 468
+    },
+    {
+      "movieId": 1106,
+      "sourceTitle": "The.Lord.Of.The.Rings.The.Return.Of.The.King.2003.Extended.Edition.2160p.UHD.BluRay.TrueHD.7.1.HDR.x265-CtrlHD",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 19,
+          "name": "Bluray-2160p",
+          "source": "bluray",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 145,
+          "name": "2160p Quality Tier 2"
+        },
+        {
+          "id": 79,
+          "name": "Atmos (Missing)"
+        },
+        {
+          "id": 76,
+          "name": "HDR"
+        },
+        {
+          "id": 138,
+          "name": "Special Edition"
+        },
+        {
+          "id": 70,
+          "name": "TrueHD"
+        }
+      ],
+      "date": "2026-02-02T12:43:16Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "The Lord of the Rings: The Return of the King",
+        "originalTitle": "The Lord of the Rings: The Return of the King",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "lord of the rings the return of the king",
+        "status": "released",
+        "overview": "As armies mass for a final battle that will decide the fate of the world--and powerful, ancient forces of Light and Dark compete to determine the outcome--one member of the Fellowship of the Ring is revealed as the noble heir to the throne of the Kings of Men. Yet, the sole hope for triumph over evil lies with a brave hobbit, Frodo, who, accompanied by his loyal friend Sam and the hideous, wretched Gollum, ventures deep into the very dark heart of Mordor on his seemingly impossible quest to destroy the Ring of Power.​",
+        "inCinemas": "2003-12-17T00:00:00Z",
+        "physicalRelease": "2004-05-15T00:00:00Z",
+        "digitalRelease": "2006-11-18T00:00:00Z",
+        "releaseDate": "2003-12-17T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/2u7zbn8EudG6kLlBzUYqP8RyFU4.jpg"
+          }
+        ],
+        "website": "http://www.lordoftherings.net",
+        "year": 2003,
+        "youTubeTrailerId": "zckJCxYxn1g",
+        "studio": "New Line Cinema",
+        "path": "/storage/movies/The Lord of the Rings The Return of the King (2003)",
+        "qualityProfileId": 11,
+        "movieFileId": 2103,
+        "monitored": true,
+        "minimumAvailability": "announced",
+        "isAvailable": true,
+        "folderName": "/storage/movies/The Lord of the Rings The Return of the King (2003)",
+        "runtime": 201,
+        "cleanTitle": "thelordringsreturnking",
+        "imdbId": "tt0167260",
+        "tmdbId": 122,
+        "titleSlug": "122",
+        "certification": "PG-13",
+        "genres": [
+          "Adventure",
+          "Fantasy",
+          "Action"
+        ],
+        "keywords": [
+          "army",
+          "based on novel or book",
+          "bravery",
+          "castle",
+          "cheerful",
+          "comforting",
+          "companionship",
+          "complex",
+          "dwarf",
+          "elves",
+          "epic battle",
+          "epic fantasy",
+          "fantasy world",
+          "giant spider",
+          "good versus evil",
+          "hero's journey",
+          "high fantasy",
+          "hobbit",
+          "honor",
+          "journey",
+          "king",
+          "kingdom",
+          "live action and animation",
+          "madness",
+          "magic",
+          "magical creature",
+          "melodramatic",
+          "obsession",
+          "power madness",
+          "quest",
+          "ring",
+          "sequel",
+          "split personality",
+          "sword and sorcery",
+          "sword making",
+          "trekking",
+          "volcano",
+          "winged creatures",
+          "wistful",
+          "wizard",
+          "wraith"
+        ],
+        "tags": [],
+        "added": "2024-05-09T18:50:28Z",
+        "ratings": {
+          "imdb": {
+            "votes": 2186287,
+            "value": 9,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 27146,
+            "value": 8.504,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 94,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 94,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 43799,
+            "value": 8.96714,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "The Lord of the Rings Collection",
+          "tmdbId": 119
+        },
+        "popularity": 46.7138,
+        "lastSearchTime": "2026-04-06T07:43:31Z",
+        "id": 1106
+      },
+      "id": 457
+    },
+    {
+      "movieId": 1106,
+      "sourceTitle": "The.Lord.Of.The.Rings.The.Return.Of.The.King.2003.Extended.Edition.2160p.UHD.BluRay.TrueHD.7.1.HDR.x265-CtrlHD",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 19,
+          "name": "Bluray-2160p",
+          "source": "bluray",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 145,
+          "name": "2160p Quality Tier 2"
+        },
+        {
+          "id": 79,
+          "name": "Atmos (Missing)"
+        },
+        {
+          "id": 76,
+          "name": "HDR"
+        },
+        {
+          "id": 138,
+          "name": "Special Edition"
+        },
+        {
+          "id": 70,
+          "name": "TrueHD"
+        }
+      ],
+      "date": "2026-02-02T12:41:46Z",
+      "protocol": "usenet",
+      "indexer": "DrunkenSlug (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "The Lord of the Rings: The Return of the King",
+        "originalTitle": "The Lord of the Rings: The Return of the King",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "lord of the rings the return of the king",
+        "status": "released",
+        "overview": "As armies mass for a final battle that will decide the fate of the world--and powerful, ancient forces of Light and Dark compete to determine the outcome--one member of the Fellowship of the Ring is revealed as the noble heir to the throne of the Kings of Men. Yet, the sole hope for triumph over evil lies with a brave hobbit, Frodo, who, accompanied by his loyal friend Sam and the hideous, wretched Gollum, ventures deep into the very dark heart of Mordor on his seemingly impossible quest to destroy the Ring of Power.​",
+        "inCinemas": "2003-12-17T00:00:00Z",
+        "physicalRelease": "2004-05-15T00:00:00Z",
+        "digitalRelease": "2006-11-18T00:00:00Z",
+        "releaseDate": "2003-12-17T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/2u7zbn8EudG6kLlBzUYqP8RyFU4.jpg"
+          }
+        ],
+        "website": "http://www.lordoftherings.net",
+        "year": 2003,
+        "youTubeTrailerId": "zckJCxYxn1g",
+        "studio": "New Line Cinema",
+        "path": "/storage/movies/The Lord of the Rings The Return of the King (2003)",
+        "qualityProfileId": 11,
+        "movieFileId": 2103,
+        "monitored": true,
+        "minimumAvailability": "announced",
+        "isAvailable": true,
+        "folderName": "/storage/movies/The Lord of the Rings The Return of the King (2003)",
+        "runtime": 201,
+        "cleanTitle": "thelordringsreturnking",
+        "imdbId": "tt0167260",
+        "tmdbId": 122,
+        "titleSlug": "122",
+        "certification": "PG-13",
+        "genres": [
+          "Adventure",
+          "Fantasy",
+          "Action"
+        ],
+        "keywords": [
+          "army",
+          "based on novel or book",
+          "bravery",
+          "castle",
+          "cheerful",
+          "comforting",
+          "companionship",
+          "complex",
+          "dwarf",
+          "elves",
+          "epic battle",
+          "epic fantasy",
+          "fantasy world",
+          "giant spider",
+          "good versus evil",
+          "hero's journey",
+          "high fantasy",
+          "hobbit",
+          "honor",
+          "journey",
+          "king",
+          "kingdom",
+          "live action and animation",
+          "madness",
+          "magic",
+          "magical creature",
+          "melodramatic",
+          "obsession",
+          "power madness",
+          "quest",
+          "ring",
+          "sequel",
+          "split personality",
+          "sword and sorcery",
+          "sword making",
+          "trekking",
+          "volcano",
+          "winged creatures",
+          "wistful",
+          "wizard",
+          "wraith"
+        ],
+        "tags": [],
+        "added": "2024-05-09T18:50:28Z",
+        "ratings": {
+          "imdb": {
+            "votes": 2186287,
+            "value": 9,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 27146,
+            "value": 8.504,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 94,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 94,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 43799,
+            "value": 8.96714,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "The Lord of the Rings Collection",
+          "tmdbId": 119
+        },
+        "popularity": 46.7138,
+        "lastSearchTime": "2026-04-06T07:43:31Z",
+        "id": 1106
+      },
+      "id": 456
+    },
+    {
+      "movieId": 1106,
+      "sourceTitle": "The.Lord.of.the.Rings-.The.Return.of.the.King.2003.Extended.Edition.2160p.UHD.BluRay.TrueHD.7.1.DoVi.x265-DON",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 19,
+          "name": "Bluray-2160p",
+          "source": "bluray",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 144,
+          "name": "2160p Quality Tier 1"
+        },
+        {
+          "id": 79,
+          "name": "Atmos (Missing)"
+        },
+        {
+          "id": 135,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 149,
+          "name": "HDR10 (Missing)"
+        },
+        {
+          "id": 138,
+          "name": "Special Edition"
+        },
+        {
+          "id": 70,
+          "name": "TrueHD"
+        }
+      ],
+      "date": "2026-02-02T12:41:00Z",
+      "protocol": "usenet",
+      "indexer": "DrunkenSlug (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "The Lord of the Rings: The Return of the King",
+        "originalTitle": "The Lord of the Rings: The Return of the King",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "lord of the rings the return of the king",
+        "status": "released",
+        "overview": "As armies mass for a final battle that will decide the fate of the world--and powerful, ancient forces of Light and Dark compete to determine the outcome--one member of the Fellowship of the Ring is revealed as the noble heir to the throne of the Kings of Men. Yet, the sole hope for triumph over evil lies with a brave hobbit, Frodo, who, accompanied by his loyal friend Sam and the hideous, wretched Gollum, ventures deep into the very dark heart of Mordor on his seemingly impossible quest to destroy the Ring of Power.​",
+        "inCinemas": "2003-12-17T00:00:00Z",
+        "physicalRelease": "2004-05-15T00:00:00Z",
+        "digitalRelease": "2006-11-18T00:00:00Z",
+        "releaseDate": "2003-12-17T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/2u7zbn8EudG6kLlBzUYqP8RyFU4.jpg"
+          }
+        ],
+        "website": "http://www.lordoftherings.net",
+        "year": 2003,
+        "youTubeTrailerId": "zckJCxYxn1g",
+        "studio": "New Line Cinema",
+        "path": "/storage/movies/The Lord of the Rings The Return of the King (2003)",
+        "qualityProfileId": 11,
+        "movieFileId": 2103,
+        "monitored": true,
+        "minimumAvailability": "announced",
+        "isAvailable": true,
+        "folderName": "/storage/movies/The Lord of the Rings The Return of the King (2003)",
+        "runtime": 201,
+        "cleanTitle": "thelordringsreturnking",
+        "imdbId": "tt0167260",
+        "tmdbId": 122,
+        "titleSlug": "122",
+        "certification": "PG-13",
+        "genres": [
+          "Adventure",
+          "Fantasy",
+          "Action"
+        ],
+        "keywords": [
+          "army",
+          "based on novel or book",
+          "bravery",
+          "castle",
+          "cheerful",
+          "comforting",
+          "companionship",
+          "complex",
+          "dwarf",
+          "elves",
+          "epic battle",
+          "epic fantasy",
+          "fantasy world",
+          "giant spider",
+          "good versus evil",
+          "hero's journey",
+          "high fantasy",
+          "hobbit",
+          "honor",
+          "journey",
+          "king",
+          "kingdom",
+          "live action and animation",
+          "madness",
+          "magic",
+          "magical creature",
+          "melodramatic",
+          "obsession",
+          "power madness",
+          "quest",
+          "ring",
+          "sequel",
+          "split personality",
+          "sword and sorcery",
+          "sword making",
+          "trekking",
+          "volcano",
+          "winged creatures",
+          "wistful",
+          "wizard",
+          "wraith"
+        ],
+        "tags": [],
+        "added": "2024-05-09T18:50:28Z",
+        "ratings": {
+          "imdb": {
+            "votes": 2186287,
+            "value": 9,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 27146,
+            "value": 8.504,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 94,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 94,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 43799,
+            "value": 8.96714,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "The Lord of the Rings Collection",
+          "tmdbId": 119
+        },
+        "popularity": 46.7138,
+        "lastSearchTime": "2026-04-06T07:43:31Z",
+        "id": 1106
+      },
+      "id": 455
+    },
+    {
+      "movieId": 1106,
+      "sourceTitle": "The.Lord.of.the.Ring.The.Return.of.the.King.2003.Extended.Edition.2160p.UHD.BluRay.TrueHD.7.1.DoVi.x265-DON",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 19,
+          "name": "Bluray-2160p",
+          "source": "bluray",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 144,
+          "name": "2160p Quality Tier 1"
+        },
+        {
+          "id": 79,
+          "name": "Atmos (Missing)"
+        },
+        {
+          "id": 135,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 149,
+          "name": "HDR10 (Missing)"
+        },
+        {
+          "id": 138,
+          "name": "Special Edition"
+        },
+        {
+          "id": 70,
+          "name": "TrueHD"
+        }
+      ],
+      "date": "2026-02-02T11:15:01Z",
+      "protocol": "usenet",
+      "indexer": "DrunkenSlug (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "The Lord of the Rings: The Return of the King",
+        "originalTitle": "The Lord of the Rings: The Return of the King",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "lord of the rings the return of the king",
+        "status": "released",
+        "overview": "As armies mass for a final battle that will decide the fate of the world--and powerful, ancient forces of Light and Dark compete to determine the outcome--one member of the Fellowship of the Ring is revealed as the noble heir to the throne of the Kings of Men. Yet, the sole hope for triumph over evil lies with a brave hobbit, Frodo, who, accompanied by his loyal friend Sam and the hideous, wretched Gollum, ventures deep into the very dark heart of Mordor on his seemingly impossible quest to destroy the Ring of Power.​",
+        "inCinemas": "2003-12-17T00:00:00Z",
+        "physicalRelease": "2004-05-15T00:00:00Z",
+        "digitalRelease": "2006-11-18T00:00:00Z",
+        "releaseDate": "2003-12-17T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/2u7zbn8EudG6kLlBzUYqP8RyFU4.jpg"
+          }
+        ],
+        "website": "http://www.lordoftherings.net",
+        "year": 2003,
+        "youTubeTrailerId": "zckJCxYxn1g",
+        "studio": "New Line Cinema",
+        "path": "/storage/movies/The Lord of the Rings The Return of the King (2003)",
+        "qualityProfileId": 11,
+        "movieFileId": 2103,
+        "monitored": true,
+        "minimumAvailability": "announced",
+        "isAvailable": true,
+        "folderName": "/storage/movies/The Lord of the Rings The Return of the King (2003)",
+        "runtime": 201,
+        "cleanTitle": "thelordringsreturnking",
+        "imdbId": "tt0167260",
+        "tmdbId": 122,
+        "titleSlug": "122",
+        "certification": "PG-13",
+        "genres": [
+          "Adventure",
+          "Fantasy",
+          "Action"
+        ],
+        "keywords": [
+          "army",
+          "based on novel or book",
+          "bravery",
+          "castle",
+          "cheerful",
+          "comforting",
+          "companionship",
+          "complex",
+          "dwarf",
+          "elves",
+          "epic battle",
+          "epic fantasy",
+          "fantasy world",
+          "giant spider",
+          "good versus evil",
+          "hero's journey",
+          "high fantasy",
+          "hobbit",
+          "honor",
+          "journey",
+          "king",
+          "kingdom",
+          "live action and animation",
+          "madness",
+          "magic",
+          "magical creature",
+          "melodramatic",
+          "obsession",
+          "power madness",
+          "quest",
+          "ring",
+          "sequel",
+          "split personality",
+          "sword and sorcery",
+          "sword making",
+          "trekking",
+          "volcano",
+          "winged creatures",
+          "wistful",
+          "wizard",
+          "wraith"
+        ],
+        "tags": [],
+        "added": "2024-05-09T18:50:28Z",
+        "ratings": {
+          "imdb": {
+            "votes": 2186287,
+            "value": 9,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 27146,
+            "value": 8.504,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 94,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 94,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 43799,
+            "value": 8.96714,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "The Lord of the Rings Collection",
+          "tmdbId": 119
+        },
+        "popularity": 46.7138,
+        "lastSearchTime": "2026-04-06T07:43:31Z",
+        "id": 1106
+      },
+      "id": 454
+    },
+    {
+      "movieId": 1185,
+      "sourceTitle": "Apartment.7A.2024.REPACK.2160p.PMTP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "webdl",
+          "resolution": 2160,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 2,
+          "real": 0,
+          "isRepack": true
+        }
+      },
+      "customFormats": [
+        {
+          "id": 97,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 3,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 43,
+          "name": "Atmos"
+        },
+        {
+          "id": 141,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 38,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 135,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 76,
+          "name": "HDR"
+        },
+        {
+          "id": 58,
+          "name": "PMTP"
+        },
+        {
+          "id": 17,
+          "name": "Repack/Proper"
+        },
+        {
+          "id": 20,
+          "name": "Repack1"
+        },
+        {
+          "id": 7,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 100,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-01-27T13:13:05Z",
+      "protocol": "usenet",
+      "indexer": "DrunkenSlug (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "movie": {
+        "title": "Apartment 7A",
+        "originalTitle": "Apartment 7A",
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "alternateTitles": [],
+        "secondaryYearSourceId": 0,
+        "sortTitle": "apartment 7a",
+        "status": "released",
+        "overview": "A struggling young dancer finds herself drawn in by dark forces when a peculiar, well-connected older couple promise her a shot at fame.",
+        "physicalRelease": "2024-12-04T00:00:00Z",
+        "digitalRelease": "2024-09-26T00:00:00Z",
+        "releaseDate": "2024-09-26T00:00:00Z",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/uipHKJHY1nNEQyprXjfNzH0GIOF.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/bGwBlxl9Ht2zljBHfNQD0YCEtrk.jpg"
+          }
+        ],
+        "website": "",
+        "year": 2024,
+        "youTubeTrailerId": "Kj2GqMvhbNM",
+        "studio": "Sunday Night Productions",
+        "path": "/storage/movies/Apartment 7A (2024)",
+        "qualityProfileId": 8,
+        "movieFileId": 1439,
+        "monitored": false,
+        "minimumAvailability": "announced",
+        "isAvailable": true,
+        "folderName": "/storage/movies/Apartment 7A (2024)",
+        "runtime": 104,
+        "cleanTitle": "apartment7a",
+        "imdbId": "tt14371860",
+        "tmdbId": 807339,
+        "titleSlug": "807339",
+        "certification": "R",
+        "genres": [
+          "Horror",
+          "Thriller"
+        ],
+        "keywords": [
+          "1960s",
+          "apartment",
+          "manhattan, new york city",
+          "new york city",
+          "occult",
+          "prequel",
+          "pretentious",
+          "satanic cult",
+          "satanism"
+        ],
+        "tags": [],
+        "added": "2024-09-05T17:49:13Z",
+        "ratings": {
+          "imdb": {
+            "votes": 20956,
+            "value": 5.9,
+            "type": "user"
+          },
+          "tmdb": {
+            "votes": 415,
+            "value": 6.119,
+            "type": "user"
+          },
+          "metacritic": {
+            "votes": 0,
+            "value": 49,
+            "type": "user"
+          },
+          "rottenTomatoes": {
+            "votes": 0,
+            "value": 45,
+            "type": "user"
+          },
+          "trakt": {
+            "votes": 2101,
+            "value": 6.17563,
+            "type": "user"
+          }
+        },
+        "collection": {
+          "title": "Rosemary's Baby Collection",
+          "tmdbId": 264338
+        },
+        "popularity": 2.3167,
+        "lastSearchTime": "2026-05-26T08:01:53Z",
+        "id": 1185
+      },
+      "id": 453
+    }
+  ]
+}
