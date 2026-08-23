@@ -75,6 +75,17 @@ shape as an `outputSchema` so a client knows what it will get before it calls.
 Read `total` from there rather than parsing it out of "50 of 243 item(s)" —
 that sentence is prose and may be reworded.
 
+**The tool list is cacheable for an hour.** On the 2026-07-28 protocol
+revision every list result carries a `ttlMs`, and `tools/list`,
+`prompts/list` and `resources/list` say an hour. They can, because the lists
+are static by construction: every tool, prompt and resource is registered
+unconditionally, so nothing a configuration edit does can change what is in
+them. A client that honours the hint stops reloading the whole surface every
+session. The three resources are different — each carries its own hint, and
+`arr://health`'s is deliberately zero, because a pinned health snapshot
+saying a dead service is fine is worse than no snapshot at all. Clients on the
+2025 protocol see none of this and are unaffected.
+
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the seventeen that only
 read, and on the sixteen writes `destructiveHint`, taken from the same permission

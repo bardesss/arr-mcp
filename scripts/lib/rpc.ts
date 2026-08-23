@@ -31,11 +31,14 @@ let nextId = 1;
  * always the one top-level JSON object in it. Slicing between the first `{`
  * and the last `}` is what handles both without parsing the SSE envelope.
  */
-export function rpcPayload<T>(text: string): { result?: T; error?: { message?: string } } {
+export function rpcPayload<T>(text: string): { result?: T; error?: { code?: number; message?: string } } {
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
     if (start === -1 || end === -1) throw new Error('transport error: no JSON-RPC payload in the response body');
-    return JSON.parse(text.slice(start, end + 1)) as { result?: T; error?: { message?: string } };
+    // `code` as well as `message`: the 2026-07-28 revision distinguishes
+    // refusals by number — -32020 for a missing `Mcp-Method`, -32601 for the
+    // removed `ping` — and a caller cannot tell those apart from prose.
+    return JSON.parse(text.slice(start, end + 1)) as { result?: T; error?: { code?: number; message?: string } };
 }
 
 export async function callTool(
