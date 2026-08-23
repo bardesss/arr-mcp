@@ -251,6 +251,30 @@ unrelated items' history into one answer.
 or `trigger_search`. Sonarr also reports `episodeId` separately; it is never
 folded into `mediaId`.
 
+## `get_wanted`
+
+`get_library` can say a movie is missing — `monitored` with no file — but a
+season's aggregate counts cannot say *which* episodes of a show are missing,
+and neither tool can say what already has a file but not yet the quality a
+profile wants. `get_wanted` answers both, straight from Radarr and Sonarr's
+own wanted lists.
+
+`scope` is required, with no default: `missing` is monitored items with no
+file at all; `upgradable` is monitored items that have a file but sit below
+the quality profile's cutoff. The two answer different questions, and
+defaulting to one would silently hide the other.
+
+Radarr's wanted rows are movies. Sonarr's are episodes, and the shapes differ
+in what matters most: `id` always names the **series** — the id
+`trigger_search` and `get_media_details` take — never the episode, even
+though the episode is what the row is actually about. `title` names the show;
+`season`, `episode` and `episodeTitle` describe which episode of it. Radarr
+rows never set the three episode fields.
+
+Sonarr's missing list is monitored-only, which matches what "wanted" means
+here — an unmonitored gap is not something anyone asked for, and it will not
+appear in this list.
+
 ## `clean_queue`
 
 Radarr and Sonarr leave a completed download in the queue forever when the film

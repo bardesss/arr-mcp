@@ -227,6 +227,37 @@ export interface HistoryCapable {
 export const hasHistory = (a: ServiceAdapter): a is ServiceAdapter & HistoryCapable =>
     typeof (a as Partial<HistoryCapable>).readHistory === 'function';
 
+export type WantedScope = 'missing' | 'upgradable';
+
+/**
+ * Episode- and movie-level detail `get_library`'s aggregate season counts
+ * cannot give: which titles are actually missing, or which already have a
+ * file but not yet the quality the profile wants.
+ *
+ * Radarr's wanted rows are movies, so `season`/`episode`/`episodeTitle` stay
+ * unset. Sonarr's are episodes: `id` still names the **series** — the one
+ * `trigger_search` and `get_media_details` take — never the episode, and
+ * `title` names the show while `episodeTitle` names the episode.
+ */
+export type WantedItem = {
+    service: string;
+    kind: 'movie' | 'series';
+    id: string;
+    title: string; // fenced
+    season?: number;
+    episode?: number;
+    episodeTitle?: string; // fenced
+    airDate?: string;
+    monitored: boolean;
+};
+
+export interface WantedCapable {
+    readWanted(scope: WantedScope): Promise<WantedItem[]>;
+}
+
+export const hasWanted = (a: ServiceAdapter): a is ServiceAdapter & WantedCapable =>
+    typeof (a as Partial<WantedCapable>).readWanted === 'function';
+
 export type CalendarEntry = {
     service: string;
     kind: 'movie' | 'episode';

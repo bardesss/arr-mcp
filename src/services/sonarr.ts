@@ -10,6 +10,7 @@ import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
+import { readArrWanted } from './arrWanted.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import type { components } from './generated/sonarr.ts';
@@ -49,7 +50,10 @@ import {
     type SearchHit,
     type SearchSource,
     type SearchTriggerCapable,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type WantedCapable,
+    type WantedItem,
+    type WantedScope
 } from './types.ts';
 
 type RawSeries = {
@@ -123,7 +127,8 @@ export class SonarrAdapter
         MediaAddCapable,
         MonitoringCapable,
         EpisodeFileCapable,
-        HistoryCapable
+        HistoryCapable,
+        WantedCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -167,6 +172,10 @@ export class SonarrAdapter
 
     async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
         return readArrHistory(this.#http, this.id, 'series', opts);
+    }
+
+    async readWanted(scope: WantedScope): Promise<WantedItem[]> {
+        return readArrWanted(this.#http, this.id, 'series', scope);
     }
 
     readonly supportsBlocklist = true;

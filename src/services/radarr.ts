@@ -9,6 +9,7 @@ import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
+import { readArrWanted } from './arrWanted.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
@@ -43,7 +44,10 @@ import {
     type SearchHit,
     type SearchSource,
     type SearchTriggerCapable,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type WantedCapable,
+    type WantedItem,
+    type WantedScope
 } from './types.ts';
 
 type RawMovie = {
@@ -99,7 +103,8 @@ export class RadarrAdapter
         QueueRemoveCapable,
         MediaDeleteCapable,
         MediaAddCapable,
-        HistoryCapable
+        HistoryCapable,
+        WantedCapable
 {
     readonly type: ServiceId = 'radarr';
     readonly instance: string | undefined;
@@ -146,6 +151,10 @@ export class RadarrAdapter
 
     async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
         return readArrHistory(this.#http, this.id, 'movie', opts);
+    }
+
+    async readWanted(scope: WantedScope): Promise<WantedItem[]> {
+        return readArrWanted(this.#http, this.id, 'movie', scope);
     }
 
     readonly supportsBlocklist = true;
