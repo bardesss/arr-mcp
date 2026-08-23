@@ -303,6 +303,50 @@ export interface ReleaseSearchCapable {
 export const hasReleaseSearch = (a: ServiceAdapter): a is ServiceAdapter & ReleaseSearchCapable =>
     typeof (a as Partial<ReleaseSearchCapable>).findReleases === 'function';
 
+/**
+ * Taking one specific release from that list.
+ *
+ * Separate from `ReleaseSearchCapable` because it is a write: the two always
+ * arrive together on the *arrs, but a service that could only list releases
+ * would still be a legitimate implementation of the read half.
+ */
+export interface ReleaseGrabCapable {
+    /** `guid` and `indexerId` come from a `ReleaseCandidate` verbatim; nothing
+     *  else identifies a release. */
+    grabRelease(opts: { guid: string; indexerId: number }): Promise<void>;
+}
+
+export const hasReleaseGrab = (a: ServiceAdapter): a is ServiceAdapter & ReleaseGrabCapable =>
+    typeof (a as Partial<ReleaseGrabCapable>).grabRelease === 'function';
+
+/**
+ * One release Radarr or Sonarr has decided not to grab again.
+ *
+ * The answer to "why does this keep getting skipped": `reason` is the *arr's
+ * own message, usually relayed from the download client. Fenced, like every
+ * other indexer- or client-supplied string.
+ */
+export type BlocklistEntry = {
+    service: string;
+    id: string;
+    title: string; // fenced
+    indexer?: string; // fenced
+    at: string; // ISO
+    reason?: string; // fenced
+    protocol?: string;
+    /** The movie or series it belongs to — hand it to get_media_details. Never
+     *  the episode, on Sonarr, for the same reason WantedItem.id is not. */
+    mediaId?: string;
+};
+
+export interface BlocklistCapable {
+    readBlocklist(): Promise<BlocklistEntry[]>;
+    removeBlocklistItem(id: string): Promise<void>;
+}
+
+export const hasBlocklist = (a: ServiceAdapter): a is ServiceAdapter & BlocklistCapable =>
+    typeof (a as Partial<BlocklistCapable>).readBlocklist === 'function';
+
 export type CalendarEntry = {
     service: string;
     kind: 'movie' | 'episode';
@@ -568,6 +612,27 @@ export interface QueueRemoveCapable {
 export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>
     typeof (a as Partial<QueueRemoveCapable>).removeQueueItem === 'function';
 
+/** What a client reports about its own paused state, and what that state is
+ *  *of* — "the SABnzbd queue", "2 torrents" — so a preview can say it. */
+export type PauseState = { paused: boolean; scope: string };
+
+/**
+ * Stopping and restarting a download client.
+ *
+ * Only the three download clients have it; the *arrs do not. Pausing SABnzbd
+ * does not stop Radarr grabbing — it stops the grabs being *downloaded* — and
+ * `pause_downloads` says so rather than letting "paused" read as "nothing is
+ * happening".
+ */
+export interface PauseCapable {
+    /** `id` narrows to one queue item; omitted means the whole client. */
+    readPauseState(id?: string): Promise<PauseState>;
+    setPaused(paused: boolean, id?: string): Promise<void>;
+}
+
+export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable =>
+    typeof (a as Partial<PauseCapable>).setPaused === 'function';
+
 /**
  * `name` raw and `display` fenced, for the same reason `RootFolder` splits its
  * path — and discovered the same way, by a match that could never succeed.
@@ -651,6 +716,33 @@ export const hasRequestManage = (a: ServiceAdapter): a is ServiceAdapter & Reque
     typeof (a as Partial<RequestManageCapable>).respondToRequest === 'function';
 
 /**
+ * `seasons` is `'all'` rather than omitted for a whole series, because a live
+ * Seerr answers HTTP 500 for a tv request carrying no `seasons` at all — the
+ * absent case is not "every season", it is a malformed request.
+ *
+ * Separate from `RequestManageCapable` for the same reason approving and
+ * deleting are separate: creating a request is a different permission question
+ * from ruling on one, and it is the only one that spends somebody's quota.
+ */
+export type CreateRequestOptions = {
+    mediaType: 'movie' | 'tv';
+    /** TMDB id. Seerr resolves the TVDB id itself, confirmed live. */
+    mediaId: number;
+    seasons?: number[] | 'all';
+    /** Whose quota and approval trail this lands in. */
+    userId?: number;
+};
+
+export interface RequestCreateCapable {
+    /** Returns the request as created, so the caller reports what exists rather
+     *  than what it asked for. */
+    createRequest(opts: CreateRequestOptions): Promise<MediaRequest>;
+}
+
+export const hasRequestCreate = (a: ServiceAdapter): a is ServiceAdapter & RequestCreateCapable =>
+    typeof (a as Partial<RequestCreateCapable>).createRequest === 'function';
+
+/**
  * A whole-library read, shaped for the identity resolver rather than for a
  * tool. The resolver joins three of these into one index; nothing else consumes it.
  */
@@ -684,6 +776,37 @@ export interface UserSeasonsCapable {
 
 export const hasUserSeasons = (a: ServiceAdapter): a is ServiceAdapter & UserSeasonsCapable =>
     typeof (a as Partial<UserSeasonsCapable>).listUserSeasons === 'function';
+
+/** One thing whose watch state can be set, named well enough to appear in a
+ *  preview. `title` is fenced. */
+export type WatchTarget = {
+    id: string;
+    title: string;
+    kind: 'movie' | 'series' | 'episode' | 'item';
+    watched: boolean;
+    season?: number;
+    episode?: number;
+};
+
+/**
+ * Marking things watched and unwatched, per user.
+ *
+ * The ids are Jellyfin's own item ids, which deliberately never enter the
+ * library index (`listUserLibrary` carries external ids only). So a target can
+ * only have come from `get_playback` or a Jellyfin search hit, and an id from
+ * anywhere else has to be refused legibly rather than 404'd.
+ */
+export interface WatchStateCapable {
+    /** Refuses an id that is not shaped like a Jellyfin item id, before any
+     *  network call. */
+    readWatchTarget(user: ServiceUser, itemId: string): Promise<WatchTarget>;
+    /** Episodes of one series, optionally one season. */
+    listEpisodeItems(user: ServiceUser, seriesItemId: string, season?: number): Promise<WatchTarget[]>;
+    setWatched(user: ServiceUser, itemId: string, watched: boolean): Promise<void>;
+}
+
+export const hasWatchState = (a: ServiceAdapter): a is ServiceAdapter & WatchStateCapable =>
+    typeof (a as Partial<WatchStateCapable>).setWatched === 'function';
 
 export interface DiscoverCapable {
     discover(opts: {

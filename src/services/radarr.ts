@@ -9,12 +9,14 @@ import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
-import { findArrReleases } from './arrRelease.ts';
+import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
+    type BlocklistEntry,
     type CalendarCapable,
     type CalendarEntry,
     type ConnectionDiagnosis,
@@ -163,6 +165,18 @@ export class RadarrAdapter
 
     async findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]> {
         return findArrReleases(this.#http, this.id, 'movie', opts);
+    }
+
+    async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
+        return grabArrRelease(this.#http, opts);
+    }
+
+    async readBlocklist(): Promise<BlocklistEntry[]> {
+        return readArrBlocklist(this.#http, this.id, 'movie');
+    }
+
+    async removeBlocklistItem(id: string): Promise<void> {
+        return removeArrBlocklistItem(this.#http, id);
     }
 
     readonly supportsBlocklist = true;

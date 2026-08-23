@@ -1,0 +1,1382 @@
+{
+  "page": 1,
+  "pageSize": 10,
+  "sortKey": "date",
+  "sortDirection": "descending",
+  "totalRecords": 754,
+  "records": [
+    {
+      "seriesId": 428,
+      "episodeIds": [
+        19912
+      ],
+      "sourceTitle": "Lioness.2023.S03E02.No.Sorrow.Like.the.Survivor.2160p.ATV.WEB-DL.DDP5.1.DV.HDR.H.265-NTb",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "web",
+          "resolution": 2160
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 93,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 31,
+          "name": "ATVP"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 132,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 78,
+          "name": "HDR"
+        },
+        {
+          "id": 17,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 96,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-08-15T16:05:26Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lioness",
+        "sortTitle": "lioness",
+        "status": "continuing",
+        "ended": false,
+        "overview": "Cruz Manuelos, a rough-around-the-edges but passionate young Marine, is recruited to join the CIA’s Lioness Engagement Team to help bring down a terrorist organization from within. Joe, the station chief of the Lioness program, is tasked with training, managing and leading her female undercover operatives.",
+        "network": "Paramount+",
+        "airTime": "03:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/388589/banners/6757b3d5e038c.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/388589/posters/6712f248c6005.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/388589/backgrounds/64bcd9b8346ba.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/388589/clearlogo/6757b3f26ba6d.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 1,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 3,
+            "monitored": true
+          }
+        ],
+        "year": 2023,
+        "path": "/storage/tv/Special Ops - Lioness",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 47,
+        "tvdbId": 388589,
+        "tvRageId": 0,
+        "tvMazeId": 50415,
+        "tmdbId": 113962,
+        "firstAired": "2023-07-23T00:00:00Z",
+        "lastAired": "2026-09-20T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lioness",
+        "imdbId": "tt13111078",
+        "titleSlug": "lioness",
+        "certification": "TV-MA",
+        "genres": [
+          "Action",
+          "Drama",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2023-06-18T09:15:12Z",
+        "ratings": {
+          "votes": 93125,
+          "value": 7.8
+        },
+        "languageProfileId": 1,
+        "id": 428
+      },
+      "id": 4636
+    },
+    {
+      "seriesId": 640,
+      "episodeIds": [
+        20222
+      ],
+      "sourceTitle": "Monsters.of.God.S01E02.Operation.Cobra.2160p.HMAX.WEB-DL.DDP5.1.H.265-RAWR",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "web",
+          "resolution": 2160
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 93,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 126,
+          "name": "HMAX"
+        },
+        {
+          "id": 18,
+          "name": "WEB Tier 02"
+        },
+        {
+          "id": 133,
+          "name": "WEB-DL Tier 3"
+        }
+      ],
+      "date": "2026-08-14T11:18:00Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Monsters of God",
+        "sortTitle": "monsters of god",
+        "status": "continuing",
+        "ended": false,
+        "overview": "A gripping documentary explores the shadowy world of exotic reptile smuggling, following two rival kingpins whose lucrative global operation supplied rare species to US zoos until betrayal sparked a devastating vendetta.",
+        "network": "HBO Max",
+        "airTime": "20:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/480409/banners/6a82c61e23e07.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/480409/posters/6a5a7db21df99.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/480409/backgrounds/6a78e07392c87.jpg"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Monsters of God (2026) [tvdbid-480409]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 54,
+        "tvdbId": 480409,
+        "tvRageId": 0,
+        "tvMazeId": 93180,
+        "tmdbId": 311731,
+        "firstAired": "2026-08-06T00:00:00Z",
+        "lastAired": "2026-09-03T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "monstersgod",
+        "imdbId": "tt39368539",
+        "titleSlug": "monsters-of-god",
+        "genres": [
+          "Documentary"
+        ],
+        "tags": [],
+        "added": "2026-08-10T07:36:10Z",
+        "ratings": {
+          "votes": 177,
+          "value": 7.1
+        },
+        "languageProfileId": 1,
+        "id": 640
+      },
+      "id": 4635
+    },
+    {
+      "seriesId": 638,
+      "episodeIds": [
+        19921
+      ],
+      "sourceTitle": "Lucky.2026.S01E06.1080p.WEB.H264-CAKES",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 3,
+          "name": "WEBDL-1080p",
+          "source": "web",
+          "resolution": 1080
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 116,
+          "name": "1080p WEB-DL"
+        }
+      ],
+      "date": "2026-08-12T01:09:06Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lucky (2026)",
+        "sortTitle": "lucky 2026",
+        "status": "ended",
+        "ended": true,
+        "overview": "A reformed criminal is forced to confront her past and return to illicit activities for one final job, hoping to secure her freedom and leave her former life behind for good.",
+        "network": "Apple TV",
+        "airTime": "00:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/banners/6a88a8dac5107.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/posters/6a2039325df3d.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/backgrounds/6a56caaa5cd3f.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/clearlogo/6a46ce491bd07.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Lucky (2026) [tvdbid-457437]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 45,
+        "tvdbId": 457437,
+        "tvRageId": 0,
+        "tvMazeId": 81228,
+        "tmdbId": 278624,
+        "firstAired": "2026-07-15T00:00:00Z",
+        "lastAired": "2026-08-19T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lucky2026",
+        "imdbId": "tt34866681",
+        "titleSlug": "lucky-2026",
+        "certification": "-16",
+        "genres": [
+          "Crime",
+          "Drama",
+          "Mini-Series",
+          "Mystery",
+          "Suspense",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2026-07-24T08:12:00Z",
+        "ratings": {
+          "votes": 9462,
+          "value": 6.7
+        },
+        "languageProfileId": 1,
+        "id": 638
+      },
+      "id": 4634
+    },
+    {
+      "seriesId": 638,
+      "episodeIds": [
+        19916
+      ],
+      "sourceTitle": "Lucky.2026.S01E01.No.Shortcuts.1080p.ATVP.WEB-DL | Lucky.2026.S01E01.No.Shortcuts.1080p.ATVP.WEB-DL.DDP5.1.Atmos.H.264-GP-TV-NLsubs-Retail",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 3,
+          "name": "WEBDL-1080p",
+          "source": "web",
+          "resolution": 1080
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 116,
+          "name": "1080p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 49,
+          "name": "Atmos"
+        },
+        {
+          "id": 31,
+          "name": "ATVP"
+        },
+        {
+          "id": 139,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        }
+      ],
+      "date": "2026-07-24T08:20:58Z",
+      "protocol": "usenet",
+      "indexer": "Spotarr (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lucky (2026)",
+        "sortTitle": "lucky 2026",
+        "status": "ended",
+        "ended": true,
+        "overview": "A reformed criminal is forced to confront her past and return to illicit activities for one final job, hoping to secure her freedom and leave her former life behind for good.",
+        "network": "Apple TV",
+        "airTime": "00:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/banners/6a88a8dac5107.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/posters/6a2039325df3d.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/backgrounds/6a56caaa5cd3f.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/clearlogo/6a46ce491bd07.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Lucky (2026) [tvdbid-457437]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 45,
+        "tvdbId": 457437,
+        "tvRageId": 0,
+        "tvMazeId": 81228,
+        "tmdbId": 278624,
+        "firstAired": "2026-07-15T00:00:00Z",
+        "lastAired": "2026-08-19T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lucky2026",
+        "imdbId": "tt34866681",
+        "titleSlug": "lucky-2026",
+        "certification": "-16",
+        "genres": [
+          "Crime",
+          "Drama",
+          "Mini-Series",
+          "Mystery",
+          "Suspense",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2026-07-24T08:12:00Z",
+        "ratings": {
+          "votes": 9462,
+          "value": 6.7
+        },
+        "languageProfileId": 1,
+        "id": 638
+      },
+      "id": 4633
+    },
+    {
+      "seriesId": 638,
+      "episodeIds": [
+        19916
+      ],
+      "sourceTitle": "Lucky.2026.S01E01.No.Shortcuts.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "web",
+          "resolution": 2160
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 93,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 49,
+          "name": "Atmos"
+        },
+        {
+          "id": 31,
+          "name": "ATVP"
+        },
+        {
+          "id": 139,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 132,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 78,
+          "name": "HDR"
+        },
+        {
+          "id": 17,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 96,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-07-24T08:20:58Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lucky (2026)",
+        "sortTitle": "lucky 2026",
+        "status": "ended",
+        "ended": true,
+        "overview": "A reformed criminal is forced to confront her past and return to illicit activities for one final job, hoping to secure her freedom and leave her former life behind for good.",
+        "network": "Apple TV",
+        "airTime": "00:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/banners/6a88a8dac5107.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/posters/6a2039325df3d.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/backgrounds/6a56caaa5cd3f.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/clearlogo/6a46ce491bd07.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Lucky (2026) [tvdbid-457437]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 45,
+        "tvdbId": 457437,
+        "tvRageId": 0,
+        "tvMazeId": 81228,
+        "tmdbId": 278624,
+        "firstAired": "2026-07-15T00:00:00Z",
+        "lastAired": "2026-08-19T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lucky2026",
+        "imdbId": "tt34866681",
+        "titleSlug": "lucky-2026",
+        "certification": "-16",
+        "genres": [
+          "Crime",
+          "Drama",
+          "Mini-Series",
+          "Mystery",
+          "Suspense",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2026-07-24T08:12:00Z",
+        "ratings": {
+          "votes": 9462,
+          "value": 6.7
+        },
+        "languageProfileId": 1,
+        "id": 638
+      },
+      "id": 4632
+    },
+    {
+      "seriesId": 638,
+      "episodeIds": [
+        19916
+      ],
+      "sourceTitle": "Lucky 2026 S01E01 No Shortcuts 2160p ATVP WEB-DL DDP5 1 Atmos DV HDR H 265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "web",
+          "resolution": 2160
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 93,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 49,
+          "name": "Atmos"
+        },
+        {
+          "id": 31,
+          "name": "ATVP"
+        },
+        {
+          "id": 139,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 132,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 78,
+          "name": "HDR"
+        },
+        {
+          "id": 17,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 96,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-07-24T08:16:28Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lucky (2026)",
+        "sortTitle": "lucky 2026",
+        "status": "ended",
+        "ended": true,
+        "overview": "A reformed criminal is forced to confront her past and return to illicit activities for one final job, hoping to secure her freedom and leave her former life behind for good.",
+        "network": "Apple TV",
+        "airTime": "00:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/banners/6a88a8dac5107.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/posters/6a2039325df3d.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/backgrounds/6a56caaa5cd3f.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/clearlogo/6a46ce491bd07.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Lucky (2026) [tvdbid-457437]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 45,
+        "tvdbId": 457437,
+        "tvRageId": 0,
+        "tvMazeId": 81228,
+        "tmdbId": 278624,
+        "firstAired": "2026-07-15T00:00:00Z",
+        "lastAired": "2026-08-19T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lucky2026",
+        "imdbId": "tt34866681",
+        "titleSlug": "lucky-2026",
+        "certification": "-16",
+        "genres": [
+          "Crime",
+          "Drama",
+          "Mini-Series",
+          "Mystery",
+          "Suspense",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2026-07-24T08:12:00Z",
+        "ratings": {
+          "votes": 9462,
+          "value": 6.7
+        },
+        "languageProfileId": 1,
+        "id": 638
+      },
+      "id": 4631
+    },
+    {
+      "seriesId": 638,
+      "episodeIds": [
+        19918
+      ],
+      "sourceTitle": "Lucky.2026.S01E03.Read.the.Room.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "web",
+          "resolution": 2160
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 93,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 49,
+          "name": "Atmos"
+        },
+        {
+          "id": 31,
+          "name": "ATVP"
+        },
+        {
+          "id": 139,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 132,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 78,
+          "name": "HDR"
+        },
+        {
+          "id": 17,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 96,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-07-24T08:15:16Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lucky (2026)",
+        "sortTitle": "lucky 2026",
+        "status": "ended",
+        "ended": true,
+        "overview": "A reformed criminal is forced to confront her past and return to illicit activities for one final job, hoping to secure her freedom and leave her former life behind for good.",
+        "network": "Apple TV",
+        "airTime": "00:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/banners/6a88a8dac5107.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/posters/6a2039325df3d.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/backgrounds/6a56caaa5cd3f.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/clearlogo/6a46ce491bd07.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Lucky (2026) [tvdbid-457437]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 45,
+        "tvdbId": 457437,
+        "tvRageId": 0,
+        "tvMazeId": 81228,
+        "tmdbId": 278624,
+        "firstAired": "2026-07-15T00:00:00Z",
+        "lastAired": "2026-08-19T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lucky2026",
+        "imdbId": "tt34866681",
+        "titleSlug": "lucky-2026",
+        "certification": "-16",
+        "genres": [
+          "Crime",
+          "Drama",
+          "Mini-Series",
+          "Mystery",
+          "Suspense",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2026-07-24T08:12:00Z",
+        "ratings": {
+          "votes": 9462,
+          "value": 6.7
+        },
+        "languageProfileId": 1,
+        "id": 638
+      },
+      "id": 4630
+    },
+    {
+      "seriesId": 638,
+      "episodeIds": [
+        19917
+      ],
+      "sourceTitle": "Lucky.2026.S01E02.Make.em.Dance.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DV.HDR10Plus.H.265-Kitsune",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "web",
+          "resolution": 2160
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 93,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 49,
+          "name": "Atmos"
+        },
+        {
+          "id": 31,
+          "name": "ATVP"
+        },
+        {
+          "id": 139,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 132,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 124,
+          "name": "HDR10+"
+        },
+        {
+          "id": 17,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 100,
+          "name": "WEB-DL Tier 2"
+        }
+      ],
+      "date": "2026-07-24T08:14:58Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lucky (2026)",
+        "sortTitle": "lucky 2026",
+        "status": "ended",
+        "ended": true,
+        "overview": "A reformed criminal is forced to confront her past and return to illicit activities for one final job, hoping to secure her freedom and leave her former life behind for good.",
+        "network": "Apple TV",
+        "airTime": "00:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/banners/6a88a8dac5107.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/posters/6a2039325df3d.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/backgrounds/6a56caaa5cd3f.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/clearlogo/6a46ce491bd07.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Lucky (2026) [tvdbid-457437]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 45,
+        "tvdbId": 457437,
+        "tvRageId": 0,
+        "tvMazeId": 81228,
+        "tmdbId": 278624,
+        "firstAired": "2026-07-15T00:00:00Z",
+        "lastAired": "2026-08-19T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lucky2026",
+        "imdbId": "tt34866681",
+        "titleSlug": "lucky-2026",
+        "certification": "-16",
+        "genres": [
+          "Crime",
+          "Drama",
+          "Mini-Series",
+          "Mystery",
+          "Suspense",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2026-07-24T08:12:00Z",
+        "ratings": {
+          "votes": 9462,
+          "value": 6.7
+        },
+        "languageProfileId": 1,
+        "id": 638
+      },
+      "id": 4629
+    },
+    {
+      "seriesId": 638,
+      "episodeIds": [
+        19916
+      ],
+      "sourceTitle": "Lucky.2026.S01E01.No.Shortcuts.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DV.HDR10Plus.H.265-Kitsune",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "web",
+          "resolution": 2160
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 93,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 49,
+          "name": "Atmos"
+        },
+        {
+          "id": 31,
+          "name": "ATVP"
+        },
+        {
+          "id": 139,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 132,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 124,
+          "name": "HDR10+"
+        },
+        {
+          "id": 17,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 100,
+          "name": "WEB-DL Tier 2"
+        }
+      ],
+      "date": "2026-07-24T08:14:58Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lucky (2026)",
+        "sortTitle": "lucky 2026",
+        "status": "ended",
+        "ended": true,
+        "overview": "A reformed criminal is forced to confront her past and return to illicit activities for one final job, hoping to secure her freedom and leave her former life behind for good.",
+        "network": "Apple TV",
+        "airTime": "00:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/banners/6a88a8dac5107.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/posters/6a2039325df3d.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/backgrounds/6a56caaa5cd3f.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/clearlogo/6a46ce491bd07.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Lucky (2026) [tvdbid-457437]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 45,
+        "tvdbId": 457437,
+        "tvRageId": 0,
+        "tvMazeId": 81228,
+        "tmdbId": 278624,
+        "firstAired": "2026-07-15T00:00:00Z",
+        "lastAired": "2026-08-19T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lucky2026",
+        "imdbId": "tt34866681",
+        "titleSlug": "lucky-2026",
+        "certification": "-16",
+        "genres": [
+          "Crime",
+          "Drama",
+          "Mini-Series",
+          "Mystery",
+          "Suspense",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2026-07-24T08:12:00Z",
+        "ratings": {
+          "votes": 9462,
+          "value": 6.7
+        },
+        "languageProfileId": 1,
+        "id": 638
+      },
+      "id": 4628
+    },
+    {
+      "seriesId": 638,
+      "episodeIds": [
+        19918
+      ],
+      "sourceTitle": "Lucky 2026 S01E03 Read the Room 2160p ATVP WEB-DL DDP5 1 Atmos DV HDR H 265-FLUX",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 18,
+          "name": "WEBDL-2160p",
+          "source": "web",
+          "resolution": 2160
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 93,
+          "name": "2160p WEB-DL"
+        },
+        {
+          "id": 8,
+          "name": "5.1 Surround"
+        },
+        {
+          "id": 49,
+          "name": "Atmos"
+        },
+        {
+          "id": 31,
+          "name": "ATVP"
+        },
+        {
+          "id": 139,
+          "name": "Dolby Atmos"
+        },
+        {
+          "id": 45,
+          "name": "Dolby Digital +"
+        },
+        {
+          "id": 132,
+          "name": "Dolby Vision"
+        },
+        {
+          "id": 78,
+          "name": "HDR"
+        },
+        {
+          "id": 17,
+          "name": "WEB Tier 01"
+        },
+        {
+          "id": 96,
+          "name": "WEB-DL Tier 1"
+        }
+      ],
+      "date": "2026-07-24T08:14:58Z",
+      "protocol": "usenet",
+      "indexer": "altHUB (Prowlarr)",
+      "message": "Afgebroken, kan niet voltooid worden - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Lucky (2026)",
+        "sortTitle": "lucky 2026",
+        "status": "ended",
+        "ended": true,
+        "overview": "A reformed criminal is forced to confront her past and return to illicit activities for one final job, hoping to secure her freedom and leave her former life behind for good.",
+        "network": "Apple TV",
+        "airTime": "00:00",
+        "images": [
+          {
+            "coverType": "banner",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/banners/6a88a8dac5107.jpg"
+          },
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/posters/6a2039325df3d.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/backgrounds/6a56caaa5cd3f.jpg"
+          },
+          {
+            "coverType": "clearlogo",
+            "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/457437/clearlogo/6a46ce491bd07.png"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "year": 2026,
+        "path": "/storage/tv/Lucky (2026) [tvdbid-457437]",
+        "qualityProfileId": 9,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 45,
+        "tvdbId": 457437,
+        "tvRageId": 0,
+        "tvMazeId": 81228,
+        "tmdbId": 278624,
+        "firstAired": "2026-07-15T00:00:00Z",
+        "lastAired": "2026-08-19T00:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "lucky2026",
+        "imdbId": "tt34866681",
+        "titleSlug": "lucky-2026",
+        "certification": "-16",
+        "genres": [
+          "Crime",
+          "Drama",
+          "Mini-Series",
+          "Mystery",
+          "Suspense",
+          "Thriller"
+        ],
+        "tags": [],
+        "added": "2026-07-24T08:12:00Z",
+        "ratings": {
+          "votes": 9462,
+          "value": 6.7
+        },
+        "languageProfileId": 1,
+        "id": 638
+      },
+      "id": 4627
+    }
+  ]
+}

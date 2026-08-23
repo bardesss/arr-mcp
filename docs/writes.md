@@ -35,6 +35,11 @@ re-monitor it.
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
 | `set_monitoring` | safe | `safe_write` |
+| `grab_release` | safe | `safe_write` |
+| `request_media` | safe | `safe_write` |
+| `pause_downloads` | safe | `safe_write` |
+| `set_watched` | safe | `safe_write` |
+| `remove_blocklist_item` | safe | `safe_write` |
 | `remove_queue_item` | destructive | `destructive` |
 | `clean_queue` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
@@ -55,6 +60,18 @@ release — which is hard to notice and hard to undo months later, when the same
 film mysteriously never grabs. SABnzbd and the torrent clients have no blocklist of
 their own; ask for one there and the preview tells you it is being ignored
 rather than silently accepting a flag that does nothing.
+
+`set_watched` is safe rather than destructive, but it is the one safe write
+whose undo is not perfectly clean: unmarking and re-marking restores the
+watched flag and nothing else. The original play date and resume position are
+gone, and Jellyfin has no way to put them back. The preview says so before you
+confirm.
+
+`pause_downloads` names one client rather than defaulting to all of them, and
+that is a permission property rather than a missing convenience: every write's
+tier is checked against exactly one resolved service id, so a tool spanning
+three clients would have to nominate one of them for that check — and enabling
+`safe_write` on SABnzbd would then quietly enable it on Transmission.
 
 ## The confirmation handshake
 

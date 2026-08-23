@@ -8,6 +8,7 @@ import { logger } from '../core/logger.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
+    type CreateRequestOptions,
     type DiscoverCapable,
     type MediaRequest,
     type RequestManageCapable,
@@ -253,6 +254,33 @@ export class SeerrAdapter
             });
         }
         return this.#toRequest(updated as RawRequest & { id: number });
+    }
+
+    /**
+     * Creating a request, as opposed to ruling on one.
+     *
+     * Two things a live 3.4.1 settled that the spec does not. It resolves the
+     * TVDB id itself from the TMDB `mediaId`, so nothing here has to supply
+     * one. And it does **not** refuse a duplicate — a second request for the
+     * same media creates a second row — which is why `request_media` checks
+     * for an existing one itself rather than letting Seerr answer that.
+     */
+    async createRequest(opts: CreateRequestOptions): Promise<MediaRequest> {
+        const created = await this.#http.post<RawRequest>('/api/v1/request', {
+            mediaType: opts.mediaType,
+            mediaId: opts.mediaId,
+            ...(opts.seasons === undefined ? {} : { seasons: opts.seasons }),
+            ...(opts.userId === undefined ? {} : { userId: opts.userId })
+        });
+
+        // Same rule as respondToRequest: if the response cannot say what was
+        // created, we do not claim it worked.
+        if (typeof created.id !== 'number') {
+            throw new ServiceError('UpstreamError', this.id, 'the request was created with no id in the response', {
+                remedy: 'It may still have been created — call get_requests to check before retrying.'
+            });
+        }
+        return this.#toRequest(created as RawRequest & { id: number });
     }
 
     /**

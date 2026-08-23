@@ -16,6 +16,7 @@ import { registerCleanQueue } from './cleanQueue.ts';
 import { registerDeleteMedia } from './deleteMedia.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
+import { registerGetBlocklist } from './getBlocklist.ts';
 import { registerGetCalendar } from './getCalendar.ts';
 import { registerGetHistory } from './getHistory.ts';
 import { registerGetIndexers } from './getIndexers.ts';
@@ -27,12 +28,17 @@ import { registerGetReleases } from './getReleases.ts';
 import { registerGetRequests } from './getRequests.ts';
 import { registerGetSubtitles } from './getSubtitles.ts';
 import { registerGetWanted } from './getWanted.ts';
+import { registerGrabRelease } from './grabRelease.ts';
 import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
+import { registerPauseDownloads } from './pauseDownloads.ts';
+import { registerRemoveBlocklistItem } from './removeBlocklistItem.ts';
 import { registerRemoveQueueItem } from './removeQueueItem.ts';
+import { registerRequestMedia } from './requestMedia.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerSetMonitoring } from './setMonitoring.ts';
+import { registerSetWatched } from './setWatched.ts';
 import { registerStackHealth } from './stackHealth.ts';
 import { registerTriggerScan } from './triggerScan.ts';
 import { registerTriggerSubtitleSearch } from './triggerSubtitleSearch.ts';
@@ -139,6 +145,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetHistory(server, adapters);
     registerGetWanted(server, adapters);
     registerGetReleases(server, adapters);
+    registerGetBlocklist(server, adapters);
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, jellyfin, jellyfinIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
@@ -164,6 +171,11 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerRespondToRequest(server, write, adapters, seerrIdentity);
     registerDeleteRequest(server, write, adapters, seerrIdentity);
     registerAddMedia(server, write, adapters);
+    registerGrabRelease(server, write, adapters);
+    registerRequestMedia(server, write, adapters, seerrIdentity);
+    registerPauseDownloads(server, write, adapters);
+    registerSetWatched(server, write, adapters, jellyfinIdentity);
+    registerRemoveBlocklistItem(server, write, adapters);
 }
 
 /**
@@ -182,6 +194,7 @@ export const TOOL_NAMES = [
     'get_history',
     'get_wanted',
     'get_releases',
+    'get_blocklist',
     'get_calendar',
     'get_playback',
     'get_requests',
@@ -200,5 +213,10 @@ export const TOOL_NAMES = [
     'set_monitoring',
     'respond_to_request',
     'delete_request',
-    'add_media'
+    'add_media',
+    'grab_release',
+    'request_media',
+    'pause_downloads',
+    'set_watched',
+    'remove_blocklist_item'
 ] as const;

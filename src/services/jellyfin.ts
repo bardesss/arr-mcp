@@ -20,6 +20,8 @@ import {
     type UserDirectoryCapable,
     type UserLibraryCapable,
     type UserSeasonsCapable,
+    type WatchStateCapable,
+    type WatchTarget,
     type CommandHandle
 } from './types.ts';
 
@@ -88,9 +90,12 @@ type RawItemDetail = {
 };
 
 type RawEpisodeItem = {
+    Id?: string;
+    Name?: string;
     SeriesId?: string;
     /** Jellyfin's season number. `IndexNumber` is the episode's. */
     ParentIndexNumber?: number;
+    IndexNumber?: number;
     UserData?: { Played?: boolean; LastPlayedDate?: string };
 };
 
@@ -116,7 +121,8 @@ export class JellyfinAdapter
         MediaDetailCapable,
         SearchCapable,
         UserLibraryCapable,
-        UserSeasonsCapable
+        UserSeasonsCapable,
+        WatchStateCapable
 {
     readonly type: ServiceId = 'jellyfin';
     readonly id: string = 'jellyfin';
@@ -419,6 +425,82 @@ export class JellyfinAdapter
      * Jellyfin's internal `Id` never leaves this method; the resolver keeps
      * joining on external ids alone.
      */
+    /**
+     * Jellyfin item ids are 32 lowercase hex characters. Checked before any
+     * network call, because the ids a caller is most likely to reach for by
+     * mistake — a Radarr movie id, a Sonarr series id — are small integers,
+     * and sending one on produces a 404 that names nothing useful.
+     */
+    #itemId(id: string): string {
+        const clean = id.trim().toLowerCase();
+        if (!/^[0-9a-f]{32}$/.test(clean)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a Jellyfin item id`, {
+                remedy:
+                    'Jellyfin item ids are 32 hex characters, and are not Radarr or Sonarr ids. Take one from the `itemId` get_playback reports, or from a jellyfin hit in search_media.'
+            });
+        }
+        return clean;
+    }
+
+    async readWatchTarget(user: ServiceUser, itemId: string): Promise<WatchTarget> {
+        const id = this.#itemId(itemId);
+        const item = await this.#http.get<RawItemDetail & { Type?: string; UserData?: { Played?: boolean } }>(
+            `/Items/${id}?userId=${encodeURIComponent(user.id)}`
+        );
+
+        const KINDS: Record<string, WatchTarget['kind']> = { Movie: 'movie', Series: 'series', Episode: 'episode' };
+        return {
+            id,
+            title: fenceText(item.Name ?? '', { service: this.id, field: 'Name' }),
+            kind: KINDS[item.Type ?? ''] ?? 'item',
+            watched: item.UserData?.Played === true
+        };
+    }
+
+    /**
+     * `season` is Jellyfin's own parameter name, confirmed by sending an
+     * invented one and getting the unfiltered count back — Jellyfin ignores
+     * query parameters it does not recognise, so a wrong spelling looks
+     * exactly like a working filter.
+     */
+    async listEpisodeItems(user: ServiceUser, seriesItemId: string, season?: number): Promise<WatchTarget[]> {
+        const id = this.#itemId(seriesItemId);
+        const page = await this.#http.get<{ Items?: RawEpisodeItem[] }>(
+            `/Shows/${id}/Episodes?userId=${encodeURIComponent(user.id)}&EnableUserData=true` +
+                (season === undefined ? '' : `&season=${season}`)
+        );
+
+        return (page.Items ?? [])
+            .filter((e): e is RawEpisodeItem & { Id: string } => typeof e.Id === 'string')
+            .map(e => ({
+                id: e.Id,
+                title: fenceText(e.Name ?? '', { service: this.id, field: 'Name' }),
+                kind: 'episode' as const,
+                watched: e.UserData?.Played === true,
+                ...(e.ParentIndexNumber === undefined ? {} : { season: e.ParentIndexNumber }),
+                ...(e.IndexNumber === undefined ? {} : { episode: e.IndexNumber })
+            }));
+    }
+
+    /**
+     * POST marks played, DELETE unmarks. Both answer with the item's user
+     * data, which nothing here reads — the tool re-reads state through
+     * `readWatchTarget` when it needs it.
+     *
+     * `userId` is a query parameter, and Jellyfin ignores parameters it does
+     * not recognise: a misspelling here would silently mark the item for
+     * whoever the API key belongs to instead. Proved correct by sending an
+     * invented parameter alongside and confirming the response was unchanged.
+     */
+    async setWatched(user: ServiceUser, itemId: string, watched: boolean): Promise<void> {
+        const path = `/UserPlayedItems/${this.#itemId(itemId)}?userId=${encodeURIComponent(user.id)}`;
+        if (watched) {
+            await this.#http.post(path, undefined, true);
+        } else {
+            await this.#http.delete(path);
+        }
+    }
+
     async listUserSeasons(user: ServiceUser): Promise<IndexInput[]> {
         const series = await this.#http.get<{ Items?: RawItemDetail[] }>(
             '/Items?Recursive=true&IncludeItemTypes=Series&Fields=ProviderIds'
