@@ -299,6 +299,23 @@ describe('get_library shaping', () => {
         expect(asked).toEqual(['Other']);
     });
 
+    it('carries the loader\'s note through to the result, not just the snapshot', async () => {
+        // LibrarySnapshot.note is how the jellyfin-with-no-default_user case
+        // (LibraryLoader#build) reaches a caller — worth nothing if it dies
+        // at the snapshot and never reaches get_library's own result shape.
+        const loader = {
+            load: async () => ({
+                index: LibraryIndex.build([]),
+                degraded: ['jellyfin'],
+                counts: {},
+                note: 'Jellyfin is configured without a default_user, so watch state is not included.'
+            })
+        } as unknown as LibraryLoader;
+
+        const result = await buildGetLibrary(loader, base);
+        expect(result.note).toContain('default_user');
+    });
+
     it('reports degraded services', async () => {
         const broken = {
             id: 'sonarr',

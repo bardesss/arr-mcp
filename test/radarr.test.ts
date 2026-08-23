@@ -107,6 +107,14 @@ describe('RadarrAdapter', () => {
         expect(state.lastCompleted).toBeUndefined();
     });
 
+    it('coerces a non-string health check type', async () => {
+        const checks = await adapter({
+            '/api/v3/health': [{ source: 'DownloadClientCheck', type: 2, message: 'no client' }]
+        }).getFailedHealthChecks();
+        expect(checks[0]?.type).toBe('2');
+        expect(typeof checks[0]?.type).toBe('string');
+    });
+
     it('advertises disk, health and scan capabilities to the type guards', () => {
         const a = adapter({});
         expect([hasDiskSpace(a), hasHealthChecks(a), hasScanState(a)]).toEqual([true, true, true]);

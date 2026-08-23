@@ -1,6 +1,7 @@
 import { instanceId } from '../config/instances.ts';
 import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
@@ -9,6 +10,7 @@ import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
+import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import type { components } from './generated/sonarr.ts';
 import {
     diagnoseConnection,
@@ -87,10 +89,6 @@ type RawEpisode = {
 
 type RawEpisodeFile = { id?: number; seasonNumber?: number; size?: number };
 
-type RawStatus = components['schemas']['SystemResource'];
-type RawDiskSpace = components['schemas']['DiskSpaceResource'];
-type RawHealthCheck = components['schemas']['HealthResource'];
-type RawTask = components['schemas']['TaskResource'];
 type RawCommand = components['schemas']['CommandResource'];
 
 /**
@@ -128,6 +126,11 @@ export class SonarrAdapter
     readonly id: string;
     readonly #http: ServiceHttp;
 
+    /** The whole-library read, shared by `search(_, 'library')` and
+     *  `listLibrary` — both hit `/api/v3/series`. Discarded on config reload
+     *  for free: `buildAdapters` constructs a new adapter. */
+    readonly #libraryCache = new TtlCache();
+
     constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('sonarr', config.name);
@@ -135,57 +138,23 @@ export class SonarrAdapter
     }
 
     async getVersion(): Promise<string> {
-        const status = await this.#http.get<RawStatus>('/api/v3/system/status');
-        if (!status.version) {
-            throw new ServiceError('UpstreamError', this.id, 'system/status returned no version field');
-        }
-        return status.version;
+        return arrVersion(this.#http, this.id);
     }
 
     async getDiskSpace(): Promise<DiskSpace[]> {
-        const rows = await this.#http.get<RawDiskSpace[]>('/api/v3/diskspace');
-        // The generated types mark these nullable, not merely optional.
-        return rows.map(r => ({
-            service: this.id,
-            ...(typeof r.path === 'string' ? { path: r.path } : {}),
-            label: r.label ?? '',
-            freeSpace: r.freeSpace ?? 0,
-            ...(typeof r.totalSpace === 'number' ? { totalSpace: r.totalSpace } : {})
-        }));
+        return arrDiskSpace(this.#http, this.id);
     }
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        const all = await this.#http.get<RawHealthCheck[]>('/api/v3/health');
-        return all
-            .filter(c => c.type !== 'ok')
-            .map(c => ({
-                service: this.id,
-                source: c.source ?? 'unknown',
-                type: String(c.type ?? 'warning'),
-                message: c.message ?? ''
-            }));
+        return arrFailedHealthChecks(this.#http, this.id);
     }
 
-    /**
-     * Queues the same command `getScanState` reads the last run of, so what
-     * this starts and what that reports can never drift apart.
-     */
     async startLibraryScan(): Promise<CommandHandle> {
-        const command = await this.#http.post<RawCommand>('/api/v3/command', { name: 'RefreshSeries' });
-
-        return {
-            service: this.id,
-            commandId: command.id ?? 0,
-            name: command.name ?? 'RefreshSeries',
-            ...(typeof command.status === 'string' ? { status: command.status } : {})
-        };
+        return arrStartLibraryScan(this.#http, this.id, 'RefreshSeries');
     }
 
     async getScanState(): Promise<ScanState> {
-        const tasks = await this.#http.get<RawTask[]>('/api/v3/system/task');
-        const scan = tasks.find(t => t.taskName === LIBRARY_SCAN_TASK);
-        const lastCompleted = scan?.lastExecution;
-        return { service: this.id, ...(typeof lastCompleted === 'string' ? { lastCompleted } : {}) };
+        return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
     }
 
     async getQueue(): Promise<QueueItem[]> {
@@ -377,11 +346,25 @@ export class SonarrAdapter
         };
     }
 
+    /** The `/api/v3/series` read behind both `search(_, 'library')` and
+     *  `listLibrary` — Sonarr has no server-side filter, so both need the
+     *  whole list, and this is where they share one fetch for it. */
+    #allSeries(): Promise<RawSeries[]> {
+        return this.#libraryCache.get('series', LIBRARY_TTL_MS, () => this.#http.get<RawSeries[]>('/api/v3/series'));
+    }
+
+    /** Drop the cached whole-library read, e.g. after a write. */
+    invalidateLibrary(): void {
+        this.#libraryCache.clear();
+    }
+
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 
         if (source === 'library') {
-            const series = await this.#http.get<RawSeries[]>('/api/v3/series');
+            // Sonarr has no library search endpoint, so this filters the whole
+            // list. `#allSeries` caches that read, shared with `listLibrary`.
+            const series = await this.#allSeries();
             return series.filter(s => (s.title ?? '').toLowerCase().includes(term)).map(s => this.#toHit(s, 'library'));
         }
 
@@ -439,8 +422,10 @@ export class SonarrAdapter
         return rows.length === 0 ? undefined : rows;
     }
 
+    /** The whole series library in one call, via `#allSeries` — the same read
+     *  `search(_, 'library')` shares. */
     async listLibrary(): Promise<IndexInput[]> {
-        const series = await this.#http.get<RawSeries[]>('/api/v3/series');
+        const series = await this.#allSeries();
 
         return series.map(s => {
             const seasons = this.#seasonsOf(s);

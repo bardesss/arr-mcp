@@ -16,7 +16,7 @@ import { buildSearchMedia, type GetSearchResult } from './searchMedia.ts';
 export async function buildLookupMedia(
     adapters: readonly ServiceAdapter[],
     opts: { query: string; detail: DetailLevel; limit: number; offset?: number },
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): Promise<GetSearchResult> {
     return buildSearchMedia(adapters, { ...opts, source: 'discover' }, dataset);
 }
@@ -24,7 +24,7 @@ export async function buildLookupMedia(
 export function registerLookupMedia(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): void {
     server.registerTool(
         'lookup_media',

@@ -80,7 +80,7 @@ export function buildToolContext(
     confirm: ConfirmTokens,
     /** The IMDb dataset, when configured. Reaches the tools only through the
      *  library loader, which is the one place the join happens. */
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): ToolContext {
     const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);

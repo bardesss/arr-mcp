@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { KeyedServiceConfig } from '../src/config/schema.ts';
+import { TtlCache } from '../src/core/cache.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
+import { RadarrAdapter } from '../src/services/radarr.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import type { ServiceAdapter, ServiceUser } from '../src/services/types.ts';
+
+/** A hand-cranked clock, so expiry is testable without waiting real seconds. */
+const clock = (start = 0) => {
+    let now = start;
+    return { now: () => now, advance: (ms: number) => (now += ms) };
+};
 
 const film = (tmdb: number): IndexInput => ({
     kind: 'movie',
@@ -31,7 +40,7 @@ const radarr = (items = [film(550)]) => stub('radarr', { listLibrary: async () =
 const jellyfin = (byUser: Record<string, IndexInput[]>) =>
     stub('jellyfin', { listUserLibrary: async (u: ServiceUser) => byUser[u.name] ?? [] });
 
-const identity = (user: ServiceUser | Error): IdentityResolver =>
+const identity = (user: ServiceUser | Error, hasDefaultUser = true): IdentityResolver =>
     ({
         resolve: async (requested?: string) => {
             if (user instanceof Error) throw user;
@@ -39,7 +48,8 @@ const identity = (user: ServiceUser | Error): IdentityResolver =>
                 throw new ServiceError('AuthFailed', 'jellyfin', `not permitted to query as "${requested}"`);
             }
             return user;
-        }
+        },
+        hasDefaultUser
     }) as unknown as IdentityResolver;
 
 const someone = { id: 'u1', name: 'Someone' };
@@ -74,6 +84,36 @@ describe('LibraryLoader', () => {
         expect(listLibrary).toHaveBeenCalledTimes(1);
     });
 
+    // A real adapter, not a stub: `invalidate` clearing only the join cache
+    // would pass this with a spy on `invalidateLibrary`, but a stale reply
+    // sitting under the adapter's own cache would leak straight past the
+    // join being cleared. Counting the actual upstream reads is what proves
+    // the adapter cache was cleared too, not just called.
+    it('reads upstream again after invalidate, not just past the join cache', async () => {
+        const radarrConfig: KeyedServiceConfig = {
+            url: 'http://192.0.2.10:7878',
+            api_key: 'k',
+            timeout_ms: 10_000,
+            permissions: { safe_write: false, destructive: false }
+        };
+        let fetches = 0;
+        const fetchImpl = (async () => {
+            fetches += 1;
+            return new Response(JSON.stringify([{ id: 1, title: 'Some Film', year: 2026, tmdbId: 550 }]), {
+                status: 200,
+                headers: { 'content-type': 'application/json' }
+            });
+        }) as unknown as typeof fetch;
+
+        const loader = new LibraryLoader([new RadarrAdapter(radarrConfig, fetchImpl)], undefined);
+
+        await loader.load();
+        loader.invalidate();
+        await loader.load();
+
+        expect(fetches).toBe(2);
+    });
+
     it('caches per Jellyfin user, so one household member cannot see another', async () => {
         const byUser = { Someone: [watched(550, 'Someone')], Other: [] };
         const resolve = vi.fn(async (requested?: string) => ({ id: `id-${requested}`, name: requested ?? 'Someone' }));
@@ -103,7 +143,8 @@ describe('LibraryLoader', () => {
         expect(snapshot.counts.sonarr).toBeUndefined();
     });
 
-    it('does not cache a degraded load, so a restarted service recovers', async () => {
+    it('recovers past the short degraded ttl, once the service is back', async () => {
+        const c = clock();
         let calls = 0;
         const flaky = stub('radarr', {
             listLibrary: async () => {
@@ -112,10 +153,53 @@ describe('LibraryLoader', () => {
                 return [film(550)];
             }
         });
-        const loader = new LibraryLoader([flaky], undefined);
+        const loader = new LibraryLoader([flaky], undefined, new TtlCache(c.now));
 
         expect((await loader.load()).degraded).toEqual(['radarr']);
+        c.advance(25_000);
         expect((await loader.load()).index.size()).toBe(1);
+    });
+
+    it('caches a degraded snapshot briefly rather than not at all', async () => {
+        const c = clock();
+        let calls = 0;
+        const flaky = stub('radarr', {
+            listLibrary: async () => {
+                calls += 1;
+                return [film(550)];
+            }
+        });
+        const broken = stub('sonarr', {
+            listLibrary: async () => {
+                throw new ServiceError('Unreachable', 'sonarr', 'connection refused');
+            }
+        });
+        const loader = new LibraryLoader([flaky, broken], undefined, new TtlCache(c.now));
+
+        await loader.load();
+        await loader.load();
+        expect(calls).toBe(1);
+
+        c.advance(25_000);
+        await loader.load();
+        expect(calls).toBe(2);
+    });
+
+    it('still gives a complete snapshot the full TTL', async () => {
+        const c = clock();
+        let calls = 0;
+        const counted = stub('radarr', {
+            listLibrary: async () => {
+                calls += 1;
+                return [film(550)];
+            }
+        });
+        const loader = new LibraryLoader([counted], undefined, new TtlCache(c.now));
+
+        await loader.load();
+        c.advance(25_000);
+        await loader.load();
+        expect(calls).toBe(1);
     });
 
     it('propagates an authorization refusal instead of degrading', async () => {
@@ -125,35 +209,45 @@ describe('LibraryLoader', () => {
         await expect(loader.load('Someone Else')).rejects.toThrow(/not permitted/);
     });
 
-    // Whole-phase review item 5: no-user-configured is a configuration error
-    // with an actionable remedy, not a reachability problem — src/config/schema.ts
-    // documents that "a per-user tool called with nothing configured fails
-    // naming this key." Before this fix, #resolveUser only propagated NotFound
-    // when `requested !== undefined`, so this exact case (nobody named,
-    // nothing configured) degraded silently and permanently: every call
-    // reported "jellyfin could not be reached" forever, indistinguishable
-    // from a real, self-healing outage, while stack_health kept calling
-    // Jellyfin healthy.
-    it('fails naming default_user, rather than degrading forever, when no Jellyfin user is configured and none was requested', async () => {
+    // Whole-phase review item 5, revised: no-user-configured is a
+    // configuration gap with an actionable remedy, not a reachability
+    // problem — but it is also not a reason to lose the Radarr and Sonarr
+    // halves of a read that never needed a Jellyfin user. Before this fix,
+    // #resolveUser propagated NotFound whenever `requested === undefined`,
+    // so this exact case (nobody named, nothing configured) threw and the
+    // whole read failed, even though the schema explicitly allows Jellyfin
+    // to be configured with no `default_user` (present only in stack_health).
+    it('degrades to the arrs, with a note naming default_user, when no Jellyfin user is configured and none was requested', async () => {
         const noDefault = identity(
             new ServiceError('NotFound', 'jellyfin', 'no user was named and none is configured', {
                 remedy: 'Set services.jellyfin.default_user in config.yaml, or pass a user explicitly.'
-            })
+            }),
+            false
         );
         const loader = new LibraryLoader([radarr(), jellyfin({})], noDefault);
-        await expect(loader.load()).rejects.toThrow(/default_user/);
+
+        const snapshot = await loader.load();
+
+        // The Radarr half is the point: a config choice the schema explicitly
+        // allows must not lose it.
+        expect(snapshot.index.size()).toBeGreaterThan(0);
+        expect(snapshot.degraded).toContain('jellyfin');
+        expect(snapshot.note).toContain('default_user');
     });
 
-    it('fails naming default_user the same way when a configured default_user does not match any real Jellyfin user', async () => {
+    it('propagates when a configured default_user does not match any real Jellyfin user', async () => {
         // A different NotFound path through IdentityResolver.resolve (not
         // #authorize): `default_user` is configured, but is a typo or a
         // deleted account, so the directory lookup itself comes up empty.
         // `requested` (the argument to #resolveUser) is still undefined here
-        // — nobody named anyone, the *default* was used internally — so this
-        // is the other case the old `requested !== undefined` check missed.
-        const badDefault = identity(new ServiceError('NotFound', 'jellyfin', 'no user named "Bartsu"'));
+        // — nobody named anyone, the *default* was used internally — but a
+        // *wrong* default_user is a config error, not the "nothing
+        // configured" case the spec blesses for degrading, so this must
+        // still throw the actionable error naming the bad value.
+        const badDefault = identity(new ServiceError('NotFound', 'jellyfin', 'no user named "Bartsu"'), true);
         const loader = new LibraryLoader([radarr(), jellyfin({})], badDefault);
-        await expect(loader.load()).rejects.toThrow(/no user named/);
+
+        await expect(loader.load()).rejects.toThrow(/no user named "Bartsu"/);
     });
 
     it('still propagates AuthFailed rather than degrading — a refusal is not a configuration gap', async () => {

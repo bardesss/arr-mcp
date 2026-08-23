@@ -23,7 +23,7 @@ const project = (i: IndexerSummary, detail: DetailLevel): IndexerSummary => {
     if (detail === 'full') return i;
 
     const { queries: _q, grabs: _g, rejectedQueries: _rq, rejectedGrabs: _rg, ...rest } = i;
-    return rest as IndexerSummary;
+    return rest;
 };
 
 export async function buildGetIndexers(

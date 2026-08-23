@@ -97,6 +97,16 @@ describe('SonarrAdapter', () => {
         expect([hasDiskSpace(adapter), hasHealthChecks(adapter), hasScanState(adapter)]).toEqual([true, true, true]);
     });
 
+    it('coerces a non-string health check type', async () => {
+        const withNumericType = new SonarrAdapter(
+            keyed(8989),
+            serving({ '/api/v3/health': [{ source: 'DownloadClientCheck', type: 2, message: 'no client' }] })
+        );
+        const [check] = await withNumericType.getFailedHealthChecks();
+        expect(check?.type).toBe('2');
+        expect(typeof check?.type).toBe('string');
+    });
+
     expectsAuthDiagnosis(new SonarrAdapter(keyed(8989), unauthorized));
 });
 

@@ -15,13 +15,54 @@ export default tseslint.config(
     // elsewhere.
     { ignores: ['dist', 'node_modules', 'coverage', 'src/services/generated', 'tmp-config', '.claude'] },
     js.configs.recommended,
-    ...tseslint.configs.recommended,
+    ...tseslint.configs.recommendedTypeChecked,
+    {
+        languageOptions: {
+            parserOptions: {
+                // Type-aware rules need a program. `projectService` picks the
+                // nearest tsconfig per file rather than pinning one.
+                // The three root/script config files sit outside tsconfig.json's
+                // include and aren't .ts, so they need the default project.
+                projectService: {
+                    allowDefaultProject: ['eslint.config.mjs', 'vitest.config.ts', 'scripts/codegen.mjs']
+                },
+                tsconfigRootDir: import.meta.dirname
+            }
+        }
+    },
     {
         // Maintainer scripts run in Node directly rather than through the
         // bundled entrypoint, so they need Node's globals declared.
         files: ['scripts/**/*.mjs'],
         languageOptions: {
             globals: { process: 'readonly', console: 'readonly' }
+        }
+    },
+    {
+        // `eslint.config.mjs` and `codegen.mjs` sit outside the main tsconfig
+        // program (see `allowDefaultProject` above) and are untyped JS, so the
+        // type checker has nothing there to protect — every value it sees is
+        // already `any` or unresolved, which is what these rules exist to flag
+        // elsewhere.
+        files: ['eslint.config.mjs', 'scripts/codegen.mjs'],
+        rules: {
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-call': 'off',
+            '@typescript-eslint/no-unsafe-member-access': 'off',
+            '@typescript-eslint/no-unsafe-return': 'off'
+        }
+    },
+    {
+        // `res.json()`/`res.text()` fed straight into `expect(...)`, `@ts-expect-error`
+        // blocks that exist to prove a type error at compile time, casts on mock
+        // fixtures, and one documented `new Function` syntax check — none of it is a
+        // real defect. `no-floating-promises` and `no-misused-promises` stay on here.
+        files: ['test/**/*.ts'],
+        rules: {
+            '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-call': 'off',
+            '@typescript-eslint/no-implied-eval': 'off'
         }
     },
     {
@@ -36,7 +77,18 @@ export default tseslint.config(
             '@typescript-eslint/no-unused-vars': [
                 'error',
                 { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }
-            ]
+            ],
+            // Every finding here is a function that must match a shared async
+            // signature — `plan()` on write tools, vitest's `it(..., async () => {})`,
+            // the integration script's `check()` callback — without needing to await
+            // inside. None of them are missing an await; the shape is the contract.
+            '@typescript-eslint/require-await': 'off',
+            // Every finding here is a deliberate `String(unknown)` coercion of data
+            // this project does not control: `esc()`'s universal escape, a non-string
+            // upstream health `type`, a YAML map key, an id from a generated spec
+            // union. The alternative is runtime validation of data that was never
+            // going to be more than "probably a string".
+            '@typescript-eslint/no-base-to-string': 'off'
         }
     }
 );

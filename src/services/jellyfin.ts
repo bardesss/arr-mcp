@@ -422,7 +422,7 @@ export class JellyfinAdapter
                         ...(tvdb === undefined ? {} : { tvdb }),
                         ...(s.ProviderIds?.Imdb === undefined ? {} : { imdb: s.ProviderIds.Imdb })
                     },
-                    seasons: [...(bySeries.get(s.Id) ?? new Map()).entries()]
+                    seasons: [...(bySeries.get(s.Id) ?? new Map<number, { watched: number; lastPlayed?: string }>()).entries()]
                         .map(([season, row]) => ({
                             season,
                             watched: row.watched,

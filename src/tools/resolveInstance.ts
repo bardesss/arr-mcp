@@ -26,7 +26,7 @@ import type { ServiceAdapter } from '../services/types.ts';
 export function resolveInstance(
     adapters: readonly ServiceAdapter[],
     type: ServiceId,
-    instance?: string | undefined
+    instance?: string
 ): ServiceAdapter {
     // `.type`, never `.id` — `id` is `radarr/4k` for a named instance, so
     // matching on it is what broke.

@@ -27,7 +27,7 @@ export async function buildDiscoverMedia(
         limit: number;
         offset?: number;
     },
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): Promise<GetSearchResult> {
     if (adapter === undefined) {
         // Without Seerr this used to return an empty result, which reads as
@@ -157,7 +157,7 @@ function fromDataset(
 export function registerDiscoverMedia(
     server: McpServer,
     adapter: SeerrAdapter | undefined,
-    dataset?: ImdbDataset | undefined
+    dataset?: ImdbDataset
 ): void {
     server.registerTool(
         'discover_media',

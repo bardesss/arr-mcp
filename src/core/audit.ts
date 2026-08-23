@@ -48,6 +48,27 @@ export type AuditRecord = {
     args: Record<string, unknown>;
 };
 
+/**
+ * One stored row, as the table actually declares it.
+ *
+ * Here rather than in `pages.ts`, which is presentation: two call sites were
+ * casting `unknown[]` to two different shapes, and neither cast was checked
+ * against the SELECT that produced it.
+ */
+export type AuditRow = {
+    id: number;
+    at: string;
+    tool: string;
+    service: string;
+    operation: string;
+    tier: string;
+    target: string;
+    args: string;
+    outcome: string;
+    detail: string | null;
+    settled_at: string | null;
+};
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS write_audit (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,9 +204,32 @@ export class WriteAudit {
         }
     }
 
-    /** Newest first. The read side 0.6's config page will grow into. */
-    recent(limit = 50): unknown[] {
-        return this.#db.prepare(`SELECT * FROM write_audit ORDER BY id DESC LIMIT ?`).all(limit);
+    /** Newest first. */
+    recent(limit = 50): AuditRow[] {
+        return this.#db.prepare(`SELECT * FROM write_audit ORDER BY id DESC LIMIT ?`).all(limit) as AuditRow[];
+    }
+
+    /**
+     * The three numbers the dashboard shows, counted in SQL.
+     *
+     * Not derived from `recent()`: that reads whole rows, `args` blob included,
+     * to compute three integers — and its limit silently became the reported
+     * total.
+     */
+    counts(): { applied: number; denied: number; total: number } {
+        const rows = this.#db
+            .prepare(`SELECT outcome, COUNT(*) AS n FROM write_audit GROUP BY outcome`)
+            .all() as { outcome: string; n: number }[];
+
+        let applied = 0;
+        let denied = 0;
+        let total = 0;
+        for (const row of rows) {
+            if (row.outcome === 'applied') applied = row.n;
+            if (row.outcome === 'denied') denied = row.n;
+            total += row.n;
+        }
+        return { applied, denied, total };
     }
 
     close(): void {
