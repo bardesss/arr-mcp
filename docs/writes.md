@@ -39,6 +39,7 @@ re-monitor it.
 | `request_media` | safe | `safe_write` |
 | `pause_downloads` | safe | `safe_write` |
 | `set_watched` | safe | `safe_write` |
+| `remove_blocklist_item` | safe | `safe_write` |
 | `remove_queue_item` | destructive | `destructive` |
 | `clean_queue` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |

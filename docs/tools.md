@@ -396,6 +396,28 @@ requesting as anyone but `default_user` needs
 `respond_to_request` apply. Without it, one household member's assistant
 could spend another's quota.
 
+## `get_blocklist` and `remove_blocklist_item`
+
+The question that sends people here is "it keeps finding the same release and
+never downloading it". `get_history` shows that as a grab followed by a
+failure, over and over, and explains none of it. The blocklist does: Radarr
+and Sonarr record what they will not grab again, and why — usually in the
+download client's own words.
+
+Rows carry `mediaId` for `get_media_details` and `id` for
+`remove_blocklist_item`, and are newest first, because a blocklist is read to
+explain something that has just gone wrong.
+
+`remove_blocklist_item` withdraws one refusal, so the release can be grabbed
+again. Safe tier: nothing on disk changes, and the inverse already exists —
+`remove_queue_item`'s `blocklist: true` puts a release back on the list.
+
+Its preview reads the live blocklist first, and that is not a courtesy. Both
+services answer a `DELETE` of a blocklist id that **does not exist** with
+success — probed against a live Radarr and a live Sonarr — so a stale id
+would otherwise be reported as removed when nothing had happened. It is the
+same trap `remove_queue_item` documents, and it is checked the same way.
+
 ## `set_watched`
 
 The write half of `get_playback`. Marks a film, series, season or episode

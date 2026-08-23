@@ -10,6 +10,7 @@ import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
+import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
@@ -17,6 +18,7 @@ import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan,
 import type { components } from './generated/sonarr.ts';
 import {
     diagnoseConnection,
+    type BlocklistEntry,
     type CalendarCapable,
     type CalendarEntry,
     type ConnectionDiagnosis,
@@ -189,6 +191,14 @@ export class SonarrAdapter
 
     async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
         return grabArrRelease(this.#http, opts);
+    }
+
+    async readBlocklist(): Promise<BlocklistEntry[]> {
+        return readArrBlocklist(this.#http, this.id, 'series');
+    }
+
+    async removeBlocklistItem(id: string): Promise<void> {
+        return removeArrBlocklistItem(this.#http, id);
     }
 
     readonly supportsBlocklist = true;

@@ -319,6 +319,34 @@ export interface ReleaseGrabCapable {
 export const hasReleaseGrab = (a: ServiceAdapter): a is ServiceAdapter & ReleaseGrabCapable =>
     typeof (a as Partial<ReleaseGrabCapable>).grabRelease === 'function';
 
+/**
+ * One release Radarr or Sonarr has decided not to grab again.
+ *
+ * The answer to "why does this keep getting skipped": `reason` is the *arr's
+ * own message, usually relayed from the download client. Fenced, like every
+ * other indexer- or client-supplied string.
+ */
+export type BlocklistEntry = {
+    service: string;
+    id: string;
+    title: string; // fenced
+    indexer?: string; // fenced
+    at: string; // ISO
+    reason?: string; // fenced
+    protocol?: string;
+    /** The movie or series it belongs to — hand it to get_media_details. Never
+     *  the episode, on Sonarr, for the same reason WantedItem.id is not. */
+    mediaId?: string;
+};
+
+export interface BlocklistCapable {
+    readBlocklist(): Promise<BlocklistEntry[]>;
+    removeBlocklistItem(id: string): Promise<void>;
+}
+
+export const hasBlocklist = (a: ServiceAdapter): a is ServiceAdapter & BlocklistCapable =>
+    typeof (a as Partial<BlocklistCapable>).readBlocklist === 'function';
+
 export type CalendarEntry = {
     service: string;
     kind: 'movie' | 'episode';
