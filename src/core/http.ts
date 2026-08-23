@@ -58,9 +58,16 @@ export class ServiceHttp {
         this.#fetch = fetchImpl;
     }
 
-    /** Reads retry once on timeout. */
-    async get<T>(path: string): Promise<T> {
-        return this.#request<T>('GET', path, undefined, true);
+    /**
+     * Reads retry once on timeout.
+     *
+     * `timeoutMs`, when given, overrides the configured default for this one
+     * call — for a release search, whose upstream is tens of seconds even on
+     * a healthy stack. It never touches `#timeoutMs`, so every other caller,
+     * and the retry this same call makes, are unaffected by one slow read.
+     */
+    async get<T>(path: string, opts?: { timeoutMs?: number }): Promise<T> {
+        return this.#request<T>('GET', path, undefined, true, 'json', opts?.timeoutMs);
     }
 
     /** A read whose response is a bare string rather than JSON. */
@@ -156,7 +163,8 @@ export class ServiceHttp {
         path: string,
         body: RequestBody | undefined,
         retryOnTimeout: boolean,
-        read: ReadAs = 'json'
+        read: ReadAs = 'json',
+        timeoutMs?: number
     ): Promise<T> {
         if (this.#circuitOpen()) {
             throw new ServiceError(
@@ -168,13 +176,13 @@ export class ServiceHttp {
         }
 
         try {
-            const result = await this.#attempt<T>(method, path, body, true, read);
+            const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs);
             this.#recordSuccess();
             return result;
         } catch (err) {
             if (retryOnTimeout && err instanceof ServiceError && err.kind === 'Timeout') {
                 try {
-                    const result = await this.#attempt<T>(method, path, body, true, read);
+                    const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs);
                     this.#recordSuccess();
                     return result;
                 } catch (retryErr) {
@@ -211,7 +219,8 @@ export class ServiceHttp {
         path: string,
         body: RequestBody | undefined,
         allowRecovery = true,
-        read: ReadAs = 'json'
+        read: ReadAs = 'json',
+        timeoutMs?: number
     ): Promise<T> {
         // Prefixed, not resolved: every adapter path is absolute, and `new URL`
         // given an absolute path throws the base's own path away — which is how
@@ -233,7 +242,7 @@ export class ServiceHttp {
             response = await this.#fetch(url.toString(), {
                 method,
                 headers,
-                signal: AbortSignal.timeout(this.#timeoutMs),
+                signal: AbortSignal.timeout(timeoutMs ?? this.#timeoutMs),
                 ...(encoded === undefined ? {} : { body: encoded.payload })
             });
         } catch (err) {
@@ -258,7 +267,7 @@ export class ServiceHttp {
             // of Transmission 409s or qBittorrent 403s otherwise degraded
             // connection reuse for everything behind the same origin.
             await discard(response);
-            return this.#attempt<T>(method, path, body, false, read);
+            return this.#attempt<T>(method, path, body, false, read, timeoutMs);
         }
 
         const httpError = classifyHttpStatus(response.status, this.#id, safeUrl);

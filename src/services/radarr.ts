@@ -9,6 +9,7 @@ import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
+import { findArrReleases } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
@@ -38,6 +39,8 @@ import {
     type MediaDeleteCapable,
     type QualityProfile,
     type QueueRemoveCapable,
+    type ReleaseCandidate,
+    type ReleaseSearchCapable,
     type RootFolder,
     type RemoveQueueOptions,
     type SearchCapable,
@@ -104,7 +107,8 @@ export class RadarrAdapter
         MediaDeleteCapable,
         MediaAddCapable,
         HistoryCapable,
-        WantedCapable
+        WantedCapable,
+        ReleaseSearchCapable
 {
     readonly type: ServiceId = 'radarr';
     readonly instance: string | undefined;
@@ -155,6 +159,10 @@ export class RadarrAdapter
 
     async readWanted(scope: WantedScope): Promise<WantedItem[]> {
         return readArrWanted(this.#http, this.id, 'movie', scope);
+    }
+
+    async findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]> {
+        return findArrReleases(this.#http, this.id, 'movie', opts);
     }
 
     readonly supportsBlocklist = true;

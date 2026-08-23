@@ -275,6 +275,39 @@ Sonarr's missing list is monitored-only, which matches what "wanted" means
 here — an unmonitored gap is not something anyone asked for, and it will not
 appear in this list.
 
+## `get_releases`
+
+`trigger_search` asks Radarr or Sonarr to look for a release, but hands back
+only a queued command — it cannot show what was found, so nothing can
+actually be picked. `get_releases` runs the same interactive search Radarr
+and Sonarr's own web UI does and returns every candidate, so a model can
+compare them and — once a grab tool exists — choose one.
+
+`service` and `id` are both required: this searches one movie or series,
+never merges across services the way `get_history` and `get_wanted` do.
+`season` is Sonarr-only, and passing it to a Radarr search is refused rather
+than silently dropped.
+
+Rejected releases are returned, not filtered out. A live capture found
+*every* candidate rejected on both a Radarr and a Sonarr search — 2 of 2 and
+516 of 516 — almost always because the library already held a file at an
+equal or higher quality score. That is the ordinary outcome, and a tool that
+hid rejects would have answered empty both times. Each row carries
+`rejected` and the `rejections` upstream gave, fenced like every other
+release-supplied string.
+
+`guid` and `indexerId` travel together — that pair is what a future grab
+tool will bind a chosen release to. `seeders` is torrent-only and is absent,
+not zero, on a usenet result, which has no seeder count to report.
+
+This call is slow. Radarr and Sonarr poll every configured indexer
+synchronously before answering, and a live capture measured a Sonarr season
+search at 14.3 seconds — a cold search across more indexers can run longer.
+The tool's own per-call timeout is 120 seconds, well past the 10-second
+default every other call uses, specifically so a real search has room to
+finish rather than being cut off. A long wait here is not a hang; retrying
+it starts a second full indexer sweep.
+
 ## `clean_queue`
 
 Radarr and Sonarr leave a completed download in the queue forever when the film

@@ -10,6 +10,7 @@ import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
+import { findArrReleases } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
@@ -44,6 +45,8 @@ import {
     type MonitoringTarget,
     type QualityProfile,
     type QueueRemoveCapable,
+    type ReleaseCandidate,
+    type ReleaseSearchCapable,
     type RootFolder,
     type RemoveQueueOptions,
     type SearchCapable,
@@ -128,7 +131,8 @@ export class SonarrAdapter
         MonitoringCapable,
         EpisodeFileCapable,
         HistoryCapable,
-        WantedCapable
+        WantedCapable,
+        ReleaseSearchCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -176,6 +180,10 @@ export class SonarrAdapter
 
     async readWanted(scope: WantedScope): Promise<WantedItem[]> {
         return readArrWanted(this.#http, this.id, 'series', scope);
+    }
+
+    async findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]> {
+        return findArrReleases(this.#http, this.id, 'series', opts);
     }
 
     readonly supportsBlocklist = true;

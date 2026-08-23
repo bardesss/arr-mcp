@@ -258,6 +258,46 @@ export interface WantedCapable {
 export const hasWanted = (a: ServiceAdapter): a is ServiceAdapter & WantedCapable =>
     typeof (a as Partial<WantedCapable>).readWanted === 'function';
 
+/**
+ * One row from an interactive release search — what `trigger_search` cannot
+ * show, since it only hands back a queued command.
+ *
+ * A real capture found *every* release rejected on both a Radarr and a
+ * Sonarr search: 2 of 2 and 516 of 516, both times because the library
+ * already held an equal-or-better file. That is the ordinary case, not a
+ * failure — a tool that dropped rejected rows would have answered empty on
+ * both, so this returns every release, marked, with the reasons upstream
+ * gave.
+ */
+export type ReleaseCandidate = {
+    service: string;
+    /** With `indexerId`, what a future grab tool binds to. Often a URL, not
+     *  an opaque token — never treat it as one. */
+    guid: string;
+    indexerId: number;
+    indexer: string; // fenced
+    title: string; // fenced — uploader-chosen
+    sizeBytes?: number;
+    /** Torrent-only. Absent on a usenet release, which has no seeder count —
+     *  never defaulted to 0, which would read as "nobody has this". */
+    seeders?: number;
+    age?: number;
+    quality?: string;
+    language?: string;
+    protocol?: string;
+    rejected: boolean;
+    rejections: string[]; // fenced
+};
+
+export interface ReleaseSearchCapable {
+    /** `season` is Sonarr-only; a Radarr adapter refuses rather than ignoring
+     *  it. Slow upstream — see `RELEASE_SEARCH_TIMEOUT_MS`. */
+    findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]>;
+}
+
+export const hasReleaseSearch = (a: ServiceAdapter): a is ServiceAdapter & ReleaseSearchCapable =>
+    typeof (a as Partial<ReleaseSearchCapable>).findReleases === 'function';
+
 export type CalendarEntry = {
     service: string;
     kind: 'movie' | 'episode';

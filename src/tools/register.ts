@@ -23,6 +23,7 @@ import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
 import { registerGetPlayback } from './getPlayback.ts';
 import { registerGetQueue } from './getQueue.ts';
+import { registerGetReleases } from './getReleases.ts';
 import { registerGetRequests } from './getRequests.ts';
 import { registerGetSubtitles } from './getSubtitles.ts';
 import { registerGetWanted } from './getWanted.ts';
@@ -137,6 +138,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetQueue(server, adapters);
     registerGetHistory(server, adapters);
     registerGetWanted(server, adapters);
+    registerGetReleases(server, adapters);
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, jellyfin, jellyfinIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
@@ -179,6 +181,7 @@ export const TOOL_NAMES = [
     'get_queue',
     'get_history',
     'get_wanted',
+    'get_releases',
     'get_calendar',
     'get_playback',
     'get_requests',
