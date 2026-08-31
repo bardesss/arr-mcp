@@ -257,10 +257,12 @@ Anything not named here is undecided rather than refused. Ask in an issue and it
 gets held against the four checks above, which is cheaper for everyone than
 finding out afterwards.
 
-**You will have to test it yourself, properly.** The maintainer does not run
-every service this could support — there is no Lidarr, no Plex, no qBittorrent
-here — so an adapter for one cannot be exercised in review, only read. That
-makes your testing the only testing it gets before it ships.
+**You will have to test it yourself, properly.** The maintainer runs neither
+Lidarr, Plex nor qBittorrent. Lidarr has no adapter yet; Plex and qBittorrent
+do, but neither has ever been exercised against a real instance —
+[Plex](../../issues/180) and [qBittorrent](../../issues/147) are both
+unverified for the same reason. Whichever you take on, your testing is the
+only testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
 you tested and against which version, and capture fixtures from the real service
