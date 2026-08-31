@@ -1,9 +1,27 @@
+import { join } from 'node:path';
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { parseDocument } from 'yaml';
+import { CONFIG_FILENAME } from './config/load.ts';
 import type { ConfigInvalidError } from './config/load.ts';
+import { writeConfigAtomic } from './config/save.ts';
+import type { Config } from './config/schema.ts';
+import { logger } from './core/logger.ts';
+import { LoginThrottle } from './core/loginThrottle.ts';
+import {
+    hashPassword,
+    readCookie,
+    sessionCookie,
+    SESSION_COOKIE,
+    SESSION_TTL_MS,
+    verifyPassword
+} from './core/session.ts';
 import type { Sessions } from './core/session.ts';
+import { sameOrigin } from './web/origin.ts';
 import { CSS, JS } from './web/assets.ts';
 import { MARK_SVG } from './web/icons.ts';
-import { unreadableAuthPage } from './web/repairPage.ts';
+import { loginPage, setupPage } from './web/pages.ts';
+import { repairPage, unreadableAuthPage } from './web/repairPage.ts';
 
 const NAME = 'arr-mcp';
 
@@ -16,6 +34,11 @@ export type RepairDeps = {
     failure: ConfigInvalidError;
     onPromote: () => Promise<PromoteResult>;
 };
+
+/** Length only, matching the setup form in `routes.ts`. */
+const MIN_PASSWORD = 12;
+
+const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 /**
  * The server that runs instead of the real one when config.yaml did not load:
@@ -51,6 +74,122 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         if (authBlock !== undefined) return next();
         return c.html(unreadableAuthPage({ version, detail }), 503);
     });
+
+    // Past the gate above there is an auth block, so the rest of the file can
+    // treat it as present. Returning here rather than asserting keeps that a
+    // fact the compiler checks.
+    if (authBlock === undefined) return app;
+
+    const { configDir, sessions } = deps;
+    let raw = deps.failure.raw;
+    let auth: Config['auth'] = authBlock;
+    const throttle = new LoginThrottle();
+
+    // Read from the parsed block rather than captured per request: there is no
+    // runtime to reload from, and this value cannot change while the config is
+    // invalid. Registered here, after /healthz and the assets, so a pinned host
+    // cannot break the container healthcheck.
+    app.use('*', async (c, next) => {
+        if (auth.allowed_hosts.length === 0) return next();
+        const host = (c.req.header('host') ?? '').toLowerCase();
+        const bare = host.replace(/:\d{1,5}$/, '');
+        if (auth.allowed_hosts.some(a => a.toLowerCase() === host || a.toLowerCase() === bare)) return next();
+        return c.text('forbidden: Host not allowed', 403);
+    });
+
+    const unclaimed = (): boolean => auth.password_hash === undefined;
+    const entry = (): string => (unclaimed() ? '/ui/setup' : '/ui/login');
+
+    const sessionOf = (c: Context): string | undefined => {
+        const token = readCookie(c.req.header('cookie'), SESSION_COOKIE);
+        return sessions.verify(token).valid ? token : undefined;
+    };
+
+    const signIn = (c: Context): string => {
+        const token = sessions.issue();
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
+        return token;
+    };
+
+    app.get('/ui/setup', c =>
+        unclaimed() ? c.html(setupPage({ version })) : c.redirect('/ui/login', 302)
+    );
+
+    // No CSRF token: there is no session yet to bind one to, so the request's
+    // origin is the binding that does exist.
+    app.post('/ui/setup', async c => {
+        if (!unclaimed()) return c.redirect('/ui/login', 302);
+        if (!sameOrigin(c)) return c.text('cross-origin setup request refused', 403);
+
+        const body = await c.req.parseBody();
+        const username = str(body.username).trim();
+        const password = str(body.password);
+
+        const reject = (text: string) => c.html(setupPage({ version, error: text }), 400);
+        if (username === '') return reject('Choose a username.');
+        if (password.length < MIN_PASSWORD) return reject(`Use a password of at least ${MIN_PASSWORD} characters.`);
+        if (password !== str(body.confirm)) return reject('Those two passwords do not match.');
+
+        const password_hash = await hashPassword(password);
+        // Through the document, not `saveConfig`: that takes a whole Config and
+        // there is none. The YAML parsed — `auth` came out of it — so the
+        // document is sound even though the config is not.
+        const doc = parseDocument(raw);
+        doc.setIn(['auth', 'username'], username);
+        doc.setIn(['auth', 'password_hash'], password_hash);
+        raw = doc.toString();
+        await writeConfigAtomic(join(configDir, CONFIG_FILENAME), raw);
+        auth = { ...auth, username, password_hash };
+
+        signIn(c);
+        logger.info({ username }, 'config UI claimed while the configuration is invalid');
+        // Claiming fixed the credential, not the config.
+        return c.redirect('/ui/repair', 302);
+    });
+
+    app.get('/ui/login', c => {
+        if (unclaimed()) return c.redirect('/ui/setup', 302);
+        if (sessionOf(c) !== undefined) return c.redirect('/ui/repair', 302);
+        return c.html(loginPage({ version }));
+    });
+
+    app.post('/ui/login', async c => {
+        if (unclaimed()) return c.redirect('/ui/setup', 302);
+
+        const waitMs = throttle.blockedFor();
+        if (waitMs > 0) {
+            const seconds = Math.ceil(waitMs / 1000);
+            c.header('retry-after', String(seconds));
+            return c.html(
+                loginPage({ version, error: `Too many failed attempts. Try again in ${seconds}s.` }),
+                429
+            );
+        }
+        throttle.recordFailure();
+
+        const form = await c.req.parseBody();
+        const nameOk = str(form.username) === auth.username;
+        const passOk =
+            auth.password_hash !== undefined && (await verifyPassword(str(form.password), auth.password_hash));
+
+        if (!nameOk || !passOk) {
+            logger.warn({}, 'rejected config UI sign-in');
+            return c.html(loginPage({ version, error: 'Wrong username or password.' }), 401);
+        }
+
+        throttle.recordSuccess();
+        signIn(c);
+        return c.redirect('/ui/repair', 302);
+    });
+
+    app.get('/ui/repair', c => {
+        const session = sessionOf(c);
+        if (session === undefined) return c.redirect(entry(), 302);
+        c.header('cache-control', 'no-store');
+        return c.html(repairPage({ version, raw, detail, csrf: sessions.csrfFor(session) }));
+    });
+
+    app.all('*', c => c.redirect('/ui/repair', 302));
 
     return app;
 }

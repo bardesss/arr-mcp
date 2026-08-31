@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config/load.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { Runtime } from '../src/core/runtime.ts';
-import { Sessions } from '../src/core/session.ts';
+import { hashPassword, Sessions } from '../src/core/session.ts';
 import { repairPage, unreadableAuthPage } from '../src/web/repairPage.ts';
 import { ConfigInvalidError } from '../src/config/load.ts';
 import { buildRepairApp } from '../src/repair.ts';
@@ -155,5 +155,108 @@ describe('repair server with an unreadable auth block', () => {
         const app = await repairApp({ auth: undefined });
         expect((await get(app, '/healthz')).status).toBe(200);
         expect((await get(app, '/ui/app.css')).status).toBe(200);
+    });
+});
+
+const PASSWORD = 'test-password-1234';
+
+describe('repair server sign-in', () => {
+    const claimed = async () =>
+        repairApp({ auth: { ...AUTH_OK, password_hash: await hashPassword(PASSWORD) } });
+
+    it('sends an anonymous visitor to the login page', async () => {
+        const res = await get(await claimed(), '/ui/repair');
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/login');
+    });
+
+    it('sends an anonymous visitor to setup when nobody has claimed the instance', async () => {
+        const res = await get(await repairApp({ auth: AUTH_OK }), '/ui/repair');
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/setup');
+    });
+
+    it('renders the editor after a correct sign-in', async () => {
+        const app = await claimed();
+        const login = await get(app, '/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
+        });
+        expect(login.status).toBe(302);
+        const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+        expect(cookie).not.toBe('');
+
+        const page = await get(app, '/ui/repair', { headers: { cookie } });
+        expect(page.status).toBe(200);
+        expect(await page.text()).toContain('<textarea');
+        expect(page.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('refuses a wrong password', async () => {
+        const res = await get(await claimed(), '/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: 'wrong-password' }).toString()
+        });
+        expect(res.status).toBe(401);
+    });
+
+    // Claiming fixes the credential, not the config, so it lands on the editor.
+    it('claims an unclaimed instance and lands on the editor', async () => {
+        const app = await repairApp({
+            auth: AUTH_OK,
+            raw: `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`
+        });
+        const res = await get(app, '/ui/setup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                username: 'admin',
+                password: PASSWORD,
+                confirm: PASSWORD
+            }).toString()
+        });
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/repair');
+
+        const cookie = (res.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+        const page = await get(app, '/ui/repair', { headers: { cookie } });
+        expect(await page.text()).toContain('<textarea');
+    });
+
+    it('refuses a cross-origin claim', async () => {
+        const res = await get(await repairApp({ auth: AUTH_OK }), '/ui/setup', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/x-www-form-urlencoded',
+                origin: 'http://evil.example'
+            },
+            body: new URLSearchParams({
+                username: 'admin',
+                password: PASSWORD,
+                confirm: PASSWORD
+            }).toString()
+        });
+        expect(res.status).toBe(403);
+    });
+
+    it('sends an unknown path to the editor', async () => {
+        const res = await get(await claimed(), '/ui/logs');
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/repair');
+    });
+
+    // A pinned host is a security setting the operator chose, and it parsed —
+    // a wrong value never reaches this mode, because it is not a schema error.
+    it('honours a pinned allowed_hosts', async () => {
+        const app = await repairApp({ auth: { ...AUTH_OK, allowed_hosts: ['arr.example.com'] } });
+        expect((await get(app, '/ui/repair', { headers: { host: 'evil.example' } })).status).toBe(403);
+        expect((await get(app, '/ui/repair', { headers: { host: 'arr.example.com:6060' } })).status).toBe(302);
+    });
+
+    it('leaves health reachable on any host, so the container healthcheck still works', async () => {
+        const app = await repairApp({ auth: { ...AUTH_OK, allowed_hosts: ['arr.example.com'] } });
+        expect((await get(app, '/healthz', { headers: { host: 'localhost:6060' } })).status).toBe(200);
     });
 });
