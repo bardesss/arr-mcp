@@ -359,8 +359,8 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { path: '/discover/movies', method: 'get', fixture: 'test/fixtures/seerr/discover-movies.json', fields: ['results'] }
         ]
     },
-    // Bazarr, SABnzbd, Transmission and qBittorrent publish no OpenAPI document, so the
-    // nightly job cannot see their drift. Fixture-only by necessity.
+    // Bazarr, SABnzbd, Transmission, qBittorrent and Plex publish no OpenAPI document,
+    // so the nightly job cannot see their drift. Fixture-only by necessity.
     bazarr: {
         dependencies: [
             { fixture: 'test/fixtures/bazarr/system-status.json', fields: ['data.bazarr_version'] },
@@ -411,6 +411,19 @@ const CONTRACTS: Record<string, ServiceContract> = {
             },
             { fixture: 'test/fixtures/qbittorrent/maindata.json', fields: ['server_state.free_space_on_disk'] },
             { fixture: 'test/fixtures/qbittorrent/preferences.json', fields: ['save_path'] }
+        ]
+    },
+    // Hand-built and unverified — nobody here runs a live Plex server (see
+    // CONTRIBUTING.md). Only the two fixtures the adapter's own unit tests
+    // already depend on are contracted; the rest wait for a real
+    // `npm run capture` run against a tester's server.
+    plex: {
+        dependencies: [
+            { fixture: 'test/fixtures/plex/unverified-identity.json', fields: ['MediaContainer.version'] },
+            {
+                fixture: 'test/fixtures/plex/unverified-accounts.json',
+                fields: ['MediaContainer.Account', 'MediaContainer.Account.id', 'MediaContainer.Account.name']
+            }
         ]
     }
 };

@@ -50,6 +50,20 @@ const firstId = (body: unknown): number | undefined => {
     return typeof row?.id === 'number' ? row.id : undefined;
 };
 
+/** First library section's `key` in a captured Plex `sections` fixture. */
+const firstSectionKey = (body: unknown): string | undefined => {
+    const rows = (body as { MediaContainer?: { Directory?: unknown } } | undefined)?.MediaContainer?.Directory;
+    const row = (Array.isArray(rows) ? rows : [])[0] as { key?: unknown } | undefined;
+    return typeof row?.key === 'string' ? row.key : undefined;
+};
+
+/** First item's `ratingKey` in a captured Plex `MediaContainer` fixture. */
+const firstRatingKey = (body: unknown): string | undefined => {
+    const rows = (body as { MediaContainer?: { Metadata?: unknown } } | undefined)?.MediaContainer?.Metadata;
+    const row = (Array.isArray(rows) ? rows : [])[0] as { ratingKey?: unknown } | undefined;
+    return typeof row?.ratingKey === 'string' ? row.ratingKey : undefined;
+};
+
 /**
  * First series in a captured `series` fixture that actually has files on disk.
  *
@@ -442,7 +456,34 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: body => ({ save_path: (body as { save_path?: unknown }).save_path ?? '' })
         }
     ],
-    plex: [{ name: 'status', path: '/status/sessions' }]
+    plex: [
+        { name: 'identity', path: '/identity' },
+        { name: 'accounts', path: '/accounts' },
+        { name: 'sections', path: '/library/sections' },
+        { name: 'sessions', path: '/status/sessions' },
+        { name: 'ondeck', path: '/library/onDeck' },
+        { name: 'history', path: '/status/sessions/history/all' },
+        { name: 'activities', path: '/activities' },
+        { name: 'search', path: '/search?query=a' },
+        // A short page: the tester's library may hold thousands of items, and
+        // the fixture only needs the shape.
+        {
+            name: 'section-all',
+            path: captured => {
+                const key = firstSectionKey(captured.get('sections'));
+                return key === undefined
+                    ? undefined
+                    : `/library/sections/${key}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=5`;
+            }
+        },
+        {
+            name: 'metadata-detail',
+            path: captured => {
+                const id = firstRatingKey(captured.get('section-all'));
+                return id === undefined ? undefined : `/library/metadata/${id}`;
+            }
+        }
+    ]
 };
 
 function strategyFor(id: ServiceId, service: NonNullable<Config['services'][ServiceId]>): AuthStrategy {
