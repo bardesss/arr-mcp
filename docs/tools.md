@@ -248,6 +248,11 @@ reports, which does not grow unbounded), so truncation is decided by `limit`
 rather than by however many rows an undocumented server page size happens to
 hand back.
 
+The tool is not Jellyfin-specific in its plumbing: it reads any adapter that
+implements `PlaybackCapable`, and the summary line names whichever media server
+answered or failed. The endpoint detail above is Jellyfin's because Jellyfin is
+the only media server this stack talks to today.
+
 ### When no media server is configured
 
 Every scope answers zero, and `degraded` stays empty — an unconfigured service
