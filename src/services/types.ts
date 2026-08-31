@@ -777,6 +777,36 @@ export const NO_MEDIA_SERVER_NOTE =
     'No media server is configured, so there is no watch state to read — this is a blind spot, not an empty library. Add `services.jellyfin` in config.yaml.';
 
 /**
+ * The three per-user reads a media server answers. Jellyfin has had these
+ * since it was written; naming them is what lets `get_playback` and `diagnose`
+ * stop knowing which media server they are talking to.
+ */
+export interface PlaybackCapable {
+    getPlayback(user: ServiceUser): Promise<PlaybackEntry[]>;
+    getNextUp(user: ServiceUser): Promise<PlaybackEntry[]>;
+    getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]>;
+}
+
+/**
+ * All three, not one: an adapter with `getNextUp` alone would pass a single
+ * check and then fail at the call `get_playback` actually makes.
+ */
+export const hasPlayback = (a: ServiceAdapter): a is ServiceAdapter & PlaybackCapable => {
+    const p = a as Partial<PlaybackCapable>;
+    return (
+        typeof p.getPlayback === 'function' &&
+        typeof p.getNextUp === 'function' &&
+        typeof p.getWatchHistory === 'function'
+    );
+};
+
+/** What the media-server half of this stack is, as a type. */
+export type MediaServerAdapter = ServiceAdapter &
+    UserDirectoryCapable &
+    UserLibraryCapable &
+    PlaybackCapable;
+
+/**
  * Separate from `UserLibraryCapable` so it can fail on its own. `LibraryLoader`
  * registers this as its own `gather` source, which is what lets an episode-read
  * failure degrade `jellyfin:episodes` while film watch state survives.

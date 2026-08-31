@@ -25,24 +25,30 @@ export type Evidence = {
      * was the cause. `undefined` still means every client failed.
      */
     queue: { items: QueueItem[]; partial: string[] } | undefined;
-    /** Analogue of `jellyfinConfigured`, below: no download client at all, not merely unreachable. */
+    /** Analogue of `mediaServer !== undefined`: no download client at all, not merely unreachable. */
     queueConfigured: boolean;
     rejections: IndexerRejection[] | undefined;
-    /** Analogue of `jellyfinConfigured`: no Prowlarr configured, not merely unreachable. */
+    /** Analogue of `mediaServer !== undefined`: no Prowlarr configured, not merely unreachable. */
     prowlarrConfigured: boolean;
     scan: ScanState | undefined;
     /**
      * A third state beyond looked/could-not-look: **never configured**. Without
-     * it, a stack with no Jellyfin gets "Jellyfin cannot see it" — a claim
+     * it, a stack with no media server gets "Jellyfin cannot see it" — a claim
      * about a service the user does not run.
+     *
+     * The configured media server's id, absent when none is configured —
+     * the stages need the name, not just whether one exists.
      */
-    jellyfinConfigured: boolean;
+    mediaServer?: string;
+    /** Whether that media server can report scan state at all. */
+    scanCapable: boolean;
     /**
      * Library-read reachability, separate from `degraded` below, which is
      * *probe* reachability. A service can fail one without the other: a failing
-     * Jellyfin `getScanState` must not erase a library read that succeeded, and
-     * a failing Radarr library read must not make `queueStep` call every queue
-     * unknown. Only `libraryStep` reads this; every other step reads `degraded`.
+     * `getScanState` on the media server must not erase a library read that
+     * succeeded, and a failing Radarr library read must not make `queueStep`
+     * call every queue unknown. Only `libraryStep` reads this; every other
+     * step reads `degraded`.
      */
     libraryDegraded: readonly string[];
     degraded: readonly string[];
@@ -330,56 +336,67 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
 }
 
 function libraryStep(ev: Evidence, item: MergedItem): Step {
-    if (!ev.jellyfinConfigured) return SKIPPED('library', 'Jellyfin is not configured.');
-    if (ev.libraryDegraded.includes('jellyfin')) {
-        // Never "it is not in Jellyfin" when Jellyfin was not asked. Reads
+    const server = ev.mediaServer;
+    if (server === undefined) return SKIPPED('library', 'No media server is configured.');
+    if (ev.libraryDegraded.includes(server)) {
+        // Never "it is not in the library" when the library was not asked. Reads
         // `libraryDegraded`, not `degraded`: a failed scan probe belongs to the
         // latter and must not land here, because this stage is about the
         // library *read*. `presence` alone is not enough of a guard either —
         // `unknown` looks like "no evidence at all" to the check below, while
         // `hasFile` is real *arr data this module must not reinterpret.
-        return { stage: 'library', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its library was not checked.' };
+        return { stage: 'library', service: server, status: 'unknown', detail: `${server} could not be reached, so its library was not checked.` };
     }
     if (item.presence === 'both' || item.presence === 'jellyfin_only') {
-        return { stage: 'library', service: 'jellyfin', status: 'ok', detail: 'Present in the Jellyfin library.' };
+        return { stage: 'library', service: server, status: 'ok', detail: `Present in the ${server} library.` };
     }
     if (item.acquisition?.hasFile === true) {
         return {
             stage: 'library',
-            service: 'jellyfin',
+            service: server,
             status: 'blocked',
-            detail: `${item.acquisition.service} has a file on disk that Jellyfin cannot see.`
+            detail: `${item.acquisition.service} has a file on disk that ${server} cannot see.`
         };
     }
-    return SKIPPED('library', 'Not in Jellyfin, and there is no file for it to have found.');
+    return SKIPPED('library', `Not in ${server}, and there is no file for it to have found.`);
 }
 
 function scanStep(ev: Evidence): Step {
-    if (!ev.jellyfinConfigured) return SKIPPED('scan', 'Jellyfin is not configured.');
-    if (ev.degraded.includes('jellyfin')) {
+    const server = ev.mediaServer;
+    if (server === undefined) return SKIPPED('scan', 'No media server is configured.');
+    if (!ev.scanCapable) return SKIPPED('scan', `${server} cannot report library scan state.`);
+    if (ev.degraded.includes(server)) {
         // Specifically the `getScanState` probe, and deliberately not
         // `libraryDegraded`. The two once shared an array, so a failed scan
         // probe silently erased a library read that had succeeded — they are
-        // independent endpoints and may disagree about what Jellyfin answered.
-        return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its scan state was not checked.' };
+        // independent endpoints and may disagree about what the server answered.
+        return { stage: 'scan', service: server, status: 'unknown', detail: `${server} could not be reached, so its scan state was not checked.` };
     }
-    if (ev.scan === undefined) return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin’s scan state could not be read.' };
-    if (ev.scan.running === true) return { stage: 'scan', service: 'jellyfin', status: 'blocked', detail: 'A library scan is running now — check again once it finishes.' };
-    if (ev.scan.lastCompleted === undefined) return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin reports no completed library scan.' };
-    return { stage: 'scan', service: 'jellyfin', status: 'ok', detail: `Last library scan completed ${ev.scan.lastCompleted}.` };
+    if (ev.scan === undefined) return { stage: 'scan', service: server, status: 'unknown', detail: `${server}’s scan state could not be read.` };
+    if (ev.scan.running === true) return { stage: 'scan', service: server, status: 'blocked', detail: 'A library scan is running now — check again once it finishes.' };
+    if (ev.scan.lastCompleted === undefined) return { stage: 'scan', service: server, status: 'unknown', detail: `${server} reports no completed library scan.` };
+    return { stage: 'scan', service: server, status: 'ok', detail: `Last library scan completed ${ev.scan.lastCompleted}.` };
 }
 
 const REMEDIES: Partial<Record<Stage, string>> = {
     resolve: 'Try search_media — it also looks at what you do not have yet — or request it through Seerr.',
     request: 'Approve or re-submit the request in Seerr.',
     managed: 'Add it to Radarr or Sonarr, or turn monitoring on for it.',
-    indexers: 'Check the indexer in Prowlarr; get_indexers shows its recent failures.',
-    library: 'Trigger a Jellyfin library scan. If it still does not appear, check the path is inside a Jellyfin library and readable by it.',
-    scan: 'Wait for the running scan, or start one from Jellyfin’s dashboard.'
-    // `queue` is evidence-dependent (see queueStep's QueueResult) and `file`
-    // is step-status-dependent (see fileRemedy) — neither belongs in a
-    // static per-stage map.
+    indexers: 'Check the indexer in Prowlarr; get_indexers shows its recent failures.'
+    // `queue` is evidence-dependent (see queueStep's QueueResult), `file` is
+    // step-status-dependent (see fileRemedy), and `library`/`scan` need the
+    // configured server's name (see libraryRemedy) — none of the three
+    // belong in a static per-stage map.
 };
+
+/** `library`/`scan` remedies name the configured media server, so unlike the
+ *  rest of `REMEDIES` they can't be static strings. Only called once a
+ *  blocking `library`/`scan` step has proven `ev.mediaServer` is set. */
+function libraryRemedy(stage: 'library' | 'scan', server: string): string {
+    return stage === 'library'
+        ? `Trigger a ${server} library scan. If it still does not appear, check the path is inside a ${server} library and readable by it.`
+        : `Wait for the running scan, or start one from ${server}’s dashboard.`;
+}
 
 /**
  * The remedy must not claim a service was checked when it was not. It once
@@ -434,11 +451,12 @@ const queueAside = (queueResult: QueueResult, fileIsOk: boolean): string => {
  * unmonitored", so this says so rather than guessing.
  *
  * Only for `request`/`managed` verdicts on a series with a file already
- * visible in Jellyfin — a movie in that position is excluded upstream, so
- * "episodes you do not have yet" is always literally true here.
+ * visible in the configured media server — a movie in that position is
+ * excluded upstream, so "episodes you do not have yet" is always literally
+ * true here.
  */
-const SERIES_FILE_VISIBLE_HEDGE =
-    ' (A file is already on disk and visible in Jellyfin — this may only affect episodes you do not have yet.)';
+const seriesFileVisibleHedge = (server: string): string =>
+    ` (A file is already on disk and visible in ${server} — this may only affect episodes you do not have yet.)`;
 
 /**
  * The top-level `Diagnosis.degraded` a caller sees, and the input to the
@@ -530,13 +548,13 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // A file already on disk is proof that whatever request/managed history
     // led here worked well enough to produce it. An old declined or pending
     // request, or `monitored: false`, cannot be why playback fails when the
-    // file is sitting right there — from here only Jellyfin's visibility of
-    // it matters.
+    // file is sitting right there — from here only the media server's
+    // visibility of it matters.
     const fileIsOk = byStage.get('file')?.status === 'ok';
     const libStep = byStage.get('library');
-    // The guard for `SERIES_FILE_VISIBLE_HEDGE`, below: a file confirmed on
-    // disk *and* confirmed visible in Jellyfin, independent of which verdict
-    // stage the file/library steps themselves ended up producing.
+    // The guard for `seriesFileVisibleHedge`, below: a file confirmed on
+    // disk *and* confirmed visible in the media server, independent of which
+    // verdict stage the file/library steps themselves ended up producing.
     const libraryConfirmedOk = fileIsOk && libStep?.status === 'ok';
     // `fileIsOk` means something different for a series than for a movie.
     // A movie's `hasFile` is unambiguous: this exact file is or is not on
@@ -546,7 +564,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // request/managed there would silently drop the single most common
     // series diagnosis — "monitoring got turned off" / "the new-season
     // request is still pending" — under a confident "is available in
-    // Jellyfin and playable", with no remedy and no mention. So the
+    // <server> and playable", with no remedy and no mention. So the
     // exclusion applies only where the signal it depends on is actually
     // unambiguous: movies.
     const excludeRequestManaged = fileIsOk && item.kind === 'movie';
@@ -607,16 +625,20 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     const aside = queueAside(queueResult, fileIsOk);
 
     if (verdictStage === undefined) {
-        // The positive claim "is available in Jellyfin and playable" is only
+        // The positive claim "is available in <server> and playable" is only
         // honest when `library` itself said `ok` — read the step, not just
-        // whether Jellyfin is configured: `certain: false` alone does
+        // whether a media server is configured: `certain: false` alone does
         // not retract an unqualified sentence sitting right next to it.
+        // The third branch is reachable only when `library` was skipped for
+        // having no server (see `libraryStep`) — `file` being blocked would
+        // have taken a different verdict branch otherwise — so it echoes
+        // `libraryStep`'s own wording rather than inventing a second one.
         const summary =
             libStep?.status === 'ok'
-                ? `${item.title} is available in Jellyfin and playable.${caveat}${aside}`
+                ? `${item.title} is available in ${ev.mediaServer} and playable.${caveat}${aside}`
                 : libStep?.status === 'unknown'
-                  ? `${item.title} has a file, but Jellyfin could not be reached to confirm it is visible there.${caveat}${aside}`
-                  : `${item.title} is on disk. Nothing else to check — Jellyfin is not configured.${caveat}${aside}`;
+                  ? `${item.title} has a file, but ${ev.mediaServer} could not be reached to confirm it is visible there.${caveat}${aside}`
+                  : `${item.title} is on disk. No media server is configured.${caveat}${aside}`;
 
         return {
             query,
@@ -633,7 +655,9 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
             ? queueResult.remedy
             : blocking.stage === 'file'
               ? fileRemedy(ev, byStage.get('queue')?.status ?? 'unknown', byStage.get('indexers')?.status ?? 'unknown')
-              : REMEDIES[blocking.stage];
+              : blocking.stage === 'library' || blocking.stage === 'scan'
+                ? libraryRemedy(blocking.stage, ev.mediaServer as string)
+                : REMEDIES[blocking.stage];
     // The verdict's own stage is never also the aside (it is already the
     // headline), so `aside` only ever adds information here for a
     // non-queue verdict — same guard as the playable branch above.
@@ -646,7 +670,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // is either not yet meaningful or is already the point.
     const hedge =
         libraryConfirmedOk && (blocking.stage === 'request' || blocking.stage === 'managed')
-            ? SERIES_FILE_VISIBLE_HEDGE
+            ? seriesFileVisibleHedge(ev.mediaServer as string)
             : '';
 
     return {

@@ -382,9 +382,30 @@ describe('diagnose', () => {
 
         expect(evidence.queueConfigured).toBe(false);
         expect(evidence.prowlarrConfigured).toBe(false);
-        expect(evidence.jellyfinConfigured).toBe(false);
+        expect(evidence.mediaServer).toBeUndefined();
+        expect(evidence.scanCapable).toBe(false);
         expect(evidence.queue).toBeUndefined();
         expect(evidence.rejections).toBeUndefined();
+        expect(evidence.scan).toBeUndefined();
+    });
+
+    it('reports the library half configured even when the media server cannot report scan state', async () => {
+        const noScan = stub('jellyfin', {
+            listUserLibrary: async () => [],
+            getPlayback: async () => [],
+            getNextUp: async () => [],
+            getWatchHistory: async () => [],
+            listUsers: async () => [{ id: 'u1', name: 'Someone' }]
+        });
+        const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), noScan];
+
+        const evidence = await collectEvidence(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'some film' }
+        );
+
+        expect(evidence.mediaServer).toBe('jellyfin');
+        expect(evidence.scanCapable).toBe(false);
         expect(evidence.scan).toBeUndefined();
     });
 
@@ -428,7 +449,12 @@ describe('diagnose', () => {
             detail: expect.stringContaining('cannot see')
         });
         expect(d.verdict.stage).toBe('library');
-        expect(d.verdict.remedy).toMatch(/jellyfin library scan/i);
+        // The remedy names the configured media server rather than a
+        // hardcoded brand — asserted against the exact wording so a
+        // regression back to a static string would fail here too.
+        expect(d.verdict.remedy).toBe(
+            'Trigger a jellyfin library scan. If it still does not appear, check the path is inside a jellyfin library and readable by it.'
+        );
         // The scan probe itself did fail, and separately, legitimately, still
         // costs certainty here (a running scan could explain a transient
         // library gap) — this fix is about the `library` stage's own status

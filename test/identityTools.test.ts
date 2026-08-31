@@ -3,6 +3,7 @@ import type { MultiUserServiceConfig } from '../src/config/schema.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
+import type { MediaServerAdapter } from '../src/services/types.ts';
 import { buildGetPlayback, summarize } from '../src/tools/getPlayback.ts';
 import { buildGetRequests } from '../src/tools/getRequests.ts';
 import { repeat } from './helpers/bigFixture.ts';
@@ -237,6 +238,43 @@ describe('get_playback', () => {
         const result = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50, scope: 'history' });
         expect(result.degraded).toContain('jellyfin');
         expect(result.items).toEqual([]);
+    });
+
+    it('reads playback from a media server that is not Jellyfin', async () => {
+        const fake = {
+            id: 'notjellyfin',
+            type: 'jellyfin',
+            getPlayback: async () => [
+                { service: 'notjellyfin', kind: 'now_playing' as const, itemId: 'a', title: 'A', user: 'Someone' }
+            ],
+            getNextUp: async () => [],
+            getWatchHistory: async () => []
+        } as unknown as MediaServerAdapter;
+        const resolver = { resolve: async () => ({ id: 'u1', name: 'Someone' }) } as unknown as IdentityResolver;
+
+        const result = await buildGetPlayback(fake, resolver, { detail: 'full', limit: 50 });
+
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0]?.service).toBe('notjellyfin');
+    });
+
+    it('names the media server that failed rather than always saying Jellyfin', async () => {
+        const broken = {
+            id: 'notjellyfin',
+            type: 'jellyfin',
+            getPlayback: async () => {
+                throw new Error('down');
+            },
+            getNextUp: async () => [],
+            getWatchHistory: async () => []
+        } as unknown as MediaServerAdapter;
+        const resolver = { resolve: async () => ({ id: 'u1', name: 'Someone' }) } as unknown as IdentityResolver;
+
+        const result = await buildGetPlayback(broken, resolver, { detail: 'full', limit: 50 });
+
+        expect(result.degraded).toEqual(['notjellyfin']);
+        expect(summarize('active', result)).toContain('notjellyfin');
+        expect(summarize('active', result)).not.toContain('Jellyfin');
     });
 });
 

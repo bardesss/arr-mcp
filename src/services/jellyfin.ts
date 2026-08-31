@@ -10,6 +10,7 @@ import {
     type MediaDetailCapable,
     type MediaDetails,
     type PlaybackEntry,
+    type PlaybackCapable,
     type ScanState,
     type ScanStateCapable,
     type SearchCapable,
@@ -122,7 +123,8 @@ export class JellyfinAdapter
         SearchCapable,
         UserLibraryCapable,
         UserSeasonsCapable,
-        WatchStateCapable
+        WatchStateCapable,
+        PlaybackCapable
 {
     readonly type: ServiceId = 'jellyfin';
     readonly id: string = 'jellyfin';

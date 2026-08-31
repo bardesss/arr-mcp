@@ -7,9 +7,16 @@ import type { ConfirmTokens } from '../core/confirm.ts';
 import { IdentityResolver } from '../core/identity.ts';
 import type { ServiceInstance } from '../config/instances.ts';
 import { permissionSourceFrom } from '../core/permissions.ts';
-import { JellyfinAdapter } from '../services/jellyfin.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
-import { hasIndexers, hasSubtitles, type ServiceAdapter } from '../services/types.ts';
+import {
+    hasIndexers,
+    hasPlayback,
+    hasSubtitles,
+    hasUserDirectory,
+    hasUserLibrary,
+    type MediaServerAdapter,
+    type ServiceAdapter
+} from '../services/types.ts';
 import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
 import { registerCleanQueue } from './cleanQueue.ts';
@@ -78,6 +85,37 @@ export type ToolContext = {
 };
 
 /**
+ * The one media server, or none.
+ *
+ * Throws on a second rather than picking: `get_library`'s `presence` asks
+ * whether the *other side* can see a file, and with two media servers that
+ * question has no single answer. The config schema refuses the pair, so
+ * reaching here means a path that bypassed it.
+ */
+function theMediaServer(adapters: readonly ServiceAdapter[]): MediaServerAdapter | undefined {
+    const found = adapters.filter(hasPlayback);
+    if (found.length > 1) {
+        throw new Error(
+            `only one media server may be configured, found ${found.map(a => a.id).join(', ')}`
+        );
+    }
+    const candidate = found[0];
+    if (candidate === undefined) return undefined;
+
+    // `hasPlayback` alone does not make something a full media server — it
+    // also needs a user directory and a per-user library read. A candidate
+    // missing either must say so by name, not fail later with a raw
+    // "listUsers is not a function" at the IdentityResolver call site.
+    if (!hasUserDirectory(candidate)) {
+        throw new Error(`${candidate.id} has playback but is missing listUsers, so it is not a complete media server`);
+    }
+    if (!hasUserLibrary(candidate)) {
+        throw new Error(`${candidate.id} has playback but is missing listUserLibrary, so it is not a complete media server`);
+    }
+    return candidate;
+}
+
+/**
  * `confirm` is supplied rather than created here: it outlives a config reload
  * on purpose (see `core/runtime.ts`), because a confirmation handshake spans
  * two calls and a config edit between them must not silently invalidate it.
@@ -91,12 +129,12 @@ export function buildToolContext(
      *  library loader, which is the one place the join happens. */
     dataset?: ImdbDataset
 ): ToolContext {
-    const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
+    const mediaServer = theMediaServer(adapters);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
     const jellyfinIdentity =
-        jellyfin !== undefined && config.services.jellyfin !== undefined
-            ? new IdentityResolver(jellyfin, config.services.jellyfin)
+        mediaServer !== undefined && config.services.jellyfin !== undefined
+            ? new IdentityResolver(mediaServer, config.services.jellyfin)
             : undefined;
 
     const library = new LibraryLoader(adapters, jellyfinIdentity, undefined, dataset);
@@ -134,7 +172,7 @@ export function buildToolContext(
  */
 export function registerAllTools(server: McpServer, context: ToolContext): void {
     const { adapters, dataset, instances, jellyfinIdentity, seerrIdentity, library, write } = context;
-    const jellyfin = adapters.find((a): a is JellyfinAdapter => a instanceof JellyfinAdapter);
+    const mediaServer = theMediaServer(adapters);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
     registerDiagnose(server, { adapters, library });
@@ -147,7 +185,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetReleases(server, adapters);
     registerGetBlocklist(server, adapters);
     registerGetCalendar(server, adapters);
-    registerGetPlayback(server, jellyfin, jellyfinIdentity);
+    registerGetPlayback(server, mediaServer, jellyfinIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset);
     registerGetLibrary(server, library);

@@ -14,6 +14,7 @@ import { TransmissionAdapter } from '../src/services/transmission.ts';
 import {
     hasDiskSpace,
     hasHealthChecks,
+    hasPlayback,
     hasScanState,
     hasUserDirectory,
     type ServiceAdapter
@@ -721,4 +722,29 @@ describe('QbittorrentAdapter', () => {
     });
 
     expectsAuthDiagnosis(new QbittorrentAdapter(qbittorrentConfig, unauthorized));
+});
+
+describe('hasPlayback', () => {
+    const bare = { id: 'x', type: 'radarr' } as unknown as ServiceAdapter;
+
+    it('recognises the real Jellyfin adapter', () => {
+        const jellyfin = new JellyfinAdapter({
+            url: 'http://192.0.2.10:8096',
+            api_key: 'k',
+            timeout_ms: 10_000,
+            allow_other_users: false,
+            permissions: { safe_write: false, destructive: false }
+        } as MultiUserServiceConfig);
+
+        expect(hasPlayback(jellyfin)).toBe(true);
+    });
+
+    it('rejects an adapter with no playback methods', () => {
+        expect(hasPlayback(bare)).toBe(false);
+    });
+
+    it('rejects an adapter that has only some of the three reads', () => {
+        const partial = { id: 'x', getNextUp: async () => [] } as unknown as ServiceAdapter;
+        expect(hasPlayback(partial)).toBe(false);
+    });
 });
