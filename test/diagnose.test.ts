@@ -449,7 +449,12 @@ describe('diagnose', () => {
             detail: expect.stringContaining('cannot see')
         });
         expect(d.verdict.stage).toBe('library');
-        expect(d.verdict.remedy).toMatch(/jellyfin library scan/i);
+        // The remedy names the configured media server rather than a
+        // hardcoded brand — asserted against the exact wording so a
+        // regression back to a static string would fail here too.
+        expect(d.verdict.remedy).toBe(
+            'Trigger a jellyfin library scan. If it still does not appear, check the path is inside a jellyfin library and readable by it.'
+        );
         // The scan probe itself did fail, and separately, legitimately, still
         // costs certainty here (a running scan could explain a transient
         // library gap) — this fix is about the `library` stage's own status

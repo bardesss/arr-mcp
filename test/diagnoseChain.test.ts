@@ -630,7 +630,7 @@ describe('buildChain — a media server that is not Jellyfin', () => {
         const ev = healthy({ mediaServer: 'plexish', scanCapable: false, scan: undefined });
         const d = buildChain('some film', ev);
 
-        expect(stepFor(d, 'library')?.status).not.toBe('skipped');
+        expect(stepFor(d, 'library')?.status).toBe('ok');
         expect(stepFor(d, 'scan')?.status).toBe('skipped');
     });
 
