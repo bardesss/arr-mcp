@@ -9,8 +9,9 @@ import type { Context } from 'hono';
  * port included, so it is right without a setting to configure and right behind
  * a reverse proxy for free.
  *
- * Strings rather than a Hono `Context` on purpose — this is a parsing rule, and
- * a parsing rule should be testable without standing up a server.
+ * `mcpEndpoint` takes strings rather than a Hono `Context` on purpose — it is a
+ * parsing rule, and a parsing rule should be testable without standing up a
+ * server. `sameOrigin` below reads several headers, so it takes the context.
  *
  * The host is taken from the request URL rather than from `c.req.header('host')`
  * because that is the one source present in both places it has to work: the

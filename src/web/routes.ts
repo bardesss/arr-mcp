@@ -586,7 +586,7 @@ const NO_STORE = { 'cache-control': 'no-store' };
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const on = (value: unknown): boolean => value === 'on' || value === 'true';
-const ipOf = (c: Context): string => c.req.header('x-forwarded-for') ?? 'unknown';
+export const ipOf = (c: Context): string => c.req.header('x-forwarded-for') ?? 'unknown';
 
 function sessionOf(c: Context, runtime: Runtime): string | undefined {
     const token = readCookie(c.req.header('cookie'), SESSION_COOKIE);

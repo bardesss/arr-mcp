@@ -24,6 +24,7 @@ import { sameOrigin } from './web/origin.ts';
 import { CSS, JS } from './web/assets.ts';
 import { MARK_SVG } from './web/icons.ts';
 import { loginPage, setupPage } from './web/pages.ts';
+import { ipOf } from './web/routes.ts';
 import { repairPage, unreadableAuthPage } from './web/repairPage.ts';
 
 const NAME = 'arr-mcp';
@@ -45,7 +46,8 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 /**
  * The server that runs instead of the real one when config.yaml did not load:
- * the config file in a textarea, and nothing else.
+ * it reports the failure on `/healthz` and `/mcp`, authenticates as the real UI
+ * does, and offers the config file in a textarea to whoever signs in.
  */
 export function buildRepairApp(deps: RepairDeps): Hono {
     const { version } = deps;
@@ -105,11 +107,12 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     // runtime to reload from, and this value cannot change while the config is
     // invalid. Registered here, after /healthz and the assets, so a pinned host
     // cannot break the container healthcheck.
-    app.use('*', async (c, next) => {
+    app.use('*', async (c: Context, next) => {
         if (auth.allowed_hosts.length === 0) return next();
         const host = (c.req.header('host') ?? '').toLowerCase();
         const bare = host.replace(/:\d{1,5}$/, '');
         if (auth.allowed_hosts.some(a => a.toLowerCase() === host || a.toLowerCase() === bare)) return next();
+        logger.warn({ host, ip: ipOf(c) }, 'rejected request with an unlisted Host');
         return c.text('forbidden: Host not allowed', 403);
     });
 
@@ -164,11 +167,9 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                 // Writing the snapshot back would silently revert that edit.
                 const doc = parseDocument(await readFile(path, 'utf8'));
 
-                // `unclaimed()` reads the snapshot this server booted with, and
-                // the obvious answer to being told config.yaml is invalid is to
-                // edit it — so a credential can appear underneath us. Adopt it
-                // rather than replace it, so signing in with what was just
-                // written works without a restart.
+                // That edit may be a credential: `unclaimed()` only ever reads
+                // the boot snapshot. Adopt it rather than replace it, so
+                // signing in with it works without a restart.
                 const hash = doc.getIn(['auth', 'password_hash']);
                 if (hash !== undefined) {
                     const name = doc.getIn(['auth', 'username']);
@@ -227,7 +228,9 @@ export function buildRepairApp(deps: RepairDeps): Hono {
             auth.password_hash !== undefined && (await verifyPassword(str(form.password), auth.password_hash));
 
         if (!nameOk || !passOk) {
-            logger.warn({}, 'rejected config UI sign-in');
+            // The IP because this mode has no /ui/logs, so stdout is the
+            // only record of an attack on a form anyone can reach.
+            logger.warn({ ip: ipOf(c) }, 'rejected config UI sign-in');
             return c.html(loginPage({ version, error: 'Wrong username or password.' }), 401);
         }
 
@@ -253,8 +256,12 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         const text = str(body.config);
         // The text as typed, not what is on disk: a save that failed must not
         // throw away the edit that failed.
-        const rerender = (message: string) =>
-            c.html(repairPage({ version, raw: text, detail: message, csrf: sessions.csrfFor(session) }), 400);
+        // `no-store` here too: a POST response is not cached by default, but
+        // this one carries the same secrets the GET does.
+        const rerender = (message: string) => {
+            c.header('cache-control', 'no-store');
+            return c.html(repairPage({ version, raw: text, detail: message, csrf: sessions.csrfFor(session) }), 400);
+        };
 
         const verdict = validateConfigText(text);
         if (!verdict.ok) return rerender(verdict.detail);

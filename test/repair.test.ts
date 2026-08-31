@@ -498,6 +498,8 @@ describe('repair server save', () => {
         // it in the page proves the typed text was rendered, not just the error.
         const res = await save(ctx, '# keep-this-marker\nauth: [unclosed\n');
         expect(res.status).toBe(400);
+        // The re-render carries the same secrets the GET does.
+        expect(res.headers.get('cache-control')).toBe('no-store');
         const page = await res.text();
         expect(page).toContain('not valid YAML');
         expect(page).toContain('keep-this-marker');
