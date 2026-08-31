@@ -36,6 +36,10 @@ describe('units', () => {
     it('passes undefined through rather than returning 1970', () => {
         expect(epochToIso(undefined)).toBeUndefined();
     });
+
+    it('treats a literal zero as absent rather than returning the epoch', () => {
+        expect(epochToIso(0)).toBeUndefined();
+    });
 });
 
 describe('external ids — the join with Radarr and Sonarr', () => {
@@ -66,5 +70,16 @@ describe('external ids — the join with Radarr and Sonarr', () => {
     // every other item missing one.
     it('never produces a zero id from an empty value', () => {
         expect(externalIds({ Guid: [{ id: 'tmdb://' }] })).toEqual({});
+    });
+
+    it('rejects a non-numeric id rather than coercing it', () => {
+        expect(externalIds({ Guid: [{ id: 'tmdb://abc' }] })).toEqual({});
+    });
+
+    // Reaches numericId with an empty string: the capture is non-empty ("/x") so the
+    // regex matches, but the first path segment is empty. This is the input the
+    // digit-only guard actually exists for.
+    it('rejects an id whose first path segment is empty', () => {
+        expect(externalIds({ Guid: [{ id: 'tmdb:///x' }] })).toEqual({});
     });
 });

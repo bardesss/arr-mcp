@@ -37,9 +37,14 @@ export const unwrap = <T>(body: unknown, key: string): T[] => {
 export const msToSeconds = (ms: number | undefined): number | undefined =>
     typeof ms === 'number' ? Math.round(ms / 1000) : undefined;
 
-/** Plex timestamps are unix epoch **seconds**. `lastPlayed` is consumed as ISO. */
+/**
+ * Plex timestamps are unix epoch **seconds**. `lastPlayed` is consumed as ISO.
+ *
+ * Zero is treated as absent: no real playback happened at the epoch, and a
+ * 1970 timestamp in a tool response reads as data rather than as a gap.
+ */
 export const epochToIso = (seconds: number | undefined): string | undefined =>
-    typeof seconds === 'number' ? new Date(seconds * 1000).toISOString() : undefined;
+    typeof seconds === 'number' && seconds > 0 ? new Date(seconds * 1000).toISOString() : undefined;
 
 /** Digits required, not just finiteness — `Number('')` is 0 and would join
  *  against every other item missing an id. */
