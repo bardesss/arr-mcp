@@ -250,8 +250,8 @@ hand back.
 
 The tool is not Jellyfin-specific in its plumbing: it reads any adapter that
 implements `PlaybackCapable`, and the summary line names whichever media server
-answered or failed. The endpoint detail above is Jellyfin's because Jellyfin is
-the only media server this stack talks to today.
+failed. The endpoint detail above is Jellyfin's because Jellyfin is the only
+media server this stack talks to today.
 
 ### When no media server is configured
 
