@@ -69,6 +69,27 @@ token in the address when you turn it on, which a reverse proxy access log will
 happily record — it is off by default, and the cost is documented where it is
 enabled.
 
+## The repair page renders the config file verbatim
+
+Every other page in the config UI follows one rule: a secret is never rendered
+back. API keys and passwords come back as empty fields with an `unchanged`
+placeholder.
+
+The repair page — the one served when `config.yaml` does not load — breaks that
+rule. It shows the file as text, credentials included, because there is no
+parsed config to build a form from.
+
+Redaction was considered and rejected. Splicing real values back in after a save
+only works when the YAML parses, and a large share of the failures this page
+exists for are syntax errors where there is no document to splice from. A scheme
+that redacts for a schema typo but not for a missing quote gives one page two
+different exposures, chosen by the flavour of the operator's mistake.
+
+The page is behind the same session as the rest of the UI, sends
+`cache-control: no-store`, and is only reachable while the configuration is
+invalid. When the `auth` block itself cannot be read, no editor is served at
+all — see [When config.yaml will not load](configuration.md#when-configyaml-will-not-load).
+
 ## MCP02 Privilege Escalation via Scope Creep
 
 **The risk.** Permissions granted once, broadly, and never narrowed. The agent

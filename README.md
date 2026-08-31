@@ -88,7 +88,9 @@ username and a password of at least 12 characters.
 
 **3. Add your services** — **Add a service**, paste its URL and API key (or, for
 Transmission and qBittorrent, its username and password), save. It applies immediately; there is
-no restart. Configure only what you run.
+no restart. Configure only what you run. A config file that will not parse no
+longer takes the container down: arr-mcp serves a repair page with the error and
+an editor instead.
 
 Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
 the dashboard. A client that can only be given a URL, not a header, can carry
