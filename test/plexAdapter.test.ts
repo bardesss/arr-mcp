@@ -255,4 +255,65 @@ describe('PlexAdapter', () => {
             expect(await adapter.listUserSeasons({ id: '1', name: 'Bartus' })).toEqual([]);
         });
     });
+
+    describe('search, details and scan state', () => {
+        it('returns nothing for a source Plex cannot serve', async () => {
+            const { adapter } = plex({});
+            expect(await adapter.search('fight club', 'indexers')).toEqual([]);
+        });
+
+        it('maps a library search hit with its id, year and external ids', async () => {
+            const results = {
+                MediaContainer: {
+                    Metadata: [
+                        { ratingKey: '603', type: 'movie', title: 'The Matrix', year: 1999, Guid: [{ id: 'tmdb://603' }] },
+                        { ratingKey: 'x', type: 'episode', title: 'Not a movie or show' }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/search?query=matrix': results });
+            const hits = await adapter.search('matrix', 'library');
+            expect(hits).toEqual([
+                { service: 'plex', source: 'library', kind: 'movie', id: '603', title: expect.stringContaining('The Matrix'), year: 1999, ids: { tmdb: 603 } }
+            ]);
+        });
+
+        it('refuses a non-numeric id before any network call', async () => {
+            const fetchImpl = vi.fn(serving({}));
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await expect(adapter.getMediaDetails('not-a-rating-key')).rejects.toThrow(/rating key/);
+            expect(fetchImpl).not.toHaveBeenCalled();
+        });
+
+        it('fences the summary and file path, which are metadata we did not author', async () => {
+            const detail = {
+                MediaContainer: {
+                    Metadata: [
+                        {
+                            ratingKey: '603',
+                            type: 'movie',
+                            title: 'The Matrix',
+                            summary: 'A hacker learns the truth.',
+                            Media: [{ Part: [{ file: '/movies/The Matrix (1999).mkv', size: 123 }] }]
+                        }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/library/metadata/603': detail });
+            const details = await adapter.getMediaDetails('603');
+            expect(details.overview?.startsWith('<<untrusted:plex.summary>>')).toBe(true);
+            expect(details.path?.startsWith('<<untrusted:plex.file>>')).toBe(true);
+            expect(details.sizeBytes).toBe(123);
+        });
+
+        it('reports a scan as running when /activities lists one', async () => {
+            const { adapter } = plex({ '/activities': { MediaContainer: { Activity: [{ type: 'library.update.section' }] } } });
+            expect((await adapter.getScanState()).running).toBe(true);
+        });
+
+        it('reports no scan running when /activities is empty', async () => {
+            const { adapter } = plex({ '/activities': { MediaContainer: { Activity: [] } } });
+            expect((await adapter.getScanState()).running).toBe(false);
+        });
+    });
 });

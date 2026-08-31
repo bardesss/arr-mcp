@@ -8,8 +8,15 @@ import { logger } from '../core/logger.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
+    type MediaDetailCapable,
+    type MediaDetails,
     type PlaybackCapable,
     type PlaybackEntry,
+    type ScanState,
+    type ScanStateCapable,
+    type SearchCapable,
+    type SearchHit,
+    type SearchSource,
     type ServiceAdapter,
     type ServiceUser,
     type UserDirectoryCapable,
@@ -144,7 +151,18 @@ const PAGE_SIZE = 500;
 const OWNER_ACCOUNT_ID = 1;
 
 export class PlexAdapter
-    implements ServiceAdapter, UserDirectoryCapable, PlaybackCapable, UserLibraryCapable, UserSeasonsCapable
+    implements
+        ServiceAdapter,
+        UserDirectoryCapable,
+        PlaybackCapable,
+        UserLibraryCapable,
+        UserSeasonsCapable,
+        SearchCapable,
+        MediaDetailCapable,
+        // `/activities` reporting scans is unverified (question 4 for the
+        // tester) — drop this from the `implements` clause, along with
+        // `getScanState` below, if a live server does not report scans there.
+        ScanStateCapable
 {
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
@@ -383,6 +401,81 @@ export class PlexAdapter
             // jellyfin.ts's listUserSeasons for why this is dropped rather
             // than emitted as a second, seasons-only copy of the title.
             .filter(row => Object.keys(row.ids).length > 0);
+    }
+
+    async search(query: string, source: SearchSource): Promise<SearchHit[]> {
+        if (source !== 'library') return [];
+
+        const body = await this.#http.get<unknown>(`/search?query=${encodeURIComponent(query)}`);
+        return unwrap<RawPlexItem>(body, 'Metadata')
+            .filter(
+                (i): i is RawPlexItem & { ratingKey: string } =>
+                    typeof i.ratingKey === 'string' && (i.type === 'movie' || i.type === 'show')
+            )
+            .map(i => ({
+                service: this.id,
+                source: 'library' as const,
+                kind: i.type === 'show' ? ('series' as const) : ('movie' as const),
+                id: i.ratingKey,
+                title: this.#fence('title', i.title ?? ''),
+                ...(i.year === undefined ? {} : { year: i.year }),
+                ids: externalIds(i)
+            }));
+    }
+
+    /**
+     * Plex's ids are numeric strings — a weaker check than Jellyfin's 32-hex
+     * item id, since it cannot tell a Plex rating key from a Radarr or Sonarr
+     * id by shape alone. The remedy carries the weight that check can't.
+     */
+    #ratingKey(id: string): string {
+        const clean = id.trim();
+        if (!/^\d+$/.test(clean)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a Plex rating key`, {
+                remedy: 'Plex ids are numeric. Take one from a plex hit in search_media, or from get_playback’s itemId.'
+            });
+        }
+        return clean;
+    }
+
+    async getMediaDetails(id: string): Promise<MediaDetails> {
+        const ratingKey = this.#ratingKey(id);
+        const body = await this.#http.get<unknown>(`/library/metadata/${ratingKey}`);
+        const item = unwrap<RawPlexItem>(body, 'Metadata')[0];
+        if (item === undefined) {
+            throw new ServiceError('NotFound', this.id, `no item with id ${id}`, {
+                remedy: 'Check the id came from a plex hit in search_media or get_playback rather than another service.'
+            });
+        }
+
+        const file = item.Media?.[0]?.Part?.[0];
+        return {
+            service: this.id,
+            kind: item.type === 'show' ? 'series' : 'movie',
+            id: ratingKey,
+            title: this.#fence('title', item.title ?? ''),
+            ...(item.year === undefined ? {} : { year: item.year }),
+            ...(item.summary === undefined ? {} : { overview: this.#fence('summary', item.summary) }),
+            ...(file?.size === undefined ? {} : { sizeBytes: file.size }),
+            ...(file?.file === undefined ? {} : { path: this.#fence('file', file.file) }),
+            ids: externalIds(item)
+        };
+    }
+
+    /**
+     * `/activities` is Plex's documented endpoint for in-progress background
+     * tasks, unverified against a live server — question 4 for the tester.
+     * "Running" is read as "any activity is present" rather than matching a
+     * specific `type`, because the exact value a library scan reports there
+     * is itself the unverified part. Drop this method, and `ScanStateCapable`
+     * from the `implements` clause above, if a live server does not report
+     * scans here — `diagnose`'s scan stage already handles `scanCapable:
+     * false` honestly.
+     */
+    async getScanState(): Promise<ScanState> {
+        const body = await this.#http.get<unknown>('/activities');
+        const activities = unwrap<Record<string, unknown>>(body, 'Activity');
+        return { service: this.id, running: activities.length > 0 };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
