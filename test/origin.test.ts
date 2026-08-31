@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { mcpEndpoint } from '../src/web/origin.ts';
+import { mcpEndpoint, sameOrigin } from '../src/web/origin.ts';
+import type { Context } from 'hono';
 
 describe('mcpEndpoint', () => {
     it('builds the endpoint from the address the browser actually used', () => {
@@ -50,5 +51,30 @@ describe('mcpEndpoint', () => {
     // A URL with no authority parses, but has nothing to point a client at.
     it('gives up on a URL that carries no host', () => {
         expect(mcpEndpoint('file:///etc/passwd', undefined)).toBeUndefined();
+    });
+});
+
+const ctx = (headers: Record<string, string>, url = 'http://box:6060/ui/setup'): Context =>
+    ({ req: { url, header: (name: string) => headers[name.toLowerCase()] } }) as unknown as Context;
+
+describe('sameOrigin', () => {
+    it('accepts a request with no Origin, since non-browser clients send none', () => {
+        expect(sameOrigin(ctx({}))).toBe(true);
+    });
+
+    it('accepts a matching Origin', () => {
+        expect(sameOrigin(ctx({ origin: 'http://box:6060' }))).toBe(true);
+    });
+
+    it('refuses a foreign Origin', () => {
+        expect(sameOrigin(ctx({ origin: 'http://evil.example' }))).toBe(false);
+    });
+
+    it('refuses a cross-site fetch even without an Origin', () => {
+        expect(sameOrigin(ctx({ 'sec-fetch-site': 'cross-site' }))).toBe(false);
+    });
+
+    it('refuses an unparseable Origin', () => {
+        expect(sameOrigin(ctx({ origin: 'not a url' }))).toBe(false);
     });
 });

@@ -1,3 +1,5 @@
+import type { Context } from 'hono';
+
 /**
  * The absolute MCP endpoint, derived from the request that asked for the page.
  *
@@ -59,4 +61,22 @@ export function mcpEndpoint(requestUrl: string, proto: string | undefined): stri
     const scheme = first === 'https' ? 'https' : 'http';
 
     return `${scheme}://${host}/mcp`;
+}
+
+/**
+ * Whether this request came from the page it claims to.
+ *
+ * A browser sets `Origin` on any cross-origin form post and `Sec-Fetch-Site`
+ * on every request, so a mismatch is decisive. Their absence is not — a
+ * non-browser client sends neither — so absence is allowed through.
+ */
+export function sameOrigin(c: Context): boolean {
+    if (c.req.header('sec-fetch-site') === 'cross-site') return false;
+    const origin = c.req.header('origin');
+    if (origin === undefined) return true;
+    try {
+        return new URL(origin).host === new URL(c.req.url).host;
+    } catch {
+        return false;
+    }
 }

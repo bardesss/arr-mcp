@@ -24,7 +24,7 @@ import { CSS, JS } from './assets.ts';
 import { MARK_SVG } from './icons.ts';
 import { addInstance, removeInstance, updateInstance, type InstanceFields } from '../config/mutate.ts';
 import { configPage } from './configPage.ts';
-import { mcpEndpoint } from './origin.ts';
+import { mcpEndpoint, sameOrigin } from './origin.ts';
 import {
     auditPage,
     dashboardPage,
@@ -69,24 +69,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     const unclaimed = (): boolean => runtime.config.auth.password_hash === undefined;
     const entry = (): string => (unclaimed() ? '/ui/setup' : '/ui/login');
-
-    /**
-     * Whether this request came from the page it claims to.
-     *
-     * A browser sets `Origin` on any cross-origin form post and `Sec-Fetch-Site`
-     * on every request, so a mismatch is decisive. Their absence is not — a
-     * non-browser client sends neither — so absence is allowed through.
-     */
-    const sameOrigin = (c: Context): boolean => {
-        if (c.req.header('sec-fetch-site') === 'cross-site') return false;
-        const origin = c.req.header('origin');
-        if (origin === undefined) return true;
-        try {
-            return new URL(origin).host === new URL(c.req.url).host;
-        } catch {
-            return false;
-        }
-    };
 
     // Read per render rather than captured: `runtime.config` is replaced on
     // reload, and saving the theme is itself a reload — so a captured value
