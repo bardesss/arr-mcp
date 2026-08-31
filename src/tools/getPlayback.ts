@@ -4,7 +4,7 @@ import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { JellyfinAdapter } from '../services/jellyfin.ts';
-import type { PlaybackEntry } from '../services/types.ts';
+import { NO_MEDIA_SERVER_NOTE, type PlaybackEntry } from '../services/types.ts';
 
 export type GetPlaybackResult = {
     items: PlaybackEntry[];
@@ -13,6 +13,8 @@ export type GetPlaybackResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
+    /** A fact about the stack's config, not this call — see `NO_MEDIA_SERVER_NOTE`. */
+    note?: string;
 };
 
 export const UserSchema = z
@@ -52,7 +54,15 @@ export async function buildGetPlayback(
     opts: { detail: DetailLevel; limit: number; offset?: number; user?: string; scope?: PlaybackScope }
 ): Promise<GetPlaybackResult> {
     if (adapter === undefined || resolver === undefined) {
-        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [] };
+        return {
+            items: [],
+            total: 0,
+            returned: 0,
+            offset: 0,
+            truncated: false,
+            degraded: [],
+            note: NO_MEDIA_SERVER_NOTE
+        };
     }
 
     // Deliberately outside the try: an authorization or configuration failure
@@ -81,7 +91,13 @@ export async function buildGetPlayback(
     return { ...shaped, items: shaped.items.map(e => project(e, opts.detail)), degraded: [] };
 }
 
-const summarize = (scope: PlaybackScope, result: GetPlaybackResult): string => {
+/**
+ * `note` replaces the counts rather than being appended to them: a correction
+ * printed behind "0 item(s) playing now" leaves the claim standing, which is
+ * the reading it exists to prevent. `degraded` already works this way.
+ */
+export const summarize = (scope: PlaybackScope, result: GetPlaybackResult): string => {
+    if (result.note !== undefined) return result.note;
     if (result.degraded.length > 0) return 'Jellyfin could not be reached; no playback information available.';
     if (scope === 'next_up') return `${result.total} series with a next episode to watch.`;
     if (scope === 'history') return `${result.total} recently watched item(s).`;
@@ -100,8 +116,15 @@ export function registerGetPlayback(
             title: 'Playback activity',
             annotations: READ_ONLY,
             description:
-                'What a Jellyfin user is watching, has queued up next, or has already watched. Watch state exists only in Jellyfin — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users.',
-            outputSchema: PagedOutputSchema,
+                'What a Jellyfin user is watching, has queued up next, or has already watched. Watch state exists only in Jellyfin — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.',
+            outputSchema: PagedOutputSchema.extend({
+                note: z
+                    .string()
+                    .optional()
+                    .describe(
+                        "Present when a fact about the stack's config, not this call, needs stating — for example no media server configured at all."
+                    )
+            }),
             inputSchema: toolInput({
                 detail: DetailSchema,
                 limit: LimitSchema,

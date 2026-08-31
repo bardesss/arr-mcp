@@ -330,6 +330,18 @@ describe('get_library shaping', () => {
         expect((await buildGetLibrary(loader, base)).degraded).toEqual(['sonarr']);
     });
 
+    it('says no media server is configured, so an unexplained presence is not read as an answer', async () => {
+        const loader = new LibraryLoader([stub('radarr', [film()])], undefined);
+        const result = await buildGetLibrary(loader, base);
+
+        expect(result.degraded).toEqual([]);
+        expect(result.note).toMatch(/no media server is configured/i);
+    });
+
+    it('leaves the note off when a media server did answer', async () => {
+        expect((await buildGetLibrary(loaderOf([film()]), base)).note).toBeUndefined();
+    });
+
     it('stays within budget at the default detail', async () => {
         const many = repeat(film(), 500).map((f, i) => ({ ...f, ids: { tmdb: i + 1 } }));
         const result = await buildGetLibrary(loaderOf(many), { ...base, limit: 500 });
