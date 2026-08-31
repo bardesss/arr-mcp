@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -258,5 +258,65 @@ describe('repair server sign-in', () => {
     it('leaves health reachable on any host, so the container healthcheck still works', async () => {
         const app = await repairApp({ auth: { ...AUTH_OK, allowed_hosts: ['arr.example.com'] } });
         expect((await get(app, '/healthz', { headers: { host: 'localhost:6060' } })).status).toBe(200);
+    });
+
+    it('lets only one of two concurrent claims win', async () => {
+        const raw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const dir = await seedDir(raw);
+        const app = buildRepairApp({
+            configDir: dir,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            failure: new ConfigInvalidError('services.radarr.url\n  ✖ bad', raw, AUTH_OK),
+            onPromote: async () => ({ ok: true })
+        });
+
+        const post = () =>
+            get(app, '/ui/setup', {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ username: 'admin', password: PASSWORD, confirm: PASSWORD }).toString()
+            });
+
+        const [a, b] = await Promise.all([post(), post()]);
+        expect(a.status).toBe(302);
+        expect(b.status).toBe(302);
+        const locations = [a.headers.get('location'), b.headers.get('location')];
+        expect(locations).toContain('/ui/repair');
+        expect(locations).toContain('/ui/login');
+
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect((onDisk.match(/password_hash/g) ?? []).length).toBe(1);
+    });
+
+    // The claim must land on disk, and it must not clobber a fix the operator
+    // made directly to config.yaml while the server was up — the failure this
+    // server exists to survive is exactly the kind an editor fixes in place.
+    it('keeps an operator\'s on-disk edit when claiming, rather than reverting to the startup snapshot', async () => {
+        const staleRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const dir = await seedDir(staleRaw);
+        const app = buildRepairApp({
+            configDir: dir,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            failure: new ConfigInvalidError('services.radarr.url\n  ✖ bad', staleRaw, AUTH_OK),
+            onPromote: async () => ({ ok: true })
+        });
+
+        // The operator fixes the file directly while the server is still up.
+        const fixedRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: http://radarr.example.com\n`;
+        await writeFile(join(dir, 'config.yaml'), fixedRaw, 'utf8');
+
+        const res = await get(app, '/ui/setup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD, confirm: PASSWORD }).toString()
+        });
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/repair');
+
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(onDisk).toContain('http://radarr.example.com');
+        expect(onDisk).toContain('password_hash');
     });
 });

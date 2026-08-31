@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
@@ -83,6 +84,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     const { configDir, sessions } = deps;
     let raw = deps.failure.raw;
     let auth: Config['auth'] = authBlock;
+    let claiming = false;
     const throttle = new LoginThrottle();
 
     // Read from the parsed block rather than captured per request: there is no
@@ -118,7 +120,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     // No CSRF token: there is no session yet to bind one to, so the request's
     // origin is the binding that does exist.
     app.post('/ui/setup', async c => {
-        if (!unclaimed()) return c.redirect('/ui/login', 302);
+        if (!unclaimed() || claiming) return c.redirect('/ui/login', 302);
         if (!sameOrigin(c)) return c.text('cross-origin setup request refused', 403);
 
         const body = await c.req.parseBody();
@@ -131,15 +133,31 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         if (password !== str(body.confirm)) return reject('Those two passwords do not match.');
 
         const password_hash = await hashPassword(password);
-        // Through the document, not `saveConfig`: that takes a whole Config and
-        // there is none. The YAML parsed — `auth` came out of it — so the
-        // document is sound even though the config is not.
-        const doc = parseDocument(raw);
-        doc.setIn(['auth', 'username'], username);
-        doc.setIn(['auth', 'password_hash'], password_hash);
-        raw = doc.toString();
-        await writeConfigAtomic(join(configDir, CONFIG_FILENAME), raw);
-        auth = { ...auth, username, password_hash };
+
+        // Re-checked after the awaits and latched synchronously: `parseBody`
+        // and `hashPassword` both yield, so two concurrent posts would
+        // otherwise both write, and the later would replace the earlier
+        // claimant's credential while their cookie stayed valid.
+        if (!unclaimed() || claiming) return c.redirect('/ui/login', 302);
+        claiming = true;
+        try {
+            // Re-read rather than reusing the snapshot this server started
+            // with: it stays up indefinitely, and editing config.yaml directly
+            // is the obvious answer to being told it is invalid. Writing the
+            // snapshot back would silently revert that edit.
+            const path = join(configDir, CONFIG_FILENAME);
+            const doc = parseDocument(await readFile(path, 'utf8'));
+            doc.setIn(['auth', 'username'], username);
+            doc.setIn(['auth', 'password_hash'], password_hash);
+            const text = doc.toString();
+            await writeConfigAtomic(path, text);
+            raw = text;
+            auth = { ...auth, username, password_hash };
+        } catch {
+            return reject('config.yaml changed on disk and can no longer be edited here. Fix it directly, then restart.');
+        } finally {
+            claiming = false;
+        }
 
         signIn(c);
         logger.info({ username }, 'config UI claimed while the configuration is invalid');
