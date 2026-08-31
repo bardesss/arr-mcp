@@ -23,8 +23,7 @@ export type RepairDeps = {
  */
 export function buildRepairApp(deps: RepairDeps): Hono {
     const { version } = deps;
-    // eslint-disable-next-line prefer-const -- Task 7 reassigns this after a failed save or promotion.
-    let detail = deps.failure.detail;
+    const detail = deps.failure.detail;
     const authBlock = deps.failure.auth;
 
     const app = new Hono();
