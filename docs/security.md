@@ -85,10 +85,21 @@ exists for are syntax errors where there is no document to splice from. A scheme
 that redacts for a schema typo but not for a missing quote gives one page two
 different exposures, chosen by the flavour of the operator's mistake.
 
-The page is behind the same session as the rest of the UI, sends
-`cache-control: no-store`, and is only reachable while the configuration is
-invalid. When the `auth` block itself cannot be read, no editor is served at
-all — see [When config.yaml will not load](configuration.md#when-configyaml-will-not-load).
+The file's contents go no further than that editor, which is behind the same
+session as the rest of the UI, sends `cache-control: no-store`, and is only
+reachable while the configuration is invalid. When the `auth` block itself
+cannot be read, no editor is served at all — see
+[When config.yaml will not load](configuration.md#when-configyaml-will-not-load).
+
+The *error text* is a separate question, because it is not behind the session:
+it is the body of `/healthz`, the body of the 503 from `/mcp`, and the whole of
+the read-only page. So it deliberately carries a position — `at line 3, column
+12` — and never the line itself. That matters most for a YAML syntax error,
+whose usual cause is an API key holding a `:` or starting with a `*`, and which
+is also the case that produces the read-only page. The parser's own message is
+stripped of the source it quotes (`src/config/load.ts`), and `/healthz` is read
+by the Docker healthcheck, so an unstripped one would sit in the container's
+health log for `docker inspect` to print.
 
 ## MCP02 Privilege Escalation via Scope Creep
 

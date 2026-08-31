@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { parse, parseDocument, stringify } from 'yaml';
+import { LineCounter, parse, parseDocument, stringify } from 'yaml';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
 import { writeConfigAtomic } from './save.ts';
@@ -47,18 +47,47 @@ export type ConfigTextResult =
     | { ok: false; detail: string; auth: Config['auth'] | undefined; generatedBearerToken: string | undefined };
 
 /**
- * The whole content pipeline — YAML, shape, bearer-token backfill, schema — as
- * one pure function, so the repair editor cannot accept text that startup then
- * rejects.
+ * Where a YAML syntax error is, without quoting what is there.
+ *
+ * This detail is served unauthenticated — `/healthz`, `/mcp`, and the
+ * read-only page shown when `auth` itself is unparseable — and the line a
+ * syntax error lands on is disproportionately often a credential, since the
+ * usual cause is an API key holding a `:` or starting with `*`. So:
+ * `prettyErrors: false` drops the code frame the parser otherwise prepends,
+ * and the cut at the first `: ` drops the handful of messages that append the
+ * offending source after one (`Block scalar header includes extra characters:
+ * …`, and the alias `ReferenceError`, which is not even a parse error). The
+ * line and column are the actionable part and carry no content.
+ *
+ * What survives is at most a structural indicator character — `Plain value
+ * cannot start with reserved character @` — which the operator needs to read
+ * the message at all.
+ */
+function yamlErrorDetail(err: unknown, lines: LineCounter): string {
+    const e = err as { message?: unknown; pos?: [number, number] };
+    const message = typeof e.message === 'string' ? e.message : 'the file could not be parsed';
+    const said = message.split(': ')[0] ?? message;
+    const offset = e.pos?.[0];
+    if (offset === undefined) return said;
+    const { line, col } = lines.linePos(offset);
+    return `${said} at line ${line}, column ${col}`;
+}
+
+/**
+ * The whole content pipeline — YAML, shape, bearer-token backfill, schema — in
+ * one place, so the repair editor cannot accept text that startup then
+ * rejects. It generates a bearer token when the text lacks one, and reports it
+ * rather than writing anything.
  */
 export function validateConfigText(raw: string): ConfigTextResult {
     let parsed: unknown;
+    const lines = new LineCounter();
     try {
-        parsed = parse(raw);
+        parsed = parse(raw, { prettyErrors: false, lineCounter: lines });
     } catch (err) {
         return {
             ok: false,
-            detail: `config.yaml is not valid YAML: ${(err as Error).message}`,
+            detail: `config.yaml is not valid YAML: ${yamlErrorDetail(err, lines)}`,
             auth: undefined,
             generatedBearerToken: undefined
         };

@@ -26,6 +26,33 @@ describe('validateConfigText', () => {
         if (!result.ok) expect(result.detail).toContain('not valid YAML');
     });
 
+    // The detail reaches three unauthenticated surfaces (see repair.test.ts),
+    // and the line a syntax error lands on is most often a credential — a
+    // value holding a `:` is the usual cause. Position, never content.
+    it('locates a syntax error without quoting the line it is on', () => {
+        const result = validateConfigText(`auth:\n  bearer_token: ${BEARER}\n  api_key: MY-SUPER-SECRET: oops\n`);
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.detail).toContain('line 3');
+        expect(result.detail).toContain('column 12');
+        expect(result.detail).not.toContain('MY-SUPER-SECRET');
+        expect(result.detail).not.toContain('api_key');
+    });
+
+    // The parser appends the offending source after a colon in a handful of
+    // its own messages, and an unresolved alias is a ReferenceError naming the
+    // anchor — neither of which `prettyErrors: false` alone takes out.
+    it.each([
+        ['a block scalar header', 'auth:\n  api_key: |MY-SUPER-SECRET\n    x\n'],
+        ['an alias', 'auth:\n  api_key: *MY-SUPER-SECRET\n']
+    ])('keeps %s error free of the file text', (_name, text) => {
+        const result = validateConfigText(text);
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.detail).toContain('not valid YAML');
+        expect(result.detail).not.toContain('MY-SUPER-SECRET');
+    });
+
     it('reports a top-level scalar', () => {
         const result = validateConfigText('just a string\n');
         expect(result.ok).toBe(false);

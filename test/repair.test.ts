@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { loadConfig } from '../src/config/load.ts';
+import { loadConfig, validateConfigText } from '../src/config/load.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
@@ -122,6 +122,52 @@ describe('repair server, always-on routes', () => {
         const res = await get(await repairApp({ auth: AUTH_OK }), '/ui/app.css');
         expect(res.status).toBe(200);
         expect(res.headers.get('content-type')).toContain('text/css');
+    });
+});
+
+// A YAML syntax error is the case that reaches all three of these at once:
+// unparseable YAML means no `auth` block, so the read-only page is what
+// renders, and none of the three sits behind a session or the Host allowlist.
+describe('repair server, unauthenticated surfaces', () => {
+    const SECRET = 'MY-SUPER-SECRET';
+    const BROKEN = `auth:\n  bearer_token: ${BEARER}\n  api_key: ${SECRET}: oops\n`;
+
+    const leaky = async () => {
+        const verdict = validateConfigText(BROKEN);
+        expect(verdict.ok).toBe(false);
+        if (verdict.ok) throw new Error('unreachable');
+        const dir = await seedDir(BROKEN);
+        return buildRepairApp({
+            configDir: dir,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            failure: new ConfigInvalidError(verdict.detail, BROKEN, verdict.auth),
+            onPromote: async () => ({ ok: true })
+        });
+    };
+
+    it('locates the error on /healthz without repeating the line', async () => {
+        const res = await get(await leaky(), '/healthz');
+        const body = await res.text();
+        expect(body).toContain('line 3');
+        expect(body).not.toContain(SECRET);
+    });
+
+    it('locates the error on /mcp without repeating the line', async () => {
+        const res = await get(await leaky(), '/mcp', { method: 'POST' });
+        expect(res.status).toBe(503);
+        const body = await res.text();
+        expect(body).toContain('line 3');
+        expect(body).not.toContain(SECRET);
+    });
+
+    it('locates the error on the read-only page without repeating the line', async () => {
+        const res = await get(await leaky(), '/ui/repair');
+        expect(res.status).toBe(503);
+        const page = await res.text();
+        expect(page).not.toContain('<textarea');
+        expect(page).toContain('line 3');
+        expect(page).not.toContain(SECRET);
     });
 });
 
