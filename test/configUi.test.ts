@@ -561,6 +561,44 @@ describe('the add dialog', () => {
         expect(page).toContain('Already configured, and limited to one instance');
     });
 
+    /** arr-mcp joins against exactly one media server, so the schema already
+     *  refuses jellyfin and plex together — the picker should not offer a
+     *  choice that would only fail on save. */
+    describe('the media server rivalry', () => {
+        it('offers plex when no media server is configured', async () => {
+            await signIn();
+            const page = await (await call('/ui/config')).text();
+
+            const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
+            expect(offered).toContain('plex');
+            expect(offered).toContain('jellyfin');
+        });
+
+        it('does not offer plex once jellyfin is configured, and says why', async () => {
+            await seed('  jellyfin:\n    url: http://192.0.2.10:8096\n    api_key: k\n');
+            await signIn();
+            const page = await (await call('/ui/config')).text();
+
+            const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
+            expect(offered).not.toContain('plex');
+            // Distinct from the "already configured, limited to one instance"
+            // sentence — plex itself is not configured, jellyfin is.
+            expect(page).toMatch(/media server/i);
+        });
+
+        it('does not offer jellyfin once plex is configured', async () => {
+            await seed('  plex:\n    url: http://192.0.2.10:32400\n    api_key: k\n');
+            await signIn();
+            const page = await (await call('/ui/config')).text();
+
+            // jellyfin is hidden as the rival; plex itself is also gone, but
+            // for the pre-existing "already configured" reason.
+            const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
+            expect(offered).not.toContain('jellyfin');
+            expect(offered).not.toContain('plex');
+        });
+    });
+
     it('offers a name only for the services that already have an instance', async () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
         await signIn();
