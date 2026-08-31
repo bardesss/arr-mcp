@@ -178,6 +178,12 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     app.use('*', claimJsonBody);
     app.route('/', transport);
 
+    // Ahead of the Host allowlist on purpose: the container probes
+    // `localhost:${ARR_MCP_PORT}`, a name nobody pinning a proxy hostname
+    // lists, so a gated `/healthz` is 403 for ever. It answers only a name and
+    // a version, both already public on the login page. Nothing else is exempt.
+    app.get('/healthz', c => c.json({ status: 'ok', name: NAME, version: VERSION }));
+
     /**
      * An empty list means "accept any Host", which is the right default for a
      * LAN container reached by IP — and the reason the adapter's own option
@@ -204,8 +210,6 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         logger.warn({ host, ip: c.req.header('x-forwarded-for') ?? 'unknown' }, 'rejected request with an unlisted Host');
         return c.text('forbidden: Host not allowed', 403);
     });
-
-    app.get('/healthz', c => c.json({ status: 'ok', name: NAME, version: VERSION }));
 
     registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
 

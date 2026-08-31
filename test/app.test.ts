@@ -267,12 +267,15 @@ describe('the transport stays stateless', () => {
 });
 
 describe('DNS rebinding protection', () => {
+    // Probed through `/ui/app.css`, not `/healthz`: health sits ahead of the
+    // allowlist (see below), so it would pass whether the middleware worked or
+    // not. The stylesheet is unauthenticated but gated, so it reports honestly.
     it('serves requests when no hostnames are pinned', async () => {
         // Regression: the adapter gates its host-validation middleware on
         // `if (allowedHosts)`, and [] is truthy — passing an empty array
         // installs validation with an empty allow-list and 403s everything.
         // A container that rejects 100% of traffic looks healthy until used.
-        const res = await app().request('http://192.168.1.50:6060/healthz');
+        const res = await app().request('http://192.168.1.50:6060/ui/app.css');
         expect(res.status).toBe(200);
     });
 
@@ -282,15 +285,35 @@ describe('DNS rebinding protection', () => {
         // Hono's synthetic request helper does not derive a Host header from
         // the URL, so set it explicitly — the validator reads the header, not
         // the URL, and treats a missing one as invalid.
-        const allowed = await pinned.request('http://arr.example.com:6060/healthz', {
+        const allowed = await pinned.request('http://arr.example.com:6060/ui/app.css', {
             headers: { Host: 'arr.example.com:6060' }
         });
-        const foreign = await pinned.request('http://evil.example.com:6060/healthz', {
+        const foreign = await pinned.request('http://evil.example.com:6060/ui/app.css', {
             headers: { Host: 'evil.example.com:6060' }
         });
 
         expect(allowed.status).toBe(200); // port-agnostic match on the hostname
         expect(foreign.status).toBe(403);
+    });
+
+    /**
+     * The Dockerfile probes `localhost:${ARR_MCP_PORT}` — a name no operator
+     * pinning their reverse-proxy hostname would list. Behind the allowlist
+     * every probe 403s, the container is never healthy, and that stalls
+     * `depends_on: service_healthy` and restart-loops under autoheal.
+     */
+    it('keeps health reachable from an unlisted Host, so the container probe passes', async () => {
+        const pinned = appWith(configWith({ allowed_hosts: ['arr.example.com'] }));
+
+        const health = await pinned.request('http://localhost:6060/healthz', {
+            headers: { Host: 'localhost:6060' }
+        });
+        const gated = await pinned.request('http://localhost:6060/ui/app.css', {
+            headers: { Host: 'localhost:6060' }
+        });
+
+        expect(health.status).toBe(200);
+        expect(gated.status).toBe(403);
     });
 
     it('matches a bracketed IPv6 Host, with and without a port', async () => {
@@ -300,8 +323,10 @@ describe('DNS rebinding protection', () => {
         // web/origin.ts already parses this shape correctly.
         const pinned = appWith(configWith({ allowed_hosts: ['[fd00::1]'] }));
 
-        const withPort = await pinned.request('http://[fd00::1]:6060/healthz', { headers: { Host: '[fd00::1]:6060' } });
-        const withoutPort = await pinned.request('http://[fd00::1]/healthz', { headers: { Host: '[fd00::1]' } });
+        const withPort = await pinned.request('http://[fd00::1]:6060/ui/app.css', {
+            headers: { Host: '[fd00::1]:6060' }
+        });
+        const withoutPort = await pinned.request('http://[fd00::1]/ui/app.css', { headers: { Host: '[fd00::1]' } });
 
         expect(withPort.status).toBe(200);
         expect(withoutPort.status).toBe(200);
