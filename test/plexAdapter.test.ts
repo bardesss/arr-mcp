@@ -89,4 +89,92 @@ describe('PlexAdapter', () => {
         expect(d.ok).toBe(true);
         expect(d.version).toBe('1.43.3.10896');
     });
+
+    describe('playback', () => {
+        const SESSIONS = {
+            MediaContainer: {
+                Metadata: [
+                    {
+                        ratingKey: '1234',
+                        type: 'episode',
+                        title: 'Pilot',
+                        grandparentTitle: 'Some Show',
+                        parentIndex: 1,
+                        index: 1,
+                        duration: 2_700_000,
+                        viewOffset: 600_000,
+                        User: { id: '1', title: 'Bartus' },
+                        Player: { title: 'Living Room TV' }
+                    }
+                ]
+            }
+        };
+
+        it('reports what is playing now, with position and completion in seconds', async () => {
+            const { adapter } = plex({ '/status/sessions': SESSIONS });
+            const [entry] = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+
+            expect(entry).toMatchObject({
+                service: 'plex',
+                itemId: '1234',
+                kind: 'now_playing',
+                season: 1,
+                episode: 1,
+                user: 'Bartus',
+                positionSeconds: 600,
+                runtimeSeconds: 2700,
+                percentComplete: 22,
+                device: 'Living Room TV'
+            });
+        });
+
+        it('excludes other users sessions', async () => {
+            const other = {
+                MediaContainer: {
+                    Metadata: [{ ...SESSIONS.MediaContainer.Metadata[0], User: { id: '2', title: 'Guest' } }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions': other });
+            expect(await adapter.getPlayback({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+
+        it('omits the percentage rather than dividing by zero when duration is missing', async () => {
+            const noDuration = { MediaContainer: { Metadata: [{ ratingKey: 'x', title: 'X', viewOffset: 1000, User: { id: '1' } }] } };
+            const { adapter } = plex({ '/status/sessions': noDuration });
+            expect((await adapter.getPlayback({ id: '1', name: 'Bartus' }))[0]?.percentComplete).toBeUndefined();
+        });
+
+        it('fences titles, which carry metadata we did not author', async () => {
+            const { adapter } = plex({ '/status/sessions': SESSIONS });
+            const [entry] = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+            expect(entry?.title.startsWith('<<untrusted:plex.')).toBe(true);
+        });
+
+        it('turns an epoch lastViewedAt into an ISO timestamp', async () => {
+            const history = { MediaContainer: { Metadata: [{ ratingKey: 'h1', title: 'A Film', lastViewedAt: 1_787_000_000 }] } };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const [entry] = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entry?.lastPlayed).toBe(new Date(1_787_000_000_000).toISOString());
+        });
+
+        it('reports onDeck rows with no viewOffset as next up', async () => {
+            const onDeck = {
+                MediaContainer: {
+                    Metadata: [
+                        { ratingKey: 'r1', title: 'Resuming', viewOffset: 300_000 },
+                        { ratingKey: 'n1', title: 'Next Episode' }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/library/onDeck': onDeck });
+            const nextUp = await adapter.getNextUp({ id: '1', name: 'Bartus' });
+            expect(nextUp).toEqual([expect.objectContaining({ kind: 'next_up', itemId: 'n1' })]);
+        });
+
+        it('excludes onDeck rows with a non-zero viewOffset from next up — those are resumes', async () => {
+            const onDeck = { MediaContainer: { Metadata: [{ ratingKey: 'r1', title: 'Resuming', viewOffset: 300_000 }] } };
+            const { adapter } = plex({ '/library/onDeck': onDeck });
+            expect(await adapter.getNextUp({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+    });
 });

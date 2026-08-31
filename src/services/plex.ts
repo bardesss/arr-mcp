@@ -1,11 +1,14 @@
 import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
 import { plexToken } from '../core/auth.ts';
+import { fenceText } from '../core/fence.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { logger } from '../core/logger.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
+    type PlaybackCapable,
+    type PlaybackEntry,
     type ServiceAdapter,
     type ServiceUser,
     type UserDirectoryCapable
@@ -39,6 +42,12 @@ export type RawPlexItem = {
     Guid?: { id?: string }[];
     /** Legacy agents, e.g. `com.plexapp.agents.imdb://tt0111161?lang=en`. */
     guid?: string;
+    /** `/status/sessions` only — who is watching. */
+    User?: { id?: string; title?: string };
+    /** `/status/sessions` only — what they are watching on. */
+    Player?: { title?: string };
+    /** Episodes from `/library/sections/{key}/all?type=4` — the series' ratingKey. */
+    grandparentRatingKey?: string;
 };
 
 export const unwrap = <T>(body: unknown, key: string): T[] => {
@@ -116,7 +125,7 @@ type RawAccount = { id?: number; name?: string };
 /** The server owner's fixed id in Plex's `/accounts` response. */
 const OWNER_ACCOUNT_ID = 1;
 
-export class PlexAdapter implements ServiceAdapter, UserDirectoryCapable {
+export class PlexAdapter implements ServiceAdapter, UserDirectoryCapable, PlaybackCapable {
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
     readonly #http: ServiceHttp;
@@ -171,6 +180,70 @@ export class PlexAdapter implements ServiceAdapter, UserDirectoryCapable {
         }
 
         return [{ id: String(OWNER_ACCOUNT_ID), name: this.#defaultUser }];
+    }
+
+    #fence(field: string, value: string): string {
+        return fenceText(value, { service: this.id, field });
+    }
+
+    #commonPlayback(user: ServiceUser, item: RawPlexItem) {
+        return {
+            service: this.id,
+            itemId: item.ratingKey ?? '',
+            title: this.#fence('title', item.title ?? ''),
+            ...(item.grandparentTitle === undefined ? {} : { seriesTitle: this.#fence('grandparentTitle', item.grandparentTitle) }),
+            ...(item.parentIndex === undefined ? {} : { season: item.parentIndex }),
+            ...(item.index === undefined ? {} : { episode: item.index }),
+            user: user.name
+        };
+    }
+
+    #progress(position: number | undefined, runtime: number | undefined) {
+        return {
+            ...(position === undefined ? {} : { positionSeconds: position }),
+            ...(runtime === undefined ? {} : { runtimeSeconds: runtime }),
+            // Guarded against a zero runtime, which would divide to Infinity.
+            ...(position !== undefined && runtime !== undefined && runtime > 0
+                ? { percentComplete: Math.round((position / runtime) * 100) }
+                : {})
+        };
+    }
+
+    async getPlayback(user: ServiceUser): Promise<PlaybackEntry[]> {
+        const sessions = await this.#http.get<unknown>('/status/sessions');
+        return unwrap<RawPlexItem>(sessions, 'Metadata')
+            .filter(item => item.User?.id === user.id)
+            .map(item => ({
+                ...this.#commonPlayback(user, item),
+                kind: 'now_playing' as const,
+                ...this.#progress(msToSeconds(item.viewOffset), msToSeconds(item.duration)),
+                ...(item.Player?.title === undefined ? {} : { device: item.Player.title })
+            }));
+    }
+
+    /**
+     * `/library/onDeck` mixes resume and next-up rows with nothing marking
+     * which is which — unverified against a live server (question 3 for the
+     * tester). Until answered: a non-zero `viewOffset` reads as `resume`, its
+     * absence as `next_up`, and only the latter is reported here.
+     */
+    async getNextUp(user: ServiceUser): Promise<PlaybackEntry[]> {
+        const body = await this.#http.get<unknown>('/library/onDeck');
+        return unwrap<RawPlexItem>(body, 'Metadata')
+            .filter(item => !(typeof item.viewOffset === 'number' && item.viewOffset > 0))
+            .map(item => ({ ...this.#commonPlayback(user, item), kind: 'next_up' as const }));
+    }
+
+    async getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]> {
+        const body = await this.#http.get<unknown>('/status/sessions/history/all');
+        return unwrap<RawPlexItem>(body, 'Metadata').map(item => {
+            const lastPlayed = epochToIso(item.lastViewedAt);
+            return {
+                ...this.#commonPlayback(user, item),
+                kind: 'watched' as const,
+                ...(lastPlayed === undefined ? {} : { lastPlayed })
+            };
+        });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
