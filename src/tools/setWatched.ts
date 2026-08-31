@@ -18,11 +18,14 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * arr-mcp — so the refusal itself is correct even for a Plex-only stack.
  * Only the remedy needs to stop assuming the reader has no media server at
  * all: a Plex user is told this is a Jellyfin-specific write, not "go add
- * a media server".
+ * a media server". And since jellyfin and plex cannot both be configured
+ * (schema.ts refuses it), the remedy for a Plex user cannot be "add
+ * services.jellyfin" — that config would fail to start. It has to be
+ * "replace".
  */
 const watchedRemedy = (adapters: readonly ServiceAdapter[]): string =>
     adapters.some(a => a.type === 'plex')
-        ? 'set_watched needs Jellyfin specifically — Plex is read-only in arr-mcp. Add a services.jellyfin block to config.yaml and restart.'
+        ? 'set_watched needs Jellyfin — Plex is read-only in arr-mcp, and jellyfin/plex cannot both be configured. Replace the services.plex block with services.jellyfin and restart.'
         : 'Watch state lives in Jellyfin. Add a services.jellyfin block to config.yaml and restart.';
 
 const jellyfinAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & WatchStateCapable => {
