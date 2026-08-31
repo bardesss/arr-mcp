@@ -150,6 +150,7 @@ button:hover { filter: brightness(1.1); }
 .login .panel { padding: 1.5rem; }
 .field { margin-bottom: .9rem; }
 .field input { width: 100%; }
+.repair textarea { width: 100%; min-height: 26rem; font-family: var(--mono); font-size: .8rem; }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; margin: 0 0 1rem; }
 legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
 .svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
