@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildApp } from '../src/app.ts';
+import { bootstrap } from '../src/bootstrap.ts';
 import { loadConfig, validateConfigText } from '../src/config/load.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
@@ -552,54 +552,59 @@ describe('repair server save', () => {
     });
 });
 
+// Through the real `bootstrap`, not a hand-rolled copy of its pattern: the
+// swap lives in one closure there, `src/index.ts` imports nothing else, and a
+// "simplification" of it to `fetch: app.fetch` would leave the whole suite
+// green while serving the repair page forever.
 describe('promotion', () => {
+    const booted = async (raw: string) => {
+        const dir = await seedDir(raw);
+        const audit = WriteAudit.ephemeral();
+        const logs = LogStore.ephemeral();
+        const app = await bootstrap({
+            configDir: dir,
+            audit,
+            logs,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            port: 6060
+        });
+        const call = (path: string, init: RequestInit = {}) =>
+            Promise.resolve(app.fetch(new Request(`http://localhost:6060${path}`, init)));
+        return { call, dir, close: () => { logs.close(); audit.close(); } };
+    };
+
     // The cookie must survive the swap, or a save lands the operator on a
     // login page having just typed their password.
     it('hands over an app that serves /ui to the session issued before the save', async () => {
         const hash = await hashPassword(PASSWORD);
-        const dir = await seedDir(
-            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hash}\n  allowed_hosts: []\nservices: {}\n`
-        );
-        const audit = WriteAudit.ephemeral();
-        const logs = LogStore.ephemeral();
-        const sessions = new Sessions();
+        const valid = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hash}\n  allowed_hosts: []\nservices: {}\n`;
+        const { call, close } = await booted(valid.replace('services: {}\n', 'services:\n  radarr:\n    url: bad\n'));
 
-        let live = buildRepairApp({
-            configDir: dir,
-            sessions,
-            version: '1.2.3',
-            failure: new ConfigInvalidError('bad', 'auth: {}\n', { ...AUTH_OK, password_hash: hash }),
-            onPromote: async () => {
-                const { runtime } = await Runtime.start(dir, audit, { sessions });
-                live = buildApp({ runtime, audit, logs });
-                return { ok: true };
-            }
-        });
+        // Degraded, so the repair server is what answered.
+        expect(((await (await call('/healthz')).json()) as { status: string }).status).toBe('degraded');
 
-        const login = await live.request('http://localhost:6060/ui/login', {
+        const login = await call('/ui/login', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
         });
         const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+        expect(cookie).not.toBe('');
 
-        const page = await (await live.request('http://localhost:6060/ui/repair', { headers: { cookie } })).text();
+        const page = await (await call('/ui/repair', { headers: { cookie } })).text();
         const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
 
-        const saved = await live.request('http://localhost:6060/ui/repair', {
+        const saved = await call('/ui/repair', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-            body: new URLSearchParams({
-                csrf,
-                config: `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hash}\n  allowed_hosts: []\nservices: {}\n`
-            }).toString()
+            body: new URLSearchParams({ csrf, config: valid }).toString()
         });
         expect(saved.status).toBe(302);
 
-        const dashboard = await live.request('http://localhost:6060/ui', { headers: { cookie } });
+        const dashboard = await call('/ui', { headers: { cookie } });
         expect(dashboard.status).toBe(200);
 
-        logs.close();
-        audit.close();
+        close();
     });
 });
