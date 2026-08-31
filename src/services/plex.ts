@@ -247,9 +247,31 @@ export class PlexAdapter
         };
     }
 
+    /**
+     * `/library/onDeck` mixes resume and next-up rows with nothing marking
+     * which is which — unverified against a live server (question 3 for the
+     * tester). Until answered: a non-zero `viewOffset` reads as `resume`, its
+     * absence (or zero) as `next_up`. `getPlayback` reads this concurrently
+     * with sessions, exactly as `jellyfin.ts` reads `/Sessions` alongside its
+     * resumable list, and keeps only the resume half; `getNextUp` reads the
+     * same endpoint again and keeps only the other half.
+     *
+     * onDeck rows carry no per-user field in the documented shape — unlike
+     * sessions, which are server-wide. A local token names exactly one
+     * account (see `listUsers`), so every row here is that account's by
+     * construction and needs no filter.
+     */
+    static #isResuming(item: RawPlexItem): boolean {
+        return typeof item.viewOffset === 'number' && item.viewOffset > 0;
+    }
+
     async getPlayback(user: ServiceUser): Promise<PlaybackEntry[]> {
-        const sessions = await this.#http.get<unknown>('/status/sessions');
-        return unwrap<RawPlexItem>(sessions, 'Metadata')
+        const [sessions, onDeck] = await Promise.all([
+            this.#http.get<unknown>('/status/sessions'),
+            this.#http.get<unknown>('/library/onDeck')
+        ]);
+
+        const nowPlaying: PlaybackEntry[] = unwrap<RawPlexItem>(sessions, 'Metadata')
             .filter(item => item.User?.id === user.id)
             .map(item => ({
                 ...this.#commonPlayback(user, item),
@@ -257,18 +279,22 @@ export class PlexAdapter
                 ...this.#progress(msToSeconds(item.viewOffset), msToSeconds(item.duration)),
                 ...(item.Player?.title === undefined ? {} : { device: item.Player.title })
             }));
+
+        const resuming: PlaybackEntry[] = unwrap<RawPlexItem>(onDeck, 'Metadata')
+            .filter(PlexAdapter.#isResuming)
+            .map(item => ({
+                ...this.#commonPlayback(user, item),
+                kind: 'resume' as const,
+                ...this.#progress(msToSeconds(item.viewOffset), msToSeconds(item.duration))
+            }));
+
+        return [...nowPlaying, ...resuming];
     }
 
-    /**
-     * `/library/onDeck` mixes resume and next-up rows with nothing marking
-     * which is which — unverified against a live server (question 3 for the
-     * tester). Until answered: a non-zero `viewOffset` reads as `resume`, its
-     * absence as `next_up`, and only the latter is reported here.
-     */
     async getNextUp(user: ServiceUser): Promise<PlaybackEntry[]> {
         const body = await this.#http.get<unknown>('/library/onDeck');
         return unwrap<RawPlexItem>(body, 'Metadata')
-            .filter(item => !(typeof item.viewOffset === 'number' && item.viewOffset > 0))
+            .filter(item => !PlexAdapter.#isResuming(item))
             .map(item => ({ ...this.#commonPlayback(user, item), kind: 'next_up' as const }));
     }
 
@@ -465,17 +491,24 @@ export class PlexAdapter
     /**
      * `/activities` is Plex's documented endpoint for in-progress background
      * tasks, unverified against a live server — question 4 for the tester.
-     * "Running" is read as "any activity is present" rather than matching a
-     * specific `type`, because the exact value a library scan reports there
-     * is itself the unverified part. Drop this method, and `ScanStateCapable`
-     * from the `implements` clause above, if a live server does not report
-     * scans here — `diagnose`'s scan stage already handles `scanCapable:
-     * false` honestly.
+     * `diagnose`'s scan stage is a blocking verdict ("a scan is running,
+     * check back later"), so over-reporting on an unrelated activity — a
+     * thumbnail generation, a metadata refresh — stalls the caller with a
+     * wrong answer; matching on `type` rather than mere presence is what
+     * keeps that failure mode rare instead of routine.
+     *
+     * The exact `type` vocabulary for a library scan is itself unverified —
+     * `library` and `refresh` are a guess at the two words most likely to
+     * appear in it, checked case-insensitively. Drop this method, and
+     * `ScanStateCapable` from the `implements` clause above, if a live
+     * server does not report scans here at all — `diagnose`'s scan stage
+     * already handles `scanCapable: false` honestly.
      */
     async getScanState(): Promise<ScanState> {
         const body = await this.#http.get<unknown>('/activities');
-        const activities = unwrap<Record<string, unknown>>(body, 'Activity');
-        return { service: this.id, running: activities.length > 0 };
+        const activities = unwrap<{ type?: string }>(body, 'Activity');
+        const running = activities.some(a => /library|refresh/i.test(a.type ?? ''));
+        return { service: this.id, running };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

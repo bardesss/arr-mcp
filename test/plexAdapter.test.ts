@@ -110,8 +110,13 @@ describe('PlexAdapter', () => {
             }
         };
 
+        // onDeck carries no per-user field (see the doc comment on
+        // getPlayback), so an empty page is a legitimate stub for every
+        // getPlayback case below that isn't itself testing onDeck.
+        const EMPTY_MEDIA_CONTAINER = { MediaContainer: {} };
+
         it('reports what is playing now, with position and completion in seconds', async () => {
-            const { adapter } = plex({ '/status/sessions': SESSIONS });
+            const { adapter } = plex({ '/status/sessions': SESSIONS, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
             const [entry] = await adapter.getPlayback({ id: '1', name: 'Bartus' });
 
             expect(entry).toMatchObject({
@@ -134,20 +139,45 @@ describe('PlexAdapter', () => {
                     Metadata: [{ ...SESSIONS.MediaContainer.Metadata[0], User: { id: '2', title: 'Guest' } }]
                 }
             };
-            const { adapter } = plex({ '/status/sessions': other });
+            const { adapter } = plex({ '/status/sessions': other, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
             expect(await adapter.getPlayback({ id: '1', name: 'Bartus' })).toEqual([]);
         });
 
         it('omits the percentage rather than dividing by zero when duration is missing', async () => {
             const noDuration = { MediaContainer: { Metadata: [{ ratingKey: 'x', title: 'X', viewOffset: 1000, User: { id: '1' } }] } };
-            const { adapter } = plex({ '/status/sessions': noDuration });
+            const { adapter } = plex({ '/status/sessions': noDuration, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
             expect((await adapter.getPlayback({ id: '1', name: 'Bartus' }))[0]?.percentComplete).toBeUndefined();
         });
 
         it('fences titles, which carry metadata we did not author', async () => {
-            const { adapter } = plex({ '/status/sessions': SESSIONS });
+            const { adapter } = plex({ '/status/sessions': SESSIONS, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
             const [entry] = await adapter.getPlayback({ id: '1', name: 'Bartus' });
             expect(entry?.title.startsWith('<<untrusted:plex.')).toBe(true);
+        });
+
+        it('includes onDeck resume entries in getPlayback, with position, runtime and completion', async () => {
+            const onDeck = {
+                MediaContainer: {
+                    Metadata: [{ ratingKey: 'r1', title: 'Resuming', viewOffset: 300_000, duration: 1_200_000 }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions': EMPTY_MEDIA_CONTAINER, '/library/onDeck': onDeck });
+            const entries = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+            expect(entries).toEqual([
+                expect.objectContaining({
+                    kind: 'resume',
+                    itemId: 'r1',
+                    positionSeconds: 300,
+                    runtimeSeconds: 1200,
+                    percentComplete: 25
+                })
+            ]);
+        });
+
+        it('excludes onDeck next-up rows (no viewOffset) from getPlayback', async () => {
+            const onDeck = { MediaContainer: { Metadata: [{ ratingKey: 'n1', title: 'Next Episode' }] } };
+            const { adapter } = plex({ '/status/sessions': EMPTY_MEDIA_CONTAINER, '/library/onDeck': onDeck });
+            expect(await adapter.getPlayback({ id: '1', name: 'Bartus' })).toEqual([]);
         });
 
         it('turns an epoch lastViewedAt into an ISO timestamp', async () => {
@@ -306,13 +336,18 @@ describe('PlexAdapter', () => {
             expect(details.sizeBytes).toBe(123);
         });
 
-        it('reports a scan as running when /activities lists one', async () => {
+        it('reports a scan as running when /activities lists a library-shaped activity', async () => {
             const { adapter } = plex({ '/activities': { MediaContainer: { Activity: [{ type: 'library.update.section' }] } } });
             expect((await adapter.getScanState()).running).toBe(true);
         });
 
         it('reports no scan running when /activities is empty', async () => {
             const { adapter } = plex({ '/activities': { MediaContainer: { Activity: [] } } });
+            expect((await adapter.getScanState()).running).toBe(false);
+        });
+
+        it('does not report a running scan for an unrelated activity', async () => {
+            const { adapter } = plex({ '/activities': { MediaContainer: { Activity: [{ type: 'media.generate.bif' }] } } });
             expect((await adapter.getScanState()).running).toBe(false);
         });
     });
