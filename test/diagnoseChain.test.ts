@@ -12,6 +12,9 @@ import { buildChain, type Evidence } from '../src/tools/diagnose/chain.ts';
  */
 type ItemOverride = { [K in keyof MergedItem]?: MergedItem[K] | undefined };
 
+/** Same reasoning as `ItemOverride`, for `Evidence` — `healthy({ mediaServer: undefined, ... })` needs to type-check under `exactOptionalPropertyTypes`. */
+type EvidenceOverride = { [K in keyof Evidence]?: Evidence[K] | undefined };
+
 const fence = (title: string): string => fenceText(title, { service: 'radarr', field: 'title' });
 
 /**
@@ -47,19 +50,28 @@ const item = (over: ItemOverride = {}): MergedItem => {
 };
 
 /** Everything looked at, nothing wrong: the baseline every case perturbs. */
-const healthy = (over: Partial<Evidence> = {}): Evidence => ({
-    item: item(),
-    request: null,
-    queue: { items: [], partial: [] },
-    queueConfigured: true,
-    rejections: [],
-    prowlarrConfigured: true,
-    scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
-    jellyfinConfigured: true,
-    libraryDegraded: [],
-    degraded: [],
-    ...over
-});
+const healthy = (over: EvidenceOverride = {}): Evidence => {
+    const merged: Record<string, unknown> = {
+        item: item(),
+        request: null,
+        queue: { items: [], partial: [] },
+        queueConfigured: true,
+        rejections: [],
+        prowlarrConfigured: true,
+        scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
+        mediaServer: 'jellyfin',
+        scanCapable: true,
+        libraryDegraded: [],
+        degraded: [],
+        ...over
+    };
+    // Same reasoning as `item()`: an override to `undefined` clears the key
+    // back to "not present" rather than leaving it assigned to `undefined`.
+    for (const key of Object.keys(merged)) {
+        if (merged[key] === undefined) delete merged[key];
+    }
+    return merged as unknown as Evidence;
+};
 
 const stepFor = (d: ReturnType<typeof buildChain>, stage: string) => d.steps.find(s => s.stage === stage);
 
@@ -168,7 +180,9 @@ describe('buildChain — each stage blocking in isolation', () => {
             item: item({ presence: 'arr_only', playback: undefined })
         });
         expect(d.verdict.stage).toBe('library');
-        expect(d.verdict.summary).toMatch(/Jellyfin/);
+        // Lowercase now: the summary names the adapter's own id (`server`),
+        // not a hardcoded brand string — see Task 5.
+        expect(d.verdict.summary).toMatch(/jellyfin/i);
     });
 
     it('blames the scan, not the library, when a scan is running and the library is missing it', () => {
@@ -370,7 +384,8 @@ describe('buildChain — certainty', () => {
             rejections: [],
             prowlarrConfigured: true,
             scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
-            jellyfinConfigured: true,
+            mediaServer: 'jellyfin',
+            scanCapable: true,
             libraryDegraded: [],
             degraded: ['seerr']
         });
@@ -463,7 +478,8 @@ describe('buildChain — certainty', () => {
             rejections: [],
             prowlarrConfigured: true,
             scan: undefined,
-            jellyfinConfigured: true,
+            mediaServer: 'jellyfin',
+            scanCapable: true,
             libraryDegraded: ['radarr'],
             degraded: []
         });
@@ -585,7 +601,7 @@ describe('buildChain — verdict order is pinned, not incidental (I7)', () => {
 
 describe('buildChain — a stack without Jellyfin', () => {
     const noJellyfin = (over: Partial<Evidence> = {}): Evidence =>
-        healthy({ jellyfinConfigured: false, scan: undefined, ...over });
+        healthy({ mediaServer: undefined, scanCapable: false, scan: undefined, ...over });
 
     it('skips the library stage rather than reporting it unknown', () => {
         // "Jellyfin cannot see it" would be a lie about a service the user
@@ -598,6 +614,30 @@ describe('buildChain — a stack without Jellyfin', () => {
     it('stays certain, and verdicts on the file being present', () => {
         const d = buildChain('some film', noJellyfin({ item: item({ presence: 'arr_only', playback: undefined }) }));
         expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
+    });
+});
+
+describe('buildChain — a media server that is not Jellyfin', () => {
+    it('names it in the library stage rather than saying Jellyfin', () => {
+        const ev = healthy({ mediaServer: 'plexish', scan: { service: 'plexish', lastCompleted: '2026-08-05T02:00:00Z' } });
+        const step = stepFor(buildChain('some film', ev), 'library');
+
+        expect(step?.service).toBe('plexish');
+        expect(step?.detail).not.toContain('Jellyfin');
+    });
+
+    it('skips the scan stage without skipping the library stage when it cannot report scans', () => {
+        const ev = healthy({ mediaServer: 'plexish', scanCapable: false, scan: undefined });
+        const d = buildChain('some film', ev);
+
+        expect(stepFor(d, 'library')?.status).not.toBe('skipped');
+        expect(stepFor(d, 'scan')?.status).toBe('skipped');
+    });
+
+    it('says no media server is configured rather than naming one', () => {
+        const ev = healthy({ mediaServer: undefined, scanCapable: false, scan: undefined });
+
+        expect(stepFor(buildChain('some film', ev), 'library')?.detail).toMatch(/no media server/i);
     });
 });
 

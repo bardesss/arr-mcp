@@ -382,9 +382,30 @@ describe('diagnose', () => {
 
         expect(evidence.queueConfigured).toBe(false);
         expect(evidence.prowlarrConfigured).toBe(false);
-        expect(evidence.jellyfinConfigured).toBe(false);
+        expect(evidence.mediaServer).toBeUndefined();
+        expect(evidence.scanCapable).toBe(false);
         expect(evidence.queue).toBeUndefined();
         expect(evidence.rejections).toBeUndefined();
+        expect(evidence.scan).toBeUndefined();
+    });
+
+    it('reports the library half configured even when the media server cannot report scan state', async () => {
+        const noScan = stub('jellyfin', {
+            listUserLibrary: async () => [],
+            getPlayback: async () => [],
+            getNextUp: async () => [],
+            getWatchHistory: async () => [],
+            listUsers: async () => [{ id: 'u1', name: 'Someone' }]
+        });
+        const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), noScan];
+
+        const evidence = await collectEvidence(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'some film' }
+        );
+
+        expect(evidence.mediaServer).toBe('jellyfin');
+        expect(evidence.scanCapable).toBe(false);
         expect(evidence.scan).toBeUndefined();
     });
 

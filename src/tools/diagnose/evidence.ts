@@ -182,8 +182,14 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     const queueConfigured = queueAdapters.length > 0;
     const prowlarr = deps.adapters.find(hasIndexers);
     const prowlarrConfigured = prowlarr !== undefined;
-    const jellyfin = deps.adapters.filter(hasScanState).find(a => a.id === 'jellyfin');
-    const jellyfinConfigured = jellyfin !== undefined;
+    // `hasUserLibrary`, matching what `LibraryLoader` itself selects on, so this
+    // stage's "configured" cannot disagree with whether the library was gathered.
+    const mediaServerAdapter = deps.adapters.find(hasUserLibrary);
+    const mediaServer = mediaServerAdapter?.id;
+    // Separate from the line above: a media server that reads a library but cannot
+    // report a scan makes `scanStep` skip without making `libraryStep` skip too.
+    const scanAdapter =
+        mediaServerAdapter !== undefined && hasScanState(mediaServerAdapter) ? mediaServerAdapter : undefined;
 
     // `null` here is a third state the chain needs: not configured, as
     // distinct from asked-and-empty (`[]`) or could-not-ask (`undefined`).
@@ -205,7 +211,9 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             : probe(prowlarr.id, degraded, () => prowlarr.getRecentRejections(RECENT_REJECTION_LIMIT));
 
     const scanP: Promise<ScanState | undefined> =
-        jellyfin === undefined ? Promise.resolve(undefined) : probe(jellyfin.id, degraded, () => jellyfin.getScanState());
+        scanAdapter === undefined
+            ? Promise.resolve(undefined)
+            : probe(scanAdapter.id, degraded, () => scanAdapter.getScanState());
 
     const [requests, queueGathered, rejections, scan] = await Promise.all([requestsP, queueP, rejectionsP, scanP]);
 
@@ -270,7 +278,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         rejections,
         prowlarrConfigured,
         scan,
-        jellyfinConfigured,
+        ...(mediaServer === undefined ? {} : { mediaServer }),
+        scanCapable: scanAdapter !== undefined,
         libraryDegraded,
         degraded
     };

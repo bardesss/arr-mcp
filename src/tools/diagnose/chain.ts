@@ -25,18 +25,23 @@ export type Evidence = {
      * was the cause. `undefined` still means every client failed.
      */
     queue: { items: QueueItem[]; partial: string[] } | undefined;
-    /** Analogue of `jellyfinConfigured`, below: no download client at all, not merely unreachable. */
+    /** Analogue of `mediaServer`, below: no download client at all, not merely unreachable. */
     queueConfigured: boolean;
     rejections: IndexerRejection[] | undefined;
-    /** Analogue of `jellyfinConfigured`: no Prowlarr configured, not merely unreachable. */
+    /** Analogue of `mediaServer`: no Prowlarr configured, not merely unreachable. */
     prowlarrConfigured: boolean;
     scan: ScanState | undefined;
     /**
      * A third state beyond looked/could-not-look: **never configured**. Without
-     * it, a stack with no Jellyfin gets "Jellyfin cannot see it" — a claim
+     * it, a stack with no media server gets "Jellyfin cannot see it" — a claim
      * about a service the user does not run.
+     *
+     * The configured media server's id, absent when none is. Replaces
+     * `jellyfinConfigured`: the stages need the name as well as the boolean.
      */
-    jellyfinConfigured: boolean;
+    mediaServer?: string;
+    /** Whether that media server can report scan state at all. */
+    scanCapable: boolean;
     /**
      * Library-read reachability, separate from `degraded` below, which is
      * *probe* reachability. A service can fail one without the other: a failing
@@ -330,43 +335,46 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
 }
 
 function libraryStep(ev: Evidence, item: MergedItem): Step {
-    if (!ev.jellyfinConfigured) return SKIPPED('library', 'Jellyfin is not configured.');
-    if (ev.libraryDegraded.includes('jellyfin')) {
-        // Never "it is not in Jellyfin" when Jellyfin was not asked. Reads
+    const server = ev.mediaServer;
+    if (server === undefined) return SKIPPED('library', 'No media server is configured.');
+    if (ev.libraryDegraded.includes(server)) {
+        // Never "it is not in the library" when the library was not asked. Reads
         // `libraryDegraded`, not `degraded`: a failed scan probe belongs to the
         // latter and must not land here, because this stage is about the
         // library *read*. `presence` alone is not enough of a guard either —
         // `unknown` looks like "no evidence at all" to the check below, while
         // `hasFile` is real *arr data this module must not reinterpret.
-        return { stage: 'library', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its library was not checked.' };
+        return { stage: 'library', service: server, status: 'unknown', detail: `${server} could not be reached, so its library was not checked.` };
     }
     if (item.presence === 'both' || item.presence === 'jellyfin_only') {
-        return { stage: 'library', service: 'jellyfin', status: 'ok', detail: 'Present in the Jellyfin library.' };
+        return { stage: 'library', service: server, status: 'ok', detail: `Present in the ${server} library.` };
     }
     if (item.acquisition?.hasFile === true) {
         return {
             stage: 'library',
-            service: 'jellyfin',
+            service: server,
             status: 'blocked',
-            detail: `${item.acquisition.service} has a file on disk that Jellyfin cannot see.`
+            detail: `${item.acquisition.service} has a file on disk that ${server} cannot see.`
         };
     }
-    return SKIPPED('library', 'Not in Jellyfin, and there is no file for it to have found.');
+    return SKIPPED('library', `Not in ${server}, and there is no file for it to have found.`);
 }
 
 function scanStep(ev: Evidence): Step {
-    if (!ev.jellyfinConfigured) return SKIPPED('scan', 'Jellyfin is not configured.');
-    if (ev.degraded.includes('jellyfin')) {
+    const server = ev.mediaServer;
+    if (server === undefined) return SKIPPED('scan', 'No media server is configured.');
+    if (!ev.scanCapable) return SKIPPED('scan', `${server} cannot report library scan state.`);
+    if (ev.degraded.includes(server)) {
         // Specifically the `getScanState` probe, and deliberately not
         // `libraryDegraded`. The two once shared an array, so a failed scan
         // probe silently erased a library read that had succeeded — they are
-        // independent endpoints and may disagree about what Jellyfin answered.
-        return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin could not be reached, so its scan state was not checked.' };
+        // independent endpoints and may disagree about what the server answered.
+        return { stage: 'scan', service: server, status: 'unknown', detail: `${server} could not be reached, so its scan state was not checked.` };
     }
-    if (ev.scan === undefined) return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin’s scan state could not be read.' };
-    if (ev.scan.running === true) return { stage: 'scan', service: 'jellyfin', status: 'blocked', detail: 'A library scan is running now — check again once it finishes.' };
-    if (ev.scan.lastCompleted === undefined) return { stage: 'scan', service: 'jellyfin', status: 'unknown', detail: 'Jellyfin reports no completed library scan.' };
-    return { stage: 'scan', service: 'jellyfin', status: 'ok', detail: `Last library scan completed ${ev.scan.lastCompleted}.` };
+    if (ev.scan === undefined) return { stage: 'scan', service: server, status: 'unknown', detail: `${server}’s scan state could not be read.` };
+    if (ev.scan.running === true) return { stage: 'scan', service: server, status: 'blocked', detail: 'A library scan is running now — check again once it finishes.' };
+    if (ev.scan.lastCompleted === undefined) return { stage: 'scan', service: server, status: 'unknown', detail: `${server} reports no completed library scan.` };
+    return { stage: 'scan', service: server, status: 'ok', detail: `Last library scan completed ${ev.scan.lastCompleted}.` };
 }
 
 const REMEDIES: Partial<Record<Stage, string>> = {
