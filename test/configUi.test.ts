@@ -1243,7 +1243,10 @@ describe('access settings', () => {
 });
 
 describe('allowed_hosts', () => {
-    const get = (host: string) => call('/healthz', { headers: { host } });
+    // `/ui/app.css`, not `/healthz`: health sits ahead of the allowlist so the
+    // container probe keeps working, so it would pass whether the pin applied
+    // or not. The stylesheet is unauthenticated but gated.
+    const get = (host: string) => call('/ui/app.css', { headers: { host } });
 
     it('accepts any Host when nothing is pinned', async () => {
         expect((await get('192.168.1.50:6060')).status).toBe(200);
