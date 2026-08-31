@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { loadConfig } from '../src/config/load.ts';
-import { saveConfig } from '../src/config/save.ts';
+import { saveConfig, writeConfigAtomic } from '../src/config/save.ts';
 
 /** The list form makes each service key a union; every assertion here is
  *  about the single form, so this narrows once rather than at each call. */
@@ -650,5 +650,23 @@ auth:
 
         await expect(saveConfig(dir, config, { expected: config })).resolves.toBeUndefined();
         expect(await readFile(path, 'utf8')).toContain('# my stack');
+    });
+});
+
+describe('writeConfigAtomic', () => {
+    // `saveConfig` serialises its writes through a queue; callers that reach
+    // `writeConfigAtomic` directly — the repair page and the bearer-token
+    // backfill — did not, so two of them raced the rename. On Windows that
+    // rename fails outright (measured at ~7% per call); on Linux it silently
+    // last-write-wins, which is the thing the queue exists to prevent.
+    it('serialises concurrent writes to the same path', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(path, 'seed\n', 'utf8');
+
+        const writes = Array.from({ length: 100 }, (_unused, i) => writeConfigAtomic(path, `value ${i}\n`));
+        await expect(Promise.all(writes)).resolves.toHaveLength(100);
+
+        expect(await readFile(path, 'utf8')).toMatch(/^value \d+\n$/);
     });
 });

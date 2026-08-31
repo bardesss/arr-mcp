@@ -177,6 +177,32 @@ the next save from that page is **refused** rather than applied, because it was
 assembled from a snapshot taken before your edit. Reload the page and make the
 change again.
 
+## When config.yaml will not load
+
+A typo used to take the container down: the process failed to start, Docker
+restarted it, and the config UI — the thing that could have fixed it — never
+came up.
+
+Now it starts in repair mode instead. The page at `http://<host>:6060` shows the
+validation error and the file in a text box. Fix it, save, and the server starts
+normally without a restart. There is no MCP endpoint and no services until then;
+`/mcp` answers `503` and `/healthz` reports `degraded` with a `200` status, so a
+container healthcheck built on `/healthz` does not restart-loop the very process
+that would fix it.
+
+Sign-in works as usual. If nobody has claimed the instance yet, you claim it
+first, exactly as on a fresh install.
+
+**The one case this cannot fix** is an `auth` block that is itself unreadable —
+a mangled `bearer_token`, or `auth:` set to something that is not a mapping.
+There is then no password to check, and offering the setup page instead would
+let anyone who can reach the port take the instance over by corrupting its
+config. The page shows the error and nothing else, and accepts no POST on any
+path. Edit `config.yaml` directly and restart.
+
+This page shows the file exactly as it is on disk, including every API key. See
+[Security](security.md#the-repair-page-renders-the-config-file-verbatim).
+
 ## The IMDb dataset
 
 ```yaml
