@@ -2,8 +2,10 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { WriteAudit } from '../src/core/audit.ts';
+import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword, Sessions } from '../src/core/session.ts';
 import { repairPage, unreadableAuthPage } from '../src/web/repairPage.ts';
@@ -443,9 +445,6 @@ describe('repair server save', () => {
         expect(res.headers.get('location')).toBe('/ui/login');
     });
 });
-
-import { buildApp } from '../src/app.ts';
-import { LogStore } from '../src/core/logs.ts';
 
 describe('promotion', () => {
     // The cookie must survive the swap, or a save lands the operator on a

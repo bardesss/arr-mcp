@@ -38,6 +38,8 @@ const startNormally = async (): Promise<Hono> => {
         sessions
     });
 
+    logger.info({ adapters: runtime.current.adapters.map(a => a.id) }, 'configuration loaded');
+
     if (runtime.config.auth.password_hash === undefined) {
         logger.warn(
             { port: PORT },
