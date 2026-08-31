@@ -1,3 +1,16 @@
+import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
+import { plexToken } from '../core/auth.ts';
+import { ServiceError } from '../core/errors.ts';
+import { ServiceHttp } from '../core/http.ts';
+import { logger } from '../core/logger.ts';
+import {
+    diagnoseConnection,
+    type ConnectionDiagnosis,
+    type ServiceAdapter,
+    type ServiceUser,
+    type UserDirectoryCapable
+} from './types.ts';
+
 /**
  * Every Plex response wraps in `MediaContainer`, with rows under a key that
  * depends on what was asked: `Metadata` for items, `Directory` for library
@@ -95,4 +108,72 @@ export function externalIds(item: RawPlexItem): { tmdb?: number; tvdb?: number; 
         if (n !== undefined) out[kind] = n;
     }
     return out;
+}
+
+type RawIdentity = { MediaContainer?: { version?: string } };
+type RawAccount = { id?: number; name?: string };
+
+/** The server owner's fixed id in Plex's `/accounts` response. */
+const OWNER_ACCOUNT_ID = 1;
+
+export class PlexAdapter implements ServiceAdapter, UserDirectoryCapable {
+    readonly type: ServiceId = 'plex';
+    readonly id: string = 'plex';
+    readonly #http: ServiceHttp;
+    readonly #defaultUser: string | undefined;
+    #warnedUnverifiedOwner = false;
+
+    constructor(config: MultiUserServiceConfig, fetchImpl: typeof fetch = fetch) {
+        this.#http = new ServiceHttp('plex', config, plexToken(config.api_key), fetchImpl);
+        this.#defaultUser = config.default_user;
+    }
+
+    async getVersion(): Promise<string> {
+        const body = await this.#http.get<RawIdentity>('/identity');
+        const version = body.MediaContainer?.version;
+        if (version === undefined) {
+            throw new ServiceError('UpstreamError', this.id, '/identity returned no version field');
+        }
+        return version;
+    }
+
+    /**
+     * A local `X-Plex-Token` is scoped to one account, so this always answers
+     * with exactly one user: the owner `/accounts` names, or `default_user`
+     * when it can't. Never `/myplex/account` or anything else that reaches
+     * plex.tv — see CONTRIBUTING.
+     */
+    async listUsers(): Promise<ServiceUser[]> {
+        const body = await this.#http.get<unknown>('/accounts');
+        const owner = unwrap<RawAccount>(body, 'Account').find(a => a.id === OWNER_ACCOUNT_ID);
+        const name = owner?.name?.trim();
+
+        if (name !== undefined && name !== '') {
+            return [{ id: String(OWNER_ACCOUNT_ID), name }];
+        }
+
+        if (this.#defaultUser === undefined) {
+            throw new ServiceError(
+                'NotFound',
+                this.id,
+                'the server did not name the token owner and no fallback is configured',
+                { remedy: 'Set services.plex.default_user to the Plex account this token belongs to.' }
+            );
+        }
+
+        // /accounts is the documented candidate for naming the owner, but is
+        // unverified against a live server — worth knowing at runtime if this
+        // fallback is what actually ran. Logged once: every per-user call
+        // reaches here, and a line per call would drown everything else.
+        if (!this.#warnedUnverifiedOwner) {
+            this.#warnedUnverifiedOwner = true;
+            logger.warn({ service: this.id }, 'Plex did not name the token owner; using default_user unverified');
+        }
+
+        return [{ id: String(OWNER_ACCOUNT_ID), name: this.#defaultUser }];
+    }
+
+    async testConnection(): Promise<ConnectionDiagnosis> {
+        return diagnoseConnection(this.id, this.type, () => this.getVersion());
+    }
 }
