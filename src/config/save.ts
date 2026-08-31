@@ -163,7 +163,25 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
  * same secrets for the moment it exists, and a default-umask temp file is a
  * readable one.
  */
-export async function writeConfigAtomic(path: string, text: string): Promise<void> {
+export function writeConfigAtomic(path: string, text: string): Promise<void> {
+    const run = replaces.then(
+        () => replaceFile(path, text),
+        () => replaceFile(path, text)
+    );
+    replaces = run.catch(() => undefined);
+    return run;
+}
+
+/**
+ * Serialises the replacements themselves, for the callers that do not go
+ * through `saveConfig`'s queue: the repair page and the bearer-token backfill
+ * both call `writeConfigAtomic` directly. Two overlapping calls raced the
+ * rename — on Windows that fails outright with EPERM, and everywhere else it
+ * last-write-wins, which is the outcome the queue above exists to prevent.
+ */
+let replaces: Promise<unknown> = Promise.resolve();
+
+async function replaceFile(path: string, text: string): Promise<void> {
     const tmp = `${path}.${process.pid}.${randomUUID()}.tmp`;
     await writeFile(tmp, text, { mode: 0o600 });
     await rename(tmp, path);

@@ -22,7 +22,7 @@ const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
  * form. Not configurable: the only reason to raise it would be to work around
  * a problem that is never actually this.
  */
-const MAX_BODY_BYTES = 4 * 1024 * 1024;
+export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 /**
  * An hour, for every list the SDK builds itself.

@@ -2,6 +2,10 @@
 
 `http://<host>:6060`. Four pages, no restart, no hand-edited YAML.
 
+> One page is not listed here: if `config.yaml` fails to load, arr-mcp serves a
+> repair page instead of any of the four. See
+> [When config.yaml will not load](configuration.md#when-configyaml-will-not-load).
+
 | Page | What it is for |
 | --- | --- |
 | Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and the bearer token for your MCP client |

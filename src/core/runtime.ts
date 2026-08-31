@@ -60,6 +60,10 @@ export class Runtime {
      * person making the edit out of the page they were editing from. Neither
      * is a safety property: the permission check runs again at confirm time
      * against the *new* config, so a revoked permission is still enforced.
+     *
+     * `sessions` is injectable so the repair server and the real one can share
+     * one signing key — otherwise a save promotes the operator into a login
+     * screen, having just typed their password.
      */
     readonly confirm: ConfirmTokens;
     readonly sessions: Sessions;
@@ -90,12 +94,18 @@ export class Runtime {
         return this.#dataset;
     }
 
-    private constructor(configDir: string, audit: WriteAudit, config: Config, refresh: Refresher) {
+    private constructor(
+        configDir: string,
+        audit: WriteAudit,
+        config: Config,
+        refresh: Refresher,
+        sessions: Sessions
+    ) {
         this.#configDir = configDir;
         this.#audit = audit;
         this.#refresh = refresh;
         this.confirm = new ConfirmTokens();
-        this.sessions = new Sessions();
+        this.sessions = sessions;
         // Before the snapshot, not after: the tool context closes over the
         // dataset, so it has to exist by the time it is built.
         this.#syncDataset(config);
@@ -147,10 +157,13 @@ export class Runtime {
     static async start(
         configDir: string,
         audit: WriteAudit,
-        opts: { refresh?: Refresher } = {}
+        opts: { refresh?: Refresher; sessions?: Sessions } = {}
     ): Promise<{ runtime: Runtime; created: boolean }> {
         const { config, created } = await loadConfig(configDir);
-        return { runtime: new Runtime(configDir, audit, config, opts.refresh ?? NO_REFRESH), created };
+        return {
+            runtime: new Runtime(configDir, audit, config, opts.refresh ?? NO_REFRESH, opts.sessions ?? new Sessions()),
+            created
+        };
     }
 
     /**
@@ -169,13 +182,19 @@ export class Runtime {
     static fromConfig(
         config: Config,
         audit: WriteAudit,
-        opts: { configDir?: string; adapters?: readonly ServiceAdapter[]; refresh?: Refresher } = {}
+        opts: {
+            configDir?: string;
+            adapters?: readonly ServiceAdapter[];
+            refresh?: Refresher;
+            sessions?: Sessions;
+        } = {}
     ): Runtime {
         const runtime = new Runtime(
             opts.configDir ?? NO_CONFIG_DIR,
             audit,
             config,
-            opts.refresh ?? NO_REFRESH
+            opts.refresh ?? NO_REFRESH,
+            opts.sessions ?? new Sessions()
         );
         if (opts.adapters !== undefined) {
             runtime.#snapshot = {
