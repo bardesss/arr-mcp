@@ -117,8 +117,8 @@ imported, scanned — and names the first thing that explains the absence, with
 what to do about it.
 
 No single service can answer this on its own. `get_library`'s
-`presence: arr_only` alone would only suggest Jellyfin hasn't seen a file the
-*arr believes exists; `diagnose` checks further, and may find Radarr itself has
+`presence: arr_only` alone would only suggest the media server hasn't seen a
+file the *arr believes exists; `diagnose` checks further, and may find Radarr itself has
 no file yet and that neither the download queue nor an indexer rejection
 explains why — which is the real answer, and the one that tells you what to do
 next.
@@ -181,14 +181,14 @@ A series carries `seasons`, one entry per season:
 | Field | From | Meaning |
 | --- | --- | --- |
 | `season` | Sonarr | 0 is specials, reported like any other season — filter `season > 0` if you don't want it |
-| `watched`, `lastPlayed` | Jellyfin | Per-user watch state |
+| `watched`, `lastPlayed` | media server | Per-user watch state |
 | `onDisk`, `aired`, `total` | Sonarr | `total` is TVDB's episode count by way of Sonarr, which is why this server needs no TVDB integration of its own |
 | `complete` | both | `watched` has reached `total` |
 | `monitored` | Sonarr | Its own per-season flag |
 
 **`complete` is absent, never `false`,** whenever either half cannot be
-compared — a series no *arr manages has no `total`, one Jellyfin has never seen
-has no `watched` — and also for a season Sonarr reports with zero total
+compared — a series no *arr manages has no `total`, one the media server has
+never seen has no `watched` — and also for a season Sonarr reports with zero total
 episodes, so an unannounced or empty season is never reported as finished.
 Treating an absent `complete` as `false` would put a season you already finished
 on a list of things still to watch.
@@ -208,9 +208,10 @@ one, and asked by `service` plus `id` Sonarr's own view puts `seasons` in the
 base payload, before the gate that adds episodes. `monitored` means the same
 thing on both forms, so neither answer leaves you guessing about it.
 
-### When Jellyfin's episode read fails
+### When the media server's episode read fails
 
-`degraded` gains `jellyfin:episodes`. Sonarr's half of `seasons` survives intact
+`degraded` gains `{service}:episodes` — `jellyfin:episodes` on a Jellyfin
+stack, `plex:episodes` on a Plex one. Sonarr's half of `seasons` survives intact
 (`onDisk`, `aired`, `total` and `monitored`); only the watch half (`watched`,
 `lastPlayed`) and `complete`, which needs both halves, go missing. Film watch
 state and `presence` are unaffected.
