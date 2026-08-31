@@ -379,6 +379,55 @@ describe('repair server sign-in', () => {
         expect(onDisk).toContain('password_hash');
     });
 
+    // The in-memory snapshot says unclaimed forever, so without the re-check a
+    // stale tab — or anyone who reaches the port — replaces a credential the
+    // operator hand-added to the file.
+    it('refuses a claim when config.yaml gained a password_hash after boot', async () => {
+        const staleRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const dir = await seedDir(staleRaw);
+        const app = buildRepairApp({
+            configDir: dir,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            failure: new ConfigInvalidError('services.radarr.url\n  ✖ bad', staleRaw, AUTH_OK),
+            onPromote: async () => ({ ok: true })
+        });
+
+        const hash = await hashPassword(PASSWORD);
+        await writeFile(
+            join(dir, 'config.yaml'),
+            staleRaw.replace('  username: admin\n', `  username: admin\n  password_hash: ${hash}\n`),
+            'utf8'
+        );
+
+        const res = await get(app, '/ui/setup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                username: 'intruder',
+                password: 'another-password-1234',
+                confirm: 'another-password-1234'
+            }).toString()
+        });
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/login');
+        expect(res.headers.get('set-cookie')).toBeNull();
+
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(onDisk).toContain(hash);
+        expect(onDisk).not.toContain('intruder');
+
+        // Adopted, not merely refused: the operator can sign in with the hash
+        // they wrote without restarting.
+        const login = await get(app, '/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
+        });
+        expect(login.status).toBe(302);
+        expect(login.headers.get('location')).toBe('/ui/repair');
+    });
+
     // A disk edit that changes auth's shape entirely (not just its content) is
     // the case setIn cannot walk, distinct from the write-failure case the
     // catch is deliberately not scoped to cover.

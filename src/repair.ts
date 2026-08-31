@@ -163,6 +163,25 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                 // directly is the obvious answer to being told it is invalid.
                 // Writing the snapshot back would silently revert that edit.
                 const doc = parseDocument(await readFile(path, 'utf8'));
+
+                // `unclaimed()` reads the snapshot this server booted with, and
+                // the obvious answer to being told config.yaml is invalid is to
+                // edit it — so a credential can appear underneath us. Adopt it
+                // rather than replace it, so signing in with what was just
+                // written works without a restart.
+                const hash = doc.getIn(['auth', 'password_hash']);
+                if (hash !== undefined) {
+                    const name = doc.getIn(['auth', 'username']);
+                    if (typeof hash === 'string') {
+                        auth = {
+                            ...auth,
+                            password_hash: hash,
+                            username: typeof name === 'string' ? name : auth.username
+                        };
+                    }
+                    return c.redirect('/ui/login', 302);
+                }
+
                 doc.setIn(['auth', 'username'], username);
                 doc.setIn(['auth', 'password_hash'], password_hash);
                 text = doc.toString();
