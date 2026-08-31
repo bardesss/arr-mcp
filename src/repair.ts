@@ -75,15 +75,32 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     app.get('/ui/app.js', c => c.body(JS, 200, { 'content-type': 'text/javascript; charset=utf-8' }));
     app.get('/ui/icon.svg', c => c.body(MARK_SVG, 200, { 'content-type': 'image/svg+xml; charset=utf-8' }));
 
+    /**
+     * The reason, with every quoted literal removed.
+     *
+     * The YAML branch already carries a position rather than the offending
+     * line, but zod's `prettifyError` renders `Unrecognized key: "…"` with the
+     * key verbatim — and a mis-indentation that puts a value where a key
+     * belongs makes that key a secret. Paths survive, because
+     * `prettifyError` writes them unquoted after `→ at`.
+     *
+     * Only the two machine-facing routes are redacted, not the pages: the
+     * editor is authenticated, and the read-only page is reachable only when
+     * `auth` itself failed to parse, where an unrecognized key is one of
+     * `auth`'s own names rather than anything secret. The split is by audience,
+     * not by the flavour of the operator's mistake.
+     */
+    const publicReason = (): string => detail.replace(/"[^"]*"/g, '"…"');
+
     // 200, because the Dockerfile healthcheck is `wget || exit 1` and a
     // non-2xx restart-loops the container — which is what this mode exists to
     // stop. The honesty is in the body.
     app.get('/healthz', c =>
-        c.json({ status: 'degraded', name: NAME, version, reason: detail })
+        c.json({ status: 'degraded', name: NAME, version, reason: publicReason() })
     );
 
     app.all('/mcp', c =>
-        c.json({ error: 'unavailable', detail: `arr-mcp is not serving tools: ${detail}` }, 503)
+        c.json({ error: 'unavailable', detail: `arr-mcp is not serving tools: ${publicReason()}` }, 503)
     );
 
     // No credential can exist, so nothing below runs.
@@ -101,6 +118,10 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     let raw = deps.failure.raw;
     let auth: Config['auth'] = authBlock;
     let claiming = false;
+    /** Orders the save handler's write-and-promote turns. See `POST /ui/repair`. */
+    let saves: Promise<unknown> = Promise.resolve();
+    /** Set once a save has promoted the process out of repair mode. */
+    let started = false;
     const throttle = new LoginThrottle();
 
     // Read from the parsed block rather than captured per request: there is no
@@ -171,16 +192,24 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                 // the boot snapshot. Adopt it rather than replace it, so
                 // signing in with it works without a restart.
                 const hash = doc.getIn(['auth', 'password_hash']);
-                if (hash !== undefined) {
+                if (typeof hash === 'string') {
                     const name = doc.getIn(['auth', 'username']);
-                    if (typeof hash === 'string') {
-                        auth = {
-                            ...auth,
-                            password_hash: hash,
-                            username: typeof name === 'string' ? name : auth.username
-                        };
-                    }
+                    auth = {
+                        ...auth,
+                        password_hash: hash,
+                        username: typeof name === 'string' ? name : auth.username
+                    };
+                    logger.warn({ ip: ipOf(c) }, 'refused a claim over a password_hash added since startup');
                     return c.redirect('/ui/login', 302);
+                }
+                if (hash !== undefined) {
+                    // Present but unusable — an empty `password_hash:`, or one
+                    // holding a number or a mapping. Redirecting instead left
+                    // the operator bouncing between setup and login forever,
+                    // because `unclaimed()` stayed true.
+                    return reject(
+                        'config.yaml has a password_hash that cannot be read. Delete the line to claim this instance, or correct it and restart.'
+                    );
                 }
 
                 doc.setIn(['auth', 'username'], username);
@@ -266,22 +295,44 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         const verdict = validateConfigText(text);
         if (!verdict.ok) return rerender(verdict.detail);
 
-        // No `expected` drift check: the premise of this page is a file on disk
-        // that nothing else is running to change.
-        await writeConfigAtomic(join(configDir, CONFIG_FILENAME), text);
-        raw = text;
+        /**
+         * Write and promote as one turn, never interleaved with another save.
+         *
+         * Promotion re-reads config.yaml, and a second save renaming its own
+         * copy into place while that read is open fails outright on Windows —
+         * the queue inside `writeConfigAtomic` orders writes against each other
+         * but not against a reader. Ordering the whole sequence also means the
+         * runtime and the file can never disagree about which save won.
+         */
+        const apply = async (): Promise<Response> => {
+            // Once a save has promoted, this app is no longer the live one, so
+            // writing here would leave text on disk that nothing will load.
+            // The second of two overlapping saves goes to the UI that is now
+            // running instead.
+            if (started) return c.redirect('/ui', 302);
 
-        const promoted = await deps.onPromote();
-        if (!promoted.ok) {
-            // Assigned only here: this write landed, so the reason the instance
-            // is degraded really did change. A validator refusal wrote nothing
-            // and must not change what /healthz reports.
-            detail = promoted.detail;
-            return rerender(detail);
-        }
+            // No `expected` drift check: the premise of this page is a file on
+            // disk that nothing else is running to change.
+            await writeConfigAtomic(join(configDir, CONFIG_FILENAME), text);
+            raw = text;
 
-        logger.info('configuration repaired — starting normally');
-        return c.redirect('/ui', 302);
+            const promoted = await deps.onPromote();
+            if (!promoted.ok) {
+                // Assigned only here: this write landed, so the reason the
+                // instance is degraded really did change. A validator refusal
+                // wrote nothing and must not change what /healthz reports.
+                detail = promoted.detail;
+                return rerender(detail);
+            }
+
+            started = true;
+            logger.info('configuration repaired — starting normally');
+            return c.redirect('/ui', 302);
+        };
+
+        const run = saves.then(apply, apply);
+        saves = run.catch(() => undefined);
+        return run;
     });
 
     app.all('*', c => c.redirect('/ui/repair', 302));

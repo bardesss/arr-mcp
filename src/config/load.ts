@@ -63,10 +63,15 @@ export type ConfigTextResult =
  * cannot start with reserved character @` — which the operator needs to read
  * the message at all.
  */
-function yamlErrorDetail(err: unknown, lines: LineCounter): string {
+function yamlErrorDetail(err: unknown, lines: LineCounter, raw: string): string {
     const e = err as { message?: unknown; pos?: [number, number] };
     const message = typeof e.message === 'string' ? e.message : 'the file could not be parsed';
-    const said = message.split(': ')[0] ?? message;
+    // Cut only where the tail is actually quoting the file. Cutting at every
+    // `: ` also truncated messages that merely contain one — "The : indicator
+    // must be at most 1024 chars…" became the bare word "The", which reads as
+    // a rendering bug rather than an error.
+    const cut = message.indexOf(': ');
+    const said = cut === -1 || !raw.includes(message.slice(cut + 2)) ? message : message.slice(0, cut);
     const offset = e.pos?.[0];
     if (offset === undefined) return said;
     const { line, col } = lines.linePos(offset);
@@ -83,11 +88,16 @@ export function validateConfigText(raw: string): ConfigTextResult {
     let parsed: unknown;
     const lines = new LineCounter();
     try {
-        parsed = parse(raw, { prettyErrors: false, lineCounter: lines });
+        // `logLevel: 'error'` because the parser's warnings go to stderr through
+        // `process.emitWarning`, which bypasses pino and the ring buffer — and
+        // two of them quote the file (`Unresolved tag: !…`, `Unknown directive
+        // %…`), so a file that parses fine could still put its own content into
+        // `docker logs`.
+        parsed = parse(raw, { prettyErrors: false, lineCounter: lines, logLevel: 'error' });
     } catch (err) {
         return {
             ok: false,
-            detail: `config.yaml is not valid YAML: ${yamlErrorDetail(err, lines)}`,
+            detail: `config.yaml is not valid YAML: ${yamlErrorDetail(err, lines, raw)}`,
             auth: undefined,
             generatedBearerToken: undefined
         };

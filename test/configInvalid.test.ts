@@ -121,3 +121,28 @@ describe('loadConfig', () => {
         expect(err).not.toBeInstanceOf(ConfigInvalidError);
     });
 });
+
+describe('yaml error detail', () => {
+    // The detail is cut where the parser quotes the file, but many of its
+    // messages simply contain a colon-space of their own. Cutting at every one
+    // turned this message into the bare word "The".
+    it('keeps a message whose own text contains a colon-space', () => {
+        const result = validateConfigText(`${AUTH}services:\n  ${'x'.repeat(1100)}: 1\n`);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.detail).toContain('must be at most 1024 chars');
+            expect(result.detail).toMatch(/at line \d+, column \d+$/);
+        }
+    });
+
+    // The other half of the same rule: where the tail really is the file, it
+    // goes. A block scalar header is the case that survives `prettyErrors`.
+    it('still drops the source a block scalar header quotes', () => {
+        const result = validateConfigText(`${AUTH}services: |MY-SUPER-SECRET\n  x\n`);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.detail).toContain('Block scalar header');
+            expect(result.detail).not.toContain('MY-SUPER-SECRET');
+        }
+    });
+});

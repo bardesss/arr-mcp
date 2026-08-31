@@ -428,6 +428,40 @@ describe('repair server sign-in', () => {
         expect(login.headers.get('location')).toBe('/ui/repair');
     });
 
+    // A hash that is present but unusable cannot be adopted, so redirecting
+    // bounced the operator between setup and login forever — `unclaimed()`
+    // stayed true and each page sent them back to the other.
+    it('says so when config.yaml gained a password_hash it cannot read', async () => {
+        const staleRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const dir = await seedDir(staleRaw);
+        const app = buildRepairApp({
+            configDir: dir,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            failure: new ConfigInvalidError('services.radarr.url\n  ✖ bad', staleRaw, AUTH_OK),
+            onPromote: async () => ({ ok: true })
+        });
+
+        await writeFile(
+            join(dir, 'config.yaml'),
+            staleRaw.replace('  username: admin\n', '  username: admin\n  password_hash:\n'),
+            'utf8'
+        );
+
+        const res = await get(app, '/ui/setup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                username: 'admin',
+                password: PASSWORD,
+                confirm: PASSWORD
+            }).toString()
+        });
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('cannot be read');
+        expect(res.headers.get('set-cookie')).toBeNull();
+    });
+
     // A disk edit that changes auth's shape entirely (not just its content) is
     // the case setIn cannot walk, distinct from the write-failure case the
     // catch is deliberately not scoped to cover.
@@ -641,6 +675,37 @@ describe('promotion', () => {
         starts.mockRestore();
 
         expect((await call('/ui', { headers: { cookie } })).status).toBe(200);
+
+        close();
+    });
+
+    // The YAML branch carries a position rather than the offending line, but
+    // zod renders `Unrecognized key: "…"` verbatim — and a mis-indentation can
+    // put a secret where a key belongs. Only the machine-facing routes are
+    // redacted: the editor is authenticated, and the read-only page renders
+    // only when `auth` itself failed, where the keys are auth's own names.
+    it('keeps an unrecognized key out of the unauthenticated machine routes', async () => {
+        const hash = await hashPassword(PASSWORD);
+        const { call, close } = await booted(
+            [
+                'auth:',
+                `  bearer_token: ${BEARER}`,
+                '  username: admin',
+                `  password_hash: ${hash}`,
+                '  allowed_hosts: []',
+                'services:',
+                '  MY-SUPER-SECRET:',
+                '    url: http://x.example',
+                ''
+            ].join('\n')
+        );
+
+        const health = await (await call('/healthz')).text();
+        expect(health).toContain('Unrecognized key');
+        expect(health).not.toContain('MY-SUPER-SECRET');
+
+        const mcp = await (await call('/mcp', { method: 'POST' })).text();
+        expect(mcp).not.toContain('MY-SUPER-SECRET');
 
         close();
     });
