@@ -223,24 +223,21 @@ small, shaped change, and a service in no slot at all is a different product.
 - **Emby.** Jellyfin's ancestor, near-identical API, and therefore the cheapest
   adapter on this list — plausibly a variant of the Jellyfin one rather than a
   new file.
-- **Plex.** Wanted, on two conditions. It is the most-deployed media server this
-  server cannot talk to, and reach is the point: Plex support is what makes
-  arr-mcp useful to the many people who will never run Jellyfin.
+- **Plex.** A read-only adapter now exists, written against Plex's documented
+  but unverified API. It is not merge-ready: nobody here runs Plex, so nothing
+  in it has been exercised against a real server, only read.
 
-  **The design is the first condition.** Plex's usual auth brokers through
-  plex.tv — credential brokering *and* an outbound request to a host the
-  operator never configured, which is the risk class above and a no on its own
-  terms. An adapter that takes an operator-supplied `X-Plex-Token` and talks
-  only to the configured local server avoids all of it. Build that one; a pull
-  request built on the discovery flow is turned down for its architecture rather
-  than its code.
+  **The design still governs.** Plex's usual auth brokers through plex.tv —
+  credential brokering *and* an outbound request to a host the operator never
+  configured, which is the risk class above and a no on its own terms. This
+  adapter takes an operator-supplied `X-Plex-Token` and talks only to the
+  configured local server, never plex.tv. That constraint holds for any future
+  change here, not just this one.
 
-  **Testers are the second, and they are what is actually missing.** Nobody here
-  runs Plex, so an adapter for it cannot be exercised in review — and one merged
-  against hand-written fixtures is a bug report waiting to be filed. I am
-  willing to do the integration work myself; what I cannot supply is a real Plex
-  library to prove it against. If you run Plex and will test a build against it
-  and report back, say so in an issue. That is the thing blocking this.
+  **Testers are what is missing.** If you run Plex and are willing to test a
+  build against it and report back — what worked, what didn't, against which
+  version — say so in an issue. That is what turns this from a draft into
+  something that can ship.
 
 Named and **not** accepted, so nobody spends a weekend finding out:
 

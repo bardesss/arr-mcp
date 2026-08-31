@@ -250,8 +250,23 @@ hand back.
 
 The tool is not Jellyfin-specific in its plumbing: it reads any adapter that
 implements `PlaybackCapable`, and the summary line names whichever media server
-failed. The endpoint detail above is Jellyfin's because Jellyfin is the only
-media server this stack talks to today.
+failed. The endpoint detail above is Jellyfin's; Plex answers the same three
+scopes from `/status/sessions`, `/library/onDeck` and
+`/status/sessions/history/all` — only one media server is ever configured, so
+the two never compete for an answer.
+
+Plex's `/library/onDeck` mixes resume and next-up rows with nothing marking
+which is which, so `active` and `next_up` split it by `viewOffset`: non-zero
+reads as resume, zero or absent as next-up. That split is unverified against a
+live server.
+
+**Plex answers for one user only.** A local `X-Plex-Token` is scoped to a
+single Plex account, so every Plex row here is that account's — reading anyone
+else's watch state would mean going through plex.tv, which this adapter's
+design refuses. Jellyfin's `allow_other_users` has no Plex equivalent, for the
+same reason.
+
+`set_watched`, below, remains Jellyfin-only: the Plex adapter is read-only.
 
 ### When no media server is configured
 
