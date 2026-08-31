@@ -6,7 +6,14 @@ import { logger } from '../core/logger.ts';
 import { LibraryIndex, type IndexInput } from '../core/resolver.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
-import { hasLibrary, hasUserLibrary, hasUserSeasons, type ServiceAdapter, type ServiceUser } from '../services/types.ts';
+import {
+    NO_MEDIA_SERVER_NOTE,
+    hasLibrary,
+    hasUserLibrary,
+    hasUserSeasons,
+    type ServiceAdapter,
+    type ServiceUser
+} from '../services/types.ts';
 
 /**
  * A degraded snapshot is worth caching, briefly.
@@ -27,7 +34,8 @@ export type LibrarySnapshot = {
      * reason; every existing key is unchanged.
      */
     counts: Record<string, number>;
-    /** Set when Jellyfin is degraded because no `default_user` is configured. */
+    /** Set when the media server half is missing — no server configured, or one
+     *  configured with no `default_user`. */
     note?: string;
 };
 
@@ -198,9 +206,15 @@ export class LibraryLoader {
         // rating, which nothing else in the stack could give them.
         const rated = enrichWithImdb(items, this.#dataset);
 
+        // Ordered most specific first: a media server that is configured but
+        // unusable is a different remedy from none at all, and only one of the
+        // two can be true — `resolved.unconfigured` needs an identity, which
+        // needs an adapter.
         const note = resolved.unconfigured
             ? 'Jellyfin is configured without a default_user, so watch state is not included. Set `services.jellyfin.default_user` in config.yaml, or pass `user` explicitly.'
-            : undefined;
+            : mediaServer === undefined
+              ? NO_MEDIA_SERVER_NOTE
+              : undefined;
 
         return {
             index: LibraryIndex.build(rated, { playbackGathered }),
