@@ -152,8 +152,8 @@ export class LibraryLoader {
                 return { user: undefined, unconfigured: true };
             }
             logger.warn(
-                { service: 'jellyfin', err },
-                'jellyfin identity unavailable; building the library without watch state'
+                { service: this.#identity.serviceId, err },
+                'media server identity unavailable; building the library without watch state'
             );
             return { user: undefined, unconfigured: false };
         }
@@ -206,12 +206,17 @@ export class LibraryLoader {
         // rating, which nothing else in the stack could give them.
         const rated = enrichWithImdb(items, this.#dataset);
 
+        // The actual configured media server's id (`jellyfin` or `plex`), not
+        // a hardcoded name — falls back to the identity's own adapter id for
+        // the pathological case where the two disagree.
+        const mediaServerId = mediaServer?.id ?? this.#identity?.serviceId;
+
         // Ordered most specific first: a media server that is configured but
         // unusable is a different remedy from none at all, and only one of the
         // two can be true — `resolved.unconfigured` needs an identity, which
         // needs an adapter.
         const note = resolved.unconfigured
-            ? 'Jellyfin is configured without a default_user, so watch state is not included. Set `services.jellyfin.default_user` in config.yaml, or pass `user` explicitly.'
+            ? `${mediaServerId} is configured without a default_user, so watch state is not included. Set \`services.${mediaServerId}.default_user\` in config.yaml, or pass \`user\` explicitly.`
             : mediaServer === undefined
               ? NO_MEDIA_SERVER_NOTE
               : undefined;
