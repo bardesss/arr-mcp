@@ -270,6 +270,13 @@ you tested and against which version, and capture fixtures from the real service
 rather than writing them by hand. A test that passes against an invented shape
 proves nothing about the service it claims to support.
 
+If you are testing someone else's build rather than your own, ask for a preview
+image on the issue. The maintainer can publish any branch to
+`ghcr.io/bardesss/arr-mcp:preview-<name>` with the **Preview image** workflow, so
+you change one line of your compose file instead of installing a toolchain. A
+preview reports a version like `preview-plex-a1b2c3d` on `/healthz`, which is
+what a useful bug report quotes. It is not a release and never moves `latest`.
+
 And write down whatever surprised you. Every adapter here carries a note about
 something its API does that the documentation does not mention — SABnzbd
 reporting gigabytes as a string, Sonarr's rating arriving unlabelled, Jellyfin

@@ -1,0 +1,104 @@
+name: Preview image
+
+# A hand-triggered build of any branch, published under one clearly-marked tag.
+#
+# CONTRIBUTING asks contributors to exercise an adapter against a live instance
+# of a service nobody here runs, and says testers are the thing actually
+# blocking several of them. Asking someone to install a Node toolchain to do
+# that is a real barrier; asking them to change one line of a compose file is
+# not. This is how a build reaches the person who can prove it works.
+#
+# Deliberately separate from release.yml. Nothing here runs release-please,
+# computes a semver tag, moves `latest` or `main`, or lists at
+# registry.modelcontextprotocol.io. The tag set that workflow documents as
+# "nothing else" is untouched: a preview lives in its own `preview-` namespace
+# and cannot collide with it, because the prefix is added here rather than
+# supplied by the caller.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or SHA to build
+        required: true
+        type: string
+      slug:
+        description: 'Short name for the preview, e.g. "plex" publishes :preview-plex'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: preview-${{ inputs.slug }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      # Rejected before the checkout, so a bad name costs nothing. Lowercase
+      # alphanumerics and dashes are what a Docker tag accepts; the check exists
+      # because the failure it prevents is a push that half-succeeds and leaves
+      # a mystery tag in a public registry.
+      - name: Validate the slug
+        run: |
+          slug='${{ inputs.slug }}'
+          if ! printf '%s' "$slug" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+            echo "::error::slug must be lowercase letters, digits and dashes, starting with one. Got: $slug"
+            exit 1
+          fi
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The commit, not the branch name: a tester reports against whatever they
+      # pulled, and a preview tag is rebuilt in place. `/healthz` and the config
+      # UI both surface this, so "which build were you running" has an answer
+      # that survives the next push.
+      - name: Describe the build
+        id: describe
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          echo "version=preview-${{ inputs.slug }}-${sha}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+      # Same platforms as a release. Self-hosters run this on Synology and Pi as
+      # often as on amd64, and a preview that only one of them can pull finds
+      # only one of them's bugs.
+      - name: Build and push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/bardesss/arr-mcp:preview-${{ inputs.slug }}
+          build-args: |
+            ARR_MCP_VERSION=${{ steps.describe.outputs.version }}
+
+      # So the pull command can be copied straight into the issue thread that
+      # asked for the build.
+      - name: Summary
+        run: |
+          {
+            echo "### Preview image published"
+            echo
+            echo '```'
+            echo "docker pull ghcr.io/bardesss/arr-mcp:preview-${{ inputs.slug }}"
+            echo '```'
+            echo
+            echo "Built from \`${{ inputs.ref }}\` at \`${{ steps.describe.outputs.sha }}\`."
+            echo "It reports its version as \`${{ steps.describe.outputs.version }}\` on /healthz."
+            echo
+            echo "Not a release. \`latest\`, \`main\` and the semver tags are untouched."
+          } >> "$GITHUB_STEP_SUMMARY"
