@@ -443,3 +443,58 @@ describe('repair server save', () => {
         expect(res.headers.get('location')).toBe('/ui/login');
     });
 });
+
+import { buildApp } from '../src/app.ts';
+import { LogStore } from '../src/core/logs.ts';
+
+describe('promotion', () => {
+    // The cookie must survive the swap, or a save lands the operator on a
+    // login page having just typed their password.
+    it('hands over an app that serves /ui to the session issued before the save', async () => {
+        const hash = await hashPassword(PASSWORD);
+        const dir = await seedDir(
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hash}\n  allowed_hosts: []\nservices: {}\n`
+        );
+        const audit = WriteAudit.ephemeral();
+        const logs = LogStore.ephemeral();
+        const sessions = new Sessions();
+
+        let live = buildRepairApp({
+            configDir: dir,
+            sessions,
+            version: '1.2.3',
+            failure: new ConfigInvalidError('bad', 'auth: {}\n', { ...AUTH_OK, password_hash: hash }),
+            onPromote: async () => {
+                const { runtime } = await Runtime.start(dir, audit, { sessions });
+                live = buildApp({ runtime, audit, logs });
+                return { ok: true };
+            }
+        });
+
+        const login = await live.request('http://localhost:6060/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
+        });
+        const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+
+        const page = await (await live.request('http://localhost:6060/ui/repair', { headers: { cookie } })).text();
+        const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+
+        const saved = await live.request('http://localhost:6060/ui/repair', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+            body: new URLSearchParams({
+                csrf,
+                config: `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hash}\n  allowed_hosts: []\nservices: {}\n`
+            }).toString()
+        });
+        expect(saved.status).toBe(302);
+
+        const dashboard = await live.request('http://localhost:6060/ui', { headers: { cookie } });
+        expect(dashboard.status).toBe(200);
+
+        logs.close();
+        audit.close();
+    });
+});
