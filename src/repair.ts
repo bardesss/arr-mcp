@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { parseDocument } from 'yaml';
-import { CONFIG_FILENAME } from './config/load.ts';
+import { CONFIG_FILENAME, validateConfigText } from './config/load.ts';
 import type { ConfigInvalidError } from './config/load.ts';
 import { writeConfigAtomic } from './config/save.ts';
 import type { Config } from './config/schema.ts';
@@ -47,7 +47,7 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
  */
 export function buildRepairApp(deps: RepairDeps): Hono {
     const { version } = deps;
-    const detail = deps.failure.detail;
+    let detail = deps.failure.detail;
     const authBlock = deps.failure.auth;
 
     const app = new Hono();
@@ -208,6 +208,40 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
         return c.html(repairPage({ version, raw, detail, csrf: sessions.csrfFor(session) }));
+    });
+
+    app.post('/ui/repair', async c => {
+        const session = sessionOf(c);
+        if (session === undefined) return c.redirect(entry(), 302);
+
+        const body = await c.req.parseBody();
+        if (!sessions.csrfValid(session, str(body.csrf))) return c.text('stale form — reload and try again', 403);
+
+        const text = str(body.config);
+        // The text as typed, not what is on disk: a save that failed must not
+        // throw away the edit that failed.
+        const rerender = () =>
+            c.html(repairPage({ version, raw: text, detail, csrf: sessions.csrfFor(session) }), 400);
+
+        const verdict = validateConfigText(text);
+        if (!verdict.ok) {
+            detail = verdict.detail;
+            return rerender();
+        }
+
+        // No `expected` drift check: the premise of this page is a file on disk
+        // that nothing else is running to change.
+        await writeConfigAtomic(join(configDir, CONFIG_FILENAME), text);
+        raw = text;
+
+        const promoted = await deps.onPromote();
+        if (!promoted.ok) {
+            detail = promoted.detail;
+            return rerender();
+        }
+
+        logger.info('configuration repaired — starting normally');
+        return c.redirect('/ui', 302);
     });
 
     app.all('*', c => c.redirect('/ui/repair', 302));

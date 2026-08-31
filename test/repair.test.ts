@@ -346,3 +346,95 @@ describe('repair server sign-in', () => {
         expect(res.headers.get('set-cookie')).toBeNull();
     });
 });
+
+describe('repair server save', () => {
+    const VALID = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: PLACEHOLDER\n  allowed_hosts: []\nservices: {}\n`;
+
+    const signedIn = async (onPromote: () => Promise<{ ok: true } | { ok: false; detail: string }>) => {
+        const hash = await hashPassword(PASSWORD);
+        const dir = await seedDir('auth: {}\n');
+        const app = buildRepairApp({
+            configDir: dir,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            failure: new ConfigInvalidError('services.radarr.url\n  ✖ bad', 'auth: {}\n', {
+                ...AUTH_OK,
+                password_hash: hash
+            }),
+            onPromote
+        });
+        const login = await get(app, '/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
+        });
+        const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+        const page = await (await get(app, '/ui/repair', { headers: { cookie } })).text();
+        const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+        return { app, dir, cookie, csrf };
+    };
+
+    const save = (
+        ctx: Awaited<ReturnType<typeof signedIn>>,
+        config: string
+    ) =>
+        get(ctx.app, '/ui/repair', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: ctx.cookie },
+            body: new URLSearchParams({ csrf: ctx.csrf, config }).toString()
+        });
+
+    it('re-renders the new error and keeps what was typed, without writing', async () => {
+        const ctx = await signedIn(async () => ({ ok: true }));
+        const res = await save(ctx, 'auth: [unclosed\n');
+        expect(res.status).toBe(400);
+        const page = await res.text();
+        expect(page).toContain('not valid YAML');
+        expect(page).toContain('unclosed');
+        expect(await readFile(join(ctx.dir, 'config.yaml'), 'utf8')).toBe('auth: {}\n');
+    });
+
+    it('writes the file and promotes on valid text', async () => {
+        let promoted = 0;
+        const ctx = await signedIn(async () => {
+            promoted += 1;
+            return { ok: true };
+        });
+        const hash = await hashPassword(PASSWORD);
+        const res = await save(ctx, VALID.replace('PLACEHOLDER', hash));
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui');
+        expect(promoted).toBe(1);
+        expect(await readFile(join(ctx.dir, 'config.yaml'), 'utf8')).toContain('bearer_token');
+    });
+
+    // The validator gives a good message; loadConfig is the authority. If they
+    // ever disagree the result must be a worse message, not a broken instance.
+    it('stays degraded when promotion rejects what the validator accepted', async () => {
+        const ctx = await signedIn(async () => ({ ok: false, detail: 'loader said no' }));
+        const hash = await hashPassword(PASSWORD);
+        const res = await save(ctx, VALID.replace('PLACEHOLDER', hash));
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('loader said no');
+    });
+
+    it('refuses a save with a bad CSRF token', async () => {
+        const ctx = await signedIn(async () => ({ ok: true }));
+        const res = await get(ctx.app, '/ui/repair', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: ctx.cookie },
+            body: new URLSearchParams({ csrf: 'wrong', config: 'services: {}\n' }).toString()
+        });
+        expect(res.status).toBe(403);
+    });
+
+    it('refuses a save with no session', async () => {
+        const ctx = await signedIn(async () => ({ ok: true }));
+        const res = await get(ctx.app, '/ui/repair', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ csrf: ctx.csrf, config: 'services: {}\n' }).toString()
+        });
+        expect(res.status).toBe(302);
+    });
+});
