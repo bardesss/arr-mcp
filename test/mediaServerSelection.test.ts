@@ -24,6 +24,18 @@ const mediaServer = (id: string): MediaServerAdapter =>
         getWatchHistory: async () => []
     }) as unknown as MediaServerAdapter;
 
+/** Has playback but none of the rest of the media server contract. */
+const playbackOnly = (id: string): ServiceAdapter =>
+    ({
+        id,
+        type: 'jellyfin',
+        testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
+        getVersion: async () => '1.0.0',
+        getPlayback: async () => [],
+        getNextUp: async () => [],
+        getWatchHistory: async () => []
+    }) as unknown as ServiceAdapter;
+
 describe('media server selection', () => {
     it('refuses to build a context with two media servers', () => {
         const adapters = [mediaServer('jellyfin'), mediaServer('plexish')] as ServiceAdapter[];
@@ -39,5 +51,13 @@ describe('media server selection', () => {
         expect(() =>
             buildToolContext(adapters, config(), WriteAudit.ephemeral(), new ConfirmTokens())
         ).not.toThrow();
+    });
+
+    it('refuses a playback-only adapter, naming it and the missing capability', () => {
+        const adapters = [playbackOnly('plexish')] as ServiceAdapter[];
+
+        expect(() =>
+            buildToolContext(adapters, config(), WriteAudit.ephemeral(), new ConfirmTokens())
+        ).toThrow(/plexish.*listUsers/i);
     });
 });

@@ -8,7 +8,15 @@ import { IdentityResolver } from '../core/identity.ts';
 import type { ServiceInstance } from '../config/instances.ts';
 import { permissionSourceFrom } from '../core/permissions.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
-import { hasIndexers, hasPlayback, hasSubtitles, type MediaServerAdapter, type ServiceAdapter } from '../services/types.ts';
+import {
+    hasIndexers,
+    hasPlayback,
+    hasSubtitles,
+    hasUserDirectory,
+    hasUserLibrary,
+    type MediaServerAdapter,
+    type ServiceAdapter
+} from '../services/types.ts';
 import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
 import { registerCleanQueue } from './cleanQueue.ts';
@@ -91,7 +99,20 @@ function theMediaServer(adapters: readonly ServiceAdapter[]): MediaServerAdapter
             `only one media server may be configured, found ${found.map(a => a.id).join(', ')}`
         );
     }
-    return found[0] as MediaServerAdapter | undefined;
+    const candidate = found[0];
+    if (candidate === undefined) return undefined;
+
+    // `hasPlayback` alone does not make something a full media server — it
+    // also needs a user directory and a per-user library read. A candidate
+    // missing either must say so by name, not fail later with a raw
+    // "listUsers is not a function" at the IdentityResolver call site.
+    if (!hasUserDirectory(candidate)) {
+        throw new Error(`${candidate.id} has playback but is missing listUsers, so it is not a complete media server`);
+    }
+    if (!hasUserLibrary(candidate)) {
+        throw new Error(`${candidate.id} has playback but is missing listUserLibrary, so it is not a complete media server`);
+    }
+    return candidate;
 }
 
 /**
