@@ -17,6 +17,7 @@ import type { Config, ServiceId } from '../src/config/schema.ts';
 import {
     apiKeyHeader,
     embyToken,
+    plexToken,
     qbittorrentSession,
     queryParamKey,
     transmissionRpc,
@@ -440,7 +441,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: '/api/v2/app/preferences',
             anonymise: body => ({ save_path: (body as { save_path?: unknown }).save_path ?? '' })
         }
-    ]
+    ],
+    plex: [{ name: 'status', path: '/status/sessions' }]
 };
 
 function strategyFor(id: ServiceId, service: NonNullable<Config['services'][ServiceId]>): AuthStrategy {
@@ -462,6 +464,7 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     }
     const key = (service as { api_key: string }).api_key;
     if (id === 'jellyfin') return embyToken(key);
+    if (id === 'plex') return plexToken(key);
     if (id === 'sabnzbd') return queryParamKey('apikey', key);
     if (id === 'bazarr') return apiKeyHeader('X-API-KEY', key);
     return apiKeyHeader('X-Api-Key', key);

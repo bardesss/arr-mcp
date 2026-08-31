@@ -53,5 +53,7 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
             return new SonarrAdapter(keyed);
         case 'transmission':
             return new TransmissionAdapter(instance.config);
+        case 'plex':
+            throw new Error('plex adapter is not yet implemented');
     }
 }

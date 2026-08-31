@@ -9,7 +9,8 @@ export const ServiceIdSchema = z.enum([
     'seerr',
     'sabnzbd',
     'transmission',
-    'qbittorrent'
+    'qbittorrent',
+    'plex'
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
@@ -187,7 +188,28 @@ const ServicesSchema = z
         jellyfin: singleOnly(MultiUserServiceSchema).optional(),
         seerr: singleOnly(MultiUserServiceSchema).optional(),
         transmission: singleOnly(CredentialServiceSchema).optional(),
-        qbittorrent: singleOnly(CredentialServiceSchema).optional()
+        qbittorrent: singleOnly(CredentialServiceSchema).optional(),
+        plex: singleOnly(MultiUserServiceSchema).optional()
+    })
+    .superRefine((services, ctx) => {
+        /**
+         * `get_library`'s `presence` asks whether *the other side* can see a file.
+         * With two media servers that question has no single answer, so one is an
+         * invariant rather than a preference. Refused here rather than degraded at
+         * runtime, the same call `MULTI_INSTANCE` makes: admitting a shape the code
+         * then degrades on is worse than refusing it.
+         *
+         * This is a different rule from the single-instance ones, which catch two of
+         * the *same* service. `jellyfin` and `plex` are distinct, individually valid
+         * keys and nothing else would object to both.
+         */
+        if (services.jellyfin === undefined || services.plex === undefined) return;
+        ctx.addIssue({
+            code: 'custom',
+            message:
+                'jellyfin and plex cannot both be configured — arr-mcp joins Radarr and Sonarr against exactly one media server. Remove whichever you are not using.',
+            path: ['plex']
+        });
     })
     .default({});
 

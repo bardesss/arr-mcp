@@ -19,7 +19,7 @@ const draw = (paths: string): string =>
 
 /** Category first, identity second — the id is already next to the mark, so
  *  the drawing's job is to say "indexer" or "downloader" at a glance. */
-export const ICONS: Record<ServiceId, string> = {
+export const ICONS: Partial<Record<ServiceId, string>> = {
     sonarr: draw('<rect x="2" y="7" width="20" height="14" rx="2"/><path d="m17 2.5-5 4.5-5-4.5"/>'),
     radarr: draw('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7.5 3v18M16.5 3v18M3 12h18"/>'),
     prowlarr: draw('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="m12 12 6-6"/>'),
