@@ -20,8 +20,8 @@ export function repairPage(opts: { version: string; raw: string; detail: string;
             <button type="submit">Validate and save</button>
         </form>
         <p class="note">
-            This shows the file exactly as it is on disk, credentials included — it is the only way
-            to edit a file that could not be parsed.
+            This shows the file's contents, credentials included — it is the only way to edit a
+            file that could not be parsed.
         </p>
     </div>`;
 

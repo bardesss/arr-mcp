@@ -220,14 +220,11 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         const text = str(body.config);
         // The text as typed, not what is on disk: a save that failed must not
         // throw away the edit that failed.
-        const rerender = () =>
-            c.html(repairPage({ version, raw: text, detail, csrf: sessions.csrfFor(session) }), 400);
+        const rerender = (message: string) =>
+            c.html(repairPage({ version, raw: text, detail: message, csrf: sessions.csrfFor(session) }), 400);
 
         const verdict = validateConfigText(text);
-        if (!verdict.ok) {
-            detail = verdict.detail;
-            return rerender();
-        }
+        if (!verdict.ok) return rerender(verdict.detail);
 
         // No `expected` drift check: the premise of this page is a file on disk
         // that nothing else is running to change.
@@ -236,8 +233,11 @@ export function buildRepairApp(deps: RepairDeps): Hono {
 
         const promoted = await deps.onPromote();
         if (!promoted.ok) {
+            // Assigned only here: this write landed, so the reason the instance
+            // is degraded really did change. A validator refusal wrote nothing
+            // and must not change what /healthz reports.
             detail = promoted.detail;
-            return rerender();
+            return rerender(detail);
         }
 
         logger.info('configuration repaired — starting normally');

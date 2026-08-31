@@ -386,11 +386,13 @@ describe('repair server save', () => {
 
     it('re-renders the new error and keeps what was typed, without writing', async () => {
         const ctx = await signedIn(async () => ({ ok: true }));
-        const res = await save(ctx, 'auth: [unclosed\n');
+        // The marker is not part of the YAML error message itself, so finding
+        // it in the page proves the typed text was rendered, not just the error.
+        const res = await save(ctx, '# keep-this-marker\nauth: [unclosed\n');
         expect(res.status).toBe(400);
         const page = await res.text();
         expect(page).toContain('not valid YAML');
-        expect(page).toContain('unclosed');
+        expect(page).toContain('keep-this-marker');
         expect(await readFile(join(ctx.dir, 'config.yaml'), 'utf8')).toBe('auth: {}\n');
     });
 
@@ -436,5 +438,8 @@ describe('repair server save', () => {
             body: new URLSearchParams({ csrf: ctx.csrf, config: 'services: {}\n' }).toString()
         });
         expect(res.status).toBe(302);
+        // Distinguishes the route's own redirect (to entry()) from the
+        // catch-all's redirect to /ui/repair, which would also answer 302.
+        expect(res.headers.get('location')).toBe('/ui/login');
     });
 });
