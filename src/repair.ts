@@ -141,20 +141,23 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         if (!unclaimed() || claiming) return c.redirect('/ui/login', 302);
         claiming = true;
         try {
-            // Re-read rather than reusing the snapshot this server started
-            // with: it stays up indefinitely, and editing config.yaml directly
-            // is the obvious answer to being told it is invalid. Writing the
-            // snapshot back would silently revert that edit.
             const path = join(configDir, CONFIG_FILENAME);
-            const doc = parseDocument(await readFile(path, 'utf8'));
-            doc.setIn(['auth', 'username'], username);
-            doc.setIn(['auth', 'password_hash'], password_hash);
-            const text = doc.toString();
+            let text: string;
+            try {
+                // Re-read rather than reusing the snapshot this server started
+                // with: it stays up indefinitely, and editing config.yaml
+                // directly is the obvious answer to being told it is invalid.
+                // Writing the snapshot back would silently revert that edit.
+                const doc = parseDocument(await readFile(path, 'utf8'));
+                doc.setIn(['auth', 'username'], username);
+                doc.setIn(['auth', 'password_hash'], password_hash);
+                text = doc.toString();
+            } catch {
+                return reject('config.yaml changed on disk and can no longer be edited here. Fix it directly, then restart.');
+            }
             await writeConfigAtomic(path, text);
             raw = text;
             auth = { ...auth, username, password_hash };
-        } catch {
-            return reject('config.yaml changed on disk and can no longer be edited here. Fix it directly, then restart.');
         } finally {
             claiming = false;
         }

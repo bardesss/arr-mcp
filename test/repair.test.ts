@@ -319,4 +319,30 @@ describe('repair server sign-in', () => {
         expect(onDisk).toContain('http://radarr.example.com');
         expect(onDisk).toContain('password_hash');
     });
+
+    // A disk edit that changes auth's shape entirely (not just its content) is
+    // the case setIn cannot walk, distinct from the write-failure case the
+    // catch is deliberately not scoped to cover.
+    it('refuses a claim when auth on disk is no longer a mapping setIn can walk', async () => {
+        const staleRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const dir = await seedDir(staleRaw);
+        const app = buildRepairApp({
+            configDir: dir,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            failure: new ConfigInvalidError('services.radarr.url\n  ✖ bad', staleRaw, AUTH_OK),
+            onPromote: async () => ({ ok: true })
+        });
+
+        await writeFile(join(dir, 'config.yaml'), 'auth: nope\nservices:\n  radarr:\n    url: bad\n', 'utf8');
+
+        const res = await get(app, '/ui/setup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD, confirm: PASSWORD }).toString()
+        });
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('changed on disk');
+        expect(res.headers.get('set-cookie')).toBeNull();
+    });
 });
