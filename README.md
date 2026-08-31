@@ -153,7 +153,7 @@ model stops finding a renamed tool rather than raising an error.
 ## Contributing
 
 **Contributions are welcome, and new service adapters most of all** — Lidarr,
-qBittorrent, Emby, Plex and Deluge would all be accepted today, and
+qBittorrent, Emby and Deluge would all be accepted today, and
 [the list says so in advance](CONTRIBUTING.md#what-would-be-accepted-today),
 along with the ones that would not be. An adapter is deliberately the most
 self-contained thing in the codebase. Two things to know first: not every
@@ -163,15 +163,13 @@ request — [which services qualify](CONTRIBUTING.md#which-services-qualify). An
 it against your own live instance and the PR says what you tested and against
 which version.
 
-**Plex: I will write it, if you will test it.** It is the most-deployed media
-server arr-mcp cannot talk to, and the only thing blocking it is that nobody
-here runs Plex — an adapter that cannot be exercised against a real library
-before it ships is a bug report waiting to be filed. If you run Plex and are
-willing to test builds against it and report back,
-[say so in an issue](../../issues/new/choose). There is one design constraint
-worth reading first: it has to work from an operator-supplied token against your
-own server, never through plex.tv —
-[why, and what else is on the list](CONTRIBUTING.md#what-would-be-accepted-today).
+**Plex has a read-only adapter, and it needs a tester.** It talks only to your
+own server through an operator-supplied token, never plex.tv — nobody here
+runs Plex, so nothing in it has been exercised against a real library, only
+read. If you run Plex and are willing to test a build against it and report
+back, [say so in an issue](../../issues/new/choose); that is what is standing
+between it and a release. [The design behind it, and what else is on the
+list](CONTRIBUTING.md#what-would-be-accepted-today).
 
 **AI-assisted contributions are welcome**, held to the same bar and no other;
 arr-mcp is itself built with a coding agent. Point yours at
