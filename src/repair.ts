@@ -2,7 +2,9 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { parseDocument } from 'yaml';
+import { MAX_BODY_BYTES } from './app.ts';
 import { CONFIG_FILENAME, validateConfigText } from './config/load.ts';
 import type { ConfigInvalidError } from './config/load.ts';
 import { writeConfigAtomic } from './config/save.ts';
@@ -51,6 +53,18 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     const authBlock = deps.failure.auth;
 
     const app = new Hono();
+
+    // First, as in `app.ts`: `parseBody` buffers the whole request, both posts
+    // that reach it are unauthenticated, and in this mode the process is the
+    // operator's only route back to a working instance.
+    app.use(
+        '*',
+        bodyLimit({
+            maxSize: MAX_BODY_BYTES,
+            // Plain text, not JSON: everything here is a page except /healthz.
+            onError: c => c.text(`Request body exceeds the ${MAX_BODY_BYTES} byte limit.`, 413)
+        })
+    );
 
     // Registered before the auth gate below, so they answer in both outcomes.
     // Hono runs matching handlers in registration order, and these return

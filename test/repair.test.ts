@@ -118,6 +118,17 @@ describe('repair server, always-on routes', () => {
         expect(JSON.stringify(await res.json())).toContain('services.radarr.url');
     });
 
+    // Both posts here are unauthenticated, and an OOM in this mode takes away
+    // the operator's only route back to a working instance.
+    it('refuses a body over the limit before parsing it', async () => {
+        const res = await get(await repairApp({ auth: AUTH_OK }), '/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: `username=${'x'.repeat(5 * 1024 * 1024)}`
+        });
+        expect(res.status).toBe(413);
+    });
+
     it('serves the stylesheet, so the page is not unstyled', async () => {
         const res = await get(await repairApp({ auth: AUTH_OK }), '/ui/app.css');
         expect(res.status).toBe(200);
