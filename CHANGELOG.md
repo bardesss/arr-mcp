@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.19.0](https://github.com/bardesss/arr-mcp/compare/v1.18.1...v1.19.0) (2026-08-31)
+
+
+### Features
+
+* serve a config repair page instead of crash-looping on an invalid config ([#185](https://github.com/bardesss/arr-mcp/issues/185)) ([cf233a4](https://github.com/bardesss/arr-mcp/commit/cf233a4d979e482a11d6233a0bbdf98deda4f297))
+
+
+### Bug Fixes
+
+* keep /healthz reachable when allowed_hosts is pinned ([#186](https://github.com/bardesss/arr-mcp/issues/186)) ([fe4aede](https://github.com/bardesss/arr-mcp/commit/fe4aede44aef7071ef0c5b63049edaf8ce5483df))
+
 ## [1.18.1](https://github.com/bardesss/arr-mcp/compare/v1.18.0...v1.18.1) (2026-08-31)
 
 
