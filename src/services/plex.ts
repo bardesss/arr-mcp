@@ -52,12 +52,18 @@ export type RawPlexItem = {
     Guid?: { id?: string }[];
     /** Legacy agents, e.g. `com.plexapp.agents.imdb://tt0111161?lang=en`. */
     guid?: string;
-    /** `/status/sessions` only — who is watching. */
-    User?: { id?: string; title?: string };
+    /** `/status/sessions` only — who is watching. XML-derived JSON, so this
+     *  comes back as either a string or a number depending on the row. */
+    User?: { id?: string | number; title?: string };
     /** `/status/sessions` only — what they are watching on. */
     Player?: { title?: string };
     /** Episodes from `/library/sections/{key}/all?type=4` — the series' ratingKey. */
     grandparentRatingKey?: string;
+    /** `/status/sessions/history/all` only — which account watched this row. */
+    accountID?: string | number;
+    /** Show rows only — Plex's own series-completion counters. */
+    viewedLeafCount?: number;
+    leafCount?: number;
 };
 
 export const unwrap = <T>(body: unknown, key: string): T[] => {
@@ -272,7 +278,10 @@ export class PlexAdapter
         ]);
 
         const nowPlaying: PlaybackEntry[] = unwrap<RawPlexItem>(sessions, 'Metadata')
-            .filter(item => item.User?.id === user.id)
+            // Compared as strings: Plex's XML-derived JSON is inconsistent
+            // about whether an id comes back as a string or a number, and a
+            // strict `===` against a number would drop every session.
+            .filter(item => String(item.User?.id) === user.id)
             .map(item => ({
                 ...this.#commonPlayback(user, item),
                 kind: 'now_playing' as const,
@@ -299,15 +308,24 @@ export class PlexAdapter
     }
 
     async getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]> {
-        const body = await this.#http.get<unknown>('/status/sessions/history/all');
-        return unwrap<RawPlexItem>(body, 'Metadata').map(item => {
-            const lastPlayed = epochToIso(item.lastViewedAt);
-            return {
-                ...this.#commonPlayback(user, item),
-                kind: 'watched' as const,
-                ...(lastPlayed === undefined ? {} : { lastPlayed })
-            };
-        });
+        // Server-wide, not per-user — every account's rows come back
+        // together, so the filter below is load-bearing: without it, another
+        // household member's viewing would be stamped with this user's name.
+        // An explicit size cap matches jellyfin.ts's `Limit=500` on the same
+        // read, rather than trusting an undocumented server page size.
+        const body = await this.#http.get<unknown>(`/status/sessions/history/all?X-Plex-Container-Size=${PAGE_SIZE}`);
+        return unwrap<RawPlexItem>(body, 'Metadata')
+            // No accountID, no attribution — excluding is safer than
+            // guessing whose watch this was.
+            .filter(item => item.accountID !== undefined && String(item.accountID) === user.id)
+            .map(item => {
+                const lastPlayed = epochToIso(item.lastViewedAt);
+                return {
+                    ...this.#commonPlayback(user, item),
+                    kind: 'watched' as const,
+                    ...(lastPlayed === undefined ? {} : { lastPlayed })
+                };
+            });
     }
 
     /**
@@ -315,15 +333,36 @@ export class PlexAdapter
      * thousand items, so an unpaged read is a live risk, not a theoretical
      * one — looping until a short page comes back is what stops one call
      * pulling the whole thing at once.
+     *
+     * The query-parameter paging form is a guess (see `PAGE_SIZE`'s comment);
+     * if the server ignores it, every page is identical and `rows.length <
+     * PAGE_SIZE` never fires. Rather than spin until timeout or OOM, a
+     * repeated first `ratingKey` across pages is treated as proof paging did
+     * not advance and thrown as a diagnosis. `MAX_PAGES` is a backstop for a
+     * server that varies its non-paged answer some other way.
      */
     async #paged(key: string, type?: number): Promise<RawPlexItem[]> {
+        const MAX_PAGES = 1000;
         const out: RawPlexItem[] = [];
+        let previousFirstKey: string | undefined;
         for (let start = 0; ; start += PAGE_SIZE) {
+            if (start / PAGE_SIZE >= MAX_PAGES) {
+                throw new ServiceError('UpstreamError', this.id, `library section ${key} did not finish paging after ${MAX_PAGES} pages`, {
+                    remedy: 'This is a backstop, not an expected outcome — check whether the section genuinely holds that many items.'
+                });
+            }
             const typeParam = type === undefined ? '' : `type=${type}&`;
             const body = await this.#http.get<unknown>(
-                `/library/sections/${encodeURIComponent(key)}/all?${typeParam}X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`
+                `/library/sections/${encodeURIComponent(key)}/all?${typeParam}includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`
             );
             const rows = unwrap<RawPlexItem>(body, 'Metadata');
+            const firstKey = rows[0]?.ratingKey;
+            if (start > 0 && firstKey !== undefined && firstKey === previousFirstKey) {
+                throw new ServiceError('UpstreamError', this.id, `library section ${key} did not advance past start=0 — the same item led every page`, {
+                    remedy: 'Plex appears to be ignoring X-Plex-Container-Start/Size as query parameters. It documents these as request headers instead, which ServiceHttp does not yet send.'
+                });
+            }
+            previousFirstKey = firstKey;
             out.push(...rows);
             if (rows.length < PAGE_SIZE) return out;
         }
@@ -336,8 +375,23 @@ export class PlexAdapter
         );
     }
 
+    /**
+     * A movie's `viewCount > 0` is "watched" — Plex has no partial-watch
+     * state for a film. A show's `viewCount` counts *views*, not completion
+     * (three replays of one episode would outscore a finished season), so a
+     * series instead reads Plex's own `viewedLeafCount`/`leafCount` pair.
+     * When a listing omits either, the honest answer is "unknown", not a
+     * guess built from the wrong field — so `watched` is left off entirely.
+     */
+    static #watched(item: RawPlexItem, kind: 'movie' | 'series'): boolean | undefined {
+        if (kind === 'movie') return (item.viewCount ?? 0) > 0;
+        if (item.viewedLeafCount === undefined || item.leafCount === undefined) return undefined;
+        return item.viewedLeafCount === item.leafCount;
+    }
+
     #toIndexItem(user: ServiceUser, item: RawPlexItem, kind: 'movie' | 'series'): IndexInput {
         const lastPlayed = epochToIso(item.lastViewedAt);
+        const watched = PlexAdapter.#watched(item, kind);
         return {
             kind,
             title: this.#fence('title', item.title ?? ''),
@@ -352,7 +406,7 @@ export class PlexAdapter
             ids: externalIds(item),
             playback: {
                 user: user.name,
-                watched: (item.viewCount ?? 0) > 0,
+                ...(watched === undefined ? {} : { watched }),
                 ...(item.viewCount === undefined ? {} : { playCount: item.viewCount }),
                 ...(lastPlayed === undefined ? {} : { lastPlayed })
             }
@@ -477,7 +531,11 @@ export class PlexAdapter
         const file = item.Media?.[0]?.Part?.[0];
         return {
             service: this.id,
-            kind: item.type === 'show' ? 'series' : 'movie',
+            // Mirrors jellyfin.ts: only a confirmed 'movie' or 'show' earns
+            // that kind. Guessing 'movie' for anything else — an episode, a
+            // season — would make diagnose/evidence.ts scan the wrong index
+            // and silently miss real hits.
+            kind: item.type === 'movie' ? 'movie' : item.type === 'show' ? 'series' : 'item',
             id: ratingKey,
             title: this.#fence('title', item.title ?? ''),
             ...(item.year === undefined ? {} : { year: item.year }),
