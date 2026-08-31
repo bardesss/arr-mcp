@@ -289,6 +289,10 @@ around them.
    plus whichever capability interfaces the service actually supports.
    `src/services/sonarr.ts` is the simplest example; `src/services/transmission.ts`
    and `src/services/qbittorrent.ts` are the most unusual.
+   A media server implements `PlaybackCapable`, `UserLibraryCapable` and
+   `UserDirectoryCapable` — together `MediaServerAdapter` — and exactly one may
+   be configured, because `get_library`'s `presence` join needs a single
+   counterparty.
 5. **Declare its contract** in `test/contract.test.ts` — the response fields your
    adapter reads. Omit the `spec` when the service publishes no OpenAPI document.
 6. **Register it** in `src/services/registry.ts`.

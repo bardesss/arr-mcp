@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/bardesss/arr-mcp/compare/v1.18.0...v1.18.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* say when no media server is configured instead of answering zero ([#181](https://github.com/bardesss/arr-mcp/issues/181)) ([9b1e2b6](https://github.com/bardesss/arr-mcp/commit/9b1e2b627e52238d3bde619f4f43d9fccb8335cc)), closes [#180](https://github.com/bardesss/arr-mcp/issues/180)
+
 ## [1.18.0](https://github.com/bardesss/arr-mcp/compare/v1.17.0...v1.18.0) (2026-08-23)
 
 
