@@ -7,7 +7,7 @@ import { logger } from '../core/logger.ts';
 import { writeConfigAtomic } from './save.ts';
 import { ConfigSchema, type Config } from './schema.ts';
 
-const FILENAME = 'config.yaml';
+export const CONFIG_FILENAME = 'config.yaml';
 
 const generateToken = (): string => randomBytes(32).toString('hex');
 
@@ -20,6 +20,85 @@ const generateToken = (): string => randomBytes(32).toString('hex');
  * never invents one, and no secret here is ever passed to the logger.
  */
 export type GeneratedCredentials = { bearerToken?: string };
+
+/**
+ * A config.yaml that was read but could not be understood — as opposed to one
+ * that could not be read at all, which stays a plain Error. Only this one
+ * starts the repair server.
+ */
+export class ConfigInvalidError extends Error {
+    // Written out rather than as constructor parameter properties: Node runs
+    // this project's TypeScript in strip-only mode, which rejects those.
+    readonly detail: string;
+    readonly raw: string;
+    readonly auth: Config['auth'] | undefined;
+
+    constructor(detail: string, raw: string, auth: Config['auth'] | undefined) {
+        super(`config.yaml is invalid:\n${detail}`);
+        this.name = 'ConfigInvalidError';
+        this.detail = detail;
+        this.raw = raw;
+        this.auth = auth;
+    }
+}
+
+export type ConfigTextResult =
+    | { ok: true; config: Config; generatedBearerToken: string | undefined }
+    | { ok: false; detail: string; auth: Config['auth'] | undefined; generatedBearerToken: string | undefined };
+
+/**
+ * The whole content pipeline — YAML, shape, bearer-token backfill, schema — as
+ * one pure function, so the repair editor cannot accept text that startup then
+ * rejects.
+ */
+export function validateConfigText(raw: string): ConfigTextResult {
+    let parsed: unknown;
+    try {
+        parsed = parse(raw);
+    } catch (err) {
+        return {
+            ok: false,
+            detail: `config.yaml is not valid YAML: ${(err as Error).message}`,
+            auth: undefined,
+            generatedBearerToken: undefined
+        };
+    }
+
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {
+            ok: false,
+            detail: 'config.yaml must contain a YAML mapping at the top level',
+            auth: undefined,
+            generatedBearerToken: undefined
+        };
+    }
+
+    const obj = parsed as Record<string, unknown>;
+
+    // A non-object `auth:` has to reach safeParse to be reported properly.
+    const rawAuth = obj.auth;
+    const authIsMapping =
+        rawAuth === undefined || (rawAuth !== null && typeof rawAuth === 'object' && !Array.isArray(rawAuth));
+    const auth = (authIsMapping ? (rawAuth ?? {}) : {}) as { bearer_token?: string };
+
+    let generatedBearerToken: string | undefined;
+    if (authIsMapping && !auth.bearer_token) {
+        auth.bearer_token = generateToken();
+        generatedBearerToken = auth.bearer_token;
+        obj.auth = auth;
+    }
+
+    const result = ConfigSchema.safeParse(obj);
+    if (result.success) return { ok: true, config: result.data, generatedBearerToken };
+
+    const authOnly = ConfigSchema.shape.auth.safeParse(obj.auth);
+    return {
+        ok: false,
+        detail: z.prettifyError(result.error),
+        auth: authOnly.success ? authOnly.data : undefined,
+        generatedBearerToken
+    };
+}
 
 /**
  * Written on first run so the knobs are discoverable without reading docs.
@@ -56,7 +135,7 @@ export async function loadConfig(
     opts: { persist?: boolean } = {}
 ): Promise<{ config: Config; created: boolean; generated: GeneratedCredentials }> {
     const persist = opts.persist ?? true;
-    const path = join(configDir, FILENAME);
+    const path = join(configDir, CONFIG_FILENAME);
     if (persist) await mkdir(configDir, { recursive: true });
 
     let raw: string | undefined;
@@ -83,60 +162,25 @@ export async function loadConfig(
         };
     }
 
-    let parsed: unknown;
-    try {
-        parsed = parse(raw);
-    } catch (err) {
-        throw new Error(`config.yaml is not valid YAML: ${(err as Error).message}`, { cause: err });
-    }
-
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('config.yaml must contain a YAML mapping at the top level');
-    }
-
-    const obj = parsed as Record<string, unknown>;
-
-    // A non-object `auth:` has to reach safeParse to be reported properly.
-    // Backfilling into it first threw from assigning a property to a primitive,
-    // pre-empting the schema message with a raw TypeError.
-    const rawAuth = obj.auth;
-    const authIsMapping =
-        rawAuth === undefined || (rawAuth !== null && typeof rawAuth === 'object' && !Array.isArray(rawAuth));
-    const auth = (authIsMapping ? (rawAuth ?? {}) : {}) as {
-        bearer_token?: string;
-        password_hash?: string;
-        username?: string;
-    };
     const generated: GeneratedCredentials = {};
 
-    // The bearer token is backfilled rather than refused because it has no
-    // interactive path: a config missing one has no working /mcp, and no way
-    // to get a working one.
-    //
-    // `password_hash` is deliberately *not* backfilled. Its absence means
-    // unclaimed, which the config UI resolves in the browser — repairing it
-    // here would claim the instance on the user's behalf with a password
-    // nobody would ever see. Deleting the line is the documented way to ask
-    // for a new password, and this is what makes that work.
-    if (authIsMapping && !auth.bearer_token) {
-        auth.bearer_token = generateToken();
-        generated.bearerToken = auth.bearer_token;
-        obj.auth = auth;
+    const result = validateConfigText(raw);
+
+    let text = raw;
+    if (result.generatedBearerToken !== undefined) {
+        generated.bearerToken = result.generatedBearerToken;
+        // Through the document and the same atomic write saveConfig uses:
+        // `stringify` drops every comment, and a partial write could leave a
+        // truncated config holding every API key.
+        const doc = parseDocument(raw);
+        doc.setIn(['auth', 'bearer_token'], result.generatedBearerToken);
+        text = doc.toString();
         if (persist) {
-            // Through the document and the same atomic write saveConfig uses:
-            // `stringify(obj)` dropped every comment in the file, and writing
-            // straight over it could leave a truncated config holding every
-            // API key — the two things save.ts exists to prevent.
-            const doc = parseDocument(raw);
-            doc.setIn(['auth', 'bearer_token'], auth.bearer_token);
-            await writeConfigAtomic(path, doc.toString());
+            await writeConfigAtomic(path, text);
             logger.warn({ path }, 'config.yaml was missing its bearer token; generated one');
         }
     }
 
-    const result = ConfigSchema.safeParse(obj);
-    if (!result.success) {
-        throw new Error(`config.yaml is invalid:\n${z.prettifyError(result.error)}`);
-    }
-    return { config: result.data, created: false, generated };
+    if (!result.ok) throw new ConfigInvalidError(result.detail, text, result.auth);
+    return { config: result.config, created: false, generated };
 }
