@@ -259,6 +259,42 @@ function anonymiseSeerrUser(row: Row, index: number): Row {
     };
 }
 
+/** The token owner's account name — the same identity as Jellyfin's `users`
+ *  capture just above, and anonymised for the same reason. */
+function anonymisePlexAccounts(body: unknown): unknown {
+    const container = (body as { MediaContainer?: { Account?: Row[] } }).MediaContainer;
+    if (!Array.isArray(container?.Account)) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            Account: container.Account.map((a, i) => ({ ...a, name: replaceIfString(a.name, `Account ${i + 1}`) }))
+        }
+    };
+}
+
+/**
+ * `Player.remotePublicAddress` on a session row is the viewer's public IP —
+ * identity, not a secret, and outside what the private-IP regex in
+ * `redact()` reaches, since a public address is by definition not in one of
+ * the private ranges it matches.
+ */
+function redactPlexSessions(body: unknown): unknown {
+    const container = (body as { MediaContainer?: { Metadata?: Row[] } }).MediaContainer;
+    if (!Array.isArray(container?.Metadata)) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            Metadata: container.Metadata.map(m => {
+                const player = m.Player as Row | undefined;
+                if (player === undefined || !('remotePublicAddress' in player)) return m;
+                return { ...m, Player: { ...player, remotePublicAddress: replaceIfString(player.remotePublicAddress, '203.0.113.10') } };
+            })
+        }
+    };
+}
+
 /**
  * What each adapter needs to see. Extend this when an adapter starts reading a
  * new endpoint — a fixture that does not exist cannot be tested against.
@@ -458,22 +494,25 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     ],
     plex: [
         { name: 'identity', path: '/identity' },
-        { name: 'accounts', path: '/accounts' },
+        // The tester's own account name — anonymised like Jellyfin's `users`.
+        { name: 'accounts', path: '/accounts', anonymise: anonymisePlexAccounts },
         { name: 'sections', path: '/library/sections' },
-        { name: 'sessions', path: '/status/sessions' },
+        // Carries Player.remotePublicAddress — the viewer's public IP.
+        { name: 'sessions', path: '/status/sessions', anonymise: redactPlexSessions },
         { name: 'ondeck', path: '/library/onDeck' },
         { name: 'history', path: '/status/sessions/history/all' },
         { name: 'activities', path: '/activities' },
         { name: 'search', path: '/search?query=a' },
         // A short page: the tester's library may hold thousands of items, and
-        // the fixture only needs the shape.
+        // the fixture only needs the shape. includeGuids=1 matches what
+        // PlexAdapter#paged actually sends (see src/services/plex.ts).
         {
             name: 'section-all',
             path: captured => {
                 const key = firstSectionKey(captured.get('sections'));
                 return key === undefined
                     ? undefined
-                    : `/library/sections/${key}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=5`;
+                    : `/library/sections/${key}/all?includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=5`;
             }
         },
         {
