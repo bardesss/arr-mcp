@@ -766,6 +766,17 @@ export const hasUserLibrary = (a: ServiceAdapter): a is ServiceAdapter & UserLib
     typeof (a as Partial<UserLibraryCapable>).listUserLibrary === 'function';
 
 /**
+ * What a tool says when nothing implements `UserLibraryCapable`.
+ *
+ * An unconfigured service is not a degraded one, so `degraded` stays empty —
+ * and an empty `degraded` beside a zero count reads as an answer about the
+ * library rather than a gap in what was asked. This is the sentence that tells
+ * the two apart.
+ */
+export const NO_MEDIA_SERVER_NOTE =
+    'No media server is configured, so there is no watch state to read — this is a blind spot, not an empty library. Add `services.jellyfin` in config.yaml.';
+
+/**
  * Separate from `UserLibraryCapable` so it can fail on its own. `LibraryLoader`
  * registers this as its own `gather` source, which is what lets an episode-read
  * failure degrade `jellyfin:episodes` while film watch state survives.

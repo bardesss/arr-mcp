@@ -248,6 +248,19 @@ reports, which does not grow unbounded), so truncation is decided by `limit`
 rather than by however many rows an undocumented server page size happens to
 hand back.
 
+### When no media server is configured
+
+Every scope answers zero, and `degraded` stays empty — an unconfigured service
+is not a degraded one, so there is nothing to name. That pair reads exactly like
+a quiet evening, which is the wrong answer to a question nobody asked. `note`
+carries the difference, and the summary line shows it *instead of* the counts
+rather than after them: a correction printed behind "0 item(s) playing now"
+leaves the claim standing.
+
+`get_library` sets the same `note` for the same reason — with no media server,
+its `presence` field reports `unknown` for everything, which is a gap in the
+join rather than a finding about the library.
+
 ## `get_history`
 
 `get_queue` only ever sees what is still in-flight — once a download fails,

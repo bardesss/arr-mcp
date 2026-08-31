@@ -3,7 +3,7 @@ import type { MultiUserServiceConfig } from '../src/config/schema.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
-import { buildGetPlayback } from '../src/tools/getPlayback.ts';
+import { buildGetPlayback, summarize } from '../src/tools/getPlayback.ts';
 import { buildGetRequests } from '../src/tools/getRequests.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
@@ -149,6 +149,21 @@ describe('get_playback', () => {
         const { adapter, resolver } = jellyfin({ default_user: undefined });
         const err = await buildGetPlayback(adapter, resolver, { detail: 'full', limit: 50 }).catch(e => e as Error);
         expect(String(err)).toMatch(/no user was named/);
+    });
+
+    it('says no media server is configured rather than answering zero', async () => {
+        const result = await buildGetPlayback(undefined, undefined, { detail: 'standard', limit: 50 });
+
+        expect(result.total).toBe(0);
+        expect(result.degraded).toEqual([]);
+        expect(result.note).toMatch(/no media server is configured/i);
+    });
+
+    it('does not phrase an unconfigured stack as a count of what is playing', async () => {
+        const result = await buildGetPlayback(undefined, undefined, { detail: 'standard', limit: 50 });
+
+        expect(summarize('active', result)).toBe(result.note);
+        expect(summarize('active', result)).not.toMatch(/playing now/);
     });
 
     it('degrades rather than failing when Jellyfin drops mid-call', async () => {
