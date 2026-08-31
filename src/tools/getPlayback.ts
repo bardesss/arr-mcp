@@ -3,8 +3,7 @@ import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
-import type { JellyfinAdapter } from '../services/jellyfin.ts';
-import { NO_MEDIA_SERVER_NOTE, type PlaybackEntry } from '../services/types.ts';
+import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry } from '../services/types.ts';
 
 export type GetPlaybackResult = {
     items: PlaybackEntry[];
@@ -49,7 +48,7 @@ const project = (e: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
 };
 
 export async function buildGetPlayback(
-    adapter: JellyfinAdapter | undefined,
+    adapter: MediaServerAdapter | undefined,
     resolver: IdentityResolver | undefined,
     opts: { detail: DetailLevel; limit: number; offset?: number; user?: string; scope?: PlaybackScope }
 ): Promise<GetPlaybackResult> {
@@ -98,7 +97,8 @@ export async function buildGetPlayback(
  */
 export const summarize = (scope: PlaybackScope, result: GetPlaybackResult): string => {
     if (result.note !== undefined) return result.note;
-    if (result.degraded.length > 0) return 'Jellyfin could not be reached; no playback information available.';
+    if (result.degraded.length > 0)
+        return `${result.degraded.join(', ')} could not be reached; no playback information available.`;
     if (scope === 'next_up') return `${result.total} series with a next episode to watch.`;
     if (scope === 'history') return `${result.total} recently watched item(s).`;
     const playing = result.items.filter(i => i.kind === 'now_playing').length;
@@ -107,7 +107,7 @@ export const summarize = (scope: PlaybackScope, result: GetPlaybackResult): stri
 
 export function registerGetPlayback(
     server: McpServer,
-    adapter: JellyfinAdapter | undefined,
+    adapter: MediaServerAdapter | undefined,
     resolver: IdentityResolver | undefined
 ): void {
     server.registerTool(
@@ -116,7 +116,7 @@ export function registerGetPlayback(
             title: 'Playback activity',
             annotations: READ_ONLY,
             description:
-                'What a Jellyfin user is watching, has queued up next, or has already watched. Watch state exists only in Jellyfin — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.',
+                'What a media server user is watching, has queued up next, or has already watched. Watch state exists only in your media server (Jellyfin) — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.',
             outputSchema: PagedOutputSchema.extend({
                 note: z
                     .string()
