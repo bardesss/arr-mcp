@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../src/bootstrap.ts';
 import { loadConfig, validateConfigText } from '../src/config/load.ts';
 import { WriteAudit } from '../src/core/audit.ts';
@@ -604,6 +604,41 @@ describe('promotion', () => {
 
         const dashboard = await call('/ui', { headers: { cookie } });
         expect(dashboard.status).toBe(200);
+
+        close();
+    });
+
+    // Two `Runtime.start`s over one config dir leave the loser unreachable but
+    // still holding imdb.db and its own weekly refresh.
+    it('runs one promotion for two overlapping saves', async () => {
+        const hash = await hashPassword(PASSWORD);
+        const valid = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hash}\n  allowed_hosts: []\nservices: {}\n`;
+        const { call, close } = await booted(valid.replace('services: {}\n', 'services:\n  radarr:\n    url: bad\n'));
+
+        const login = await call('/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
+        });
+        const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+        const page = await (await call('/ui/repair', { headers: { cookie } })).text();
+        const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+
+        const save = () =>
+            call('/ui/repair', {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+                body: new URLSearchParams({ csrf, config: valid }).toString()
+            });
+
+        const starts = vi.spyOn(Runtime, 'start');
+        const [a, b] = await Promise.all([save(), save()]);
+        expect(a.status).toBe(302);
+        expect(b.status).toBe(302);
+        expect(starts).toHaveBeenCalledTimes(1);
+        starts.mockRestore();
+
+        expect((await call('/ui', { headers: { cookie } })).status).toBe(200);
 
         close();
     });

@@ -66,15 +66,26 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
         return buildApp({ runtime, audit, logs });
     };
 
-    const promote = async (): Promise<PromoteResult> => {
+    const doPromote = async (): Promise<PromoteResult> => {
         try {
             app = await startNormally();
             return { ok: true };
         } catch (err) {
+            // Cleared here only, so a corrected save can try again while a
+            // successful one stays done.
+            promoting = undefined;
             if (err instanceof ConfigInvalidError) return { ok: false, detail: err.detail };
+            logger.error({ err }, 'promoting to normal operation failed');
             throw err;
         }
     };
+
+    // A latch, not a lock: two overlapping saves — a double-clicked Save is
+    // enough — would otherwise each run `Runtime.start`, and the loser is
+    // unreachable but still holds a handle on imdb.db and its own weekly
+    // refresh downloading into the same file.
+    let promoting: Promise<PromoteResult> | undefined;
+    const promote = (): Promise<PromoteResult> => (promoting ??= doPromote());
 
     try {
         app = await startNormally();
