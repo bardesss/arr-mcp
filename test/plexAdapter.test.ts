@@ -177,4 +177,82 @@ describe('PlexAdapter', () => {
             expect(await adapter.getNextUp({ id: '1', name: 'Bartus' })).toEqual([]);
         });
     });
+
+    describe('library', () => {
+        const SECTIONS = { MediaContainer: { Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'show' }] } };
+        const page = (items: unknown[]) => ({ MediaContainer: { Metadata: items } });
+        const withPaging = (start: number, extra = '') => `?${extra}X-Plex-Container-Start=${start}&X-Plex-Container-Size=500`;
+
+        it('contributes items from both a movie section and a show section', async () => {
+            const { adapter } = plex({
+                '/library/sections': SECTIONS,
+                [`/library/sections/1/all${withPaging(0)}`]: page([{ ratingKey: 'm1', title: 'A Movie', type: 'movie' }]),
+                [`/library/sections/2/all${withPaging(0)}`]: page([{ ratingKey: 's1', title: 'A Show', type: 'show' }])
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items.map(i => i.kind).sort()).toEqual(['movie', 'series']);
+        });
+
+        it('maps a positive viewCount to watched, and no viewCount to unwatched', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
+                [`/library/sections/1/all${withPaging(0)}`]: page([
+                    { ratingKey: 'm1', title: 'Watched', viewCount: 3 },
+                    { ratingKey: 'm2', title: 'Unwatched' }
+                ])
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items.find(i => i.title.includes('Watched'))?.playback?.watched).toBe(true);
+            expect(items.find(i => i.title.includes('Unwatched'))?.playback?.watched).toBe(false);
+        });
+
+        it('carries external ids from Guid into IndexInput.ids', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
+                [`/library/sections/1/all${withPaging(0)}`]: page([
+                    { ratingKey: 'm1', title: 'A Movie', Guid: [{ id: 'tmdb://603' }, { id: 'imdb://tt0133093' }] }
+                ])
+            });
+            const [item] = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(item?.ids).toEqual({ tmdb: 603, imdb: 'tt0133093' });
+        });
+
+        it('reads a library longer than one page to the end', async () => {
+            const fullPage = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `m${i}`, title: `Movie ${i}` }));
+            const shortPage = Array.from({ length: 10 }, (_, i) => ({ ratingKey: `m${500 + i}`, title: `Movie ${500 + i}` }));
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
+                [`/library/sections/1/all${withPaging(0)}`]: page(fullPage),
+                [`/library/sections/1/all${withPaging(500)}`]: page(shortPage)
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items).toHaveLength(510);
+        });
+
+        it('aggregates per-season watch state onto the owning series, joined by external id', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
+                [`/library/sections/2/all${withPaging(0)}`]: page([
+                    { ratingKey: 's1', title: 'A Show', Guid: [{ id: 'tvdb://121361' }] }
+                ]),
+                [`/library/sections/2/all${withPaging(0, 'type=4&')}`]: page([
+                    { ratingKey: 'e1', grandparentRatingKey: 's1', parentIndex: 1, viewCount: 1 },
+                    { ratingKey: 'e2', grandparentRatingKey: 's1', parentIndex: 1, viewCount: 0 }
+                ])
+            });
+            const [series] = await adapter.listUserSeasons({ id: '1', name: 'Bartus' });
+            expect(series).toMatchObject({ ids: { tvdb: 121361 }, seasons: [{ season: 1, watched: 1 }] });
+        });
+
+        it('drops a series with no external id — it could never join', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
+                [`/library/sections/2/all${withPaging(0)}`]: page([{ ratingKey: 's1', title: 'No Ids' }]),
+                [`/library/sections/2/all${withPaging(0, 'type=4&')}`]: page([
+                    { ratingKey: 'e1', grandparentRatingKey: 's1', parentIndex: 1, viewCount: 1 }
+                ])
+            });
+            expect(await adapter.listUserSeasons({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+    });
 });

@@ -1,4 +1,5 @@
 import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import { plexToken } from '../core/auth.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -11,7 +12,9 @@ import {
     type PlaybackEntry,
     type ServiceAdapter,
     type ServiceUser,
-    type UserDirectoryCapable
+    type UserDirectoryCapable,
+    type UserLibraryCapable,
+    type UserSeasonsCapable
 } from './types.ts';
 
 /**
@@ -121,11 +124,28 @@ export function externalIds(item: RawPlexItem): { tmdb?: number; tvdb?: number; 
 
 type RawIdentity = { MediaContainer?: { version?: string } };
 type RawAccount = { id?: number; name?: string };
+type RawSection = { key?: string; type?: string };
+
+/** Plex library item types, for `?type=` on `/library/sections/{key}/all`. */
+const PLEX_TYPE_EPISODE = 4;
+
+/**
+ * `ServiceHttp` has no per-request header hook. Plex's documented paging is
+ * `X-Plex-Container-Start`/`X-Plex-Container-Size` **headers**, but those are
+ * passed here as query parameters instead — Plex accepts both forms, and a
+ * query parameter keeps paging a transport-agnostic adapter concern rather
+ * than growing a header hook every other service would also need. If a live
+ * server ignores the query form, that is when `ServiceHttp` grows one, for
+ * every service — not just this one.
+ */
+const PAGE_SIZE = 500;
 
 /** The server owner's fixed id in Plex's `/accounts` response. */
 const OWNER_ACCOUNT_ID = 1;
 
-export class PlexAdapter implements ServiceAdapter, UserDirectoryCapable, PlaybackCapable {
+export class PlexAdapter
+    implements ServiceAdapter, UserDirectoryCapable, PlaybackCapable, UserLibraryCapable, UserSeasonsCapable
+{
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
     readonly #http: ServiceHttp;
@@ -244,6 +264,125 @@ export class PlexAdapter implements ServiceAdapter, UserDirectoryCapable, Playba
                 ...(lastPlayed === undefined ? {} : { lastPlayed })
             };
         });
+    }
+
+    /**
+     * Reads one library section to the end. The tester's library is a few
+     * thousand items, so an unpaged read is a live risk, not a theoretical
+     * one — looping until a short page comes back is what stops one call
+     * pulling the whole thing at once.
+     */
+    async #paged(key: string, type?: number): Promise<RawPlexItem[]> {
+        const out: RawPlexItem[] = [];
+        for (let start = 0; ; start += PAGE_SIZE) {
+            const typeParam = type === undefined ? '' : `type=${type}&`;
+            const body = await this.#http.get<unknown>(
+                `/library/sections/${encodeURIComponent(key)}/all?${typeParam}X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`
+            );
+            const rows = unwrap<RawPlexItem>(body, 'Metadata');
+            out.push(...rows);
+            if (rows.length < PAGE_SIZE) return out;
+        }
+    }
+
+    async #sections(...types: string[]): Promise<(RawSection & { key: string })[]> {
+        const body = await this.#http.get<unknown>('/library/sections');
+        return unwrap<RawSection>(body, 'Directory').filter(
+            (s): s is RawSection & { key: string } => typeof s.key === 'string' && types.includes(s.type ?? '')
+        );
+    }
+
+    #toIndexItem(user: ServiceUser, item: RawPlexItem, kind: 'movie' | 'series'): IndexInput {
+        const lastPlayed = epochToIso(item.lastViewedAt);
+        return {
+            kind,
+            title: this.#fence('title', item.title ?? ''),
+            ...(item.year === undefined ? {} : { year: item.year }),
+            ...(item.Genre === undefined
+                ? {}
+                : {
+                      genres: item.Genre.map(g => g.tag)
+                          .filter((t): t is string => typeof t === 'string')
+                          .map(t => this.#fence('Genre', t))
+                  }),
+            ids: externalIds(item),
+            playback: {
+                user: user.name,
+                watched: (item.viewCount ?? 0) > 0,
+                ...(item.viewCount === undefined ? {} : { playCount: item.viewCount }),
+                ...(lastPlayed === undefined ? {} : { lastPlayed })
+            }
+        };
+    }
+
+    async listUserLibrary(user: ServiceUser): Promise<IndexInput[]> {
+        const sections = await this.#sections('movie', 'show');
+        const out: IndexInput[] = [];
+        for (const section of sections) {
+            const items = await this.#paged(section.key);
+            const kind = section.type === 'movie' ? ('movie' as const) : ('series' as const);
+            out.push(...items.map(item => this.#toIndexItem(user, item, kind)));
+        }
+        return out;
+    }
+
+    /**
+     * Per-season watch state for every series in a show section.
+     *
+     * A second, independent read from `listUserLibrary` — deliberately not
+     * shared, the same reasoning `jellyfin.ts` documents on its own
+     * `listUserSeasons`: independent failure is the point. Episodes come from
+     * `?type=4` on the same paged endpoint, standard Plex library-type
+     * filtering (1 movie, 2 show, 3 season, 4 episode), and carry
+     * `grandparentRatingKey` linking back to the series — never an external
+     * id of their own, so the join happens here rather than per-episode.
+     */
+    async listUserSeasons(_user: ServiceUser): Promise<IndexInput[]> {
+        const sections = await this.#sections('show');
+
+        const series: RawPlexItem[] = [];
+        const episodes: RawPlexItem[] = [];
+        for (const section of sections) {
+            series.push(...(await this.#paged(section.key)));
+            episodes.push(...(await this.#paged(section.key, PLEX_TYPE_EPISODE)));
+        }
+
+        const bySeries = new Map<string, Map<number, { watched: number; lastPlayed?: string }>>();
+        for (const ep of episodes) {
+            const seriesId = ep.grandparentRatingKey;
+            const season = ep.parentIndex;
+            if (seriesId === undefined || season === undefined) continue;
+
+            const seasons = bySeries.get(seriesId) ?? new Map<number, { watched: number; lastPlayed?: string }>();
+            bySeries.set(seriesId, seasons);
+
+            const row = seasons.get(season) ?? { watched: 0 };
+            if ((ep.viewCount ?? 0) > 0) row.watched += 1;
+            const played = epochToIso(ep.lastViewedAt);
+            if (played !== undefined && (row.lastPlayed === undefined || played > row.lastPlayed)) {
+                row.lastPlayed = played;
+            }
+            seasons.set(season, row);
+        }
+
+        return series
+            .filter((s): s is RawPlexItem & { ratingKey: string } => typeof s.ratingKey === 'string' && bySeries.has(s.ratingKey))
+            .map(s => ({
+                kind: 'series' as const,
+                title: this.#fence('title', s.title ?? ''),
+                ids: externalIds(s),
+                seasons: [...(bySeries.get(s.ratingKey) ?? new Map<number, { watched: number; lastPlayed?: string }>()).entries()]
+                    .map(([season, row]) => ({
+                        season,
+                        watched: row.watched,
+                        ...(row.lastPlayed === undefined ? {} : { lastPlayed: row.lastPlayed })
+                    }))
+                    .sort((a, b) => a.season - b.season)
+            }))
+            // No external id, no join — see the identical filter in
+            // jellyfin.ts's listUserSeasons for why this is dropped rather
+            // than emitted as a second, seasons-only copy of the title.
+            .filter(row => Object.keys(row.ids).length > 0);
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
