@@ -96,3 +96,91 @@ export function redact(node: unknown, secrets: string[], hosts: string[]): unkno
     }
     return node;
 }
+
+/** A plain JSON object — the shape every per-endpoint anonymiser in
+ *  capture-fixtures.ts works with. */
+export type Row = Record<string, unknown>;
+
+/** Keeps a field present and typed, but replaces a string value. Checks
+ *  `typeof`, not truthiness, so an empty string is replaced too — Plex's
+ *  `/accounts` can return rows with `name: ''`. */
+export function replaceIfString(value: unknown, replacement: string): unknown {
+    return typeof value === 'string' ? replacement : value;
+}
+
+type MetadataContainer = { MediaContainer?: { Metadata?: Row[] } };
+
+/**
+ * A Plex session row carries who is watching (`User.title`, a username, and
+ * `User.thumb`, whose URL can embed an account id) and where from
+ * (`Player.remotePublicAddress`, the viewer's public IP — outside what the
+ * private-IP regex in `redact()` reaches, since a public address is by
+ * definition not in one of the private ranges it matches). `User.id` is left
+ * alone: the adapter resolves the current session by matching on it.
+ */
+export function redactPlexSessions(body: unknown): unknown {
+    const container = (body as MetadataContainer).MediaContainer;
+    if (!Array.isArray(container?.Metadata)) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            Metadata: container.Metadata.map(m => {
+                const player = m.Player as Row | undefined;
+                const user = m.User as Row | undefined;
+                return {
+                    ...m,
+                    ...(player === undefined || !('remotePublicAddress' in player)
+                        ? {}
+                        : { Player: { ...player, remotePublicAddress: replaceIfString(player.remotePublicAddress, '203.0.113.10') } }),
+                    ...(user === undefined
+                        ? {}
+                        : {
+                              User: {
+                                  ...user,
+                                  ...('title' in user ? { title: replaceIfString(user.title, 'viewer') } : {}),
+                                  ...('thumb' in user ? { thumb: replaceIfString(user.thumb, '') } : {})
+                              }
+                          })
+                };
+            })
+        }
+    };
+}
+
+/**
+ * Resume position, watch/play counts, last-watched time and per-show
+ * episode progress — the Plex analogue of `neutraliseWatchState` in
+ * capture-fixtures.ts, for the shapes that carry it: `onDeck`, `history`,
+ * and any per-user library listing (`PlexAdapter#paged`, so `section-all`
+ * and `metadata-detail` too — Plex embeds the requesting account's view
+ * state in library rows, not only in the dedicated history endpoints).
+ *
+ * Unlike Jellyfin, the adapter reads all four fields directly
+ * (`isResume`, `#watched`, `get_watch_history`), so each is kept present and
+ * typed with a deterministic alternating value rather than stripped — a
+ * fixture where nothing is ever watched would stop exercising half the
+ * adapter's branches. `accountID` is left alone, same reason as `User.id`
+ * above: it is what history filtering matches on.
+ */
+export function neutralisePlexWatchState(body: unknown): unknown {
+    const container = (body as MetadataContainer).MediaContainer;
+    if (!Array.isArray(container?.Metadata)) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            Metadata: container.Metadata.map((item, i) => {
+                const watched = i % 2 === 0;
+                const leafCount = typeof item.leafCount === 'number' ? item.leafCount : 1;
+                return {
+                    ...item,
+                    ...('viewOffset' in item ? { viewOffset: watched ? 0 : 120_000 } : {}),
+                    ...('viewCount' in item ? { viewCount: watched ? 1 : 0 } : {}),
+                    ...('lastViewedAt' in item ? { lastViewedAt: 1_700_000_000 + i } : {}),
+                    ...('viewedLeafCount' in item ? { viewedLeafCount: watched ? leafCount : 0 } : {})
+                };
+            })
+        }
+    };
+}

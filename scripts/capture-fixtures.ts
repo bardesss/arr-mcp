@@ -24,7 +24,16 @@ import {
     type AuthStrategy
 } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
-import { hostsOf, redact, redactHosts, secretsOf } from './lib/redact.ts';
+import {
+    hostsOf,
+    neutralisePlexWatchState,
+    redact,
+    redactHosts,
+    redactPlexSessions,
+    replaceIfString,
+    secretsOf,
+    type Row
+} from './lib/redact.ts';
 
 /**
  * `path` may be a function when the endpoint needs an id from something
@@ -105,8 +114,6 @@ const richestSeriesId = (body: unknown): string | undefined => {
     return best?.Id as string | undefined;
 };
 
-type Row = Record<string, unknown>;
-
 /**
  * Identity scrubbing, which is a different job from secret redaction above.
  *
@@ -123,10 +130,6 @@ const anonymousUrl = 'https://indexer.example.test/';
 
 /** Replaces any absolute URL, leaving surrounding text intact. */
 const scrubUrls = (value: string): string => value.replace(/https?:\/\/[^\s"',\]]+/gi, anonymousUrl);
-
-/** Keeps a field present and typed, but replaces a string value. */
-const replaceIfString = (value: unknown, replacement: string): unknown =>
-    typeof value === 'string' ? replacement : value;
 
 /**
  * Watch history is the one genuinely personal thing in the fixture set — the
@@ -269,28 +272,6 @@ function anonymisePlexAccounts(body: unknown): unknown {
         MediaContainer: {
             ...container,
             Account: container.Account.map((a, i) => ({ ...a, name: replaceIfString(a.name, `Account ${i + 1}`) }))
-        }
-    };
-}
-
-/**
- * `Player.remotePublicAddress` on a session row is the viewer's public IP —
- * identity, not a secret, and outside what the private-IP regex in
- * `redact()` reaches, since a public address is by definition not in one of
- * the private ranges it matches.
- */
-function redactPlexSessions(body: unknown): unknown {
-    const container = (body as { MediaContainer?: { Metadata?: Row[] } }).MediaContainer;
-    if (!Array.isArray(container?.Metadata)) return body;
-    return {
-        ...(body as Row),
-        MediaContainer: {
-            ...container,
-            Metadata: container.Metadata.map(m => {
-                const player = m.Player as Row | undefined;
-                if (player === undefined || !('remotePublicAddress' in player)) return m;
-                return { ...m, Player: { ...player, remotePublicAddress: replaceIfString(player.remotePublicAddress, '203.0.113.10') } };
-            })
         }
     };
 }
@@ -497,15 +478,24 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // The tester's own account name — anonymised like Jellyfin's `users`.
         { name: 'accounts', path: '/accounts', anonymise: anonymisePlexAccounts },
         { name: 'sections', path: '/library/sections' },
-        // Carries Player.remotePublicAddress — the viewer's public IP.
+        // Carries Player.remotePublicAddress (the viewer's public IP) and
+        // User.title/User.thumb (a username and an avatar URL that can embed
+        // an account id).
         { name: 'sessions', path: '/status/sessions', anonymise: redactPlexSessions },
-        { name: 'ondeck', path: '/library/onDeck' },
-        { name: 'history', path: '/status/sessions/history/all' },
+        // The tester's resume list — his most recent watch state, per item.
+        { name: 'ondeck', path: '/library/onDeck', anonymise: neutralisePlexWatchState },
+        // His complete watch history.
+        { name: 'history', path: '/status/sessions/history/all', anonymise: neutralisePlexWatchState },
         { name: 'activities', path: '/activities' },
-        { name: 'search', path: '/search?query=a' },
+        // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
+        // library response to the requesting account, so a search result can
+        // carry that account's viewCount/lastViewedAt same as any other listing.
+        { name: 'search', path: '/search?query=a', anonymise: neutralisePlexWatchState },
         // A short page: the tester's library may hold thousands of items, and
         // the fixture only needs the shape. includeGuids=1 matches what
-        // PlexAdapter#paged actually sends (see src/services/plex.ts).
+        // PlexAdapter#paged actually sends (see src/services/plex.ts) — the
+        // same per-account listing that feeds `#toIndexItem`'s viewCount and
+        // lastViewedAt reads, so it carries the same watch state as history.
         {
             name: 'section-all',
             path: captured => {
@@ -513,14 +503,16 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                 return key === undefined
                     ? undefined
                     : `/library/sections/${key}/all?includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=5`;
-            }
+            },
+            anonymise: neutralisePlexWatchState
         },
         {
             name: 'metadata-detail',
             path: captured => {
                 const id = firstRatingKey(captured.get('section-all'));
                 return id === undefined ? undefined : `/library/metadata/${id}`;
-            }
+            },
+            anonymise: neutralisePlexWatchState
         }
     ]
 };

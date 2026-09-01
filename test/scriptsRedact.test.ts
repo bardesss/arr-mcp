@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
-import { hostsOf, redact, redactHosts, secretsOf } from '../scripts/lib/redact.ts';
+import {
+    hostsOf,
+    neutralisePlexWatchState,
+    redact,
+    redactHosts,
+    redactPlexSessions,
+    replaceIfString,
+    secretsOf
+} from '../scripts/lib/redact.ts';
 
 const TOKEN = 'a'.repeat(64);
 
@@ -150,5 +158,111 @@ describe('redact', () => {
             title: 'The Fellowship of the Ring',
             year: 2001
         });
+    });
+});
+
+/**
+ * `ondeck` (resume list) and `history` (complete watch history) were captured
+ * with no anonymiser at all before this fix — a stranger's viewing habits
+ * would have gone straight into a public repository. Both shapes are
+ * `MediaContainer.Metadata`, same as `PlexAdapter#paged` and `/status/sessions`.
+ */
+describe('neutralisePlexWatchState', () => {
+    const onDeck = (rows: Record<string, unknown>[]) => ({ MediaContainer: { size: rows.length, Metadata: rows } });
+
+    it('replaces viewOffset, viewCount and lastViewedAt rather than leaving the real values', () => {
+        const body = onDeck([{ ratingKey: '1', viewOffset: 842_193, viewCount: 4, lastViewedAt: 1_735_689_600 }]);
+        const [row] = (neutralisePlexWatchState(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.viewOffset).not.toBe(842_193);
+        expect(row?.viewCount).not.toBe(4);
+        expect(row?.lastViewedAt).not.toBe(1_735_689_600);
+    });
+
+    it('replaces viewedLeafCount, which is a per-account episode-progress counter', () => {
+        const body = onDeck([{ ratingKey: '1', viewedLeafCount: 7, leafCount: 10 }]);
+        const [row] = (neutralisePlexWatchState(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.viewedLeafCount).not.toBe(7);
+    });
+
+    it('keeps every neutralised key present with its original type, not stripped', () => {
+        const body = onDeck([{ ratingKey: '1', viewOffset: 1, viewCount: 1, lastViewedAt: 1, viewedLeafCount: 1 }]);
+        const [row] = (neutralisePlexWatchState(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(typeof row?.viewOffset).toBe('number');
+        expect(typeof row?.viewCount).toBe('number');
+        expect(typeof row?.lastViewedAt).toBe('number');
+        expect(typeof row?.viewedLeafCount).toBe('number');
+    });
+
+    it('leaves a key absent when the real row never had it, preserving shape', () => {
+        const body = onDeck([{ ratingKey: '1', title: 'A Film' }]);
+        const [row] = (neutralisePlexWatchState(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect('viewOffset' in (row as object)).toBe(false);
+        expect('lastViewedAt' in (row as object)).toBe(false);
+    });
+
+    it('leaves ratingKey, title and accountID untouched — the adapter filters history on accountID', () => {
+        const body = onDeck([{ ratingKey: '1', title: 'A Film', accountID: 7, viewCount: 1 }]);
+        const [row] = (neutralisePlexWatchState(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.ratingKey).toBe('1');
+        expect(row?.title).toBe('A Film');
+        expect(row?.accountID).toBe(7);
+    });
+
+    it('is a no-op on a body with no Metadata array, like /identity or /activities', () => {
+        const body = { MediaContainer: { version: '1.32.0' } };
+        expect(neutralisePlexWatchState(body)).toEqual(body);
+    });
+});
+
+describe('redactPlexSessions', () => {
+    const sessions = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('replaces User.title, a viewer username, alongside the IP it already redacted', () => {
+        const body = sessions([
+            { ratingKey: '1', User: { id: '7', title: 'realname99' }, Player: { remotePublicAddress: '81.4.2.10' } }
+        ]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const user = row?.User as Record<string, unknown>;
+        expect(user.title).not.toBe('realname99');
+        expect((row?.Player as Record<string, unknown>).remotePublicAddress).not.toBe('81.4.2.10');
+    });
+
+    it('replaces User.thumb, which can embed an account identifier in a Plex avatar URL', () => {
+        const body = sessions([{ ratingKey: '1', User: { id: '7', thumb: 'https://plex.tv/users/abc123/avatar' } }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.User as Record<string, unknown>).thumb).not.toBe('https://plex.tv/users/abc123/avatar');
+    });
+
+    it('leaves User.id untouched — the adapter resolves the current session by matching on it', () => {
+        const body = sessions([{ ratingKey: '1', User: { id: '7', title: 'realname99' } }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.User as Record<string, unknown>).id).toBe('7');
+    });
+
+    it('still redacts a row with only a Player, no User, as before', () => {
+        const body = sessions([{ ratingKey: '1', Player: { remotePublicAddress: '81.4.2.10' } }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.Player as Record<string, unknown>).remotePublicAddress).not.toBe('81.4.2.10');
+    });
+});
+
+/**
+ * The tester's live `/accounts` returned 103 accounts, 102 with `name: ''`.
+ * `replaceIfString` checks `typeof value === 'string'`, not truthiness, so an
+ * empty string is still replaced — an implementation that checked `a.name ?`
+ * instead would leave every one of those 102 blank and call it anonymised.
+ */
+describe('an anonymiser handling a blank name (regression for the /accounts edge case)', () => {
+    it('replaces an empty string the same as any other string value', () => {
+        expect(replaceIfString('', 'Account 1')).toBe('Account 1');
     });
 });
