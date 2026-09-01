@@ -325,65 +325,96 @@ export class PlexAdapter
             .map(item => ({ ...this.#commonPlayback(user, item), kind: 'next_up' as const }));
     }
 
+    /** How many server-wide history pages to scan hunting for this user's own
+     *  rows before giving up. History is unbounded and server-wide, so a page
+     *  cap keeps a busy, foreign-heavy server from being read to the end for
+     *  a user with little or no history of their own. See F4. */
+    static readonly #MAX_HISTORY_PAGES = 20;
+
     async getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]> {
+        // No accountID, no attribution — excluding is safer than guessing
+        // whose watch this was.
+        const isMine = (item: RawPlexItem): boolean => item.accountID !== undefined && String(item.accountID) === user.id;
+
         // Server-wide, not per-user — every account's rows come back
-        // together, so the filter below is load-bearing: without it, another
+        // together, so the filter above is load-bearing: without it, another
         // household member's viewing would be stamped with this user's name.
-        // An explicit size cap matches jellyfin.ts's `Limit=500` on the same
-        // read, rather than trusting an undocumented server page size.
-        const body = await this.#http.get<unknown>(`/status/sessions/history/all?X-Plex-Container-Size=${PAGE_SIZE}`);
-        return unwrap<RawPlexItem>(body, 'Metadata')
-            // No accountID, no attribution — excluding is safer than
-            // guessing whose watch this was.
-            .filter(item => item.accountID !== undefined && String(item.accountID) === user.id)
-            .map(item => {
-                const lastPlayed = epochToIso(item.lastViewedAt);
-                return {
-                    ...this.#commonPlayback(user, item),
-                    kind: 'watched' as const,
-                    ...(lastPlayed === undefined ? {} : { lastPlayed })
-                };
-            });
+        // A single unpaged page previously capped this at PAGE_SIZE
+        // *server-wide* rows before filtering, so a busy server's newest
+        // rows being mostly someone else's silently starved this user's
+        // history. Paging on, stopping once PAGE_SIZE of this user's own
+        // rows are found (or the server runs out), fixes that.
+        const rows = await this.#paged(
+            start => `/status/sessions/history/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`,
+            { maxPages: PlexAdapter.#MAX_HISTORY_PAGES, stopEarly: collected => collected.filter(isMine).length >= PAGE_SIZE }
+        );
+
+        return rows.filter(isMine).map(item => {
+            const lastPlayed = epochToIso(item.lastViewedAt);
+            return {
+                ...this.#commonPlayback(user, item),
+                kind: 'watched' as const,
+                ...(lastPlayed === undefined ? {} : { lastPlayed })
+            };
+        });
     }
 
     /**
-     * Reads one library section to the end. The tester's library is a few
-     * thousand items, so an unpaged read is a live risk, not a theoretical
-     * one — looping until a short page comes back is what stops one call
-     * pulling the whole thing at once.
+     * Pages a Plex `X-Plex-Container-Start`/`Size` listing to the end, or
+     * until `stopEarly` says enough has already been collected.
+     *
+     * The tester's library is a few thousand items, so an unpaged read is a
+     * live risk, not a theoretical one — looping until a short page comes
+     * back is what stops one call pulling the whole thing at once.
      *
      * The query-parameter paging form is a guess (see `PAGE_SIZE`'s comment);
      * if the server ignores it, every page is identical and `rows.length <
      * PAGE_SIZE` never fires. Rather than spin until timeout or OOM, a
      * repeated first `ratingKey` across pages is treated as proof paging did
-     * not advance and thrown as a diagnosis. `MAX_PAGES` is a backstop for a
-     * server that varies its non-paged answer some other way.
+     * not advance and thrown as a diagnosis.
+     *
+     * `maxPages` is a backstop, but the two callers want different things
+     * from hitting it: a library section genuinely should never be that
+     * long, so exceeding it is a diagnosis. `getWatchHistory` bounds a
+     * server-wide, potentially foreign-heavy read on purpose — passing
+     * `stopEarly` there means the cap is an expected, honest stop rather
+     * than a failure, so it returns what was found instead of throwing.
      */
-    async #paged(key: string, type?: number): Promise<RawPlexItem[]> {
-        const MAX_PAGES = 1000;
+    async #paged(
+        request: (start: number) => string,
+        opts: { maxPages?: number; stopEarly?: (collected: readonly RawPlexItem[]) => boolean } = {}
+    ): Promise<RawPlexItem[]> {
+        const maxPages = opts.maxPages ?? 1000;
         const out: RawPlexItem[] = [];
         let previousFirstKey: string | undefined;
         for (let start = 0; ; start += PAGE_SIZE) {
-            if (start / PAGE_SIZE >= MAX_PAGES) {
-                throw new ServiceError('UpstreamError', this.id, `library section ${key} did not finish paging after ${MAX_PAGES} pages`, {
+            if (start / PAGE_SIZE >= maxPages) {
+                if (opts.stopEarly !== undefined) return out;
+                throw new ServiceError('UpstreamError', this.id, `did not finish paging after ${maxPages} pages`, {
                     remedy: 'This is a backstop, not an expected outcome — check whether the section genuinely holds that many items.'
                 });
             }
-            const typeParam = type === undefined ? '' : `type=${type}&`;
-            const body = await this.#http.get<unknown>(
-                `/library/sections/${encodeURIComponent(key)}/all?${typeParam}includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`
-            );
+            const body = await this.#http.get<unknown>(request(start));
             const rows = unwrap<RawPlexItem>(body, 'Metadata');
             const firstKey = rows[0]?.ratingKey;
             if (start > 0 && firstKey !== undefined && firstKey === previousFirstKey) {
-                throw new ServiceError('UpstreamError', this.id, `library section ${key} did not advance past start=0 — the same item led every page`, {
+                throw new ServiceError('UpstreamError', this.id, 'did not advance past start=0 — the same item led every page', {
                     remedy: 'Plex appears to be ignoring X-Plex-Container-Start/Size as query parameters. It documents these as request headers instead, which ServiceHttp does not yet send.'
                 });
             }
             previousFirstKey = firstKey;
             out.push(...rows);
             if (rows.length < PAGE_SIZE) return out;
+            if (opts.stopEarly?.(out) === true) return out;
         }
+    }
+
+    #pagedSection(key: string, type?: number): Promise<RawPlexItem[]> {
+        const typeParam = type === undefined ? '' : `type=${type}&`;
+        return this.#paged(
+            start =>
+                `/library/sections/${encodeURIComponent(key)}/all?${typeParam}includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`
+        );
     }
 
     /** No `types` means every section, regardless of its type — what
@@ -438,7 +469,7 @@ export class PlexAdapter
         const sections = await this.#sections('movie', 'show');
         const out: IndexInput[] = [];
         for (const section of sections) {
-            const items = await this.#paged(section.key);
+            const items = await this.#pagedSection(section.key);
             const kind = section.type === 'movie' ? ('movie' as const) : ('series' as const);
             out.push(...items.map(item => this.#toIndexItem(user, item, kind)));
         }
@@ -462,8 +493,8 @@ export class PlexAdapter
         const series: RawPlexItem[] = [];
         const episodes: RawPlexItem[] = [];
         for (const section of sections) {
-            series.push(...(await this.#paged(section.key)));
-            episodes.push(...(await this.#paged(section.key, PLEX_TYPE_EPISODE)));
+            series.push(...(await this.#pagedSection(section.key)));
+            episodes.push(...(await this.#pagedSection(section.key, PLEX_TYPE_EPISODE)));
         }
 
         const bySeries = new Map<string, Map<number, { watched: number; lastPlayed?: string }>>();

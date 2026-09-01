@@ -251,6 +251,51 @@ describe('PlexAdapter', () => {
             expect(entries.map(e => e.itemId)).toEqual(['h1']);
         });
 
+        it('pages past a full first page of other accounts to find this users rows on a later page', async () => {
+            // The old code capped at one page of *server-wide* history before
+            // filtering, so a busy server's newest 500 rows being mostly
+            // someone else's silently starved this user's history. See F4.
+            const foreign = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `g${i}`, title: 'Guest', accountID: 2 }));
+            const mine = [{ ratingKey: 'h1', title: 'Mine', accountID: 1 }];
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                if (url.pathname !== '/status/sessions/history/all') return jsonResponse({ message: 'not found' }, 404);
+                // No explicit start (today's code) must read as the first
+                // page, same as an explicit start=0 — otherwise a call that
+                // never pages at all would satisfy this test by accident.
+                const start = url.searchParams.get('X-Plex-Container-Start') ?? '0';
+                return jsonResponse({ MediaContainer: { Metadata: start === '0' ? foreign : mine } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            const entries = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entries.map(e => e.itemId)).toEqual(['h1']);
+        });
+
+        it('gives up after a bounded scan of a huge foreign-heavy history rather than reading it all', async () => {
+            // A server with years of other households' history must not turn
+            // one call into thousands of requests. Hitting the bound returns
+            // whatever of this user's rows were found — honest, not silent —
+            // rather than throwing (this is Plex genuinely paging, not
+            // ignoring the pagination window). See F4.
+            let calls = 0;
+            const fetchImpl = (async (input: string | URL | Request) => {
+                calls += 1;
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const start = Number(url.searchParams.get('X-Plex-Container-Start') ?? '0');
+                const page = start / 500;
+                const foreign = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `g${page}_${i}`, accountID: 2 }));
+                return jsonResponse({ MediaContainer: { Metadata: foreign } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            const entries = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+
+            expect(entries).toEqual([]);
+            expect(calls).toBeGreaterThan(1);
+            expect(calls).toBeLessThan(100);
+        });
+
         it('matches a numeric accountID against the string user id', async () => {
             const history = { MediaContainer: { Metadata: [{ ratingKey: 'h1', title: 'Mine', accountID: 1 }] } };
             const { adapter } = plex({ '/status/sessions/history/all': history });
