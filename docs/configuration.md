@@ -198,6 +198,10 @@ On Jellyfin and Seerr, one admin-scoped API key can answer for anybody, so
 also whether `respond_to_request` and `delete_request` may act on a request
 somebody else made. It defaults to `false`.
 
+Plex has no equivalent: a Plex token is scoped to one account, so there is no
+second user to permit. `services.plex.allow_other_users: true` is refused at
+config load rather than accepted and ignored.
+
 ### Editing `config.yaml` by hand
 
 Supported, and the comments you write in it are preserved when the config UI

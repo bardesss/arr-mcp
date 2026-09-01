@@ -220,6 +220,27 @@ describe('plex', () => {
         expect(run).toThrow(/plex/);
     });
 
+    it('refuses allow_other_users: true on plex — a token is scoped to one account', () => {
+        // Unlike Jellyfin/Seerr's admin-scoped keys, a Plex X-Plex-Token names
+        // exactly one account: there is no second user to permit, and the
+        // adapter never reads this flag, so accepting it here would admit a
+        // shape the code then silently ignores. See F7.
+        const run = () =>
+            ConfigSchema.parse({
+                auth: AUTH2,
+                services: { plex: { ...media('http://192.0.2.10:32400'), allow_other_users: true } }
+            });
+        expect(run).toThrow(/allow_other_users/);
+    });
+
+    it('still accepts allow_other_users: false on plex, which is the default', () => {
+        const c = ConfigSchema.parse({
+            auth: AUTH2,
+            services: { plex: { ...media('http://192.0.2.10:32400'), allow_other_users: false } }
+        });
+        expect(c.services.plex?.allow_other_users).toBe(false);
+    });
+
     it('refuses plex as a list, like every other single-instance service', () => {
         expect(() =>
             ConfigSchema.parse({

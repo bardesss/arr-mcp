@@ -265,7 +265,15 @@ live server.
 single Plex account, so every Plex row here is that account's — reading anyone
 else's watch state would mean going through plex.tv, which this adapter's
 design refuses. Jellyfin's `allow_other_users` has no Plex equivalent, for the
-same reason.
+same reason — `services.plex.allow_other_users: true` is refused at config
+load.
+
+**Known limitation:** `listUsers` reports whichever account `/accounts` names
+as id `1`, on the assumption that a locally-issued token belongs to the server
+owner. A token that instead belongs to a managed user would be mislabelled and
+filtered as the owner. This has not been verified against a managed-user
+token; if you run one, a config UI issue with what `/accounts` actually
+returns for it would help.
 
 `set_watched`, below, remains Jellyfin-only: the Plex adapter is read-only.
 

@@ -203,13 +203,31 @@ const ServicesSchema = z
          * the *same* service. `jellyfin` and `plex` are distinct, individually valid
          * keys and nothing else would object to both.
          */
-        if (services.jellyfin === undefined || services.plex === undefined) return;
-        ctx.addIssue({
-            code: 'custom',
-            message:
-                'jellyfin and plex cannot both be configured — arr-mcp joins Radarr and Sonarr against exactly one media server. Remove whichever you are not using.',
-            path: ['plex']
-        });
+        if (services.jellyfin !== undefined && services.plex !== undefined) {
+            ctx.addIssue({
+                code: 'custom',
+                message:
+                    'jellyfin and plex cannot both be configured — arr-mcp joins Radarr and Sonarr against exactly one media server. Remove whichever you are not using.',
+                path: ['plex']
+            });
+        }
+
+        /**
+         * Jellyfin and Seerr issue one admin-scoped key that can answer for
+         * anybody, which is what `allow_other_users` governs. A Plex
+         * `X-Plex-Token` is scoped to a single account — `PlexAdapter` never
+         * reads this flag and always reports account 1 as the only user — so
+         * admitting `true` here would accept a shape the adapter then quietly
+         * ignores. Refused, the same call the rest of this schema makes.
+         */
+        if (services.plex?.allow_other_users === true) {
+            ctx.addIssue({
+                code: 'custom',
+                message:
+                    'services.plex.allow_other_users cannot be true — a Plex token is scoped to one account, so there is no second user to permit.',
+                path: ['plex', 'allow_other_users']
+            });
+        }
     })
     .default({});
 
