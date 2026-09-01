@@ -489,7 +489,9 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
         // library response to the requesting account, so a search result can
         // carry that account's viewCount/lastViewedAt same as any other listing.
-        { name: 'search', path: '/search?query=a', anonymise: neutralisePlexWatchState },
+        // includeGuids=1 matches what PlexAdapter#search actually sends —
+        // without it Plex returns Guid-less rows. See F3.
+        { name: 'search', path: '/search?query=a&includeGuids=1', anonymise: neutralisePlexWatchState },
         // A short page: the tester's library may hold thousands of items, and
         // the fixture only needs the shape. includeGuids=1 matches what
         // PlexAdapter#paged actually sends (see src/services/plex.ts) — the

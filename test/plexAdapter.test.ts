@@ -412,6 +412,17 @@ describe('PlexAdapter', () => {
             expect(await adapter.search('fight club', 'indexers')).toEqual([]);
         });
 
+        it('sends includeGuids=1 on /search — without it Plex returns zero Guid children', async () => {
+            // Verified live: the identical query returned 0 Guid children
+            // without this param and 55 with it. The paged section read
+            // already sends it; /search did not, so anything resolved
+            // through search could never join to Radarr/Sonarr. See F3.
+            const fetchImpl = vi.fn(serving({ '/search?query=one&includeGuids=1': { MediaContainer: { Metadata: [] } } }));
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await adapter.search('one', 'library');
+            expect(fetchImpl).toHaveBeenCalledWith(expect.stringContaining('includeGuids=1'), expect.anything());
+        });
+
         it('maps a library search hit with its id, year and external ids', async () => {
             const results = {
                 MediaContainer: {
@@ -421,7 +432,7 @@ describe('PlexAdapter', () => {
                     ]
                 }
             };
-            const { adapter } = plex({ '/search?query=matrix': results });
+            const { adapter } = plex({ '/search?query=matrix&includeGuids=1': results });
             const hits = await adapter.search('matrix', 'library');
             expect(hits).toEqual([
                 { service: 'plex', source: 'library', kind: 'movie', id: '603', title: expect.stringContaining('The Matrix'), year: 1999, ids: { tmdb: 603 } }

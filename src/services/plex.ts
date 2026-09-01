@@ -507,7 +507,10 @@ export class PlexAdapter
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'library') return [];
 
-        const body = await this.#http.get<unknown>(`/search?query=${encodeURIComponent(query)}`);
+        // Without includeGuids=1, Plex returns Guid-less rows and this join
+        // could never match Radarr/Sonarr — verified live: 0 Guid children
+        // without it, 55 with it, on the identical query. See F3.
+        const body = await this.#http.get<unknown>(`/search?query=${encodeURIComponent(query)}&includeGuids=1`);
         return unwrap<RawPlexItem>(body, 'Metadata')
             .filter(
                 (i): i is RawPlexItem & { ratingKey: string } =>
