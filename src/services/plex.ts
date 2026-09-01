@@ -45,6 +45,11 @@ export type RawPlexItem = {
     viewOffset?: number;
     viewCount?: number;
     lastViewedAt?: number;
+    /** `/status/sessions/history/all` only — documented and widely observed
+     *  as the field history rows actually carry, unlike `lastViewedAt`.
+     *  Unconfirmed against a live server pending the tester; read alongside
+     *  `lastViewedAt` rather than betting on one. */
+    viewedAt?: number;
     addedAt?: number;
     Genre?: { tag?: string }[];
     Media?: { Part?: { file?: string; size?: number }[] }[];
@@ -144,12 +149,23 @@ type RawSection = {
      *  this comes back as a boolean, a number, or a string depending on the
      *  server — never assume just one. */
     refreshing?: boolean | number | string;
-    /** Epoch seconds this section last finished scanning. */
-    scannedAt?: number;
+    /** Epoch seconds this section last finished scanning. XML-derived JSON,
+     *  same instability as `refreshing` — a string here must not silently
+     *  drop out of `lastCompleted`. */
+    scannedAt?: number | boolean | string;
 };
 
 /** `refreshing` off XML-derived JSON: `true`, `1` and `"1"` all mean yes. */
 const isRefreshing = (value: RawSection['refreshing']): boolean => value === true || value === 1 || value === '1';
+
+/** `scannedAt` off XML-derived JSON: a numeric string counts, same as
+ *  `refreshing` above. A boolean has no sensible epoch reading, so it is
+ *  treated as absent rather than guessed at. */
+const scannedAtSeconds = (value: RawSection['scannedAt']): number | undefined => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+    return undefined;
+};
 
 /** Plex library item types, for `?type=` on `/library/sections/{key}/all`. */
 const PLEX_TYPE_EPISODE = 4;
@@ -344,13 +360,20 @@ export class PlexAdapter
         // rows being mostly someone else's silently starved this user's
         // history. Paging on, stopping once PAGE_SIZE of this user's own
         // rows are found (or the server runs out), fixes that.
+        // sort=viewedAt:desc: newest first, matching what this method
+        // promises the caller. Plex's default history sort order, and the
+        // parameter spelling itself, are unverified against a live server —
+        // if wrong the cap below would truncate from the oldest end, the
+        // least useful prefix, without anything upstream ever finding out.
         const rows = await this.#paged(
-            start => `/status/sessions/history/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`,
+            start =>
+                `/status/sessions/history/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}&sort=viewedAt:desc`,
             { maxPages: PlexAdapter.#MAX_HISTORY_PAGES, stopEarly: collected => collected.filter(isMine).length >= PAGE_SIZE }
         );
 
         return rows.filter(isMine).map(item => {
-            const lastPlayed = epochToIso(item.lastViewedAt);
+            // viewedAt preferred: see the field comment on RawPlexItem.
+            const lastPlayed = epochToIso(item.viewedAt ?? item.lastViewedAt);
             return {
                 ...this.#commonPlayback(user, item),
                 kind: 'watched' as const,
@@ -389,7 +412,16 @@ export class PlexAdapter
         let previousFirstKey: string | undefined;
         for (let start = 0; ; start += PAGE_SIZE) {
             if (start / PAGE_SIZE >= maxPages) {
-                if (opts.stopEarly !== undefined) return out;
+                if (opts.stopEarly !== undefined) {
+                    // The honest-not-silent half of the contract: giving up
+                    // here can mean this user's history keeps going past what
+                    // was scanned, and nothing else in the return value says
+                    // so. `getPlayback`'s `truncated` field reflects the tool
+                    // limit, not this adapter-level scan cap, so a log line is
+                    // what's available without changing that output shape.
+                    logger.warn({ service: this.id, maxPages }, 'gave up scanning Plex history after the page cap; some matches may be missing');
+                    return out;
+                }
                 throw new ServiceError('UpstreamError', this.id, `did not finish paging after ${maxPages} pages`, {
                     remedy: 'This is a backstop, not an expected outcome — check whether the section genuinely holds that many items.'
                 });
@@ -617,7 +649,7 @@ export class PlexAdapter
     async getScanState(): Promise<ScanState> {
         const sections = await this.#sections();
         const running = sections.some(s => isRefreshing(s.refreshing));
-        const scannedAts = sections.map(s => s.scannedAt).filter((n): n is number => typeof n === 'number');
+        const scannedAts = sections.map(s => scannedAtSeconds(s.scannedAt)).filter((n): n is number => n !== undefined);
         const lastCompleted = scannedAts.length === 0 ? undefined : epochToIso(Math.max(...scannedAts));
         return { service: this.id, running, ...(lastCompleted === undefined ? {} : { lastCompleted }) };
     }

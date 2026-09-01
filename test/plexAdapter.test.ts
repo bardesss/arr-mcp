@@ -233,6 +233,63 @@ describe('PlexAdapter', () => {
             expect(entry?.lastPlayed).toBe(new Date(1_787_000_000_000).toISOString());
         });
 
+        it('reads viewedAt when a history row has no lastViewedAt', async () => {
+            const history = {
+                MediaContainer: { Metadata: [{ ratingKey: 'h1', title: 'A Film', viewedAt: 1_787_000_000, accountID: 1 }] }
+            };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const [entry] = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entry?.lastPlayed).toBe(new Date(1_787_000_000_000).toISOString());
+        });
+
+        it('prefers viewedAt over lastViewedAt when a row somehow carries both', async () => {
+            const history = {
+                MediaContainer: {
+                    Metadata: [{ ratingKey: 'h1', title: 'A Film', viewedAt: 1_787_000_000, lastViewedAt: 1_000_000, accountID: 1 }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const [entry] = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entry?.lastPlayed).toBe(new Date(1_787_000_000_000).toISOString());
+        });
+
+        it('sends a descending sort on the history read, so the page cap truncates from the newest end', async () => {
+            let sentSort: string | null = null;
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                sentSort = url.searchParams.get('sort');
+                return jsonResponse({ MediaContainer: { Metadata: [] } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(sentSort).toMatch(/desc/i);
+        });
+
+        it('warns when the history scan gives up at the page cap, rather than staying silent', async () => {
+            const warnSpy = vi.spyOn(logger, 'warn');
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const start = Number(url.searchParams.get('X-Plex-Container-Start') ?? '0');
+                const page = start / 500;
+                const foreign = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `g${page}_${i}`, accountID: 2 }));
+                return jsonResponse({ MediaContainer: { Metadata: foreign } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+
+            expect(warnSpy).toHaveBeenCalledWith(expect.objectContaining({ service: 'plex' }), expect.stringMatching(/page cap|maxPages|gave up/i));
+        });
+
+        it('does not warn when the history scan finishes before the page cap', async () => {
+            const warnSpy = vi.spyOn(logger, 'warn');
+            const history = { MediaContainer: { Metadata: [{ ratingKey: 'h1', accountID: 1 }] } };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(warnSpy).not.toHaveBeenCalled();
+        });
+
         it('filters server-wide history to the resolved user by accountID', async () => {
             // /status/sessions/history/all is server-wide — it carries every
             // account's rows, not just the token owner's. Attributing all of
@@ -574,6 +631,14 @@ describe('PlexAdapter', () => {
             const sections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0' }] } };
             const { adapter } = plex({ '/library/sections': sections });
             expect((await adapter.getScanState()).lastCompleted).toBeUndefined();
+        });
+
+        it('accepts scannedAt as a numeric string, same as refreshing', async () => {
+            const sections = {
+                MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0', scannedAt: '1700000000' }] }
+            };
+            const { adapter } = plex({ '/library/sections': sections });
+            expect((await adapter.getScanState()).lastCompleted).toBe(new Date(1_700_000_000_000).toISOString());
         });
     });
 });
