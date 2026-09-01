@@ -1493,13 +1493,13 @@ describe('logs and audit', () => {
     });
 
     it('filters by a source id, which is what a fan-out read logs under', async () => {
-        // `gather` logs per *source*, so `jellyfin:episodes` reaches the column
+        // `gather` logs per *source*, so `jellyfin:seasons` reaches the column
         // and the dropdown as well.
         seedLogs();
-        logs.write(JSON.stringify({ level: 40, time: Date.now(), msg: 'episodes-warn', service: 'jellyfin:episodes' }));
+        logs.write(JSON.stringify({ level: 40, time: Date.now(), msg: 'seasons-warn', service: 'jellyfin:seasons' }));
         await signIn();
 
-        expect(await streamRows('?stream=service&service=jellyfin%3Aepisodes')).toEqual(['episodes-warn']);
+        expect(await streamRows('?stream=service&service=jellyfin%3Aseasons')).toEqual(['seasons-warn']);
     });
 
     // Picking a service and then switching to Problems must not keep filtering.

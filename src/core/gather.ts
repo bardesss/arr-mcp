@@ -15,7 +15,7 @@ export type Gathered<T> = {
  *
  * A source id names either a whole service — `radarr`, or `radarr/4k` for a
  * second instance of one — or a single source *within* a service, written
- * `service:source`. `jellyfin:episodes` is the only one today: it contributes
+ * `service:source`. `jellyfin:seasons` is the only one today: it contributes
  * per-season watch state and nothing else. The colon is the discriminator; a
  * slash deliberately is not, because a second instance is still a whole
  * service whose absence is worth reporting.

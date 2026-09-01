@@ -97,7 +97,7 @@ export async function buildResolvedMediaDetails(loader: LibraryLoader, query: st
         // needs to know which ones.
         //
         // Source-scoped ids are excluded (`gather.ts`'s `servicesOnly`): a
-        // source like `jellyfin:episodes` intersects its own series list with
+        // source like `jellyfin:seasons` intersects its own series list with
         // this user's episodes, so it can only ever *add* `seasons` to items
         // another source already returned. It can never be why a title was not
         // found, and saying it might be is a hedge against nothing.

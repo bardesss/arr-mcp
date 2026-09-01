@@ -809,7 +809,7 @@ export type MediaServerAdapter = ServiceAdapter &
 /**
  * Separate from `UserLibraryCapable` so it can fail on its own. `LibraryLoader`
  * registers this as its own `gather` source, which is what lets an episode-read
- * failure degrade `jellyfin:episodes` while film watch state survives.
+ * failure degrade `jellyfin:seasons` while film watch state survives.
  */
 export interface UserSeasonsCapable {
     listUserSeasons(user: ServiceUser): Promise<IndexInput[]>;

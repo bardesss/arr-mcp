@@ -351,7 +351,7 @@ const jellyfinWithSeasons = (byUser: Record<string, IndexInput[]>, seasons: Inde
         }
     });
 
-describe('the jellyfin:episodes source', () => {
+describe('the jellyfin:seasons source', () => {
     it('adds seasons to the merged item', async () => {
         const loader = new LibraryLoader(
             [jellyfinWithSeasons({ Someone: [watched(550, 'Someone')] }, [seasonsOf(292157)])],
@@ -373,7 +373,7 @@ describe('the jellyfin:episodes source', () => {
         );
         const snapshot = await loader.load();
 
-        expect(snapshot.degraded).toContain('jellyfin:episodes');
+        expect(snapshot.degraded).toContain('jellyfin:seasons');
         expect(snapshot.degraded).not.toContain('jellyfin');
         expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('both');
         expect(snapshot.index.find({ tmdb: 550 })?.playback?.watched).toBe(true);
@@ -391,7 +391,7 @@ describe('the jellyfin:episodes source', () => {
         const snapshot = await loader.load();
         const seasons = snapshot.index.find({ tvdb: 292157 }, 'series')?.seasons;
 
-        expect(snapshot.degraded).toEqual(['jellyfin:episodes']);
+        expect(snapshot.degraded).toEqual(['jellyfin:seasons']);
         expect(seasons).toEqual([{ season: 1, onDisk: 8, aired: 8, total: 10 }]);
         expect(seasons?.[0]).not.toHaveProperty('watched');
         expect(seasons?.[0]).not.toHaveProperty('complete');
@@ -399,6 +399,20 @@ describe('the jellyfin:episodes source', () => {
 
     it('is not registered when the adapter cannot answer it', async () => {
         const loader = new LibraryLoader([radarr()], undefined);
-        expect((await loader.load()).counts).not.toHaveProperty('jellyfin:episodes');
+        expect((await loader.load()).counts).not.toHaveProperty('jellyfin:seasons');
+    });
+
+    it('does not count itself as an episode source — one row per series, not per episode', async () => {
+        // The old id, `jellyfin:episodes`, claimed an episode count while
+        // `listUserSeasons` returns one row per *series*. On the tester's
+        // library this reported 362 (series, minus one with no external id)
+        // where the real episode count was 23,492. See F5.
+        const loader = new LibraryLoader(
+            [jellyfinWithSeasons({ Someone: [] }, [seasonsOf(292157), seasonsOf(292158)])],
+            identity(someone)
+        );
+        const counts = (await loader.load()).counts;
+        expect(counts).not.toHaveProperty('jellyfin:episodes');
+        expect(counts['jellyfin:seasons']).toBe(2);
     });
 });

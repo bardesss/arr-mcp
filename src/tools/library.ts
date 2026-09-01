@@ -29,7 +29,7 @@ export type LibrarySnapshot = {
     index: LibraryIndex;
     degraded: string[];
     /**
-     * Keyed by **source**, not by service: `jellyfin:episodes` is its own
+     * Keyed by **source**, not by service: `jellyfin:seasons` is its own
      * source and reports its own count. Widened from `ServiceId` for that
      * reason; every existing key is unchanged.
      */
@@ -184,7 +184,11 @@ export class LibraryLoader {
         const seasons = this.#adapters.find(hasUserSeasons);
         if (seasons !== undefined) {
             sources.push({
-                id: `${seasons.id}:episodes`,
+                // Not `:episodes` — `listUserSeasons` returns one row per
+                // *series*, and the old name reported a series count as an
+                // episode count (362 vs. a real 23,492 on one tester's
+                // library). See F5.
+                id: `${seasons.id}:seasons`,
                 fetch:
                     user === undefined
                         ? () => Promise.reject(new Error(`no ${seasons.id} user resolved`))

@@ -210,8 +210,8 @@ thing on both forms, so neither answer leaves you guessing about it.
 
 ### When the media server's episode read fails
 
-`degraded` gains `{service}:episodes` — `jellyfin:episodes` on a Jellyfin
-stack, `plex:episodes` on a Plex one. Sonarr's half of `seasons` survives intact
+`degraded` gains `{service}:seasons` — `jellyfin:seasons` on a Jellyfin
+stack, `plex:seasons` on a Plex one. Sonarr's half of `seasons` survives intact
 (`onDisk`, `aired`, `total` and `monitored`); only the watch half (`watched`,
 `lastPlayed`) and `complete`, which needs both halves, go missing. Film watch
 state and `presence` are unaffected.

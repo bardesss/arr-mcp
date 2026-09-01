@@ -488,7 +488,7 @@ describe('buildChain — certainty', () => {
     });
 
     it('stays certain when only a source within a service failed, since no stage here reads it', () => {
-        // `jellyfin:episodes` is a source, not a service: it contributes
+        // `jellyfin:seasons` is a source, not a service: it contributes
         // per-season watch state and nothing else, and no stage of this chain
         // reads `seasons`. Counted as an outage it made this verdict — and
         // every other one resting on the same check — hedge against a hole in
@@ -497,12 +497,12 @@ describe('buildChain — certainty', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: undefined,
-            libraryDegraded: ['jellyfin:episodes'],
+            libraryDegraded: ['jellyfin:seasons'],
             degraded: []
         });
 
         expect(d.verdict).toMatchObject({ stage: 'resolve', certain: true });
-        expect(d.degraded).toEqual(['jellyfin:episodes']);
+        expect(d.degraded).toEqual(['jellyfin:seasons']);
     });
 
     it('still doubts itself when the whole Jellyfin library read failed alongside the episode source', () => {
@@ -511,7 +511,7 @@ describe('buildChain — certainty', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: undefined,
-            libraryDegraded: ['jellyfin', 'jellyfin:episodes'],
+            libraryDegraded: ['jellyfin', 'jellyfin:seasons'],
             degraded: []
         });
         expect(d.verdict.certain).toBe(false);

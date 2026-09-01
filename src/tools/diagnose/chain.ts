@@ -473,7 +473,7 @@ const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...
  * input to the `resolve` verdict's certainty, which is a claim about whether a
  * *service* could be asked.
  *
- * No stage of this chain reads `seasons`, so a failed `jellyfin:episodes` read
+ * No stage of this chain reads `seasons`, so a failed `jellyfin:seasons` read
  * says nothing about whether a title exists or where it is stuck. Counted, it
  * made every diagnose verdict on a stack with a broken episode endpoint report
  * `certain: false` — hedging eight stages against a hole in none of them. The
