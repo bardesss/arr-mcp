@@ -289,13 +289,22 @@ export class PlexAdapter
                 ...(item.Player?.title === undefined ? {} : { device: item.Player.title })
             }));
 
+        // A session's ratingKey routinely also shows up in onDeck (the
+        // resume list), and without this the same item is reported twice —
+        // once as now_playing, once as resume, doubling `total`. Blank ids
+        // (a row with no ratingKey) are excluded from the set rather than
+        // matched against each other, so two unrelated no-id rows are never
+        // wrongly collapsed into one. See F1.
+        const nowPlayingIds = new Set(nowPlaying.filter(e => e.itemId !== '').map(e => e.itemId));
+
         const resuming: PlaybackEntry[] = unwrap<RawPlexItem>(onDeck, 'Metadata')
             .filter(PlexAdapter.#isResuming)
             .map(item => ({
                 ...this.#commonPlayback(user, item),
                 kind: 'resume' as const,
                 ...this.#progress(msToSeconds(item.viewOffset), msToSeconds(item.duration))
-            }));
+            }))
+            .filter(entry => entry.itemId === '' || !nowPlayingIds.has(entry.itemId));
 
         return [...nowPlaying, ...resuming];
     }

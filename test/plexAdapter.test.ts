@@ -193,6 +193,37 @@ describe('PlexAdapter', () => {
             expect(await adapter.getPlayback({ id: '1', name: 'Bartus' })).toEqual([]);
         });
 
+        it('dedupes the currently playing item against its own onDeck resume row, keeping now_playing', async () => {
+            // Verified live: a session's ratingKey also shows up in onDeck, so
+            // an un-deduped read reports one item twice — once as now_playing,
+            // once as resume — and doubles it in `total`. See F1.
+            const onDeck = {
+                MediaContainer: {
+                    Metadata: [{ ratingKey: '1234', title: 'Pilot', viewOffset: 600_000, duration: 2_700_000 }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions': SESSIONS, '/library/onDeck': onDeck });
+            const entries = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+
+            expect(entries).toHaveLength(1);
+            expect(entries[0]).toMatchObject({ kind: 'now_playing', itemId: '1234', device: 'Living Room TV' });
+        });
+
+        it('does not collapse two onDeck/session rows that both carry a blank id', async () => {
+            // #commonPlayback falls back to '' when a row has no ratingKey.
+            // Comparing blanks against each other would wrongly treat two
+            // unrelated no-id rows as the same item and drop one. See F1.
+            const blankSession = {
+                MediaContainer: { Metadata: [{ title: 'No Key', viewOffset: 1000, User: { id: '1' } }] }
+            };
+            const blankOnDeck = { MediaContainer: { Metadata: [{ title: 'Also No Key', viewOffset: 2000 }] } };
+            const { adapter } = plex({ '/status/sessions': blankSession, '/library/onDeck': blankOnDeck });
+            const entries = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+
+            expect(entries).toHaveLength(2);
+            expect(entries.map(e => e.kind).sort()).toEqual(['now_playing', 'resume']);
+        });
+
         it('turns an epoch lastViewedAt into an ISO timestamp', async () => {
             const history = {
                 MediaContainer: { Metadata: [{ ratingKey: 'h1', title: 'A Film', lastViewedAt: 1_787_000_000, accountID: 1 }] }
