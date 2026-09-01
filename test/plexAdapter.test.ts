@@ -471,19 +471,53 @@ describe('PlexAdapter', () => {
             expect((await adapter.getMediaDetails('5')).kind).toBe('series');
         });
 
-        it('reports a scan as running when /activities lists a library-shaped activity', async () => {
-            const { adapter } = plex({ '/activities': { MediaContainer: { Activity: [{ type: 'library.update.section' }] } } });
+        // `/activities` was dropped for scan state: on a live server it
+        // permanently carried unrelated `provider.subscription.refresh`
+        // activities that also matched a `/library|refresh/i` test, so
+        // `running` was true forever. `/library/sections`' own `refreshing`
+        // flag, already fetched for every library read, does not have that
+        // problem. See F2.
+        it('reports a scan as running when a section carries refreshing: "1"', async () => {
+            const sections = {
+                MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0' }, { key: '2', type: 'movie', refreshing: '1' }] }
+            };
+            const { adapter } = plex({ '/library/sections': sections });
             expect((await adapter.getScanState()).running).toBe(true);
         });
 
-        it('reports no scan running when /activities is empty', async () => {
-            const { adapter } = plex({ '/activities': { MediaContainer: { Activity: [] } } });
+        it('reports no scan running when every section reads refreshing: "0"', async () => {
+            const sections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0' }] } };
+            const { adapter } = plex({ '/library/sections': sections });
             expect((await adapter.getScanState()).running).toBe(false);
         });
 
-        it('does not report a running scan for an unrelated activity', async () => {
-            const { adapter } = plex({ '/activities': { MediaContainer: { Activity: [{ type: 'media.generate.bif' }] } } });
-            expect((await adapter.getScanState()).running).toBe(false);
+        it('accepts refreshing as a boolean or a number, not just the string Plex\'s XML-derived JSON usually sends', async () => {
+            const boolSections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: true }] } };
+            const { adapter: boolAdapter } = plex({ '/library/sections': boolSections });
+            expect((await boolAdapter.getScanState()).running).toBe(true);
+
+            const numSections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: 1 }] } };
+            const { adapter: numAdapter } = plex({ '/library/sections': numSections });
+            expect((await numAdapter.getScanState()).running).toBe(true);
+        });
+
+        it('reports lastCompleted as the most recent scannedAt across sections', async () => {
+            const sections = {
+                MediaContainer: {
+                    Directory: [
+                        { key: '1', type: 'movie', refreshing: '0', scannedAt: 1_700_000_000 },
+                        { key: '2', type: 'show', refreshing: '0', scannedAt: 1_800_000_000 }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/library/sections': sections });
+            expect((await adapter.getScanState()).lastCompleted).toBe(new Date(1_800_000_000_000).toISOString());
+        });
+
+        it('omits lastCompleted when no section reports a scannedAt', async () => {
+            const sections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0' }] } };
+            const { adapter } = plex({ '/library/sections': sections });
+            expect((await adapter.getScanState()).lastCompleted).toBeUndefined();
         });
     });
 });

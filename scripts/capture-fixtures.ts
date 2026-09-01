@@ -486,7 +486,6 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'ondeck', path: '/library/onDeck', anonymise: neutralisePlexWatchState },
         // His complete watch history.
         { name: 'history', path: '/status/sessions/history/all', anonymise: neutralisePlexWatchState },
-        { name: 'activities', path: '/activities' },
         // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
         // library response to the requesting account, so a search result can
         // carry that account's viewCount/lastViewedAt same as any other listing.

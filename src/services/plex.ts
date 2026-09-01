@@ -137,7 +137,19 @@ export function externalIds(item: RawPlexItem): { tmdb?: number; tvdb?: number; 
 
 type RawIdentity = { MediaContainer?: { version?: string } };
 type RawAccount = { id?: number; name?: string };
-type RawSection = { key?: string; type?: string };
+type RawSection = {
+    key?: string;
+    type?: string;
+    /** Whether this section is being scanned right now. XML-derived JSON, so
+     *  this comes back as a boolean, a number, or a string depending on the
+     *  server — never assume just one. */
+    refreshing?: boolean | number | string;
+    /** Epoch seconds this section last finished scanning. */
+    scannedAt?: number;
+};
+
+/** `refreshing` off XML-derived JSON: `true`, `1` and `"1"` all mean yes. */
+const isRefreshing = (value: RawSection['refreshing']): boolean => value === true || value === 1 || value === '1';
 
 /** Plex library item types, for `?type=` on `/library/sections/{key}/all`. */
 const PLEX_TYPE_EPISODE = 4;
@@ -165,9 +177,6 @@ export class PlexAdapter
         UserSeasonsCapable,
         SearchCapable,
         MediaDetailCapable,
-        // `/activities` reporting scans is unverified (question 4 for the
-        // tester) — drop this from the `implements` clause, along with
-        // `getScanState` below, if a live server does not report scans there.
         ScanStateCapable
 {
     readonly type: ServiceId = 'plex';
@@ -377,10 +386,13 @@ export class PlexAdapter
         }
     }
 
+    /** No `types` means every section, regardless of its type — what
+     *  `getScanState` wants, since a scan can hit any of them. */
     async #sections(...types: string[]): Promise<(RawSection & { key: string })[]> {
         const body = await this.#http.get<unknown>('/library/sections');
         return unwrap<RawSection>(body, 'Directory').filter(
-            (s): s is RawSection & { key: string } => typeof s.key === 'string' && types.includes(s.type ?? '')
+            (s): s is RawSection & { key: string } =>
+                typeof s.key === 'string' && (types.length === 0 || types.includes(s.type ?? ''))
         );
     }
 
@@ -556,26 +568,24 @@ export class PlexAdapter
     }
 
     /**
-     * `/activities` is Plex's documented endpoint for in-progress background
-     * tasks, unverified against a live server — question 4 for the tester.
-     * `diagnose`'s scan stage is a blocking verdict ("a scan is running,
-     * check back later"), so over-reporting on an unrelated activity — a
-     * thumbnail generation, a metadata refresh — stalls the caller with a
-     * wrong answer; matching on `type` rather than mere presence is what
-     * keeps that failure mode rare instead of routine.
+     * `/activities` was tried first and dropped: verified live, it carries
+     * two `provider.subscription.refresh` activities permanently, which also
+     * matched a `library|refresh` test, so `running` was true forever — see
+     * F2 in the fix report. Each `/library/sections` row's own `refreshing`
+     * flips true only for the section actually being scanned, confirmed
+     * against a real scan, and costs no extra call since `#sections()` is
+     * already fetched for every library read.
      *
-     * The exact `type` vocabulary for a library scan is itself unverified —
-     * `library` and `refresh` are a guess at the two words most likely to
-     * appear in it, checked case-insensitively. Drop this method, and
-     * `ScanStateCapable` from the `implements` clause above, if a live
-     * server does not report scans here at all — `diagnose`'s scan stage
-     * already handles `scanCapable: false` honestly.
+     * `scannedAt` gives `lastCompleted` for free from the same read — the
+     * most recent one across sections, since a whole-server "last scan" is
+     * whichever section finished most recently.
      */
     async getScanState(): Promise<ScanState> {
-        const body = await this.#http.get<unknown>('/activities');
-        const activities = unwrap<{ type?: string }>(body, 'Activity');
-        const running = activities.some(a => /library|refresh/i.test(a.type ?? ''));
-        return { service: this.id, running };
+        const sections = await this.#sections();
+        const running = sections.some(s => isRefreshing(s.refreshing));
+        const scannedAts = sections.map(s => s.scannedAt).filter((n): n is number => typeof n === 'number');
+        const lastCompleted = scannedAts.length === 0 ? undefined : epochToIso(Math.max(...scannedAts));
+        return { service: this.id, running, ...(lastCompleted === undefined ? {} : { lastCompleted }) };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
