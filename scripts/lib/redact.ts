@@ -162,6 +162,12 @@ export function redactPlexSessions(body: unknown): unknown {
  * fixture where nothing is ever watched would stop exercising half the
  * adapter's branches. `accountID` is left alone, same reason as `User.id`
  * above: it is what history filtering matches on.
+ *
+ * `viewedAt` and `deviceID` are handled unconditionally alongside the fields
+ * above even though only `history` rows are documented to carry them: which
+ * spelling (`viewedAt` vs `lastViewedAt`) a live server actually sends is
+ * unconfirmed, and guessing wrong means a real timestamp reaches a public
+ * fixture. Checking both costs nothing on the shapes that have neither.
  */
 export function neutralisePlexWatchState(body: unknown): unknown {
     const container = (body as MetadataContainer).MediaContainer;
@@ -178,9 +184,56 @@ export function neutralisePlexWatchState(body: unknown): unknown {
                     ...('viewOffset' in item ? { viewOffset: watched ? 0 : 120_000 } : {}),
                     ...('viewCount' in item ? { viewCount: watched ? 1 : 0 } : {}),
                     ...('lastViewedAt' in item ? { lastViewedAt: 1_700_000_000 + i } : {}),
-                    ...('viewedLeafCount' in item ? { viewedLeafCount: watched ? leafCount : 0 } : {})
+                    ...('viewedAt' in item ? { viewedAt: 1_700_000_000 + i } : {}),
+                    ...('viewedLeafCount' in item ? { viewedLeafCount: watched ? leafCount : 0 } : {}),
+                    ...('deviceID' in item ? { deviceID: `fixture-device-${i}` } : {})
                 };
             })
+        }
+    };
+}
+
+/** Deterministic per-row placeholder, so re-running capture on an unchanged
+ *  shape produces an unchanged fixture rather than a spurious diff. */
+const syntheticDisplayValue = (label: string, i: number): string => `Fixture ${label} ${i + 1}`;
+
+/**
+ * `/status/sessions/history/all` and `/library/onDeck` are records, not
+ * listings: a row exists only because someone watched, or is watching, that
+ * title. `neutralisePlexWatchState` neutralises the numbers but leaves the
+ * real title standing next to a fake timestamp — still the tester's complete
+ * viewing record. This additionally severs the row from what it names:
+ * display strings become deterministic placeholders and thumb/art/key-style
+ * fields (which can carry a real slug) are blanked. Keys and types are
+ * preserved throughout, so the fixture still proves the adapter parses the
+ * shape.
+ *
+ * Deliberately not applied to `section-all`, `search` or `metadata-detail` —
+ * those are library listings, where every title appears whether or not
+ * anyone watched it, so a title there is not evidence of anything.
+ */
+export function anonymisePlexHistory(body: unknown): unknown {
+    const neutralised = neutralisePlexWatchState(body) as MetadataContainer;
+    const container = neutralised.MediaContainer;
+    if (!Array.isArray(container?.Metadata)) return neutralised;
+    return {
+        ...(neutralised as Row),
+        MediaContainer: {
+            ...container,
+            Metadata: container.Metadata.map((item, i) => ({
+                ...item,
+                ...('title' in item ? { title: syntheticDisplayValue('Title', i) } : {}),
+                ...('grandparentTitle' in item ? { grandparentTitle: syntheticDisplayValue('Series', i) } : {}),
+                ...('parentTitle' in item ? { parentTitle: syntheticDisplayValue('Season', i) } : {}),
+                ...('originalTitle' in item ? { originalTitle: syntheticDisplayValue('Original Title', i) } : {}),
+                ...('thumb' in item ? { thumb: replaceIfString(item.thumb, '') } : {}),
+                ...('art' in item ? { art: replaceIfString(item.art, '') } : {}),
+                ...('key' in item ? { key: replaceIfString(item.key, '') } : {}),
+                ...('parentThumb' in item ? { parentThumb: replaceIfString(item.parentThumb, '') } : {}),
+                ...('grandparentThumb' in item ? { grandparentThumb: replaceIfString(item.grandparentThumb, '') } : {}),
+                ...('grandparentKey' in item ? { grandparentKey: replaceIfString(item.grandparentKey, '') } : {}),
+                ...('parentKey' in item ? { parentKey: replaceIfString(item.parentKey, '') } : {})
+            }))
         }
     };
 }

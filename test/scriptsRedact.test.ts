@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
 import {
+    anonymisePlexHistory,
     hostsOf,
     neutralisePlexWatchState,
     redact,
@@ -216,6 +217,102 @@ describe('neutralisePlexWatchState', () => {
     it('is a no-op on a body with no Metadata array, like /identity or /activities', () => {
         const body = { MediaContainer: { version: '1.32.0' } };
         expect(neutralisePlexWatchState(body)).toEqual(body);
+    });
+
+    // History rows are documented and widely observed to carry `viewedAt`,
+    // not `lastViewedAt` — if the anonymiser only checked the latter, a real
+    // watch timestamp would sail straight into a public fixture. Both
+    // spellings are handled so the anonymiser does not depend on a guess.
+    it('replaces viewedAt as well as lastViewedAt, since a live server may send either', () => {
+        const body = onDeck([{ ratingKey: '1', viewedAt: 1_735_689_600 }]);
+        const [row] = (neutralisePlexWatchState(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.viewedAt).not.toBe(1_735_689_600);
+        expect(typeof row?.viewedAt).toBe('number');
+    });
+
+    it('replaces deviceID, which names the real playback device', () => {
+        const body = onDeck([{ ratingKey: '1', deviceID: 'a1b2c3d4-real-device' }]);
+        const [row] = (neutralisePlexWatchState(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.deviceID).not.toBe('a1b2c3d4-real-device');
+    });
+});
+
+/**
+ * `/status/sessions/history/all` and `/library/onDeck` are records, not
+ * listings — a row exists only because someone watched or is watching that
+ * title. `neutralisePlexWatchState` alone leaves the real title standing next
+ * to a fake timestamp, which is still the tester's complete viewing record.
+ * `anonymisePlexHistory` additionally breaks the row-to-title association.
+ */
+describe('anonymisePlexHistory', () => {
+    const history = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('does not let a real title survive into the anonymised output', () => {
+        const body = history([{ ratingKey: '1', title: 'The Real Movie Title', accountID: 1, viewedAt: 1_735_689_600 }]);
+        const out = JSON.stringify(anonymisePlexHistory(body));
+        expect(out).not.toContain('The Real Movie Title');
+    });
+
+    it('replaces title, grandparentTitle and parentTitle with deterministic synthetic values', () => {
+        const body = history([
+            { ratingKey: '1', title: 'Episode Title', grandparentTitle: 'Series Title', parentTitle: 'Season Title' }
+        ]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.title).not.toBe('Episode Title');
+        expect(row?.grandparentTitle).not.toBe('Series Title');
+        expect(row?.parentTitle).not.toBe('Season Title');
+        expect(typeof row?.title).toBe('string');
+    });
+
+    it('scrubs thumb, art and key, which can carry a real slug', () => {
+        const body = history([
+            { ratingKey: '1', thumb: '/library/metadata/1/thumb/123', art: '/library/metadata/1/art/123', key: '/library/metadata/1' }
+        ]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.thumb).not.toBe('/library/metadata/1/thumb/123');
+        expect(row?.art).not.toBe('/library/metadata/1/art/123');
+        expect(row?.key).not.toBe('/library/metadata/1');
+    });
+
+    it('still neutralises watch-state numbers, same as neutralisePlexWatchState', () => {
+        const body = history([{ ratingKey: '1', viewOffset: 842_193, viewCount: 4 }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.viewOffset).not.toBe(842_193);
+        expect(row?.viewCount).not.toBe(4);
+    });
+
+    it('keeps ratingKey and accountID untouched — the adapter filters and joins on them', () => {
+        const body = history([{ ratingKey: '1', title: 'A Film', accountID: 7 }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.ratingKey).toBe('1');
+        expect(row?.accountID).toBe(7);
+    });
+
+    it('keeps every scrubbed key present with its original type, not stripped', () => {
+        const body = history([{ ratingKey: '1', title: 'A Film', thumb: '/x' }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect('title' in (row as object)).toBe(true);
+        expect('thumb' in (row as object)).toBe(true);
+    });
+
+    it('leaves a key absent when the real row never had it, preserving shape', () => {
+        const body = history([{ ratingKey: '1' }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect('title' in (row as object)).toBe(false);
+        expect('grandparentTitle' in (row as object)).toBe(false);
+    });
+
+    it('is a no-op on a body with no Metadata array', () => {
+        const body = { MediaContainer: { version: '1.32.0' } };
+        expect(anonymisePlexHistory(body)).toEqual(body);
     });
 });
 

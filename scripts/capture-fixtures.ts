@@ -25,6 +25,7 @@ import {
 } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 import {
+    anonymisePlexHistory,
     hostsOf,
     neutralisePlexWatchState,
     redact,
@@ -483,9 +484,17 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // an account id).
         { name: 'sessions', path: '/status/sessions', anonymise: redactPlexSessions },
         // The tester's resume list — his most recent watch state, per item.
-        { name: 'ondeck', path: '/library/onDeck', anonymise: neutralisePlexWatchState },
-        // His complete watch history.
-        { name: 'history', path: '/status/sessions/history/all', anonymise: neutralisePlexWatchState },
+        // A row exists only because he watched or is watching it, so titles
+        // are scrubbed too, not just the watch-state numbers. See I1.
+        { name: 'ondeck', path: '/library/onDeck', anonymise: anonymisePlexHistory },
+        // His complete watch history. X-Plex-Container-Size matches the query
+        // form PlexAdapter#getWatchHistory sends — a handful of rows proves
+        // the shape without pulling his whole server-wide history. See I1.
+        {
+            name: 'history',
+            path: '/status/sessions/history/all?X-Plex-Container-Start=0&X-Plex-Container-Size=5',
+            anonymise: anonymisePlexHistory
+        },
         // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
         // library response to the requesting account, so a search result can
         // carry that account's viewCount/lastViewedAt same as any other listing.
