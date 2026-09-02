@@ -8,6 +8,7 @@ import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, too
 import {
     hasDiskSpace,
     hasHealthChecks,
+    hasMediaAdd,
     hasScanState,
     type ConnectionDiagnosis,
     type DiskSpace,
@@ -44,7 +45,26 @@ export type StackHealthResult = {
     /** Absent unless the caller supplied the instances, and absent at
      *  `minimal` — a URL is not a fault. */
     endpoints?: InstanceEndpoint[];
+    /**
+     * What each Radarr/Sonarr instance will accept on an add or an update.
+     * Only at `detail: "full"`: it is three extra calls per instance, and it
+     * answers "what may I choose", not "is anything broken".
+     */
+    options?: InstanceOptions[];
     degraded: string[];
+};
+
+/**
+ * The values `add_media` and `update_media` refuse to guess at. Paths and tag
+ * labels are the **fenced** display forms: these are for reading, and the raw
+ * path is only ever posted back inside the write tools, which resolve it
+ * themselves.
+ */
+export type InstanceOptions = {
+    instance: string;
+    qualityProfiles: { id: number; name: string }[];
+    rootFolders: { path: string; freeSpaceBytes?: number }[];
+    tags: string[];
 };
 
 export type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
@@ -209,6 +229,43 @@ export async function buildStackHealth(
         })
     );
 
+    // Settled per instance, never awaited bare: an instance whose profile list
+    // is down still has health worth reporting, and this list is the least
+    // important thing in the response.
+    const options =
+        opts.detail !== 'full'
+            ? undefined
+            : (
+                  await Promise.all(
+                      adapters.filter(hasMediaAdd).map(async adapter => {
+                          try {
+                              const [profiles, folders, tags] = await Promise.all([
+                                  adapter.listQualityProfiles(),
+                                  adapter.listRootFolders(),
+                                  adapter.listTags()
+                              ]);
+                              return [
+                                  {
+                                      instance: adapter.id,
+                                      qualityProfiles: profiles.map(p => ({ id: p.id, name: p.display })),
+                                      rootFolders: folders.map(f => ({
+                                          path: f.display,
+                                          ...(f.freeSpaceBytes === undefined ? {} : { freeSpaceBytes: f.freeSpaceBytes })
+                                      })),
+                                      tags: tags.map(t => t.display)
+                                  }
+                              ];
+                          } catch (err) {
+                              logger.warn({ service: adapter.id, err }, 'add options unavailable; omitting');
+                              markDegraded(adapter.id);
+                              return [];
+                          }
+                      })
+                  )
+              )
+                  .flat()
+                  .sort((a, b) => a.instance.localeCompare(b.instance));
+
     // Promise.all resolves in input order but the pushes above race, so sort to
     // make the response stable across calls and diffable in tests.
     services.sort((a, b) => a.service.localeCompare(b.service));
@@ -269,6 +326,7 @@ export async function buildStackHealth(
             scans,
             ...(permissions === undefined ? {} : { permissions }),
             ...(endpoints === undefined ? {} : { endpoints }),
+            ...(options === undefined ? {} : { options }),
             degraded
         },
         opts.detail
@@ -286,7 +344,7 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
+                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema }),
             // The one read tool whose answer is not a list, so it declares its
             // own shape rather than the paged envelope. `disks` and `failures`
@@ -299,6 +357,10 @@ export function registerStackHealth(
                 scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated — bounded by the number of services.'),
                 permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal` — a permission is not a fault.'),
                 endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
+                options: z
+                    .array(z.unknown())
+                    .optional()
+                    .describe('Quality profiles, root folders and tags each Radarr/Sonarr instance has. Only at `detail: "full"`.'),
                 degraded: z.array(z.string())
             })
         },
