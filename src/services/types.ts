@@ -190,7 +190,19 @@ export interface QueueCapable {
 export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>
     typeof (a as Partial<QueueCapable>).getQueue === 'function';
 
-export const HISTORY_EVENT_TYPES = ['grabbed', 'imported', 'failed', 'deleted', 'renamed', 'ignored', 'unknown'] as const;
+/** `subtitle` is Bazarr's: a downloaded subtitle is not an `imported` grab,
+ *  and calling it one would put it in the answer to "what did Radarr import
+ *  last night". Appended, so no existing value moved. */
+export const HISTORY_EVENT_TYPES = [
+    'grabbed',
+    'imported',
+    'failed',
+    'deleted',
+    'renamed',
+    'ignored',
+    'subtitle',
+    'unknown'
+] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
 /**
