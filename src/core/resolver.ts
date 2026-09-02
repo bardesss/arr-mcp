@@ -86,6 +86,15 @@ export type MergedItem = {
         status?: string;
         monitored: boolean;
         hasFile: boolean;
+        /**
+         * The profile the service grabs against. A present `qualityProfileId`
+         * with no `qualityProfile` means the profile list could not be read,
+         * not that the item has no profile.
+         */
+        qualityProfileId?: number;
+        qualityProfile?: string;
+        /** Where the managing service keeps it on disk. */
+        path?: string;
         quality?: string;
         sizeBytes?: number;
         /**

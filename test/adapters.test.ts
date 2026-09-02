@@ -811,3 +811,55 @@ describe('the status word the managing service reports', () => {
         expect((await radarr.listLibrary())[0]?.acquisition?.status).toBeUndefined();
     });
 });
+
+/**
+ * The profile and path a merged row never carried, which is what made
+ * "which profile is this on?" and update_media's before/after preview
+ * impossible without a second raw read.
+ */
+describe('the profile and path on a library row', () => {
+    const profiles = [
+        { id: 8, name: 'HD Bluray + WEB' },
+        { id: 9, name: 'Any' }
+    ];
+
+    it('resolves the profile id to a name and keeps the path', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': fixture('radarr/movie.json'), '/api/v3/qualityprofile': profiles })
+        );
+        const first = (await radarr.listLibrary())[0];
+        expect(first?.acquisition?.qualityProfileId).toBe(8);
+        expect(first?.acquisition?.qualityProfile).toContain('HD Bluray + WEB');
+        expect(first?.acquisition?.path).toContain('/storage/movies/Blade');
+    });
+
+    it('keeps the id and drops the name when the profile list is unreadable', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': fixture('radarr/movie.json') })
+        );
+        const first = (await radarr.listLibrary())[0];
+        expect(first?.acquisition?.qualityProfileId).toBe(8);
+        expect(first?.acquisition?.qualityProfile).toBeUndefined();
+    });
+
+    it('does the same for Sonarr', async () => {
+        const sonarr = new SonarrAdapter(
+            keyed(8989),
+            serving({ '/api/v3/series': fixture('sonarr/series.json'), '/api/v3/qualityprofile': profiles })
+        );
+        const first = (await sonarr.listLibrary())[0];
+        expect(first?.acquisition?.qualityProfileId).toBe(9);
+        expect(first?.acquisition?.qualityProfile).toContain('Any');
+        expect(first?.acquisition?.path).toContain('/storage/tv/Taboo');
+    });
+
+    it('fences the path, which is operator-supplied text', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': [{ id: 1, title: 'X', tmdbId: 1, path: '/movies/X' }] })
+        );
+        expect((await radarr.listLibrary())[0]?.acquisition?.path).toMatch(/untrusted/);
+    });
+});

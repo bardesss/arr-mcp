@@ -73,6 +73,7 @@ type RawSeries = {
     tvdbId?: number;
     imdbId?: string;
     genres?: string[];
+    qualityProfileId?: number;
     /** Flat, unlike Radarr's per-source map — see `flattenSeriesRating`. */
     ratings?: RawRating;
     added?: string | null;
@@ -406,6 +407,19 @@ export class SonarrAdapter
         this.#libraryCache.clear();
     }
 
+    /** Profile id → fenced name, cached beside the library read. Empty on
+     *  failure — see Radarr's copy of this. */
+    async #profileNames(): Promise<Map<number, string>> {
+        try {
+            const profiles = await this.#libraryCache.get('profiles', LIBRARY_TTL_MS, () =>
+                readQualityProfiles(this.#http, this.id)
+            );
+            return new Map(profiles.map(p => [p.id, p.display]));
+        } catch {
+            return new Map();
+        }
+    }
+
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 
@@ -473,7 +487,7 @@ export class SonarrAdapter
     /** The whole series library in one call, via `#allSeries` — the same read
      *  `search(_, 'library')` shares. */
     async listLibrary(): Promise<IndexInput[]> {
-        const series = await this.#allSeries();
+        const [series, profileNames] = await Promise.all([this.#allSeries(), this.#profileNames()]);
 
         return series.map(s => {
             const seasons = this.#seasonsOf(s);
@@ -497,6 +511,11 @@ export class SonarrAdapter
                     // episode on disk". No quality either: it is per-episode, which
                     // is why this makes the quality filter films-only.
                     hasFile: (s.statistics?.episodeFileCount ?? 0) > 0,
+                    ...(s.qualityProfileId === undefined ? {} : { qualityProfileId: s.qualityProfileId }),
+                    ...((name => (name === undefined ? {} : { qualityProfile: name }))(
+                        s.qualityProfileId === undefined ? undefined : profileNames.get(s.qualityProfileId)
+                    )),
+                    ...(s.path === undefined ? {} : { path: fenceText(s.path, { service: this.id, field: 'path' }) }),
                     ...(s.added === undefined || s.added === null ? {} : { addedAt: s.added }),
                     ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk })
                 },

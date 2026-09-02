@@ -67,6 +67,7 @@ type RawMovie = {
     tmdbId?: number;
     imdbId?: string;
     genres?: string[];
+    qualityProfileId?: number;
     ratings?: Record<string, RawRating>;
     added?: string | null;
     movieFile?: { size?: number; quality?: { quality?: { name?: string } } };
@@ -284,6 +285,23 @@ export class RadarrAdapter
         this.#libraryCache.clear();
     }
 
+    /**
+     * Profile id → fenced name, cached beside the library read so a build
+     * costs one extra call rather than one per film. An empty map on failure:
+     * a profile list that times out must not take the whole library with it,
+     * and the id alone is still worth reporting.
+     */
+    async #profileNames(): Promise<Map<number, string>> {
+        try {
+            const profiles = await this.#libraryCache.get('profiles', LIBRARY_TTL_MS, () =>
+                readQualityProfiles(this.#http, this.id)
+            );
+            return new Map(profiles.map(p => [p.id, p.display]));
+        } catch {
+            return new Map();
+        }
+    }
+
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 
@@ -329,7 +347,7 @@ export class RadarrAdapter
      * this is the same `/api/v3/movie` read `search` already does, via `#allMovies`.
      */
     async listLibrary(): Promise<IndexInput[]> {
-        const movies = await this.#allMovies();
+        const [movies, profileNames] = await Promise.all([this.#allMovies(), this.#profileNames()]);
 
         return movies.map(m => ({
             kind: 'movie' as const,
@@ -350,6 +368,11 @@ export class RadarrAdapter
                 ...(m.status === undefined ? {} : { status: m.status }),
                 monitored: m.monitored ?? false,
                 hasFile: m.hasFile ?? false,
+                ...(m.qualityProfileId === undefined ? {} : { qualityProfileId: m.qualityProfileId }),
+                ...((name => (name === undefined ? {} : { qualityProfile: name }))(
+                    m.qualityProfileId === undefined ? undefined : profileNames.get(m.qualityProfileId)
+                )),
+                ...(m.path === undefined ? {} : { path: fenceText(m.path, { service: this.id, field: 'path' }) }),
                 ...(m.added === undefined || m.added === null ? {} : { addedAt: m.added }),
                 ...(m.movieFile?.quality?.quality?.name === undefined
                     ? {}
