@@ -435,6 +435,8 @@ export type MediaDetails = {
     year?: number;
     overview?: string;
     monitored?: boolean;
+    /** The service's own status word — see `MergedItem.acquisition.status`. */
+    status?: string;
     hasFile?: boolean;
     sizeBytes?: number;
     quality?: string;

@@ -68,6 +68,7 @@ type RawSeries = {
     year?: number;
     overview?: string;
     monitored?: boolean;
+    status?: string;
     path?: string;
     tvdbId?: number;
     imdbId?: string;
@@ -348,6 +349,7 @@ export class SonarrAdapter
                 ? {}
                 : { overview: fenceText(s.overview, { service: this.id, field: 'overview' }) }),
             ...(s.monitored === undefined ? {} : { monitored: s.monitored }),
+            ...(s.status === undefined ? {} : { status: s.status }),
             ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk }),
             ...(s.path === undefined ? {} : { path: fenceText(s.path, { service: this.id, field: 'path' }) }),
             ids: {
@@ -489,6 +491,7 @@ export class SonarrAdapter
                 acquisition: {
                     service: this.id,
                     ...(s.id === undefined || s.id <= 0 ? {} : { id: String(s.id) }),
+                    ...(s.status === undefined ? {} : { status: s.status }),
                     monitored: s.monitored ?? false,
                     // A series has no single file, so "has a file" means "has any
                     // episode on disk". No quality either: it is per-episode, which

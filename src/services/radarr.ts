@@ -61,6 +61,7 @@ type RawMovie = {
     year?: number;
     overview?: string;
     monitored?: boolean;
+    status?: string;
     hasFile?: boolean;
     path?: string;
     tmdbId?: number;
@@ -225,6 +226,7 @@ export class RadarrAdapter
                 ? {}
                 : { overview: fenceText(m.overview, { service: this.id, field: 'overview' }) }),
             ...(m.monitored === undefined ? {} : { monitored: m.monitored }),
+            ...(m.status === undefined ? {} : { status: m.status }),
             ...(m.hasFile === undefined ? {} : { hasFile: m.hasFile }),
             ...(m.movieFile?.size === undefined ? {} : { sizeBytes: m.movieFile.size }),
             ...(m.movieFile?.quality?.quality?.name === undefined
@@ -345,6 +347,7 @@ export class RadarrAdapter
                 // `> 0` for the reason `#toHit` gives: a build that sends 0
                 // instead of omitting the field must not produce the id "0".
                 ...(m.id === undefined || m.id <= 0 ? {} : { id: String(m.id) }),
+                ...(m.status === undefined ? {} : { status: m.status }),
                 monitored: m.monitored ?? false,
                 hasFile: m.hasFile ?? false,
                 ...(m.added === undefined || m.added === null ? {} : { addedAt: m.added }),

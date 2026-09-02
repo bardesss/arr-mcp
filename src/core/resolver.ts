@@ -76,6 +76,14 @@ export type MergedItem = {
          * library returns.
          */
         id?: string;
+        /**
+         * The managing service's own status word — `continuing`, `ended` or
+         * `upcoming` from Sonarr, `announced`, `inCinemas` or `released` from
+         * Radarr. Passed through rather than normalised: the two vocabularies
+         * describe different things, and one shared spelling would invent a
+         * third meaning neither service holds.
+         */
+        status?: string;
         monitored: boolean;
         hasFile: boolean;
         quality?: string;

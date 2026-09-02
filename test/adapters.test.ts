@@ -774,3 +774,40 @@ describe('the *arr internal id on a library row', () => {
         expect((await radarr.listLibrary())[0]?.acquisition?.id).toBeUndefined();
     });
 });
+
+/**
+ * "Has this show ended, or will more air?" — a question Sonarr answers on
+ * every series and nothing here surfaced. Passed through verbatim: Radarr's
+ * `announced`/`released` and Sonarr's `continuing`/`ended` describe different
+ * things, and one normalised vocabulary would invent a third.
+ */
+describe('the status word the managing service reports', () => {
+    it('reaches the merged row and the raw view from Sonarr', async () => {
+        const sonarr = new SonarrAdapter(
+            keyed(8989),
+            serving({
+                '/api/v3/series': fixture('sonarr/series.json'),
+                '/api/v3/series/15': (fixture('sonarr/series.json') as { id: number }[])[0]
+            })
+        );
+        expect((await sonarr.listLibrary())[0]?.acquisition?.status).toBe('ended');
+        expect((await sonarr.getMediaDetails('15', { includeEpisodes: false, episodeLimit: 5 })).status).toBe('ended');
+    });
+
+    it('reaches the merged row and the raw view from Radarr', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({
+                '/api/v3/movie': fixture('radarr/movie.json'),
+                '/api/v3/movie/340': (fixture('radarr/movie.json') as { id: number }[])[0]
+            })
+        );
+        expect((await radarr.listLibrary())[0]?.acquisition?.status).toBe('announced');
+        expect((await radarr.getMediaDetails('340')).status).toBe('announced');
+    });
+
+    it('is omitted rather than guessed when the service did not report one', async () => {
+        const radarr = new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie': [{ id: 1, title: 'Bare', tmdbId: 1 }] }));
+        expect((await radarr.listLibrary())[0]?.acquisition?.status).toBeUndefined();
+    });
+});
