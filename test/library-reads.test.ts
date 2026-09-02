@@ -304,6 +304,7 @@ describe('Jellyfin.listUserLibrary', () => {
         const items = await adapter().listUserLibrary(user);
         expect(items[0]?.playback).toEqual({
             user: 'Someone',
+            itemId: 'abc',
             watched: true,
             playCount: 2,
             lastPlayed: '2026-08-01T20:00:00Z'

@@ -539,6 +539,101 @@ describe('get_media_details', () => {
     it('names the parameters when given neither', async () => {
         await expect(resolveMediaDetails([detailRadarr], loader(), query)).rejects.toThrow(/query.*service.*id/i);
     });
+
+    /**
+     * The docs have always said a series at `detail: "full"` carries its
+     * episodes, and only the `service`+`id` form delivered them — so the form
+     * a model reaches for first answered a promise it could not keep.
+     */
+    describe('episodes on the title form', () => {
+        const SERIES = {
+            kind: 'series' as const,
+            title: '<<untrusted:sonarr.title>>Severance<</untrusted>>',
+            ids: { tvdb: 371980 },
+            acquisition: { service: 'sonarr' as const, id: '7', monitored: true, hasFile: true }
+        };
+
+        const sonarrEpisodes = (impl?: () => never) =>
+            ({
+                id: 'sonarr',
+                testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 1 }),
+                getVersion: async () => '4.0.0',
+                getMediaDetails: async (id: string, o: { includeEpisodes: boolean }) => {
+                    if (impl !== undefined) impl();
+                    return {
+                        service: 'sonarr',
+                        kind: 'series',
+                        id,
+                        title: SERIES.title,
+                        ids: { tvdb: 371980 },
+                        ...(o.includeEpisodes
+                            ? {
+                                  episodes: [
+                                      { id: 1, season: 1, episode: 1, title: 'Good News', hasFile: true, monitored: true }
+                                  ],
+                                  episodeCount: 19,
+                                  episodesTruncated: false
+                              }
+                            : {})
+                    };
+                }
+            }) as unknown as ServiceAdapter;
+
+        const seriesLoader = () =>
+            new LibraryLoader(
+                [
+                    {
+                        id: 'sonarr',
+                        testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 1 }),
+                        getVersion: async () => '4.0.0',
+                        listLibrary: async () => [SERIES]
+                    } as unknown as ServiceAdapter
+                ],
+                undefined
+            );
+
+        it('returns them at detail: full', async () => {
+            const result = (await resolveMediaDetails([sonarrEpisodes()], seriesLoader(), {
+                detail: 'full',
+                limit: 50,
+                query: 'severance'
+            })) as { episodes?: unknown[]; episodeCount?: number };
+            expect(result.episodes).toHaveLength(1);
+            expect(result.episodeCount).toBe(19);
+        });
+
+        it('does not pay for them below detail: full', async () => {
+            const result = (await resolveMediaDetails([sonarrEpisodes()], seriesLoader(), {
+                detail: 'standard',
+                limit: 50,
+                query: 'severance'
+            })) as { episodes?: unknown[] };
+            expect(result.episodes).toBeUndefined();
+        });
+
+        it('still answers with the merged record when the episode read fails', async () => {
+            const result = (await resolveMediaDetails(
+                [
+                    sonarrEpisodes(() => {
+                        throw new Error('down');
+                    })
+                ],
+                seriesLoader(),
+                { detail: 'full', limit: 50, query: 'severance' }
+            )) as { title: string; episodes?: unknown[] };
+            expect(result.title).toBe(SERIES.title);
+            expect(result.episodes).toBeUndefined();
+        });
+
+        it('leaves a film alone — films have no episodes to fetch', async () => {
+            const result = (await resolveMediaDetails([detailRadarr], loader(), {
+                detail: 'full',
+                limit: 50,
+                query: 'matrix'
+            })) as { episodes?: unknown[] };
+            expect(result.episodes).toBeUndefined();
+        });
+    });
 });
 
 describe('discover_media', () => {

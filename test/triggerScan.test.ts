@@ -200,6 +200,213 @@ describe('trigger_scan', () => {
      * concludes the scan is done and stops looking.
      */
     it('refuses a service with no library to scan', async () => {
-        await expect(harness().call({ service: 'prowlarr', dry_run: true })).rejects.toThrow(/no library/i);
+        // A download client has no library at all. Prowlarr does have one
+        // action here — it syncs its indexers to the apps — so it stopped
+        // being the example of a service with nothing to do.
+        const sab = {
+            id: 'sabnzbd',
+            type: 'sabnzbd',
+            testConnection: async () => ({ ok: true, service: 'sabnzbd', latency_ms: 1 }),
+            getVersion: async () => '4.0'
+        } as unknown as ServiceAdapter;
+
+        await expect(
+            harness({ adapters: [sab], permissions: { sabnzbd: permissive(true) } }).call({
+                service: 'sabnzbd',
+                dry_run: true
+            })
+        ).rejects.toThrow(/no library/i);
+    });
+});
+
+/**
+ * "It downloaded but Jellyfin cannot see it" has more than one cause, and
+ * until now the only follow-up write was a whole-library scan. These are the
+ * other two: re-read one item, and rename its files to the naming scheme.
+ */
+describe('trigger_scan on a single item', () => {
+    const arrRoutes = () => ({
+        '/api/v3/movie/15': { id: 15, title: 'Heat', year: 1995 },
+        '/api/v3/command': { id: 77, name: 'RefreshMovie', status: 'queued' }
+    });
+
+    const radarrHarness = () => {
+        const radarr = recordingFetch(arrRoutes());
+        return {
+            ...harness({
+                adapters: [new RadarrAdapter(keyed(7878), radarr.impl)],
+                permissions: { radarr: permissive(true) }
+            }),
+            radarr
+        };
+    };
+
+    const bodies = (impl: ReturnType<typeof recordingFetch>) =>
+        impl.sent.filter(x => x.method === 'POST').map(x => x.url);
+
+    it('refreshes one movie rather than the whole library', async () => {
+        const h = radarrHarness();
+        const first = await h.call({ service: 'radarr', id: '15' });
+        await h.call({ service: 'radarr', id: '15', confirm: first.structuredContent.confirm_token });
+        expect(bodies(h.radarr)).toContain('/api/v3/command');
+    });
+
+    it('names the title in the preview rather than a bare id', async () => {
+        const h = radarrHarness();
+        const { structuredContent } = await h.call({ service: 'radarr', id: '15', dry_run: true });
+        expect(structuredContent.summary).toContain('Heat');
+    });
+
+    it('says a rename moves files on disk', async () => {
+        const h = radarrHarness();
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            id: '15',
+            action: 'rename',
+            dry_run: true
+        });
+        expect(structuredContent.effects.join(' ')).toMatch(/renames/i);
+    });
+
+    it('refuses a rename with no id — there is no "rename the library"', async () => {
+        const h = radarrHarness();
+        await expect(h.call({ service: 'radarr', action: 'rename', dry_run: true })).rejects.toThrow(/id/i);
+    });
+
+    it('refuses an id on a service that cannot describe one item', async () => {
+        const h = harness();
+        await expect(h.call({ service: 'jellyfin', id: '15', dry_run: true })).rejects.toThrow(/radarr|sonarr/i);
+    });
+
+    it('still scans the whole library when no id is given', async () => {
+        const h = harness();
+        const { structuredContent } = await h.call({ service: 'jellyfin', dry_run: true });
+        expect(structuredContent.summary).toMatch(/rescan its library/i);
+    });
+});
+
+/**
+ * The other half of "it downloaded but Jellyfin cannot see it": the *arr
+ * never took the file, so a library scan finds nothing to find.
+ */
+describe('trigger_scan importing a finished download', () => {
+    const CANDIDATES = [
+        {
+            path: '/downloads/Heat.1995.mkv',
+            relativePath: 'Heat.1995.mkv',
+            size: 8_000_000_000,
+            movie: { id: 15, title: 'Heat' },
+            quality: { quality: { id: 7 } },
+            rejections: []
+        },
+        { path: '/downloads/sample.mkv', relativePath: 'sample.mkv', rejections: [{ reason: 'Sample' }] }
+    ];
+
+    const importHarness = (candidates: unknown = CANDIDATES) => {
+        const radarr = recordingFetch({
+            '/api/v3/manualimport': candidates,
+            '/api/v3/command': { id: 5, name: 'ManualImport', status: 'queued' }
+        });
+        return {
+            ...harness({
+                adapters: [new RadarrAdapter(keyed(7878), radarr.impl)],
+                permissions: { radarr: permissive(true) }
+            }),
+            radarr
+        };
+    };
+
+    it('lists what will be imported and what will be skipped, with the reason', async () => {
+        const h = importHarness();
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'nzo_abc',
+            dry_run: true
+        });
+
+        const effects = structuredContent.effects.join(' ');
+        expect(effects).toContain('Heat.1995.mkv');
+        expect(effects).toMatch(/skips.*sample\.mkv/i);
+        expect(effects).toContain('Sample');
+    });
+
+    it('imports nothing while previewing', async () => {
+        const h = importHarness();
+        await h.call({ service: 'radarr', action: 'import', download_id: 'nzo_abc' });
+        expect(h.radarr.sent.filter(x => x.method === 'POST')).toHaveLength(0);
+    });
+
+    it('queues the import once confirmed', async () => {
+        const h = importHarness();
+        const first = await h.call({ service: 'radarr', action: 'import', download_id: 'nzo_abc' });
+        const second = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'nzo_abc',
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(h.radarr.sent.filter(x => x.method === 'POST' && x.url === '/api/v3/command')).toHaveLength(1);
+    });
+
+    it('needs a download_id', async () => {
+        const h = importHarness();
+        await expect(h.call({ service: 'radarr', action: 'import', dry_run: true })).rejects.toThrow(/download_id/);
+    });
+
+    it('is a no-op when the service sees no files for that download', async () => {
+        const h = importHarness([]);
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'gone'
+        });
+        expect(structuredContent.noop).toBe(true);
+    });
+
+    /** Something is there and cannot be taken — a different answer from
+     *  "already imported", which is what a no-op would read as. */
+    it('refuses when every file is rejected, naming the reasons', async () => {
+        const h = importHarness([CANDIDATES[1]]);
+        await expect(
+            h.call({ service: 'radarr', action: 'import', download_id: 'nzo_bad', dry_run: true })
+        ).rejects.toThrow(/Sample/);
+    });
+
+    it('refuses on a service that does not import downloads', async () => {
+        const h = harness();
+        await expect(
+            h.call({ service: 'jellyfin', action: 'import', download_id: 'x', dry_run: true })
+        ).rejects.toThrow(/cannot import a download/i);
+    });
+});
+
+/**
+ * Prowlarr has no library, but it has the same shape of action: push the
+ * indexer list to the applications that use it.
+ */
+describe('trigger_scan on Prowlarr', () => {
+    it('syncs the indexers to the apps, on the v1 api', async () => {
+        const prowlarr = recordingFetch({ '/api/v1/command': { id: 3, name: 'ApplicationIndexerSync' } });
+        const h = harness({
+            adapters: [new ProwlarrAdapter(keyed(9696), prowlarr.impl)],
+            permissions: { prowlarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'prowlarr' });
+        await h.call({ service: 'prowlarr', confirm: first.structuredContent.confirm_token });
+
+        expect(prowlarr.sent.filter(x => x.method === 'POST').map(x => x.url)).toEqual(['/api/v1/command']);
+    });
+
+    it('does not offer per-item actions there', async () => {
+        const prowlarr = recordingFetch({});
+        const h = harness({
+            adapters: [new ProwlarrAdapter(keyed(9696), prowlarr.impl)],
+            permissions: { prowlarr: permissive(true) }
+        });
+        await expect(h.call({ service: 'prowlarr', id: '1', dry_run: true })).rejects.toThrow(/refresh or rename/i);
     });
 });

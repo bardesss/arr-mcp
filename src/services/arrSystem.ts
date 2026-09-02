@@ -1,5 +1,6 @@
 import { ServiceError } from '../core/errors.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import { postArrCommand } from './arrCommands.ts';
 import type { CommandHandle, DiskSpace, HealthCheck, ScanState } from './types.ts';
 
 /**
@@ -13,7 +14,6 @@ type RawStatus = { version?: string };
 type RawDiskSpace = { path?: string | null; label?: string | null; freeSpace?: number | null; totalSpace?: number | null };
 type RawHealthCheck = { source?: string; type?: unknown; message?: string };
 type RawTask = { taskName?: string; lastExecution?: string };
-type RawCommand = { id?: number; name?: string; status?: string };
 
 export async function arrVersion(http: ServiceHttp, id: string): Promise<string> {
     const status = await http.get<RawStatus>('/api/v3/system/status');
@@ -58,14 +58,7 @@ export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Prom
  * starts and what that reports can never drift apart.
  */
 export async function arrStartLibraryScan(http: ServiceHttp, id: string, command: string): Promise<CommandHandle> {
-    const queued = await http.post<RawCommand>('/api/v3/command', { name: command });
-
-    return {
-        service: id,
-        commandId: queued.id ?? 0,
-        name: queued.name ?? command,
-        ...(typeof queued.status === 'string' ? { status: queued.status } : {})
-    };
+    return postArrCommand(http, id, { name: command });
 }
 
 export async function arrScanState(http: ServiceHttp, id: string, taskName: string): Promise<ScanState> {

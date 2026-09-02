@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type * as z from 'zod/v4';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
+import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { buildGetHistory, registerGetHistory } from '../src/tools/getHistory.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
-import { serving } from './helpers/serve.ts';
+import { jsonResponse, serving } from './helpers/serve.ts';
 
 const keyed = (port: number): KeyedServiceConfig => ({
     url: `http://192.0.2.10:${port}`,
@@ -268,5 +269,74 @@ describe('get_history', () => {
             expect(schema().safeParse({ since: '2026-08-01' }).success).toBe(true);
             expect(schema().safeParse({ since: '2026-08-01T00:00:00Z' }).success).toBe(true);
         });
+    });
+});
+
+/**
+ * The layer below the *arrs. "Radarr grabbed it and nothing arrived" is a
+ * question only the download client can answer.
+ */
+describe('SABnzbd history', () => {
+    const sabConfig = {
+        url: 'http://192.0.2.10:8080',
+        api_key: 'k',
+        timeout_ms: 10_000,
+        permissions: { safe_write: false, destructive: false }
+    } as const;
+
+    const answering = (body: unknown) => (async () => jsonResponse(body)) as unknown as typeof fetch;
+
+    const SLOTS = {
+        history: {
+            slots: [
+                { nzo_id: 'SABnzbd_nzo_a', name: 'Heat.1995.mkv', status: 'Completed', completed: 1_788_000_000 },
+                {
+                    nzo_id: 'SABnzbd_nzo_b',
+                    name: 'Broken.mkv',
+                    status: 'Failed',
+                    fail_message: 'Unpacking failed',
+                    completed: 1_788_000_100
+                }
+            ]
+        }
+    };
+
+    it('maps completed and failed onto the shared vocabulary', async () => {
+        const rows = await new SabnzbdAdapter(sabConfig, answering(SLOTS)).readHistory({});
+        expect(rows.map(r => r.event)).toEqual(['imported', 'failed']);
+        expect(rows[1]?.reason).toContain('Unpacking failed');
+        expect(rows[0]?.rawEvent).toBe('Completed');
+    });
+
+    it('converts the unix timestamp to ISO, which is what get_history sorts on', async () => {
+        const rows = await new SabnzbdAdapter(sabConfig, answering(SLOTS)).readHistory({});
+        expect(rows[0]?.at).toBe(new Date(1_788_000_000 * 1000).toISOString());
+    });
+
+    it('drops a row it cannot date rather than stamping it 1970', async () => {
+        const rows = await new SabnzbdAdapter(
+            sabConfig,
+            answering({ history: { slots: [{ nzo_id: 'x', name: 'No date', status: 'Completed' }] } })
+        ).readHistory({});
+        expect(rows).toEqual([]);
+    });
+
+    it('honours since', async () => {
+        const rows = await new SabnzbdAdapter(sabConfig, answering(SLOTS)).readHistory({
+            since: new Date(1_788_000_050 * 1000).toISOString()
+        });
+        expect(rows.map(r => r.id)).toEqual(['SABnzbd_nzo_b']);
+    });
+
+    /** An empty list would read as "nothing ever happened to that film". */
+    it('refuses a per-item id rather than answering empty', async () => {
+        await expect(new SabnzbdAdapter(sabConfig, answering(SLOTS)).readHistory({ id: '15' })).rejects.toThrow(
+            /per-movie or per-series/i
+        );
+    });
+
+    it('fences the release name, which came from an indexer', async () => {
+        const rows = await new SabnzbdAdapter(sabConfig, answering(SLOTS)).readHistory({});
+        expect(rows[0]?.title).toMatch(/untrusted/);
     });
 });

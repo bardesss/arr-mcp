@@ -8,13 +8,17 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type HistoryCapable,
+    type HistoryEntry,
     type PauseCapable,
     type PauseState,
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type SpeedLimit,
+    type SpeedLimitCapable
 } from './types.ts';
 
 /**
@@ -33,9 +37,22 @@ type RawQueue = {
         /** Queue-wide, and the only client-level paused flag any of the three
          *  download clients publishes. */
         paused?: boolean;
+        /** The cap in bytes/s, as a string. `speedlimit` beside it is a
+         *  percentage — see `setSpeedLimit`. */
+        speedlimit_abs?: string;
         slots?: RawSlot[];
     };
 };
+type RawHistory = { history?: { slots?: RawHistorySlot[] } };
+type RawHistorySlot = {
+    nzo_id?: string;
+    name?: string;
+    status?: string;
+    fail_message?: string;
+    /** Unix seconds. */
+    completed?: number;
+};
+
 type RawSlot = {
     nzo_id?: string;
     filename?: string;
@@ -74,7 +91,16 @@ const gigabytesToBytes = (value: string | undefined): number | undefined => {
     return Number.isFinite(parsed) ? Math.round(parsed * BYTES_PER_GB) : undefined;
 };
 
-export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable {
+export class SabnzbdAdapter
+    implements
+        ServiceAdapter,
+        DiskSpaceCapable,
+        QueueCapable,
+        QueueRemoveCapable,
+        PauseCapable,
+        SpeedLimitCapable,
+        HistoryCapable
+{
     readonly type: ServiceId = 'sabnzbd';
     readonly id: string = 'sabnzbd';
     readonly #http: ServiceHttp;
@@ -216,6 +242,83 @@ export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCa
                 }
             );
         }
+    }
+
+    /**
+     * `speedlimit_abs` is the cap in **bytes per second**, as a string;
+     * `speedlimit` beside it is a percentage of the configured maximum, which
+     * is the trap this whole capability exists around. An empty or zero
+     * absolute value means no cap.
+     */
+    async readSpeedLimit(): Promise<SpeedLimit> {
+        const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+        const bytes = Number(body.queue?.speedlimit_abs ?? '');
+        if (!Number.isFinite(bytes) || bytes <= 0) return { service: this.id };
+        return { service: this.id, kbps: Math.round(bytes / 1024) };
+    }
+
+    /**
+     * The `K` suffix is load-bearing: `value=100` sets **100 percent** of the
+     * configured line speed, `value=100K` sets 100 KB/s. `value=0` clears it.
+     */
+    async setSpeedLimit(kbps: number | undefined): Promise<void> {
+        const value = kbps === undefined || kbps <= 0 ? '0' : `${Math.round(kbps)}K`;
+        const body = await this.#http.getAsWrite<{ status?: boolean; error?: string }>(
+            `/api?mode=config&name=speedlimit&value=${encodeURIComponent(value)}&output=json`
+        );
+
+        if (body.status !== true) {
+            throw new ServiceError('UpstreamError', this.id, 'the speed limit was refused', {
+                remedy: body.error ?? 'SABnzbd reported no failure reason. Check it is reachable — call get_queue.'
+            });
+        }
+    }
+
+    /**
+     * SABnzbd's own history — what happened to a download after it left the
+     * queue, one layer below the *arr history `get_history` already merges.
+     * When Radarr says "grabbed" and nothing arrived, this is where the reason
+     * is.
+     *
+     * `id` is refused rather than answered empty: SABnzbd has no idea what a
+     * movie or series id is, and an empty list would read as "nothing ever
+     * happened to that film".
+     */
+    async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
+        if (opts.id !== undefined) {
+            throw new ServiceError('NotFound', this.id, 'SABnzbd has no per-movie or per-series history', {
+                remedy: 'Scope `id` to radarr or sonarr, which know what the id means. SABnzbd answers for the whole client.'
+            });
+        }
+
+        const body = await this.#http.get<RawHistory>('/api?mode=history&limit=100&output=json');
+
+        return (body.history?.slots ?? [])
+            .filter((s): s is RawHistorySlot & { nzo_id: string } => typeof s.nzo_id === 'string')
+            .flatMap(s => {
+                // `completed` is unix seconds. A row that cannot be dated is
+                // dropped rather than stamped with the epoch: `get_history`
+                // sorts and filters `since` as a plain string, so a 1970 date
+                // would quietly sink to the bottom of every answer.
+                if (typeof s.completed !== 'number' || !Number.isFinite(s.completed)) return [];
+                const at = new Date(s.completed * 1000).toISOString();
+                if (opts.since !== undefined && at < opts.since) return [];
+
+                const status = (s.status ?? '').toLowerCase();
+                return [
+                    {
+                        service: this.id,
+                        id: s.nzo_id,
+                        at,
+                        event: status === 'completed' ? 'imported' : status === 'failed' ? 'failed' : 'unknown',
+                        rawEvent: s.status ?? 'unknown',
+                        title: fenceText(s.name ?? '', { service: this.id, field: 'name' }),
+                        ...(s.fail_message
+                            ? { reason: fenceText(s.fail_message, { service: this.id, field: 'fail_message' }) }
+                            : {})
+                    }
+                ];
+            });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

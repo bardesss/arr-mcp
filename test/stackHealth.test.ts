@@ -451,3 +451,106 @@ describe('stack_health endpoints', () => {
         expect(result.endpoints?.[0]?.baseUrl).toBe('http://192.0.2.10:9091/');
     });
 });
+
+/**
+ * The values `add_media` and `update_media` refuse to guess. Without a way to
+ * read them, an agent has to invent a profile name and finds out it was wrong
+ * once the download finishes.
+ */
+describe('stack_health add options', () => {
+    const addable = (overrides: Partial<Record<'profiles' | 'folders' | 'tags', () => Promise<unknown>>> = {}) =>
+        ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => healthy,
+            getVersion: async () => '5.0',
+            listQualityProfiles: overrides.profiles ?? (async () => [{ id: 4, name: 'HD-1080p', display: 'HD-1080p' }]),
+            listRootFolders:
+                overrides.folders ??
+                (async () => [{ path: '/movies', display: '/movies', freeSpaceBytes: 100 }]),
+            listTags: overrides.tags ?? (async () => [{ id: 1, label: '4k', display: '4k' }]),
+            lookupForAdd: async () => ({ title: 'x' }),
+            addMedia: async () => ({ id: 1, title: 'x' })
+        }) as unknown as ServiceAdapter;
+
+    it('lists profiles, root folders and tags at detail: full', async () => {
+        const result = await buildStackHealth([addable()], { detail: 'full', limit: 50 });
+        expect(result.options).toEqual([
+            {
+                instance: 'radarr',
+                qualityProfiles: [{ id: 4, name: 'HD-1080p' }],
+                rootFolders: [{ path: '/movies', freeSpaceBytes: 100 }],
+                tags: ['4k']
+            }
+        ]);
+    });
+
+    it('leaves them out below full — a profile list is not a fault', async () => {
+        expect((await buildStackHealth([addable()], std)).options).toBeUndefined();
+        expect((await buildStackHealth([addable()], { detail: 'minimal', limit: 50 })).options).toBeUndefined();
+    });
+
+    it('degrades the instance rather than failing the call when the read is down', async () => {
+        const result = await buildStackHealth(
+            [
+                addable({
+                    profiles: async () => {
+                        throw new Error('down');
+                    }
+                })
+            ],
+            { detail: 'full', limit: 50 }
+        );
+        expect(result.services).toHaveLength(1);
+        expect(result.options).toEqual([]);
+        expect(result.degraded).toEqual(['radarr']);
+    });
+
+    it('says nothing about a service that cannot add', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail: 'full', limit: 50 });
+        expect(result.options).toEqual([]);
+    });
+});
+
+/** The follow-up trigger_search and trigger_scan never had. */
+describe('stack_health commands', () => {
+    const running = (rows: unknown[]) =>
+        ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => healthy,
+            getVersion: async () => '5.0',
+            listCommands: async () => rows
+        }) as unknown as ServiceAdapter;
+
+    it('reports what is queued or running', async () => {
+        const result = await buildStackHealth(
+            [running([{ service: 'radarr', commandId: 1, name: 'MoviesSearch', status: 'started' }])],
+            std
+        );
+        expect(result.commands).toEqual([
+            { service: 'radarr', commandId: 1, name: 'MoviesSearch', status: 'started' }
+        ]);
+    });
+
+    it('leaves them out at minimal — a running command is not a fault', async () => {
+        const result = await buildStackHealth([running([{ commandId: 1 }])], { detail: 'minimal', limit: 50 });
+        expect(result.commands).toBeUndefined();
+    });
+
+    it('degrades the service rather than failing when the command read is down', async () => {
+        const broken = {
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => healthy,
+            getVersion: async () => '5.0',
+            listCommands: async () => {
+                throw new Error('down');
+            }
+        } as unknown as ServiceAdapter;
+
+        const result = await buildStackHealth([broken], std);
+        expect(result.degraded).toEqual(['radarr']);
+        expect(result.commands).toEqual([]);
+    });
+});

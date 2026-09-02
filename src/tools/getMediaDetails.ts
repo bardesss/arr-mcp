@@ -6,10 +6,11 @@ import { ServiceError } from '../core/errors.ts';
 import { servicesOnly } from '../core/gather.ts';
 import type { MergedItem } from '../core/resolver.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, toolInput, type DetailLevel } from '../core/shape.ts';
+import { logger } from '../core/logger.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
-import { hasMediaDetails, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
+import { hasMediaDetails, type EpisodeSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
 import type { LibraryLoader } from './library.ts';
 
 /**
@@ -84,7 +85,19 @@ export type MediaDetailsQuery = {
  * one specific item either produced that item or did not, and an empty success
  * would read as "the item does not exist".
  */
-export async function buildResolvedMediaDetails(loader: LibraryLoader, query: string): Promise<MergedItem> {
+export type ResolvedMediaDetails = MergedItem & {
+    episodes?: EpisodeSummary[];
+    episodeCount?: number;
+    episodesTruncated?: boolean;
+};
+
+export async function buildResolvedMediaDetails(
+    loader: LibraryLoader,
+    query: string,
+    /** Optional and last: only a series at `detail: "full"` reads it, and the
+     *  callers that want the merged record alone stay unchanged. */
+    opts?: { adapters: readonly ServiceAdapter[]; detail: DetailLevel; limit: number }
+): Promise<ResolvedMediaDetails> {
     const { index, degraded } = await loader.load();
     const [best] = index.search(query);
 
@@ -110,7 +123,36 @@ export async function buildResolvedMediaDetails(loader: LibraryLoader, query: st
             `Nothing in your library matches "${query}".${hedge} Try search_media, which also looks at what you do not have yet.`
         );
     }
-    return best;
+
+    if (opts === undefined || opts.detail !== 'full' || best.kind !== 'series') return best;
+
+    // The merged record has no episodes of its own — no service contributes
+    // them to the join, because ten thousand episode rows in a library
+    // snapshot would cost every caller who never asked. So they are fetched
+    // here, from the Sonarr that manages this series, using the id
+    // `acquisition.id` now carries.
+    const service = best.acquisition?.service;
+    const id = best.acquisition?.id;
+    if (service === undefined || id === undefined) return best;
+
+    const adapter = opts.adapters.find(a => a.id === service);
+    if (adapter === undefined || !hasMediaDetails(adapter)) return best;
+
+    try {
+        const raw = await adapter.getMediaDetails(id, { includeEpisodes: true, episodeLimit: opts.limit });
+        return {
+            ...best,
+            ...(raw.episodes === undefined ? {} : { episodes: raw.episodes }),
+            ...(raw.episodeCount === undefined ? {} : { episodeCount: raw.episodeCount }),
+            ...(raw.episodesTruncated === undefined ? {} : { episodesTruncated: raw.episodesTruncated })
+        };
+    } catch (err) {
+        // The merged record *is* the answer here; episodes are the extra. A
+        // Sonarr that will not list them must not turn a good answer into an
+        // error the caller reads as "no such series".
+        logger.warn({ service, err }, 'episode read failed; answering without episodes');
+        return best;
+    }
 }
 
 /**
@@ -126,7 +168,7 @@ export async function resolveMediaDetails(
     /** Only the by-id branch needs this. The by-title branch resolves through
      *  the library index, which `LibraryLoader` has already enriched. */
     dataset?: ImdbDataset
-): Promise<MediaDetails | MergedItem> {
+): Promise<MediaDetails | ResolvedMediaDetails> {
     // The explicit id wins when both are given: an id is unambiguous and a
     // title is not.
     if (opts.service !== undefined && opts.id !== undefined) {
@@ -145,7 +187,7 @@ export async function resolveMediaDetails(
         throw new Error('Name either a query (a title) or both service and id.');
     }
 
-    return buildResolvedMediaDetails(loader, opts.query);
+    return buildResolvedMediaDetails(loader, opts.query, { adapters, detail: opts.detail, limit: opts.limit });
 }
 
 export function registerGetMediaDetails(
@@ -160,7 +202,7 @@ export function registerGetMediaDetails(
             title: 'Media details',
             annotations: READ_ONLY,
             description:
-                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full also returns its episodes. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known. Both forms — by title and by `service` plus `id` — carry `seasons[].monitored`, Sonarr’s own per-season monitoring flag, absent rather than false when no Sonarr manages the series. Check it before delete_episode_files: deleting the files of a season that is still monitored makes Sonarr search for them again and re-download exactly what was removed.',
+                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full returns its episodes on **either** form: the raw view lists them from that service, and the title form fetches them from the Sonarr that manages the series — so a series no Sonarr manages carries none. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known. Both forms — by title and by `service` plus `id` — carry `seasons[].monitored`, Sonarr’s own per-season monitoring flag, absent rather than false when no Sonarr manages the series. Check it before delete_episode_files: deleting the files of a season that is still monitored makes Sonarr search for them again and re-download exactly what was removed.',
             /**
              * One item, and the only tool answering in two different shapes:
              * asked by title it returns the merged record, asked by `service`
@@ -197,9 +239,14 @@ export function registerGetMediaDetails(
             // "present in: unknown."
             const summary =
                 'presence' in result
-                    ? result.presence === 'unknown'
-                        ? `${result.kind}, presence could not be determined.`
-                        : `${result.kind}, present in: ${result.presence}.`
+                    ? (result.presence === 'unknown'
+                          ? `${result.kind}, presence could not be determined.`
+                          : `${result.kind}, present in: ${result.presence}.`) +
+                      // The title form fetches episodes too now, so it owes
+                      // the same count the raw form has always given.
+                      (result.episodes === undefined
+                          ? ''
+                          : ` ${result.episodes.length} of ${result.episodeCount ?? result.episodes.length} episode(s).`)
                     : `${result.kind} from ${result.service}` +
                       // `episodes` is only fetched at detail: full. Reporting
                       // "0 of 62" below that read as an empty series rather

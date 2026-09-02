@@ -1,7 +1,7 @@
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import type { AddCandidate, AddMediaOptions, QualityProfile, RootFolder } from './types.ts';
+import type { AddCandidate, AddMediaOptions, QualityProfile, RootFolder, Tag } from './types.ts';
 
 /**
  * Adding to Radarr and Sonarr, shared for the same reason the queue read is:
@@ -94,6 +94,13 @@ export async function readRootFolders(http: ServiceHttp, service: string): Promi
         }));
 }
 
+export async function readTags(http: ServiceHttp, service: string): Promise<Tag[]> {
+    const rows = await http.get<{ id?: number; label?: string }[]>('/api/v3/tag');
+    return rows
+        .filter((t): t is { id: number; label: string } => typeof t.id === 'number' && typeof t.label === 'string')
+        .map(t => ({ id: t.id, label: t.label, display: fenceText(t.label, { service, field: 'label' }) }));
+}
+
 /**
  * The single lookup both the preview and the write are built from. Returns the
  * service's own raw payload alongside the fenced summary, because the add has
@@ -171,15 +178,24 @@ export async function addArrMedia(
         qualityProfileId: opts.qualityProfileId,
         rootFolderPath: opts.rootFolderPath,
         monitored: opts.monitored,
-        addOptions: { [shape.searchOption]: opts.searchNow }
+        addOptions: {
+            [shape.searchOption]: opts.searchNow,
+            // Sonarr works out the per-season flags from this itself, which is
+            // why the mode is passed through rather than expanded here.
+            ...(opts.monitor === undefined ? {} : { monitor: opts.monitor })
+        }
     };
 
     // Sonarr stores each series in its own folder by default, and omitting
     // this drops every episode of every series into the root together.
-    if (shape.resource === 'series') body.seasonFolder = true;
+    if (shape.resource === 'series') {
+        body.seasonFolder = true;
+        if (opts.seriesType !== undefined) body.seriesType = opts.seriesType;
+    }
     // Radarr's own UI defaults to "Released", which is what stops a brand-new
     // film grabbing a cinema recording the day it is announced.
-    if (shape.resource === 'movie') body.minimumAvailability = 'released';
+    if (shape.resource === 'movie') body.minimumAvailability = opts.minimumAvailability ?? 'released';
+    if (opts.tagIds !== undefined && opts.tagIds.length > 0) body.tags = opts.tagIds;
 
     const created = await http.post<RawLookup>(`/api/v3/${shape.resource}`, body);
     if (typeof created.id !== 'number' || created.id <= 0) {
