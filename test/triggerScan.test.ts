@@ -200,7 +200,22 @@ describe('trigger_scan', () => {
      * concludes the scan is done and stops looking.
      */
     it('refuses a service with no library to scan', async () => {
-        await expect(harness().call({ service: 'prowlarr', dry_run: true })).rejects.toThrow(/no library/i);
+        // A download client has no library at all. Prowlarr does have one
+        // action here — it syncs its indexers to the apps — so it stopped
+        // being the example of a service with nothing to do.
+        const sab = {
+            id: 'sabnzbd',
+            type: 'sabnzbd',
+            testConnection: async () => ({ ok: true, service: 'sabnzbd', latency_ms: 1 }),
+            getVersion: async () => '4.0'
+        } as unknown as ServiceAdapter;
+
+        await expect(
+            harness({ adapters: [sab], permissions: { sabnzbd: permissive(true) } }).call({
+                service: 'sabnzbd',
+                dry_run: true
+            })
+        ).rejects.toThrow(/no library/i);
     });
 });
 
@@ -365,5 +380,33 @@ describe('trigger_scan importing a finished download', () => {
         await expect(
             h.call({ service: 'jellyfin', action: 'import', download_id: 'x', dry_run: true })
         ).rejects.toThrow(/cannot import a download/i);
+    });
+});
+
+/**
+ * Prowlarr has no library, but it has the same shape of action: push the
+ * indexer list to the applications that use it.
+ */
+describe('trigger_scan on Prowlarr', () => {
+    it('syncs the indexers to the apps, on the v1 api', async () => {
+        const prowlarr = recordingFetch({ '/api/v1/command': { id: 3, name: 'ApplicationIndexerSync' } });
+        const h = harness({
+            adapters: [new ProwlarrAdapter(keyed(9696), prowlarr.impl)],
+            permissions: { prowlarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'prowlarr' });
+        await h.call({ service: 'prowlarr', confirm: first.structuredContent.confirm_token });
+
+        expect(prowlarr.sent.filter(x => x.method === 'POST').map(x => x.url)).toEqual(['/api/v1/command']);
+    });
+
+    it('does not offer per-item actions there', async () => {
+        const prowlarr = recordingFetch({});
+        const h = harness({
+            adapters: [new ProwlarrAdapter(keyed(9696), prowlarr.impl)],
+            permissions: { prowlarr: permissive(true) }
+        });
+        await expect(h.call({ service: 'prowlarr', id: '1', dry_run: true })).rejects.toThrow(/refresh or rename/i);
     });
 });
