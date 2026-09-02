@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/bardesss/arr-mcp/compare/v1.19.0...v1.20.0) (2026-09-02)
+
+
+### Features
+
+* close the [#189](https://github.com/bardesss/arr-mcp/issues/189) tool gaps (ids on merged records, add/update options, manual import) ([#190](https://github.com/bardesss/arr-mcp/issues/190)) ([01ffa28](https://github.com/bardesss/arr-mcp/commit/01ffa286d931f7377fce004a85d10b067229c57c))
+
 ## [1.19.0](https://github.com/bardesss/arr-mcp/compare/v1.18.1...v1.19.0) (2026-08-31)
 
 
