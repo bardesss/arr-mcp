@@ -406,6 +406,7 @@ export class JellyfinAdapter
                 },
                 playback: {
                     user: user.name,
+                    ...(i.Id === undefined ? {} : { itemId: i.Id }),
                     watched: i.UserData?.Played ?? false,
                     ...(i.UserData?.PlayCount === undefined ? {} : { playCount: i.UserData.PlayCount }),
                     ...(i.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: i.UserData.LastPlayedDate })

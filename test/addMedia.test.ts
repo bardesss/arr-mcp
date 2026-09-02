@@ -35,6 +35,11 @@ const MANY_FOLDERS = [
     { path: '/movies-4k', freeSpace: 500_000_000_000 }
 ];
 
+const TAGS = [
+    { id: 1, label: '4k' },
+    { id: 2, label: 'kids' }
+];
+
 /** `id: 0` is what both services report for something not in the library. */
 const NEW_MOVIE = [{ id: 0, title: 'The Matrix', year: 1999, tmdbId: 603 }];
 const EXISTING_MOVIE = [{ id: 88, title: 'The Matrix', year: 1999, tmdbId: 603 }];
@@ -45,6 +50,7 @@ function stack(
         folders?: unknown;
         lookup?: unknown;
         created?: unknown;
+        tags?: unknown;
         resource?: 'movie' | 'series';
     } = {}
 ) {
@@ -63,6 +69,7 @@ function stack(
 
         if (url.pathname === '/api/v3/qualityprofile') return jsonResponse(opts.profiles ?? ONE_PROFILE);
         if (url.pathname === '/api/v3/rootfolder') return jsonResponse(opts.folders ?? ONE_FOLDER);
+        if (url.pathname === '/api/v3/tag') return jsonResponse(opts.tags ?? TAGS);
 
         // Both services answer the term search with an array — including an
         // empty one for an id that resolves to nothing, which is exactly why
@@ -554,5 +561,109 @@ describe('add_media across two Radarr instances', () => {
 
         const [row] = h.audit.recent(1) as { service: string }[];
         expect(row?.service).toBe('radarr/4k');
+    });
+});
+
+
+/**
+ * The options the tool had no way to express, so "add this series but only
+ * future seasons" or "not the other profile" meant raw HTTP beside arr-mcp.
+ */
+describe('add_media options', () => {
+    const sonarrStack = () =>
+        stack({
+            resource: 'series',
+            lookup: [{ id: 0, title: 'Alien: Earth', year: 2025, tvdbId: 424207 }],
+            created: { id: 12, title: 'Alien: Earth' }
+        });
+
+    const confirmSonarr = async (args: Record<string, unknown>) => {
+        const s = sonarrStack();
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)] });
+        const first = await h.call({ service: 'sonarr', external_id: '424207', ...args });
+        await h.call({
+            service: 'sonarr',
+            external_id: '424207',
+            ...args,
+            confirm: first.structuredContent.confirm_token
+        });
+        return s.sent.find(x => x.method === 'POST')?.body;
+    };
+
+    it('sends the Sonarr monitor mode in addOptions', async () => {
+        expect(await confirmSonarr({ monitor: 'future' })).toMatchObject({
+            addOptions: { monitor: 'future', searchForMissingEpisodes: true }
+        });
+    });
+
+    it('leaves addOptions.monitor out when none was asked for', async () => {
+        const body = (await confirmSonarr({})) as { addOptions: Record<string, unknown> };
+        expect(body.addOptions.monitor).toBeUndefined();
+    });
+
+    it('sends the series type', async () => {
+        expect(await confirmSonarr({ series_type: 'anime' })).toMatchObject({ seriesType: 'anime' });
+    });
+
+    it('refuses a monitor mode on Radarr rather than dropping it silently', async () => {
+        const h = harness();
+        await expect(
+            h.call({ service: 'radarr', external_id: '603', monitor: 'future', dry_run: true })
+        ).rejects.toThrow(/sonarr/i);
+    });
+
+    it('refuses minimum_availability on Sonarr, naming what to use instead', async () => {
+        const s = sonarrStack();
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)] });
+        await expect(
+            h.call({ service: 'sonarr', external_id: '424207', minimum_availability: 'announced', dry_run: true })
+        ).rejects.toThrow(/monitor/i);
+    });
+
+    it('overrides Radarr minimum availability when asked', async () => {
+        const h = harness();
+        const first = await h.call({ service: 'radarr', external_id: '603', minimum_availability: 'announced' });
+        await h.call({
+            service: 'radarr',
+            external_id: '603',
+            minimum_availability: 'announced',
+            confirm: first.structuredContent.confirm_token
+        });
+        expect(posted(h)?.minimumAvailability).toBe('announced');
+    });
+
+    it('still defaults Radarr to released', async () => {
+        const h = harness();
+        const first = await h.call({ service: 'radarr', external_id: '603' });
+        await h.call({ service: 'radarr', external_id: '603', confirm: first.structuredContent.confirm_token });
+        expect(posted(h)?.minimumAvailability).toBe('released');
+    });
+
+    it('resolves tag labels to the ids the service holds', async () => {
+        const h = harness();
+        const args = { service: 'radarr', external_id: '603', tags: ['4k'] };
+        const first = await h.call(args);
+        await h.call({ ...args, confirm: first.structuredContent.confirm_token });
+        expect(posted(h)?.tags).toEqual([1]);
+    });
+
+    it('refuses an unknown tag, listing the ones that exist, and creates nothing', async () => {
+        const h = harness();
+        await expect(
+            h.call({ service: 'radarr', external_id: '603', tags: ['nope'], dry_run: true })
+        ).rejects.toThrow(/4k/);
+        expect(h.sent.filter(x => x.method === 'POST')).toHaveLength(0);
+    });
+
+    it('names the options it will use in the preview', async () => {
+        const s = sonarrStack();
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)] });
+        const { structuredContent } = await h.call({
+            service: 'sonarr',
+            external_id: '424207',
+            monitor: 'future',
+            dry_run: true
+        });
+        expect(structuredContent.effects.join(' ')).toMatch(/future/);
     });
 });

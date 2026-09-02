@@ -7,8 +7,11 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
-import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, SONARR_ADD } from './arrAdd.ts';
+import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, SONARR_ADD } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
+import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
@@ -38,10 +41,18 @@ import {
     type AddCandidate,
     type AddMediaOptions,
     type CommandHandle,
+    type CommandStatus,
+    type CommandStatusCapable,
     type DeleteMediaOptions,
     type EpisodeFile,
     type EpisodeFileCapable,
     type MediaAddCapable,
+    type ImportCandidate,
+    type LibraryMaintenanceCapable,
+    type ManualImportCapable,
+    type MediaUpdateCapable,
+    type MediaUpdateOptions,
+    type MediaUpdateState,
     type MediaDeleteCapable,
     type MonitoringCapable,
     type MonitoringTarget,
@@ -50,6 +61,7 @@ import {
     type ReleaseCandidate,
     type ReleaseSearchCapable,
     type RootFolder,
+    type Tag,
     type RemoveQueueOptions,
     type SearchCapable,
     type SearchHit,
@@ -68,10 +80,12 @@ type RawSeries = {
     year?: number;
     overview?: string;
     monitored?: boolean;
+    status?: string;
     path?: string;
     tvdbId?: number;
     imdbId?: string;
     genres?: string[];
+    qualityProfileId?: number;
     /** Flat, unlike Radarr's per-source map — see `flattenSeriesRating`. */
     ratings?: RawRating;
     added?: string | null;
@@ -131,6 +145,10 @@ export class SonarrAdapter
         QueueRemoveCapable,
         MediaDeleteCapable,
         MediaAddCapable,
+        MediaUpdateCapable,
+        LibraryMaintenanceCapable,
+        CommandStatusCapable,
+        ManualImportCapable,
         MonitoringCapable,
         EpisodeFileCapable,
         HistoryCapable,
@@ -221,6 +239,38 @@ export class SonarrAdapter
         return readRootFolders(this.#http, this.id);
     }
 
+    async listTags(): Promise<Tag[]> {
+        return readTags(this.#http, this.id);
+    }
+
+    async listCommands(): Promise<CommandStatus[]> {
+        return readArrCommands(this.#http, this.id);
+    }
+
+    async listImportCandidates(downloadId: string): Promise<ImportCandidate[]> {
+        return listArrImportCandidates(this.#http, this.id, 'series', downloadId);
+    }
+
+    async runManualImport(downloadId: string): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'series', downloadId);
+    }
+
+    async refreshItem(id: string): Promise<CommandHandle> {
+        return refreshArrItem(this.#http, this.id, 'series', id);
+    }
+
+    async renameItem(id: string): Promise<CommandHandle> {
+        return renameArrItem(this.#http, this.id, 'series', id);
+    }
+
+    async readForUpdate(id: string): Promise<MediaUpdateState> {
+        return readArrForUpdate(this.#http, this.id, 'series', id);
+    }
+
+    async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
+        return updateArrMedia(this.#http, this.id, 'series', id, opts);
+    }
+
     /** Sonarr resolves by TVDB id, not TMDB — Radarr's id will match nothing. */
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
         return lookupArrForAdd(this.#http, this.id, SONARR_ADD, externalId);
@@ -235,7 +285,7 @@ export class SonarrAdapter
         const id = Number(value);
         if (!Number.isInteger(id)) {
             throw new ServiceError('NotFound', this.id, `"${value}" is not a Sonarr ${what} id`, {
-                remedy: `Sonarr ${what} ids are integers. Get one from get_media_details or get_library.`
+                remedy: `Sonarr ${what} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
             });
         }
         return id;
@@ -313,7 +363,7 @@ export class SonarrAdapter
         const seriesId = Number(id);
         if (!Number.isInteger(seriesId)) {
             throw new ServiceError('NotFound', this.id, `"${id}" is not a Sonarr series id`, {
-                remedy: 'Sonarr series ids are integers. Get one from get_media_details or get_library.'
+                remedy: 'Sonarr series ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
             });
         }
 
@@ -348,6 +398,7 @@ export class SonarrAdapter
                 ? {}
                 : { overview: fenceText(s.overview, { service: this.id, field: 'overview' }) }),
             ...(s.monitored === undefined ? {} : { monitored: s.monitored }),
+            ...(s.status === undefined ? {} : { status: s.status }),
             ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk }),
             ...(s.path === undefined ? {} : { path: fenceText(s.path, { service: this.id, field: 'path' }) }),
             ids: {
@@ -402,6 +453,19 @@ export class SonarrAdapter
     /** Drop the cached whole-library read, e.g. after a write. */
     invalidateLibrary(): void {
         this.#libraryCache.clear();
+    }
+
+    /** Profile id → fenced name, cached beside the library read. Empty on
+     *  failure — see Radarr's copy of this. */
+    async #profileNames(): Promise<Map<number, string>> {
+        try {
+            const profiles = await this.#libraryCache.get('profiles', LIBRARY_TTL_MS, () =>
+                readQualityProfiles(this.#http, this.id)
+            );
+            return new Map(profiles.map(p => [p.id, p.display]));
+        } catch {
+            return new Map();
+        }
     }
 
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
@@ -471,7 +535,7 @@ export class SonarrAdapter
     /** The whole series library in one call, via `#allSeries` — the same read
      *  `search(_, 'library')` shares. */
     async listLibrary(): Promise<IndexInput[]> {
-        const series = await this.#allSeries();
+        const [series, profileNames] = await Promise.all([this.#allSeries(), this.#profileNames()]);
 
         return series.map(s => {
             const seasons = this.#seasonsOf(s);
@@ -488,11 +552,18 @@ export class SonarrAdapter
                 },
                 acquisition: {
                     service: this.id,
+                    ...(s.id === undefined || s.id <= 0 ? {} : { id: String(s.id) }),
+                    ...(s.status === undefined ? {} : { status: s.status }),
                     monitored: s.monitored ?? false,
                     // A series has no single file, so "has a file" means "has any
                     // episode on disk". No quality either: it is per-episode, which
                     // is why this makes the quality filter films-only.
                     hasFile: (s.statistics?.episodeFileCount ?? 0) > 0,
+                    ...(s.qualityProfileId === undefined ? {} : { qualityProfileId: s.qualityProfileId }),
+                    ...((name => (name === undefined ? {} : { qualityProfile: name }))(
+                        s.qualityProfileId === undefined ? undefined : profileNames.get(s.qualityProfileId)
+                    )),
+                    ...(s.path === undefined ? {} : { path: fenceText(s.path, { service: this.id, field: 'path' }) }),
                     ...(s.added === undefined || s.added === null ? {} : { addedAt: s.added }),
                     ...(s.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: s.statistics.sizeOnDisk })
                 },

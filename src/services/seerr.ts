@@ -10,6 +10,8 @@ import {
     type ConnectionDiagnosis,
     type CreateRequestOptions,
     type DiscoverCapable,
+    type IssueCapable,
+    type MediaIssue,
     type MediaRequest,
     type RequestManageCapable,
     type RequestStatus,
@@ -61,6 +63,24 @@ type RawRequest = {
 
 /** Seerr's numeric request statuses. */
 const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 'declined' };
+
+type RawIssue = {
+    id?: number;
+    issueType?: number;
+    status?: number;
+    createdAt?: string;
+    media?: { title?: string };
+    createdBy?: { displayName?: string; username?: string; email?: string };
+    comments?: { message?: string }[];
+};
+
+/** Seerr numbers both of these, and a model handed `issueType: 2` cannot say
+ *  what is wrong with the film. */
+const ISSUE_TYPE: Record<number, string> = { 1: 'video', 2: 'audio', 3: 'subtitle', 4: 'other' };
+const ISSUE_STATUS: Record<number, string> = { 1: 'open', 2: 'resolved' };
+
+/** An argument twenty comments long is not what the caller asked for. */
+const ISSUE_COMMENT_CAP = 3;
 
 /**
  * `requestedBy` does filter server-side, settled against a live Seerr 3.4.1.
@@ -115,7 +135,7 @@ type PageInfo = { results?: number };
 const nameOf = (u: RawUser): string | undefined => u.displayName ?? u.username ?? u.email?.split('@')[0];
 
 export class SeerrAdapter
-    implements ServiceAdapter, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable
+    implements ServiceAdapter, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable, IssueCapable
 {
     readonly type: ServiceId = 'seerr';
     readonly id: string = 'seerr';
@@ -200,6 +220,40 @@ export class SeerrAdapter
             // SEERR_FILTERS_SERVER_SIDE can never silently widen what a user sees.
             .filter(r => opts.user === undefined || r.requestedBy.toLowerCase() === opts.user.name.toLowerCase())
             .filter(r => opts.status === undefined || r.status === opts.status);
+    }
+
+    /**
+     * The issues a household has raised — "the audio is out of sync", "there
+     * are no subtitles" — which nothing in this stack could report.
+     *
+     * Both vocabularies arrive as integers and are mapped to words: a model
+     * handed `issueType: 2` cannot say what is wrong with the film. Comments
+     * are the user's own text and are fenced, and capped at the newest few:
+     * an argument twenty comments long is not what the caller asked for.
+     */
+    async getIssues(opts: { limit: number }): Promise<MediaIssue[]> {
+        const params = new URLSearchParams({ take: String(Math.max(1, opts.limit)), sort: 'added', filter: 'all' });
+        const rows = await this.#allPages<RawIssue>('/api/v1/issue', params);
+
+        return rows
+            .filter((i): i is RawIssue & { id: number } => typeof i.id === 'number')
+            .slice(0, opts.limit)
+            .map(i => ({
+                service: this.id,
+                id: String(i.id),
+                kind: ISSUE_TYPE[i.issueType ?? -1] ?? 'other',
+                status: ISSUE_STATUS[i.status ?? -1] ?? 'unknown',
+                ...(i.createdAt === undefined ? {} : { createdAt: i.createdAt }),
+                ...(i.media?.title === undefined
+                    ? {}
+                    : { title: fenceText(i.media.title, { service: this.id, field: 'title' }) }),
+                ...((name => (name === undefined ? {} : { reportedBy: name }))(nameOf(i.createdBy ?? {}))),
+                comments: (i.comments ?? [])
+                    .slice(-ISSUE_COMMENT_CAP)
+                    .map(c => c.message)
+                    .filter((m): m is string => typeof m === 'string' && m !== '')
+                    .map(m => fenceText(m, { service: this.id, field: 'comment' }))
+            }));
     }
 
     /**

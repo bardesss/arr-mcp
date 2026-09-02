@@ -192,3 +192,79 @@ describe('trigger_subtitle_search', () => {
         expect(second.content[0]?.text.toLowerCase()).not.toContain('downloaded');
     });
 });
+
+/**
+ * "I have Dutch subs and they are wrong" — a search Bazarr's wanted list can
+ * never justify, because the item is not missing anything.
+ */
+describe('trigger_subtitle_search outside the wanted list', () => {
+    it('still refuses an unknown item by default, and says how to mean it', async () => {
+        const thrown = await harness()
+            .call({ service: 'bazarr', kind: 'movie', id: '9999', language: 'nl', dry_run: true })
+            .then(
+                () => undefined,
+                (e: Error) => e.message
+            );
+        expect(thrown).toMatch(/missing subtitles/i);
+    });
+
+    it('searches an item Bazarr does not list, when told to', async () => {
+        const h = harness();
+        const first = await h.call({
+            service: 'bazarr',
+            kind: 'movie',
+            id: '9999',
+            language: 'nl',
+            search_anyway: true
+        });
+
+        expect(first.structuredContent.effects.join(' ')).toMatch(/does not list this movie as missing/i);
+
+        const second = await h.call({
+            service: 'bazarr',
+            kind: 'movie',
+            id: '9999',
+            language: 'nl',
+            search_anyway: true,
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(h.bazarrFetch.patches()[0]?.query).toMatchObject({ radarrid: '9999', language: 'nl' });
+    });
+
+    it('needs series_id for an episode outside the list, and refuses before writing', async () => {
+        const h = harness();
+        await expect(
+            h.call({ service: 'bazarr', kind: 'episode', id: '9999', language: 'nl', search_anyway: true, dry_run: true })
+        ).rejects.toThrow(/series_id/);
+        expect(h.bazarrFetch.patches()).toHaveLength(0);
+    });
+
+    it('uses the series_id it was given', async () => {
+        const h = harness();
+        const args = {
+            service: 'bazarr',
+            kind: 'episode',
+            id: '9999',
+            language: 'nl',
+            search_anyway: true,
+            series_id: 67
+        };
+        const first = await h.call(args);
+        await h.call({ ...args, confirm: first.structuredContent.confirm_token });
+
+        expect(h.bazarrFetch.patches()[0]?.query).toMatchObject({ seriesid: '67', episodeid: '9999' });
+    });
+
+    /** A language the item is not missing is still a no-op by default — the
+     *  behaviour that stops a reflexive retry becoming a replacement. */
+    it('is a no-op for a language that is not missing, unless asked', async () => {
+        const quiet = await harness().call({ ...movie, language: 'de', dry_run: false });
+        expect(quiet.structuredContent.noop).toBe(true);
+
+        const loud = await harness().call({ ...movie, language: 'de', search_anyway: true, dry_run: true });
+        expect(loud.structuredContent.noop).toBe(false);
+        expect(loud.structuredContent.effects.join(' ')).toMatch(/may replace a subtitle/i);
+    });
+});

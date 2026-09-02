@@ -9,6 +9,8 @@ import {
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
+    type HistoryCapable,
+    type HistoryEntry,
     type MissingLanguage,
     type ServiceAdapter,
     type SubtitleCapable,
@@ -55,7 +57,45 @@ function parseEpisodeNumber(value: string | undefined): { season?: number; episo
 }
 type RawProvider = { name?: string; status?: string; retry?: string };
 
-export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, SubtitleCapable, SubtitleSearchCapable {
+type RawHistory = {
+    id?: number;
+    action?: number | string;
+    title?: string;
+    description?: string;
+    language?: string;
+    provider?: string;
+    /** Epoch seconds on some builds, a relative string ("2 days ago") on
+     *  others — see `bazarrTimestamp`. */
+    timestamp?: number | string;
+    /** `MM/DD/YY HH:MM:SS`, as Bazarr's own UI formats it. */
+    parsed_timestamp?: string;
+};
+
+/**
+ * ISO 8601, or nothing.
+ *
+ * Bazarr has shipped two different `timestamp` shapes, and its
+ * `parsed_timestamp` is a US-ordered local time with a two-digit year. A row
+ * matching neither is dropped by the caller rather than dated: this feeds a
+ * list that is sorted and `since`-filtered as plain strings, so a guessed date
+ * does not merely mislabel one row, it reorders the answer.
+ */
+export function bazarrTimestamp(h: { timestamp?: number | string; parsed_timestamp?: string }): string | undefined {
+    if (typeof h.timestamp === 'number' && Number.isFinite(h.timestamp)) {
+        return new Date(h.timestamp * 1000).toISOString();
+    }
+
+    const match = /^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/.exec(h.parsed_timestamp ?? '');
+    if (match === null) return undefined;
+
+    const [, month, day, year, hour, minute, second] = match;
+    const parsed = Date.parse(`20${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined;
+}
+
+export class BazarrAdapter
+    implements ServiceAdapter, HealthCheckCapable, SubtitleCapable, SubtitleSearchCapable, HistoryCapable
+{
     readonly type: ServiceId = 'bazarr';
     readonly instance: string | undefined;
     readonly id: string;
@@ -210,6 +250,56 @@ export class BazarrAdapter implements ServiceAdapter, HealthCheckCapable, Subtit
         query.set('seriesid', String(target.seriesId));
         query.set('episodeid', String(target.id));
         await this.#http.patch(`/api/episodes/subtitles?${query.toString()}`);
+    }
+
+    /**
+     * What Bazarr has actually downloaded — the half `get_subtitles` cannot
+     * show, since that lists only what is still missing. Films and episodes
+     * are two endpoints, one list, exactly as the wanted read is.
+     *
+     * **Dates are the awkward part.** `timestamp` is a *relative* string
+     * ("2 days ago") on the versions seen; `parsed_timestamp` is
+     * `MM/DD/YY HH:MM:SS`. A row whose date cannot be read is dropped rather
+     * than dated: `get_history` sorts and filters `since` as a plain string,
+     * so an invented date would quietly reorder everything.
+     */
+    async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
+        if (opts.id !== undefined) {
+            throw new ServiceError('NotFound', this.id, 'Bazarr history is not scoped by a Radarr or Sonarr id here', {
+                remedy: 'Scope `id` to radarr or sonarr. Bazarr answers for the whole subtitle history.'
+            });
+        }
+
+        const [movies, episodes] = await Promise.all([
+            this.#http.get<Envelope<RawHistory[]>>('/api/movies/history?length=100'),
+            this.#http.get<Envelope<RawHistory[]>>('/api/episodes/history?length=100')
+        ]);
+
+        const rows = [...(movies.data ?? []), ...(episodes.data ?? [])].flatMap((h, index) => {
+            const at = bazarrTimestamp(h);
+            if (at === undefined) return [];
+            if (opts.since !== undefined && at < opts.since) return [];
+
+            const parts = [h.language, h.provider].filter((p): p is string => typeof p === 'string' && p !== '');
+            return [
+                {
+                    service: this.id,
+                    id: String(h.id ?? index),
+                    at,
+                    event: 'subtitle' as const,
+                    rawEvent: String(h.action ?? 'subtitle'),
+                    title: fenceText(h.title ?? '', { service: this.id, field: 'title' }),
+                    ...(parts.length === 0
+                        ? {}
+                        : { quality: fenceText(parts.join(' · '), { service: this.id, field: 'provider' }) }),
+                    ...(h.description
+                        ? { reason: fenceText(h.description, { service: this.id, field: 'description' }) }
+                        : {})
+                }
+            ];
+        });
+
+        return rows;
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

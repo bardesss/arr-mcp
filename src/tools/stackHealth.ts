@@ -6,9 +6,12 @@ import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import {
+    hasCommandStatus,
     hasDiskSpace,
     hasHealthChecks,
+    hasMediaAdd,
     hasScanState,
+    type CommandStatus,
     type ConnectionDiagnosis,
     type DiskSpace,
     type HealthCheck,
@@ -29,6 +32,13 @@ export type StackHealthResult = {
      */
     scans: ScanState[];
     /**
+     * The searches, scans, refreshes, renames and imports each service is
+     * running now, plus any it finished in the last fifteen minutes — the
+     * follow-up `trigger_search` and `trigger_scan` never had. Bounded like
+     * `scans` and absent at `minimal`: a running command is not a fault.
+     */
+    commands?: CommandStatus[];
+    /**
      * What each instance is allowed to do — absent unless the caller supplied
      * the instances, and absent at `minimal`, which answers "is anything
      * broken" and a permission is not a fault.
@@ -44,7 +54,26 @@ export type StackHealthResult = {
     /** Absent unless the caller supplied the instances, and absent at
      *  `minimal` — a URL is not a fault. */
     endpoints?: InstanceEndpoint[];
+    /**
+     * What each Radarr/Sonarr instance will accept on an add or an update.
+     * Only at `detail: "full"`: it is three extra calls per instance, and it
+     * answers "what may I choose", not "is anything broken".
+     */
+    options?: InstanceOptions[];
     degraded: string[];
+};
+
+/**
+ * The values `add_media` and `update_media` refuse to guess at. Paths and tag
+ * labels are the **fenced** display forms: these are for reading, and the raw
+ * path is only ever posted back inside the write tools, which resolve it
+ * themselves.
+ */
+export type InstanceOptions = {
+    instance: string;
+    qualityProfiles: { id: number; name: string }[];
+    rootFolders: { path: string; freeSpaceBytes?: number }[];
+    tags: string[];
 };
 
 export type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
@@ -147,6 +176,7 @@ export async function buildStackHealth(
     const disks: DiskSpace[] = [];
     const failures: HealthCheck[] = [];
     const scans: ScanState[] = [];
+    const commands: CommandStatus[] = [];
 
     const markDegraded = (id: string) => {
         if (!degraded.includes(id)) degraded.push(id);
@@ -180,10 +210,16 @@ export async function buildStackHealth(
 
             // A service with neither capability contributes its diagnosis and
             // no rows, rather than being special-cased out of the loop.
-            const [diskResult, healthResult, scanResult] = await Promise.allSettled([
+            const [diskResult, healthResult, scanResult, commandResult] = await Promise.allSettled([
                 hasDiskSpace(adapter) ? adapter.getDiskSpace() : Promise.resolve([]),
                 hasHealthChecks(adapter) ? adapter.getFailedHealthChecks() : Promise.resolve([]),
-                hasScanState(adapter) ? adapter.getScanState() : Promise.resolve(undefined)
+                hasScanState(adapter) ? adapter.getScanState() : Promise.resolve(undefined),
+                // Skipped at `minimal`, which answers "is anything broken" —
+                // a running command is not a fault, and this is a call per
+                // service that nobody asked for at that level.
+                hasCommandStatus(adapter) && opts.detail !== 'minimal'
+                    ? adapter.listCommands()
+                    : Promise.resolve([])
             ]);
 
             if (diskResult.status === 'fulfilled') {
@@ -206,13 +242,60 @@ export async function buildStackHealth(
                 logger.warn({ service: adapter.id }, 'scan state read failed');
                 markDegraded(adapter.id);
             }
+
+            if (commandResult.status === 'fulfilled') {
+                commands.push(...commandResult.value);
+            } else {
+                logger.warn({ service: adapter.id }, 'command list read failed');
+                markDegraded(adapter.id);
+            }
         })
     );
+
+    // Settled per instance, never awaited bare: an instance whose profile list
+    // is down still has health worth reporting, and this list is the least
+    // important thing in the response.
+    const options =
+        opts.detail !== 'full'
+            ? undefined
+            : (
+                  await Promise.all(
+                      adapters.filter(hasMediaAdd).map(async adapter => {
+                          try {
+                              const [profiles, folders, tags] = await Promise.all([
+                                  adapter.listQualityProfiles(),
+                                  adapter.listRootFolders(),
+                                  adapter.listTags()
+                              ]);
+                              return [
+                                  {
+                                      instance: adapter.id,
+                                      qualityProfiles: profiles.map(p => ({ id: p.id, name: p.display })),
+                                      rootFolders: folders.map(f => ({
+                                          path: f.display,
+                                          ...(f.freeSpaceBytes === undefined ? {} : { freeSpaceBytes: f.freeSpaceBytes })
+                                      })),
+                                      tags: tags.map(t => t.display)
+                                  }
+                              ];
+                          } catch (err) {
+                              logger.warn({ service: adapter.id, err }, 'add options unavailable; omitting');
+                              markDegraded(adapter.id);
+                              return [];
+                          }
+                      })
+                  )
+              )
+                  .flat()
+                  .sort((a, b) => a.instance.localeCompare(b.instance));
 
     // Promise.all resolves in input order but the pushes above race, so sort to
     // make the response stable across calls and diffable in tests.
     services.sort((a, b) => a.service.localeCompare(b.service));
     scans.sort((a, b) => a.service.localeCompare(b.service));
+    // Newest first across services: "did the thing I just started finish" is
+    // a question about the most recent rows.
+    commands.sort((a, b) => (b.queuedAt ?? '').localeCompare(a.queuedAt ?? ''));
     degraded.sort();
 
     // One budget across both lists, spent on failures first: a failing health
@@ -269,6 +352,8 @@ export async function buildStackHealth(
             scans,
             ...(permissions === undefined ? {} : { permissions }),
             ...(endpoints === undefined ? {} : { endpoints }),
+            ...(options === undefined ? {} : { options }),
+            ...(opts.detail === 'minimal' ? {} : { commands }),
             degraded
         },
         opts.detail
@@ -286,7 +371,7 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
+                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists the searches, scans, refreshes, renames and imports each service has queued or running, plus any it finished in the last fifteen minutes — so a command that is not there has finished. A service\'s own per-minute housekeeping is left out. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema }),
             // The one read tool whose answer is not a list, so it declares its
             // own shape rather than the paged envelope. `disks` and `failures`
@@ -297,8 +382,16 @@ export function registerStackHealth(
                 failures: TruncationSchema.describe('Health checks the services themselves are reporting.'),
                 disks: TruncationSchema.describe('Free space per root folder.'),
                 scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated — bounded by the number of services.'),
+                commands: z
+                    .array(z.unknown())
+                    .optional()
+                    .describe('Queued or running tasks, plus anything finished in the last fifteen minutes. Absent at `minimal`.'),
                 permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal` — a permission is not a fault.'),
                 endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
+                options: z
+                    .array(z.unknown())
+                    .optional()
+                    .describe('Quality profiles, root folders and tags each Radarr/Sonarr instance has. Only at `detail: "full"`.'),
                 degraded: z.array(z.string())
             })
         },

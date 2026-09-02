@@ -50,6 +50,7 @@ import { registerStackHealth } from './stackHealth.ts';
 import { registerTriggerScan } from './triggerScan.ts';
 import { registerTriggerSubtitleSearch } from './triggerSubtitleSearch.ts';
 import { registerTriggerSearch } from './triggerSearch.ts';
+import { registerUpdateMedia } from './updateMedia.ts';
 import type { WriteContext } from './write.ts';
 
 /**
@@ -209,6 +210,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerRespondToRequest(server, write, adapters, seerrIdentity);
     registerDeleteRequest(server, write, adapters, seerrIdentity);
     registerAddMedia(server, write, adapters);
+    registerUpdateMedia(server, write, adapters);
     registerGrabRelease(server, write, adapters);
     registerRequestMedia(server, write, adapters, seerrIdentity);
     registerPauseDownloads(server, write, adapters);
@@ -252,6 +254,7 @@ export const TOOL_NAMES = [
     'respond_to_request',
     'delete_request',
     'add_media',
+    'update_media',
     'grab_release',
     'request_media',
     'pause_downloads',

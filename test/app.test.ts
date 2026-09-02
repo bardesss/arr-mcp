@@ -353,7 +353,7 @@ describe('the advertised tool surface', () => {
         return payload.result.tools;
     };
 
-    /** The nine that can change something. Everything else only reads. */
+    /** The writes. Everything else only reads. */
     const WRITES = [
         'add_media',
         'clean_queue',
@@ -370,10 +370,11 @@ describe('the advertised tool surface', () => {
         'set_watched',
         'trigger_scan',
         'trigger_search',
-        'trigger_subtitle_search'
+        'trigger_subtitle_search',
+        'update_media'
     ];
 
-    /** Of those sixteen, the five whose effect cannot be undone by calling again. */
+    /** Of those, the five whose effect cannot be undone by calling again. */
     const DESTRUCTIVE = ['clean_queue', 'delete_episode_files', 'delete_media', 'delete_request', 'remove_queue_item'];
 
     /**
@@ -401,11 +402,11 @@ describe('the advertised tool surface', () => {
     /**
      * Without `readOnlyHint`, `delete_media` and `get_queue` are the same kind
      * of thing to a client that decides what to auto-approve from annotations —
-     * so a surface with eleven writes on it reads as either all safe or all
+     * so a surface with this many writes on it reads as either all safe or all
      * dangerous. The hint is the only machine-readable way to tell them apart;
      * the descriptions say so in prose, which nothing but a model can act on.
      */
-    it('says which tools only read, so a client can tell the eleven writes from the rest', async () => {
+    it('says which tools only read, so a client can tell the writes from the rest', async () => {
         const tools = await listTools();
         const unmarked = tools.filter(t => t.annotations?.readOnlyHint === undefined);
         expect(unmarked.map(t => t.name)).toEqual([]);

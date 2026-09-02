@@ -6,8 +6,11 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
-import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders } from './arrAdd.ts';
+import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
+import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
@@ -36,14 +39,23 @@ import {
     type AddCandidate,
     type AddMediaOptions,
     type CommandHandle,
+    type CommandStatus,
+    type CommandStatusCapable,
     type DeleteMediaOptions,
     type MediaAddCapable,
+    type ImportCandidate,
+    type LibraryMaintenanceCapable,
+    type ManualImportCapable,
+    type MediaUpdateCapable,
+    type MediaUpdateOptions,
+    type MediaUpdateState,
     type MediaDeleteCapable,
     type QualityProfile,
     type QueueRemoveCapable,
     type ReleaseCandidate,
     type ReleaseSearchCapable,
     type RootFolder,
+    type Tag,
     type RemoveQueueOptions,
     type SearchCapable,
     type SearchHit,
@@ -61,11 +73,13 @@ type RawMovie = {
     year?: number;
     overview?: string;
     monitored?: boolean;
+    status?: string;
     hasFile?: boolean;
     path?: string;
     tmdbId?: number;
     imdbId?: string;
     genres?: string[];
+    qualityProfileId?: number;
     ratings?: Record<string, RawRating>;
     added?: string | null;
     movieFile?: { size?: number; quality?: { quality?: { name?: string } } };
@@ -108,6 +122,10 @@ export class RadarrAdapter
         QueueRemoveCapable,
         MediaDeleteCapable,
         MediaAddCapable,
+        MediaUpdateCapable,
+        LibraryMaintenanceCapable,
+        CommandStatusCapable,
+        ManualImportCapable,
         HistoryCapable,
         WantedCapable,
         ReleaseSearchCapable
@@ -197,6 +215,38 @@ export class RadarrAdapter
         return readRootFolders(this.#http, this.id);
     }
 
+    async listTags(): Promise<Tag[]> {
+        return readTags(this.#http, this.id);
+    }
+
+    async listCommands(): Promise<CommandStatus[]> {
+        return readArrCommands(this.#http, this.id);
+    }
+
+    async listImportCandidates(downloadId: string): Promise<ImportCandidate[]> {
+        return listArrImportCandidates(this.#http, this.id, 'movie', downloadId);
+    }
+
+    async runManualImport(downloadId: string): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'movie', downloadId);
+    }
+
+    async refreshItem(id: string): Promise<CommandHandle> {
+        return refreshArrItem(this.#http, this.id, 'movie', id);
+    }
+
+    async renameItem(id: string): Promise<CommandHandle> {
+        return renameArrItem(this.#http, this.id, 'movie', id);
+    }
+
+    async readForUpdate(id: string): Promise<MediaUpdateState> {
+        return readArrForUpdate(this.#http, this.id, 'movie', id);
+    }
+
+    async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
+        return updateArrMedia(this.#http, this.id, 'movie', id, opts);
+    }
+
     /** Radarr resolves by TMDB id; a TVDB id will simply match nothing. */
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
         return lookupArrForAdd(this.#http, this.id, RADARR_ADD, externalId);
@@ -225,6 +275,7 @@ export class RadarrAdapter
                 ? {}
                 : { overview: fenceText(m.overview, { service: this.id, field: 'overview' }) }),
             ...(m.monitored === undefined ? {} : { monitored: m.monitored }),
+            ...(m.status === undefined ? {} : { status: m.status }),
             ...(m.hasFile === undefined ? {} : { hasFile: m.hasFile }),
             ...(m.movieFile?.size === undefined ? {} : { sizeBytes: m.movieFile.size }),
             ...(m.movieFile?.quality?.quality?.name === undefined
@@ -253,7 +304,7 @@ export class RadarrAdapter
         const movieId = Number(id);
         if (!Number.isInteger(movieId)) {
             throw new ServiceError('NotFound', this.id, `"${id}" is not a Radarr movie id`, {
-                remedy: 'Radarr movie ids are integers. Get one from get_media_details or get_library.'
+                remedy: 'Radarr movie ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
             });
         }
 
@@ -280,6 +331,23 @@ export class RadarrAdapter
     /** Drop the cached whole-library read, e.g. after a write. */
     invalidateLibrary(): void {
         this.#libraryCache.clear();
+    }
+
+    /**
+     * Profile id → fenced name, cached beside the library read so a build
+     * costs one extra call rather than one per film. An empty map on failure:
+     * a profile list that times out must not take the whole library with it,
+     * and the id alone is still worth reporting.
+     */
+    async #profileNames(): Promise<Map<number, string>> {
+        try {
+            const profiles = await this.#libraryCache.get('profiles', LIBRARY_TTL_MS, () =>
+                readQualityProfiles(this.#http, this.id)
+            );
+            return new Map(profiles.map(p => [p.id, p.display]));
+        } catch {
+            return new Map();
+        }
     }
 
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
@@ -327,7 +395,7 @@ export class RadarrAdapter
      * this is the same `/api/v3/movie` read `search` already does, via `#allMovies`.
      */
     async listLibrary(): Promise<IndexInput[]> {
-        const movies = await this.#allMovies();
+        const [movies, profileNames] = await Promise.all([this.#allMovies(), this.#profileNames()]);
 
         return movies.map(m => ({
             kind: 'movie' as const,
@@ -342,8 +410,17 @@ export class RadarrAdapter
             },
             acquisition: {
                 service: this.id,
+                // `> 0` for the reason `#toHit` gives: a build that sends 0
+                // instead of omitting the field must not produce the id "0".
+                ...(m.id === undefined || m.id <= 0 ? {} : { id: String(m.id) }),
+                ...(m.status === undefined ? {} : { status: m.status }),
                 monitored: m.monitored ?? false,
                 hasFile: m.hasFile ?? false,
+                ...(m.qualityProfileId === undefined ? {} : { qualityProfileId: m.qualityProfileId }),
+                ...((name => (name === undefined ? {} : { qualityProfile: name }))(
+                    m.qualityProfileId === undefined ? undefined : profileNames.get(m.qualityProfileId)
+                )),
+                ...(m.path === undefined ? {} : { path: fenceText(m.path, { service: this.id, field: 'path' }) }),
                 ...(m.added === undefined || m.added === null ? {} : { addedAt: m.added }),
                 ...(m.movieFile?.quality?.quality?.name === undefined
                     ? {}

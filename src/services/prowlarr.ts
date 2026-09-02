@@ -6,12 +6,14 @@ import { ServiceHttp } from '../core/http.ts';
 import type { components } from './generated/prowlarr.ts';
 import {
     diagnoseConnection,
+    type CommandHandle,
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
     type IndexerCapable,
     type IndexerRejection,
     type IndexerSummary,
+    type LibraryScanCapable,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
@@ -62,7 +64,9 @@ type RawRelease = {
  *
  * It is also API v1, not v3 — Prowlarr never had a v3 like its siblings.
  */
-export class ProwlarrAdapter implements ServiceAdapter, HealthCheckCapable, IndexerCapable, SearchCapable {
+export class ProwlarrAdapter
+    implements ServiceAdapter, HealthCheckCapable, IndexerCapable, SearchCapable, LibraryScanCapable
+{
     readonly type: ServiceId = 'prowlarr';
     readonly id: string = 'prowlarr';
     readonly #http: ServiceHttp;
@@ -77,6 +81,26 @@ export class ProwlarrAdapter implements ServiceAdapter, HealthCheckCapable, Inde
             throw new ServiceError('UpstreamError', this.id, 'system/status returned no version field');
         }
         return status.version;
+    }
+
+    /**
+     * Prowlarr's answer to "reconcile yourself with the world": it pushes the
+     * indexer list to every application it manages. Not a library scan — it
+     * has no library — but the same shape of action, which is why
+     * `trigger_scan` owns it rather than a tool of its own.
+     *
+     * v1, like everything else here.
+     */
+    async startLibraryScan(): Promise<CommandHandle> {
+        const queued = await this.#http.post<{ id?: number; name?: string; status?: string }>('/api/v1/command', {
+            name: 'ApplicationIndexerSync'
+        });
+        return {
+            service: this.id,
+            commandId: queued.id ?? 0,
+            name: queued.name ?? 'ApplicationIndexerSync',
+            ...(typeof queued.status === 'string' ? { status: queued.status } : {})
+        };
     }
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {

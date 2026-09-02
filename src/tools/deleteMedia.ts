@@ -44,7 +44,7 @@ export function registerDeleteMedia(
         name: 'delete_media',
         title: 'Delete a film or series',
         description:
-            'Removes a film from Radarr or a whole series from Sonarr, optionally deleting its files from disk. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: get those from get_media_details or get_library first. Sonarr deletes the entire series; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews by default — call again with the returned `confirm` token to actually delete.',
+            'Removes a film from Radarr or a whole series from Sonarr, optionally deleting its files from disk. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr deletes the entire series; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews by default — call again with the returned `confirm` token to actually delete.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr or sonarr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),

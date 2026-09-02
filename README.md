@@ -47,7 +47,7 @@ part it could not check rather than guessing across the hole.
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
-| 📚 **Thirty-three tools, one vocabulary** | Every list pages the same way, every error names the config key that would fix it, every write takes ids rather than titles. |
+| 📚 **Thirty-four tools, one vocabulary** | Every list pages the same way, every error names the config key that would fix it, every write takes ids rather than titles. |
 
 Nothing else in this space does the last four at all.
 
@@ -114,7 +114,7 @@ ARM NAS runs the same build as everything else.
 
 ## What you can ask it
 
-Thirty-three tools, but you never name them — you ask, and the model picks:
+Thirty-four tools, but you never name them — you ask, and the model picks:
 
 > *"What's downloading right now, and is anything stuck?"*
 > *"What aired this week that I haven't watched?"*
@@ -124,13 +124,15 @@ Thirty-three tools, but you never name them — you ask, and the model picks:
 > *"Not that release — grab the 1080p remux instead."*
 > *"Why does this episode keep failing and never downloading?"*
 > *"Pause SABnzbd, I need the bandwidth for an hour."*
+> *"That download finished days ago and never got imported — sort it out."*
+> *"Put this series on the 4K profile and only monitor future seasons."*
 > *"Unmonitor season 5 and delete its files."* — previewed first, always.
 
 ## Documentation
 
 | | |
 | --- | --- |
-| **[Tools](docs/tools.md)** | All thirty-three, what each answers, and the fields whose meaning is not obvious |
+| **[Tools](docs/tools.md)** | All thirty-four, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, several Radarrs, Jellyfin's `default_user` |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |

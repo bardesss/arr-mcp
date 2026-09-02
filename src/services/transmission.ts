@@ -14,7 +14,11 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
-    type ServiceAdapter
+    type MagnetAdded,
+    type MagnetAddCapable,
+    type ServiceAdapter,
+    type SpeedLimit,
+    type SpeedLimitCapable
 } from './types.ts';
 
 const RPC_PATH = '/transmission/rpc';
@@ -24,6 +28,9 @@ type RawSession = {
     version?: string;
     'download-dir'?: string;
     'download-dir-free-space'?: number;
+    /** KB/s, and only applied when the `-enabled` flag is set. */
+    'speed-limit-down'?: number;
+    'speed-limit-down-enabled'?: boolean;
 };
 
 /**
@@ -52,7 +59,16 @@ const TORRENT_STATUS: Record<number, string> = {
     6: 'seeding'
 };
 
-export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable {
+export class TransmissionAdapter
+    implements
+        ServiceAdapter,
+        DiskSpaceCapable,
+        QueueCapable,
+        QueueRemoveCapable,
+        PauseCapable,
+        SpeedLimitCapable,
+        MagnetAddCapable
+{
     readonly type: ServiceId = 'transmission';
     readonly id: string = 'transmission';
     readonly #http: ServiceHttp;
@@ -207,6 +223,71 @@ export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, Qu
                 `${paused ? 'torrent-stop' : 'torrent-start'} failed: ${body.result ?? 'no result field'}`
             );
         }
+    }
+
+    /**
+     * Transmission's session speeds are **KB/s**, which is what this boundary
+     * speaks — no conversion, only the enabled flag, which is what actually
+     * decides whether the number is applied.
+     */
+    async readSpeedLimit(): Promise<SpeedLimit> {
+        const session = await this.#session();
+        const limit = session['speed-limit-down'];
+        if (session['speed-limit-down-enabled'] !== true || typeof limit !== 'number' || limit <= 0) {
+            return { service: this.id };
+        }
+        return { service: this.id, kbps: limit };
+    }
+
+    async setSpeedLimit(kbps: number | undefined): Promise<void> {
+        const clearing = kbps === undefined || kbps <= 0;
+        const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
+            method: 'session-set',
+            arguments: {
+                'speed-limit-down-enabled': !clearing,
+                // Sent even when clearing: Transmission keeps the number
+                // behind the flag, and leaving a stale 50 KB/s there is how a
+                // later "pause and resume" comes back throttled.
+                'speed-limit-down': clearing ? 0 : Math.round(kbps)
+            }
+        });
+
+        if (body.result !== 'success') {
+            throw new ServiceError('UpstreamError', this.id, `session-set failed: ${body.result ?? 'no result field'}`);
+        }
+    }
+
+    /**
+     * `torrent-add` answers with `torrent-added` for a new torrent and
+     * `torrent-duplicate` for one the client already has — a 200 either way,
+     * so the arguments are what say which happened. A duplicate is reported,
+     * not thrown: it is the state the caller asked for.
+     */
+    async addMagnet(uri: string): Promise<MagnetAdded> {
+        const body = await this.#http.post<
+            RpcResponse<{
+                'torrent-added'?: { id?: number; name?: string };
+                'torrent-duplicate'?: { id?: number; name?: string };
+            }>
+        >(RPC_PATH, { method: 'torrent-add', arguments: { filename: uri } });
+
+        if (body.result !== 'success') {
+            throw new ServiceError('UpstreamError', this.id, `torrent-add failed: ${body.result ?? 'no result field'}`, {
+                remedy: 'Transmission refused the magnet. Check the link is complete and the client can reach a tracker.'
+            });
+        }
+
+        const added = body.arguments?.['torrent-added'];
+        const duplicate = body.arguments?.['torrent-duplicate'];
+        const row = added ?? duplicate;
+
+        return {
+            ...(row?.id === undefined ? {} : { id: String(row.id) }),
+            ...(row?.name === undefined
+                ? {}
+                : { title: fenceText(row.name, { service: this.id, field: 'name' }) }),
+            duplicate: added === undefined && duplicate !== undefined
+        };
     }
 
     #torrentId(id: string): number {

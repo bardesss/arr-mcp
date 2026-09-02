@@ -21,6 +21,7 @@ type RawQueueRecord = {
     movieId?: number;
     seriesId?: number;
     trackedDownloadState?: string;
+    downloadId?: string;
 };
 
 /**
@@ -71,7 +72,8 @@ export async function readArrQueue(
                 // Omitted when it only repeats `status`, which is the common case.
                 ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
                     ? {}
-                    : { importState: r.trackedDownloadState })
+                    : { importState: r.trackedDownloadState }),
+                ...(r.downloadId === undefined ? {} : { downloadId: r.downloadId })
             };
         });
 }
@@ -114,7 +116,7 @@ export async function deleteArrMedia(
     const numeric = Number(id);
     if (!Number.isInteger(numeric)) {
         throw new ServiceError('NotFound', service, `"${id}" is not a ${service} ${resource} id`, {
-            remedy: `${service} ids are integers. Get one from get_media_details or get_library.`
+            remedy: `${service} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
         });
     }
 

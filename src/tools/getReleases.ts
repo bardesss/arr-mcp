@@ -86,7 +86,7 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
             inputSchema: toolInput({
                 service: ServiceIdSchema.describe('radarr or sonarr. Required — this searches one item, never merges across services.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-                id: z.string().min(1).describe('The movie or series id, from get_media_details or get_library.'),
+                id: z.string().min(1).describe('The movie or series id — `acquisition.id` on a get_library or get_media_details record.'),
                 season: z
                     .number()
                     .int()

@@ -748,3 +748,144 @@ describe('hasPlayback', () => {
         expect(hasPlayback(partial)).toBe(false);
     });
 });
+
+/**
+ * The internal id every write takes. Without it on the merged record a caller
+ * has to make a second `search_media(source: "library")` hop to find the id
+ * for a title `get_library` already returned.
+ */
+describe('the *arr internal id on a library row', () => {
+    it('is carried by Radarr, as an integer string', async () => {
+        const radarr = new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie': fixture('radarr/movie.json') }));
+        expect((await radarr.listLibrary())[0]?.acquisition?.id).toBe('340');
+    });
+
+    it('is carried by Sonarr, as an integer string', async () => {
+        const sonarr = new SonarrAdapter(keyed(8989), serving({ '/api/v3/series': fixture('sonarr/series.json') }));
+        const first = (await sonarr.listLibrary())[0];
+        expect(first?.acquisition?.id).toMatch(/^\d+$/);
+    });
+
+    it('is omitted rather than reported as "0" when the service sends a zero', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': [{ id: 0, title: 'Unsaved', tmdbId: 1 }] })
+        );
+        expect((await radarr.listLibrary())[0]?.acquisition?.id).toBeUndefined();
+    });
+});
+
+/**
+ * "Has this show ended, or will more air?" — a question Sonarr answers on
+ * every series and nothing here surfaced. Passed through verbatim: Radarr's
+ * `announced`/`released` and Sonarr's `continuing`/`ended` describe different
+ * things, and one normalised vocabulary would invent a third.
+ */
+describe('the status word the managing service reports', () => {
+    it('reaches the merged row and the raw view from Sonarr', async () => {
+        const sonarr = new SonarrAdapter(
+            keyed(8989),
+            serving({
+                '/api/v3/series': fixture('sonarr/series.json'),
+                '/api/v3/series/15': (fixture('sonarr/series.json') as { id: number }[])[0]
+            })
+        );
+        expect((await sonarr.listLibrary())[0]?.acquisition?.status).toBe('ended');
+        expect((await sonarr.getMediaDetails('15', { includeEpisodes: false, episodeLimit: 5 })).status).toBe('ended');
+    });
+
+    it('reaches the merged row and the raw view from Radarr', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({
+                '/api/v3/movie': fixture('radarr/movie.json'),
+                '/api/v3/movie/340': (fixture('radarr/movie.json') as { id: number }[])[0]
+            })
+        );
+        expect((await radarr.listLibrary())[0]?.acquisition?.status).toBe('announced');
+        expect((await radarr.getMediaDetails('340')).status).toBe('announced');
+    });
+
+    it('is omitted rather than guessed when the service did not report one', async () => {
+        const radarr = new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie': [{ id: 1, title: 'Bare', tmdbId: 1 }] }));
+        expect((await radarr.listLibrary())[0]?.acquisition?.status).toBeUndefined();
+    });
+});
+
+/**
+ * The profile and path a merged row never carried, which is what made
+ * "which profile is this on?" and update_media's before/after preview
+ * impossible without a second raw read.
+ */
+describe('the profile and path on a library row', () => {
+    const profiles = [
+        { id: 8, name: 'HD Bluray + WEB' },
+        { id: 9, name: 'Any' }
+    ];
+
+    it('resolves the profile id to a name and keeps the path', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': fixture('radarr/movie.json'), '/api/v3/qualityprofile': profiles })
+        );
+        const first = (await radarr.listLibrary())[0];
+        expect(first?.acquisition?.qualityProfileId).toBe(8);
+        expect(first?.acquisition?.qualityProfile).toContain('HD Bluray + WEB');
+        expect(first?.acquisition?.path).toContain('/storage/movies/Blade');
+    });
+
+    it('keeps the id and drops the name when the profile list is unreadable', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': fixture('radarr/movie.json') })
+        );
+        const first = (await radarr.listLibrary())[0];
+        expect(first?.acquisition?.qualityProfileId).toBe(8);
+        expect(first?.acquisition?.qualityProfile).toBeUndefined();
+    });
+
+    it('does the same for Sonarr', async () => {
+        const sonarr = new SonarrAdapter(
+            keyed(8989),
+            serving({ '/api/v3/series': fixture('sonarr/series.json'), '/api/v3/qualityprofile': profiles })
+        );
+        const first = (await sonarr.listLibrary())[0];
+        expect(first?.acquisition?.qualityProfileId).toBe(9);
+        expect(first?.acquisition?.qualityProfile).toContain('Any');
+        expect(first?.acquisition?.path).toContain('/storage/tv/Taboo');
+    });
+
+    it('fences the path, which is operator-supplied text', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': [{ id: 1, title: 'X', tmdbId: 1, path: '/movies/X' }] })
+        );
+        expect((await radarr.listLibrary())[0]?.acquisition?.path).toMatch(/untrusted/);
+    });
+});
+
+/**
+ * `set_watched` takes a media server item id, and until now no merged record
+ * carried one — so the write it exists for could not be reached from the read
+ * that found the title. Named for the media server rather than for Jellyfin:
+ * a second one fills the same field from its own id.
+ */
+describe('the media server item id on a library row', () => {
+    it('is carried by the per-user library read', async () => {
+        const jelly = new JellyfinAdapter(
+            multiUser(8096),
+            serving({ '/Items': fixture('jellyfin/items-library.json') })
+        );
+        const first = (await jelly.listUserLibrary({ id: 'u1', name: 'Someone' }))[0];
+        expect(first?.playback?.itemId).toBe('65cbd491b1ecb02fdb3d7cbaefab5353');
+    });
+
+    it('is omitted rather than empty when Jellyfin sent no id', async () => {
+        const jelly = new JellyfinAdapter(
+            multiUser(8096),
+            serving({ '/Items': { Items: [{ Name: 'No Id', Type: 'Movie', ProviderIds: { Tmdb: '1' } }] } })
+        );
+        const first = (await jelly.listUserLibrary({ id: 'u1', name: 'Someone' }))[0];
+        expect(first?.playback?.itemId).toBeUndefined();
+    });
+});

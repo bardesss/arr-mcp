@@ -3,13 +3,8 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import {
-    hasMediaAdd,
-    type MediaAddCapable,
-    type QualityProfile,
-    type RootFolder,
-    type ServiceAdapter
-} from '../services/types.ts';
+import { hasMediaAdd, type MediaAddCapable, type ServiceAdapter } from '../services/types.ts';
+import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -43,93 +38,12 @@ const findAdapter = (
     return adapter;
 };
 
-/**
- * Resolves one of several options, or refuses in a way that can be acted on.
- *
- * Exact matches are tried first and, crucially, a **loose match that is
- * ambiguous is a refusal, not a coin toss**. Two live failures shaped this:
- *
- * - Asking for quality profile `8` selected `HD-1080p` (id 4), because the
- *   old single predicate `id === requested || name.includes(requested)` let
- *   the *name* branch fire on the digit: "hd-1080p" contains "8". A film was
- *   added and a 1080p release grabbed against an explicit request for 2160p.
- *   A numeric request now only ever matches an id.
- * - `2160p Balanced` is a prefix of `2160p Balanced NL`, so a substring match
- *   silently picked whichever came first.
- *
- * Both are the same failure the "several, none named" refusal below exists to
- * prevent — a guess presented as a decision — and both are worse for arriving
- * while looking like the tool had understood.
- */
-function chooseOne<T>(
-    options: readonly T[],
-    requested: string | undefined,
-    match: { exact: (option: T, requested: string) => boolean; loose: (option: T, requested: string) => boolean },
-    describe: (option: T) => string,
-    what: string,
-    service: ServiceId
-): T {
-    if (options.length === 0) {
-        throw new ServiceError('NotFound', service, `${service} has no ${what} configured`, {
-            remedy: `Add one in ${service}'s own settings first — nothing can be added without it.`
-        });
-    }
-
-    if (requested !== undefined) {
-        const exact = options.filter(o => match.exact(o, requested));
-        if (exact.length === 1) return exact[0]!;
-
-        // Only consulted when nothing matched exactly, so an exact name can
-        // never be beaten by another option that merely contains it.
-        const loose = exact.length === 0 ? options.filter(o => match.loose(o, requested)) : exact;
-        if (loose.length === 1) return loose[0]!;
-
-        if (loose.length === 0) {
-            throw new ServiceError('NotFound', service, `no ${what} on ${service} matches "${requested}"`, {
-                remedy: `Available: ${options.map(describe).join('; ')}.`
-            });
-        }
-
-        throw new ServiceError('NotFound', service, `"${requested}" matches more than one ${what} on ${service}`, {
-            remedy: `Be exact — it matches: ${loose.map(describe).join('; ')}. Naming the id is unambiguous.`
-        });
-    }
-
-    // Exactly one is not a choice, so making it silently is not a guess.
-    if (options.length === 1) return options[0]!;
-
-    throw new ServiceError('NotFound', service, `${service} has several ${what}s and none was named`, {
-        remedy: `Name one — available: ${options.map(describe).join('; ')}. Not guessing, because the wrong one is not obvious until the download finishes.`
-    });
-}
-
-/** A request made entirely of digits is an id and nothing else. Without this,
- *  "8" matches the *name* "HD-1080p". */
-const isNumeric = (value: string) => /^\d+$/.test(value);
-
-const GIB = 1024 ** 3;
-const freeSpace = (folder: RootFolder): string =>
-    folder.freeSpaceBytes === undefined ? 'free space unknown' : `${(folder.freeSpaceBytes / GIB).toFixed(0)} GB free`;
-
-const PROFILE_MATCH = {
-    exact: (p: QualityProfile, requested: string): boolean =>
-        String(p.id) === requested || p.name.toLowerCase() === requested.toLowerCase(),
-    // A numeric request is an id, full stop — never a substring of a name.
-    loose: (p: QualityProfile, requested: string): boolean =>
-        !isNumeric(requested) && p.name.toLowerCase().includes(requested.toLowerCase())
-};
-
-const FOLDER_MATCH = {
-    exact: (f: RootFolder, requested: string): boolean => f.path.toLowerCase() === requested.toLowerCase(),
-    loose: (f: RootFolder, requested: string): boolean => f.path.toLowerCase().includes(requested.toLowerCase())
-};
-
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     registerWriteTool(server, context, {
         name: 'add_media',
         title: 'Add a film or series',
         description:
-            'Adds a film to Radarr or a series to Sonarr and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr takes a TVDB id — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes. Previews by default — call again with the returned `confirm` token to actually add it.',
+            'Adds a film to Radarr or a series to Sonarr and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr takes a TVDB id — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes — `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. Sonarr also takes `monitor` (which seasons: `future` is "only what has not aired yet") and `series_type`; Radarr takes `minimum_availability`. An option sent to the wrong service is refused, not dropped. Previews by default — call again with the returned `confirm` token to actually add it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr for a film, sonarr for a series.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
@@ -146,6 +60,28 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 .optional()
                 .describe('Root folder path, or any distinctive part of it. Optional only when the service has exactly one.'),
             monitored: z.boolean().default(true).describe('Monitor it for downloads. Defaults to true.'),
+            monitor: z
+                .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'none'])
+                .optional()
+                .describe(
+                    'Sonarr only: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. Omit for Sonarr\'s own default. Radarr has no seasons — use `monitored` there.'
+                ),
+            minimum_availability: z
+                .enum(['announced', 'inCinemas', 'released'])
+                .optional()
+                .describe(
+                    'Radarr only: how early it may grab. Defaults to `released`, which is what stops a brand-new film grabbing a cinema recording the day it is announced.'
+                ),
+            series_type: z
+                .enum(['standard', 'daily', 'anime'])
+                .optional()
+                .describe('Sonarr only: the numbering scheme. `anime` for absolute numbering, `daily` for date-based.'),
+            tags: z
+                .array(z.string().min(1))
+                .optional()
+                .describe(
+                    'Tag labels or ids the service already has. An unknown label is refused, listing the ones that exist — nothing here ever creates a tag.'
+                ),
             search_now: z
                 .boolean()
                 .default(true)
@@ -158,16 +94,49 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         operation: 'add_media',
         tier: 'safe',
 
-        async plan({ service, instance, external_id, quality_profile, root_folder, monitored, search_now }): Promise<WritePlan> {
+        async plan({
+            service,
+            instance,
+            external_id,
+            quality_profile,
+            root_folder,
+            monitored,
+            search_now,
+            monitor,
+            minimum_availability,
+            series_type,
+            tags
+        }): Promise<WritePlan> {
             const adapter = findAdapter(adapters, service, instance);
 
-            // All three reads together: they are independent, and a preview
-            // that takes three sequential round trips on a LAN service is
-            // needlessly slow.
-            const [candidate, profiles, folders] = await Promise.all([
+            // Refused before any call, and named for the service that *does*
+            // have the option: silently dropping one would add the series with
+            // every season monitored against an explicit "future only".
+            if (monitor !== undefined && adapter.type !== 'sonarr') {
+                throw new ServiceError('NotFound', service, 'monitor mode is a Sonarr option', {
+                    remedy: 'Films have no seasons. Use `monitored` on Radarr, and `minimum_availability` for how early it may grab.'
+                });
+            }
+            if (series_type !== undefined && adapter.type !== 'sonarr') {
+                throw new ServiceError('NotFound', service, 'series_type is a Sonarr option', {
+                    remedy: 'Films have no numbering scheme. Drop it.'
+                });
+            }
+            if (minimum_availability !== undefined && adapter.type !== 'radarr') {
+                throw new ServiceError('NotFound', service, 'minimum_availability is a Radarr option', {
+                    remedy: 'Sonarr grabs each episode as it airs. Use `monitor` to choose which seasons.'
+                });
+            }
+
+            // Together: they are independent, and a preview that takes three
+            // sequential round trips on a LAN service is needlessly slow. The
+            // tag list is only read when tags were asked for — an add that
+            // wants none must not fail because the tag endpoint is down.
+            const [candidate, profiles, folders, knownTags] = await Promise.all([
                 adapter.lookupForAdd(external_id),
                 adapter.listQualityProfiles(),
-                adapter.listRootFolders()
+                adapter.listRootFolders(),
+                tags === undefined ? Promise.resolve([]) : adapter.listTags()
             ]);
 
             const label = `${candidate.title}${candidate.year === undefined ? '' : ` (${candidate.year})`}`;
@@ -201,12 +170,33 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 service
             );
 
+            // Resolved one at a time so the refusal names the label that
+            // missed, not the whole list.
+            const resolvedTags = (tags ?? []).map(requested =>
+                chooseOne(knownTags, requested, TAG_MATCH, t => `${t.display} (id ${t.id})`, 'tag', service)
+            );
+
             const effects = [
                 `Adds ${label} to ${service} under ${folder.display} (${freeSpace(folder)}), quality profile ${profile.display} (id ${profile.id}).`,
                 monitored
                     ? 'Monitors it, so it will be grabbed when a matching release appears.'
                     : 'Adds it unmonitored, so nothing will be grabbed until you monitor it.'
             ];
+
+            if (monitor !== undefined) {
+                effects.push(
+                    monitor === 'none'
+                        ? 'Monitors no season, so nothing is grabbed until a season or episode is monitored.'
+                        : `Monitors the "${monitor}" set of seasons — Sonarr works out which those are.`
+                );
+            }
+            if (minimum_availability !== undefined) {
+                effects.push(`Will not grab anything until the film is ${minimum_availability}.`);
+            }
+            if (series_type !== undefined) effects.push(`Treats it as ${series_type} numbering.`);
+            if (resolvedTags.length > 0) {
+                effects.push(`Tags it ${resolvedTags.map(t => t.display).join(', ')}.`);
+            }
 
             effects.push(
                 search_now
@@ -228,7 +218,11 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     qualityProfileId: profile.id,
                     rootFolderPath: folder.path,
                     monitored,
-                    searchNow: search_now
+                    searchNow: search_now,
+                    ...(monitor === undefined ? {} : { monitor }),
+                    ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
+                    ...(series_type === undefined ? {} : { seriesType: series_type }),
+                    ...(resolvedTags.length === 0 ? {} : { tagIds: resolvedTags.map(t => t.id) })
                 }
             };
         },
@@ -240,6 +234,10 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 rootFolderPath: string;
                 monitored: boolean;
                 searchNow: boolean;
+                monitor?: string;
+                minimumAvailability?: string;
+                seriesType?: string;
+                tagIds?: number[];
             };
 
             // Taken from the plan rather than re-resolved from the arguments:
@@ -251,7 +249,11 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 qualityProfileId: a.qualityProfileId,
                 rootFolderPath: a.rootFolderPath,
                 monitored: a.monitored,
-                searchNow: a.searchNow
+                searchNow: a.searchNow,
+                ...(a.monitor === undefined ? {} : { monitor: a.monitor }),
+                ...(a.minimumAvailability === undefined ? {} : { minimumAvailability: a.minimumAvailability }),
+                ...(a.seriesType === undefined ? {} : { seriesType: a.seriesType }),
+                ...(a.tagIds === undefined ? {} : { tagIds: a.tagIds })
             });
         }
     });

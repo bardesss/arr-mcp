@@ -34,6 +34,7 @@ re-monitor it.
 | `trigger_subtitle_search` | safe | `safe_write` |
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
+| `update_media` | safe | `safe_write` |
 | `set_monitoring` | safe | `safe_write` |
 | `grab_release` | safe | `safe_write` |
 | `request_media` | safe | `safe_write` |
@@ -66,6 +67,24 @@ whose undo is not perfectly clean: unmarking and re-marking restores the
 watched flag and nothing else. The original play date and resume position are
 gone, and Jellyfin has no way to put them back. The preview says so before you
 confirm.
+
+`update_media` is safe, including when it changes the root folder — which asks
+the service to **move the files on disk**. Nothing is lost by a move: the undo
+is moving them back, and the service does the moving itself. That puts it
+alongside `add_media`, which starts multi-gigabyte downloads and is safe for
+the same reason. The preview names the source and the destination, because
+"change the root folder" reads cheaper than it is.
+
+`trigger_scan`'s `rename` action is safe on the same reading: it renames files
+within the library to the service's own scheme, and renaming again puts them
+back. Its `import` action only ever imports what the service is already willing
+to take — a file the service rejects is excluded and named, never forced.
+
+`grab_release` with a `magnet` is safe because `remove_queue_item` undoes it,
+but it is the one write where the thing being downloaded was chosen by the
+caller rather than found by an indexer. The link is validated before it reaches
+the client, and the preview says that nothing vetted it and nothing will import
+it.
 
 `pause_downloads` names one client rather than defaulting to all of them, and
 that is a permission property rather than a missing convenience: every write's

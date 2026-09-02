@@ -171,6 +171,22 @@ describe('unknown queue items', () => {
         expect(urls[0]).not.toContain('includeUnknownMovieItems');
     });
 
+    /** The id the *arr knows the download client's item by — what a manual
+     *  import is addressed with, and nothing surfaced it. */
+    it('carries the download client id', async () => {
+        const { impl } = recording([
+            { id: 1, title: 'Heat', status: 'completed', movieId: 15, downloadId: 'SABnzbd_nzo_abc' }
+        ]);
+        const [item] = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(item?.downloadId).toBe('SABnzbd_nzo_abc');
+    });
+
+    it('omits the download client id when the *arr did not report one', async () => {
+        const { impl } = recording([{ id: 1, title: 'Heat', status: 'completed', movieId: 15 }]);
+        const [item] = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(item?.downloadId).toBeUndefined();
+    });
+
     it('marks an item with no movie as orphaned, and carries the import state', async () => {
         const { impl } = recording([
             {
