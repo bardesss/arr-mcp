@@ -35,6 +35,7 @@ import {
     secretsOf,
     type Row
 } from './lib/redact.ts';
+import { firstRatingKeyWithPart } from './lib/plexCapture.ts';
 
 /**
  * `path` may be a function when the endpoint needs an id from something
@@ -65,13 +66,6 @@ const firstSectionKey = (body: unknown): string | undefined => {
     const rows = (body as { MediaContainer?: { Directory?: unknown } } | undefined)?.MediaContainer?.Directory;
     const row = (Array.isArray(rows) ? rows : [])[0] as { key?: unknown } | undefined;
     return typeof row?.key === 'string' ? row.key : undefined;
-};
-
-/** First item's `ratingKey` in a captured Plex `MediaContainer` fixture. */
-const firstRatingKey = (body: unknown): string | undefined => {
-    const rows = (body as { MediaContainer?: { Metadata?: unknown } } | undefined)?.MediaContainer?.Metadata;
-    const row = (Array.isArray(rows) ? rows : [])[0] as { ratingKey?: unknown } | undefined;
-    return typeof row?.ratingKey === 'string' ? row.ratingKey : undefined;
 };
 
 /**
@@ -518,8 +512,12 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         },
         {
             name: 'metadata-detail',
+            // Deliberately not the *first* item: a section can list a
+            // Part-less row first (a bare `show` container, say), and a
+            // fixture built from one never contracts getMediaDetails'
+            // Media[0].Part[0].file/.size mapping. See G3.
             path: captured => {
-                const id = firstRatingKey(captured.get('section-all'));
+                const id = firstRatingKeyWithPart(captured.get('section-all'));
                 return id === undefined ? undefined : `/library/metadata/${id}`;
             },
             anonymise: neutralisePlexWatchState
