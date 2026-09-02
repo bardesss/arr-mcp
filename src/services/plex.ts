@@ -393,11 +393,15 @@ export class PlexAdapter
      * The query-parameter paging form is a guess (see `PAGE_SIZE`'s comment);
      * if the server ignores it, every page is identical and `rows.length <
      * PAGE_SIZE` never fires. Rather than spin until timeout or OOM, a
-     * repeated fingerprint of the leading row across pages is treated as
-     * proof paging did not advance and thrown as a diagnosis. The fingerprint
-     * is `ratingKey` when present, but falls back to the whole row otherwise
-     * — a row shape with no `ratingKey` would otherwise leave the guard
-     * comparing `undefined === undefined` forever and never fire.
+     * repeated fingerprint of the *whole page* across two calls is treated as
+     * proof paging did not advance and thrown as a diagnosis. Deliberately
+     * not just the leading row: `ratingKey` identifies media, not a viewing
+     * event, so two different pages can legitimately share a leading row
+     * while every other row on the page differs — a leading-row-only
+     * fingerprint would false-positive on that. Each row's own `ratingKey`
+     * stands in for it when present, falling back to the whole row otherwise
+     * — a row shape with no `ratingKey` would otherwise leave that row
+     * comparing `undefined === undefined` forever. See N7.
      *
      * `maxPages` is a backstop, but the two callers want different things
      * from hitting it: a library section genuinely should never be that
@@ -431,9 +435,8 @@ export class PlexAdapter
             }
             const body = await this.#http.get<unknown>(request(start));
             const rows = unwrap<RawPlexItem>(body, 'Metadata');
-            const leading = rows[0];
-            const fingerprint = leading === undefined ? undefined : typeof leading.ratingKey === 'string' ? leading.ratingKey : JSON.stringify(leading);
-            if (start > 0 && fingerprint !== undefined && fingerprint === previousFingerprint) {
+            const fingerprint = JSON.stringify(rows.map(r => (typeof r.ratingKey === 'string' ? r.ratingKey : r)));
+            if (start > 0 && fingerprint === previousFingerprint) {
                 throw new ServiceError('UpstreamError', this.id, 'did not advance past start=0 — the same item led every page', {
                     remedy: 'Plex appears to be ignoring X-Plex-Container-Start/Size as query parameters. It documents these as request headers instead, which ServiceHttp does not yet send.'
                 });

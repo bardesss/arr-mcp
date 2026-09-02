@@ -509,6 +509,33 @@ describe('PlexAdapter', () => {
             expect(sectionCalls).toBeLessThan(5);
         }, 2000);
 
+        it('does not throw when two adjacent pages legitimately share the same leading ratingKey', async () => {
+            // ratingKey identifies media, not a viewing event — two different
+            // pages can genuinely lead with the same one. The old guard
+            // fingerprinted only the leading row, so this false-positived as
+            // "paging did not advance" even though every other row on the
+            // page differed. Fingerprinting the whole page instead. See N7.
+            const page0 = [
+                { ratingKey: 'shared', title: 'Movie A' },
+                ...Array.from({ length: 499 }, (_, i) => ({ ratingKey: `m${i}`, title: `Movie ${i}` }))
+            ];
+            const page1 = [
+                { ratingKey: 'shared', title: 'Movie B (different row, same leading ratingKey)' },
+                ...Array.from({ length: 499 }, (_, i) => ({ ratingKey: `m${500 + i}`, title: `Movie ${500 + i}` }))
+            ];
+            const page2 = Array.from({ length: 10 }, (_, i) => ({ ratingKey: `m${1000 + i}`, title: `Movie ${1000 + i}` }));
+
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
+                [`/library/sections/1/all${withPaging(0)}`]: page(page0),
+                [`/library/sections/1/all${withPaging(500)}`]: page(page1),
+                [`/library/sections/1/all${withPaging(1000)}`]: page(page2)
+            });
+
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items).toHaveLength(1010);
+        });
+
         it('aggregates per-season watch state onto the owning series, joined by external id', async () => {
             const { adapter } = plex({
                 '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
