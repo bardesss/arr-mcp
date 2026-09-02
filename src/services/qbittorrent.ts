@@ -13,6 +13,8 @@ import {
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
+    type MagnetAdded,
+    type MagnetAddCapable,
     type RemoveQueueOptions,
     type ServiceAdapter,
     type SpeedLimit,
@@ -74,7 +76,14 @@ const TORRENT_STATE: Record<string, string> = {
 const ETA_UNKNOWN = 8_640_000;
 
 export class QbittorrentAdapter
-    implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable, SpeedLimitCapable
+    implements
+        ServiceAdapter,
+        DiskSpaceCapable,
+        QueueCapable,
+        QueueRemoveCapable,
+        PauseCapable,
+        SpeedLimitCapable,
+        MagnetAddCapable
 {
     readonly type: ServiceId = 'qbittorrent';
     readonly id: string = 'qbittorrent';
@@ -236,6 +245,28 @@ export class QbittorrentAdapter
     async setSpeedLimit(kbps: number | undefined): Promise<void> {
         const bytes = kbps === undefined || kbps <= 0 ? 0 : Math.round(kbps) * 1024;
         await this.#http.postForm(`${API}/transfer/setDownloadLimit`, { limit: String(bytes) }, true);
+    }
+
+    /**
+     * qBittorrent takes the link as a form field and answers a bare `Ok.`
+     * whether or not it already had the torrent, so a duplicate is checked
+     * for beforehand rather than inferred from the response.
+     *
+     * Spec-derived, like the pause paths above.
+     */
+    async addMagnet(uri: string): Promise<MagnetAdded> {
+        const hash = /xt=urn:btih:([0-9a-zA-Z]+)/.exec(uri)?.[1]?.toLowerCase();
+        const existing =
+            hash === undefined
+                ? []
+                : await this.#http.get<RawTorrent[]>(`${API}/torrents/info?hashes=${encodeURIComponent(hash)}`);
+
+        await this.#http.postForm(`${API}/torrents/add`, { urls: uri }, true);
+
+        return {
+            ...(hash === undefined ? {} : { id: hash }),
+            duplicate: Array.isArray(existing) && existing.length > 0
+        };
     }
 
     async #torrents(id?: string): Promise<RawTorrent[]> {

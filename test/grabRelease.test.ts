@@ -5,8 +5,10 @@ import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/con
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
+import { TransmissionAdapter } from '../src/services/transmission.ts';
 import { registerGrabRelease } from '../src/tools/grabRelease.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -204,5 +206,157 @@ describe('grab_release', () => {
         const preview = await h.call({ ...ARGS, service: 'sonarr' });
         await h.call({ ...ARGS, service: 'sonarr', confirm: preview.structuredContent.confirm_token });
         expect(h.grabbed).toEqual([{ guid: 'abc', indexerId: 3 }]);
+    });
+});
+
+/**
+ * The magnet form: a link the caller supplies, straight to a torrent client.
+ * Nothing about it is vetted by an indexer or an *arr, which is exactly what
+ * the preview has to say.
+ */
+describe('grab_release with a magnet', () => {
+    const MAGNET = 'magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=Some.Release';
+
+    function clientHarness(opts: { existing?: unknown[]; qbittorrent?: boolean } = {}) {
+        const sent: { path: string; method: string; body: string | undefined }[] = [];
+
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            const method = init?.method ?? 'GET';
+            const body = typeof init?.body === 'string' ? init.body : undefined;
+            sent.push({ path: url.pathname, method, body });
+
+            if (url.pathname === '/transmission/rpc') {
+                const rpc = JSON.parse(body ?? '{}') as { method?: string };
+                if (rpc.method === 'torrent-add') {
+                    return jsonResponse({
+                        result: 'success',
+                        arguments: opts.existing
+                            ? { 'torrent-duplicate': { id: 4, name: 'Some.Release' } }
+                            : { 'torrent-added': { id: 4, name: 'Some.Release' } }
+                    });
+                }
+                return jsonResponse({ result: 'success', arguments: {} });
+            }
+
+            if (url.pathname === '/api/v2/torrents/info') return jsonResponse(opts.existing ?? []);
+            if (url.pathname === '/api/v2/torrents/add') return new Response('Ok.', { status: 200 });
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch;
+
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        const server = {
+            registerTool(_n: string, config: { inputSchema: z.ZodObject }, handler: Call) {
+                call = args => handler(config.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+
+        const clientConfig = {
+            url: 'http://192.0.2.10:9091',
+            timeout_ms: 10_000,
+            permissions: { safe_write: true, destructive: false }
+        };
+
+        registerGrabRelease(
+            server as never,
+            {
+                permissions: permissionSourceFrom(
+                    instancesOf({
+                        transmission: clientConfig as AnyServiceConfig,
+                        qbittorrent: clientConfig as AnyServiceConfig
+                    })
+                ),
+                confirm: new ConfirmTokens(),
+                audit: WriteAudit.ephemeral(),
+                library: { invalidate: vi.fn() } as unknown as LibraryLoader
+            },
+            [new TransmissionAdapter(clientConfig, impl), new QbittorrentAdapter(clientConfig, impl)]
+        );
+
+        return { call: (a: Record<string, unknown>) => call(a), sent };
+    }
+
+    it('names the hash and says nothing vetted the link', async () => {
+        const h = clientHarness();
+        const { structuredContent } = await h.call({ service: 'transmission', magnet: MAGNET, dry_run: true });
+
+        expect(structuredContent.summary).toContain('c12fe1c06bba254a9dc9f519b335aa7c1367a88a');
+        expect(structuredContent.effects.join(' ')).toMatch(/nothing vetted it/i);
+        expect(structuredContent.effects.join(' ')).toMatch(/will not be imported/i);
+    });
+
+    it('adds nothing while previewing', async () => {
+        const h = clientHarness();
+        await h.call({ service: 'transmission', magnet: MAGNET });
+        expect(h.sent.filter(s => s.body?.includes('torrent-add'))).toHaveLength(0);
+    });
+
+    it('adds the torrent once confirmed', async () => {
+        const h = clientHarness();
+        const first = await h.call({ service: 'transmission', magnet: MAGNET });
+        const second = await h.call({
+            service: 'transmission',
+            magnet: MAGNET,
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(JSON.stringify(second.structuredContent.result)).toContain('added');
+        expect(h.sent.some(s => s.body?.includes('torrent-add'))).toBe(true);
+    });
+
+    /** A torrent the client already has is the state the caller asked for. */
+    it('reports a duplicate rather than failing', async () => {
+        const h = clientHarness({ existing: [{ hash: 'c12fe1c06bba254a9dc9f519b335aa7c1367a88a' }] });
+        const first = await h.call({ service: 'transmission', magnet: MAGNET });
+        const second = await h.call({
+            service: 'transmission',
+            magnet: MAGNET,
+            confirm: first.structuredContent.confirm_token
+        });
+        expect(JSON.stringify(second.structuredContent.result)).toContain('alreadyPresent');
+    });
+
+    it('sends the link as a form field on qBittorrent', async () => {
+        const h = clientHarness({ qbittorrent: true });
+        const first = await h.call({ service: 'qbittorrent', magnet: MAGNET });
+        await h.call({
+            service: 'qbittorrent',
+            magnet: MAGNET,
+            confirm: first.structuredContent.confirm_token
+        });
+        expect(h.sent.find(s => s.path === '/api/v2/torrents/add')?.body).toContain('urls=magnet');
+    });
+
+    it('refuses anything that is not a magnet, before it reaches the client', async () => {
+        const h = clientHarness();
+        await expect(
+            h.call({ service: 'transmission', magnet: 'https://example.invalid/file.torrent', dry_run: true })
+        ).rejects.toThrow(/not a magnet/i);
+        expect(h.sent).toHaveLength(0);
+    });
+
+    it('refuses a magnet with no btih hash', async () => {
+        const h = clientHarness();
+        await expect(h.call({ service: 'transmission', magnet: 'magnet:?dn=No.Hash', dry_run: true })).rejects.toThrow(
+            /not a magnet/i
+        );
+    });
+
+    it('refuses a magnet and a guid together rather than picking one', async () => {
+        const h = clientHarness();
+        await expect(h.call({ service: 'transmission', magnet: MAGNET, guid: 'abc', dry_run: true })).rejects.toThrow(
+            /send one/i
+        );
+    });
+
+    it('refuses a magnet on Radarr, which cannot take one', async () => {
+        await expect(harness().call({ service: 'radarr', magnet: MAGNET, dry_run: true })).rejects.toThrow(
+            /cannot take a magnet/i
+        );
+    });
+
+    it('still requires id, guid and indexer_id for the release form', async () => {
+        await expect(harness().call({ service: 'radarr', guid: 'abc', dry_run: true })).rejects.toThrow(/indexer_id/);
     });
 });

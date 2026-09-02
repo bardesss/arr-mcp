@@ -14,6 +14,8 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
+    type MagnetAdded,
+    type MagnetAddCapable,
     type ServiceAdapter,
     type SpeedLimit,
     type SpeedLimitCapable
@@ -58,7 +60,14 @@ const TORRENT_STATUS: Record<number, string> = {
 };
 
 export class TransmissionAdapter
-    implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable, SpeedLimitCapable
+    implements
+        ServiceAdapter,
+        DiskSpaceCapable,
+        QueueCapable,
+        QueueRemoveCapable,
+        PauseCapable,
+        SpeedLimitCapable,
+        MagnetAddCapable
 {
     readonly type: ServiceId = 'transmission';
     readonly id: string = 'transmission';
@@ -246,6 +255,39 @@ export class TransmissionAdapter
         if (body.result !== 'success') {
             throw new ServiceError('UpstreamError', this.id, `session-set failed: ${body.result ?? 'no result field'}`);
         }
+    }
+
+    /**
+     * `torrent-add` answers with `torrent-added` for a new torrent and
+     * `torrent-duplicate` for one the client already has — a 200 either way,
+     * so the arguments are what say which happened. A duplicate is reported,
+     * not thrown: it is the state the caller asked for.
+     */
+    async addMagnet(uri: string): Promise<MagnetAdded> {
+        const body = await this.#http.post<
+            RpcResponse<{
+                'torrent-added'?: { id?: number; name?: string };
+                'torrent-duplicate'?: { id?: number; name?: string };
+            }>
+        >(RPC_PATH, { method: 'torrent-add', arguments: { filename: uri } });
+
+        if (body.result !== 'success') {
+            throw new ServiceError('UpstreamError', this.id, `torrent-add failed: ${body.result ?? 'no result field'}`, {
+                remedy: 'Transmission refused the magnet. Check the link is complete and the client can reach a tracker.'
+            });
+        }
+
+        const added = body.arguments?.['torrent-added'];
+        const duplicate = body.arguments?.['torrent-duplicate'];
+        const row = added ?? duplicate;
+
+        return {
+            ...(row?.id === undefined ? {} : { id: String(row.id) }),
+            ...(row?.name === undefined
+                ? {}
+                : { title: fenceText(row.name, { service: this.id, field: 'name' }) }),
+            duplicate: added === undefined && duplicate !== undefined
+        };
     }
 
     #torrentId(id: string): number {

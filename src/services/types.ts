@@ -739,6 +739,23 @@ export const hasSpeedLimit = (a: ServiceAdapter): a is ServiceAdapter & SpeedLim
     typeof (a as Partial<SpeedLimitCapable>).setSpeedLimit === 'function';
 
 /**
+ * Adding a torrent straight to the client, bypassing the *arrs — the one
+ * place a caller-supplied URI causes a download, which is why the tool
+ * validates the scheme before anything reaches the client.
+ *
+ * `duplicate` is not a failure: a torrent the client already has is the state
+ * the caller asked for.
+ */
+export type MagnetAdded = { id?: string; title?: string; duplicate: boolean };
+
+export interface MagnetAddCapable {
+    addMagnet(uri: string): Promise<MagnetAdded>;
+}
+
+export const hasMagnetAdd = (a: ServiceAdapter): a is ServiceAdapter & MagnetAddCapable =>
+    typeof (a as Partial<MagnetAddCapable>).addMagnet === 'function';
+
+/**
  * `name` raw and `display` fenced, for the same reason `RootFolder` splits its
  * path — and discovered the same way, by a match that could never succeed.
  * `add_media` matches a requested profile against `name`; comparing against
