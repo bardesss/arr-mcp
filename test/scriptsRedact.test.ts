@@ -5,6 +5,7 @@ import {
     anonymisePlexAccounts,
     anonymisePlexHistory,
     createAccountIdMapper,
+    hostsInAuthorityPosition,
     hostsOf,
     neutralisePlexWatchState,
     redact,
@@ -147,6 +148,17 @@ describe('redact', () => {
         expect(redact('version 4.0.14.2939', secrets, hosts)).toBe('version 4.0.14.2939');
     });
 
+    /**
+     * I4: a Plex transcode URL nests one address inside another via
+     * percent-encoding (`%2F127.0.0.1%3A32400`). The old pattern anchored on
+     * `\b`, and the `F`/`1` boundary right before the literal is word-to-word
+     * (both `\w`), so `\b` never fired there and the address survived intact.
+     */
+    it('rewrites a private IPv4 literal immediately after a percent-encoded slash, where \\b does not fire', () => {
+        const out = redact('url=http%3A%2F%2F127.0.0.1%3A32400%2Fphoto', secrets, hosts) as string;
+        expect(out).not.toContain('127.0.0.1');
+    });
+
     // PRIVATE_IPV4 is IPv4-only. Unproven against a live server (nobody who
     // ran capture had IPv6 anywhere in a response), but a ULA, link-local or
     // loopback literal reaching a public fixture is the failure this exists
@@ -237,6 +249,41 @@ describe('redact', () => {
             title: 'The Fellowship of the Ring',
             year: 2001
         });
+    });
+});
+
+/**
+ * C1: `capture-fixtures.ts`'s write-refusal gate used to be a blind substring
+ * check (`serialised.includes(host)`) while `redact()` above had already
+ * moved to authority-position matching — so a host named `plex` tripped the
+ * gate on ordinary text like `agent: "tv.plex.agents.movie"` or
+ * `scanner: "Plex Movie"`, refusing to write every endpoint after the first.
+ * `hostsInAuthorityPosition` is what the gate calls instead, built from the
+ * exact pattern `redactAuthorities` replaces on, so the two cannot disagree.
+ */
+describe('hostsInAuthorityPosition (C1: gate and scrubber share one predicate)', () => {
+    it('is false for a host appearing only as a Plex agent identifier, not in authority position', () => {
+        const serialised = JSON.stringify({ agent: 'tv.plex.agents.movie', scanner: 'Plex Movie', studio: 'Aniplex' });
+        expect(hostsInAuthorityPosition(serialised, ['plex'])).toBe(false);
+    });
+
+    it('is true for a host that survived in authority position', () => {
+        expect(hostsInAuthorityPosition('http://plex:32400/x', ['plex'])).toBe(true);
+    });
+
+    it('is false when there are no configured hosts', () => {
+        expect(hostsInAuthorityPosition('http://plex:32400/x', [])).toBe(false);
+    });
+
+    it('never fires on what redact() itself leaves behind, for the exact payload that broke the old gate', () => {
+        const payload = {
+            agent: 'tv.plex.agents.movie',
+            scanner: 'Plex Movie',
+            studio: 'Aniplex',
+            configured: 'http://plex:32400/library/sections'
+        };
+        const out = JSON.stringify(redact(payload, [], ['plex']));
+        expect(hostsInAuthorityPosition(out, ['plex'])).toBe(false);
     });
 });
 
@@ -494,6 +541,130 @@ describe('anonymisePlexHistory', () => {
     });
 });
 
+/**
+ * C3: `anonymiseNested` rewrote `Guid[].id` but not the top-level lowercase
+ * `guid`/`parentGuid`/`grandparentGuid` — a `plex://` guid resolves to a
+ * title through plex.tv, and the legacy `com.plexapp.agents.*` form names an
+ * external id directly, so either re-links a row `anonymisePlexHistory`
+ * exists to sever from what it names.
+ */
+describe('anonymisePlexHistory scrubs top-level guid fields (C3)', () => {
+    const history = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('does not let a real plex:// guid survive, while keeping the scheme', () => {
+        const body = history([{ ratingKey: '1', guid: 'plex://episode/5d9c0863bd2f6a001f6a3fa0' }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.guid).not.toBe('plex://episode/5d9c0863bd2f6a001f6a3fa0');
+        expect(row?.guid).toMatch(/^plex:\/\//);
+    });
+
+    it('does not let a real legacy-agent guid survive', () => {
+        const body = history([{ ratingKey: '1', guid: 'com.plexapp.agents.thetvdb://121361/1/2?lang=en' }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.guid).not.toBe('com.plexapp.agents.thetvdb://121361/1/2?lang=en');
+    });
+
+    it('scrubs parentGuid and grandparentGuid the same way', () => {
+        const body = history([{ ratingKey: '1', parentGuid: 'plex://season/abc123', grandparentGuid: 'plex://show/def456' }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.parentGuid).not.toBe('plex://season/abc123');
+        expect(row?.grandparentGuid).not.toBe('plex://show/def456');
+    });
+
+    it('leaves a key absent when the real row never had it, preserving shape', () => {
+        const body = history([{ ratingKey: '1' }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect('guid' in (row as object)).toBe(false);
+    });
+});
+
+/**
+ * I2: `Image` entries (`{alt: <title>, type, url: /library/metadata/...}`)
+ * were not reached at all — `alt` is the title again, and `url` is a slug
+ * that can carry a real id, the same class of leak `thumb`/`art`/`key`
+ * already get.
+ */
+describe('anonymisePlexHistory scrubs Image alt/url (I2)', () => {
+    const history = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('scrubs Image[].alt and Image[].url', () => {
+        const body = history([
+            { ratingKey: '1', Image: [{ alt: 'The Real Movie Title', type: 'coverPoster', url: '/library/metadata/1/thumb/123' }] }
+        ]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const image = (row?.Image as Record<string, unknown>[])[0];
+        expect(image?.alt).not.toBe('The Real Movie Title');
+        expect(image?.url).not.toBe('/library/metadata/1/thumb/123');
+        expect(image?.type).toBe('coverPoster');
+    });
+});
+
+/**
+ * Minor: `Collection[].tag` and `Label[].tag` are user-authored names, the
+ * same class of thing `Role[].tag` already gets scrubbed as — unlike
+ * `Genre[].tag`, which is taxonomy and stays untouched.
+ */
+describe('anonymisePlexHistory scrubs Collection and Label tags', () => {
+    const history = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('scrubs Collection[].tag and Label[].tag while leaving Genre[].tag alone', () => {
+        const body = history([
+            {
+                ratingKey: '1',
+                Collection: [{ tag: 'My Personal Collection' }],
+                Label: [{ tag: 'My Personal Label' }],
+                Genre: [{ tag: 'Action' }]
+            }
+        ]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.Collection as Record<string, unknown>[])[0]?.tag).not.toBe('My Personal Collection');
+        expect((row?.Label as Record<string, unknown>[])[0]?.tag).not.toBe('My Personal Label');
+        expect((row?.Genre as Record<string, unknown>[])[0]?.tag).toBe('Action');
+    });
+});
+
+/**
+ * Minor: the Guid synthetic id used to be `tmdb://fixture-1` — a non-numeric
+ * suffix that made `externalIds()` (src/services/plex.ts) return `{}` for
+ * that row, since it requires digits-only after a `tmdb`/`tvdb` scheme.
+ */
+describe('anonymisePlexHistory produces a numeric synthetic Guid id', () => {
+    const history = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('replaces a tmdb Guid id with a purely numeric synthetic value', () => {
+        const body = history([{ ratingKey: '1', Guid: [{ id: 'tmdb://98765' }] }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const guid = (row?.Guid as Record<string, unknown>[])[0];
+        expect(guid?.id).toMatch(/^tmdb:\/\/\d+$/);
+    });
+});
+
+/**
+ * Minor: `anonymiseNested`'s counter used to be reset to `{ n: 0 }` per row,
+ * so every row's title collapsed onto the same placeholder — a fixture with
+ * several history rows read as one indistinguishable row repeated.
+ */
+describe('anonymisePlexHistory gives distinguishable placeholders across rows', () => {
+    const history = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('does not give two different rows the same synthetic title', () => {
+        const body = history([
+            { ratingKey: '1', title: 'Real Title One' },
+            { ratingKey: '2', title: 'Real Title Two' }
+        ]);
+        const rows = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(rows[0]?.title).not.toBe(rows[1]?.title);
+    });
+});
+
 describe('redactPlexSessions', () => {
     const sessions = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
 
@@ -527,6 +698,53 @@ describe('redactPlexSessions', () => {
         const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
             .MediaContainer.Metadata;
         expect((row?.Player as Record<string, unknown>).remotePublicAddress).not.toBe('81.4.2.10');
+    });
+
+    /**
+     * I1: a session is a "currently watching" record, the same class of thing
+     * `anonymisePlexHistory` treats a history/onDeck row as — but
+     * `redactPlexSessions` scrubbed only `User`/`Player.remotePublicAddress`,
+     * leaving the row's own title, file path and cast, plus the device's
+     * name and stable id, to pass straight through untouched.
+     */
+    it('scrubs the row itself: title, grandparentTitle and summary', () => {
+        const body = sessions([{ ratingKey: '1', title: 'Real Episode', grandparentTitle: 'Real Show', summary: 'A real plot.' }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.title).not.toBe('Real Episode');
+        expect(row?.grandparentTitle).not.toBe('Real Show');
+        expect(row?.summary).not.toBe('A real plot.');
+    });
+
+    it('scrubs Media[].Part[].file on a session row', () => {
+        const realPath = '/tv/Real Show/Season 01/Real Show - S01E01.mkv';
+        const body = sessions([{ ratingKey: '1', Media: [{ Part: [{ file: realPath, size: 123 }] }] }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const media = row?.Media as { Part: { file?: unknown; size?: unknown }[] }[];
+        expect(media[0]?.Part[0]?.file).not.toBe(realPath);
+        expect(media[0]?.Part[0]?.size).toBe(123);
+    });
+
+    it('scrubs Role cast names on a session row', () => {
+        const body = sessions([{ ratingKey: '1', Role: [{ tag: 'Real Actor Name' }] }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.Role as Record<string, unknown>[])[0]?.tag).not.toBe('Real Actor Name');
+    });
+
+    it("scrubs Player.title, typically the viewer's device name", () => {
+        const body = sessions([{ ratingKey: '1', Player: { title: "Firstname's iPhone" } }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.Player as Record<string, unknown>).title).not.toBe("Firstname's iPhone");
+    });
+
+    it('scrubs Player.machineIdentifier, a stable device id', () => {
+        const body = sessions([{ ratingKey: '1', Player: { machineIdentifier: 'abc-real-device-uuid' } }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.Player as Record<string, unknown>).machineIdentifier).not.toBe('abc-real-device-uuid');
     });
 });
 
@@ -634,6 +852,28 @@ describe('anonymisePlexAccounts', () => {
             .MediaContainer.Account;
         expect(row?.id).not.toBe('78901234');
         expect(row?.id).toBe(String(mapId(78901234)));
+    });
+
+    /**
+     * C2: `key`/`thumb` carried real plex.tv identities the mapper/name scrub
+     * never touched — `key` re-embeds the exact real id `id` above just
+     * remapped, and `thumb` is a stable `plex.tv/users/<uuid>/avatar` URL,
+     * for this account and every other shared user on the server.
+     */
+    it('blanks key, which re-embeds the real account id as /accounts/<id>', () => {
+        const mapId = createAccountIdMapper();
+        const body = accounts([{ id: 78901234, name: 'A Real Name', key: '/accounts/78901234' }]);
+        const [row] = (anonymisePlexAccounts(body, mapId) as { MediaContainer: { Account: Record<string, unknown>[] } })
+            .MediaContainer.Account;
+        expect(row?.key).not.toBe('/accounts/78901234');
+    });
+
+    it('blanks thumb, a stable plex.tv account avatar URL', () => {
+        const mapId = createAccountIdMapper();
+        const body = accounts([{ id: 2, name: 'Guest', thumb: 'https://plex.tv/users/abc123-uuid/avatar?c=1700000000' }]);
+        const [row] = (anonymisePlexAccounts(body, mapId) as { MediaContainer: { Account: Record<string, unknown>[] } })
+            .MediaContainer.Account;
+        expect(row?.thumb).not.toBe('https://plex.tv/users/abc123-uuid/avatar?c=1700000000');
     });
 });
 

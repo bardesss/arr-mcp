@@ -65,9 +65,14 @@ function escapeRegExp(value: string): string {
 }
 
 /**
- * Redacts a configured host only in authority position — immediately after a
- * scheme's `//` or an embedded-credential `@` — never as a bare substring
- * anywhere in the text.
+ * Builds the pattern matching a configured host only in authority position —
+ * immediately after a scheme's `//` or an embedded-credential `@` — never as
+ * a bare substring anywhere in the text. The one place "in authority
+ * position" is defined, shared by `redactAuthorities` below (which replaces
+ * a match) and `hostsInAuthorityPosition` (which only tests for one) — a
+ * gate built on a second, hand-written check can drift from what this file
+ * actually redacts; a gate built on this cannot. Undefined for an empty host
+ * list, since `new RegExp('')` would match everywhere.
  *
  * The previous approach (`text.split(host).join(placeholder)`, same shape as
  * `redactHosts` above) is a blind substring replace, and a host named `plex`
@@ -89,11 +94,29 @@ function escapeRegExp(value: string): string {
  * to anchor on and passes through unredacted. Azure's test-proxy closes this
  * with a separate header-scoped sanitiser; nothing here reaches for that.
  */
-function redactAuthorities(text: string, hosts: readonly string[], placeholder: string): string {
-    if (hosts.length === 0) return text;
+function authorityHostPattern(hosts: readonly string[]): RegExp | undefined {
+    if (hosts.length === 0) return undefined;
     const alternation = hosts.map(escapeRegExp).join('|');
-    const re = new RegExp(`(?<=\\/\\/|@)(?:${alternation})\\.?(?=[:/?#"'\\s]|$)`, 'gi');
-    return text.replace(re, placeholder);
+    return new RegExp(`(?<=\\/\\/|@)(?:${alternation})\\.?(?=[:/?#"'\\s]|$)`, 'gi');
+}
+
+/** Replaces a host `authorityHostPattern` matches with `placeholder`. */
+function redactAuthorities(text: string, hosts: readonly string[], placeholder: string): string {
+    const re = authorityHostPattern(hosts);
+    return re === undefined ? text : text.replace(re, placeholder);
+}
+
+/**
+ * True when a configured host still appears in authority position in `text`.
+ * `capture-fixtures.ts`'s write-refusal gate calls this rather than its own
+ * substring check — the previous gate (`serialised.includes(host)`) fired on
+ * a host named `plex` sitting in ordinary text like `agent: "tv.plex.agents.
+ * movie"`, because `redactAuthorities` above had already moved to
+ * authority-position matching and the gate had not. See C1.
+ */
+export function hostsInAuthorityPosition(text: string, hosts: readonly string[]): boolean {
+    const re = authorityHostPattern(hosts);
+    return re !== undefined && re.test(text);
 }
 
 export const REDACTED = '__REDACTED__';
@@ -116,9 +139,16 @@ export const SECRET_KEY =
  * link-local on purpose: a blanket IPv4 pattern would rewrite version strings,
  * and scoping it to ranges that cannot be a version number keeps that
  * impossible. Replaced with TEST-NET-1, reserved for documentation.
+ *
+ * Anchored on digit-adjacency (`(?<!\d)`/`(?!\d)`), not `\b`: a Plex
+ * transcode URL nests one address inside another via percent-encoding
+ * (`%2F127.0.0.1%3A32400`), and the `F`/`1` boundary right before the
+ * literal is word-to-word, so `\b` never fires there and the address
+ * survives. Digit-adjacency still blocks matching mid-run inside a longer
+ * number, which is the only thing `\b` was protecting against here. See I4.
  */
 export const PRIVATE_IPV4 =
-    /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b/g;
+    /(?<!\d)(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(?!\d)/g;
 
 /**
  * Unique-local (`fc00::/7`), link-local (`fe80::/10`) and loopback (`::1`)
@@ -225,23 +255,32 @@ function mappedId(value: unknown, mapId: (id: number) => number): unknown {
 }
 
 /**
- * A Plex session row carries who is watching (`User.title`, a username, and
- * `User.thumb`, whose URL can embed an account id) and where from
- * (`Player.remotePublicAddress`, the viewer's public IP — outside what the
- * private-IP regex in `redact()` reaches, since a public address is by
- * definition not in one of the private ranges it matches). `User.id` is left
- * present — the adapter resolves the current session by matching on it —
- * but its value is remapped through `mapId` when one is given, so a real
- * plex.tv account id doesn't survive next to a scrubbed `User.title`. See G2.
+ * A `sessions` row is a "currently watching" record, the same class of thing
+ * `anonymisePlexHistory` treats `history`/`onDeck` rows as — so it goes
+ * through the same `anonymiseNested` walk first, scrubbing the row's own
+ * `title`/`grandparentTitle`/`summary`, `Media[].Part[].file`, cast/crew and
+ * top-level `guid` the same way. `User`/`Player` then get their
+ * session-specific treatment on top: who is watching (`User.title`, a
+ * username, and `User.thumb`, whose URL can embed an account id) and where
+ * from (`Player.remotePublicAddress`, the viewer's public IP, and
+ * `Player.title`/`Player.machineIdentifier`, the device's name and stable id
+ * — outside what the private-IP regex in `redact()` reaches, since a public
+ * address is by definition not in one of the private ranges it matches).
+ * `User.id` is left present — the adapter resolves the current session by
+ * matching on it — but its value is remapped through `mapId` when one is
+ * given, so a real plex.tv account id doesn't survive next to a scrubbed
+ * `User.title`. See I1, G2.
  */
 export function redactPlexSessions(body: unknown, mapId?: (id: number) => number): unknown {
     const container = (body as MetadataContainer).MediaContainer;
     if (!Array.isArray(container?.Metadata)) return body;
+    const counter = { n: 0 };
     return {
         ...(body as Row),
         MediaContainer: {
             ...container,
-            Metadata: container.Metadata.map(m => {
+            Metadata: container.Metadata.map(raw => {
+                const m = anonymiseNested(raw, counter) as Row;
                 const player = m.Player as Row | undefined;
                 const user = m.User as Row | undefined;
                 return {
@@ -315,12 +354,19 @@ export function neutralisePlexWatchState(body: unknown): unknown {
 const syntheticDisplayValue = (label: string, i: number): string => `Fixture ${label} ${i + 1}`;
 
 /** Cast/crew containers whose `tag` (a person's name) and `thumb` (their
- *  avatar) are personal data — unlike `Genre`/`Country`/`Collection`/`Label`,
- *  which are taxonomy and stay untouched. */
+ *  avatar) are personal data — unlike `Genre`/`Country`, which are taxonomy
+ *  and stay untouched. */
 const PERSON_ARRAY_KEYS = new Set(['Role', 'Director', 'Writer', 'Producer']);
 
+/** `Collection`/`Label` tags are user-authored names (a personal collection,
+ *  a personal label), unlike `Genre`/`Country` — separate from
+ *  `PERSON_ARRAY_KEYS` because a collection name isn't a person's name, so it
+ *  gets its own placeholder label rather than borrowing "Person". */
+const TAG_ARRAY_KEYS = new Set(['Collection', 'Label']);
+
 /** Free-text fields that name the exact title, series or place, wherever
- *  they occur — replaced with a deterministic per-occurrence placeholder. */
+ *  they occur — replaced with a deterministic per-occurrence placeholder.
+ *  `alt` is an `Image` entry's caption, which is the title again. */
 const IDENTIFYING_TEXT_KEYS = new Set([
     'title',
     'grandparentTitle',
@@ -329,11 +375,13 @@ const IDENTIFYING_TEXT_KEYS = new Set([
     'titleSort',
     'summary',
     'tagline',
-    'studio'
+    'studio',
+    'alt'
 ]);
 
 /** Slug/URL/on-disk-path fields that can carry a real identifier, wherever
- *  they occur — blanked, same treatment already given to top-level `thumb`. */
+ *  they occur — blanked, same treatment already given to top-level `thumb`.
+ *  `url` is an `Image` entry's `/library/metadata/...` path. */
 const IDENTIFYING_SLUG_KEYS = new Set([
     'thumb',
     'art',
@@ -346,8 +394,37 @@ const IDENTIFYING_SLUG_KEYS = new Set([
     'grandparentTheme',
     'grandparentSlug',
     'slug',
-    'file'
+    'file',
+    'url',
+    // A Plex client's stable device id, carried on `Player` in a session row.
+    'machineIdentifier'
 ]);
+
+/** Scheme-prefixed identifier fields at a row's own level — `plex://<hash>`
+ *  or the legacy `com.plexapp.agents.<agent>://<id>...` form — each of which
+ *  names the exact episode/season/series the same way `Guid[].id` does. */
+const GUID_STRING_KEYS = new Set(['guid', 'parentGuid', 'grandparentGuid']);
+
+/**
+ * Rewrites a scheme-prefixed identifier (`imdb://tt123`, `plex://<hash>`,
+ * `com.plexapp.agents.thetvdb://121361/1/2?lang=en`), preserving the scheme
+ * — needed both by `externalIds()`'s own parse and so the fixture still
+ * proves it — while the identifier half, which names the exact title,
+ * becomes synthetic. Shared by `Guid[].id` and the top-level
+ * `guid`/`parentGuid`/`grandparentGuid` string fields (`GUID_STRING_KEYS`),
+ * which carry the same shape. See C3.
+ *
+ * The synthetic id is numeric (`tmdb://9000001`), not the earlier
+ * `tmdb://fixture-1`: `externalIds()` requires digits-only after the scheme
+ * for `tmdb`/`tvdb` (`numericId`, src/services/plex.ts), so a non-numeric
+ * placeholder silently stopped a fixture from exercising that parse path.
+ */
+function scrubSchemedId(value: string, counter: { n: number }): string {
+    const match = /^([a-z0-9.]+):\/\//i.exec(value);
+    if (match === null) return value;
+    counter.n += 1;
+    return `${match[1]}://${9_000_000 + counter.n}`;
+}
 
 /**
  * Recursively scrubs identifying data anywhere in a Plex metadata row, not
@@ -361,8 +438,9 @@ const IDENTIFYING_SLUG_KEYS = new Set([
  * throughout, so a fixture built from this still exercises the adapter's
  * parsing.
  *
- * `counter` threads through the whole walk (not reset per key) so two
- * occurrences of the same field name in one row still get distinguishable
+ * `counter` threads through the whole walk (not reset per key, and not reset
+ * per row by callers below) so two occurrences of the same field name — in
+ * one row, or across every row in a fixture — still get distinguishable
  * placeholders.
  */
 function anonymiseNested(node: unknown, counter: { n: number }, parentKey?: string): unknown {
@@ -370,23 +448,22 @@ function anonymiseNested(node: unknown, counter: { n: number }, parentKey?: stri
     if (node === null || typeof node !== 'object') return node;
 
     const isPersonEntry = parentKey !== undefined && PERSON_ARRAY_KEYS.has(parentKey);
+    const isTagEntry = parentKey !== undefined && TAG_ARRAY_KEYS.has(parentKey);
     return Object.fromEntries(
         Object.entries(node as Row).map(([key, value]): [string, unknown] => {
             if (isPersonEntry && key === 'tag') return [key, replaceIfString(value, syntheticDisplayValue('Person', counter.n++))];
             if (isPersonEntry && key === 'thumb') return [key, replaceIfString(value, '')];
-            // Guid.id is a scheme-prefixed external id (imdb://tt123, tmdb://456) —
-            // the scheme is kept so the shape still proves externalIds() parses it,
-            // only the id half (which names the exact title) is synthetic.
+            if (isTagEntry && key === 'tag') return [key, replaceIfString(value, syntheticDisplayValue('Tag', counter.n++))];
             if (key === 'Guid' && Array.isArray(value)) {
                 return [
                     key,
                     value.map(g => {
                         const row = g as Row;
-                        const match = typeof row.id === 'string' ? /^([a-z]+):\/\//i.exec(row.id) : null;
-                        return match === null ? row : { ...row, id: `${match[1]}://fixture-${counter.n++}` };
+                        return typeof row.id === 'string' ? { ...row, id: scrubSchemedId(row.id, counter) } : row;
                     })
                 ];
             }
+            if (GUID_STRING_KEYS.has(key)) return [key, typeof value === 'string' ? scrubSchemedId(value, counter) : value];
             if (IDENTIFYING_TEXT_KEYS.has(key)) return [key, replaceIfString(value, syntheticDisplayValue(key, counter.n++))];
             if (IDENTIFYING_SLUG_KEYS.has(key)) return [key, replaceIfString(value, '')];
             return [key, anonymiseNested(value, counter, key)];
@@ -417,17 +494,23 @@ function anonymiseNested(node: unknown, counter: { n: number }, parentKey?: stri
  * walk rather than a list of top-level key names, so a title/person/path
  * value nested inside `Media`/`Part`/`Role`/`Director`/`Writer`/`Producer`/
  * `Guid` is reached the same as one sitting directly on the row. See B2.
+ *
+ * One `counter` is shared across every row in the fixture, not reset per
+ * row: a fresh `{ n: 0 }` per row made every row's title collapse onto the
+ * same placeholder (`Fixture title 1`), so a fixture with several history
+ * rows read as one indistinguishable row repeated.
  */
 export function anonymisePlexHistory(body: unknown, mapId?: (id: number) => number): unknown {
     const neutralised = neutralisePlexWatchState(body) as MetadataContainer;
     const container = neutralised.MediaContainer;
     if (!Array.isArray(container?.Metadata)) return neutralised;
+    const counter = { n: 0 };
     return {
         ...(neutralised as Row),
         MediaContainer: {
             ...container,
             Metadata: container.Metadata.map(item => {
-                const scrubbed = anonymiseNested(item, { n: 0 }) as Row;
+                const scrubbed = anonymiseNested(item, counter) as Row;
                 return {
                     ...scrubbed,
                     ...(mapId !== undefined && 'accountID' in item ? { accountID: mappedId(item.accountID, mapId) } : {})
@@ -444,6 +527,13 @@ export function anonymisePlexHistory(body: unknown, mapId?: (id: number) => numb
  * too, but its value is remapped through `mapId`: the tester's live
  * `/accounts` carried real plex.tv account ids on rows whose `name` this
  * already scrubbed. See G2.
+ *
+ * `key` and `thumb` are scrubbed too, not just `name`/`id`: `key` is
+ * `/accounts/<real id>`, re-embedding the exact id `mapId` above just
+ * remapped, and `thumb` is a `plex.tv/users/<uuid>/avatar` URL — a second,
+ * stable plex.tv identifier for this account and every other row on the same
+ * server. `redactPlexSessions` already blanks the equivalent `User.thumb`
+ * for the same reason. See C2.
  */
 export function anonymisePlexAccounts(body: unknown, mapId: (id: number) => number): unknown {
     const container = (body as { MediaContainer?: { Account?: Row[] } }).MediaContainer;
@@ -460,7 +550,9 @@ export function anonymisePlexAccounts(body: unknown, mapId: (id: number) => numb
                 // elsewhere already accept a numeric string too, and a stricter
                 // check here was the one place a string-valued id would have
                 // survived unmapped. See N4.
-                ...('id' in a ? { id: mappedId(a.id, mapId) } : {})
+                ...('id' in a ? { id: mappedId(a.id, mapId) } : {}),
+                ...('key' in a ? { key: replaceIfString(a.key, '') } : {}),
+                ...('thumb' in a ? { thumb: replaceIfString(a.thumb, '') } : {})
             }))
         }
     };

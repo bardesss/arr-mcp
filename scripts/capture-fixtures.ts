@@ -28,6 +28,7 @@ import {
     anonymisePlexAccounts,
     anonymisePlexHistory,
     createAccountIdMapper,
+    hostsInAuthorityPosition,
     hostsOf,
     neutralisePlexWatchState,
     redact,
@@ -583,12 +584,15 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     return apiKeyHeader('X-Api-Key', key);
 }
 
-// `hostsOf`, `secretsOf` and `redact` live in `scripts/lib/redact.ts`, shared
-// with `integration.ts` — all three scripts need the same "every host the user
-// configured" and "every credential" lists, and a second hand-written copy is
-// exactly the kind of drift this phase exists to eliminate. They are also the
-// only code standing between a live credential and a public repository, which
-// is why they are tested (`test/scriptsRedact.test.ts`) rather than inlined.
+// `hostsOf`, `secretsOf`, `redact` and `hostsInAuthorityPosition` live in
+// `scripts/lib/redact.ts`, shared with `integration.ts` — all three scripts
+// need the same "every host the user configured" and "every credential"
+// lists, and a second hand-written copy is exactly the kind of drift this
+// phase exists to eliminate. They are also the only code standing between a
+// live credential and a public repository, which is why they are tested
+// (`test/scriptsRedact.test.ts`) rather than inlined — including the gate's
+// own predicate above, which this script itself (top-level `loadConfig()` on
+// import) is too awkward to unit test directly.
 
 const configDir = process.env.ARR_MCP_CAPTURE_CONFIG ?? './config';
 // `persist: false` — capturing fixtures reads the user's config; it must never
@@ -670,8 +674,13 @@ for (const instance of listInstances(config)) {
                 console.error(`REFUSING TO WRITE ${id}/${endpoint.name}: a configured credential survived redaction`);
                 process.exit(1);
             }
-            const leakedHost = hosts.find(h => serialised.includes(h));
-            if (leakedHost !== undefined) {
+            // hostsInAuthorityPosition, not a substring check: `redact()` above
+            // only rewrites a host in authority position, so a blind substring
+            // gate disagreed with it and fired on ordinary text (a host named
+            // `plex` next to `agent: "tv.plex.agents.movie"`). Both now share
+            // one predicate (scripts/lib/redact.ts), so they cannot drift
+            // apart again. See C1.
+            if (hostsInAuthorityPosition(serialised, hosts)) {
                 console.error(`REFUSING TO WRITE ${id}/${endpoint.name}: a configured host survived redaction`);
                 process.exit(1);
             }
