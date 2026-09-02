@@ -14,7 +14,9 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type SpeedLimit,
+    type SpeedLimitCapable
 } from './types.ts';
 
 /**
@@ -33,6 +35,9 @@ type RawQueue = {
         /** Queue-wide, and the only client-level paused flag any of the three
          *  download clients publishes. */
         paused?: boolean;
+        /** The cap in bytes/s, as a string. `speedlimit` beside it is a
+         *  percentage — see `setSpeedLimit`. */
+        speedlimit_abs?: string;
         slots?: RawSlot[];
     };
 };
@@ -74,7 +79,9 @@ const gigabytesToBytes = (value: string | undefined): number | undefined => {
     return Number.isFinite(parsed) ? Math.round(parsed * BYTES_PER_GB) : undefined;
 };
 
-export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable {
+export class SabnzbdAdapter
+    implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable, SpeedLimitCapable
+{
     readonly type: ServiceId = 'sabnzbd';
     readonly id: string = 'sabnzbd';
     readonly #http: ServiceHttp;
@@ -215,6 +222,36 @@ export class SabnzbdAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCa
                         'SABnzbd reported no failure reason. Check the queue is reachable — call get_queue.'
                 }
             );
+        }
+    }
+
+    /**
+     * `speedlimit_abs` is the cap in **bytes per second**, as a string;
+     * `speedlimit` beside it is a percentage of the configured maximum, which
+     * is the trap this whole capability exists around. An empty or zero
+     * absolute value means no cap.
+     */
+    async readSpeedLimit(): Promise<SpeedLimit> {
+        const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+        const bytes = Number(body.queue?.speedlimit_abs ?? '');
+        if (!Number.isFinite(bytes) || bytes <= 0) return { service: this.id };
+        return { service: this.id, kbps: Math.round(bytes / 1024) };
+    }
+
+    /**
+     * The `K` suffix is load-bearing: `value=100` sets **100 percent** of the
+     * configured line speed, `value=100K` sets 100 KB/s. `value=0` clears it.
+     */
+    async setSpeedLimit(kbps: number | undefined): Promise<void> {
+        const value = kbps === undefined || kbps <= 0 ? '0' : `${Math.round(kbps)}K`;
+        const body = await this.#http.getAsWrite<{ status?: boolean; error?: string }>(
+            `/api?mode=config&name=speedlimit&value=${encodeURIComponent(value)}&output=json`
+        );
+
+        if (body.status !== true) {
+            throw new ServiceError('UpstreamError', this.id, 'the speed limit was refused', {
+                remedy: body.error ?? 'SABnzbd reported no failure reason. Check it is reachable — call get_queue.'
+            });
         }
     }
 

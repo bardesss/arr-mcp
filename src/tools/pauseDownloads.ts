@@ -3,7 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasPause, type ServiceAdapter } from '../services/types.ts';
+import { hasPause, hasSpeedLimit, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -31,6 +31,18 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     return adapter;
 };
 
+/** A speed cap is its own capability: a client can pause without having one,
+ *  and reporting a limit that was never applied is worse than refusing. */
+const findLimitAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
+    const adapter = resolveInstance(adapters, service, instance);
+    if (!hasSpeedLimit(adapter)) {
+        throw new ServiceError('NotFound', service, `${service} has no download speed limit to set`, {
+            remedy: 'Only the download clients throttle: sabnzbd, transmission and qbittorrent.'
+        });
+    }
+    return adapter;
+};
+
 export function registerPauseDownloads(
     server: McpServer,
     context: WriteContext,
@@ -38,13 +50,23 @@ export function registerPauseDownloads(
 ): void {
     registerWriteTool(server, context, {
         name: 'pause_downloads',
-        title: 'Pause or resume a download client',
+        title: 'Pause, resume or throttle a download client',
         description:
-            'Pauses or resumes one download client — SABnzbd, Transmission or qBittorrent — or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour". Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Pauses, resumes or throttles one download client — SABnzbd, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews by default — call again with the returned `confirm` token to apply it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('sabnzbd, transmission or qbittorrent.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-            action: z.enum(['pause', 'resume']).describe('pause or resume.'),
+            action: z
+                .enum(['pause', 'resume', 'limit'])
+                .describe('pause, resume, or limit to cap the download speed without stopping anything.'),
+            speed_limit_kbps: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe(
+                    'With action: "limit", the download cap in KB/s — 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
+                ),
             id: z
                 .string()
                 .optional()
@@ -58,7 +80,46 @@ export function registerPauseDownloads(
         operation: 'pause_downloads',
         tier: 'safe',
 
-        async plan({ service, instance, action, id }): Promise<WritePlan> {
+        async plan({ service, instance, action, id, speed_limit_kbps }): Promise<WritePlan> {
+            if (action === 'limit') {
+                if (speed_limit_kbps === undefined) {
+                    throw new Error('limit needs `speed_limit_kbps` — the cap in KB/s, or 0 to remove it.');
+                }
+
+                const client = findLimitAdapter(adapters, service, instance);
+                const current = await client.readSpeedLimit();
+                const wanted = speed_limit_kbps === 0 ? undefined : speed_limit_kbps;
+                const target = `${service}:limit`;
+
+                if (current.kbps === wanted) {
+                    return {
+                        target,
+                        summary:
+                            wanted === undefined
+                                ? `${service} already has no download limit.`
+                                : `${service} is already limited to ${wanted} KB/s.`,
+                        effects: [],
+                        noop: true
+                    };
+                }
+
+                return {
+                    target,
+                    summary:
+                        wanted === undefined
+                            ? `Remove the download limit on ${service}.`
+                            : `Limit ${service} to ${wanted} KB/s.`,
+                    effects: [
+                        wanted === undefined
+                            ? `${service} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KB/s`}.`
+                            : `Caps ${service} at ${wanted} KB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KB/s`}. Client-wide, not per item.`,
+                        'Does NOT stop Radarr or Sonarr grabbing. They keep sending releases; they just arrive more slowly.',
+                        'Undo it by calling this tool again with action: "limit" and a different value — 0 removes the cap.'
+                    ],
+                    args: { action, kbps: speed_limit_kbps }
+                };
+            }
+
             const adapter = findAdapter(adapters, service, instance);
             const paused = action === 'pause';
             const state = await adapter.readPauseState(id);
@@ -96,7 +157,13 @@ export function registerPauseDownloads(
             };
         },
 
-        async apply(_plan, { service, instance, action, id }) {
+        async apply(_plan, { service, instance, action, id, speed_limit_kbps }) {
+            if (action === 'limit') {
+                const kbps = speed_limit_kbps === undefined || speed_limit_kbps === 0 ? undefined : speed_limit_kbps;
+                await findLimitAdapter(adapters, service, instance).setSpeedLimit(kbps);
+                return { limitKbps: kbps ?? null, service };
+            }
+
             await findAdapter(adapters, service, instance).setPaused(action === 'pause', id);
             return { [action === 'pause' ? 'paused' : 'resumed']: `${service}:${id ?? 'all'}` };
         }

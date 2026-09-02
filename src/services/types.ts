@@ -706,6 +706,27 @@ export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable 
     typeof (a as Partial<PauseCapable>).setPaused === 'function';
 
 /**
+ * The download cap, always **KB/s at this boundary** whatever the client
+ * speaks on the wire: SABnzbd wants a `K`-suffixed string (a bare number
+ * there is a *percentage*), Transmission wants KB/s, qBittorrent wants
+ * bytes/s. Converting inside each adapter is what stops one wrong unit
+ * throttling a stack to nothing.
+ *
+ * An absent `kbps` means no cap is set — not a cap of zero, which on these
+ * clients means "unlimited" anyway and would read as "stopped".
+ */
+export type SpeedLimit = { service: string; kbps?: number };
+
+export interface SpeedLimitCapable {
+    readSpeedLimit(): Promise<SpeedLimit>;
+    /** `undefined` removes the cap. */
+    setSpeedLimit(kbps: number | undefined): Promise<void>;
+}
+
+export const hasSpeedLimit = (a: ServiceAdapter): a is ServiceAdapter & SpeedLimitCapable =>
+    typeof (a as Partial<SpeedLimitCapable>).setSpeedLimit === 'function';
+
+/**
  * `name` raw and `display` fenced, for the same reason `RootFolder` splits its
  * path — and discovered the same way, by a match that could never succeed.
  * `add_media` matches a requested profile against `name`; comparing against

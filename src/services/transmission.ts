@@ -14,7 +14,9 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type SpeedLimit,
+    type SpeedLimitCapable
 } from './types.ts';
 
 const RPC_PATH = '/transmission/rpc';
@@ -24,6 +26,9 @@ type RawSession = {
     version?: string;
     'download-dir'?: string;
     'download-dir-free-space'?: number;
+    /** KB/s, and only applied when the `-enabled` flag is set. */
+    'speed-limit-down'?: number;
+    'speed-limit-down-enabled'?: boolean;
 };
 
 /**
@@ -52,7 +57,9 @@ const TORRENT_STATUS: Record<number, string> = {
     6: 'seeding'
 };
 
-export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable {
+export class TransmissionAdapter
+    implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable, SpeedLimitCapable
+{
     readonly type: ServiceId = 'transmission';
     readonly id: string = 'transmission';
     readonly #http: ServiceHttp;
@@ -206,6 +213,38 @@ export class TransmissionAdapter implements ServiceAdapter, DiskSpaceCapable, Qu
                 this.id,
                 `${paused ? 'torrent-stop' : 'torrent-start'} failed: ${body.result ?? 'no result field'}`
             );
+        }
+    }
+
+    /**
+     * Transmission's session speeds are **KB/s**, which is what this boundary
+     * speaks — no conversion, only the enabled flag, which is what actually
+     * decides whether the number is applied.
+     */
+    async readSpeedLimit(): Promise<SpeedLimit> {
+        const session = await this.#session();
+        const limit = session['speed-limit-down'];
+        if (session['speed-limit-down-enabled'] !== true || typeof limit !== 'number' || limit <= 0) {
+            return { service: this.id };
+        }
+        return { service: this.id, kbps: limit };
+    }
+
+    async setSpeedLimit(kbps: number | undefined): Promise<void> {
+        const clearing = kbps === undefined || kbps <= 0;
+        const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
+            method: 'session-set',
+            arguments: {
+                'speed-limit-down-enabled': !clearing,
+                // Sent even when clearing: Transmission keeps the number
+                // behind the flag, and leaving a stale 50 KB/s there is how a
+                // later "pause and resume" comes back throttled.
+                'speed-limit-down': clearing ? 0 : Math.round(kbps)
+            }
+        });
+
+        if (body.result !== 'success') {
+            throw new ServiceError('UpstreamError', this.id, `session-set failed: ${body.result ?? 'no result field'}`);
         }
     }
 
