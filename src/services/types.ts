@@ -420,6 +420,34 @@ export interface RequestCapable {
 export const hasRequests = (a: ServiceAdapter): a is ServiceAdapter & RequestCapable =>
     typeof (a as Partial<RequestCapable>).getRequests === 'function';
 
+/**
+ * What a household has reported as broken — the other half of Seerr that
+ * `get_requests` never surfaced. Seerr numbers both the kind and the state,
+ * and a model handed `issueType: 2` cannot say what is wrong, so both are
+ * mapped to words here.
+ */
+export type MediaIssue = {
+    service: string;
+    id: string;
+    /** video | audio | subtitle | other */
+    kind: string;
+    /** open | resolved */
+    status: string;
+    createdAt?: string;
+    /** The media it is about, when Seerr knows a title for it. */
+    title?: string;
+    reportedBy?: string;
+    /** The newest comments, fenced and capped — an issue can carry dozens. */
+    comments: string[];
+};
+
+export interface IssueCapable {
+    getIssues(opts: { limit: number }): Promise<MediaIssue[]>;
+}
+
+export const hasIssues = (a: ServiceAdapter): a is ServiceAdapter & IssueCapable =>
+    typeof (a as Partial<IssueCapable>).getIssues === 'function';
+
 export type EpisodeSummary = {
     id: number;
     season: number;
