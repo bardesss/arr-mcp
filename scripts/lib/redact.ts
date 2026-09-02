@@ -113,6 +113,14 @@ function redactAuthorities(text: string, hosts: readonly string[], placeholder: 
  * a host named `plex` sitting in ordinary text like `agent: "tv.plex.agents.
  * movie"`, because `redactAuthorities` above had already moved to
  * authority-position matching and the gate had not. See C1.
+ *
+ * Sharing this predicate with the gate means the two can no longer disagree
+ * — but it also means the gate can no longer catch anything this misses. It
+ * used to be an independent check; a blind substring gate would still have
+ * caught the bare-authority and percent-encoded-URL cases
+ * `authorityHostPattern`'s own doc above records as a known, deliberately
+ * unclosed gap. That was a considered trade for C1, not an accident, but
+ * worth stating outright rather than leaving implicit.
  */
 export function hostsInAuthorityPosition(text: string, hosts: readonly string[]): boolean {
     const re = authorityHostPattern(hosts);
@@ -376,7 +384,11 @@ const IDENTIFYING_TEXT_KEYS = new Set([
     'summary',
     'tagline',
     'studio',
-    'alt'
+    'alt',
+    // A `CommonSenseMedia` entry's own descriptive sentence about the exact
+    // item — on a sessions row whose title/summary/tagline are already
+    // synthetic, this was the one thing still naming what was watched.
+    'oneLiner'
 ]);
 
 /** Slug/URL/on-disk-path fields that can carry a real identifier, wherever
@@ -397,7 +409,10 @@ const IDENTIFYING_SLUG_KEYS = new Set([
     'file',
     'url',
     // A Plex client's stable device id, carried on `Player` in a session row.
-    'machineIdentifier'
+    'machineIdentifier',
+    // A stable per-library identifier, carried on an onDeck/history/search
+    // row. Not read anywhere in src/services/plex.ts.
+    'librarySectionUUID'
 ]);
 
 /** Scheme-prefixed identifier fields at a row's own level — `plex://<hash>`
@@ -442,6 +457,15 @@ function scrubSchemedId(value: string, counter: { n: number }): string {
  * per row by callers below) so two occurrences of the same field name — in
  * one row, or across every row in a fixture — still get distinguishable
  * placeholders.
+ *
+ * Recursion fixes the *depth* problem — a nested field is reached the same
+ * as a top-level one — but at every node this is still an allowlist:
+ * `IDENTIFYING_TEXT_KEYS`, `IDENTIFYING_SLUG_KEYS`, `GUID_STRING_KEYS`,
+ * `PERSON_ARRAY_KEYS` and `TAG_ARRAY_KEYS` name what to blank, not a rule
+ * that describes what "identifying" means. That is exactly how `tagKey`,
+ * `filter` and `oneLiner` survived a real capture until someone listed them
+ * here. A field Plex adds next year passes through the same way, until
+ * someone lists it too.
  */
 function anonymiseNested(node: unknown, counter: { n: number }, parentKey?: string): unknown {
     if (Array.isArray(node)) return node.map(v => anonymiseNested(v, counter, parentKey));
@@ -453,6 +477,13 @@ function anonymiseNested(node: unknown, counter: { n: number }, parentKey?: stri
         Object.entries(node as Row).map(([key, value]): [string, unknown] => {
             if (isPersonEntry && key === 'tag') return [key, replaceIfString(value, syntheticDisplayValue('Person', counter.n++))];
             if (isPersonEntry && key === 'thumb') return [key, replaceIfString(value, '')];
+            // `tagKey` is the plex.tv person id, and `filter` embeds it again
+            // (e.g. `writer=<tagKey>`) — scrubbing `tag` (the name) while
+            // leaving either behind still resolves straight back to the real
+            // person. Genre/Collection/Label carry the same two field names
+            // for a taxonomy id, not a person, so this is scoped to person
+            // entries only.
+            if (isPersonEntry && (key === 'tagKey' || key === 'filter')) return [key, replaceIfString(value, '')];
             if (isTagEntry && key === 'tag') return [key, replaceIfString(value, syntheticDisplayValue('Tag', counter.n++))];
             if (key === 'Guid' && Array.isArray(value)) {
                 return [
@@ -554,6 +585,128 @@ export function anonymisePlexAccounts(body: unknown, mapId: (id: number) => numb
                 ...('key' in a ? { key: replaceIfString(a.key, '') } : {}),
                 ...('thumb' in a ? { thumb: replaceIfString(a.thumb, '') } : {})
             }))
+        }
+    };
+}
+
+/**
+ * `/identity` has no per-row `Metadata` to walk — it is a single object
+ * naming the *server*, not an account, so it goes through none of the
+ * per-row anonymisers above. `machineIdentifier` is the server's own stable
+ * 40-hex id: `PlexAdapter#getVersion` reads only `version` from this
+ * endpoint, and the fixture gate (`test/fixtures.test.ts`) refuses to commit
+ * a long opaque value under a non-id-named key, which `machineIdentifier`
+ * is not (see `ID_WORDS` there — `identifier` isn't in it). `size` and
+ * `claimed` are a count and a flag, neither identifying.
+ */
+export function anonymisePlexIdentity(body: unknown): unknown {
+    const container = (body as { MediaContainer?: Row }).MediaContainer;
+    if (container === undefined) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            ...('machineIdentifier' in container ? { machineIdentifier: replaceIfString(container.machineIdentifier, '') } : {})
+        }
+    };
+}
+
+/**
+ * `/library/sections` publishes real library names and types by design (the
+ * top-of-file comment in capture-fixtures.ts). Two fields on a section row
+ * are not that kind of data even so: `uuid`, a stable per-library identifier
+ * `#sections` (src/services/plex.ts) never reads — only `key`/`type`/
+ * `refreshing`/`scannedAt` — and `Location[].path`, the tester's real mount
+ * layout, which the same function also never reads. Each is replaced with a
+ * per-row placeholder that keeps the same shape.
+ */
+export function anonymisePlexSections(body: unknown): unknown {
+    const container = (body as { MediaContainer?: { Directory?: Row[] } }).MediaContainer;
+    if (!Array.isArray(container?.Directory)) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            Directory: container.Directory.map((dir, i) => ({
+                ...dir,
+                ...('uuid' in dir ? { uuid: replaceIfString(dir.uuid, '') } : {}),
+                ...('Location' in dir && Array.isArray(dir.Location)
+                    ? {
+                          Location: (dir.Location as Row[]).map((loc, j) =>
+                              'path' in loc ? { ...loc, path: replaceIfString(loc.path, `/media/library-${i + 1}-${j + 1}`) } : loc
+                          )
+                      }
+                    : {})
+            }))
+        }
+    };
+}
+
+/**
+ * `/search` rows are a library listing, same as `section-all`/
+ * `metadata-detail` — title/summary/studio stay real by design (see
+ * `neutralisePlexWatchState`'s doc). Two top-level fields on a hit are not
+ * media data even so: `sourceTitle`, verified on the tester's server as his
+ * own Plex `friendlyName` rather than a media title and not read by
+ * `PlexAdapter#search`, and `librarySectionUUID`, the same stable per-library
+ * identifier `IDENTIFYING_SLUG_KEYS` already blanks when it turns up on an
+ * onDeck/history row.
+ */
+export function redactPlexSearchRow(body: unknown): unknown {
+    const container = (body as MetadataContainer).MediaContainer;
+    if (!Array.isArray(container?.Metadata)) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            Metadata: container.Metadata.map(item => ({
+                ...item,
+                ...('sourceTitle' in item ? { sourceTitle: replaceIfString(item.sourceTitle, '') } : {}),
+                ...('librarySectionUUID' in item ? { librarySectionUUID: replaceIfString(item.librarySectionUUID, '') } : {})
+            }))
+        }
+    };
+}
+
+/**
+ * `search`, `section-all` and `metadata-detail` are library listings —
+ * title/summary/studio stay real by design — but `Media[].Part[].file` is a
+ * real on-disk path, not media data: the tester's directory scheme and 21
+ * distinct release-group suffixes. Present is not the same as real:
+ * `getMediaDetails` (src/services/plex.ts) only fences the string and reads
+ * `.size` separately, so a synthetic path of the same shape contracts that
+ * mapping identically to the real one. Built from the same "Fixture title N"
+ * placeholder `anonymiseNested` already uses for an actual `title` field
+ * elsewhere, purely to keep the path internally coherent — the row's own
+ * `title` is untouched here, since these three endpoints publish it real.
+ * `size` is left alone: `getMediaDetails` reads it too, and a byte count
+ * carries nothing about the tester.
+ */
+export function synthesisePlexFilePaths(body: unknown): unknown {
+    const container = (body as MetadataContainer).MediaContainer;
+    if (!Array.isArray(container?.Metadata)) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            Metadata: container.Metadata.map((item, i) => {
+                if (!Array.isArray(item.Media)) return item;
+                const year = typeof item.year === 'number' ? ` (${item.year})` : '';
+                const label = `${syntheticDisplayValue('title', i)}${year}`;
+                return {
+                    ...item,
+                    Media: (item.Media as Row[]).map(m =>
+                        Array.isArray(m.Part)
+                            ? {
+                                  ...m,
+                                  Part: (m.Part as Row[]).map(p =>
+                                      'file' in p ? { ...p, file: `/library/movies/${label}/${label}.mkv` } : p
+                                  )
+                              }
+                            : m
+                    )
+                };
+            })
         }
     };
 }

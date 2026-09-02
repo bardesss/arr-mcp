@@ -27,15 +27,19 @@ import { ServiceHttp } from '../src/core/http.ts';
 import {
     anonymisePlexAccounts,
     anonymisePlexHistory,
+    anonymisePlexIdentity,
+    anonymisePlexSections,
     createAccountIdMapper,
     hostsInAuthorityPosition,
     hostsOf,
     neutralisePlexWatchState,
     redact,
     redactHosts,
+    redactPlexSearchRow,
     redactPlexSessions,
     replaceIfString,
     secretsOf,
+    synthesisePlexFilePaths,
     type Row
 } from './lib/redact.ts';
 import {
@@ -474,7 +478,9 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         }
     ],
     plex: [
-        { name: 'identity', path: '/identity' },
+        // machineIdentifier is the server's own real, stable 40-hex id —
+        // getVersion reads only `version` from this endpoint.
+        { name: 'identity', path: '/identity', anonymise: anonymisePlexIdentity },
         // The tester's own account name — anonymised like Jellyfin's `users`.
         // Capped the same way `history` is: a local token's owner lookup
         // only needs the owner row, and the tester's server answers ~103
@@ -483,7 +489,11 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // rows on his server carried a real plex.tv account id next to a
         // name this already scrubbed. See G2.
         { name: 'accounts', path: plexAccountsPath(0, 5), anonymise: body => anonymisePlexAccounts(body, mapPlexAccountId) },
-        { name: 'sections', path: '/library/sections' },
+        // Real library names/types/paths are published by design (see the
+        // top-of-file comment), but `uuid` and `Location[].path` name a
+        // specific library and the tester's mount layout — #sections never
+        // reads either.
+        { name: 'sections', path: '/library/sections', anonymise: anonymisePlexSections },
         // Carries Player.remotePublicAddress (the viewer's public IP) and
         // User.title/User.thumb (a username and an avatar URL that can embed
         // an account id). User.id is kept but remapped, same reasoning as
@@ -497,8 +507,9 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // server, but onDeck is server-side scoped to one account the same
         // as history, so nothing rules one out on another server.
         // excludeElements/excludeFields (plexOnDeckPath) ask the server not
-        // to send Media/Part/Role/summary at all — #commonPlayback never
-        // reads them, so not fetching beats fetching and scrubbing. See B3.
+        // to send Media/Part/Role/Writer/Director/Producer/summary at all —
+        // #commonPlayback never reads them, so not fetching beats fetching
+        // and scrubbing. See B3.
         { name: 'ondeck', path: plexOnDeckPath(), anonymise: body => anonymisePlexHistory(body, mapPlexAccountId) },
         // His complete watch history. Mirrors PlexAdapter#getWatchHistory's
         // exact query form, including the sort — everything but
@@ -513,8 +524,16 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // library response to the requesting account, so a search result can
         // carry that account's viewCount/lastViewedAt same as any other listing.
         // includeGuids=1 matches what PlexAdapter#search actually sends —
-        // without it Plex returns Guid-less rows. See F3.
-        { name: 'search', path: plexSearchPath('a'), anonymise: neutralisePlexWatchState },
+        // without it Plex returns Guid-less rows. See F3. title/summary/studio
+        // stay real (a library listing, published by design), but
+        // sourceTitle (the server's own friendlyName) and librarySectionUUID
+        // are not media data, and Media[].Part[].file is the tester's real
+        // path, not a title — see redactPlexSearchRow/synthesisePlexFilePaths.
+        {
+            name: 'search',
+            path: plexSearchPath('a'),
+            anonymise: body => synthesisePlexFilePaths(redactPlexSearchRow(neutralisePlexWatchState(body)))
+        },
         // A short page: the tester's library may hold thousands of items, and
         // the fixture only needs the shape. includeGuids=1 matches what
         // PlexAdapter#paged actually sends (see src/services/plex.ts) — the
@@ -532,17 +551,19 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             // history/onDeck: getMediaDetails genuinely reads
             // Media[0].Part[0].file/.size, and excluding Media from this raw
             // capture would also starve the N5 walk above of the very field
-            // it's searching for. Real titles/studio/paths are published
-            // here regardless — section-all is a library listing, not a
-            // watch record (design §7; see neutralisePlexWatchState's own
-            // comment in redact.ts). See B3.
+            // it's searching for. Real titles/studio are published here
+            // regardless — section-all is a library listing, not a watch
+            // record (design §7; see neutralisePlexWatchState's own comment
+            // in redact.ts) — but Media[].Part[].file is a real on-disk path,
+            // not a title, so it is synthesised rather than published; See
+            // B3 and synthesisePlexFilePaths's own doc.
             fetch: async (http, captured) => {
                 const keys = sectionKeys(captured.get('sections'));
                 if (keys.length === 0) return undefined;
                 const picked = await firstPartBearingSectionAll(keys, key => http.get<unknown>(plexSectionAllPath(key, 0, 5)));
                 return picked === undefined ? undefined : { path: plexSectionAllPath(picked.key, 0, 5), body: picked.body };
             },
-            anonymise: neutralisePlexWatchState
+            anonymise: body => synthesisePlexFilePaths(neutralisePlexWatchState(body))
         },
         {
             name: 'metadata-detail',
@@ -554,7 +575,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                 const id = firstRatingKeyWithPart(captured.get('section-all'));
                 return id === undefined ? undefined : `/library/metadata/${id}`;
             },
-            anonymise: neutralisePlexWatchState
+            anonymise: body => synthesisePlexFilePaths(neutralisePlexWatchState(body))
         }
     ]
 };

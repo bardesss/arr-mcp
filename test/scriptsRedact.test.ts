@@ -4,15 +4,19 @@ import { classifyFetchError } from '../src/core/errors.ts';
 import {
     anonymisePlexAccounts,
     anonymisePlexHistory,
+    anonymisePlexIdentity,
+    anonymisePlexSections,
     createAccountIdMapper,
     hostsInAuthorityPosition,
     hostsOf,
     neutralisePlexWatchState,
     redact,
     redactHosts,
+    redactPlexSearchRow,
     redactPlexSessions,
     replaceIfString,
-    secretsOf
+    secretsOf,
+    synthesisePlexFilePaths
 } from '../scripts/lib/redact.ts';
 
 const TOKEN = 'a'.repeat(64);
@@ -912,6 +916,237 @@ describe('anonymisePlexHistory with an id mapper', () => {
         const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
             .MediaContainer.Metadata;
         expect(row?.accountID).toBe(7);
+    });
+});
+
+/**
+ * `/identity` has no anonymiser at all before this fix — the server's real
+ * 40-hex `machineIdentifier` was written verbatim, and the fixture gate
+ * (`test/fixtures.test.ts`) refuses to commit it as a "long opaque value
+ * that is not an id-named field". `PlexAdapter#getVersion` reads only
+ * `version` from this endpoint.
+ */
+describe('anonymisePlexIdentity', () => {
+    it('does not let the real machineIdentifier survive', () => {
+        const body = { MediaContainer: { size: 0, claimed: true, machineIdentifier: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', version: '1.43.3.10896' } };
+        const out = anonymisePlexIdentity(body) as { MediaContainer: Record<string, unknown> };
+        expect(out.MediaContainer.machineIdentifier).not.toBe('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2');
+    });
+
+    it('leaves version untouched — the only field the adapter reads', () => {
+        const body = { MediaContainer: { machineIdentifier: 'x', version: '1.43.3.10896' } };
+        const out = anonymisePlexIdentity(body) as { MediaContainer: Record<string, unknown> };
+        expect(out.MediaContainer.version).toBe('1.43.3.10896');
+    });
+
+    it('is a no-op on a body with no MediaContainer', () => {
+        expect(anonymisePlexIdentity({})).toEqual({});
+    });
+});
+
+/**
+ * `/library/sections` names the tester's libraries by design (real names and
+ * types are published, per the top-of-file design decision), but `uuid` (a
+ * stable per-library identifier `#sections` never reads) and
+ * `Location[].path` (the tester's real mount layout — his directory scheme
+ * and 21 distinct release-group suffixes, surfaced through the section
+ * roots) are not media data.
+ */
+describe('anonymisePlexSections', () => {
+    const sections = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Directory: rows } });
+
+    it('blanks uuid on a section row', () => {
+        const body = sections([{ key: '1', type: 'movie', uuid: 'a1b2c3d4-real-library-uuid' }]);
+        const [row] = (anonymisePlexSections(body) as { MediaContainer: { Directory: Record<string, unknown>[] } })
+            .MediaContainer.Directory;
+        expect(row?.uuid).not.toBe('a1b2c3d4-real-library-uuid');
+    });
+
+    it('synthesises Location[].path while preserving the array shape', () => {
+        const body = sections([{ key: '1', type: 'movie', Location: [{ id: 1, path: '/mnt/user/media/Movies' }] }]);
+        const [row] = (anonymisePlexSections(body) as { MediaContainer: { Directory: Record<string, unknown>[] } })
+            .MediaContainer.Directory;
+        const locations = row?.Location as Record<string, unknown>[];
+        expect(locations).toHaveLength(1);
+        expect(locations[0]?.path).not.toBe('/mnt/user/media/Movies');
+        expect(locations[0]?.id).toBe(1);
+    });
+
+    it('leaves key and type untouched — #sections filters and joins on them', () => {
+        const body = sections([{ key: '1', type: 'movie' }]);
+        const [row] = (anonymisePlexSections(body) as { MediaContainer: { Directory: Record<string, unknown>[] } })
+            .MediaContainer.Directory;
+        expect(row?.key).toBe('1');
+        expect(row?.type).toBe('movie');
+    });
+
+    it('is a no-op on a body with no Directory array', () => {
+        const body = { MediaContainer: { size: 0 } };
+        expect(anonymisePlexSections(body)).toEqual(body);
+    });
+});
+
+/**
+ * `/search` rows keep title/summary/studio real, by design — a library
+ * listing, not a watch record. `sourceTitle` (verified on the tester's
+ * server as his own Plex `friendlyName`, not a media title) and
+ * `librarySectionUUID` (a stable per-library identifier) are not.
+ */
+describe('redactPlexSearchRow', () => {
+    const search = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('blanks sourceTitle, the server friendly name, not a media title', () => {
+        const body = search([{ ratingKey: '1', title: 'A Film', sourceTitle: "Bartus's Plex Server" }]);
+        const [row] = (redactPlexSearchRow(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.sourceTitle).not.toBe("Bartus's Plex Server");
+    });
+
+    it('blanks librarySectionUUID', () => {
+        const body = search([{ ratingKey: '1', librarySectionUUID: 'a1b2c3d4-real-library-uuid' }]);
+        const [row] = (redactPlexSearchRow(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.librarySectionUUID).not.toBe('a1b2c3d4-real-library-uuid');
+    });
+
+    it('leaves title untouched — search is a library listing, real by design', () => {
+        const body = search([{ ratingKey: '1', title: 'A Film' }]);
+        const [row] = (redactPlexSearchRow(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.title).toBe('A Film');
+    });
+
+    it('is a no-op on a body with no Metadata array', () => {
+        const body = { MediaContainer: { version: '1.32.0' } };
+        expect(redactPlexSearchRow(body)).toEqual(body);
+    });
+});
+
+/**
+ * `search`, `section-all` and `metadata-detail` are library listings, so
+ * their title/summary/studio stay real by design — but `Media[].Part[].file`
+ * is a real on-disk path, not media data: the tester's directory scheme and
+ * release-group naming. `getMediaDetails` (src/services/plex.ts) only fences
+ * the string and reads `.size` separately, so present is not the same as
+ * real — a synthetic path of the same shape contracts that mapping
+ * identically.
+ */
+describe('synthesisePlexFilePaths', () => {
+    const listing = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('does not let a real file path survive, though the row title itself stays real by design', () => {
+        const realPath = '/mnt/user/media/Movies/Real Movie Title (2016)/Real Movie Title (2016) [RLSGRP].mkv';
+        const body = listing([{ ratingKey: '1', title: 'Real Movie Title', year: 2016, Media: [{ Part: [{ file: realPath, size: 123 }] }] }]);
+        const [row] = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const file = ((row?.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0]?.file;
+        expect(file).not.toBe(realPath);
+        expect(file).not.toContain('RLSGRP');
+        expect(file).not.toContain('/mnt/user/media');
+    });
+
+    it('keeps size untouched — getMediaDetails reads it too', () => {
+        const body = listing([{ ratingKey: '1', Media: [{ Part: [{ file: '/real/path.mkv', size: 987654321 }] }] }]);
+        const [row] = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const part = ((row?.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0];
+        expect(part?.size).toBe(987654321);
+    });
+
+    it('keeps a realistic path shape — getMediaDetails only fences the string, never parses it', () => {
+        const body = listing([{ ratingKey: '1', Media: [{ Part: [{ file: '/real/path.mkv', size: 1 }] }] }]);
+        const [row] = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const part = ((row?.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0];
+        expect(part?.file).toMatch(/^\/library\/movies\/.+\/.+\.mkv$/);
+    });
+
+    it('leaves the row title field itself untouched — search/section-all are library listings, real by design', () => {
+        const body = listing([{ ratingKey: '1', title: 'Real Movie Title', Media: [{ Part: [{ file: '/x.mkv' }] }] }]);
+        const [row] = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.title).toBe('Real Movie Title');
+    });
+
+    it('gives different rows different synthetic paths, not one placeholder repeated', () => {
+        const body = listing([
+            { ratingKey: '1', Media: [{ Part: [{ file: '/a.mkv' }] }] },
+            { ratingKey: '2', Media: [{ Part: [{ file: '/b.mkv' }] }] }
+        ]);
+        const rows = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const fileOf = (row: Record<string, unknown>) => ((row.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0]?.file;
+        expect(fileOf(rows[0]!)).not.toBe(fileOf(rows[1]!));
+    });
+
+    it('leaves a row with no Media untouched, preserving shape', () => {
+        const body = listing([{ ratingKey: '1', type: 'show' }]);
+        const [row] = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect('Media' in (row as object)).toBe(false);
+    });
+
+    it('is a no-op on a body with no Metadata array', () => {
+        const body = { MediaContainer: { version: '1.32.0' } };
+        expect(synthesisePlexFilePaths(body)).toEqual(body);
+    });
+});
+
+/**
+ * A session's `Writer`/`Director`/`Producer`/`Role` entries already have
+ * `tag` (the person's name) scrubbed by `anonymiseNested`, but `tagKey` — the
+ * plex.tv person id — and `filter` (which embeds it again) survived and
+ * resolve straight back to the real person. Scrubbing the name while leaving
+ * the id that identifies them is worse than useless.
+ */
+describe('redactPlexSessions scrubs person tagKey and filter', () => {
+    const sessions = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('blanks tagKey and filter on a Writer entry, alongside the already-scrubbed tag', () => {
+        const body = sessions([
+            { ratingKey: '1', Writer: [{ tag: 'Real Writer Name', tagKey: '5d776b8e96b655001fe14e82', filter: 'writer=5d776b8e96b655001fe14e82' }] }
+        ]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const writer = (row?.Writer as Record<string, unknown>[])[0];
+        expect(writer?.tag).not.toBe('Real Writer Name');
+        expect(writer?.tagKey).not.toBe('5d776b8e96b655001fe14e82');
+        expect(writer?.filter).not.toBe('writer=5d776b8e96b655001fe14e82');
+    });
+
+    it('blanks tagKey and filter on Director, Producer and Role entries the same way', () => {
+        const body = sessions([
+            {
+                ratingKey: '1',
+                Director: [{ tag: 'A', tagKey: 'realdirid', filter: 'director=realdirid' }],
+                Producer: [{ tag: 'B', tagKey: 'realprodid', filter: 'producer=realprodid' }],
+                Role: [{ tag: 'C', tagKey: 'realroleid', filter: 'actor=realroleid' }]
+            }
+        ]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.Director as Record<string, unknown>[])[0]?.tagKey).not.toBe('realdirid');
+        expect((row?.Producer as Record<string, unknown>[])[0]?.tagKey).not.toBe('realprodid');
+        expect((row?.Role as Record<string, unknown>[])[0]?.tagKey).not.toBe('realroleid');
+    });
+});
+
+/**
+ * `CommonSenseMedia[].oneLiner` is a unique sentence describing the item —
+ * on a sessions row whose title/summary/tagline are already synthetic, this
+ * was the one thing still naming what was actually being watched.
+ */
+describe('redactPlexSessions scrubs CommonSenseMedia oneLiner', () => {
+    const sessions = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('blanks oneLiner', () => {
+        const body = sessions([
+            { ratingKey: '1', CommonSenseMedia: [{ oneLiner: 'A very specific sentence about this exact film.' }] }
+        ]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const csm = (row?.CommonSenseMedia as Record<string, unknown>[])[0];
+        expect(csm?.oneLiner).not.toBe('A very specific sentence about this exact film.');
     });
 });
 
