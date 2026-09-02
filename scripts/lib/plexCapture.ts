@@ -7,19 +7,23 @@
 
 /**
  * Server-side field trim, adopted only on `history` and `onDeck`: not
- * fetching `Media`/`Part` (a file path), cast/crew `Role` and `summary` is
- * strictly better than fetching and then scrubbing them, and `#commonPlayback`
- * (src/services/plex.ts — the mapper every `history`/`onDeck` row goes
- * through) never reads any of the three. Verified on the tester's server:
- * `onDeck` dropped `Media[].Part[].file`, `Role` and `summary`; `history` had
- * none of the three to begin with, so the params are a no-op there but
- * harmless. Deliberately NOT applied to `section-all`/`metadata-detail` —
+ * fetching `Media`/`Part` (a file path), cast/crew (`Role`, `Writer`,
+ * `Director`, `Producer`) and `summary` is strictly better than fetching and
+ * then scrubbing them, and `#commonPlayback` (src/services/plex.ts — the
+ * mapper every `history`/`onDeck` row goes through) never reads any of them.
+ * Verified on the tester's server: `onDeck` dropped `Media[].Part[].file`,
+ * `Role` and `summary`; `history` had none of the three to begin with, so the
+ * params are a no-op there but harmless. Writer/Director/Producer were added
+ * after a live capture showed their `tagKey` (the plex.tv person id)
+ * surviving `anonymiseNested`'s scrub of `tag` (the name) — the id alone
+ * still resolves back to the real person, so the array is better never
+ * fetched. Deliberately NOT applied to `section-all`/`metadata-detail` —
  * `getMediaDetails` genuinely reads `Media[0].Part[0].file`/`.size`, and
  * excluding `Media` from `section-all`'s raw capture would also break
  * `firstPartBearingSectionAll` (N5), which picks `metadata-detail`'s
  * ratingKey out of that same raw body. See B3.
  */
-const PLEX_UNWATCHED_ELEMENTS = 'excludeElements=Media,Role&excludeFields=summary';
+const PLEX_UNWATCHED_ELEMENTS = 'excludeElements=Media,Role,Writer,Director,Producer&excludeFields=summary';
 
 /**
  * The `history` endpoint's exact query form. Must mirror every param

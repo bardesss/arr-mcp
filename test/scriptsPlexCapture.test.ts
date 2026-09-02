@@ -84,16 +84,29 @@ describe('firstRatingKeyWithPart', () => {
  * (N5), which picks `metadata-detail`'s ratingKey out of that same raw body.
  */
 describe('history and onDeck ask the server to omit data #commonPlayback never reads (B3)', () => {
-    it('plexHistoryPath excludes Media/Part and Role elements and the summary field', () => {
+    it('plexHistoryPath excludes Media/Part, Role and the other cast/crew elements, and the summary field', () => {
         const path = plexHistoryPath(0, 5);
-        expect(path).toContain('excludeElements=Media,Role');
+        expect(path).toContain('excludeElements=Media,Role,Writer,Director,Producer');
         expect(path).toContain('excludeFields=summary');
     });
 
     it('plexOnDeckPath excludes the same elements and fields as plexHistoryPath', () => {
         const path = plexOnDeckPath();
-        expect(path).toContain('excludeElements=Media,Role');
+        expect(path).toContain('excludeElements=Media,Role,Writer,Director,Producer');
         expect(path).toContain('excludeFields=summary');
+    });
+
+    /**
+     * `Writer`/`Director`/`Producer` entries carry `tagKey`, the plex.tv
+     * person id, next to `tag` (the name) — a real capture had `tag`
+     * scrubbed by `anonymiseNested` while `tagKey` survived and resolved
+     * straight back to the real person. Not fetching the arrays at all beats
+     * fetching and then teaching the scrubber a new field, same reasoning as
+     * `Role` already being excluded here.
+     */
+    it('plexHistoryPath and plexOnDeckPath also exclude Writer, Director and Producer, whose tagKey identifies a real person', () => {
+        expect(plexHistoryPath(0, 5)).toContain('Writer,Director,Producer');
+        expect(plexOnDeckPath()).toContain('Writer,Director,Producer');
     });
 
     it('plexSectionAllPath does not exclude anything — getMediaDetails reads Media/Part from this shape', () => {
