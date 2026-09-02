@@ -437,7 +437,7 @@ export class PlexAdapter
             const rows = unwrap<RawPlexItem>(body, 'Metadata');
             const fingerprint = JSON.stringify(rows.map(r => (typeof r.ratingKey === 'string' ? r.ratingKey : r)));
             if (start > 0 && fingerprint === previousFingerprint) {
-                throw new ServiceError('UpstreamError', this.id, 'did not advance past start=0 — the same item led every page', {
+                throw new ServiceError('UpstreamError', this.id, 'did not advance past start=0 — the whole page repeated', {
                     remedy: 'Plex appears to be ignoring X-Plex-Container-Start/Size as query parameters. It documents these as request headers instead, which ServiceHttp does not yet send.'
                 });
             }
