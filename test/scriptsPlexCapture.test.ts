@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { MultiUserServiceConfig } from '../src/config/schema.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
-import { firstRatingKeyWithPart, plexHistoryPath, plexSearchPath, plexSectionAllPath } from '../scripts/lib/plexCapture.ts';
+import {
+    firstPartBearingSectionAll,
+    firstRatingKeyWithPart,
+    plexHistoryPath,
+    plexOnDeckPath,
+    plexSearchPath,
+    plexSectionAllPath,
+    sectionKeys
+} from '../scripts/lib/plexCapture.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
 const container = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
@@ -62,6 +70,100 @@ describe('firstRatingKeyWithPart', () => {
 
     it('returns undefined on a body with no MediaContainer.Metadata', () => {
         expect(firstRatingKeyWithPart({ MediaContainer: {} })).toBeUndefined();
+    });
+});
+
+/**
+ * B3: `#commonPlayback` (src/services/plex.ts) reads only titles, indices
+ * and progress off a history/onDeck row — never `Media`/`Part`, cast/crew or
+ * `summary` — so these two endpoints ask the server not to send them at all,
+ * rather than fetching and then scrubbing them. `section-all` and
+ * `metadata-detail` deliberately do NOT get the same trim — `getMediaDetails`
+ * reads `Media[0].Part[0].file`/`.size`, and excluding `Media` from
+ * `section-all`'s raw capture would also break `firstPartBearingSectionAll`
+ * (N5), which picks `metadata-detail`'s ratingKey out of that same raw body.
+ */
+describe('history and onDeck ask the server to omit data #commonPlayback never reads (B3)', () => {
+    it('plexHistoryPath excludes Media/Part and Role elements and the summary field', () => {
+        const path = plexHistoryPath(0, 5);
+        expect(path).toContain('excludeElements=Media,Role');
+        expect(path).toContain('excludeFields=summary');
+    });
+
+    it('plexOnDeckPath excludes the same elements and fields as plexHistoryPath', () => {
+        const path = plexOnDeckPath();
+        expect(path).toContain('excludeElements=Media,Role');
+        expect(path).toContain('excludeFields=summary');
+    });
+
+    it('plexSectionAllPath does not exclude anything — getMediaDetails reads Media/Part from this shape', () => {
+        expect(plexSectionAllPath('1', 0, 5)).not.toContain('exclude');
+    });
+});
+
+describe('sectionKeys', () => {
+    it('returns every section key in listed order', () => {
+        const body = { MediaContainer: { Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'show' }] } };
+        expect(sectionKeys(body)).toEqual(['1', '2']);
+    });
+
+    it('skips a row whose key is not a string', () => {
+        const body = { MediaContainer: { Directory: [{ key: 1, type: 'movie' }, { key: '2', type: 'show' }] } };
+        expect(sectionKeys(body)).toEqual(['2']);
+    });
+
+    it('returns an empty list when there is no Directory array', () => {
+        expect(sectionKeys({ MediaContainer: {} })).toEqual([]);
+        expect(sectionKeys(undefined)).toEqual([]);
+    });
+});
+
+/**
+ * N5: `section-all` was built only from the first section's key. On the
+ * tester's server the first (TV) section listed 364 rows — all `type:
+ * "show"`, none with `Media`/`Part` (seasons have none either; only episodes
+ * do) — so a fixture built from it never contracted `getMediaDetails`'s
+ * `Media[0].Part[0].file`/`.size` mapping. This walks sections in order
+ * until one's page has a Part-bearing row.
+ */
+describe('firstPartBearingSectionAll', () => {
+    const container = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+    const partBearing = container([{ ratingKey: '1', Media: [{ Part: [{ file: '/x.mkv' }] }] }]);
+    const partLess = container([{ ratingKey: '1', type: 'show' }, { ratingKey: '2', type: 'show' }]);
+
+    it('picks the first section whose page has a Part-bearing row over an earlier Part-less one', async () => {
+        const pages: Record<string, unknown> = { tv: partLess, movies: partBearing };
+        const fetched: string[] = [];
+        const result = await firstPartBearingSectionAll(['tv', 'movies'], async key => {
+            fetched.push(key);
+            return pages[key];
+        });
+        expect(result?.key).toBe('movies');
+        expect(result?.body).toBe(partBearing);
+    });
+
+    it('stops walking once a Part-bearing section is found, rather than fetching every section', async () => {
+        const pages: Record<string, unknown> = { movies: partBearing, tv: partLess };
+        const fetched: string[] = [];
+        await firstPartBearingSectionAll(['movies', 'tv'], async key => {
+            fetched.push(key);
+            return pages[key];
+        });
+        expect(fetched).toEqual(['movies']);
+    });
+
+    it('falls back to the first section when none carry a Part-bearing row', async () => {
+        const pages: Record<string, unknown> = { tv: partLess, music: container([{ ratingKey: '9', type: 'artist' }]) };
+        const result = await firstPartBearingSectionAll(['tv', 'music'], async key => pages[key]);
+        expect(result?.key).toBe('tv');
+        expect(result?.body).toBe(partLess);
+    });
+
+    it('returns undefined when there are no sections to walk', async () => {
+        const result = await firstPartBearingSectionAll([], async () => {
+            throw new Error('should not be called');
+        });
+        expect(result).toBeUndefined();
     });
 });
 

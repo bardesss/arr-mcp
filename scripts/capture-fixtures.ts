@@ -37,7 +37,16 @@ import {
     secretsOf,
     type Row
 } from './lib/redact.ts';
-import { firstRatingKeyWithPart, plexAccountsPath, plexHistoryPath, plexSearchPath, plexSectionAllPath } from './lib/plexCapture.ts';
+import {
+    firstPartBearingSectionAll,
+    firstRatingKeyWithPart,
+    plexAccountsPath,
+    plexHistoryPath,
+    plexOnDeckPath,
+    plexSearchPath,
+    plexSectionAllPath,
+    sectionKeys
+} from './lib/plexCapture.ts';
 
 /**
  * `path` may be a function when the endpoint needs an id from something
@@ -48,12 +57,21 @@ import { firstRatingKeyWithPart, plexAccountsPath, plexHistoryPath, plexSearchPa
  */
 type Endpoint = {
     name: string;
-    path: string | ((captured: Map<string, unknown>) => string | undefined);
+    path?: string | ((captured: Map<string, unknown>) => string | undefined);
     body?: unknown;
     /** The response is a bare string rather than JSON — qBittorrent only.
      *  `anonymise` is what shapes it into something writable as a fixture. */
     text?: boolean;
     anonymise?: (body: unknown) => unknown;
+    /**
+     * An override for endpoints that need more than one request to decide
+     * what to capture — `plex/section-all` walks sections looking for a
+     * Part-bearing one (see N5) rather than fetching a single fixed path.
+     * Takes over the request entirely: `path`/`body`/`text` are ignored when
+     * this is set, and it returns undefined to skip the endpoint the same
+     * way an undefined `path` does.
+     */
+    fetch?: (http: ServiceHttp, captured: Map<string, unknown>) => Promise<{ path: string; body: unknown } | undefined>;
 };
 
 /** First numeric `id` in an array-shaped fixture. */
@@ -61,13 +79,6 @@ const firstId = (body: unknown): number | undefined => {
     const rows = Array.isArray(body) ? body : [];
     const row = rows[0] as { id?: unknown } | undefined;
     return typeof row?.id === 'number' ? row.id : undefined;
-};
-
-/** First library section's `key` in a captured Plex `sections` fixture. */
-const firstSectionKey = (body: unknown): string | undefined => {
-    const rows = (body as { MediaContainer?: { Directory?: unknown } } | undefined)?.MediaContainer?.Directory;
-    const row = (Array.isArray(rows) ? rows : [])[0] as { key?: unknown } | undefined;
-    return typeof row?.key === 'string' ? row.key : undefined;
 };
 
 /**
@@ -480,13 +491,22 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // The tester's resume list — his most recent watch state, per item.
         // A row exists only because he watched or is watching it, so titles
         // are scrubbed too, not just the watch-state numbers. See I1.
-        { name: 'ondeck', path: '/library/onDeck', anonymise: anonymisePlexHistory },
+        // Shares the same account-id mapper as accounts/sessions/history
+        // (N6) — no accountID was seen on an onDeck row on the tester's
+        // server, but onDeck is server-side scoped to one account the same
+        // as history, so nothing rules one out on another server.
+        // excludeElements/excludeFields (plexOnDeckPath) ask the server not
+        // to send Media/Part/Role/summary at all — #commonPlayback never
+        // reads them, so not fetching beats fetching and scrubbing. See B3.
+        { name: 'ondeck', path: plexOnDeckPath(), anonymise: body => anonymisePlexHistory(body, mapPlexAccountId) },
         // His complete watch history. Mirrors PlexAdapter#getWatchHistory's
         // exact query form, including the sort — everything but
         // X-Plex-Container-Size, deliberately smaller here: a handful of rows
         // proves the shape without pulling his whole server-wide history. See
         // I1, G1. accountID is remapped through the same shared mapper as
         // `accounts`/`sessions`, so the join between all three still holds. See G2.
+        // Same excludeElements/excludeFields trim as onDeck, and the same
+        // reasoning. See B3.
         { name: 'history', path: plexHistoryPath(0, 5), anonymise: body => anonymisePlexHistory(body, mapPlexAccountId) },
         // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
         // library response to the requesting account, so a search result can
@@ -501,9 +521,25 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // lastViewedAt reads, so it carries the same watch state as history.
         {
             name: 'section-all',
-            path: captured => {
-                const key = firstSectionKey(captured.get('sections'));
-                return key === undefined ? undefined : plexSectionAllPath(key, 0, 5);
+            // Walks sections looking for one whose page has a Part-bearing
+            // row, rather than just fetching the first section's key — a
+            // server whose first section is TV-only can hold thousands of
+            // Part-less show/season rows before any episode, and `metadata-detail`
+            // below picks its ratingKey out of *this* fixture. See N5.
+            //
+            // Deliberately no excludeElements/excludeFields trim here, unlike
+            // history/onDeck: getMediaDetails genuinely reads
+            // Media[0].Part[0].file/.size, and excluding Media from this raw
+            // capture would also starve the N5 walk above of the very field
+            // it's searching for. Real titles/studio/paths are published
+            // here regardless — section-all is a library listing, not a
+            // watch record (design §7; see neutralisePlexWatchState's own
+            // comment in redact.ts). See B3.
+            fetch: async (http, captured) => {
+                const keys = sectionKeys(captured.get('sections'));
+                if (keys.length === 0) return undefined;
+                const picked = await firstPartBearingSectionAll(keys, key => http.get<unknown>(plexSectionAllPath(key, 0, 5)));
+                return picked === undefined ? undefined : { path: plexSectionAllPath(picked.key, 0, 5), body: picked.body };
             },
             anonymise: neutralisePlexWatchState
         },
@@ -594,19 +630,33 @@ for (const instance of listInstances(config)) {
     const soFar = new Map<string, unknown>();
 
     for (const endpoint of ENDPOINTS[id]) {
-        const path = typeof endpoint.path === 'function' ? endpoint.path(soFar) : endpoint.path;
-        if (path === undefined) {
-            console.warn(`skipped  ${id}/${endpoint.name}: needs an id from an endpoint that did not capture`);
-            skipped += 1;
-            continue;
+        let path: string | undefined;
+        if (endpoint.fetch === undefined) {
+            path = typeof endpoint.path === 'function' ? endpoint.path(soFar) : endpoint.path;
+            if (path === undefined) {
+                console.warn(`skipped  ${id}/${endpoint.name}: needs an id from an endpoint that did not capture`);
+                skipped += 1;
+                continue;
+            }
         }
 
         try {
-            const raw = endpoint.text
-                ? await http.getText(path)
-                : endpoint.body === undefined
-                  ? await http.get<unknown>(path)
-                  : await http.post<unknown>(path, endpoint.body);
+            let raw: unknown;
+            if (endpoint.fetch !== undefined) {
+                const result = await endpoint.fetch(http, soFar);
+                if (result === undefined) {
+                    console.warn(`skipped  ${id}/${endpoint.name}: needs an id from an endpoint that did not capture`);
+                    skipped += 1;
+                    continue;
+                }
+                raw = result.body;
+            } else if (endpoint.text === true) {
+                raw = await http.getText(path as string);
+            } else if (endpoint.body === undefined) {
+                raw = await http.get<unknown>(path as string);
+            } else {
+                raw = await http.post<unknown>(path as string, endpoint.body);
+            }
             soFar.set(endpoint.name, raw);
 
             // Anonymise identity first, then redact credentials — so a value
