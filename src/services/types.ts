@@ -559,6 +559,35 @@ export const hasLibraryMaintenance = (a: ServiceAdapter): a is ServiceAdapter & 
     typeof (a as Partial<LibraryMaintenanceCapable>).refreshItem === 'function';
 
 /**
+ * One file a finished download left behind, and what the service makes of it.
+ *
+ * `rejections` non-empty means the service will not take this file — it is
+ * excluded from the import and named in the preview, rather than sent anyway.
+ */
+export type ImportCandidate = {
+    /** Raw, because it is posted back. */
+    path: string;
+    /** Fenced, because it reaches model context. */
+    display: string;
+    sizeBytes?: number;
+    /** What the service matched it to, when it matched anything. */
+    matchedTitle?: string;
+    /** The movie or series id it matched. Absent means nothing to import into. */
+    matchedId?: number;
+    /** Sonarr only: the episodes this file was placed in. */
+    episodeIds?: number[];
+    rejections: string[];
+};
+
+export interface ManualImportCapable {
+    listImportCandidates(downloadId: string): Promise<ImportCandidate[]>;
+    runManualImport(downloadId: string): Promise<CommandHandle>;
+}
+
+export const hasManualImport = (a: ServiceAdapter): a is ServiceAdapter & ManualImportCapable =>
+    typeof (a as Partial<ManualImportCapable>).runManualImport === 'function';
+
+/**
  * Both flags default to the *least* destructive reading at every layer — the
  * tool schema, the adapter signature and the service call — so a caller that
  * forgets one deletes less than they asked for rather than more.

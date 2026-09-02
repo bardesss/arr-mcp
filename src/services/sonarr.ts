@@ -10,6 +10,7 @@ import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, SONARR_ADD } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
@@ -44,7 +45,9 @@ import {
     type EpisodeFile,
     type EpisodeFileCapable,
     type MediaAddCapable,
+    type ImportCandidate,
     type LibraryMaintenanceCapable,
+    type ManualImportCapable,
     type MediaUpdateCapable,
     type MediaUpdateOptions,
     type MediaUpdateState,
@@ -142,6 +145,7 @@ export class SonarrAdapter
         MediaAddCapable,
         MediaUpdateCapable,
         LibraryMaintenanceCapable,
+        ManualImportCapable,
         MonitoringCapable,
         EpisodeFileCapable,
         HistoryCapable,
@@ -234,6 +238,14 @@ export class SonarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async listImportCandidates(downloadId: string): Promise<ImportCandidate[]> {
+        return listArrImportCandidates(this.#http, this.id, 'series', downloadId);
+    }
+
+    async runManualImport(downloadId: string): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'series', downloadId);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {

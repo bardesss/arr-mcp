@@ -5,9 +5,11 @@ import { ServiceError } from '../core/errors.ts';
 import {
     hasLibraryMaintenance,
     hasLibraryScan,
+    hasManualImport,
     hasMediaDetails,
     type LibraryMaintenanceCapable,
     type LibraryScanCapable,
+    type ManualImportCapable,
     type ServiceAdapter
 } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
@@ -64,6 +66,24 @@ const findItemAdapter = (
     return adapter;
 };
 
+/** Importing a finished download is Radarr's and Sonarr's alone: a media
+ *  server never had the file in a download folder to begin with. */
+const findImportAdapter = (
+    adapters: readonly ServiceAdapter[],
+    service: ServiceId,
+    instance?: string
+): ServiceAdapter & ManualImportCapable => {
+    const adapter = resolveInstance(adapters, service, instance);
+
+    if (!hasManualImport(adapter)) {
+        throw new ServiceError('NotFound', service, `${service} cannot import a download`, {
+            remedy: 'Only radarr and sonarr import downloads. Pick the one that was supposed to manage the item.'
+        });
+    }
+
+    return adapter;
+};
+
 export function registerTriggerScan(
     server: McpServer,
     context: WriteContext,
@@ -78,10 +98,10 @@ export function registerTriggerScan(
             service: ServiceIdSchema.describe('radarr, sonarr or jellyfin.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z
-                .enum(['scan', 'rename'])
+                .enum(['scan', 'rename', 'import'])
                 .default('scan')
                 .describe(
-                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`.'
+                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`.'
                 ),
             id: z
                 .string()
@@ -89,6 +109,13 @@ export function registerTriggerScan(
                 .optional()
                 .describe(
                     'One movie or series id — `acquisition.id` on a get_library record. Omit with action: "scan" to rescan the whole library.'
+                ),
+            download_id: z
+                .string()
+                .min(1)
+                .optional()
+                .describe(
+                    'The download client\'s own id, as `downloadId` on a get_queue row. Required for action: "import", ignored otherwise.'
                 )
         }),
         // Resolved from the arguments, so the permission checked, the audit row
@@ -99,7 +126,62 @@ export function registerTriggerScan(
         operation: 'trigger_scan',
         tier: 'safe',
 
-        async plan({ service, instance, action, id }): Promise<WritePlan> {
+        async plan({ service, instance, action, id, download_id }): Promise<WritePlan> {
+            if (action === 'import') {
+                if (download_id === undefined) {
+                    throw new Error(
+                        'import needs a `download_id`: it imports one finished download, and the id comes from `downloadId` on a get_queue row.'
+                    );
+                }
+
+                const adapter = findImportAdapter(adapters, service, instance);
+                const candidates = await adapter.listImportCandidates(download_id);
+                const target = `${adapter.id}:${download_id}`;
+
+                if (candidates.length === 0) {
+                    return {
+                        target,
+                        summary: `${adapter.id} sees no files to import for download ${download_id}.`,
+                        effects: [],
+                        noop: true
+                    };
+                }
+
+                const importable = candidates.filter(c => c.rejections.length === 0 && c.matchedId !== undefined);
+                const rejected = candidates.filter(c => c.rejections.length > 0 || c.matchedId === undefined);
+
+                // Every file rejected is a refusal, not a no-op: there *is*
+                // something there, and it cannot be taken. Saying "nothing to
+                // do" would read as "the download was already imported".
+                if (importable.length === 0) {
+                    throw new ServiceError(
+                        'UpstreamError',
+                        service,
+                        `${adapter.id} will not import any of the ${candidates.length} file(s) in download ${download_id}`,
+                        {
+                            remedy: `It rejected: ${rejected
+                                .map(c => `${c.display} (${c.rejections.join(', ') || 'matched nothing'})`)
+                                .join('; ')}. Fix that in ${adapter.id} — this does not force a file the service refused.`
+                        }
+                    );
+                }
+
+                return {
+                    target,
+                    summary: `Import ${importable.length} file(s) from download ${download_id} into ${adapter.id}.`,
+                    effects: [
+                        ...importable.map(
+                            c =>
+                                `Imports ${c.display}${c.matchedTitle === undefined ? '' : ` as ${c.matchedTitle}`} — the file is moved or hardlinked out of the download folder by ${adapter.id}.`
+                        ),
+                        ...rejected.map(
+                            c => `Skips ${c.display}: ${c.rejections.join(', ') || 'the service matched it to nothing'}.`
+                        )
+                    ],
+                    args: { service, action, downloadId: download_id, ...(instance === undefined ? {} : { instance }) }
+                };
+            }
+
             if (action === 'rename' && id === undefined) {
                 throw new Error(
                     'rename needs an `id`: it renames one item\'s files, and there is no "rename the whole library" here. Take the id from `acquisition.id` on a get_library record.'
@@ -153,7 +235,13 @@ export function registerTriggerScan(
             };
         },
 
-        async apply(_plan, { service, instance, action, id }) {
+        async apply(_plan, { service, instance, action, id, download_id }) {
+            if (action === 'import' && download_id !== undefined) {
+                const importer = findImportAdapter(adapters, service, instance);
+                const queued = await importer.runManualImport(download_id);
+                return `${importer.id} queued ${queued.name} for download ${download_id}. Importing runs in the background — check get_queue and stack_health's \`commands\` rather than expecting it to be done now.`;
+            }
+
             if (id !== undefined) {
                 const item = findItemAdapter(adapters, service, instance);
                 const queued = action === 'rename' ? await item.renameItem(id) : await item.refreshItem(id);

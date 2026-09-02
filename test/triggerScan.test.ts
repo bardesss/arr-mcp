@@ -269,3 +269,101 @@ describe('trigger_scan on a single item', () => {
         expect(structuredContent.summary).toMatch(/rescan its library/i);
     });
 });
+
+/**
+ * The other half of "it downloaded but Jellyfin cannot see it": the *arr
+ * never took the file, so a library scan finds nothing to find.
+ */
+describe('trigger_scan importing a finished download', () => {
+    const CANDIDATES = [
+        {
+            path: '/downloads/Heat.1995.mkv',
+            relativePath: 'Heat.1995.mkv',
+            size: 8_000_000_000,
+            movie: { id: 15, title: 'Heat' },
+            quality: { quality: { id: 7 } },
+            rejections: []
+        },
+        { path: '/downloads/sample.mkv', relativePath: 'sample.mkv', rejections: [{ reason: 'Sample' }] }
+    ];
+
+    const importHarness = (candidates: unknown = CANDIDATES) => {
+        const radarr = recordingFetch({
+            '/api/v3/manualimport': candidates,
+            '/api/v3/command': { id: 5, name: 'ManualImport', status: 'queued' }
+        });
+        return {
+            ...harness({
+                adapters: [new RadarrAdapter(keyed(7878), radarr.impl)],
+                permissions: { radarr: permissive(true) }
+            }),
+            radarr
+        };
+    };
+
+    it('lists what will be imported and what will be skipped, with the reason', async () => {
+        const h = importHarness();
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'nzo_abc',
+            dry_run: true
+        });
+
+        const effects = structuredContent.effects.join(' ');
+        expect(effects).toContain('Heat.1995.mkv');
+        expect(effects).toMatch(/skips.*sample\.mkv/i);
+        expect(effects).toContain('Sample');
+    });
+
+    it('imports nothing while previewing', async () => {
+        const h = importHarness();
+        await h.call({ service: 'radarr', action: 'import', download_id: 'nzo_abc' });
+        expect(h.radarr.sent.filter(x => x.method === 'POST')).toHaveLength(0);
+    });
+
+    it('queues the import once confirmed', async () => {
+        const h = importHarness();
+        const first = await h.call({ service: 'radarr', action: 'import', download_id: 'nzo_abc' });
+        const second = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'nzo_abc',
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(h.radarr.sent.filter(x => x.method === 'POST' && x.url === '/api/v3/command')).toHaveLength(1);
+    });
+
+    it('needs a download_id', async () => {
+        const h = importHarness();
+        await expect(h.call({ service: 'radarr', action: 'import', dry_run: true })).rejects.toThrow(/download_id/);
+    });
+
+    it('is a no-op when the service sees no files for that download', async () => {
+        const h = importHarness([]);
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'gone'
+        });
+        expect(structuredContent.noop).toBe(true);
+    });
+
+    /** Something is there and cannot be taken — a different answer from
+     *  "already imported", which is what a no-op would read as. */
+    it('refuses when every file is rejected, naming the reasons', async () => {
+        const h = importHarness([CANDIDATES[1]]);
+        await expect(
+            h.call({ service: 'radarr', action: 'import', download_id: 'nzo_bad', dry_run: true })
+        ).rejects.toThrow(/Sample/);
+    });
+
+    it('refuses on a service that does not import downloads', async () => {
+        const h = harness();
+        await expect(
+            h.call({ service: 'jellyfin', action: 'import', download_id: 'x', dry_run: true })
+        ).rejects.toThrow(/cannot import a download/i);
+    });
+});

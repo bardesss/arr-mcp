@@ -9,6 +9,7 @@ import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
@@ -40,7 +41,9 @@ import {
     type CommandHandle,
     type DeleteMediaOptions,
     type MediaAddCapable,
+    type ImportCandidate,
     type LibraryMaintenanceCapable,
+    type ManualImportCapable,
     type MediaUpdateCapable,
     type MediaUpdateOptions,
     type MediaUpdateState,
@@ -119,6 +122,7 @@ export class RadarrAdapter
         MediaAddCapable,
         MediaUpdateCapable,
         LibraryMaintenanceCapable,
+        ManualImportCapable,
         HistoryCapable,
         WantedCapable,
         ReleaseSearchCapable
@@ -210,6 +214,14 @@ export class RadarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async listImportCandidates(downloadId: string): Promise<ImportCandidate[]> {
+        return listArrImportCandidates(this.#http, this.id, 'movie', downloadId);
+    }
+
+    async runManualImport(downloadId: string): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'movie', downloadId);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {
