@@ -178,6 +178,9 @@ export type QueueItem = {
     orphaned?: boolean;
     /** `trackedDownloadState`; `importBlocked` is the stuck one. */
     importState?: string;
+    /** The download client's own id for this grab — what `trigger_scan`'s
+     *  `import` action is addressed with. */
+    downloadId?: string;
 };
 
 export interface QueueCapable {

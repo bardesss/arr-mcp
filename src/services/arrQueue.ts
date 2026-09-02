@@ -21,6 +21,7 @@ type RawQueueRecord = {
     movieId?: number;
     seriesId?: number;
     trackedDownloadState?: string;
+    downloadId?: string;
 };
 
 /**
@@ -71,7 +72,8 @@ export async function readArrQueue(
                 // Omitted when it only repeats `status`, which is the common case.
                 ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
                     ? {}
-                    : { importState: r.trackedDownloadState })
+                    : { importState: r.trackedDownloadState }),
+                ...(r.downloadId === undefined ? {} : { downloadId: r.downloadId })
             };
         });
 }
