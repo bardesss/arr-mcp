@@ -863,3 +863,29 @@ describe('the profile and path on a library row', () => {
         expect((await radarr.listLibrary())[0]?.acquisition?.path).toMatch(/untrusted/);
     });
 });
+
+/**
+ * `set_watched` takes a media server item id, and until now no merged record
+ * carried one — so the write it exists for could not be reached from the read
+ * that found the title. Named for the media server rather than for Jellyfin:
+ * a second one fills the same field from its own id.
+ */
+describe('the media server item id on a library row', () => {
+    it('is carried by the per-user library read', async () => {
+        const jelly = new JellyfinAdapter(
+            multiUser(8096),
+            serving({ '/Items': fixture('jellyfin/items-library.json') })
+        );
+        const first = (await jelly.listUserLibrary({ id: 'u1', name: 'Someone' }))[0];
+        expect(first?.playback?.itemId).toBe('65cbd491b1ecb02fdb3d7cbaefab5353');
+    });
+
+    it('is omitted rather than empty when Jellyfin sent no id', async () => {
+        const jelly = new JellyfinAdapter(
+            multiUser(8096),
+            serving({ '/Items': { Items: [{ Name: 'No Id', Type: 'Movie', ProviderIds: { Tmdb: '1' } }] } })
+        );
+        const first = (await jelly.listUserLibrary({ id: 'u1', name: 'Someone' }))[0];
+        expect(first?.playback?.itemId).toBeUndefined();
+    });
+});

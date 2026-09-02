@@ -108,7 +108,9 @@ export type MergedItem = {
          */
         addedAt?: string;
     };
-    playback?: { user: string; watched: boolean; playCount?: number; lastPlayed?: string };
+    /** `itemId` is the media server's own id for this title — what
+     *  `set_watched` takes. Named for the media server, not for Jellyfin. */
+    playback?: { user: string; itemId?: string; watched: boolean; playCount?: number; lastPlayed?: string };
     /** Series only. Films have no seasons and carry this field never. */
     seasons?: SeasonSummary[];
     ratings?: MergedRatings;
