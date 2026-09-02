@@ -393,8 +393,11 @@ export class PlexAdapter
      * The query-parameter paging form is a guess (see `PAGE_SIZE`'s comment);
      * if the server ignores it, every page is identical and `rows.length <
      * PAGE_SIZE` never fires. Rather than spin until timeout or OOM, a
-     * repeated first `ratingKey` across pages is treated as proof paging did
-     * not advance and thrown as a diagnosis.
+     * repeated fingerprint of the leading row across pages is treated as
+     * proof paging did not advance and thrown as a diagnosis. The fingerprint
+     * is `ratingKey` when present, but falls back to the whole row otherwise
+     * — a row shape with no `ratingKey` would otherwise leave the guard
+     * comparing `undefined === undefined` forever and never fire.
      *
      * `maxPages` is a backstop, but the two callers want different things
      * from hitting it: a library section genuinely should never be that
@@ -409,7 +412,7 @@ export class PlexAdapter
     ): Promise<RawPlexItem[]> {
         const maxPages = opts.maxPages ?? 1000;
         const out: RawPlexItem[] = [];
-        let previousFirstKey: string | undefined;
+        let previousFingerprint: string | undefined;
         for (let start = 0; ; start += PAGE_SIZE) {
             if (start / PAGE_SIZE >= maxPages) {
                 if (opts.stopEarly !== undefined) {
@@ -428,13 +431,14 @@ export class PlexAdapter
             }
             const body = await this.#http.get<unknown>(request(start));
             const rows = unwrap<RawPlexItem>(body, 'Metadata');
-            const firstKey = rows[0]?.ratingKey;
-            if (start > 0 && firstKey !== undefined && firstKey === previousFirstKey) {
+            const leading = rows[0];
+            const fingerprint = leading === undefined ? undefined : typeof leading.ratingKey === 'string' ? leading.ratingKey : JSON.stringify(leading);
+            if (start > 0 && fingerprint !== undefined && fingerprint === previousFingerprint) {
                 throw new ServiceError('UpstreamError', this.id, 'did not advance past start=0 — the same item led every page', {
                     remedy: 'Plex appears to be ignoring X-Plex-Container-Start/Size as query parameters. It documents these as request headers instead, which ServiceHttp does not yet send.'
                 });
             }
-            previousFirstKey = firstKey;
+            previousFingerprint = fingerprint;
             out.push(...rows);
             if (rows.length < PAGE_SIZE) return out;
             if (opts.stopEarly?.(out) === true) return out;

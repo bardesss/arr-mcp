@@ -481,6 +481,34 @@ describe('PlexAdapter', () => {
             await expect(adapter.listUserLibrary({ id: '1', name: 'Bartus' })).rejects.toThrow(/paging|advance|ignor/i);
         }, 2000);
 
+        it('throws instead of looping forever when the server ignores paging and the leading row has no ratingKey', async () => {
+            // Same non-advancing server as above, but the guard used to key
+            // only on rows[0].ratingKey — a row shape with no ratingKey at all
+            // (an aggregate or a malformed row) made `firstKey` undefined on
+            // every page, so `firstKey === previousFirstKey` never tripped.
+            // Without the fix this still eventually throws, but only after
+            // riding the loop out to the 1000-page cap — so the assertion
+            // below is on *how fast* it throws, not just that it does. See G5.
+            const fullPage = Array.from({ length: 500 }, (_, i) => ({ title: `Movie ${i}` }));
+            let sectionCalls = 0;
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const raw = input instanceof Request ? input.url : String(input);
+                const url = new URL(raw);
+                if (url.pathname === '/library/sections') {
+                    return jsonResponse({ MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } });
+                }
+                if (url.pathname === '/library/sections/1/all') {
+                    sectionCalls += 1;
+                    return jsonResponse(page(fullPage));
+                }
+                return jsonResponse({ message: 'not found' }, 404);
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await expect(adapter.listUserLibrary({ id: '1', name: 'Bartus' })).rejects.toThrow(/paging|advance|ignor/i);
+            expect(sectionCalls).toBeLessThan(5);
+        }, 2000);
+
         it('aggregates per-season watch state onto the owning series, joined by external id', async () => {
             const { adapter } = plex({
                 '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
