@@ -93,11 +93,22 @@ const hasPartBearingRow = (body: unknown): boolean => {
     return list.some(hasPart);
 };
 
-/** Every library section's `key`, in the order `/library/sections` lists them. */
+/**
+ * Every movie/show library section's `key`, in the order `/library/sections`
+ * lists them — filtered to `type` the same way `PlexAdapter#listUserLibrary`
+ * filters its own section read (`#sections('movie', 'show')`,
+ * src/services/plex.ts). Without the filter, a photo or music section can
+ * still be walked below: every photo carries `Media[0].Part[0]` the same
+ * shape an episode does, so `firstPartBearingSectionAll`'s search for a
+ * Part-bearing row can land on one, and the walk-only-looking-for-shape
+ * fixture ends up publishing real photo titles and file paths. See I3.
+ */
 export const sectionKeys = (body: unknown): string[] => {
     const rows = (body as { MediaContainer?: { Directory?: unknown } } | undefined)?.MediaContainer?.Directory;
-    const list = (Array.isArray(rows) ? rows : []) as { key?: unknown }[];
-    return list.filter((r): r is { key: string } => typeof r.key === 'string').map(r => r.key);
+    const list = (Array.isArray(rows) ? rows : []) as { key?: unknown; type?: unknown }[];
+    return list
+        .filter((r): r is { key: string; type: string } => typeof r.key === 'string' && (r.type === 'movie' || r.type === 'show'))
+        .map(r => r.key);
 };
 
 /**

@@ -102,7 +102,7 @@ describe('history and onDeck ask the server to omit data #commonPlayback never r
 });
 
 describe('sectionKeys', () => {
-    it('returns every section key in listed order', () => {
+    it('returns every movie/show section key in listed order', () => {
         const body = { MediaContainer: { Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'show' }] } };
         expect(sectionKeys(body)).toEqual(['1', '2']);
     });
@@ -115,6 +115,27 @@ describe('sectionKeys', () => {
     it('returns an empty list when there is no Directory array', () => {
         expect(sectionKeys({ MediaContainer: {} })).toEqual([]);
         expect(sectionKeys(undefined)).toEqual([]);
+    });
+
+    /**
+     * I3: `firstPartBearingSectionAll` searches for any row with
+     * `Media[0].Part[0]` — a shape every photo has too. Sections ordered
+     * TV → Music → Photos → Movies would land `section-all`/`metadata-detail`
+     * on real photos (titles, file paths) unless the photo/music sections
+     * never reach the walk in the first place.
+     */
+    it('excludes a section whose type is neither movie nor show, e.g. a photo library', () => {
+        const body = {
+            MediaContainer: {
+                Directory: [
+                    { key: '1', type: 'show' },
+                    { key: '2', type: 'artist' },
+                    { key: '3', type: 'photo' },
+                    { key: '4', type: 'movie' }
+                ]
+            }
+        };
+        expect(sectionKeys(body)).toEqual(['1', '4']);
     });
 });
 
