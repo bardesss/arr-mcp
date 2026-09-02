@@ -8,6 +8,7 @@ import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
@@ -38,6 +39,9 @@ import {
     type CommandHandle,
     type DeleteMediaOptions,
     type MediaAddCapable,
+    type MediaUpdateCapable,
+    type MediaUpdateOptions,
+    type MediaUpdateState,
     type MediaDeleteCapable,
     type QualityProfile,
     type QueueRemoveCapable,
@@ -111,6 +115,7 @@ export class RadarrAdapter
         QueueRemoveCapable,
         MediaDeleteCapable,
         MediaAddCapable,
+        MediaUpdateCapable,
         HistoryCapable,
         WantedCapable,
         ReleaseSearchCapable
@@ -202,6 +207,14 @@ export class RadarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async readForUpdate(id: string): Promise<MediaUpdateState> {
+        return readArrForUpdate(this.#http, this.id, 'movie', id);
+    }
+
+    async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
+        return updateArrMedia(this.#http, this.id, 'movie', id, opts);
     }
 
     /** Radarr resolves by TMDB id; a TVDB id will simply match nothing. */

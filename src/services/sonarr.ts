@@ -9,6 +9,7 @@ import { applyLimit } from '../core/shape.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, SONARR_ADD } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
@@ -42,6 +43,9 @@ import {
     type EpisodeFile,
     type EpisodeFileCapable,
     type MediaAddCapable,
+    type MediaUpdateCapable,
+    type MediaUpdateOptions,
+    type MediaUpdateState,
     type MediaDeleteCapable,
     type MonitoringCapable,
     type MonitoringTarget,
@@ -134,6 +138,7 @@ export class SonarrAdapter
         QueueRemoveCapable,
         MediaDeleteCapable,
         MediaAddCapable,
+        MediaUpdateCapable,
         MonitoringCapable,
         EpisodeFileCapable,
         HistoryCapable,
@@ -226,6 +231,14 @@ export class SonarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async readForUpdate(id: string): Promise<MediaUpdateState> {
+        return readArrForUpdate(this.#http, this.id, 'series', id);
+    }
+
+    async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
+        return updateArrMedia(this.#http, this.id, 'series', id, opts);
     }
 
     /** Sonarr resolves by TVDB id, not TMDB — Radarr's id will match nothing. */

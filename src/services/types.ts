@@ -703,6 +703,45 @@ export const hasMediaAdd = (a: ServiceAdapter): a is ServiceAdapter & MediaAddCa
     typeof (a as Partial<MediaAddCapable>).addMedia === 'function';
 
 /**
+ * Changing something already in the library. Every field is optional and
+ * **absent means leave it alone** — Radarr and Sonarr both replace the whole
+ * resource on PUT, so the adapter merges into what the service currently
+ * holds rather than posting these values on their own.
+ */
+export type MediaUpdateOptions = {
+    qualityProfileId?: number;
+    rootFolderPath?: string;
+    monitored?: boolean;
+    minimumAvailability?: string;
+    seriesType?: string;
+    tagIds?: number[];
+    /** Whether the service moves the files to the new root folder. Read only
+     *  when `rootFolderPath` is set. */
+    moveFiles: boolean;
+};
+
+/** What the service holds right now — the preview's "from" half, and what
+ *  makes a no-op detectable before anything is written. */
+export type MediaUpdateState = {
+    title: string;
+    year?: number;
+    monitored: boolean;
+    qualityProfileId?: number;
+    path?: string;
+    tagIds: number[];
+    minimumAvailability?: string;
+    seriesType?: string;
+};
+
+export interface MediaUpdateCapable {
+    readForUpdate(id: string): Promise<MediaUpdateState>;
+    updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState>;
+}
+
+export const hasMediaUpdate = (a: ServiceAdapter): a is ServiceAdapter & MediaUpdateCapable =>
+    typeof (a as Partial<MediaUpdateCapable>).updateMedia === 'function';
+
+/**
  * The two reversible verdicts on a request. Deliberately not including
  * "delete": approving and declining move a request between states it can be
  * moved back out of, and deleting destroys the record. That difference is a
