@@ -511,3 +511,46 @@ describe('stack_health add options', () => {
         expect(result.options).toEqual([]);
     });
 });
+
+/** The follow-up trigger_search and trigger_scan never had. */
+describe('stack_health commands', () => {
+    const running = (rows: unknown[]) =>
+        ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => healthy,
+            getVersion: async () => '5.0',
+            listCommands: async () => rows
+        }) as unknown as ServiceAdapter;
+
+    it('reports what is queued or running', async () => {
+        const result = await buildStackHealth(
+            [running([{ service: 'radarr', commandId: 1, name: 'MoviesSearch', status: 'started' }])],
+            std
+        );
+        expect(result.commands).toEqual([
+            { service: 'radarr', commandId: 1, name: 'MoviesSearch', status: 'started' }
+        ]);
+    });
+
+    it('leaves them out at minimal — a running command is not a fault', async () => {
+        const result = await buildStackHealth([running([{ commandId: 1 }])], { detail: 'minimal', limit: 50 });
+        expect(result.commands).toBeUndefined();
+    });
+
+    it('degrades the service rather than failing when the command read is down', async () => {
+        const broken = {
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => healthy,
+            getVersion: async () => '5.0',
+            listCommands: async () => {
+                throw new Error('down');
+            }
+        } as unknown as ServiceAdapter;
+
+        const result = await buildStackHealth([broken], std);
+        expect(result.degraded).toEqual(['radarr']);
+        expect(result.commands).toEqual([]);
+    });
+});

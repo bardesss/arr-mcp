@@ -8,7 +8,7 @@ import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
-import { refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
@@ -39,6 +39,8 @@ import {
     type AddCandidate,
     type AddMediaOptions,
     type CommandHandle,
+    type CommandStatus,
+    type CommandStatusCapable,
     type DeleteMediaOptions,
     type MediaAddCapable,
     type ImportCandidate,
@@ -122,6 +124,7 @@ export class RadarrAdapter
         MediaAddCapable,
         MediaUpdateCapable,
         LibraryMaintenanceCapable,
+        CommandStatusCapable,
         ManualImportCapable,
         HistoryCapable,
         WantedCapable,
@@ -214,6 +217,10 @@ export class RadarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async listCommands(): Promise<CommandStatus[]> {
+        return readArrCommands(this.#http, this.id);
     }
 
     async listImportCandidates(downloadId: string): Promise<ImportCandidate[]> {

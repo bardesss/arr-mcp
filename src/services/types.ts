@@ -511,6 +511,29 @@ export type CommandHandle = { service: string; commandId: number; name: string; 
  * rather than picking one, so this type never has to define a precedence.
  * Films have no seasons, so Radarr's `triggerSearch` never sees one.
  */
+/**
+ * A queued task as it stands now — the follow-up `trigger_search` and
+ * `trigger_scan` never had. `status` is the service's own word: `queued`,
+ * `started`, `completed`, `failed`, `aborted`.
+ */
+export type CommandStatus = {
+    service: string;
+    commandId: number;
+    name: string;
+    status: string;
+    queuedAt?: string;
+    startedAt?: string;
+    endedAt?: string;
+};
+
+export interface CommandStatusCapable {
+    /** Running or queued now, plus anything finished in the last few minutes. */
+    listCommands(): Promise<CommandStatus[]>;
+}
+
+export const hasCommandStatus = (a: ServiceAdapter): a is ServiceAdapter & CommandStatusCapable =>
+    typeof (a as Partial<CommandStatusCapable>).listCommands === 'function';
+
 export type SearchTarget = {
     /** One season. Omit with `episodes` to target the whole series. */
     season?: number;
