@@ -123,14 +123,50 @@ export function replaceIfString(value: unknown, replacement: string): unknown {
 type MetadataContainer = { MediaContainer?: { Metadata?: Row[] } };
 
 /**
+ * Maps a real Plex account id to a synthetic one, stable for the lifetime of
+ * one capture run — the same real id always returns the same synthetic id,
+ * so an account still joins across `accounts` (`Account.id`), `sessions`
+ * (`User.id`) and `history` (`accountID`), the three separate captures that
+ * each carry it in a different field.
+ *
+ * The owner is always id 1 by Plex's own convention (`OWNER_ACCOUNT_ID` in
+ * plex.ts) and stays 1: `PlexAdapter#listUsers`'s owner lookup matches on it
+ * exactly, and "the owner is account 1" identifies nobody. See G2.
+ */
+export function createAccountIdMapper(): (id: number) => number {
+    const seen = new Map<number, number>();
+    let next = 1001;
+    return (id: number): number => {
+        if (id === 1) return 1;
+        const existing = seen.get(id);
+        if (existing !== undefined) return existing;
+        const synthetic = next;
+        next += 1;
+        seen.set(id, synthetic);
+        return synthetic;
+    };
+}
+
+/** A Plex account/session id as XML-derived JSON sends it — string or
+ *  number depending on the row — mapped through `mapId` while preserving
+ *  whichever shape it arrived in. */
+function mappedId(value: unknown, mapId: (id: number) => number): unknown {
+    if (typeof value === 'number') return mapId(value);
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) return String(mapId(Number(value.trim())));
+    return value;
+}
+
+/**
  * A Plex session row carries who is watching (`User.title`, a username, and
  * `User.thumb`, whose URL can embed an account id) and where from
  * (`Player.remotePublicAddress`, the viewer's public IP — outside what the
  * private-IP regex in `redact()` reaches, since a public address is by
  * definition not in one of the private ranges it matches). `User.id` is left
- * alone: the adapter resolves the current session by matching on it.
+ * present — the adapter resolves the current session by matching on it —
+ * but its value is remapped through `mapId` when one is given, so a real
+ * plex.tv account id doesn't survive next to a scrubbed `User.title`. See G2.
  */
-export function redactPlexSessions(body: unknown): unknown {
+export function redactPlexSessions(body: unknown, mapId?: (id: number) => number): unknown {
     const container = (body as MetadataContainer).MediaContainer;
     if (!Array.isArray(container?.Metadata)) return body;
     return {
@@ -151,7 +187,8 @@ export function redactPlexSessions(body: unknown): unknown {
                               User: {
                                   ...user,
                                   ...('title' in user ? { title: replaceIfString(user.title, 'viewer') } : {}),
-                                  ...('thumb' in user ? { thumb: replaceIfString(user.thumb, '') } : {})
+                                  ...('thumb' in user ? { thumb: replaceIfString(user.thumb, '') } : {}),
+                                  ...(mapId !== undefined && 'id' in user ? { id: mappedId(user.id, mapId) } : {})
                               }
                           })
                 };
@@ -223,8 +260,12 @@ const syntheticDisplayValue = (label: string, i: number): string => `Fixture ${l
  * Deliberately not applied to `section-all`, `search` or `metadata-detail` —
  * those are library listings, where every title appears whether or not
  * anyone watched it, so a title there is not evidence of anything.
+ *
+ * `accountID` is kept present — `PlexAdapter#getWatchHistory` filters on it —
+ * but its value is remapped through `mapId` when one is given, the same
+ * reasoning as `redactPlexSessions`'s `User.id`. See G2.
  */
-export function anonymisePlexHistory(body: unknown): unknown {
+export function anonymisePlexHistory(body: unknown, mapId?: (id: number) => number): unknown {
     const neutralised = neutralisePlexWatchState(body) as MetadataContainer;
     const container = neutralised.MediaContainer;
     if (!Array.isArray(container?.Metadata)) return neutralised;
@@ -244,7 +285,32 @@ export function anonymisePlexHistory(body: unknown): unknown {
                 ...('parentThumb' in item ? { parentThumb: replaceIfString(item.parentThumb, '') } : {}),
                 ...('grandparentThumb' in item ? { grandparentThumb: replaceIfString(item.grandparentThumb, '') } : {}),
                 ...('grandparentKey' in item ? { grandparentKey: replaceIfString(item.grandparentKey, '') } : {}),
-                ...('parentKey' in item ? { parentKey: replaceIfString(item.parentKey, '') } : {})
+                ...('parentKey' in item ? { parentKey: replaceIfString(item.parentKey, '') } : {}),
+                ...(mapId !== undefined && 'accountID' in item ? { accountID: mappedId(item.accountID, mapId) } : {})
+            }))
+        }
+    };
+}
+
+/**
+ * The token owner's account name — the same identity as Jellyfin's `users`
+ * capture, anonymised for the same reason. `id` is present on every row and
+ * is what `PlexAdapter#listUsers` matches the owner on, so it stays present
+ * too, but its value is remapped through `mapId`: the tester's live
+ * `/accounts` carried real plex.tv account ids on rows whose `name` this
+ * already scrubbed. See G2.
+ */
+export function anonymisePlexAccounts(body: unknown, mapId: (id: number) => number): unknown {
+    const container = (body as { MediaContainer?: { Account?: Row[] } }).MediaContainer;
+    if (!Array.isArray(container?.Account)) return body;
+    return {
+        ...(body as Row),
+        MediaContainer: {
+            ...container,
+            Account: container.Account.map((a, i) => ({
+                ...a,
+                name: replaceIfString(a.name, `Account ${i + 1}`),
+                ...(typeof a.id === 'number' ? { id: mapId(a.id) } : {})
             }))
         }
     };

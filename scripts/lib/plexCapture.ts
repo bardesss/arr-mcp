@@ -31,6 +31,16 @@ export const plexSectionAllPath = (key: string, start: number, size: number): st
 /** `search`'s exact query form, mirroring `PlexAdapter#search`. */
 export const plexSearchPath = (query: string): string => `/search?query=${encodeURIComponent(query)}&includeGuids=1`;
 
+/**
+ * `accounts`'s query form. Unlike the others, `PlexAdapter#listUsers` sends
+ * no paging at all — it reads `/accounts` unbounded to find the one owner
+ * row it needs. Capping here is a capture-only privacy trim, not a mirror of
+ * the adapter: the tester's server answers ~103 rows uncapped, most of it
+ * other households' account names. See G2.
+ */
+export const plexAccountsPath = (start: number, size: number): string =>
+    `/accounts?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
+
 type PartBearingRow = { ratingKey?: unknown; Media?: { Part?: unknown[] }[] };
 
 const hasPart = (row: PartBearingRow): boolean =>

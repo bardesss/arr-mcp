@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
 import {
+    anonymisePlexAccounts,
     anonymisePlexHistory,
+    createAccountIdMapper,
     hostsOf,
     neutralisePlexWatchState,
     redact,
@@ -381,5 +383,132 @@ describe('redactPlexSessions', () => {
 describe('an anonymiser handling a blank name (regression for the /accounts edge case)', () => {
     it('replaces an empty string the same as any other string value', () => {
         expect(replaceIfString('', 'Account 1')).toBe('Account 1');
+    });
+});
+
+/**
+ * The tester's live `/accounts` carried three rows with real plex.tv account
+ * ids next to names that `anonymisePlexAccounts` already replaced — `name`
+ * was never the whole problem. `User.id` (sessions) and `accountID` (history)
+ * are deliberately left as-is by `redactPlexSessions`/`anonymisePlexHistory`
+ * because the adapter's tests join on them, but the *values* backing that
+ * join don't have to be the tester's real ids — a stable mapping keeps every
+ * join working while a random per-occurrence one would break it. See G2.
+ */
+describe('createAccountIdMapper', () => {
+    it('keeps the owner at id 1 — PlexAdapter#listUsers matches on it exactly', () => {
+        const mapId = createAccountIdMapper();
+        expect(mapId(1)).toBe(1);
+    });
+
+    it('maps a real id to something other than itself', () => {
+        const mapId = createAccountIdMapper();
+        expect(mapId(78901234)).not.toBe(78901234);
+    });
+
+    it('maps the same real id to the same synthetic id on repeated calls', () => {
+        const mapId = createAccountIdMapper();
+        const first = mapId(78901234);
+        expect(mapId(78901234)).toBe(first);
+        expect(mapId(78901234)).toBe(first);
+    });
+
+    it('maps two different real ids to two different synthetic ids', () => {
+        const mapId = createAccountIdMapper();
+        expect(mapId(78901234)).not.toBe(mapId(55555555));
+    });
+});
+
+describe('anonymisePlexAccounts', () => {
+    const accounts = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Account: rows } });
+
+    it('replaces a real account id with the mapped synthetic one', () => {
+        const mapId = createAccountIdMapper();
+        const body = accounts([{ id: 78901234, name: 'A Real Name' }]);
+        const [row] = (anonymisePlexAccounts(body, mapId) as { MediaContainer: { Account: Record<string, unknown>[] } })
+            .MediaContainer.Account;
+        expect(row?.id).toBe(mapId(78901234));
+        expect(row?.id).not.toBe(78901234);
+    });
+
+    it('still replaces name, as before', () => {
+        const mapId = createAccountIdMapper();
+        const body = accounts([{ id: 2, name: 'Guest' }]);
+        const [row] = (anonymisePlexAccounts(body, mapId) as { MediaContainer: { Account: Record<string, unknown>[] } })
+            .MediaContainer.Account;
+        expect(row?.name).not.toBe('Guest');
+    });
+
+    it('leaves the owner row (id 1) mapped to itself', () => {
+        const mapId = createAccountIdMapper();
+        const body = accounts([{ id: 1, name: 'Bartus' }]);
+        const [row] = (anonymisePlexAccounts(body, mapId) as { MediaContainer: { Account: Record<string, unknown>[] } })
+            .MediaContainer.Account;
+        expect(row?.id).toBe(1);
+    });
+});
+
+describe('redactPlexSessions with an id mapper', () => {
+    const sessions = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('replaces User.id with the mapped synthetic id when a mapper is given', () => {
+        const mapId = createAccountIdMapper();
+        const body = sessions([{ ratingKey: '1', User: { id: '78901234', title: 'realname99' } }]);
+        const [row] = (redactPlexSessions(body, mapId) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.User as Record<string, unknown>).id).toBe(String(mapId(78901234)));
+    });
+
+    it('leaves User.id untouched when no mapper is given, as before', () => {
+        const body = sessions([{ ratingKey: '1', User: { id: '7', title: 'realname99' } }]);
+        const [row] = (redactPlexSessions(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect((row?.User as Record<string, unknown>).id).toBe('7');
+    });
+});
+
+describe('anonymisePlexHistory with an id mapper', () => {
+    const history = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
+
+    it('replaces accountID with the mapped synthetic id when a mapper is given', () => {
+        const mapId = createAccountIdMapper();
+        const body = history([{ ratingKey: '1', title: 'A Film', accountID: 78901234 }]);
+        const [row] = (anonymisePlexHistory(body, mapId) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.accountID).toBe(mapId(78901234));
+    });
+
+    it('leaves accountID untouched when no mapper is given, as before', () => {
+        const body = history([{ ratingKey: '1', title: 'A Film', accountID: 7 }]);
+        const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        expect(row?.accountID).toBe(7);
+    });
+});
+
+describe('one mapper shared across accounts, sessions and history — the join the tester flagged', () => {
+    it('maps the same real account id to the same synthetic id in all three fixtures', () => {
+        const mapId = createAccountIdMapper();
+        const REAL = 78901234;
+
+        const accountsOut = anonymisePlexAccounts({ MediaContainer: { Account: [{ id: REAL, name: 'Real' }] } }, mapId) as {
+            MediaContainer: { Account: Record<string, unknown>[] };
+        };
+        const sessionsOut = redactPlexSessions(
+            { MediaContainer: { Metadata: [{ ratingKey: '1', User: { id: REAL, title: 'realname99' } }] } },
+            mapId
+        ) as { MediaContainer: { Metadata: Record<string, unknown>[] } };
+        const historyOut = anonymisePlexHistory(
+            { MediaContainer: { Metadata: [{ ratingKey: '1', title: 'A Film', accountID: REAL }] } },
+            mapId
+        ) as { MediaContainer: { Metadata: Record<string, unknown>[] } };
+
+        const fromAccounts = accountsOut.MediaContainer.Account[0]?.id;
+        const fromSessions = (sessionsOut.MediaContainer.Metadata[0]?.User as Record<string, unknown>).id;
+        const fromHistory = historyOut.MediaContainer.Metadata[0]?.accountID;
+
+        expect(String(fromAccounts)).toBe(String(fromSessions));
+        expect(String(fromAccounts)).toBe(String(fromHistory));
+        expect(String(fromAccounts)).not.toBe(String(REAL));
     });
 });

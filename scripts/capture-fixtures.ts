@@ -25,7 +25,9 @@ import {
 } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 import {
+    anonymisePlexAccounts,
     anonymisePlexHistory,
+    createAccountIdMapper,
     hostsOf,
     neutralisePlexWatchState,
     redact,
@@ -35,7 +37,7 @@ import {
     secretsOf,
     type Row
 } from './lib/redact.ts';
-import { firstRatingKeyWithPart, plexHistoryPath, plexSearchPath, plexSectionAllPath } from './lib/plexCapture.ts';
+import { firstRatingKeyWithPart, plexAccountsPath, plexHistoryPath, plexSearchPath, plexSectionAllPath } from './lib/plexCapture.ts';
 
 /**
  * `path` may be a function when the endpoint needs an id from something
@@ -257,24 +259,15 @@ function anonymiseSeerrUser(row: Row, index: number): Row {
     };
 }
 
-/** The token owner's account name — the same identity as Jellyfin's `users`
- *  capture just above, and anonymised for the same reason. */
-function anonymisePlexAccounts(body: unknown): unknown {
-    const container = (body as { MediaContainer?: { Account?: Row[] } }).MediaContainer;
-    if (!Array.isArray(container?.Account)) return body;
-    return {
-        ...(body as Row),
-        MediaContainer: {
-            ...container,
-            Account: container.Account.map((a, i) => ({ ...a, name: replaceIfString(a.name, `Account ${i + 1}`) }))
-        }
-    };
-}
-
 /**
  * What each adapter needs to see. Extend this when an adapter starts reading a
  * new endpoint — a fixture that does not exist cannot be tested against.
  */
+// One mapper for the whole run, shared by accounts/sessions/history below —
+// the same real account id must produce the same synthetic id in all three,
+// or the joins the adapter's tests rely on break. See G2.
+const mapPlexAccountId = createAccountIdMapper();
+
 const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     radarr: [
         { name: 'system-status', path: '/api/v3/system/status' },
@@ -471,12 +464,19 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     plex: [
         { name: 'identity', path: '/identity' },
         // The tester's own account name — anonymised like Jellyfin's `users`.
-        { name: 'accounts', path: '/accounts', anonymise: anonymisePlexAccounts },
+        // Capped the same way `history` is: a local token's owner lookup
+        // only needs the owner row, and the tester's server answers ~103
+        // accounts uncapped, most of it other households' names. `id` is
+        // remapped through the shared mapper below, not just `name` — three
+        // rows on his server carried a real plex.tv account id next to a
+        // name this already scrubbed. See G2.
+        { name: 'accounts', path: plexAccountsPath(0, 5), anonymise: body => anonymisePlexAccounts(body, mapPlexAccountId) },
         { name: 'sections', path: '/library/sections' },
         // Carries Player.remotePublicAddress (the viewer's public IP) and
         // User.title/User.thumb (a username and an avatar URL that can embed
-        // an account id).
-        { name: 'sessions', path: '/status/sessions', anonymise: redactPlexSessions },
+        // an account id). User.id is kept but remapped, same reasoning as
+        // `accounts` above — it joins to the same account there. See G2.
+        { name: 'sessions', path: '/status/sessions', anonymise: body => redactPlexSessions(body, mapPlexAccountId) },
         // The tester's resume list — his most recent watch state, per item.
         // A row exists only because he watched or is watching it, so titles
         // are scrubbed too, not just the watch-state numbers. See I1.
@@ -484,8 +484,10 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // His complete watch history. Mirrors PlexAdapter#getWatchHistory's
         // exact query form, including the sort — everything but
         // X-Plex-Container-Size, deliberately smaller here: a handful of rows
-        // proves the shape without pulling his whole server-wide history. See I1, G1.
-        { name: 'history', path: plexHistoryPath(0, 5), anonymise: anonymisePlexHistory },
+        // proves the shape without pulling his whole server-wide history. See
+        // I1, G1. accountID is remapped through the same shared mapper as
+        // `accounts`/`sessions`, so the join between all three still holds. See G2.
+        { name: 'history', path: plexHistoryPath(0, 5), anonymise: body => anonymisePlexHistory(body, mapPlexAccountId) },
         // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
         // library response to the requesting account, so a search result can
         // carry that account's viewCount/lastViewedAt same as any other listing.
