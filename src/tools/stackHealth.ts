@@ -32,10 +32,10 @@ export type StackHealthResult = {
      */
     scans: ScanState[];
     /**
-     * What each service is running now, plus anything it finished in the last
-     * fifteen minutes — the follow-up `trigger_search` and `trigger_scan`
-     * never had. Bounded like `scans` and absent at `minimal`: a running
-     * command is not a fault.
+     * The searches, scans, refreshes, renames and imports each service is
+     * running now, plus any it finished in the last fifteen minutes — the
+     * follow-up `trigger_search` and `trigger_scan` never had. Bounded like
+     * `scans` and absent at `minimal`: a running command is not a fault.
      */
     commands?: CommandStatus[];
     /**
@@ -371,7 +371,7 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists what each service has queued or running plus anything it finished in the last fifteen minutes, so a command that is not there has finished. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
+                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists the searches, scans, refreshes, renames and imports each service has queued or running, plus any it finished in the last fifteen minutes — so a command that is not there has finished. A service\'s own per-minute housekeeping is left out. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema }),
             // The one read tool whose answer is not a list, so it declares its
             // own shape rather than the paged envelope. `disks` and `failures`

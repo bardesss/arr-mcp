@@ -42,6 +42,31 @@ export async function postArrCommand(
  *  history, which `get_history` answers. */
 const RECENT_MS = 15 * 60 * 1000;
 
+/**
+ * The tasks this server can start, and therefore the only ones a caller can
+ * be following up. Everything else on `/api/v3/command` is the scheduler's
+ * own housekeeping.
+ *
+ * An allowlist rather than a denylist, and **not** a filter on `trigger`,
+ * because a live probe killed that idea: Radarr reports its own per-minute
+ * `RefreshMonitoredDownloads` as `manual` and `ProcessMonitoredDownloads` as
+ * `unspecified`, while Sonarr calls the same work `scheduled`. Filtering on
+ * the trigger would have kept exactly the noise. Measured on a quiet stack,
+ * the unfiltered window held 37 rows, every one of them a poller.
+ */
+const FOLLOWABLE = new Set([
+    'MoviesSearch',
+    'SeriesSearch',
+    'SeasonSearch',
+    'EpisodeSearch',
+    'RefreshMovie',
+    'RefreshSeries',
+    'RenameMovie',
+    'RenameSeries',
+    'ManualImport',
+    'ApplicationIndexerSync'
+]);
+
 /** Bounded like `scans` rather than wrapped in a truncation envelope: one
  *  `limit` budget already spans failures and disks, and a third claimant on it
  *  would make `limit` mean nothing. */
@@ -52,6 +77,10 @@ const MAX_COMMANDS = 25;
  * follow-up `trigger_search` and `trigger_scan` never had. A command that is
  * not in this list and not in the last fifteen minutes of it has finished;
  * that is the whole answer.
+ *
+ * Scoped to the tasks this server can start (`FOLLOWABLE`): on a live stack
+ * the raw window is entirely the scheduler's per-minute pollers, which would
+ * crowd out the one row the caller asked about.
  */
 export async function readArrCommands(
     http: ServiceHttp,
@@ -62,6 +91,11 @@ export async function readArrCommands(
 
     return rows
         .filter((c): c is RawCommand & { id: number } => typeof c.id === 'number')
+        // `commandName` is the task's own name; `name` is the display form,
+        // and on some builds they differ in case only. Either matching is
+        // enough — dropping a real search because a build spelled it the
+        // other way would defeat the point of the list.
+        .filter(c => FOLLOWABLE.has(c.name ?? '') || FOLLOWABLE.has(c.commandName ?? ''))
         .filter(c => {
             const status = (c.status ?? '').toLowerCase();
             if (status === 'queued' || status === 'started') return true;

@@ -555,6 +555,9 @@ export type CommandHandle = { service: string; commandId: number; name: string; 
  * A queued task as it stands now — the follow-up `trigger_search` and
  * `trigger_scan` never had. `status` is the service's own word: `queued`,
  * `started`, `completed`, `failed`, `aborted`.
+ *
+ * Only the tasks this server can start are reported; a service's own
+ * per-minute housekeeping is not something anyone is following up.
  */
 export type CommandStatus = {
     service: string;

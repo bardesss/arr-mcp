@@ -104,10 +104,25 @@ describe('what a service is running', () => {
         expect(rows[0]?.endedAt).toBe('2026-09-02T12:09:00Z');
     });
 
+    /** Measured live: the raw window on a quiet stack was 37 rows, every one
+     *  of them a per-minute poller. Filtering on the trigger would not have
+     *  helped — Radarr reports its own poller as `manual`. */
+    it('leaves out the housekeeping nobody is following up', async () => {
+        const s = stack({
+            '/api/v3/command': [
+                { id: 1, name: 'RefreshMonitoredDownloads', status: 'completed', trigger: 'manual', queued: '2026-09-02T12:09:00Z', ended: '2026-09-02T12:09:30Z' },
+                { id: 2, name: 'ProcessMonitoredDownloads', status: 'started', queued: '2026-09-02T12:09:00Z' },
+                { id: 3, name: 'MoviesSearch', status: 'started', queued: '2026-09-02T12:08:00Z' }
+            ]
+        });
+        const rows = await readArrCommands(reader(s.impl), 'radarr', now);
+        expect(rows.map(r => r.name)).toEqual(['MoviesSearch']);
+    });
+
     it('drops a command that finished long ago — that is history, not status', async () => {
         const s = stack({
             '/api/v3/command': [
-                { id: 4, name: 'Housekeeping', status: 'completed', queued: '2026-09-02T09:00:00Z', ended: '2026-09-02T09:01:00Z' }
+                { id: 4, name: 'RefreshMovie', status: 'completed', queued: '2026-09-02T09:00:00Z', ended: '2026-09-02T09:01:00Z' }
             ]
         });
         const rows = await readArrCommands(reader(s.impl), 'radarr', now);
@@ -116,7 +131,7 @@ describe('what a service is running', () => {
 
     it('drops a row whose end time cannot be read rather than calling it running', async () => {
         const s = stack({
-            '/api/v3/command': [{ id: 5, name: 'Weird', status: 'completed', ended: 'yesterday' }]
+            '/api/v3/command': [{ id: 5, name: 'RenameMovie', status: 'completed', ended: 'yesterday' }]
         });
         const rows = await readArrCommands(reader(s.impl), 'radarr', now);
         expect(rows).toEqual([]);

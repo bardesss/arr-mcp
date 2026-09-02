@@ -153,12 +153,19 @@ anything broken". An instance whose profile list cannot be read is named in
 
 ### Did that command finish?
 
-`commands` is every task a service has queued or running, plus anything it
-finished in the last fifteen minutes: `commandId`, `name`, `status`
+`commands` is every **followable** task a service has queued or running, plus
+anything it finished in the last fifteen minutes: `commandId`, `name`, `status`
 (`queued`, `started`, `completed`, `failed`), and the times. It is the
 follow-up `trigger_search` and `trigger_scan` never had — both hand back a
 command id and return immediately, and until now the only way to know whether
 one had finished was to wait and re-read the queue.
+
+Followable means the tasks this server can start — searches, scans, refreshes,
+renames, imports, the Prowlarr sync. A live instance also runs its own
+housekeeping every minute, and it is left out: measured on a quiet stack the
+unfiltered window held 37 rows, every one of them a poller, which is how the
+one row you asked about gets lost. Filtering on the command's `trigger` would
+not have helped — Radarr reports its own per-minute refresh as `manual`.
 
 **A command that is not in the list has finished.** The fifteen-minute window
 is what makes that readable rather than merely true: a search you started a
