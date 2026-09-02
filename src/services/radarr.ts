@@ -253,7 +253,7 @@ export class RadarrAdapter
         const movieId = Number(id);
         if (!Number.isInteger(movieId)) {
             throw new ServiceError('NotFound', this.id, `"${id}" is not a Radarr movie id`, {
-                remedy: 'Radarr movie ids are integers. Get one from get_media_details or get_library.'
+                remedy: 'Radarr movie ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
             });
         }
 
@@ -342,6 +342,9 @@ export class RadarrAdapter
             },
             acquisition: {
                 service: this.id,
+                // `> 0` for the reason `#toHit` gives: a build that sends 0
+                // instead of omitting the field must not produce the id "0".
+                ...(m.id === undefined || m.id <= 0 ? {} : { id: String(m.id) }),
                 monitored: m.monitored ?? false,
                 hasFile: m.hasFile ?? false,
                 ...(m.added === undefined || m.added === null ? {} : { addedAt: m.added }),

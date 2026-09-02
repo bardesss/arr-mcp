@@ -114,7 +114,7 @@ export async function deleteArrMedia(
     const numeric = Number(id);
     if (!Number.isInteger(numeric)) {
         throw new ServiceError('NotFound', service, `"${id}" is not a ${service} ${resource} id`, {
-            remedy: `${service} ids are integers. Get one from get_media_details or get_library.`
+            remedy: `${service} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
         });
     }
 

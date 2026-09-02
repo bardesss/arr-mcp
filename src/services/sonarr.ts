@@ -235,7 +235,7 @@ export class SonarrAdapter
         const id = Number(value);
         if (!Number.isInteger(id)) {
             throw new ServiceError('NotFound', this.id, `"${value}" is not a Sonarr ${what} id`, {
-                remedy: `Sonarr ${what} ids are integers. Get one from get_media_details or get_library.`
+                remedy: `Sonarr ${what} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
             });
         }
         return id;
@@ -313,7 +313,7 @@ export class SonarrAdapter
         const seriesId = Number(id);
         if (!Number.isInteger(seriesId)) {
             throw new ServiceError('NotFound', this.id, `"${id}" is not a Sonarr series id`, {
-                remedy: 'Sonarr series ids are integers. Get one from get_media_details or get_library.'
+                remedy: 'Sonarr series ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
             });
         }
 
@@ -488,6 +488,7 @@ export class SonarrAdapter
                 },
                 acquisition: {
                     service: this.id,
+                    ...(s.id === undefined || s.id <= 0 ? {} : { id: String(s.id) }),
                     monitored: s.monitored ?? false,
                     // A series has no single file, so "has a file" means "has any
                     // episode on disk". No quality either: it is per-episode, which

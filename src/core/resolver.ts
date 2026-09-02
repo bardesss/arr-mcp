@@ -68,6 +68,14 @@ export type MergedItem = {
     ids: ExternalIds;
     acquisition?: {
         service: string;
+        /**
+         * The managing service's own id, as an integer string — the value
+         * `delete_media`, `trigger_search`, `set_monitoring`, `get_releases`
+         * and `update_media` all take as `id`. Absent when the service
+         * reported none, which is what a lookup for something not in the
+         * library returns.
+         */
+        id?: string;
         monitored: boolean;
         hasFile: boolean;
         quality?: string;

@@ -748,3 +748,29 @@ describe('hasPlayback', () => {
         expect(hasPlayback(partial)).toBe(false);
     });
 });
+
+/**
+ * The internal id every write takes. Without it on the merged record a caller
+ * has to make a second `search_media(source: "library")` hop to find the id
+ * for a title `get_library` already returned.
+ */
+describe('the *arr internal id on a library row', () => {
+    it('is carried by Radarr, as an integer string', async () => {
+        const radarr = new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie': fixture('radarr/movie.json') }));
+        expect((await radarr.listLibrary())[0]?.acquisition?.id).toBe('340');
+    });
+
+    it('is carried by Sonarr, as an integer string', async () => {
+        const sonarr = new SonarrAdapter(keyed(8989), serving({ '/api/v3/series': fixture('sonarr/series.json') }));
+        const first = (await sonarr.listLibrary())[0];
+        expect(first?.acquisition?.id).toMatch(/^\d+$/);
+    });
+
+    it('is omitted rather than reported as "0" when the service sends a zero', async () => {
+        const radarr = new RadarrAdapter(
+            keyed(7878),
+            serving({ '/api/v3/movie': [{ id: 0, title: 'Unsaved', tmdbId: 1 }] })
+        );
+        expect((await radarr.listLibrary())[0]?.acquisition?.id).toBeUndefined();
+    });
+});

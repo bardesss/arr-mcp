@@ -136,7 +136,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             inputSchema: toolInput({
                 service: ServiceIdSchema.optional().describe('Scope to one service. Required alongside `id`.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-                id: z.string().min(1).optional().describe('One movie or series id, from get_media_details or get_library. Requires `service`.'),
+                id: z.string().min(1).optional().describe('One movie or series id — `acquisition.id` on a get_library or get_media_details record. Requires `service`.'),
                 event_type: EventTypeSchema,
                 since: SinceSchema,
                 detail: DetailSchema,
