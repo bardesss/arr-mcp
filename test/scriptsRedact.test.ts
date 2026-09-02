@@ -145,6 +145,26 @@ describe('redact', () => {
         expect(redact('version 4.0.14.2939', secrets, hosts)).toBe('version 4.0.14.2939');
     });
 
+    // PRIVATE_IPV4 is IPv4-only. Unproven against a live server (nobody who
+    // ran capture had IPv6 anywhere in a response), but a ULA, link-local or
+    // loopback literal reaching a public fixture is the failure this exists
+    // to prevent, so it is covered here anyway. See G4.
+    it('rewrites a unique-local IPv6 address (fc00::/7)', () => {
+        expect(redact('seeded from fd12:3456:789a:1::1', secrets, hosts)).not.toContain('fd12:3456:789a:1::1');
+    });
+
+    it('rewrites a link-local IPv6 address (fe80::/10)', () => {
+        expect(redact('seeded from fe80::abcd:1234:5678:9abc', secrets, hosts)).not.toContain('fe80::abcd:1234:5678:9abc');
+    });
+
+    it('rewrites the IPv6 loopback literal', () => {
+        expect(redact('seeded from ::1', secrets, hosts)).not.toContain('::1');
+    });
+
+    it('leaves a global unicast IPv6 address alone, same treatment as a public IPv4', () => {
+        expect(redact('seeded from 2001:db8:85a3::8a2e:370:7334', secrets, hosts)).toBe('seeded from 2001:db8:85a3::8a2e:370:7334');
+    });
+
     it('replaces a configured host with the anonymous host', () => {
         expect(redact('http://192.168.1.20:7878/api', secrets, hosts)).toContain('service.example.test');
     });

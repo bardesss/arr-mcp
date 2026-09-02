@@ -77,13 +77,25 @@ export const SECRET_KEY =
 export const PRIVATE_IPV4 =
     /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b/g;
 
+/**
+ * Unique-local (`fc00::/7`), link-local (`fe80::/10`) and loopback (`::1`)
+ * IPv6 literals — the same class of "who and where" a service can report
+ * about itself as `PRIVATE_IPV4` catches, unproven against a live server (no
+ * IPv6 was seen in the tester's captures) but cheap to cover regardless. A
+ * global unicast address (`2001:...`) is left alone, same as a public IPv4.
+ *
+ * `\b` doesn't fire on a `:`-`:` or `"`-`:` boundary (both non-word), so the
+ * match is anchored with lookaround instead of `\b` at the leading edge.
+ */
+export const PRIVATE_IPV6 = /(?<![0-9a-fA-F:])(?:::1|(?:fe80|f[cd][0-9a-fA-F]{2})(?::[0-9a-fA-F]{0,4}){1,7})(?![0-9a-fA-F:])/gi;
+
 /** Secrets by exact value, configured hosts by exact value, then private IPv4
  *  literals by shape — recursively, so a nested credential cannot survive. */
 export function redact(node: unknown, secrets: string[], hosts: string[]): unknown {
     if (typeof node === 'string') {
         const withoutSecrets = secrets.reduce((acc, secret) => acc.split(secret).join(REDACTED), node);
         const withoutHosts = hosts.reduce((acc, host) => acc.split(host).join(ANONYMOUS_HOST), withoutSecrets);
-        return withoutHosts.replace(PRIVATE_IPV4, '192.0.2.10');
+        return withoutHosts.replace(PRIVATE_IPV4, '192.0.2.10').replace(PRIVATE_IPV6, '2001:db8::a');
     }
     if (Array.isArray(node)) return node.map(v => redact(v, secrets, hosts));
     if (node !== null && typeof node === 'object') {
