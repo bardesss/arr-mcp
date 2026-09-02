@@ -48,9 +48,52 @@ export function secretsOf(config: Config): string[] {
     return out;
 }
 
-/** Replaces every configured host with a placeholder, wherever it appears in `text`. */
+/** Replaces every configured host with a placeholder, wherever it appears in `text`.
+ *  Stays a blind substring replace on purpose: this feeds terminal error text
+ *  (`classifyFetchError`'s messages), which embeds a bare `host:port` with no
+ *  scheme to anchor on — the authority-position fix below doesn't apply here,
+ *  and these fixed-template strings don't carry a `plex://`-style guid to
+ *  collide with. */
 export function redactHosts(text: string, hosts: readonly string[]): string {
     return hosts.reduce((acc, host) => acc.split(host).join(PLACEHOLDER), text);
+}
+
+/** Escapes regex metacharacters, so an unescaped host like `192.168.7.37`
+ *  cannot also match a look-alike such as `192a168x7y37`. */
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Redacts a configured host only in authority position — immediately after a
+ * scheme's `//` or an embedded-credential `@` — never as a bare substring
+ * anywhere in the text.
+ *
+ * The previous approach (`text.split(host).join(placeholder)`, same shape as
+ * `redactHosts` above) is a blind substring replace, and a host named `plex`
+ * — the common Docker service name — collided with two very different
+ * things: a `plex://<guid>` URI, whose scheme merely spells the same word,
+ * and any brand name containing "plex" (`Aniplex`). Measured on the tester's
+ * server: 500 guids corrupted, `Aniplex` became `Aniservice.example.test`.
+ * `\b` alone cannot fix the scheme case — `plex` in `plex://movie` sits
+ * between two word boundaries the same as a real host would, since `:` is
+ * already non-word — so the anchor is authority position, not a word edge.
+ *
+ * VCR has had the identical bug open since 2012 (vcr/vcr#204: filtering the
+ * username `admin` mangled `administrator`) and stays a substring replace
+ * because its filtering must round-trip on playback. This is a record-only
+ * scrubber that never un-substitutes, so that constraint doesn't apply here.
+ *
+ * Known gap, deliberately not closed: a bare authority with no scheme (a
+ * `Host: plex:32400` header, a percent-encoded nested URL) has no `//`/`@`
+ * to anchor on and passes through unredacted. Azure's test-proxy closes this
+ * with a separate header-scoped sanitiser; nothing here reaches for that.
+ */
+function redactAuthorities(text: string, hosts: readonly string[], placeholder: string): string {
+    if (hosts.length === 0) return text;
+    const alternation = hosts.map(escapeRegExp).join('|');
+    const re = new RegExp(`(?<=\\/\\/|@)(?:${alternation})\\.?(?=[:/?#"'\\s]|$)`, 'gi');
+    return text.replace(re, placeholder);
 }
 
 export const REDACTED = '__REDACTED__';
@@ -86,15 +129,27 @@ export const PRIVATE_IPV4 =
  *
  * `\b` doesn't fire on a `:`-`:` or `"`-`:` boundary (both non-word), so the
  * match is anchored with lookaround instead of `\b` at the leading edge.
+ *
+ * `fe[89ab][0-9a-fA-F]` is the first hextet's actual range for a /10 —
+ * `fe80` through `febf` — not the single literal `fe80`; `fe81`, `fe90`,
+ * `fea0` and `febf` are all in range and were previously missed.
+ *
+ * The tail (`(?::[0-9a-fA-F]{0,4}){1,7}`) allows a zero-length hextet, so
+ * `fc00:` or `fd00:::` also match. Harmless for redaction — a token that
+ * isn't a well-formed address just gets rewritten too — but this is a token
+ * matcher, not a validator, on purpose: rejecting malformed input isn't the
+ * job here.
  */
-export const PRIVATE_IPV6 = /(?<![0-9a-fA-F:])(?:::1|(?:fe80|f[cd][0-9a-fA-F]{2})(?::[0-9a-fA-F]{0,4}){1,7})(?![0-9a-fA-F:])/gi;
+export const PRIVATE_IPV6 =
+    /(?<![0-9a-fA-F:])(?:::1|(?:fe[89ab][0-9a-fA-F]|f[cd][0-9a-fA-F]{2})(?::[0-9a-fA-F]{0,4}){1,7})(?![0-9a-fA-F:])/gi;
 
-/** Secrets by exact value, configured hosts by exact value, then private IPv4
- *  literals by shape — recursively, so a nested credential cannot survive. */
+/** Secrets by exact value, configured hosts by authority position, then
+ *  private IPv4 literals by shape — recursively, so a nested credential
+ *  cannot survive. */
 export function redact(node: unknown, secrets: string[], hosts: string[]): unknown {
     if (typeof node === 'string') {
         const withoutSecrets = secrets.reduce((acc, secret) => acc.split(secret).join(REDACTED), node);
-        const withoutHosts = hosts.reduce((acc, host) => acc.split(host).join(ANONYMOUS_HOST), withoutSecrets);
+        const withoutHosts = redactAuthorities(withoutSecrets, hosts, ANONYMOUS_HOST);
         return withoutHosts.replace(PRIVATE_IPV4, '192.0.2.10').replace(PRIVATE_IPV6, '2001:db8::a');
     }
     if (Array.isArray(node)) return node.map(v => redact(v, secrets, hosts));
@@ -132,16 +187,24 @@ type MetadataContainer = { MediaContainer?: { Metadata?: Row[] } };
  * The owner is always id 1 by Plex's own convention (`OWNER_ACCOUNT_ID` in
  * plex.ts) and stays 1: `PlexAdapter#listUsers`'s owner lookup matches on it
  * exactly, and "the owner is account 1" identifies nobody. See G2.
+ *
+ * Synthetic ids count down from -1 rather than up from 1001. Counting up
+ * from a fixed offset meant the nth distinct non-owner id survived
+ * unchanged whenever its real value was exactly 1000 + n — e.g. a first id
+ * claims synthetic 1001, then a real second id of 1002 collides with its own
+ * synthetic. Plex account ids are always positive, so negative synthetics
+ * can never collide with a real one, fixed by construction rather than by
+ * picking a less-likely offset. See N1.
  */
 export function createAccountIdMapper(): (id: number) => number {
     const seen = new Map<number, number>();
-    let next = 1001;
+    let next = -1;
     return (id: number): number => {
         if (id === 1) return 1;
         const existing = seen.get(id);
         if (existing !== undefined) return existing;
         const synthetic = next;
-        next += 1;
+        next -= 1;
         seen.set(id, synthetic);
         return synthetic;
     };
@@ -149,7 +212,12 @@ export function createAccountIdMapper(): (id: number) => number {
 
 /** A Plex account/session id as XML-derived JSON sends it — string or
  *  number depending on the row — mapped through `mapId` while preserving
- *  whichever shape it arrived in. */
+ *  whichever shape it arrived in.
+ *
+ *  `Number()` has no safe-integer check, so two distinct digit strings above
+ *  `Number.MAX_SAFE_INTEGER` would collapse onto one synthetic id. Left as
+ *  is: no evidence a live Plex account id is that large, and guarding it
+ *  would mean deciding what an oversized id should map to instead. See N3. */
 function mappedId(value: unknown, mapId: (id: number) => number): unknown {
     if (typeof value === 'number') return mapId(value);
     if (typeof value === 'string' && /^\d+$/.test(value.trim())) return String(mapId(Number(value.trim())));
@@ -246,6 +314,86 @@ export function neutralisePlexWatchState(body: unknown): unknown {
  *  shape produces an unchanged fixture rather than a spurious diff. */
 const syntheticDisplayValue = (label: string, i: number): string => `Fixture ${label} ${i + 1}`;
 
+/** Cast/crew containers whose `tag` (a person's name) and `thumb` (their
+ *  avatar) are personal data — unlike `Genre`/`Country`/`Collection`/`Label`,
+ *  which are taxonomy and stay untouched. */
+const PERSON_ARRAY_KEYS = new Set(['Role', 'Director', 'Writer', 'Producer']);
+
+/** Free-text fields that name the exact title, series or place, wherever
+ *  they occur — replaced with a deterministic per-occurrence placeholder. */
+const IDENTIFYING_TEXT_KEYS = new Set([
+    'title',
+    'grandparentTitle',
+    'parentTitle',
+    'originalTitle',
+    'titleSort',
+    'summary',
+    'tagline',
+    'studio'
+]);
+
+/** Slug/URL/on-disk-path fields that can carry a real identifier, wherever
+ *  they occur — blanked, same treatment already given to top-level `thumb`. */
+const IDENTIFYING_SLUG_KEYS = new Set([
+    'thumb',
+    'art',
+    'key',
+    'parentThumb',
+    'grandparentThumb',
+    'grandparentKey',
+    'parentKey',
+    'grandparentArt',
+    'grandparentTheme',
+    'grandparentSlug',
+    'slug',
+    'file'
+]);
+
+/**
+ * Recursively scrubs identifying data anywhere in a Plex metadata row, not
+ * only at its top level. Plex nests the same kind of title/person/path data
+ * inside `Media`/`Part`/`Role`/`Director`/`Writer`/`Producer`/`Guid`/`Image`
+ * as often as it puts it at the row's own level — `Media[0].Part[0].file` is
+ * the one that matters most, since a file path routinely encodes series,
+ * season, episode title and release group in one string — so this walks the
+ * whole row instead of naming each field once, which drifts the moment Plex
+ * adds a nested one. Keys, array lengths and value types are preserved
+ * throughout, so a fixture built from this still exercises the adapter's
+ * parsing.
+ *
+ * `counter` threads through the whole walk (not reset per key) so two
+ * occurrences of the same field name in one row still get distinguishable
+ * placeholders.
+ */
+function anonymiseNested(node: unknown, counter: { n: number }, parentKey?: string): unknown {
+    if (Array.isArray(node)) return node.map(v => anonymiseNested(v, counter, parentKey));
+    if (node === null || typeof node !== 'object') return node;
+
+    const isPersonEntry = parentKey !== undefined && PERSON_ARRAY_KEYS.has(parentKey);
+    return Object.fromEntries(
+        Object.entries(node as Row).map(([key, value]): [string, unknown] => {
+            if (isPersonEntry && key === 'tag') return [key, replaceIfString(value, syntheticDisplayValue('Person', counter.n++))];
+            if (isPersonEntry && key === 'thumb') return [key, replaceIfString(value, '')];
+            // Guid.id is a scheme-prefixed external id (imdb://tt123, tmdb://456) —
+            // the scheme is kept so the shape still proves externalIds() parses it,
+            // only the id half (which names the exact title) is synthetic.
+            if (key === 'Guid' && Array.isArray(value)) {
+                return [
+                    key,
+                    value.map(g => {
+                        const row = g as Row;
+                        const match = typeof row.id === 'string' ? /^([a-z]+):\/\//i.exec(row.id) : null;
+                        return match === null ? row : { ...row, id: `${match[1]}://fixture-${counter.n++}` };
+                    })
+                ];
+            }
+            if (IDENTIFYING_TEXT_KEYS.has(key)) return [key, replaceIfString(value, syntheticDisplayValue(key, counter.n++))];
+            if (IDENTIFYING_SLUG_KEYS.has(key)) return [key, replaceIfString(value, '')];
+            return [key, anonymiseNested(value, counter, key)];
+        })
+    );
+}
+
 /**
  * `/status/sessions/history/all` and `/library/onDeck` are records, not
  * listings: a row exists only because someone watched, or is watching, that
@@ -264,6 +412,11 @@ const syntheticDisplayValue = (label: string, i: number): string => `Fixture ${l
  * `accountID` is kept present — `PlexAdapter#getWatchHistory` filters on it —
  * but its value is remapped through `mapId` when one is given, the same
  * reasoning as `redactPlexSessions`'s `User.id`. See G2.
+ *
+ * The per-field scrubbing itself is `anonymiseNested` (above) — a recursive
+ * walk rather than a list of top-level key names, so a title/person/path
+ * value nested inside `Media`/`Part`/`Role`/`Director`/`Writer`/`Producer`/
+ * `Guid` is reached the same as one sitting directly on the row. See B2.
  */
 export function anonymisePlexHistory(body: unknown, mapId?: (id: number) => number): unknown {
     const neutralised = neutralisePlexWatchState(body) as MetadataContainer;
@@ -273,21 +426,13 @@ export function anonymisePlexHistory(body: unknown, mapId?: (id: number) => numb
         ...(neutralised as Row),
         MediaContainer: {
             ...container,
-            Metadata: container.Metadata.map((item, i) => ({
-                ...item,
-                ...('title' in item ? { title: syntheticDisplayValue('Title', i) } : {}),
-                ...('grandparentTitle' in item ? { grandparentTitle: syntheticDisplayValue('Series', i) } : {}),
-                ...('parentTitle' in item ? { parentTitle: syntheticDisplayValue('Season', i) } : {}),
-                ...('originalTitle' in item ? { originalTitle: syntheticDisplayValue('Original Title', i) } : {}),
-                ...('thumb' in item ? { thumb: replaceIfString(item.thumb, '') } : {}),
-                ...('art' in item ? { art: replaceIfString(item.art, '') } : {}),
-                ...('key' in item ? { key: replaceIfString(item.key, '') } : {}),
-                ...('parentThumb' in item ? { parentThumb: replaceIfString(item.parentThumb, '') } : {}),
-                ...('grandparentThumb' in item ? { grandparentThumb: replaceIfString(item.grandparentThumb, '') } : {}),
-                ...('grandparentKey' in item ? { grandparentKey: replaceIfString(item.grandparentKey, '') } : {}),
-                ...('parentKey' in item ? { parentKey: replaceIfString(item.parentKey, '') } : {}),
-                ...(mapId !== undefined && 'accountID' in item ? { accountID: mappedId(item.accountID, mapId) } : {})
-            }))
+            Metadata: container.Metadata.map(item => {
+                const scrubbed = anonymiseNested(item, { n: 0 }) as Row;
+                return {
+                    ...scrubbed,
+                    ...(mapId !== undefined && 'accountID' in item ? { accountID: mappedId(item.accountID, mapId) } : {})
+                };
+            })
         }
     };
 }
@@ -310,7 +455,12 @@ export function anonymisePlexAccounts(body: unknown, mapId: (id: number) => numb
             Account: container.Account.map((a, i) => ({
                 ...a,
                 name: replaceIfString(a.name, `Account ${i + 1}`),
-                ...(typeof a.id === 'number' ? { id: mapId(a.id) } : {})
+                // mappedId, not a bare `typeof a.id === 'number'` check: the
+                // tester's ids were all JSON numbers, but `User.id`/`accountID`
+                // elsewhere already accept a numeric string too, and a stricter
+                // check here was the one place a string-valued id would have
+                // survived unmapped. See N4.
+                ...('id' in a ? { id: mappedId(a.id, mapId) } : {})
             }))
         }
     };

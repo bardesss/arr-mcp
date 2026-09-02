@@ -159,6 +159,23 @@ describe('redact', () => {
         expect(redact('seeded from fe80::abcd:1234:5678:9abc', secrets, hosts)).not.toContain('fe80::abcd:1234:5678:9abc');
     });
 
+    /**
+     * N2: fe80::/10 runs from fe80 through febf — the old pattern hardcoded
+     * the literal `fe80` first hextet, so fe81/fe90/fea0/febf (any other
+     * value in the same /10) sailed straight through unredacted.
+     */
+    it('rewrites every first-hextet value in the fe80::/10 range, not only the literal fe80', () => {
+        expect(redact('seeded from fe81::1', secrets, hosts)).not.toContain('fe81::1');
+        expect(redact('seeded from fe90::1', secrets, hosts)).not.toContain('fe90::1');
+        expect(redact('seeded from fea0::1', secrets, hosts)).not.toContain('fea0::1');
+        expect(redact('seeded from febf::1', secrets, hosts)).not.toContain('febf::1');
+    });
+
+    it('leaves fe70:: and fec0:: alone — just outside the fe80::/10 range', () => {
+        expect(redact('seeded from fe70::1', secrets, hosts)).toBe('seeded from fe70::1');
+        expect(redact('seeded from fec0::1', secrets, hosts)).toBe('seeded from fec0::1');
+    });
+
     it('rewrites the IPv6 loopback literal', () => {
         expect(redact('seeded from ::1', secrets, hosts)).not.toContain('::1');
     });
@@ -169,6 +186,45 @@ describe('redact', () => {
 
     it('replaces a configured host with the anonymous host', () => {
         expect(redact('http://192.168.1.20:7878/api', secrets, hosts)).toContain('service.example.test');
+    });
+
+    /**
+     * B1: a Docker service named `plex` (the common name for the container)
+     * makes the old blind substring replace rewrite every `plex://` guid and
+     * every brand name containing "plex" — measured on the tester's server as
+     * 500 guids corrupted plus `Aniplex` becoming `Aniservice.example.test`.
+     * The fix anchors on authority position (`(?<=\/\/|@)` + a delimiter
+     * lookahead) instead of matching the host anywhere in the string.
+     */
+    describe('a configured host that collides with a Plex guid scheme (B1)', () => {
+        const plexHosts = ['plex'];
+
+        it('redacts the host only when it sits in authority position, leaving a same-named guid scheme alone', () => {
+            const payload = {
+                guid: 'plex://movie/5d776b8e96b655001fe14e31',
+                configured: 'http://plex:32400/library/sections',
+                studio: 'Aniplex'
+            };
+            const out = redact(payload, [], plexHosts) as typeof payload;
+            expect(out.guid).toBe('plex://movie/5d776b8e96b655001fe14e31');
+            expect(out.configured).not.toContain('plex:32400');
+            expect(out.configured).toContain('service.example.test');
+            expect(out.studio).toBe('Aniplex');
+        });
+
+        it('redacts a host that appears after an embedded-credential @, not only after //', () => {
+            expect(redact('scheme://user@plex:32400/x', [], plexHosts)).not.toContain('@plex:32400');
+        });
+
+        it('does not redact the host when it is not in authority position at all', () => {
+            expect(redact('the word plex appears here', [], plexHosts)).toBe('the word plex appears here');
+        });
+    });
+
+    it('escapes regex metacharacters in a host, so a dotted IP does not also match a look-alike', () => {
+        const ipHosts = ['192.168.7.37'];
+        expect(redact('http://192a168x7y37/api', [], ipHosts)).toBe('http://192a168x7y37/api');
+        expect(redact('http://192.168.7.37/api', [], ipHosts)).toContain('service.example.test');
     });
 
     it('leaves an empty or null value at a secret key alone, so shape is preserved', () => {
@@ -336,6 +392,106 @@ describe('anonymisePlexHistory', () => {
         const body = { MediaContainer: { version: '1.32.0' } };
         expect(anonymisePlexHistory(body)).toEqual(body);
     });
+
+    /**
+     * B2: the tester's server carried real values in every one of these on
+     * top of the four title fields already handled — a fixed top-level key
+     * list drifts the moment Plex adds a field, so these are reached by
+     * recursing into the row rather than by naming each one again.
+     */
+    describe('fields beyond the original top-level four (B2)', () => {
+        it('scrubs titleSort, grandparentSlug, summary and studio', () => {
+            const body = history([
+                {
+                    ratingKey: '1',
+                    titleSort: 'Real Sort Title',
+                    grandparentSlug: 'real-series-slug',
+                    summary: 'A real plot summary that names the show.',
+                    studio: 'Real Studio Name'
+                }
+            ]);
+            const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+                .MediaContainer.Metadata;
+            expect(row?.titleSort).not.toBe('Real Sort Title');
+            expect(row?.grandparentSlug).not.toBe('real-series-slug');
+            expect(row?.summary).not.toBe('A real plot summary that names the show.');
+            expect(row?.studio).not.toBe('Real Studio Name');
+            expect(typeof row?.summary).toBe('string');
+        });
+
+        it('scrubs grandparentArt and grandparentTheme, thumb-like fields beyond the ones already named', () => {
+            const body = history([
+                { ratingKey: '1', grandparentArt: '/library/metadata/9/art/1', grandparentTheme: '/library/metadata/9/theme/1' }
+            ]);
+            const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+                .MediaContainer.Metadata;
+            expect(row?.grandparentArt).not.toBe('/library/metadata/9/art/1');
+            expect(row?.grandparentTheme).not.toBe('/library/metadata/9/theme/1');
+        });
+
+        it('scrubs Media[].Part[].file, which routinely encodes series, season, episode title and release group', () => {
+            const realPath = '/tv/Real Show Name/Season 01/Real Show Name - S01E02 - Real Episode Title [RLSGRP].mkv';
+            const body = history([{ ratingKey: '1', Media: [{ Part: [{ file: realPath, size: 123 }] }] }]);
+            const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+                .MediaContainer.Metadata;
+            const media = row?.Media as { Part: { file?: unknown; size?: unknown }[] }[];
+            expect(media).toHaveLength(1);
+            expect(media[0]?.Part).toHaveLength(1);
+            expect(media[0]?.Part[0]?.file).not.toBe(realPath);
+            // size is not identifying — preserved so the fixture still contracts getMediaDetails' sizeBytes mapping.
+            expect(media[0]?.Part[0]?.size).toBe(123);
+        });
+
+        it('scrubs cast and crew names nested in Role, Director, Writer and Producer', () => {
+            const body = history([
+                {
+                    ratingKey: '1',
+                    Role: [{ tag: 'Real Actor Name', thumb: 'https://example/real-actor.jpg', role: 'Character Name' }],
+                    Director: [{ tag: 'Real Director Name' }],
+                    Writer: [{ tag: 'Real Writer Name' }],
+                    Producer: [{ tag: 'Real Producer Name' }]
+                }
+            ]);
+            const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+                .MediaContainer.Metadata;
+            const role = (row?.Role as Record<string, unknown>[])[0];
+            expect(role?.tag).not.toBe('Real Actor Name');
+            expect(role?.thumb).not.toBe('https://example/real-actor.jpg');
+            expect((row?.Director as Record<string, unknown>[])[0]?.tag).not.toBe('Real Director Name');
+            expect((row?.Writer as Record<string, unknown>[])[0]?.tag).not.toBe('Real Writer Name');
+            expect((row?.Producer as Record<string, unknown>[])[0]?.tag).not.toBe('Real Producer Name');
+        });
+
+        it('leaves Genre tags alone — a category name, not personal data', () => {
+            const body = history([{ ratingKey: '1', Genre: [{ tag: 'Action' }, { tag: 'Comedy' }] }]);
+            const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+                .MediaContainer.Metadata;
+            expect((row?.Genre as Record<string, unknown>[]).map(g => g.tag)).toEqual(['Action', 'Comedy']);
+        });
+
+        it('scrubs Guid ids while preserving the scheme, so a real tmdb/imdb/tvdb id does not survive', () => {
+            const body = history([{ ratingKey: '1', Guid: [{ id: 'imdb://tt1234567' }, { id: 'tmdb://98765' }] }]);
+            const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+                .MediaContainer.Metadata;
+            const guids = row?.Guid as Record<string, unknown>[];
+            expect(guids[0]?.id).not.toBe('imdb://tt1234567');
+            expect(guids[0]?.id).toMatch(/^imdb:\/\//);
+            expect(guids[1]?.id).not.toBe('tmdb://98765');
+            expect(guids[1]?.id).toMatch(/^tmdb:\/\//);
+        });
+
+        it('preserves array length and other fields on a Media/Part row untouched by the walk', () => {
+            const body = history([
+                { ratingKey: '1', Media: [{ container: 'mkv', videoResolution: '1080', Part: [{ file: '/x.mkv', size: 1, duration: 5000 }] }] }
+            ]);
+            const [row] = (anonymisePlexHistory(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+                .MediaContainer.Metadata;
+            const media = (row?.Media as Record<string, unknown>[])[0];
+            expect(media?.container).toBe('mkv');
+            expect(media?.videoResolution).toBe('1080');
+            expect(((media?.Part as Record<string, unknown>[])[0] as Record<string, unknown>).duration).toBe(5000);
+        });
+    });
 });
 
 describe('redactPlexSessions', () => {
@@ -417,6 +573,27 @@ describe('createAccountIdMapper', () => {
         const mapId = createAccountIdMapper();
         expect(mapId(78901234)).not.toBe(mapId(55555555));
     });
+
+    /**
+     * N1: the counter started at 1001 and incremented once per distinct
+     * non-owner id, so the nth distinct non-owner id survived unchanged
+     * whenever its real value was exactly 1000 + n. Reproduced with the
+     * tester's own example: a first id (any value) claims synthetic 1001,
+     * then a second real id of exactly 1002 collided with its own synthetic.
+     */
+    it('never produces a synthetic id equal to the real id it was given', () => {
+        const mapId = createAccountIdMapper();
+        mapId(4000); // 1st distinct non-owner id
+        const second = mapId(1002); // 2nd distinct non-owner id — old code: 1000+2 = 1002
+        expect(second).not.toBe(1002);
+    });
+
+    it('maps every real (positive) id to a negative synthetic id, which can never collide with one', () => {
+        const mapId = createAccountIdMapper();
+        expect(mapId(4000)).toBeLessThan(0);
+        expect(mapId(1002)).toBeLessThan(0);
+        expect(mapId(999999999)).toBeLessThan(0);
+    });
 });
 
 describe('anonymisePlexAccounts', () => {
@@ -445,6 +622,18 @@ describe('anonymisePlexAccounts', () => {
         const [row] = (anonymisePlexAccounts(body, mapId) as { MediaContainer: { Account: Record<string, unknown>[] } })
             .MediaContainer.Account;
         expect(row?.id).toBe(1);
+    });
+
+    // N4: a stricter `typeof a.id === 'number'` check than `mappedId` (which
+    // also accepts a numeric string) meant a string-valued id survived here
+    // unmapped, while User.id/accountID elsewhere already handled either shape.
+    it('maps a string-valued id the same as a numeric one', () => {
+        const mapId = createAccountIdMapper();
+        const body = accounts([{ id: '78901234', name: 'A Real Name' }]);
+        const [row] = (anonymisePlexAccounts(body, mapId) as { MediaContainer: { Account: Record<string, unknown>[] } })
+            .MediaContainer.Account;
+        expect(row?.id).not.toBe('78901234');
+        expect(row?.id).toBe(String(mapId(78901234)));
     });
 });
 
