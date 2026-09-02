@@ -8,6 +8,8 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type HistoryCapable,
+    type HistoryEntry,
     type PauseCapable,
     type PauseState,
     type QueueCapable,
@@ -41,6 +43,16 @@ type RawQueue = {
         slots?: RawSlot[];
     };
 };
+type RawHistory = { history?: { slots?: RawHistorySlot[] } };
+type RawHistorySlot = {
+    nzo_id?: string;
+    name?: string;
+    status?: string;
+    fail_message?: string;
+    /** Unix seconds. */
+    completed?: number;
+};
+
 type RawSlot = {
     nzo_id?: string;
     filename?: string;
@@ -80,7 +92,14 @@ const gigabytesToBytes = (value: string | undefined): number | undefined => {
 };
 
 export class SabnzbdAdapter
-    implements ServiceAdapter, DiskSpaceCapable, QueueCapable, QueueRemoveCapable, PauseCapable, SpeedLimitCapable
+    implements
+        ServiceAdapter,
+        DiskSpaceCapable,
+        QueueCapable,
+        QueueRemoveCapable,
+        PauseCapable,
+        SpeedLimitCapable,
+        HistoryCapable
 {
     readonly type: ServiceId = 'sabnzbd';
     readonly id: string = 'sabnzbd';
@@ -253,6 +272,53 @@ export class SabnzbdAdapter
                 remedy: body.error ?? 'SABnzbd reported no failure reason. Check it is reachable — call get_queue.'
             });
         }
+    }
+
+    /**
+     * SABnzbd's own history — what happened to a download after it left the
+     * queue, one layer below the *arr history `get_history` already merges.
+     * When Radarr says "grabbed" and nothing arrived, this is where the reason
+     * is.
+     *
+     * `id` is refused rather than answered empty: SABnzbd has no idea what a
+     * movie or series id is, and an empty list would read as "nothing ever
+     * happened to that film".
+     */
+    async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
+        if (opts.id !== undefined) {
+            throw new ServiceError('NotFound', this.id, 'SABnzbd has no per-movie or per-series history', {
+                remedy: 'Scope `id` to radarr or sonarr, which know what the id means. SABnzbd answers for the whole client.'
+            });
+        }
+
+        const body = await this.#http.get<RawHistory>('/api?mode=history&limit=100&output=json');
+
+        return (body.history?.slots ?? [])
+            .filter((s): s is RawHistorySlot & { nzo_id: string } => typeof s.nzo_id === 'string')
+            .flatMap(s => {
+                // `completed` is unix seconds. A row that cannot be dated is
+                // dropped rather than stamped with the epoch: `get_history`
+                // sorts and filters `since` as a plain string, so a 1970 date
+                // would quietly sink to the bottom of every answer.
+                if (typeof s.completed !== 'number' || !Number.isFinite(s.completed)) return [];
+                const at = new Date(s.completed * 1000).toISOString();
+                if (opts.since !== undefined && at < opts.since) return [];
+
+                const status = (s.status ?? '').toLowerCase();
+                return [
+                    {
+                        service: this.id,
+                        id: s.nzo_id,
+                        at,
+                        event: status === 'completed' ? 'imported' : status === 'failed' ? 'failed' : 'unknown',
+                        rawEvent: s.status ?? 'unknown',
+                        title: fenceText(s.name ?? '', { service: this.id, field: 'name' }),
+                        ...(s.fail_message
+                            ? { reason: fenceText(s.fail_message, { service: this.id, field: 'fail_message' }) }
+                            : {})
+                    }
+                ];
+            });
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

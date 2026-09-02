@@ -94,7 +94,7 @@ export async function buildGetHistory(
         // and more misleading claim than "this service cannot answer that".
         if (!hasHistory(adapter)) {
             throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no history to return`, {
-                remedy: 'Only radarr and sonarr can answer get_history.'
+                remedy: 'radarr, sonarr, sabnzbd and bazarr can answer get_history. A media server has no download history.'
             });
         }
         scoped = [adapter];
@@ -131,7 +131,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             title: 'Download history',
             annotations: READ_ONLY,
             description:
-                'What happened to a grab after it left the queue: grabbed, imported, failed or deleted, merged across Radarr and Sonarr and normalised to one vocabulary — the upstream spelling survives as `rawEvent`. `trigger_search` only ever hands back a command handle with no way to follow up, and `get_queue` cannot see anything that has already failed or finished; this is how you answer "why did last night\'s download fail". A failure carries the download client\'s own message, fenced and in whatever language it runs in. Pass `service` and `id` to scope to one movie or series.',
+                'What happened to a grab after it left the queue: grabbed, imported, failed or deleted, merged across Radarr, Sonarr and SABnzbd and normalised to one vocabulary — the upstream spelling survives as `rawEvent`. SABnzbd\'s own rows are the layer below the *arrs: when Radarr says it grabbed something and nothing arrived, the download client\'s failure message is here. `trigger_search` only ever hands back a command handle with no way to follow up, and `get_queue` cannot see anything that has already failed or finished; this is how you answer "why did last night\'s download fail". A failure carries the download client\'s own message, fenced and in whatever language it runs in. Pass `service` and `id` to scope to one movie or series.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 service: ServiceIdSchema.optional().describe('Scope to one service. Required alongside `id`.'),
