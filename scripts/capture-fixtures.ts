@@ -35,7 +35,7 @@ import {
     secretsOf,
     type Row
 } from './lib/redact.ts';
-import { firstRatingKeyWithPart } from './lib/plexCapture.ts';
+import { firstRatingKeyWithPart, plexHistoryPath, plexSearchPath, plexSectionAllPath } from './lib/plexCapture.ts';
 
 /**
  * `path` may be a function when the endpoint needs an id from something
@@ -481,20 +481,17 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // A row exists only because he watched or is watching it, so titles
         // are scrubbed too, not just the watch-state numbers. See I1.
         { name: 'ondeck', path: '/library/onDeck', anonymise: anonymisePlexHistory },
-        // His complete watch history. X-Plex-Container-Size matches the query
-        // form PlexAdapter#getWatchHistory sends — a handful of rows proves
-        // the shape without pulling his whole server-wide history. See I1.
-        {
-            name: 'history',
-            path: '/status/sessions/history/all?X-Plex-Container-Start=0&X-Plex-Container-Size=5',
-            anonymise: anonymisePlexHistory
-        },
+        // His complete watch history. Mirrors PlexAdapter#getWatchHistory's
+        // exact query form, including the sort — everything but
+        // X-Plex-Container-Size, deliberately smaller here: a handful of rows
+        // proves the shape without pulling his whole server-wide history. See I1, G1.
+        { name: 'history', path: plexHistoryPath(0, 5), anonymise: anonymisePlexHistory },
         // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
         // library response to the requesting account, so a search result can
         // carry that account's viewCount/lastViewedAt same as any other listing.
         // includeGuids=1 matches what PlexAdapter#search actually sends —
         // without it Plex returns Guid-less rows. See F3.
-        { name: 'search', path: '/search?query=a&includeGuids=1', anonymise: neutralisePlexWatchState },
+        { name: 'search', path: plexSearchPath('a'), anonymise: neutralisePlexWatchState },
         // A short page: the tester's library may hold thousands of items, and
         // the fixture only needs the shape. includeGuids=1 matches what
         // PlexAdapter#paged actually sends (see src/services/plex.ts) — the
@@ -504,9 +501,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             name: 'section-all',
             path: captured => {
                 const key = firstSectionKey(captured.get('sections'));
-                return key === undefined
-                    ? undefined
-                    : `/library/sections/${key}/all?includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=5`;
+                return key === undefined ? undefined : plexSectionAllPath(key, 0, 5);
             },
             anonymise: neutralisePlexWatchState
         },
