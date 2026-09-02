@@ -2,7 +2,14 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasLibraryScan, type ServiceAdapter } from '../services/types.ts';
+import {
+    hasLibraryMaintenance,
+    hasLibraryScan,
+    hasMediaDetails,
+    type LibraryMaintenanceCapable,
+    type LibraryScanCapable,
+    type ServiceAdapter
+} from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
@@ -20,7 +27,11 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * writes whose worst outcome is losing something.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
+const findAdapter = (
+    adapters: readonly ServiceAdapter[],
+    service: ServiceId,
+    instance?: string
+): ServiceAdapter & LibraryScanCapable => {
     const adapter = resolveInstance(adapters, service, instance);
 
     if (!hasLibraryScan(adapter)) {
@@ -29,6 +40,24 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
         // could never happen is how a model concludes the scan is done.
         throw new ServiceError('NotFound', service, `${service} has no library to scan`, {
             remedy: 'Only radarr, sonarr and jellyfin manage a library. For "it downloaded but will not play", jellyfin is almost always the one you want.'
+        });
+    }
+
+    return adapter;
+};
+
+/** The per-item form asks for more: a media server has the whole-library scan
+ *  and neither the refresh nor the rename. */
+const findItemAdapter = (
+    adapters: readonly ServiceAdapter[],
+    service: ServiceId,
+    instance?: string
+): ServiceAdapter & LibraryMaintenanceCapable => {
+    const adapter = resolveInstance(adapters, service, instance);
+
+    if (!hasLibraryMaintenance(adapter)) {
+        throw new ServiceError('NotFound', service, `${service} cannot refresh or rename one item`, {
+            remedy: 'Only radarr and sonarr manage individual items. For a media server, scan the whole library — omit `id`.'
         });
     }
 
@@ -44,18 +73,72 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Scan for new files',
         description:
-            'Asks Radarr, Sonarr or Jellyfin to rescan its library — the "it downloaded but still will not play" action, and the usual fix for what `diagnose` reports as a stale scan. Jellyfin is the one that matters when something is missing from what you can actually watch. This queues the scan and returns immediately; a large library can take minutes, so check `stack_health` afterwards rather than expecting it to be done. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr or Jellyfin; Jellyfin is the one that matters when something is missing from what you can actually watch. With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. Everything here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr, sonarr or jellyfin.'),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION)
+            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            action: z
+                .enum(['scan', 'rename'])
+                .default('scan')
+                .describe(
+                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`.'
+                ),
+            id: z
+                .string()
+                .min(1)
+                .optional()
+                .describe(
+                    'One movie or series id — `acquisition.id` on a get_library record. Omit with action: "scan" to rescan the whole library.'
+                )
         }),
         // Resolved from the arguments, so the permission checked, the audit row
-        // written and the token issued all name the same instance.
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        // written and the token issued all name the same instance. Only the
+        // instance is resolved here — which capability the call needs depends
+        // on `action` and `id`, and `plan` is where that is decided.
+        service: ({ service, instance }) => resolveInstance(adapters, service, instance).id,
         operation: 'trigger_scan',
         tier: 'safe',
 
-        async plan({ service, instance }): Promise<WritePlan> {
+        async plan({ service, instance, action, id }): Promise<WritePlan> {
+            if (action === 'rename' && id === undefined) {
+                throw new Error(
+                    'rename needs an `id`: it renames one item\'s files, and there is no "rename the whole library" here. Take the id from `acquisition.id` on a get_library record.'
+                );
+            }
+
+            if (id !== undefined) {
+                const adapter = findItemAdapter(adapters, service, instance);
+                // Read first, so the preview names a title rather than a
+                // number and a wrong id fails here rather than as a queued
+                // command that runs against nothing.
+                const details = hasMediaDetails(adapter)
+                    ? await adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 1 })
+                    : undefined;
+                const label =
+                    details === undefined
+                        ? `${service} item ${id}`
+                        : `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+
+                return {
+                    target: `${adapter.id}:${id}`,
+                    summary:
+                        action === 'rename'
+                            ? `Rename the files of ${label} in ${adapter.id}.`
+                            : `Ask ${adapter.id} to re-read ${label} from disk.`,
+                    effects:
+                        action === 'rename'
+                            ? [
+                                  `Renames the files of ${label} on disk to ${adapter.id}'s own naming scheme. Nothing is deleted, and renaming again with a different scheme puts them back.`,
+                                  'A media server that indexed the old paths will need its own rescan afterwards.'
+                              ]
+                            : [
+                                  `Rescans ${label}'s folder and re-reads its metadata.`,
+                                  'Finds files added or moved on disk since the last scan, without touching the rest of the library.'
+                              ],
+                    args: { service, action, id, ...(instance === undefined ? {} : { instance }) }
+                };
+            }
+
             const adapter = findAdapter(adapters, service, instance);
 
             return {
@@ -70,7 +153,13 @@ export function registerTriggerScan(
             };
         },
 
-        async apply(_plan, { service, instance }) {
+        async apply(_plan, { service, instance, action, id }) {
+            if (id !== undefined) {
+                const item = findItemAdapter(adapters, service, instance);
+                const queued = action === 'rename' ? await item.renameItem(id) : await item.refreshItem(id);
+                return `${item.id} queued ${queued.name} for item ${id}. It runs in the background — stack_health's \`commands\` list says whether it has finished.`;
+            }
+
             const adapter = findAdapter(adapters, service, instance);
             const handle = await adapter.startLibraryScan();
 

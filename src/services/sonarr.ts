@@ -9,6 +9,7 @@ import { applyLimit } from '../core/shape.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, SONARR_ADD } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
@@ -43,6 +44,7 @@ import {
     type EpisodeFile,
     type EpisodeFileCapable,
     type MediaAddCapable,
+    type LibraryMaintenanceCapable,
     type MediaUpdateCapable,
     type MediaUpdateOptions,
     type MediaUpdateState,
@@ -139,6 +141,7 @@ export class SonarrAdapter
         MediaDeleteCapable,
         MediaAddCapable,
         MediaUpdateCapable,
+        LibraryMaintenanceCapable,
         MonitoringCapable,
         EpisodeFileCapable,
         HistoryCapable,
@@ -231,6 +234,14 @@ export class SonarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async refreshItem(id: string): Promise<CommandHandle> {
+        return refreshArrItem(this.#http, this.id, 'series', id);
+    }
+
+    async renameItem(id: string): Promise<CommandHandle> {
+        return renameArrItem(this.#http, this.id, 'series', id);
     }
 
     async readForUpdate(id: string): Promise<MediaUpdateState> {

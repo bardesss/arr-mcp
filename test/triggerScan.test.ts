@@ -203,3 +203,69 @@ describe('trigger_scan', () => {
         await expect(harness().call({ service: 'prowlarr', dry_run: true })).rejects.toThrow(/no library/i);
     });
 });
+
+/**
+ * "It downloaded but Jellyfin cannot see it" has more than one cause, and
+ * until now the only follow-up write was a whole-library scan. These are the
+ * other two: re-read one item, and rename its files to the naming scheme.
+ */
+describe('trigger_scan on a single item', () => {
+    const arrRoutes = () => ({
+        '/api/v3/movie/15': { id: 15, title: 'Heat', year: 1995 },
+        '/api/v3/command': { id: 77, name: 'RefreshMovie', status: 'queued' }
+    });
+
+    const radarrHarness = () => {
+        const radarr = recordingFetch(arrRoutes());
+        return {
+            ...harness({
+                adapters: [new RadarrAdapter(keyed(7878), radarr.impl)],
+                permissions: { radarr: permissive(true) }
+            }),
+            radarr
+        };
+    };
+
+    const bodies = (impl: ReturnType<typeof recordingFetch>) =>
+        impl.sent.filter(x => x.method === 'POST').map(x => x.url);
+
+    it('refreshes one movie rather than the whole library', async () => {
+        const h = radarrHarness();
+        const first = await h.call({ service: 'radarr', id: '15' });
+        await h.call({ service: 'radarr', id: '15', confirm: first.structuredContent.confirm_token });
+        expect(bodies(h.radarr)).toContain('/api/v3/command');
+    });
+
+    it('names the title in the preview rather than a bare id', async () => {
+        const h = radarrHarness();
+        const { structuredContent } = await h.call({ service: 'radarr', id: '15', dry_run: true });
+        expect(structuredContent.summary).toContain('Heat');
+    });
+
+    it('says a rename moves files on disk', async () => {
+        const h = radarrHarness();
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            id: '15',
+            action: 'rename',
+            dry_run: true
+        });
+        expect(structuredContent.effects.join(' ')).toMatch(/renames/i);
+    });
+
+    it('refuses a rename with no id — there is no "rename the library"', async () => {
+        const h = radarrHarness();
+        await expect(h.call({ service: 'radarr', action: 'rename', dry_run: true })).rejects.toThrow(/id/i);
+    });
+
+    it('refuses an id on a service that cannot describe one item', async () => {
+        const h = harness();
+        await expect(h.call({ service: 'jellyfin', id: '15', dry_run: true })).rejects.toThrow(/radarr|sonarr/i);
+    });
+
+    it('still scans the whole library when no id is given', async () => {
+        const h = harness();
+        const { structuredContent } = await h.call({ service: 'jellyfin', dry_run: true });
+        expect(structuredContent.summary).toMatch(/rescan its library/i);
+    });
+});

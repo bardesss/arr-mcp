@@ -8,6 +8,7 @@ import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
@@ -39,6 +40,7 @@ import {
     type CommandHandle,
     type DeleteMediaOptions,
     type MediaAddCapable,
+    type LibraryMaintenanceCapable,
     type MediaUpdateCapable,
     type MediaUpdateOptions,
     type MediaUpdateState,
@@ -116,6 +118,7 @@ export class RadarrAdapter
         MediaDeleteCapable,
         MediaAddCapable,
         MediaUpdateCapable,
+        LibraryMaintenanceCapable,
         HistoryCapable,
         WantedCapable,
         ReleaseSearchCapable
@@ -207,6 +210,14 @@ export class RadarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async refreshItem(id: string): Promise<CommandHandle> {
+        return refreshArrItem(this.#http, this.id, 'movie', id);
+    }
+
+    async renameItem(id: string): Promise<CommandHandle> {
+        return renameArrItem(this.#http, this.id, 'movie', id);
     }
 
     async readForUpdate(id: string): Promise<MediaUpdateState> {

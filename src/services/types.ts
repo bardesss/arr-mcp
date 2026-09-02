@@ -544,6 +544,21 @@ export const hasLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & Library
     typeof (a as Partial<LibraryScanCapable>).startLibraryScan === 'function';
 
 /**
+ * The per-item half of the same idea: reconcile one thing with what is on
+ * disk, rather than the whole library. Separate from `LibraryScanCapable`
+ * because a media server has the whole-library scan and neither of these.
+ */
+export interface LibraryMaintenanceCapable {
+    /** Rescan one item's folder and re-read its metadata. */
+    refreshItem(id: string): Promise<CommandHandle>;
+    /** Rename that item's files to the service's own naming scheme. */
+    renameItem(id: string): Promise<CommandHandle>;
+}
+
+export const hasLibraryMaintenance = (a: ServiceAdapter): a is ServiceAdapter & LibraryMaintenanceCapable =>
+    typeof (a as Partial<LibraryMaintenanceCapable>).refreshItem === 'function';
+
+/**
  * Both flags default to the *least* destructive reading at every layer — the
  * tool schema, the adapter signature and the service call — so a caller that
  * forgets one deletes less than they asked for rather than more.
