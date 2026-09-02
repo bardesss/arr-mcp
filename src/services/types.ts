@@ -667,17 +667,33 @@ export type AddCandidate = {
     existingId?: number;
 };
 
+/** Raw `label` for matching, fenced `display` for prose — the same split
+ *  `QualityProfile` makes, for the same reason. */
+export type Tag = { id: number; label: string; display: string };
+
 export type AddMediaOptions = {
     externalId: string;
     qualityProfileId: number;
     rootFolderPath: string;
     monitored: boolean;
     searchNow: boolean;
+    /** Sonarr's `MonitorTypes` — which seasons to monitor on add. Sonarr
+     *  computes the per-season flags itself, which is why this is passed
+     *  through rather than turned into a season list here. */
+    monitor?: string;
+    /** Radarr's `MovieStatusType` threshold. Defaults to `released`. */
+    minimumAvailability?: string;
+    /** Sonarr's `SeriesTypes` — the numbering scheme. */
+    seriesType?: string;
+    tagIds?: number[];
 };
 
 export interface MediaAddCapable {
     listQualityProfiles(): Promise<QualityProfile[]>;
     listRootFolders(): Promise<RootFolder[]>;
+    /** The tags the instance already has. Nothing here ever creates one — an
+     *  unknown label is a refusal listing these. */
+    listTags(): Promise<Tag[]>;
     /** Resolves the external id — TMDB for Radarr, TVDB for Sonarr. */
     lookupForAdd(externalId: string): Promise<AddCandidate>;
     addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }>;

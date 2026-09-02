@@ -6,7 +6,7 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
-import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders } from './arrAdd.ts';
+import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
@@ -44,6 +44,7 @@ import {
     type ReleaseCandidate,
     type ReleaseSearchCapable,
     type RootFolder,
+    type Tag,
     type RemoveQueueOptions,
     type SearchCapable,
     type SearchHit,
@@ -197,6 +198,10 @@ export class RadarrAdapter
 
     async listRootFolders(): Promise<RootFolder[]> {
         return readRootFolders(this.#http, this.id);
+    }
+
+    async listTags(): Promise<Tag[]> {
+        return readTags(this.#http, this.id);
     }
 
     /** Radarr resolves by TMDB id; a TVDB id will simply match nothing. */

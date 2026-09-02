@@ -8,7 +8,8 @@ import {
     type MediaAddCapable,
     type QualityProfile,
     type RootFolder,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type Tag
 } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
@@ -119,6 +120,15 @@ const PROFILE_MATCH = {
         !isNumeric(requested) && p.name.toLowerCase().includes(requested.toLowerCase())
 };
 
+/** Tags are single words, so a substring match would let "kid" hit "kids"
+ *  and "kids-tv" at once — which `chooseOne` then refuses. Exact or id. */
+const TAG_MATCH = {
+    exact: (t: Tag, requested: string): boolean =>
+        String(t.id) === requested || t.label.toLowerCase() === requested.toLowerCase(),
+    loose: (t: Tag, requested: string): boolean =>
+        !isNumeric(requested) && t.label.toLowerCase().includes(requested.toLowerCase())
+};
+
 const FOLDER_MATCH = {
     exact: (f: RootFolder, requested: string): boolean => f.path.toLowerCase() === requested.toLowerCase(),
     loose: (f: RootFolder, requested: string): boolean => f.path.toLowerCase().includes(requested.toLowerCase())
@@ -129,7 +139,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         name: 'add_media',
         title: 'Add a film or series',
         description:
-            'Adds a film to Radarr or a series to Sonarr and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr takes a TVDB id — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes. Previews by default — call again with the returned `confirm` token to actually add it.',
+            'Adds a film to Radarr or a series to Sonarr and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr takes a TVDB id — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes — `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. Sonarr also takes `monitor` (which seasons: `future` is "only what has not aired yet") and `series_type`; Radarr takes `minimum_availability`. An option sent to the wrong service is refused, not dropped. Previews by default — call again with the returned `confirm` token to actually add it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr for a film, sonarr for a series.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
@@ -146,6 +156,28 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 .optional()
                 .describe('Root folder path, or any distinctive part of it. Optional only when the service has exactly one.'),
             monitored: z.boolean().default(true).describe('Monitor it for downloads. Defaults to true.'),
+            monitor: z
+                .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'none'])
+                .optional()
+                .describe(
+                    'Sonarr only: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. Omit for Sonarr\'s own default. Radarr has no seasons — use `monitored` there.'
+                ),
+            minimum_availability: z
+                .enum(['announced', 'inCinemas', 'released'])
+                .optional()
+                .describe(
+                    'Radarr only: how early it may grab. Defaults to `released`, which is what stops a brand-new film grabbing a cinema recording the day it is announced.'
+                ),
+            series_type: z
+                .enum(['standard', 'daily', 'anime'])
+                .optional()
+                .describe('Sonarr only: the numbering scheme. `anime` for absolute numbering, `daily` for date-based.'),
+            tags: z
+                .array(z.string().min(1))
+                .optional()
+                .describe(
+                    'Tag labels or ids the service already has. An unknown label is refused, listing the ones that exist — nothing here ever creates a tag.'
+                ),
             search_now: z
                 .boolean()
                 .default(true)
@@ -158,16 +190,49 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         operation: 'add_media',
         tier: 'safe',
 
-        async plan({ service, instance, external_id, quality_profile, root_folder, monitored, search_now }): Promise<WritePlan> {
+        async plan({
+            service,
+            instance,
+            external_id,
+            quality_profile,
+            root_folder,
+            monitored,
+            search_now,
+            monitor,
+            minimum_availability,
+            series_type,
+            tags
+        }): Promise<WritePlan> {
             const adapter = findAdapter(adapters, service, instance);
 
-            // All three reads together: they are independent, and a preview
-            // that takes three sequential round trips on a LAN service is
-            // needlessly slow.
-            const [candidate, profiles, folders] = await Promise.all([
+            // Refused before any call, and named for the service that *does*
+            // have the option: silently dropping one would add the series with
+            // every season monitored against an explicit "future only".
+            if (monitor !== undefined && adapter.type !== 'sonarr') {
+                throw new ServiceError('NotFound', service, 'monitor mode is a Sonarr option', {
+                    remedy: 'Films have no seasons. Use `monitored` on Radarr, and `minimum_availability` for how early it may grab.'
+                });
+            }
+            if (series_type !== undefined && adapter.type !== 'sonarr') {
+                throw new ServiceError('NotFound', service, 'series_type is a Sonarr option', {
+                    remedy: 'Films have no numbering scheme. Drop it.'
+                });
+            }
+            if (minimum_availability !== undefined && adapter.type !== 'radarr') {
+                throw new ServiceError('NotFound', service, 'minimum_availability is a Radarr option', {
+                    remedy: 'Sonarr grabs each episode as it airs. Use `monitor` to choose which seasons.'
+                });
+            }
+
+            // Together: they are independent, and a preview that takes three
+            // sequential round trips on a LAN service is needlessly slow. The
+            // tag list is only read when tags were asked for — an add that
+            // wants none must not fail because the tag endpoint is down.
+            const [candidate, profiles, folders, knownTags] = await Promise.all([
                 adapter.lookupForAdd(external_id),
                 adapter.listQualityProfiles(),
-                adapter.listRootFolders()
+                adapter.listRootFolders(),
+                tags === undefined ? Promise.resolve([]) : adapter.listTags()
             ]);
 
             const label = `${candidate.title}${candidate.year === undefined ? '' : ` (${candidate.year})`}`;
@@ -201,12 +266,33 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 service
             );
 
+            // Resolved one at a time so the refusal names the label that
+            // missed, not the whole list.
+            const resolvedTags = (tags ?? []).map(requested =>
+                chooseOne(knownTags, requested, TAG_MATCH, t => `${t.display} (id ${t.id})`, 'tag', service)
+            );
+
             const effects = [
                 `Adds ${label} to ${service} under ${folder.display} (${freeSpace(folder)}), quality profile ${profile.display} (id ${profile.id}).`,
                 monitored
                     ? 'Monitors it, so it will be grabbed when a matching release appears.'
                     : 'Adds it unmonitored, so nothing will be grabbed until you monitor it.'
             ];
+
+            if (monitor !== undefined) {
+                effects.push(
+                    monitor === 'none'
+                        ? 'Monitors no season, so nothing is grabbed until a season or episode is monitored.'
+                        : `Monitors the "${monitor}" set of seasons — Sonarr works out which those are.`
+                );
+            }
+            if (minimum_availability !== undefined) {
+                effects.push(`Will not grab anything until the film is ${minimum_availability}.`);
+            }
+            if (series_type !== undefined) effects.push(`Treats it as ${series_type} numbering.`);
+            if (resolvedTags.length > 0) {
+                effects.push(`Tags it ${resolvedTags.map(t => t.display).join(', ')}.`);
+            }
 
             effects.push(
                 search_now
@@ -228,7 +314,11 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     qualityProfileId: profile.id,
                     rootFolderPath: folder.path,
                     monitored,
-                    searchNow: search_now
+                    searchNow: search_now,
+                    ...(monitor === undefined ? {} : { monitor }),
+                    ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
+                    ...(series_type === undefined ? {} : { seriesType: series_type }),
+                    ...(resolvedTags.length === 0 ? {} : { tagIds: resolvedTags.map(t => t.id) })
                 }
             };
         },
@@ -240,6 +330,10 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 rootFolderPath: string;
                 monitored: boolean;
                 searchNow: boolean;
+                monitor?: string;
+                minimumAvailability?: string;
+                seriesType?: string;
+                tagIds?: number[];
             };
 
             // Taken from the plan rather than re-resolved from the arguments:
@@ -251,7 +345,11 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 qualityProfileId: a.qualityProfileId,
                 rootFolderPath: a.rootFolderPath,
                 monitored: a.monitored,
-                searchNow: a.searchNow
+                searchNow: a.searchNow,
+                ...(a.monitor === undefined ? {} : { monitor: a.monitor }),
+                ...(a.minimumAvailability === undefined ? {} : { minimumAvailability: a.minimumAvailability }),
+                ...(a.seriesType === undefined ? {} : { seriesType: a.seriesType }),
+                ...(a.tagIds === undefined ? {} : { tagIds: a.tagIds })
             });
         }
     });
