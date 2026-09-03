@@ -12,7 +12,7 @@ import {
     neutralisePlexWatchState,
     redact,
     redactHosts,
-    redactPlexSearchRow,
+    redactPlexLibraryListing,
     redactPlexSessions,
     replaceIfString,
     secretsOf,
@@ -987,38 +987,61 @@ describe('anonymisePlexSections', () => {
 });
 
 /**
- * `/search` rows keep title/summary/studio real, by design — a library
- * listing, not a watch record. `sourceTitle` (verified on the tester's
- * server as his own Plex `friendlyName`, not a media title) and
- * `librarySectionUUID` (a stable per-library identifier) are not.
+ * `search`, `section-all` and `metadata-detail` rows keep title/summary/
+ * studio real, by design — a library listing, not a watch record.
+ * `sourceTitle` (verified on the tester's server as his own Plex
+ * `friendlyName`, not a media title) and `librarySectionUUID` (a stable
+ * per-library identifier) are not — on the row *and* on the container itself,
+ * since `section-all`/`metadata-detail` both send `librarySectionUUID` at
+ * `MediaContainer` level, not only per-row.
  */
-describe('redactPlexSearchRow', () => {
+describe('redactPlexLibraryListing', () => {
     const search = (rows: Record<string, unknown>[]) => ({ MediaContainer: { Metadata: rows } });
 
     it('blanks sourceTitle, the server friendly name, not a media title', () => {
         const body = search([{ ratingKey: '1', title: 'A Film', sourceTitle: "Bartus's Plex Server" }]);
-        const [row] = (redactPlexSearchRow(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+        const [row] = (redactPlexLibraryListing(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
             .MediaContainer.Metadata;
         expect(row?.sourceTitle).not.toBe("Bartus's Plex Server");
     });
 
-    it('blanks librarySectionUUID', () => {
+    it('blanks librarySectionUUID on a row', () => {
         const body = search([{ ratingKey: '1', librarySectionUUID: 'a1b2c3d4-real-library-uuid' }]);
-        const [row] = (redactPlexSearchRow(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+        const [row] = (redactPlexLibraryListing(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
             .MediaContainer.Metadata;
         expect(row?.librarySectionUUID).not.toBe('a1b2c3d4-real-library-uuid');
     });
 
-    it('leaves title untouched — search is a library listing, real by design', () => {
+    // section-all/metadata-detail send librarySectionUUID on the
+    // MediaContainer itself, not only per-row — a plain container spread
+    // (the shape every other anonymiser here uses) lets it ride through
+    // unchanged. The row-only `search` helper above cannot exercise this: its
+    // container only ever holds Metadata, so both copies have to be built by
+    // hand here.
+    it('blanks librarySectionUUID on the container itself, not only per-row', () => {
+        const body = {
+            MediaContainer: {
+                librarySectionUUID: 'a1b2c3d4-real-library-uuid',
+                Metadata: [{ ratingKey: '1', librarySectionUUID: 'a1b2c3d4-real-library-uuid' }]
+            }
+        };
+        const result = redactPlexLibraryListing(body) as {
+            MediaContainer: { librarySectionUUID: unknown; Metadata: Record<string, unknown>[] };
+        };
+        expect(result.MediaContainer.librarySectionUUID).not.toBe('a1b2c3d4-real-library-uuid');
+        expect(result.MediaContainer.Metadata[0]?.librarySectionUUID).not.toBe('a1b2c3d4-real-library-uuid');
+    });
+
+    it('leaves title untouched — search/section-all/metadata-detail are library listings, real by design', () => {
         const body = search([{ ratingKey: '1', title: 'A Film' }]);
-        const [row] = (redactPlexSearchRow(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+        const [row] = (redactPlexLibraryListing(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
             .MediaContainer.Metadata;
         expect(row?.title).toBe('A Film');
     });
 
     it('is a no-op on a body with no Metadata array', () => {
         const body = { MediaContainer: { version: '1.32.0' } };
-        expect(redactPlexSearchRow(body)).toEqual(body);
+        expect(redactPlexLibraryListing(body)).toEqual(body);
     });
 });
 

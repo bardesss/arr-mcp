@@ -643,22 +643,37 @@ export function anonymisePlexSections(body: unknown): unknown {
 }
 
 /**
- * `/search` rows are a library listing, same as `section-all`/
- * `metadata-detail` — title/summary/studio stay real by design (see
- * `neutralisePlexWatchState`'s doc). Two top-level fields on a hit are not
- * media data even so: `sourceTitle`, verified on the tester's server as his
- * own Plex `friendlyName` rather than a media title and not read by
- * `PlexAdapter#search`, and `librarySectionUUID`, the same stable per-library
- * identifier `IDENTIFYING_SLUG_KEYS` already blanks when it turns up on an
- * onDeck/history row.
+ * Sanitises a whole library-listing *response* — `search`, `section-all` and
+ * `metadata-detail` all share this shape, of which search is only one —
+ * title/summary/studio stay real by design (see `neutralisePlexWatchState`'s
+ * doc). Two fields are not media data even so: `sourceTitle`, verified on the
+ * tester's server as his own Plex `friendlyName` rather than a media title
+ * and only ever sent per-row (not read by `PlexAdapter#search` either way),
+ * and `librarySectionUUID`, the same stable per-library identifier
+ * `IDENTIFYING_SLUG_KEYS` already blanks when it turns up on an onDeck/history
+ * row.
+ *
+ * `librarySectionUUID` is scrubbed on the row *and* on `MediaContainer`
+ * itself: `section-all`/`metadata-detail` both also send it at container
+ * level (a listing scoped to one library, so the container names that
+ * library), which a plain `...container` spread — the shape this function,
+ * and several others in this file, build their return value with — lets ride
+ * through unscrubbed. `search`'s container doesn't carry it (verified on the
+ * tester's server), which is exactly why the container-level leak went
+ * unnoticed here for as long as it did: this function used to run on search
+ * alone, the one endpoint that happened not to have it.
  */
-export function redactPlexSearchRow(body: unknown): unknown {
+export function redactPlexLibraryListing(body: unknown): unknown {
     const container = (body as MetadataContainer).MediaContainer;
     if (!Array.isArray(container?.Metadata)) return body;
+    const containerRow = container as Row;
     return {
         ...(body as Row),
         MediaContainer: {
             ...container,
+            ...('librarySectionUUID' in containerRow
+                ? { librarySectionUUID: replaceIfString(containerRow.librarySectionUUID, '') }
+                : {}),
             Metadata: container.Metadata.map(item => ({
                 ...item,
                 ...('sourceTitle' in item ? { sourceTitle: replaceIfString(item.sourceTitle, '') } : {}),

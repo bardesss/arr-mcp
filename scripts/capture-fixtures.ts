@@ -35,7 +35,7 @@ import {
     neutralisePlexWatchState,
     redact,
     redactHosts,
-    redactPlexSearchRow,
+    redactPlexLibraryListing,
     redactPlexSessions,
     replaceIfString,
     secretsOf,
@@ -498,7 +498,17 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // User.title/User.thumb (a username and an avatar URL that can embed
         // an account id). User.id is kept but remapped, same reasoning as
         // `accounts` above — it joins to the same account there. See G2.
-        { name: 'sessions', path: '/status/sessions', anonymise: body => redactPlexSessions(body, mapPlexAccountId) },
+        //
+        // excludeFields=summary only, not excludeElements: verified on the
+        // tester's server that /status/sessions silently ignores
+        // excludeElements (onDeck, queried the same way, honours it — that's
+        // the control) rather than erroring or trimming anything, so it would
+        // look like a working trim in code while doing nothing to the
+        // response. excludeFields IS honoured here, so it's kept as a free
+        // second layer on top of the row-level scrub, which is what's
+        // actually doing the work. Do not "simplify" this to match onDeck's
+        // excludeElements — that would silently stop trimming anything.
+        { name: 'sessions', path: '/status/sessions?excludeFields=summary', anonymise: body => redactPlexSessions(body, mapPlexAccountId) },
         // The tester's resume list — his most recent watch state, per item.
         // A row exists only because he watched or is watching it, so titles
         // are scrubbed too, not just the watch-state numbers. See I1.
@@ -528,11 +538,11 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // stay real (a library listing, published by design), but
         // sourceTitle (the server's own friendlyName) and librarySectionUUID
         // are not media data, and Media[].Part[].file is the tester's real
-        // path, not a title — see redactPlexSearchRow/synthesisePlexFilePaths.
+        // path, not a title — see redactPlexLibraryListing/synthesisePlexFilePaths.
         {
             name: 'search',
             path: plexSearchPath('a'),
-            anonymise: body => synthesisePlexFilePaths(redactPlexSearchRow(neutralisePlexWatchState(body)))
+            anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
         },
         // A short page: the tester's library may hold thousands of items, and
         // the fixture only needs the shape. includeGuids=1 matches what
@@ -556,26 +566,30 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             // record (design §7; see neutralisePlexWatchState's own comment
             // in redact.ts) — but Media[].Part[].file is a real on-disk path,
             // not a title, so it is synthesised rather than published; See
-            // B3 and synthesisePlexFilePaths's own doc.
+            // B3 and synthesisePlexFilePaths's own doc. section-all's
+            // MediaContainer itself also carries the real librarySectionUUID
+            // (this listing is scoped to one library) — redactPlexLibraryListing
+            // handles that, same as it does for search/metadata-detail.
             fetch: async (http, captured) => {
                 const keys = sectionKeys(captured.get('sections'));
                 if (keys.length === 0) return undefined;
                 const picked = await firstPartBearingSectionAll(keys, key => http.get<unknown>(plexSectionAllPath(key, 0, 5)));
                 return picked === undefined ? undefined : { path: plexSectionAllPath(picked.key, 0, 5), body: picked.body };
             },
-            anonymise: body => synthesisePlexFilePaths(neutralisePlexWatchState(body))
+            anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
         },
         {
             name: 'metadata-detail',
             // Deliberately not the *first* item: a section can list a
             // Part-less row first (a bare `show` container, say), and a
             // fixture built from one never contracts getMediaDetails'
-            // Media[0].Part[0].file/.size mapping. See G3.
+            // Media[0].Part[0].file/.size mapping. See G3. Same
+            // container-level librarySectionUUID as section-all above.
             path: captured => {
                 const id = firstRatingKeyWithPart(captured.get('section-all'));
                 return id === undefined ? undefined : `/library/metadata/${id}`;
             },
-            anonymise: body => synthesisePlexFilePaths(neutralisePlexWatchState(body))
+            anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
         }
     ]
 };
