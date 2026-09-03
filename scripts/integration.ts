@@ -136,6 +136,9 @@ const DYNAMIC_TOOLS: ToolName[] = [
     'respond_to_request',
     'delete_request',
     'add_media',
+    // Needs a real service+id, like the writes above, and is driven off the
+    // same searchableHit. Dry run: a real call would move files.
+    'update_media',
     // Sonarr-only, and both need a real series id — the same reason as the
     // five above. Driven as dry runs off the first Sonarr search hit.
     'set_monitoring',
@@ -594,6 +597,27 @@ if (addCandidate === undefined) {
 }
 
 /**
+ * update_media, dry run only — a real call can move files on disk. Two cases:
+ * a monitoring change (which is either a change or an honest no-op) and the
+ * refuse-to-guess path a bare profile name takes on a multi-profile instance.
+ */
+if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+    await run(
+        'update_media',
+        { service: searchableHit.service, id: String(searchableHit.id), monitored: true, dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+    await expectError(
+        'update_media',
+        { service: searchableHit.service, id: String(searchableHit.id), dry_run: true },
+        /Nothing to change/i,
+        'refuses a call that names no field'
+    );
+} else {
+    console.log('SKIP update_media — search_media returned no *arr hit to preview against.');
+}
+
+/**
  * trigger_scan and trigger_subtitle_search, dry run only — a real scan costs a
  * maintainer disk I/O on every run, and a real subtitle search hits providers.
  */
@@ -603,6 +627,43 @@ if (scannable === undefined) {
     console.log('SKIP trigger_scan — no service with a library to scan is configured.');
 } else {
     await run('trigger_scan', { service: scannable, dry_run: true }, 'DRY RUN ONLY — never applied from this script');
+}
+
+if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+    await run(
+        'trigger_scan',
+        { service: searchableHit.service, id: String(searchableHit.id), dry_run: true },
+        'DRY RUN ONLY — the per-item refresh'
+    );
+    await run(
+        'trigger_scan',
+        { service: searchableHit.service, id: String(searchableHit.id), action: 'rename', dry_run: true },
+        'DRY RUN ONLY — the per-item rename'
+    );
+}
+
+/**
+ * The manual import, previewed against whatever the queue actually holds.
+ * Skipped rather than invented when nothing is downloading: a made-up
+ * download id captures a refusal, not the mapping.
+ */
+const queueRow = (queueResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
+    | { service?: unknown; downloadId?: unknown }
+    | undefined;
+
+if (typeof queueRow?.service === 'string' && typeof queueRow.downloadId === 'string') {
+    await run(
+        'trigger_scan',
+        {
+            service: queueRow.service.split('/')[0],
+            action: 'import',
+            download_id: queueRow.downloadId,
+            dry_run: true
+        },
+        'DRY RUN ONLY — the manual import path'
+    );
+} else {
+    console.log('SKIP trigger_scan import — nothing in the queue carries a downloadId to preview against.');
 }
 
 const gap = (subtitlesResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as

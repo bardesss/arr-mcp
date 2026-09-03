@@ -68,8 +68,33 @@ export type MergedItem = {
     ids: ExternalIds;
     acquisition?: {
         service: string;
+        /**
+         * The managing service's own id, as an integer string — the value
+         * `delete_media`, `trigger_search`, `set_monitoring`, `get_releases`
+         * and `update_media` all take as `id`. Absent when the service
+         * reported none, which is what a lookup for something not in the
+         * library returns.
+         */
+        id?: string;
+        /**
+         * The managing service's own status word — `continuing`, `ended` or
+         * `upcoming` from Sonarr, `announced`, `inCinemas` or `released` from
+         * Radarr. Passed through rather than normalised: the two vocabularies
+         * describe different things, and one shared spelling would invent a
+         * third meaning neither service holds.
+         */
+        status?: string;
         monitored: boolean;
         hasFile: boolean;
+        /**
+         * The profile the service grabs against. A present `qualityProfileId`
+         * with no `qualityProfile` means the profile list could not be read,
+         * not that the item has no profile.
+         */
+        qualityProfileId?: number;
+        qualityProfile?: string;
+        /** Where the managing service keeps it on disk. */
+        path?: string;
         quality?: string;
         sizeBytes?: number;
         /**
@@ -83,10 +108,15 @@ export type MergedItem = {
          */
         addedAt?: string;
     };
-    // `watched` is itself optional, not just the whole object: a Plex series
-    // with no leaf counts reported has genuinely unknown completion, which is
-    // a different fact from "not watched".
-    playback?: { user: string; watched?: boolean; playCount?: number; lastPlayed?: string };
+    /**
+     * `itemId` is the media server's own id for this title — what `set_watched`
+     * takes. Named for the media server, not for Jellyfin.
+     *
+     * `watched` is optional in its own right, not merely because the object is:
+     * a Plex series reporting no leaf counts has genuinely unknown completion,
+     * which is a different fact from "not watched".
+     */
+    playback?: { user: string; itemId?: string; watched?: boolean; playCount?: number; lastPlayed?: string };
     /** Series only. Films have no seasons and carry this field never. */
     seasons?: SeasonSummary[];
     ratings?: MergedRatings;

@@ -96,9 +96,14 @@ describe('LibraryLoader', () => {
             timeout_ms: 10_000,
             permissions: { safe_write: false, destructive: false }
         };
+        // Counts the *library* read alone: `listLibrary` also fetches the
+        // quality profiles, and a bare call count would then be measuring how
+        // many endpoints a build touches rather than whether the cache was
+        // dropped.
         let fetches = 0;
-        const fetchImpl = (async () => {
-            fetches += 1;
+        const fetchImpl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/api/v3/movie') fetches += 1;
             return new Response(JSON.stringify([{ id: 1, title: 'Some Film', year: 2026, tmdbId: 550 }]), {
                 status: 200,
                 headers: { 'content-type': 'application/json' }

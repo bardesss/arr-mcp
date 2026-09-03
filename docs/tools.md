@@ -1,7 +1,7 @@
 # Tools
 
-Thirty-three of them. The first seventeen read; the last sixteen write, and are off
-until you turn them on — see [writes](writes.md).
+Thirty-four of them. The first seventeen read; the last seventeen write, and are
+off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
 | --- | --- |
@@ -11,7 +11,7 @@ until you turn them on — see [writes](writes.md).
 | `get_media_details` | Everything about one item |
 | `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
 | `get_queue` | What is downloading, across all four download paths |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd and Bazarr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included |
 | `get_calendar` | What is due, and what just aired |
@@ -22,7 +22,7 @@ until you turn them on — see [writes](writes.md).
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
-| `trigger_scan` | Rescan a library — it downloaded but still will not play |
+| `trigger_scan` | Rescan a library, refresh or rename one item, or import a download that never landed |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
@@ -32,6 +32,7 @@ until you turn them on — see [writes](writes.md).
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
 | `add_media` | Add this film or series and start looking for it |
+| `update_media` | Change the profile, folder, monitoring or tags of something already there |
 
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
@@ -88,10 +89,10 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the seventeen that only
-read, and on the sixteen writes `destructiveHint`, taken from the same permission
+read, and on the seventeen writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from thirty-three similarly-shaped
+about, reads those rather than guessing from thirty-four similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -140,7 +141,62 @@ beside `config.yaml` and imports `loadConfig`.
 `endpoints` is absent at `detail: "minimal"`, alongside `permissions` — a URL is
 no more a fault than a grant is.
 
+### What each instance will accept, at `detail: "full"`
+
+`options` lists, per Radarr/Sonarr instance, the `qualityProfiles`,
+`rootFolders` and `tags` it actually has. These are the values `add_media` and
+`update_media` refuse to guess at: with more than one profile they insist you
+name which, and this is where the names come from. Only at `full`, because it
+is three extra calls per instance and it answers "what may I choose", not "is
+anything broken". An instance whose profile list cannot be read is named in
+`degraded` and left out of `options` — the rest of the answer stands.
+
+### Did that command finish?
+
+`commands` is every **followable** task a service has queued or running, plus
+anything it finished in the last fifteen minutes: `commandId`, `name`, `status`
+(`queued`, `started`, `completed`, `failed`), and the times. It is the
+follow-up `trigger_search` and `trigger_scan` never had — both hand back a
+command id and return immediately, and until now the only way to know whether
+one had finished was to wait and re-read the queue.
+
+Followable means the tasks this server can start — searches, scans, refreshes,
+renames, imports, the Prowlarr sync. A live instance also runs its own
+housekeeping every minute, and it is left out: measured on a quiet stack the
+unfiltered window held 37 rows, every one of them a poller, which is how the
+one row you asked about gets lost. Filtering on the command's `trigger` would
+not have helped — Radarr reports its own per-minute refresh as `manual`.
+
+**A command that is not in the list has finished.** The fifteen-minute window
+is what makes that readable rather than merely true: a search you started a
+minute ago is still there with its outcome. Older than that is history, which
+`get_history` answers. Absent at `detail: "minimal"` — a running command is
+not a fault — and bounded like `scans` rather than sharing the `limit` budget.
+
 ## `get_library`
+
+### The ids a write needs
+
+Every merged record carries, under `acquisition`:
+
+| Field | What it is |
+| --- | --- |
+| `id` | The managing service's own id, as an integer string. This is what `delete_media`, `trigger_search`, `set_monitoring`, `get_releases` and `update_media` take as `id`. |
+| `status` | The service's own status word — `continuing`, `ended` or `upcoming` from Sonarr; `announced`, `inCinemas` or `released` from Radarr. Passed through, never normalised: the two vocabularies describe different things. |
+| `qualityProfileId`, `qualityProfile` | The profile it grabs against, and its name. |
+| `path` | Where the service keeps it on disk. |
+
+and, under `playback`, `itemId` — the media server's own id, which is what
+`set_watched` takes.
+
+Before this, a caller had the external ids and nothing a write would accept,
+so answering "delete this" meant a second `search_media(source: "library")` hop
+to find the id for a title `get_library` had just returned.
+
+**A present `qualityProfileId` with no `qualityProfile` means the profile list
+could not be read** — not that the item has no profile. The profile names are
+one extra call per library build, cached beside it, and a failure there degrades
+to the id rather than taking the library with it.
 
 ### What am I still waiting for
 
@@ -202,11 +258,25 @@ files of a monitored season makes Sonarr search for exactly what you removed.
 
 `get_library` omits `seasons` below `detail: "full"`.
 
-`get_media_details` carries it at every detail level, on both of its forms:
+A series at `detail: "full"` carries `episodes` on **either** form. Asked by
+`service` plus `id`, they come from that service's own view; asked by title,
+they are fetched from the Sonarr that manages the series, using
+`acquisition.id`. A series no Sonarr manages therefore has none — there is
+nothing to ask. An episode read that fails leaves the merged record intact and
+simply omits them: the record is the answer, and the episodes are the extra.
+
+`get_media_details` carries `seasons` at every detail level, on both of its forms:
 asked by title it returns the merged record unprojected rather than a shaped
 one, and asked by `service` plus `id` Sonarr's own view puts `seasons` in the
 base payload, before the gate that adds episodes. `monitored` means the same
 thing on both forms, so neither answer leaves you guessing about it.
+
+### `lastPlayed`, and what its absence means
+
+A season row carries `lastPlayed` when the media server has a play date for
+anything in that season, and **omits it when nothing in the season has been
+played**. Absent means never played — it is not an unknown. `watched: 0` with
+no `lastPlayed` is the ordinary shape of a season nobody has started.
 
 ### When the media server's episode read fails
 
@@ -290,14 +360,21 @@ leaves the claim standing.
 its `presence` field reports `unknown` for everything, which is a gap in the
 join rather than a finding about the library.
 
+## `get_queue`
+
+Each Radarr or Sonarr row carries `downloadId`, the download client's own id
+for that grab. It is what `trigger_scan`'s `import` action takes, and it is the
+link between "this is stuck at `importBlocked`" and doing something about it.
+
 ## `get_history`
 
 `get_queue` only ever sees what is still in-flight — once a download fails,
 imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
-through it. `get_history` is Radarr and Sonarr's own history log, merged, and
-is the only tool that can answer "why did last night's download fail".
+through it. `get_history` merges Radarr's and Sonarr's own history logs with SABnzbd's and
+Bazarr's, and is the only tool that can answer "why did last night's download
+fail".
 
 Both services' events are normalised to one vocabulary — `grabbed`,
 `imported`, `failed`, `deleted`, `renamed`, `ignored` — because they mostly
@@ -310,6 +387,28 @@ not yet recognise becomes `unknown` rather than being dropped.
 A failure's `reason` comes straight from the download client and is fenced
 like any other untrusted string — it is not translated, and on a non-English
 setup it will not read as English.
+
+### The two services below the *arrs
+
+**SABnzbd** contributes its own history: what happened to a download after it
+left the queue, one layer below the *arr that asked for it. When Radarr says it
+grabbed something and nothing ever arrived, the client's own failure message is
+the answer, and it is here. Its rows map onto the same vocabulary — `Completed`
+becomes `imported`, `Failed` becomes `failed` — and carry the `fail_message`
+as `reason`.
+
+**Bazarr** contributes `subtitle` rows: what it actually downloaded, and from
+which provider (in `quality`, as `language · provider`). It is its own event
+type on purpose — a downloaded subtitle is not an `imported` grab, and calling
+it one would put it in the answer to "what did Radarr import last night".
+
+Both refuse a `service` + `id` scope rather than answering an empty list:
+neither knows what a Radarr movie id or a Sonarr series id means, and an empty
+answer would read as "nothing ever happened to that film". Bazarr's rows are
+also dropped rather than dated when its timestamp cannot be read — it has
+shipped two different shapes and neither is ISO 8601, and this list is sorted
+and `since`-filtered as plain strings, so a guessed date would not merely
+mislabel one row, it would reorder the answer.
 
 Pass `service` and `id` together to scope to one movie or series, via a
 `movieIds`/`seriesIds` filter on the same paged endpoint the unscoped read
@@ -422,6 +521,23 @@ A release Radarr or Sonarr rejected on its own criteria can still be grabbed
 — that is most of what this tool is for — but the preview says which
 rejections are being overridden before you confirm.
 
+### A magnet, straight to the client
+
+Instead of `guid` and `indexer_id`, this tool takes a `magnet` link addressed
+to `transmission` or `qbittorrent`. Sending both is refused rather than
+resolved: they are different ways to start a download.
+
+This is the one place in the server where a URI the caller supplies causes a
+download, so the link is validated here rather than passed on — a magnet must
+start `magnet:?` and carry `xt=urn:btih:<hash>`. The preview names the hash,
+because the rest of a magnet is tracker parameters nobody can weigh.
+
+It skips Radarr and Sonarr entirely, and the preview says what that means:
+nothing vetted the release — no indexer, no quality profile — and nothing will
+import it into your library afterwards, because no *arr knows it exists. A
+torrent the client already has is reported as a duplicate rather than an error;
+that is the state you asked for.
+
 ## `request_media`
 
 Asks Seerr for something, the way a household member would through its web
@@ -448,6 +564,23 @@ requesting as anyone but `default_user` needs
 `services.seerr.allow_other_users` — the same gate `get_requests` and
 `respond_to_request` apply. Without it, one household member's assistant
 could spend another's quota.
+
+## `get_requests`
+
+At `detail: "full"` the answer also carries `issues`: what your users have
+reported as broken, each with its newest comments. Seerr numbers both the kind
+(`video`, `audio`, `subtitle`, `other`) and the state (`open`, `resolved`);
+both are mapped to words here, because a model handed `issueType: 2` cannot say
+what is wrong with the film.
+
+`issues` is a sibling list rather than a second kind of `items` — the same
+shape `get_indexers` uses for its rejections — so `items` keeps meaning exactly
+what it always has. Comments are the users' own text and are fenced, and capped
+at the newest few per issue. Unlike the requests, issues are not scoped to one
+user: they are what the household has reported.
+
+A Seerr that cannot answer for issues still answers for the requests, and does
+not report itself degraded for it.
 
 ## `get_blocklist` and `remove_blocklist_item`
 
@@ -501,6 +634,16 @@ position. That history is not recoverable.
 The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
 download client — SABnzbd, Transmission or qBittorrent — or one item in its
 queue when `id` is given.
+
+`action: "limit"` throttles instead of stopping: `speed_limit_kbps` is the cap
+in KB/s, and `0` removes it. Always client-wide, never per item.
+
+Each client speaks a different unit, and the wrong one throttles a stack to
+nothing — SABnzbd reads a bare number as a *percentage* of the configured line
+speed, qBittorrent wants bytes per second, Transmission wants KB/s behind an
+enable flag it keeps separately. The tool boundary is KB/s and each adapter
+converts at its own edge. Clearing on Transmission zeroes the number as well as
+the flag, so a stale cap cannot come back the next time anything enables it.
 
 Safe tier, because the undo is this same tool with the other `action`.
 
@@ -578,9 +721,94 @@ is not known at that point, so call `get_subtitles` again a minute later rather
 than reading success as "the subtitle is on disk". If nothing arrives, the
 `providers` block in that same response is usually the reason.
 
+### When it is not missing anything
+
+`search_anyway: true` searches for a language Bazarr does not list as missing —
+the "I have Dutch subs and they are wrong" case. The preview says plainly that
+Bazarr does not consider this missing and that an existing subtitle may be
+replaced.
+
+Both refusals it lifts stay the default. An item outside the wanted list is
+still refused without the flag, and a language that is not missing is still
+reported as nothing to do: a write against an item the tool cannot even
+describe is worse than making the caller say they meant it.
+
+For an episode outside the wanted list, pass `series_id` too — the missing list
+is otherwise the only place an episode's series id comes from, and Bazarr
+rejects the call without it.
+
+## `trigger_scan`
+
+Three actions, one idea: make a service reconcile itself with what is on disk.
+
+| Call | What it does |
+| --- | --- |
+| `service` alone | Rescans that service's whole library. On Prowlarr, which has no library, it syncs the indexer list to Radarr and Sonarr instead. |
+| `service` + `id` | Rescans just that Radarr/Sonarr item — far cheaper on a large library. |
+| `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
+| `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
+
+Everything here queues a command and returns. `stack_health`'s `commands` list
+says whether it has finished; do not assume it has.
+
+### Importing a download that never landed
+
+`diagnose` can tell you the import is the problem, and a library scan does not
+fix it: the file is still sitting in the download client's folder, and the *arr
+never took it. `get_queue` shows exactly this as a row stuck at
+`importState: "importBlocked"`.
+
+The flow is `get_queue` → take that row's `downloadId` → `trigger_scan` with
+`action: "import"`.
+
+The preview lists, file by file, what will be imported and what the service
+refuses and why. Rejected files are **excluded** from the import rather than
+forced through: this imports what the service is willing to take, and overriding
+its own matching is not something it will do on your behalf.
+
+Two outcomes that look alike and are not:
+
+- **Nothing to import** — the service sees no files for that download id. A
+  no-op, with no confirmation asked for.
+- **Everything rejected** — there are files and it will take none of them. A
+  refusal naming the reasons. Reporting that as "nothing to do" would read as
+  "it was already imported", which is the opposite of what happened.
+
+The import re-reads the candidates when it runs rather than trusting the
+preview's list, so a download whose files have changed in between imports what
+is there now or fails — never a path that no longer exists.
+
+## `update_media`
+
+`add_media`'s counterpart: it changes what something already in Radarr or Sonarr
+is set to — `quality_profile`, `root_folder`, `monitored`, `tags`, Radarr's
+`minimum_availability`, Sonarr's `series_type`.
+
+It is also **the only way to change a Radarr item's monitoring**.
+`set_monitoring` is Sonarr's per-season tool and has never covered films.
+
+Takes `service` and `id`, never a title — `acquisition.id` on a `get_library`
+or `get_media_details` record. `stack_health` at `detail: "full"` lists the
+profiles, folders and tags each instance has; a name that matches more than one
+is refused rather than resolved, exactly as in `add_media`.
+
+**Changing `root_folder` moves the files on disk.** The service does the move
+itself, and the preview names the source and the destination. `move_files:
+false` leaves them where they are and updates only the path, which makes the
+service report them missing until they are moved and rescanned — it is for
+"I already moved them myself", not for avoiding the wait.
+
+`tags` replaces the whole set rather than adding to it; `[]` clears it. An
+unknown label is refused, listing the ones that exist — nothing here creates a
+tag.
+
+Safe tier. Every field is one the same tool sets back, and a move loses
+nothing: the undo is moving it back. A request that would change nothing is a
+no-op, and a request naming no field at all is refused rather than previewed.
+
 ## Prompts and resources
 
-Thirty-three tools do not tell you which one to reach for, and the questions
+Thirty-four tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

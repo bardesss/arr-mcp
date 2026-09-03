@@ -178,6 +178,9 @@ export type QueueItem = {
     orphaned?: boolean;
     /** `trackedDownloadState`; `importBlocked` is the stuck one. */
     importState?: string;
+    /** The download client's own id for this grab — what `trigger_scan`'s
+     *  `import` action is addressed with. */
+    downloadId?: string;
 };
 
 export interface QueueCapable {
@@ -187,7 +190,19 @@ export interface QueueCapable {
 export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>
     typeof (a as Partial<QueueCapable>).getQueue === 'function';
 
-export const HISTORY_EVENT_TYPES = ['grabbed', 'imported', 'failed', 'deleted', 'renamed', 'ignored', 'unknown'] as const;
+/** `subtitle` is Bazarr's: a downloaded subtitle is not an `imported` grab,
+ *  and calling it one would put it in the answer to "what did Radarr import
+ *  last night". Appended, so no existing value moved. */
+export const HISTORY_EVENT_TYPES = [
+    'grabbed',
+    'imported',
+    'failed',
+    'deleted',
+    'renamed',
+    'ignored',
+    'subtitle',
+    'unknown'
+] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
 /**
@@ -405,6 +420,34 @@ export interface RequestCapable {
 export const hasRequests = (a: ServiceAdapter): a is ServiceAdapter & RequestCapable =>
     typeof (a as Partial<RequestCapable>).getRequests === 'function';
 
+/**
+ * What a household has reported as broken — the other half of Seerr that
+ * `get_requests` never surfaced. Seerr numbers both the kind and the state,
+ * and a model handed `issueType: 2` cannot say what is wrong, so both are
+ * mapped to words here.
+ */
+export type MediaIssue = {
+    service: string;
+    id: string;
+    /** video | audio | subtitle | other */
+    kind: string;
+    /** open | resolved */
+    status: string;
+    createdAt?: string;
+    /** The media it is about, when Seerr knows a title for it. */
+    title?: string;
+    reportedBy?: string;
+    /** The newest comments, fenced and capped — an issue can carry dozens. */
+    comments: string[];
+};
+
+export interface IssueCapable {
+    getIssues(opts: { limit: number }): Promise<MediaIssue[]>;
+}
+
+export const hasIssues = (a: ServiceAdapter): a is ServiceAdapter & IssueCapable =>
+    typeof (a as Partial<IssueCapable>).getIssues === 'function';
+
 export type EpisodeSummary = {
     id: number;
     season: number;
@@ -435,6 +478,8 @@ export type MediaDetails = {
     year?: number;
     overview?: string;
     monitored?: boolean;
+    /** The service's own status word — see `MergedItem.acquisition.status`. */
+    status?: string;
     hasFile?: boolean;
     sizeBytes?: number;
     quality?: string;
@@ -506,6 +551,32 @@ export type CommandHandle = { service: string; commandId: number; name: string; 
  * rather than picking one, so this type never has to define a precedence.
  * Films have no seasons, so Radarr's `triggerSearch` never sees one.
  */
+/**
+ * A queued task as it stands now — the follow-up `trigger_search` and
+ * `trigger_scan` never had. `status` is the service's own word: `queued`,
+ * `started`, `completed`, `failed`, `aborted`.
+ *
+ * Only the tasks this server can start are reported; a service's own
+ * per-minute housekeeping is not something anyone is following up.
+ */
+export type CommandStatus = {
+    service: string;
+    commandId: number;
+    name: string;
+    status: string;
+    queuedAt?: string;
+    startedAt?: string;
+    endedAt?: string;
+};
+
+export interface CommandStatusCapable {
+    /** Running or queued now, plus anything finished in the last few minutes. */
+    listCommands(): Promise<CommandStatus[]>;
+}
+
+export const hasCommandStatus = (a: ServiceAdapter): a is ServiceAdapter & CommandStatusCapable =>
+    typeof (a as Partial<CommandStatusCapable>).listCommands === 'function';
+
 export type SearchTarget = {
     /** One season. Omit with `episodes` to target the whole series. */
     season?: number;
@@ -537,6 +608,50 @@ export interface LibraryScanCapable {
 
 export const hasLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & LibraryScanCapable =>
     typeof (a as Partial<LibraryScanCapable>).startLibraryScan === 'function';
+
+/**
+ * The per-item half of the same idea: reconcile one thing with what is on
+ * disk, rather than the whole library. Separate from `LibraryScanCapable`
+ * because a media server has the whole-library scan and neither of these.
+ */
+export interface LibraryMaintenanceCapable {
+    /** Rescan one item's folder and re-read its metadata. */
+    refreshItem(id: string): Promise<CommandHandle>;
+    /** Rename that item's files to the service's own naming scheme. */
+    renameItem(id: string): Promise<CommandHandle>;
+}
+
+export const hasLibraryMaintenance = (a: ServiceAdapter): a is ServiceAdapter & LibraryMaintenanceCapable =>
+    typeof (a as Partial<LibraryMaintenanceCapable>).refreshItem === 'function';
+
+/**
+ * One file a finished download left behind, and what the service makes of it.
+ *
+ * `rejections` non-empty means the service will not take this file — it is
+ * excluded from the import and named in the preview, rather than sent anyway.
+ */
+export type ImportCandidate = {
+    /** Raw, because it is posted back. */
+    path: string;
+    /** Fenced, because it reaches model context. */
+    display: string;
+    sizeBytes?: number;
+    /** What the service matched it to, when it matched anything. */
+    matchedTitle?: string;
+    /** The movie or series id it matched. Absent means nothing to import into. */
+    matchedId?: number;
+    /** Sonarr only: the episodes this file was placed in. */
+    episodeIds?: number[];
+    rejections: string[];
+};
+
+export interface ManualImportCapable {
+    listImportCandidates(downloadId: string): Promise<ImportCandidate[]>;
+    runManualImport(downloadId: string): Promise<CommandHandle>;
+}
+
+export const hasManualImport = (a: ServiceAdapter): a is ServiceAdapter & ManualImportCapable =>
+    typeof (a as Partial<ManualImportCapable>).runManualImport === 'function';
 
 /**
  * Both flags default to the *least* destructive reading at every layer — the
@@ -634,6 +749,44 @@ export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable 
     typeof (a as Partial<PauseCapable>).setPaused === 'function';
 
 /**
+ * The download cap, always **KB/s at this boundary** whatever the client
+ * speaks on the wire: SABnzbd wants a `K`-suffixed string (a bare number
+ * there is a *percentage*), Transmission wants KB/s, qBittorrent wants
+ * bytes/s. Converting inside each adapter is what stops one wrong unit
+ * throttling a stack to nothing.
+ *
+ * An absent `kbps` means no cap is set — not a cap of zero, which on these
+ * clients means "unlimited" anyway and would read as "stopped".
+ */
+export type SpeedLimit = { service: string; kbps?: number };
+
+export interface SpeedLimitCapable {
+    readSpeedLimit(): Promise<SpeedLimit>;
+    /** `undefined` removes the cap. */
+    setSpeedLimit(kbps: number | undefined): Promise<void>;
+}
+
+export const hasSpeedLimit = (a: ServiceAdapter): a is ServiceAdapter & SpeedLimitCapable =>
+    typeof (a as Partial<SpeedLimitCapable>).setSpeedLimit === 'function';
+
+/**
+ * Adding a torrent straight to the client, bypassing the *arrs — the one
+ * place a caller-supplied URI causes a download, which is why the tool
+ * validates the scheme before anything reaches the client.
+ *
+ * `duplicate` is not a failure: a torrent the client already has is the state
+ * the caller asked for.
+ */
+export type MagnetAdded = { id?: string; title?: string; duplicate: boolean };
+
+export interface MagnetAddCapable {
+    addMagnet(uri: string): Promise<MagnetAdded>;
+}
+
+export const hasMagnetAdd = (a: ServiceAdapter): a is ServiceAdapter & MagnetAddCapable =>
+    typeof (a as Partial<MagnetAddCapable>).addMagnet === 'function';
+
+/**
  * `name` raw and `display` fenced, for the same reason `RootFolder` splits its
  * path — and discovered the same way, by a match that could never succeed.
  * `add_media` matches a requested profile against `name`; comparing against
@@ -665,17 +818,33 @@ export type AddCandidate = {
     existingId?: number;
 };
 
+/** Raw `label` for matching, fenced `display` for prose — the same split
+ *  `QualityProfile` makes, for the same reason. */
+export type Tag = { id: number; label: string; display: string };
+
 export type AddMediaOptions = {
     externalId: string;
     qualityProfileId: number;
     rootFolderPath: string;
     monitored: boolean;
     searchNow: boolean;
+    /** Sonarr's `MonitorTypes` — which seasons to monitor on add. Sonarr
+     *  computes the per-season flags itself, which is why this is passed
+     *  through rather than turned into a season list here. */
+    monitor?: string;
+    /** Radarr's `MovieStatusType` threshold. Defaults to `released`. */
+    minimumAvailability?: string;
+    /** Sonarr's `SeriesTypes` — the numbering scheme. */
+    seriesType?: string;
+    tagIds?: number[];
 };
 
 export interface MediaAddCapable {
     listQualityProfiles(): Promise<QualityProfile[]>;
     listRootFolders(): Promise<RootFolder[]>;
+    /** The tags the instance already has. Nothing here ever creates one — an
+     *  unknown label is a refusal listing these. */
+    listTags(): Promise<Tag[]>;
     /** Resolves the external id — TMDB for Radarr, TVDB for Sonarr. */
     lookupForAdd(externalId: string): Promise<AddCandidate>;
     addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }>;
@@ -683,6 +852,45 @@ export interface MediaAddCapable {
 
 export const hasMediaAdd = (a: ServiceAdapter): a is ServiceAdapter & MediaAddCapable =>
     typeof (a as Partial<MediaAddCapable>).addMedia === 'function';
+
+/**
+ * Changing something already in the library. Every field is optional and
+ * **absent means leave it alone** — Radarr and Sonarr both replace the whole
+ * resource on PUT, so the adapter merges into what the service currently
+ * holds rather than posting these values on their own.
+ */
+export type MediaUpdateOptions = {
+    qualityProfileId?: number;
+    rootFolderPath?: string;
+    monitored?: boolean;
+    minimumAvailability?: string;
+    seriesType?: string;
+    tagIds?: number[];
+    /** Whether the service moves the files to the new root folder. Read only
+     *  when `rootFolderPath` is set. */
+    moveFiles: boolean;
+};
+
+/** What the service holds right now — the preview's "from" half, and what
+ *  makes a no-op detectable before anything is written. */
+export type MediaUpdateState = {
+    title: string;
+    year?: number;
+    monitored: boolean;
+    qualityProfileId?: number;
+    path?: string;
+    tagIds: number[];
+    minimumAvailability?: string;
+    seriesType?: string;
+};
+
+export interface MediaUpdateCapable {
+    readForUpdate(id: string): Promise<MediaUpdateState>;
+    updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState>;
+}
+
+export const hasMediaUpdate = (a: ServiceAdapter): a is ServiceAdapter & MediaUpdateCapable =>
+    typeof (a as Partial<MediaUpdateCapable>).updateMedia === 'function';
 
 /**
  * The two reversible verdicts on a request. Deliberately not including
