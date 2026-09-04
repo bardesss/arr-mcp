@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiKeyHeader, embyToken, qbittorrentSession, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
+import { apiKeyHeader, embyToken, plexToken, qbittorrentSession, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
 
 const ctx = (url = 'http://h:7878/api/v3/system/status', method = 'GET') => ({
     url: new URL(url),
@@ -71,6 +71,25 @@ describe('transmissionRpc', () => {
     it('does not claim recovery for an ordinary error status', () => {
         const auth = transmissionRpc({});
         expect(auth.recover?.(new Response('', { status: 401 }))).toBe(false);
+    });
+});
+
+describe('plexToken', () => {
+    const apply = (token: string) => {
+        const headers = new Headers();
+        const url = new URL('http://192.0.2.10:32400/status/sessions');
+        plexToken(token).apply({ url, headers, method: 'GET' });
+        return { headers, url };
+    };
+
+    it('sends the token as a header', () => {
+        expect(apply('abc123').headers.get('X-Plex-Token')).toBe('abc123');
+    });
+
+    it('never puts the token in the URL, which reaches error messages and proxy logs', () => {
+        const { url } = apply('abc123');
+        expect(url.toString()).not.toContain('abc123');
+        expect(url.searchParams.get('X-Plex-Token')).toBeNull();
     });
 });
 

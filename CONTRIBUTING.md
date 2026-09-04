@@ -223,24 +223,20 @@ small, shaped change, and a service in no slot at all is a different product.
 - **Emby.** Jellyfin's ancestor, near-identical API, and therefore the cheapest
   adapter on this list — plausibly a variant of the Jellyfin one rather than a
   new file.
-- **Plex.** Wanted, on two conditions. It is the most-deployed media server this
-  server cannot talk to, and reach is the point: Plex support is what makes
-  arr-mcp useful to the many people who will never run Jellyfin.
+- **Plex.** A read-only adapter exists and has been verified against a live
+  Plex Media Server 1.43.3.10896 by a volunteer tester (issue #180): all nine
+  endpoints it reads were captured from that server and are contracted in
+  `test/contract.test.ts`. The maintainer still does not run Plex, so
+  coverage is one server's worth, not a range — a second tester on a
+  different version or library shape would still be useful, particularly for
+  the managed-user-token case `docs/tools.md` flags as unconfirmed.
 
-  **The design is the first condition.** Plex's usual auth brokers through
-  plex.tv — credential brokering *and* an outbound request to a host the
-  operator never configured, which is the risk class above and a no on its own
-  terms. An adapter that takes an operator-supplied `X-Plex-Token` and talks
-  only to the configured local server avoids all of it. Build that one; a pull
-  request built on the discovery flow is turned down for its architecture rather
-  than its code.
-
-  **Testers are the second, and they are what is actually missing.** Nobody here
-  runs Plex, so an adapter for it cannot be exercised in review — and one merged
-  against hand-written fixtures is a bug report waiting to be filed. I am
-  willing to do the integration work myself; what I cannot supply is a real Plex
-  library to prove it against. If you run Plex and will test a build against it
-  and report back, say so in an issue. That is the thing blocking this.
+  **The design still governs.** Plex's usual auth brokers through plex.tv —
+  credential brokering *and* an outbound request to a host the operator never
+  configured, which is the risk class above and a no on its own terms. This
+  adapter takes an operator-supplied `X-Plex-Token` and talks only to the
+  configured local server, never plex.tv. That constraint holds for any future
+  change here, not just this one.
 
 Named and **not** accepted, so nobody spends a weekend finding out:
 
@@ -260,10 +256,12 @@ Anything not named here is undecided rather than refused. Ask in an issue and it
 gets held against the four checks above, which is cheaper for everyone than
 finding out afterwards.
 
-**You will have to test it yourself, properly.** The maintainer does not run
-every service this could support — there is no Lidarr, no Plex, no qBittorrent
-here — so an adapter for one cannot be exercised in review, only read. That
-makes your testing the only testing it gets before it ships.
+**You will have to test it yourself, properly.** The maintainer runs neither
+Lidarr, Plex nor qBittorrent. Lidarr has no adapter yet. Plex has an adapter
+and, as of a volunteer tester's report on [issue #180](../../issues/180), has
+been exercised against a real instance. [qBittorrent](../../issues/147) has an
+adapter too but has never been exercised against a real instance — whichever
+you take on, your testing is the only testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
 you tested and against which version, and capture fixtures from the real service
@@ -336,9 +334,18 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Four of the nine services publish no usable OpenAPI spec, so the adapter
+Five of the ten services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
+
+That also decides what the nightly drift job can watch. `openapi-drift.yml`
+re-fetches the five published specs and regenerates types from them, so it
+catches an upstream change before a user does. A spec-less service has nothing
+to fetch: its contract is the fields declared in `test/contract.test.ts`,
+checked against committed fixtures. That catches us breaking our own adapter,
+and it cannot catch the service changing underneath it. For those five, the
+only real drift detector is somebody recapturing fixtures against a live
+instance.
 
 ## Adding a write tool
 

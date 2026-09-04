@@ -86,7 +86,7 @@ const validate = (config: Config, services: Record<string, unknown>): Config => 
     return result.data;
 };
 
-const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'seerr']);
+const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
 const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent']);
 
 /**

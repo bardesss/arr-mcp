@@ -49,6 +49,21 @@ export function embyToken(key: string): AuthStrategy {
 }
 
 /**
+ * Plex. The token is an operator-supplied `X-Plex-Token` for their own server —
+ * never a plex.tv credential, and never a query parameter, which is where
+ * SABnzbd's key has to live and why `ServiceHttp` keeps full URLs out of error
+ * messages.
+ */
+export function plexToken(token: string): AuthStrategy {
+    return {
+        id: 'plex-token',
+        apply(ctx) {
+            ctx.headers.set('X-Plex-Token', token);
+        }
+    };
+}
+
+/**
  * SABnzbd, whose API is entirely query-parameter driven. The key therefore
  * appears in the URL — which is why ServiceHttp never puts a full URL into an
  * error message. It uses the origin and path only.

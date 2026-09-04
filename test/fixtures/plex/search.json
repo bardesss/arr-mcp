@@ -1,0 +1,5346 @@
+{
+  "MediaContainer": {
+    "size": 49,
+    "identifier": "com.plexapp.plugins.library",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786540085,
+    "Metadata": [
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "78430",
+        "key": "/library/metadata/78430",
+        "guid": "plex://movie/5d7768867e5fa10020bf135b",
+        "slug": "a-good-day-to-die-hard",
+        "studio": "Mid Atlantic Films",
+        "type": "movie",
+        "title": "A Good Day to Die Hard",
+        "titleSort": "Good Day to Die Hard",
+        "contentRating": "R",
+        "contentRatingAge": 16,
+        "summary": "John McClane travels to Russia to help out his seemingly wayward son, Jack, only to discover that Jack is a CIA operative working undercover, causing the father and son to team up against underworld forces.",
+        "rating": 1.5,
+        "audienceRating": 4,
+        "year": 2013,
+        "tagline": "Yippee ki-yay Mother Russia.",
+        "thumb": "/library/metadata/78430/thumb/1782631077",
+        "art": "/library/metadata/78430/art/1782631077",
+        "duration": 5858936,
+        "originallyAvailableAt": "2013-02-07",
+        "addedAt": 1782522153,
+        "updatedAt": 1782631077,
+        "audienceRatingImage": "rottentomatoes://image.rating.spilled",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/78431",
+        "ratingImage": "rottentomatoes://image.rating.rotten",
+        "Media": [
+          {
+            "id": 110473,
+            "duration": 5858936,
+            "bitrate": 25307,
+            "width": 3840,
+            "height": 2160,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 110474,
+                "key": "/library/parts/110474/1782522140/file.mkv",
+                "duration": 5858936,
+                "file": "/library/movies/Fixture title 1 (2013)/Fixture title 1 (2013).mkv",
+                "size": 18536526005,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "A Good Day to Die Hard",
+            "type": "coverPoster",
+            "url": "/library/metadata/78430/thumb/1782631077"
+          },
+          {
+            "alt": "A Good Day to Die Hard",
+            "type": "background",
+            "url": "/library/metadata/78430/art/1782631077"
+          },
+          {
+            "alt": "A Good Day to Die Hard",
+            "type": "clearLogo",
+            "url": "/library/metadata/78430/clearLogo/1782631077"
+          },
+          {
+            "alt": "A Good Day to Die Hard",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/78430/squareArt/1782631077"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "060405",
+          "topRight": "1f2017",
+          "bottomRight": "191714",
+          "bottomLeft": "0e0e0b"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt1606378"
+          },
+          {
+            "id": "tmdb://47964"
+          },
+          {
+            "id": "tvdb://686"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Action"
+          },
+          {
+            "tag": "Thriller"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Die Hard"
+          },
+          {
+            "tag": "Die Hard Collection"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "John Moore"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Skip Woods"
+          },
+          {
+            "tag": "Roderick Thorp"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Bruce Willis"
+          },
+          {
+            "tag": "Jai Courtney"
+          },
+          {
+            "tag": "Sebastian Koch"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "201764",
+        "key": "/library/metadata/201764",
+        "guid": "plex://movie/5d776c0ead5437001f7b25d6",
+        "slug": "a-silent-voice-the-movie",
+        "studio": "Kyoto Animation",
+        "type": "movie",
+        "title": "A Silent Voice: The Movie",
+        "titleSort": "Silent Voice: The Movie",
+        "originalTitle": "映画 聲の形",
+        "contentRating": "Not Rated",
+        "contentRatingAge": 13,
+        "summary": "A deaf girl, Shoko, is bullied by the popular Shoya. As Shoya continues to bully Shoko, the class turns its back on him. Shoko transfers and Shoya grows up as an outcast. Alone and depressed, the regretful Shoya finds Shoko to make amends.",
+        "rating": 9.5,
+        "audienceRating": 9.4,
+        "year": 2016,
+        "tagline": "Sometimes the answer is as simple as learning to listen.",
+        "thumb": "/library/metadata/201764/thumb/1787225300",
+        "art": "/library/metadata/201764/art/1787225300",
+        "duration": 7785785,
+        "originallyAvailableAt": "2016-09-17",
+        "addedAt": 1787225297,
+        "updatedAt": 1787225300,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/201765",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 285369,
+            "duration": 7785785,
+            "bitrate": 10612,
+            "width": 1920,
+            "height": 1036,
+            "aspectRatio": 1.85,
+            "audioChannels": 6,
+            "audioCodec": "opus",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 285370,
+                "key": "/library/parts/285370/1787225243/file.mkv",
+                "duration": 7785785,
+                "file": "/library/movies/Fixture title 2 (2016)/Fixture title 2 (2016).mkv",
+                "size": 10241627722,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "A Silent Voice: The Movie",
+            "type": "coverPoster",
+            "url": "/library/metadata/201764/thumb/1787225300"
+          },
+          {
+            "alt": "A Silent Voice: The Movie",
+            "type": "background",
+            "url": "/library/metadata/201764/art/1787225300"
+          },
+          {
+            "alt": "A Silent Voice: The Movie",
+            "type": "clearLogo",
+            "url": "/library/metadata/201764/clearLogo/1787225300"
+          },
+          {
+            "alt": "A Silent Voice: The Movie",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/201764/squareArt/1787225300"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "113337",
+          "topRight": "266777",
+          "bottomRight": "2d6b57",
+          "bottomLeft": "2b6a5e"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt5323662"
+          },
+          {
+            "id": "tmdb://378064"
+          },
+          {
+            "id": "tvdb://894"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Drama"
+          },
+          {
+            "tag": "Romance"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Japan"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Naoko Yamada"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Reiko Yoshida"
+          },
+          {
+            "tag": "Yoshitoki Oima"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Miyu Irino"
+          },
+          {
+            "tag": "Saori Hayami"
+          },
+          {
+            "tag": "Aoi Yuuki"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 5,
+        "librarySectionTitle": "Bumpers",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "44552",
+        "key": "/library/metadata/44552",
+        "guid": "com.plexapp.agents.none://f69235de68791a7dc8bd5be74bdec1b924ee2797?lang=xn",
+        "type": "movie",
+        "title": "AUDIO_H264_3840x2160_23.976fps",
+        "subtype": "clip",
+        "summary": "",
+        "year": 2026,
+        "thumb": "/library/metadata/44552/thumb/1780720197",
+        "art": "/library/metadata/44552/art/1780720197",
+        "duration": 3026,
+        "originallyAvailableAt": "2026-06-02",
+        "addedAt": 1780383270,
+        "updatedAt": 1780720197,
+        "createdAtAccuracy": "epoch",
+        "createdAtTZOffset": "-18000",
+        "Media": [
+          {
+            "id": 58815,
+            "duration": 3026,
+            "bitrate": 1184,
+            "width": 3840,
+            "height": 2160,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "4k",
+            "container": "mp4",
+            "videoFrameRate": "24p",
+            "optimizedForStreaming": 1,
+            "audioProfile": "lc",
+            "has64bitOffsets": false,
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 58816,
+                "key": "/library/parts/58816/1780381781/file.mp4",
+                "duration": 3026,
+                "file": "/library/movies/Fixture title 3 (2026)/Fixture title 3 (2026).mkv",
+                "size": 451478,
+                "audioProfile": "lc",
+                "container": "mp4",
+                "has64bitOffsets": false,
+                "indexes": "sd",
+                "optimizedForStreaming": true,
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "AUDIO_H264_3840x2160_23.976fps",
+            "type": "coverPoster",
+            "url": "/library/metadata/44552/thumb/1780720197"
+          },
+          {
+            "alt": "AUDIO_H264_3840x2160_23.976fps",
+            "type": "background",
+            "url": "/library/metadata/44552/art/1780720197"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "030310",
+          "topRight": "0d0202",
+          "bottomRight": "0d0202",
+          "bottomLeft": "070313"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 5,
+        "librarySectionTitle": "Bumpers",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "44524",
+        "key": "/library/metadata/44524",
+        "guid": "com.plexapp.agents.none://2f000a024d7606b2d2efafb9338f4a0f4e51b36d?lang=xn",
+        "type": "movie",
+        "title": "Adult Swim - Plex",
+        "subtype": "clip",
+        "summary": "",
+        "year": 2026,
+        "thumb": "/library/metadata/44524/thumb/1780720196",
+        "art": "/library/metadata/44524/art/1780720196",
+        "duration": 11033,
+        "originallyAvailableAt": "2026-06-02",
+        "addedAt": 1780382794,
+        "updatedAt": 1780720196,
+        "createdAtAccuracy": "epoch",
+        "createdAtTZOffset": "-18000",
+        "Media": [
+          {
+            "id": 58787,
+            "duration": 11033,
+            "bitrate": 212,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mp4",
+            "videoFrameRate": "NTSC",
+            "optimizedForStreaming": 1,
+            "audioProfile": "lc",
+            "has64bitOffsets": false,
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 58788,
+                "key": "/library/parts/58788/1780381151/file.mp4",
+                "duration": 11033,
+                "file": "/library/movies/Fixture title 4 (2026)/Fixture title 4 (2026).mkv",
+                "size": 305917,
+                "audioProfile": "lc",
+                "container": "mp4",
+                "has64bitOffsets": false,
+                "indexes": "sd",
+                "optimizedForStreaming": true,
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Adult Swim - Plex",
+            "type": "coverPoster",
+            "url": "/library/metadata/44524/thumb/1780720196"
+          },
+          {
+            "alt": "Adult Swim - Plex",
+            "type": "background",
+            "url": "/library/metadata/44524/art/1780720196"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "370374",
+          "topRight": "440403",
+          "bottomRight": "400384",
+          "bottomLeft": "440403"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 5,
+        "librarySectionTitle": "Bumpers",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "44525",
+        "key": "/library/metadata/44525",
+        "guid": "com.plexapp.agents.none://3849c1de1c66181c31572aebd33e6ca14d405b2d?lang=xn",
+        "type": "movie",
+        "title": "Adult Swim - Plex2",
+        "subtype": "clip",
+        "summary": "",
+        "year": 2026,
+        "thumb": "/library/metadata/44525/thumb/1780720196",
+        "art": "/library/metadata/44525/art/1780720196",
+        "duration": 27554,
+        "originallyAvailableAt": "2026-06-02",
+        "addedAt": 1780382794,
+        "updatedAt": 1780720196,
+        "createdAtAccuracy": "epoch,local",
+        "createdAtTZOffset": "0",
+        "Media": [
+          {
+            "id": 58788,
+            "duration": 27554,
+            "bitrate": 187,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mp4",
+            "videoFrameRate": "NTSC",
+            "optimizedForStreaming": 1,
+            "audioProfile": "lc",
+            "has64bitOffsets": false,
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 58789,
+                "key": "/library/parts/58789/1780381177/file.mp4",
+                "duration": 27554,
+                "file": "/library/movies/Fixture title 5 (2026)/Fixture title 5 (2026).mkv",
+                "size": 671645,
+                "audioProfile": "lc",
+                "container": "mp4",
+                "has64bitOffsets": false,
+                "indexes": "sd",
+                "optimizedForStreaming": true,
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Adult Swim - Plex2",
+            "type": "coverPoster",
+            "url": "/library/metadata/44525/thumb/1780720196"
+          },
+          {
+            "alt": "Adult Swim - Plex2",
+            "type": "background",
+            "url": "/library/metadata/44525/art/1780720196"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "370374",
+          "topRight": "440403",
+          "bottomRight": "400384",
+          "bottomLeft": "440403"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 5,
+        "librarySectionTitle": "Bumpers",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "44526",
+        "key": "/library/metadata/44526",
+        "guid": "com.plexapp.agents.none://b48fe3553288b6fc2a7350f075f997166e5a235c?lang=xn",
+        "type": "movie",
+        "title": "Adult_Swim_Plex",
+        "subtype": "clip",
+        "summary": "",
+        "year": 2026,
+        "thumb": "/library/metadata/44526/thumb/1780720197",
+        "art": "/library/metadata/44526/art/1780720197",
+        "duration": 19584,
+        "originallyAvailableAt": "2026-06-02",
+        "addedAt": 1780382794,
+        "updatedAt": 1780720197,
+        "createdAtAccuracy": "epoch,local",
+        "createdAtTZOffset": "0",
+        "Media": [
+          {
+            "id": 58789,
+            "duration": 19584,
+            "bitrate": 489,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mp4",
+            "videoFrameRate": "24p",
+            "optimizedForStreaming": 1,
+            "audioProfile": "lc",
+            "has64bitOffsets": false,
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 58790,
+                "key": "/library/parts/58790/1780380611/file.mp4",
+                "duration": 19584,
+                "file": "/library/movies/Fixture title 6 (2026)/Fixture title 6 (2026).mkv",
+                "size": 1207591,
+                "audioProfile": "lc",
+                "container": "mp4",
+                "has64bitOffsets": false,
+                "indexes": "sd",
+                "optimizedForStreaming": true,
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Adult_Swim_Plex",
+            "type": "coverPoster",
+            "url": "/library/metadata/44526/thumb/1780720197"
+          },
+          {
+            "alt": "Adult_Swim_Plex",
+            "type": "background",
+            "url": "/library/metadata/44526/art/1780720197"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "370374",
+          "topRight": "440403",
+          "bottomRight": "400384",
+          "bottomLeft": "440403"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 5,
+        "librarySectionTitle": "Bumpers",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "44527",
+        "key": "/library/metadata/44527",
+        "guid": "com.plexapp.agents.none://5432a02d98e0448558da2704333b5d6c6f9d9904?lang=xn",
+        "type": "movie",
+        "title": "Adult_Swim_Plex_v2",
+        "subtype": "clip",
+        "summary": "",
+        "year": 2026,
+        "thumb": "/library/metadata/44527/thumb/1780720197",
+        "art": "/library/metadata/44527/art/1780720197",
+        "duration": 19519,
+        "originallyAvailableAt": "2026-06-02",
+        "addedAt": 1780382794,
+        "updatedAt": 1780720197,
+        "createdAtAccuracy": "epoch,local",
+        "createdAtTZOffset": "0",
+        "Media": [
+          {
+            "id": 58790,
+            "duration": 19519,
+            "bitrate": 3719,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mp4",
+            "videoFrameRate": "NTSC",
+            "optimizedForStreaming": 1,
+            "audioProfile": "lc",
+            "has64bitOffsets": false,
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 58791,
+                "key": "/library/parts/58791/1780380647/file.mp4",
+                "duration": 19519,
+                "file": "/library/movies/Fixture title 7 (2026)/Fixture title 7 (2026).mkv",
+                "size": 9119597,
+                "audioProfile": "lc",
+                "container": "mp4",
+                "has64bitOffsets": false,
+                "indexes": "sd",
+                "optimizedForStreaming": true,
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Adult_Swim_Plex_v2",
+            "type": "coverPoster",
+            "url": "/library/metadata/44527/thumb/1780720197"
+          },
+          {
+            "alt": "Adult_Swim_Plex_v2",
+            "type": "background",
+            "url": "/library/metadata/44527/art/1780720197"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "370374",
+          "topRight": "440403",
+          "bottomRight": "400384",
+          "bottomLeft": "440403"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "15862",
+        "key": "/library/metadata/15862",
+        "guid": "plex://movie/5d77682b103a2d001f56572e",
+        "slug": "airplane-ii-the-sequel",
+        "studio": "Paramount Pictures",
+        "type": "movie",
+        "title": "Airplane II: The Sequel",
+        "contentRating": "PG",
+        "contentRatingAge": 14,
+        "summary": "A faulty computer causes a passenger space shuttle to head straight for the sun, and man-with-a-past Ted Striker must save the day and get the shuttle back on track – again – all the while trying to patch up his relationship with Elaine.",
+        "rating": 4.1,
+        "audienceRating": 5,
+        "year": 1982,
+        "tagline": "For the ride of your life... All you need for Christmas are your two front seats!",
+        "thumb": "/library/metadata/15862/thumb/1786463808",
+        "art": "/library/metadata/15862/art/1786463808",
+        "duration": 5049898,
+        "originallyAvailableAt": "1982-12-10",
+        "addedAt": 1777901708,
+        "updatedAt": 1786463808,
+        "audienceRatingImage": "rottentomatoes://image.rating.spilled",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/15863",
+        "ratingImage": "rottentomatoes://image.rating.rotten",
+        "Media": [
+          {
+            "id": 110346,
+            "duration": 5049898,
+            "bitrate": 24900,
+            "width": 3840,
+            "height": 2076,
+            "aspectRatio": 1.85,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "lc",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 110347,
+                "key": "/library/parts/110347/1782519994/file.mkv",
+                "duration": 5049898,
+                "file": "/library/movies/Fixture title 8 (1982)/Fixture title 8 (1982).mkv",
+                "size": 15719752497,
+                "audioProfile": "lc",
+                "container": "mkv",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Airplane II: The Sequel",
+            "type": "coverPoster",
+            "url": "/library/metadata/15862/thumb/1786463808"
+          },
+          {
+            "alt": "Airplane II: The Sequel",
+            "type": "background",
+            "url": "/library/metadata/15862/art/1786463808"
+          },
+          {
+            "alt": "Airplane II: The Sequel",
+            "type": "clearLogo",
+            "url": "/library/metadata/15862/clearLogo/1786463808"
+          },
+          {
+            "alt": "Airplane II: The Sequel",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/15862/squareArt/1786463808"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "4f0e16",
+          "topRight": "9d1515",
+          "bottomRight": "490d13",
+          "bottomLeft": "340f18"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0083530"
+          },
+          {
+            "id": "tmdb://2665"
+          },
+          {
+            "id": "tvdb://4040"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Comedy"
+          },
+          {
+            "tag": "Science Fiction"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Ken Finkleman"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Al Jean"
+          },
+          {
+            "tag": "Mike Reiss"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Lloyd Bridges"
+          },
+          {
+            "tag": "Raymond Burr"
+          },
+          {
+            "tag": "Chuck Connors"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "3258",
+        "key": "/library/metadata/3258",
+        "guid": "plex://movie/5d776827eb5d26001f1ddabb",
+        "slug": "airplane",
+        "studio": "Paramount Pictures",
+        "type": "movie",
+        "title": "Airplane!",
+        "contentRating": "PG",
+        "contentRatingAge": 14,
+        "summary": "After the crew becomes sick with food poisoning, a neurotic ex-fighter pilot must safely land a commercial airplane full of passengers.",
+        "rating": 9.7,
+        "audienceRating": 8.9,
+        "viewCount": 1,
+        "lastViewedAt": 1700000008,
+        "year": 1980,
+        "tagline": "What's slower than a speeding bullet, and able to hit tall buildings at a single bound?",
+        "thumb": "/library/metadata/3258/thumb/1785779682",
+        "art": "/library/metadata/3258/art/1785779682",
+        "duration": 5261664,
+        "originallyAvailableAt": "1980-07-02",
+        "addedAt": 1776492060,
+        "updatedAt": 1785779682,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/3259",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 109848,
+            "duration": 5261664,
+            "bitrate": 9206,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 109849,
+                "key": "/library/parts/109849/1782513028/file.mkv",
+                "duration": 5261664,
+                "file": "/library/movies/Fixture title 9 (1980)/Fixture title 9 (1980).mkv",
+                "size": 6056045485,
+                "container": "mkv",
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Airplane!",
+            "type": "coverPoster",
+            "url": "/library/metadata/3258/thumb/1785779682"
+          },
+          {
+            "alt": "Airplane!",
+            "type": "background",
+            "url": "/library/metadata/3258/art/1785779682"
+          },
+          {
+            "alt": "Airplane!",
+            "type": "clearLogo",
+            "url": "/library/metadata/3258/clearLogo/1785779682"
+          },
+          {
+            "alt": "Airplane!",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/3258/squareArt/1785779682"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "51151d",
+          "topRight": "7e2121",
+          "bottomRight": "3a1414",
+          "bottomLeft": "ad190b"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0080339"
+          },
+          {
+            "id": "tmdb://813"
+          },
+          {
+            "id": "tvdb://406"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Comedy"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Jerry Zucker"
+          },
+          {
+            "tag": "David Zucker"
+          },
+          {
+            "tag": "Jim Abrahams"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Jim Abrahams"
+          },
+          {
+            "tag": "David Zucker"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Robert Hays"
+          },
+          {
+            "tag": "Julie Hagerty"
+          },
+          {
+            "tag": "Leslie Nielsen"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "2610",
+        "key": "/library/metadata/2610",
+        "guid": "plex://movie/5d77682454c0f0001f301a42",
+        "slug": "akira",
+        "editionTitle": "30th Anniversary",
+        "studio": "MBS",
+        "type": "movie",
+        "title": "Akira",
+        "originalTitle": "AKIRA",
+        "contentRating": "R",
+        "contentRatingAge": 16,
+        "summary": "A secret military project endangers Neo-Tokyo when it turns a teenage biker gang member into a rampaging psychic psychopath who can only be stopped by his best friend.",
+        "rating": 9.1,
+        "audienceRating": 9,
+        "year": 1988,
+        "tagline": "Neo-Tokyo is about to E.X.P.L.O.D.E.",
+        "thumb": "/library/metadata/2610/thumb/1787758538",
+        "art": "/library/metadata/2610/art/1787758538",
+        "duration": 7468461,
+        "originallyAvailableAt": "1988-07-16",
+        "addedAt": 1776085026,
+        "updatedAt": 1787758538,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "primaryExtraKey": "/library/metadata/2611",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 4183,
+            "duration": 7468461,
+            "bitrate": 20924,
+            "width": 1920,
+            "height": 1032,
+            "aspectRatio": 1.85,
+            "audioChannels": 6,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "lc",
+            "videoProfile": "high 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 4183,
+                "key": "/library/parts/4183/1776084988/file.mkv",
+                "duration": 7468461,
+                "file": "/library/movies/Fixture title 10 (1988)/Fixture title 10 (1988).mkv",
+                "size": 19534063233,
+                "audioProfile": "lc",
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Akira",
+            "type": "coverPoster",
+            "url": "/library/metadata/2610/thumb/1787758538"
+          },
+          {
+            "alt": "Akira",
+            "type": "background",
+            "url": "/library/metadata/2610/art/1787758538"
+          },
+          {
+            "alt": "Akira",
+            "type": "clearLogo",
+            "url": "/library/metadata/2610/clearLogo/1787758538"
+          },
+          {
+            "alt": "Akira",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/2610/squareArt/1787758538"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "52170f",
+          "topRight": "9d3625",
+          "bottomRight": "9f3325",
+          "bottomLeft": "973d2c"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0094625"
+          },
+          {
+            "id": "tmdb://149"
+          },
+          {
+            "id": "tvdb://1332"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Science Fiction"
+          },
+          {
+            "tag": "Anime"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Japan"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Katsuhiro Otomo"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Izo Hashimoto"
+          },
+          {
+            "tag": "Katsuhiro Otomo"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Mitsuo Iwata"
+          },
+          {
+            "tag": "Nozomu Sasaki"
+          },
+          {
+            "tag": "Mami Koyama"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "78022",
+        "key": "/library/metadata/78022",
+        "guid": "plex://movie/5d7768254de0ee001fcc83a5",
+        "slug": "alien",
+        "editionTitle": "Theatrical Cut",
+        "studio": "Brandywine Productions",
+        "type": "movie",
+        "title": "Alien",
+        "contentRating": "R",
+        "contentRatingAge": 15,
+        "summary": "During its return to the earth, commercial spaceship Nostromo intercepts a distress signal from a distant planet. When a three-member team of the crew discovers a chamber containing thousands of eggs on the planet, a creature inside one of the eggs attacks an explorer. The entire crew is unaware of the impending nightmare set to descend upon them when the alien parasite planted inside its unfortunate host is birthed.",
+        "rating": 9.3,
+        "audienceRating": 9.4,
+        "year": 1979,
+        "tagline": "In space no one can hear you scream.",
+        "thumb": "/library/metadata/78022/thumb/1782630960",
+        "art": "/library/metadata/78022/art/1782630960",
+        "duration": 6996113,
+        "originallyAvailableAt": "1979-05-25",
+        "addedAt": 1782514634,
+        "updatedAt": 1782630960,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/78023",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 109890,
+            "duration": 6996113,
+            "bitrate": 29064,
+            "width": 3840,
+            "height": 2160,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "dca-ma",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "ma",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 109891,
+                "key": "/library/parts/109891/1782514602/file.mkv",
+                "duration": 6996113,
+                "file": "/library/movies/Fixture title 11 (1979)/Fixture title 11 (1979).mkv",
+                "size": 25423183556,
+                "audioProfile": "ma",
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Alien",
+            "type": "coverPoster",
+            "url": "/library/metadata/78022/thumb/1782630960"
+          },
+          {
+            "alt": "Alien",
+            "type": "background",
+            "url": "/library/metadata/78022/art/1782630960"
+          },
+          {
+            "alt": "Alien",
+            "type": "clearLogo",
+            "url": "/library/metadata/78022/clearLogo/1782630960"
+          },
+          {
+            "alt": "Alien",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/78022/squareArt/1782630960"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "0d0202",
+          "topRight": "040c03",
+          "bottomRight": "031003",
+          "bottomLeft": "030403"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0078748"
+          },
+          {
+            "id": "tmdb://348"
+          },
+          {
+            "id": "tvdb://264"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Science Fiction"
+          },
+          {
+            "tag": "Horror"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          },
+          {
+            "tag": "United Kingdom"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Ridley Scott"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Dan O'Bannon"
+          },
+          {
+            "tag": "Ronald Shusett"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Tom Skerritt"
+          },
+          {
+            "tag": "Sigourney Weaver"
+          },
+          {
+            "tag": "Veronica Cartwright"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "77903",
+        "key": "/library/metadata/77903",
+        "guid": "plex://movie/5d77683161141d001fb14b9e",
+        "slug": "alien-resurrection",
+        "editionTitle": "Extended",
+        "studio": "20th Century Fox",
+        "type": "movie",
+        "title": "Alien: Resurrection",
+        "contentRating": "R",
+        "contentRatingAge": 17,
+        "summary": "The saga continues 200 years after Ripley sacrificed herself for the sake of humanity. Her erstwhile employers long gone, this time it is the military that resurrects the one-woman killing machine through genetic cloning to extract the alien from within her, but during the process her DNA is fused with the queen and then the aliens escape. Now Ripley must decide where her allegiance lies.",
+        "rating": 5.5,
+        "audienceRating": 3.9,
+        "year": 1997,
+        "tagline": "It's already too late.",
+        "thumb": "/library/metadata/77903/thumb/1785603714",
+        "art": "/library/metadata/77903/art/1785603714",
+        "duration": 6968674,
+        "originallyAvailableAt": "1997-11-12",
+        "addedAt": 1782512747,
+        "updatedAt": 1785603714,
+        "audienceRatingImage": "rottentomatoes://image.rating.spilled",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/77904",
+        "ratingImage": "rottentomatoes://image.rating.rotten",
+        "Media": [
+          {
+            "id": 109722,
+            "duration": 6968674,
+            "bitrate": 5084,
+            "width": 1920,
+            "height": 820,
+            "aspectRatio": 2.35,
+            "audioChannels": 6,
+            "audioCodec": "ac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 109723,
+                "key": "/library/parts/109723/1782512716/file.mkv",
+                "duration": 6968674,
+                "file": "/library/movies/Fixture title 12 (1997)/Fixture title 12 (1997).mkv",
+                "size": 4431541712,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Alien: Resurrection",
+            "type": "coverPoster",
+            "url": "/library/metadata/77903/thumb/1785603714"
+          },
+          {
+            "alt": "Alien: Resurrection",
+            "type": "background",
+            "url": "/library/metadata/77903/art/1785603714"
+          },
+          {
+            "alt": "Alien: Resurrection",
+            "type": "clearLogo",
+            "url": "/library/metadata/77903/clearLogo/1785603714"
+          },
+          {
+            "alt": "Alien: Resurrection",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/77903/squareArt/1785603714"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "072a0a",
+          "topRight": "154d1b",
+          "bottomRight": "0d1e0c",
+          "bottomLeft": "040b03"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0118583"
+          },
+          {
+            "id": "tmdb://8078"
+          },
+          {
+            "id": "tvdb://784"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Science Fiction"
+          },
+          {
+            "tag": "Horror"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Jean-Pierre Jeunet"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Joss Whedon"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Sigourney Weaver"
+          },
+          {
+            "tag": "Winona Ryder"
+          },
+          {
+            "tag": "Dominique Pinon"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "3082",
+        "key": "/library/metadata/3082",
+        "guid": "plex://movie/5d776827961905001eb91337",
+        "slug": "aliens",
+        "editionTitle": "Special Edition",
+        "studio": "SLM Production Group",
+        "type": "movie",
+        "title": "Aliens",
+        "contentRating": "R",
+        "contentRatingAge": 15,
+        "summary": "Ripley, the sole survivor of the Nostromo's deadly encounter with the monstrous Alien, returns to Earth after drifting through space in hypersleep for 57 years. Although her story is initially met with skepticism, she agrees to accompany a team of Colonial Marines back to LV-426.",
+        "rating": 9.3,
+        "audienceRating": 9.4,
+        "year": 1986,
+        "tagline": "This time it's war.",
+        "thumb": "/library/metadata/3082/thumb/1785779394",
+        "art": "/library/metadata/3082/art/1785779394",
+        "duration": 9268300,
+        "originallyAvailableAt": "1986-07-18",
+        "addedAt": 1776487924,
+        "updatedAt": 1785779394,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/3083",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 111748,
+            "duration": 9268300,
+            "bitrate": 26791,
+            "width": 3840,
+            "height": 2072,
+            "aspectRatio": 1.85,
+            "audioChannels": 8,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 111749,
+                "key": "/library/parts/111749/1782538808/file.mkv",
+                "duration": 9268300,
+                "file": "/library/movies/Fixture title 13 (1986)/Fixture title 13 (1986).mkv",
+                "size": 30050377047,
+                "container": "mkv",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Aliens",
+            "type": "coverPoster",
+            "url": "/library/metadata/3082/thumb/1785779394"
+          },
+          {
+            "alt": "Aliens",
+            "type": "background",
+            "url": "/library/metadata/3082/art/1785779394"
+          },
+          {
+            "alt": "Aliens",
+            "type": "clearLogo",
+            "url": "/library/metadata/3082/clearLogo/1785779394"
+          },
+          {
+            "alt": "Aliens",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/3082/squareArt/1785779394"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "123143",
+          "topRight": "672b28",
+          "bottomRight": "310f28",
+          "bottomLeft": "1a274f"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0090605"
+          },
+          {
+            "id": "tmdb://679"
+          },
+          {
+            "id": "tvdb://654"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Action"
+          },
+          {
+            "tag": "Adventure"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Alien"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "James Cameron"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "James Cameron"
+          },
+          {
+            "tag": "Ronald Shusett"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Sigourney Weaver"
+          },
+          {
+            "tag": "Carrie Henn"
+          },
+          {
+            "tag": "Michael Biehn"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "20172",
+        "key": "/library/metadata/20172",
+        "guid": "plex://movie/5d77683161141d001fb14ba5",
+        "slug": "alien3",
+        "studio": "20th Century Fox",
+        "type": "movie",
+        "title": "Alien³",
+        "contentRating": "R",
+        "contentRatingAge": 16,
+        "summary": "Ellen Ripley is the only survivor when she crash lands on Fiorina 161, a bleak wasteland inhabited by former inmates of the planet's maximum security prison. Once again, Ripley must face skepticism and the alien as it hunts down the prisoners and guards. Without weapons or modern technology of any kind, Ripley leads the men into battle against the terrifying creature.",
+        "rating": 4.3,
+        "audienceRating": 4.6,
+        "year": 1992,
+        "tagline": "3 times the suspense. 3 times the danger. 3 times the terror",
+        "thumb": "/library/metadata/20172/thumb/1787505055",
+        "art": "/library/metadata/20172/art/1787505055",
+        "duration": 8599758,
+        "originallyAvailableAt": "1992-05-22",
+        "addedAt": 1778650384,
+        "updatedAt": 1787505055,
+        "audienceRatingImage": "rottentomatoes://image.rating.spilled",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/20173",
+        "ratingImage": "rottentomatoes://image.rating.rotten",
+        "Media": [
+          {
+            "id": 28388,
+            "duration": 8599758,
+            "bitrate": 46314,
+            "width": 3840,
+            "height": 1620,
+            "aspectRatio": 2.35,
+            "audioChannels": 6,
+            "audioCodec": "aac",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "lc",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 28389,
+                "key": "/library/parts/28389/1778650356/file.mkv",
+                "duration": 8599758,
+                "file": "/library/movies/Fixture title 14 (1992)/Fixture title 14 (1992).mkv",
+                "size": 49785946786,
+                "audioProfile": "lc",
+                "container": "mkv",
+                "hasThumbnail": "1",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Alien³",
+            "type": "coverPoster",
+            "url": "/library/metadata/20172/thumb/1787505055"
+          },
+          {
+            "alt": "Alien³",
+            "type": "background",
+            "url": "/library/metadata/20172/art/1787505055"
+          },
+          {
+            "alt": "Alien³",
+            "type": "clearLogo",
+            "url": "/library/metadata/20172/clearLogo/1787505055"
+          },
+          {
+            "alt": "Alien³",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/20172/squareArt/1787505055"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "273214",
+          "topRight": "264427",
+          "bottomRight": "2d502f",
+          "bottomLeft": "4e6730"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0103644"
+          },
+          {
+            "id": "tmdb://8077"
+          },
+          {
+            "id": "tvdb://670"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Science Fiction"
+          },
+          {
+            "tag": "Action"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Alien"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "David Fincher"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Dan O'Bannon"
+          },
+          {
+            "tag": "Ronald Shusett"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Sigourney Weaver"
+          },
+          {
+            "tag": "Charles S. Dutton"
+          },
+          {
+            "tag": "Charles Dance"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 1,
+        "librarySectionTitle": "Movies",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "26387",
+        "key": "/library/metadata/26387",
+        "guid": "plex://movie/5d77682e961905001eb92c0b",
+        "slug": "an-american-tail",
+        "studio": "Amblin Entertainment",
+        "type": "movie",
+        "title": "An American Tail",
+        "titleSort": "American Tail",
+        "contentRating": "G",
+        "contentRatingAge": 5,
+        "summary": "Fievel is a young Russian mouse separated from his parents on the way to America, a land they think is without cats. When he arrives alone in the New World, he keeps up hope, searching for his family, making new friends, and running and dodging the cats he thought he'd be rid off.",
+        "rating": 7.6,
+        "audienceRating": 7.1,
+        "year": 1986,
+        "tagline": "Meet Fievel. In his search to find his family, he discovered America.",
+        "thumb": "/library/metadata/26387/thumb/1786463812",
+        "art": "/library/metadata/26387/art/1786463812",
+        "duration": 4823840,
+        "originallyAvailableAt": "1986-11-21",
+        "addedAt": 1779222376,
+        "updatedAt": 1786463812,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/26388",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 37174,
+            "duration": 4823840,
+            "bitrate": 5981,
+            "width": 1920,
+            "height": 1040,
+            "aspectRatio": 1.85,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 37175,
+                "key": "/library/parts/37175/1779222358/file.mkv",
+                "duration": 4823840,
+                "file": "/library/movies/Fixture title 15 (1986)/Fixture title 15 (1986).mkv",
+                "size": 3607503735,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "An American Tail",
+            "type": "coverPoster",
+            "url": "/library/metadata/26387/thumb/1786463812"
+          },
+          {
+            "alt": "An American Tail",
+            "type": "background",
+            "url": "/library/metadata/26387/art/1786463812"
+          },
+          {
+            "alt": "An American Tail",
+            "type": "clearLogo",
+            "url": "/library/metadata/26387/clearLogo/1786463812"
+          },
+          {
+            "alt": "An American Tail",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/26387/squareArt/1786463812"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "452409",
+          "topRight": "a32f01",
+          "bottomRight": "932d0e",
+          "bottomLeft": "ab1d24"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0090633"
+          },
+          {
+            "id": "tmdb://4978"
+          },
+          {
+            "id": "tvdb://2632"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Family"
+          },
+          {
+            "tag": "Animation"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "An American Tail"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Don Bluth"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Judy Freudberg"
+          },
+          {
+            "tag": "Tony Geiss"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Phillip Glasser"
+          },
+          {
+            "tag": "Erica Yohn"
+          },
+          {
+            "tag": "Nehemiah Persoff"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "218317",
+        "key": "/library/metadata/218317/children",
+        "guid": "plex://show/5d9c08162df347001e3aa6cf",
+        "slug": "a-series-of-unfortunate-events",
+        "studio": "Take 5 Productions",
+        "type": "show",
+        "title": "A Series of Unfortunate Events",
+        "titleSort": "Series of Unfortunate Events",
+        "contentRating": "TV-PG",
+        "contentRatingAge": 10,
+        "summary": "After the Baudelaire parents die in a terrible fire, the Baudelaire orphans search for their families secrets and get them and their fortune away from the terrible grasp of the sinister Count Olaf as he moves with them between different guardians in disguise.",
+        "index": 1,
+        "audienceRating": 7.4,
+        "year": 2017,
+        "tagline": "Secrets will be revealed, one unfortunate event at a time.",
+        "thumb": "/library/metadata/218317/thumb/1787892586",
+        "art": "/library/metadata/218317/art/1787892586",
+        "theme": "/library/metadata/218317/theme/1787892586",
+        "duration": 3120000,
+        "originallyAvailableAt": "2017-01-13",
+        "leafCount": 25,
+        "viewedLeafCount": 0,
+        "childCount": 3,
+        "addedAt": 1787881005,
+        "updatedAt": 1787892586,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "primaryExtraKey": "/library/metadata/218326",
+        "Image": [
+          {
+            "alt": "A Series of Unfortunate Events",
+            "type": "coverPoster",
+            "url": "/library/metadata/218317/thumb/1787892586"
+          },
+          {
+            "alt": "A Series of Unfortunate Events",
+            "type": "background",
+            "url": "/library/metadata/218317/art/1787892586"
+          },
+          {
+            "alt": "A Series of Unfortunate Events",
+            "type": "clearLogo",
+            "url": "/library/metadata/218317/clearLogo/1787892586"
+          },
+          {
+            "alt": "A Series of Unfortunate Events",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/218317/squareArt/1787892586"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "112919",
+          "topRight": "1a4033",
+          "bottomRight": "10291c",
+          "bottomLeft": "253a1c"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt4834206"
+          },
+          {
+            "id": "tmdb://65294"
+          },
+          {
+            "id": "tvdb://306304"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Mystery"
+          },
+          {
+            "tag": "Family"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Neil Patrick Harris"
+          },
+          {
+            "tag": "Patrick Warburton"
+          },
+          {
+            "tag": "Malina Weissman"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "126401",
+        "key": "/library/metadata/126401/children",
+        "skipChildren": true,
+        "guid": "plex://show/5d9c08d3ba2e21001f193275",
+        "slug": "aho-girl",
+        "studio": "diomedéa",
+        "type": "show",
+        "title": "AHO-GIRL",
+        "originalTitle": "アホガール",
+        "contentRating": "TV-14",
+        "summary": "Yoshiko Hanabatake is an idiot. She is so ditzy she gets zero on all her tests, she just wants to play and run around all day and not ponder her future, and she loves bananas. Her closest friends are Akuru Akutsu, a smart and serious student, and Sayaka Sumino, a kind and level-headed schoolgirl; both of whom must put up with Yoshiko's escapades.",
+        "index": 1,
+        "audienceRating": 7.8,
+        "year": 2017,
+        "thumb": "/library/metadata/126401/thumb/1787505098",
+        "art": "/library/metadata/126401/art/1787505098",
+        "theme": "/library/metadata/126401/theme/1787505098",
+        "duration": 780000,
+        "originallyAvailableAt": "2017-07-04",
+        "leafCount": 12,
+        "viewedLeafCount": 12,
+        "childCount": 1,
+        "addedAt": 1784650476,
+        "updatedAt": 1787505098,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "AHO-GIRL",
+            "type": "coverPoster",
+            "url": "/library/metadata/126401/thumb/1787505098"
+          },
+          {
+            "alt": "AHO-GIRL",
+            "type": "background",
+            "url": "/library/metadata/126401/art/1787505098"
+          },
+          {
+            "alt": "AHO-GIRL",
+            "type": "clearLogo",
+            "url": "/library/metadata/126401/clearLogo/1787505098"
+          },
+          {
+            "alt": "AHO-GIRL",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/126401/squareArt/1787505098"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "142d51",
+          "topRight": "943e3c",
+          "bottomRight": "28638a",
+          "bottomLeft": "036398"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt7136968"
+          },
+          {
+            "id": "tmdb://72502"
+          },
+          {
+            "id": "tvdb://329821"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Animation"
+          },
+          {
+            "tag": "Comedy"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Japan"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Planning"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Rena Maeda"
+          },
+          {
+            "tag": "Yuka Iguchi"
+          },
+          {
+            "tag": "Yoko Hikasa"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "37487",
+        "key": "/library/metadata/37487/children",
+        "guid": "plex://show/60a69b7811abb9002d7adbb8",
+        "slug": "abbott-elementary",
+        "studio": "Warner Bros. Television",
+        "type": "show",
+        "title": "Abbott Elementary",
+        "contentRating": "TV-14",
+        "contentRatingAge": 10,
+        "summary": "A workplace comedy centered on a group of dedicated teachers - and an oblivious principal - in a Philadelphia public school where, despite the odds stacked against them, they are determined to help their students succeed in life.",
+        "index": 1,
+        "audienceRating": 7.5,
+        "year": 2021,
+        "tagline": "Working their class off",
+        "thumb": "/library/metadata/37487/thumb/1785603732",
+        "art": "/library/metadata/37487/art/1785603732",
+        "theme": "/library/metadata/37487/theme/1785603732",
+        "duration": 1320000,
+        "originallyAvailableAt": "2021-12-07",
+        "leafCount": 93,
+        "viewedLeafCount": 0,
+        "childCount": 5,
+        "addedAt": 1779890645,
+        "updatedAt": 1785603732,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "Abbott Elementary",
+            "type": "coverPoster",
+            "url": "/library/metadata/37487/thumb/1785603732"
+          },
+          {
+            "alt": "Abbott Elementary",
+            "type": "background",
+            "url": "/library/metadata/37487/art/1785603732"
+          },
+          {
+            "alt": "Abbott Elementary",
+            "type": "clearLogo",
+            "url": "/library/metadata/37487/clearLogo/1785603732"
+          },
+          {
+            "alt": "Abbott Elementary",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/37487/squareArt/1785603732"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "482112",
+          "topRight": "883940",
+          "bottomRight": "9e3239",
+          "bottomLeft": "924041"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt14218830"
+          },
+          {
+            "id": "tmdb://125935"
+          },
+          {
+            "id": "tvdb://402910"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Comedy"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Quinta Brunson"
+          },
+          {
+            "tag": "Tyler James Williams"
+          },
+          {
+            "tag": "Sheryl Lee Ralph"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "13480",
+        "key": "/library/metadata/13480/children",
+        "guid": "plex://show/5d9c07f72df347001e3a70b4",
+        "slug": "adventure-time-1",
+        "studio": "Frederator Studios",
+        "type": "show",
+        "title": "Adventure Time",
+        "contentRating": "TV-PG",
+        "contentRatingAge": 10,
+        "summary": "A 12-year-old boy and his best friend, a wise 28-year-old dog with magical powers, go on a series of surreal adventures in a remote future.",
+        "index": 1,
+        "audienceRating": 8.5,
+        "year": 2010,
+        "thumb": "/library/metadata/13480/thumb/1785603720",
+        "art": "/library/metadata/13480/art/1785603720",
+        "theme": "/library/metadata/13480/theme/1785603720",
+        "duration": 660000,
+        "originallyAvailableAt": "2010-04-05",
+        "leafCount": 279,
+        "viewedLeafCount": 279,
+        "childCount": 10,
+        "addedAt": 1777491782,
+        "updatedAt": 1785603720,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "primaryExtraKey": "/library/metadata/13484",
+        "Image": [
+          {
+            "alt": "Adventure Time",
+            "type": "coverPoster",
+            "url": "/library/metadata/13480/thumb/1785603720"
+          },
+          {
+            "alt": "Adventure Time",
+            "type": "background",
+            "url": "/library/metadata/13480/art/1785603720"
+          },
+          {
+            "alt": "Adventure Time",
+            "type": "clearLogo",
+            "url": "/library/metadata/13480/clearLogo/1785603720"
+          },
+          {
+            "alt": "Adventure Time",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/13480/squareArt/1785603720"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "0e304b",
+          "topRight": "22643a",
+          "bottomRight": "21556c",
+          "bottomLeft": "a02826"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt1305826"
+          },
+          {
+            "id": "tmdb://15260"
+          },
+          {
+            "id": "tvdb://152831"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Fantasy"
+          },
+          {
+            "tag": "Adventure"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Jeremy Shada"
+          },
+          {
+            "tag": "John DiMaggio"
+          },
+          {
+            "tag": "Tom Kenny"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "99404",
+        "key": "/library/metadata/99404/children",
+        "skipChildren": true,
+        "guid": "plex://show/5e1618f5f0bee8003d4f0eba",
+        "slug": "adventure-time-distant-lands",
+        "studio": "Cartoon Network Studios",
+        "type": "show",
+        "title": "Adventure Time: Distant Lands",
+        "contentRating": "TV-PG",
+        "summary": "Four hour-long specials that explore the unseen corners of the world of Adventure Time with both familiar and exciting brand-new characters.",
+        "index": 1,
+        "audienceRating": 8.2,
+        "year": 2020,
+        "thumb": "/library/metadata/99404/thumb/1786463836",
+        "art": "/library/metadata/99404/art/1786463836",
+        "duration": 2700000,
+        "originallyAvailableAt": "2020-06-25",
+        "leafCount": 4,
+        "viewedLeafCount": 0,
+        "childCount": 1,
+        "addedAt": 1783284878,
+        "updatedAt": 1786463836,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "primaryExtraKey": "/library/metadata/99408",
+        "Image": [
+          {
+            "alt": "Adventure Time: Distant Lands",
+            "type": "coverPoster",
+            "url": "/library/metadata/99404/thumb/1786463836"
+          },
+          {
+            "alt": "Adventure Time: Distant Lands",
+            "type": "background",
+            "url": "/library/metadata/99404/art/1786463836"
+          },
+          {
+            "alt": "Adventure Time: Distant Lands",
+            "type": "clearLogo",
+            "url": "/library/metadata/99404/clearLogo/1786463836"
+          },
+          {
+            "alt": "Adventure Time: Distant Lands",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/99404/squareArt/1786463836"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "4b1a2e",
+          "topRight": "963852",
+          "bottomRight": "602c12",
+          "bottomLeft": "a81651"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt11165358"
+          },
+          {
+            "id": "tmdb://94810"
+          },
+          {
+            "id": "tvdb://458354"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Fantasy"
+          },
+          {
+            "tag": "Adventure"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "John DiMaggio"
+          },
+          {
+            "tag": "Jeremy Shada"
+          },
+          {
+            "tag": "Tom Kenny"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "1906",
+        "key": "/library/metadata/1906/children",
+        "guid": "plex://show/611cdc357032b6002cb92e97",
+        "slug": "adventure-time-fionna-and-cake",
+        "studio": "Cartoon Network Studios",
+        "type": "show",
+        "title": "Adventure Time: Fionna and Cake",
+        "contentRating": "TV-14",
+        "contentRatingAge": 12,
+        "summary": "Fionna and Cake--with help from the former Ice King, Simon Petrikov--embark on a multiverse-hopping adventure and journey of self-discovery. All the while, lurking in the shadows is a powerful new antagonist determined to track them down and erase them from existence.",
+        "index": 1,
+        "audienceRating": 8.7,
+        "year": 2023,
+        "thumb": "/library/metadata/1906/thumb/1787505073",
+        "art": "/library/metadata/1906/art/1787505073",
+        "theme": "/library/metadata/1906/theme/1787505073",
+        "duration": 1800000,
+        "originallyAvailableAt": "2023-08-31",
+        "leafCount": 20,
+        "viewedLeafCount": 20,
+        "childCount": 2,
+        "addedAt": 1775470812,
+        "updatedAt": 1787505073,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "primaryExtraKey": "/library/metadata/1909",
+        "Image": [
+          {
+            "alt": "Adventure Time: Fionna and Cake",
+            "type": "coverPoster",
+            "url": "/library/metadata/1906/thumb/1787505073"
+          },
+          {
+            "alt": "Adventure Time: Fionna and Cake",
+            "type": "background",
+            "url": "/library/metadata/1906/art/1787505073"
+          },
+          {
+            "alt": "Adventure Time: Fionna and Cake",
+            "type": "clearLogo",
+            "url": "/library/metadata/1906/clearLogo/1787505073"
+          },
+          {
+            "alt": "Adventure Time: Fionna and Cake",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/1906/squareArt/1787505073"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "4c1a29",
+          "topRight": "160306",
+          "bottomRight": "235668",
+          "bottomLeft": "2b6770"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt15248880"
+          },
+          {
+            "id": "tmdb://131378"
+          },
+          {
+            "id": "tvdb://408850"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Animation"
+          },
+          {
+            "tag": "Comedy"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Madeleine Martin"
+          },
+          {
+            "tag": "Roz Ryan"
+          },
+          {
+            "tag": "Tom Kenny"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "99245",
+        "key": "/library/metadata/99245/children",
+        "skipChildren": true,
+        "guid": "plex://show/6a0c0d59061ef1ee78c3e711",
+        "slug": "adventure-time-side-quests",
+        "studio": "Cartoon Network Studios",
+        "type": "show",
+        "title": "Adventure Time: Side Quests",
+        "contentRating": "TV-PG",
+        "contentRatingAge": 9,
+        "summary": "The early days of Finn the Human and Jake the Dog's brotherly bond, embarking on epic quests together and hanging out with familiar faces along the way.",
+        "index": 1,
+        "audienceRating": 7.8,
+        "year": 2026,
+        "thumb": "/library/metadata/99245/thumb/1787592675",
+        "art": "/library/metadata/99245/art/1787592675",
+        "duration": 720000,
+        "originallyAvailableAt": "2026-06-29",
+        "leafCount": 20,
+        "viewedLeafCount": 0,
+        "childCount": 1,
+        "addedAt": 1783284444,
+        "updatedAt": 1787592675,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "Adventure Time: Side Quests",
+            "type": "coverPoster",
+            "url": "/library/metadata/99245/thumb/1787592675"
+          },
+          {
+            "alt": "Adventure Time: Side Quests",
+            "type": "background",
+            "url": "/library/metadata/99245/art/1787592675"
+          },
+          {
+            "alt": "Adventure Time: Side Quests",
+            "type": "clearLogo",
+            "url": "/library/metadata/99245/clearLogo/1787592675"
+          },
+          {
+            "alt": "Adventure Time: Side Quests",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/99245/squareArt/1787592675"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "172d4f",
+          "topRight": "0e6299",
+          "bottomRight": "28569d",
+          "bottomLeft": "356c36"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt32603995"
+          },
+          {
+            "id": "tmdb://256694"
+          },
+          {
+            "id": "tvdb://475809"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Animation"
+          },
+          {
+            "tag": "Action"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "John DiMaggio"
+          },
+          {
+            "tag": "Sasha Knight"
+          },
+          {
+            "tag": "Tom Kenny"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "210555",
+        "key": "/library/metadata/210555/children",
+        "skipChildren": true,
+        "guid": "plex://show/5d9c0844e264b7001fc3fc4e",
+        "slug": "afro-samurai",
+        "studio": "GONZO",
+        "type": "show",
+        "title": "Afro Samurai",
+        "contentRating": "TV-MA",
+        "contentRatingAge": 17,
+        "summary": "A Black samurai goes on a mission to avenge the wrongful death of his father in a futuristic feudal Japan.",
+        "index": 1,
+        "audienceRating": 7.3,
+        "year": 2007,
+        "thumb": "/library/metadata/210555/thumb/1787699255",
+        "art": "/library/metadata/210555/art/1787699255",
+        "theme": "/library/metadata/210555/theme/1787699255",
+        "duration": 1500000,
+        "originallyAvailableAt": "2007-01-04",
+        "leafCount": 5,
+        "viewedLeafCount": 5,
+        "childCount": 1,
+        "addedAt": 1787585842,
+        "updatedAt": 1787699255,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "Afro Samurai",
+            "type": "coverPoster",
+            "url": "/library/metadata/210555/thumb/1787699255"
+          },
+          {
+            "alt": "Afro Samurai",
+            "type": "background",
+            "url": "/library/metadata/210555/art/1787699255"
+          },
+          {
+            "alt": "Afro Samurai",
+            "type": "clearLogo",
+            "url": "/library/metadata/210555/clearLogo/1787699255"
+          },
+          {
+            "alt": "Afro Samurai",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/210555/squareArt/1787699255"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "541310",
+          "topRight": "6b1d1c",
+          "bottomRight": "72201c",
+          "bottomLeft": "3a110f"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0465316"
+          },
+          {
+            "id": "tmdb://19544"
+          },
+          {
+            "id": "tvdb://79755"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Action"
+          },
+          {
+            "tag": "Animation"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Planning"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Samuel L. Jackson"
+          },
+          {
+            "tag": "Phil LaMarr"
+          },
+          {
+            "tag": "Yuri Lowenthal"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "53918",
+        "key": "/library/metadata/53918/children",
+        "skipChildren": true,
+        "guid": "plex://show/5e7362f6fc1a8d0040111072",
+        "slug": "akudama-drive",
+        "studio": "Pierrot",
+        "type": "show",
+        "title": "Akudama Drive",
+        "originalTitle": "アクダマドライブ",
+        "contentRating": "TV-MA",
+        "summary": "Long ago, a war broke out in Japan that pitted Kantou against Kansai and divided the country. Kansai became dependent on Kantou, but slowly the police and government began losing control of Kansai to criminals known as Akudama.",
+        "index": 1,
+        "audienceRating": 7.5,
+        "year": 2020,
+        "thumb": "/library/metadata/53918/thumb/1785603739",
+        "art": "/library/metadata/53918/art/1785603739",
+        "theme": "/library/metadata/53918/theme/1785603739",
+        "duration": 1440000,
+        "originallyAvailableAt": "2020-10-08",
+        "leafCount": 12,
+        "viewedLeafCount": 0,
+        "childCount": 1,
+        "addedAt": 1781833658,
+        "updatedAt": 1785603739,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "Akudama Drive",
+            "type": "coverPoster",
+            "url": "/library/metadata/53918/thumb/1785603739"
+          },
+          {
+            "alt": "Akudama Drive",
+            "type": "background",
+            "url": "/library/metadata/53918/art/1785603739"
+          },
+          {
+            "alt": "Akudama Drive",
+            "type": "clearLogo",
+            "url": "/library/metadata/53918/clearLogo/1785603739"
+          },
+          {
+            "alt": "Akudama Drive",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/53918/squareArt/1785603739"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "541502",
+          "topRight": "2a6773",
+          "bottomRight": "1e696f",
+          "bottomLeft": "954119"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt12331342"
+          },
+          {
+            "id": "tmdb://100436"
+          },
+          {
+            "id": "tvdb://378879"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Action"
+          },
+          {
+            "tag": "Crime"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Japan"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Planning"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Tomoyo Kurosawa"
+          },
+          {
+            "tag": "Yuuichirou Umehara"
+          },
+          {
+            "tag": "Shunsuke Takeuchi"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "28984",
+        "key": "/library/metadata/28984/children",
+        "skipChildren": true,
+        "guid": "plex://show/6414757425871b1c05c6d574",
+        "slug": "alya-sometimes-hides-her-feelings-in-russian",
+        "studio": "Doga Kobo",
+        "type": "show",
+        "title": "Alya Sometimes Hides Her Feelings in Russian",
+        "originalTitle": "時々ボソッとロシア語でデレる隣のアーリャさん",
+        "contentRating": "TV-14",
+        "contentRatingAge": 14,
+        "summary": "Alisa Mikhailovna Kujou is considered the idol of her institute. She has conquered the hearts of countless male students, but she has her eyes on one Japanese boy who she flirts with in Russian, who also happens to understand Russian.",
+        "index": 1,
+        "audienceRating": 7.9,
+        "viewCount": 1,
+        "lastViewedAt": 1700000024,
+        "year": 2024,
+        "thumb": "/library/metadata/28984/thumb/1785603728",
+        "art": "/library/metadata/28984/art/1785603728",
+        "theme": "/library/metadata/28984/theme/1785603728",
+        "duration": 1440000,
+        "originallyAvailableAt": "2024-07-03",
+        "leafCount": 12,
+        "viewedLeafCount": 12,
+        "childCount": 1,
+        "addedAt": 1779370270,
+        "updatedAt": 1785603728,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "Alya Sometimes Hides Her Feelings in Russian",
+            "type": "coverPoster",
+            "url": "/library/metadata/28984/thumb/1785603728"
+          },
+          {
+            "alt": "Alya Sometimes Hides Her Feelings in Russian",
+            "type": "background",
+            "url": "/library/metadata/28984/art/1785603728"
+          },
+          {
+            "alt": "Alya Sometimes Hides Her Feelings in Russian",
+            "type": "clearLogo",
+            "url": "/library/metadata/28984/clearLogo/1785603728"
+          },
+          {
+            "alt": "Alya Sometimes Hides Her Feelings in Russian",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/28984/squareArt/1785603728"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1c285d",
+          "topRight": "222a59",
+          "bottomRight": "344181",
+          "bottomLeft": "292f65"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt31131295"
+          },
+          {
+            "id": "tmdb://235758"
+          },
+          {
+            "id": "tvdb://432531"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Animation"
+          },
+          {
+            "tag": "Comedy"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Japan"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Planning"
+          },
+          {
+            "tag": "Watching"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Sumire Uesaka"
+          },
+          {
+            "tag": "Kohei Amasaki"
+          },
+          {
+            "tag": "Wakana Maruoka"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "201299",
+        "key": "/library/metadata/201299/children",
+        "guid": "plex://show/5d9c086c7d06d9001ffd27b2",
+        "slug": "american-dad",
+        "studio": "20th Century Fox Television",
+        "type": "show",
+        "title": "American Dad!",
+        "contentRating": "TV-14",
+        "contentRatingAge": 14,
+        "summary": "The escapades of Stan Smith, a conservative C.I.A. Agent dealing with family life, while keeping America safe.",
+        "index": 1,
+        "audienceRating": 7,
+        "year": 2005,
+        "tagline": "From the creator of \"Family Guy\" comes a man who will stop at nothing to protect his country.",
+        "thumb": "/library/metadata/201299/thumb/1787256642",
+        "art": "/library/metadata/201299/art/1787256642",
+        "theme": "/library/metadata/201299/theme/1787256642",
+        "duration": 1320000,
+        "originallyAvailableAt": "2005-02-06",
+        "leafCount": 399,
+        "viewedLeafCount": 0,
+        "childCount": 22,
+        "addedAt": 1787214323,
+        "updatedAt": 1787256642,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "American Dad!",
+            "type": "coverPoster",
+            "url": "/library/metadata/201299/thumb/1787256642"
+          },
+          {
+            "alt": "American Dad!",
+            "type": "background",
+            "url": "/library/metadata/201299/art/1787256642"
+          },
+          {
+            "alt": "American Dad!",
+            "type": "clearLogo",
+            "url": "/library/metadata/201299/clearLogo/1787256642"
+          },
+          {
+            "alt": "American Dad!",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/201299/squareArt/1787256642"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "560f11",
+          "topRight": "893541",
+          "bottomRight": "28616f",
+          "bottomLeft": "22446e"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0397306"
+          },
+          {
+            "id": "tmdb://1433"
+          },
+          {
+            "id": "tvdb://73141"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Animation"
+          },
+          {
+            "tag": "Comedy"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Seth MacFarlane"
+          },
+          {
+            "tag": "Wendy Schaal"
+          },
+          {
+            "tag": "Rachael MacFarlane"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "162140",
+        "key": "/library/metadata/162140/children",
+        "guid": "plex://show/5d9c09123c3f87001f35b9ca",
+        "slug": "andor",
+        "studio": "Lucasfilm Ltd.",
+        "type": "show",
+        "title": "Andor",
+        "contentRating": "TV-14",
+        "contentRatingAge": 13,
+        "summary": "In an era filled with danger, deception and intrigue, Cassian Andor will discover the difference he can make in the struggle against the tyrannical Galactic Empire. He embarks on a path that is destined to turn him into a rebel hero.",
+        "index": 1,
+        "audienceRating": 8.3,
+        "year": 2022,
+        "tagline": "The rebellion begins.",
+        "thumb": "/library/metadata/162140/thumb/1786169087",
+        "art": "/library/metadata/162140/art/1786169087",
+        "theme": "/library/metadata/162140/theme/1786169087",
+        "duration": 3600000,
+        "originallyAvailableAt": "2022-09-20",
+        "leafCount": 24,
+        "viewedLeafCount": 24,
+        "childCount": 2,
+        "addedAt": 1786128056,
+        "updatedAt": 1786169087,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "primaryExtraKey": "/library/metadata/162154",
+        "Image": [
+          {
+            "alt": "Andor",
+            "type": "coverPoster",
+            "url": "/library/metadata/162140/thumb/1786169087"
+          },
+          {
+            "alt": "Andor",
+            "type": "background",
+            "url": "/library/metadata/162140/art/1786169087"
+          },
+          {
+            "alt": "Andor",
+            "type": "clearLogo",
+            "url": "/library/metadata/162140/clearLogo/1786169087"
+          },
+          {
+            "alt": "Andor",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/162140/squareArt/1786169087"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "152e4d",
+          "topRight": "17181e",
+          "bottomRight": "5a391b",
+          "bottomLeft": "1d355e"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt9253284"
+          },
+          {
+            "id": "tmdb://83867"
+          },
+          {
+            "id": "tvdb://393189"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Thriller"
+          },
+          {
+            "tag": "Science Fiction"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Anton Lesser"
+          },
+          {
+            "tag": "Muhannad Bhaier"
+          },
+          {
+            "tag": "Diego Luna"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "18785",
+        "key": "/library/metadata/18785/children",
+        "skipChildren": true,
+        "guid": "plex://show/5d9c07f6e98e47001eb03f06",
+        "slug": "angel-beats",
+        "studio": "P.A.WORKS",
+        "type": "show",
+        "title": "Angel Beats!",
+        "contentRating": "TV-14",
+        "summary": "For most, life ends after death, but not for this group of teenagers, trapped in a high school teetering between the lines of life and death. Frustrated at their premature and unfair deaths, the teens stage a rebellion against God, desperate for their lives to have amounted to something. But as time passes, it becomes clear that their purgatory is not what it seems, nor is the quiet angel they fight against.",
+        "index": 1,
+        "audienceRating": 7.9,
+        "year": 2010,
+        "tagline": "1-2-3-4-5-6-7 All Good Children Go To Heaven (They Wish)",
+        "thumb": "/library/metadata/18785/thumb/1787505082",
+        "art": "/library/metadata/18785/art/1787505082",
+        "theme": "/library/metadata/18785/theme/1787505082",
+        "duration": 1440000,
+        "originallyAvailableAt": "2010-04-02",
+        "leafCount": 13,
+        "viewedLeafCount": 0,
+        "childCount": 1,
+        "addedAt": 1778444760,
+        "updatedAt": 1787505082,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "primaryExtraKey": "/library/metadata/18805",
+        "Image": [
+          {
+            "alt": "Angel Beats!",
+            "type": "coverPoster",
+            "url": "/library/metadata/18785/thumb/1787505082"
+          },
+          {
+            "alt": "Angel Beats!",
+            "type": "background",
+            "url": "/library/metadata/18785/art/1787505082"
+          },
+          {
+            "alt": "Angel Beats!",
+            "type": "clearLogo",
+            "url": "/library/metadata/18785/clearLogo/1787505082"
+          },
+          {
+            "alt": "Angel Beats!",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/18785/squareArt/1787505082"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "0f0f2b",
+          "topRight": "893c77",
+          "bottomRight": "2f163d",
+          "bottomLeft": "b20404"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt1639109"
+          },
+          {
+            "id": "tmdb://42942"
+          },
+          {
+            "id": "tvdb://150471"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Drama"
+          },
+          {
+            "tag": "Fantasy"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Japan"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Planning"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Hiroshi Kamiya"
+          },
+          {
+            "tag": "Harumi Sakurai"
+          },
+          {
+            "tag": "Kana Hanazawa"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "29161",
+        "key": "/library/metadata/29161/children",
+        "skipChildren": true,
+        "guid": "plex://show/5d9c08f8705e7a001e6e7c17",
+        "slug": "angels-of-death",
+        "studio": "J.C.STAFF",
+        "type": "show",
+        "title": "Angels of Death",
+        "originalTitle": "殺戮の天使",
+        "contentRating": "TV-MA",
+        "summary": "Most girls waking up without any memory and meeting a serial killer would panic, but not Rachel. In fact, far from being her biggest problem, killer Zack might just prove a convenient resource when it comes to finding a way out of the building in which they're both trapped!",
+        "index": 1,
+        "audienceRating": 7.9,
+        "viewCount": 1,
+        "lastViewedAt": 1700000028,
+        "year": 2018,
+        "thumb": "/library/metadata/29161/thumb/1787505090",
+        "art": "/library/metadata/29161/art/1787505090",
+        "theme": "/library/metadata/29161/theme/1787505090",
+        "duration": 1440000,
+        "originallyAvailableAt": "2018-07-06",
+        "leafCount": 16,
+        "viewedLeafCount": 16,
+        "childCount": 1,
+        "addedAt": 1779373395,
+        "updatedAt": 1787505090,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "Angels of Death",
+            "type": "coverPoster",
+            "url": "/library/metadata/29161/thumb/1787505090"
+          },
+          {
+            "alt": "Angels of Death",
+            "type": "background",
+            "url": "/library/metadata/29161/art/1787505090"
+          },
+          {
+            "alt": "Angels of Death",
+            "type": "clearLogo",
+            "url": "/library/metadata/29161/clearLogo/1787505090"
+          },
+          {
+            "alt": "Angels of Death",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/29161/squareArt/1787505090"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "4c1c1e",
+          "topRight": "923f42",
+          "bottomRight": "a71d4b",
+          "bottomLeft": "580c14"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt8670784"
+          },
+          {
+            "id": "tmdb://80477"
+          },
+          {
+            "id": "tvdb://344844"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Thriller"
+          },
+          {
+            "tag": "Horror"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Japan"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Watching"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Haruka Chisuga"
+          },
+          {
+            "tag": "Nobuhiko Okamoto"
+          },
+          {
+            "tag": "Takahiro Sakurai"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "33596",
+        "key": "/library/metadata/33596/children",
+        "guid": "plex://show/5d9c07fe2df347001e3a7d17",
+        "slug": "animaniacs",
+        "studio": "Warner Bros. Animation",
+        "type": "show",
+        "title": "Animaniacs",
+        "contentRating": "TV-Y7",
+        "contentRatingAge": 7,
+        "summary": "The two Warner Brothers Yakko and Wakko and their Warner sister Dot had been (supposedly) created in the 1930's, but their cartoons were too screwy for the general public to handle. The three Warners were locked up in the studio water tower until they escaped in the 90's. There, they run wild, causing chaos everywhere!",
+        "index": 1,
+        "audienceRating": 8,
+        "viewCount": 0,
+        "skipCount": 3,
+        "lastViewedAt": 1700000029,
+        "year": 1993,
+        "thumb": "/library/metadata/33596/thumb/1786474081",
+        "art": "/library/metadata/33596/art/1786474081",
+        "theme": "/library/metadata/33596/theme/1786474081",
+        "duration": 1260000,
+        "originallyAvailableAt": "1993-09-13",
+        "leafCount": 238,
+        "viewedLeafCount": 0,
+        "childCount": 7,
+        "addedAt": 1779838489,
+        "updatedAt": 1786474081,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "Animaniacs",
+            "type": "coverPoster",
+            "url": "/library/metadata/33596/thumb/1786474081"
+          },
+          {
+            "alt": "Animaniacs",
+            "type": "background",
+            "url": "/library/metadata/33596/art/1786474081"
+          },
+          {
+            "alt": "Animaniacs",
+            "type": "clearLogo",
+            "url": "/library/metadata/33596/clearLogo/1786474081"
+          },
+          {
+            "alt": "Animaniacs",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/33596/squareArt/1786474081"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1a3613",
+          "topRight": "3e6b2b",
+          "bottomRight": "0b6397",
+          "bottomLeft": "15547b"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0105941"
+          },
+          {
+            "id": "tmdb://82"
+          },
+          {
+            "id": "tvdb://72879"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Animation"
+          },
+          {
+            "tag": "Comedy"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Rob Paulsen"
+          },
+          {
+            "tag": "Jess Harnell"
+          },
+          {
+            "tag": "Tress MacNeille"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "28745",
+        "key": "/library/metadata/28745",
+        "skipParent": true,
+        "parentRatingKey": "28458",
+        "grandparentRatingKey": "28457",
+        "guid": "plex://episode/5d9c18e4ec357c001f9e43dd",
+        "parentGuid": "plex://season/602e71ac2d6795002c5708d9",
+        "grandparentGuid": "plex://show/5d9c08d708fddd001f2a29da",
+        "grandparentSlug": "violet-evergarden",
+        "type": "episode",
+        "title": "\"I Love You\" and Auto Memoir Dolls",
+        "titleSort": "I Love You\" and Auto Memoir Dolls",
+        "grandparentKey": "/library/metadata/28457",
+        "parentKey": "/library/metadata/28458",
+        "grandparentTitle": "Violet Evergarden",
+        "parentTitle": "Season 1",
+        "originalTitle": "「愛してる」と自動手記人形",
+        "contentRating": "TV-14",
+        "summary": "Hodgins retrieves Violet from the hospital, as Major Gilbert asked him to look out for her. After they meet Gilbert's relatives, he offers her a job.",
+        "index": 1,
+        "parentIndex": 1,
+        "audienceRating": 7.5,
+        "year": 2018,
+        "thumb": "/library/metadata/28745/thumb/1785603546",
+        "art": "/library/metadata/28457/art/1785688264",
+        "parentThumb": "/library/metadata/28458/thumb/1785603546",
+        "grandparentThumb": "/library/metadata/28457/thumb/1785688264",
+        "grandparentArt": "/library/metadata/28457/art/1785688264",
+        "grandparentTheme": "/library/metadata/28457/theme/1785688264",
+        "duration": 1420044,
+        "originallyAvailableAt": "2018-01-11",
+        "addedAt": 1779366430,
+        "updatedAt": 1785603546,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 40928,
+            "duration": 1420044,
+            "bitrate": 18938,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "flac",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 40929,
+                "key": "/library/parts/40929/1779363688/file.mkv",
+                "duration": 1420044,
+                "file": "/library/movies/Fixture title 31 (2018)/Fixture title 31 (2018).mkv",
+                "size": 3361569935,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "\"I Love You\" and Auto Memoir Dolls",
+            "type": "coverPoster",
+            "url": "/library/metadata/28457/thumb/1785688264"
+          },
+          {
+            "alt": "\"I Love You\" and Auto Memoir Dolls",
+            "type": "snapshot",
+            "url": "/library/metadata/28745/thumb/1785603546"
+          },
+          {
+            "alt": "\"I Love You\" and Auto Memoir Dolls",
+            "type": "background",
+            "url": "/library/metadata/28457/art/1785688264"
+          },
+          {
+            "alt": "\"I Love You\" and Auto Memoir Dolls",
+            "type": "clearLogo",
+            "url": "/library/metadata/28457/clearLogo/1785688264"
+          },
+          {
+            "alt": "\"I Love You\" and Auto Memoir Dolls",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/28457/squareArt/1785688264"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "0d0c0b",
+          "topRight": "3b3837",
+          "bottomRight": "894b26",
+          "bottomLeft": "060303"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt7225072"
+          },
+          {
+            "id": "tmdb://1395818"
+          },
+          {
+            "id": "tvdb://6135427"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Shinpei Sawa"
+          },
+          {
+            "tag": "Haruka Fujita"
+          },
+          {
+            "tag": "Taichi Ishidate"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Reiko Yoshida"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Yui Ishikawa"
+          },
+          {
+            "tag": "Daisuke Namikawa"
+          },
+          {
+            "tag": "Takehito Koyasu"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "52738",
+        "key": "/library/metadata/52738",
+        "parentRatingKey": "52735",
+        "grandparentRatingKey": "51974",
+        "guid": "plex://episode/68bed6dfd1d7e9a3e3996153",
+        "parentGuid": "plex://season/688561c181af9cebb900094f",
+        "grandparentGuid": "plex://show/5d9c0855ffd9ef001e991de0",
+        "grandparentSlug": "bobs-burgers",
+        "type": "episode",
+        "title": "'Til Death Do Us Art",
+        "titleSort": "Til Death Do Us Art",
+        "grandparentKey": "/library/metadata/51974",
+        "parentKey": "/library/metadata/52735",
+        "grandparentTitle": "Bob's Burgers",
+        "parentTitle": "Season 16",
+        "contentRating": "TV-PG",
+        "summary": "Linda becomes concerned when Gayle turns her love life into a performance art piece.",
+        "index": 2,
+        "parentIndex": 16,
+        "audienceRating": 6.8,
+        "year": 2025,
+        "thumb": "/library/metadata/52738/thumb/1781852954",
+        "art": "/library/metadata/51974/art/1785603738",
+        "parentThumb": "/library/metadata/52735/thumb/1785603669",
+        "grandparentThumb": "/library/metadata/51974/thumb/1785603738",
+        "grandparentArt": "/library/metadata/51974/art/1785603738",
+        "grandparentTheme": "/library/metadata/51974/theme/1785603738",
+        "duration": 1297963,
+        "originallyAvailableAt": "2025-10-05",
+        "addedAt": 1781815703,
+        "updatedAt": 1781852954,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 69779,
+            "duration": 1297963,
+            "bitrate": 3437,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 69780,
+                "key": "/library/parts/69780/1781679861/file.mkv",
+                "duration": 1297963,
+                "file": "/library/movies/Fixture title 32 (2025)/Fixture title 32 (2025).mkv",
+                "size": 558268795,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "'Til Death Do Us Art",
+            "type": "coverPoster",
+            "url": "/library/metadata/51974/thumb/1785603738"
+          },
+          {
+            "alt": "'Til Death Do Us Art",
+            "type": "snapshot",
+            "url": "/library/metadata/52738/thumb/1781852954"
+          },
+          {
+            "alt": "'Til Death Do Us Art",
+            "type": "background",
+            "url": "/library/metadata/51974/art/1785603738"
+          },
+          {
+            "alt": "'Til Death Do Us Art",
+            "type": "clearLogo",
+            "url": "/library/metadata/51974/clearLogo/1785603738"
+          },
+          {
+            "alt": "'Til Death Do Us Art",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/51974/squareArt/1785603738"
+          }
+        ],
+        "Guid": [
+          {
+            "id": "imdb://tt36431657"
+          },
+          {
+            "id": "tmdb://6513875"
+          },
+          {
+            "id": "tvdb://11325007"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Brian LoSchiavo"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Katie Crown"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "H. Jon Benjamin"
+          },
+          {
+            "tag": "John Roberts"
+          },
+          {
+            "tag": "Kristen Schaal"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "142556",
+        "key": "/library/metadata/142556",
+        "parentRatingKey": "142363",
+        "grandparentRatingKey": "140157",
+        "guid": "plex://episode/5d9c0ef8e264b7001fc81c79",
+        "parentGuid": "plex://season/602e6057ea35e0002c22e33d",
+        "grandparentGuid": "plex://show/5d9c08273c3f87001f348b54",
+        "grandparentSlug": "gintama",
+        "type": "episode",
+        "title": "'Tis An Honor!",
+        "titleSort": "Tis An Honor!",
+        "grandparentKey": "/library/metadata/140157",
+        "parentKey": "/library/metadata/142363",
+        "grandparentTitle": "Gintama",
+        "parentTitle": "Gintama'",
+        "originalTitle": "お控えなすって！",
+        "contentRating": "TV-14",
+        "summary": "Jirocho and Gin battle Kada's elite Harusame forces while the rest of the denizens of Kabuki-cho take on her main forces in the streets. Kada is utterly stunned when her elite forces are beat by just these two humans, and flees the scene. Gin then helps Jirocho resolve his issues regarding Tatsugoro; Otose and Jirocho reconcile at the hospital. Outside the hospital, Kada desperately launches one last feeble attempt at conquering Kabuki-cho, but is stopped in her tracks by Pirako and the Yorozuya - Kada settles for swearing that the Harusame will be back, and flees yet again. At the very end, Jirocho denounces all other names he has ever been called except for Father of Pirako, and goes with his daughter back to the country.",
+        "index": 13,
+        "parentIndex": 5,
+        "audienceRating": 9.5,
+        "year": 2011,
+        "thumb": "/library/metadata/142556/thumb/1785357963",
+        "art": "/library/metadata/140157/art/1787935357",
+        "parentThumb": "/library/metadata/142363/thumb/1785355025",
+        "grandparentThumb": "/library/metadata/140157/thumb/1787935357",
+        "grandparentArt": "/library/metadata/140157/art/1787935357",
+        "grandparentTheme": "/library/metadata/140157/theme/1787935357",
+        "duration": 1419752,
+        "originallyAvailableAt": "2011-06-27",
+        "addedAt": 1785357962,
+        "updatedAt": 1785357963,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 201435,
+            "duration": 1419752,
+            "bitrate": 5110,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "lc",
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 201436,
+                "key": "/library/parts/201436/1785306659/file.mkv",
+                "duration": 1419752,
+                "file": "/library/movies/Fixture title 33 (2011)/Fixture title 33 (2011).mkv",
+                "size": 907317834,
+                "audioProfile": "lc",
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "'Tis An Honor!",
+            "type": "coverPoster",
+            "url": "/library/metadata/140157/thumb/1787935357"
+          },
+          {
+            "alt": "'Tis An Honor!",
+            "type": "snapshot",
+            "url": "/library/metadata/142556/thumb/1785357963"
+          },
+          {
+            "alt": "'Tis An Honor!",
+            "type": "background",
+            "url": "/library/metadata/140157/art/1787935357"
+          },
+          {
+            "alt": "'Tis An Honor!",
+            "type": "clearLogo",
+            "url": "/library/metadata/140157/clearLogo/1787935357"
+          },
+          {
+            "alt": "'Tis An Honor!",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/140157/squareArt/1787935357"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "44250a",
+          "topRight": "8c4913",
+          "bottomRight": "7a561b",
+          "bottomLeft": "764f21"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt2361650"
+          },
+          {
+            "id": "tmdb://940387"
+          },
+          {
+            "id": "tvdb://4100512"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Kei Umabiki"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Akatsuki Yamatoya"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Tomokazu Sugita"
+          },
+          {
+            "tag": "Rie Kugimiya"
+          },
+          {
+            "tag": "Daisuke Sakaguchi"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "54753",
+        "key": "/library/metadata/54753",
+        "parentRatingKey": "54736",
+        "grandparentRatingKey": "34181",
+        "guid": "plex://episode/5d9c0e33ba6eb9001fbddb54",
+        "parentGuid": "plex://season/602e5eadb2c087002d0b555a",
+        "grandparentGuid": "plex://show/5d9c0819170e24001f2a798b",
+        "grandparentSlug": "ed-edd-n-eddy",
+        "type": "episode",
+        "title": "'Tween a Rock and an Ed Place",
+        "titleSort": "Tween a Rock and an Ed Place",
+        "grandparentKey": "/library/metadata/34181",
+        "parentKey": "/library/metadata/54736",
+        "grandparentTitle": "Ed, Edd n Eddy",
+        "parentTitle": "Season 5",
+        "originalTitle": "Tween a Rock & an Ed Place",
+        "contentRating": "TV-Y7",
+        "summary": "Eddy is disappointed with the Arbor Day bash.",
+        "index": 17,
+        "parentIndex": 5,
+        "audienceRating": 7,
+        "year": 2006,
+        "thumb": "/library/metadata/54753/thumb/1781846816",
+        "art": "/library/metadata/34181/art/1785603731",
+        "parentThumb": "/library/metadata/54736/thumb/1781840629",
+        "grandparentThumb": "/library/metadata/34181/thumb/1785603731",
+        "grandparentArt": "/library/metadata/34181/art/1785603731",
+        "grandparentTheme": "/library/metadata/34181/theme/1785603731",
+        "duration": 680005,
+        "originallyAvailableAt": "2006-08-28",
+        "addedAt": 1781840627,
+        "updatedAt": 1781846816,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 73010,
+            "duration": 680005,
+            "bitrate": 2551,
+            "width": 1440,
+            "height": 1080,
+            "aspectRatio": 1.33,
+            "audioChannels": 2,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "NTSC",
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 73011,
+                "key": "/library/parts/73011/1779850016/file.mkv",
+                "duration": 680005,
+                "file": "/library/movies/Fixture title 34 (2006)/Fixture title 34 (2006).mkv",
+                "size": 217011794,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "'Tween a Rock and an Ed Place",
+            "type": "coverPoster",
+            "url": "/library/metadata/34181/thumb/1785603731"
+          },
+          {
+            "alt": "'Tween a Rock and an Ed Place",
+            "type": "snapshot",
+            "url": "/library/metadata/54753/thumb/1781846816"
+          },
+          {
+            "alt": "'Tween a Rock and an Ed Place",
+            "type": "background",
+            "url": "/library/metadata/34181/art/1785603731"
+          },
+          {
+            "alt": "'Tween a Rock and an Ed Place",
+            "type": "clearLogo",
+            "url": "/library/metadata/34181/clearLogo/1785603731"
+          },
+          {
+            "alt": "'Tween a Rock and an Ed Place",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/34181/squareArt/1785603731"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "122a5c",
+          "topRight": "1e5896",
+          "bottomRight": "701e04",
+          "bottomLeft": "6f2d24"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0893977"
+          },
+          {
+            "id": "tmdb://34552"
+          },
+          {
+            "id": "tvdb://424052"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Danny Antonucci"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Danny Antonucci"
+          },
+          {
+            "tag": "Rachel Connor"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Matt Hill"
+          },
+          {
+            "tag": "Sam Vincent"
+          },
+          {
+            "tag": "Tony Sampson"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "29191",
+        "key": "/library/metadata/29191",
+        "skipParent": true,
+        "parentRatingKey": "29162",
+        "grandparentRatingKey": "29161",
+        "guid": "plex://episode/5d9c19abe264b7001fcebef4",
+        "parentGuid": "plex://season/602e73d8535238002c36c238",
+        "grandparentGuid": "plex://show/5d9c08f8705e7a001e6e7c17",
+        "grandparentSlug": "angels-of-death",
+        "type": "episode",
+        "title": "'cause you are my God, Zack.",
+        "titleSort": "cause you are my God, Zack.",
+        "grandparentKey": "/library/metadata/29161",
+        "parentKey": "/library/metadata/29162",
+        "grandparentTitle": "Angels of Death",
+        "parentTitle": "Season 1",
+        "originalTitle": "'Cause you are my God, Zack.",
+        "contentRating": "TV-MA",
+        "summary": "Gray proclaims himself closer to being a God than anyone else and sentences Rachel to burn alive for the things she did to the other floor masters. Hanging on her cross, Rachel insists that she's not a witch and that she only wants Zack to kill her.",
+        "index": 11,
+        "parentIndex": 1,
+        "audienceRating": 7,
+        "year": 2018,
+        "thumb": "/library/metadata/29191/thumb/1785603552",
+        "art": "/library/metadata/29161/art/1787505090",
+        "parentThumb": "/library/metadata/29162/thumb/1785603552",
+        "grandparentThumb": "/library/metadata/29161/thumb/1787505090",
+        "grandparentArt": "/library/metadata/29161/art/1787505090",
+        "grandparentTheme": "/library/metadata/29161/theme/1787505090",
+        "duration": 1422087,
+        "originallyAvailableAt": "2018-09-14",
+        "addedAt": 1779373445,
+        "updatedAt": 1785603552,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 41436,
+            "duration": 1422087,
+            "bitrate": 10728,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "truehd",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 41437,
+                "key": "/library/parts/41437/1779371941/file.mkv",
+                "duration": 1422087,
+                "file": "/library/movies/Fixture title 35 (2018)/Fixture title 35 (2018).mkv",
+                "size": 1925517829,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "'cause you are my God, Zack.",
+            "type": "coverPoster",
+            "url": "/library/metadata/29161/thumb/1787505090"
+          },
+          {
+            "alt": "'cause you are my God, Zack.",
+            "type": "snapshot",
+            "url": "/library/metadata/29191/thumb/1785603552"
+          },
+          {
+            "alt": "'cause you are my God, Zack.",
+            "type": "background",
+            "url": "/library/metadata/29161/art/1787505090"
+          },
+          {
+            "alt": "'cause you are my God, Zack.",
+            "type": "clearLogo",
+            "url": "/library/metadata/29161/clearLogo/1787505090"
+          },
+          {
+            "alt": "'cause you are my God, Zack.",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/29161/squareArt/1787505090"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "4c1e0d",
+          "topRight": "844f1a",
+          "bottomRight": "64602a",
+          "bottomLeft": "1a1611"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt8733152"
+          },
+          {
+            "id": "tmdb://1516207"
+          },
+          {
+            "id": "tvdb://6760024"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Masahiro Yamashita"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Yoshinobu Fujioka"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Haruka Chisuga"
+          },
+          {
+            "tag": "Nobuhiko Okamoto"
+          },
+          {
+            "tag": "Takahiro Sakurai"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "221226",
+        "key": "/library/metadata/221226",
+        "parentRatingKey": "221212",
+        "grandparentRatingKey": "220954",
+        "guid": "plex://episode/5d9c0f90705e7a001e738cf4",
+        "parentGuid": "plex://season/619f468d40b1cd566afee53f",
+        "grandparentGuid": "plex://show/5d9c08327d06d9001ffd0575",
+        "grandparentSlug": "survivor-1",
+        "type": "episode",
+        "title": "...And Then There Were Four",
+        "titleSort": "And Then There Were Four",
+        "grandparentKey": "/library/metadata/220954",
+        "parentKey": "/library/metadata/221212",
+        "grandparentTitle": "Survivor",
+        "parentTitle": "The Amazon",
+        "contentRating": "TV-PG",
+        "summary": "The final four contestants reach the end of the competition as one final survivor is finally crowned winner.",
+        "index": 14,
+        "parentIndex": 6,
+        "audienceRating": 8.5,
+        "year": 2003,
+        "thumb": "/library/metadata/221226/thumb/1787985316",
+        "art": "/library/metadata/220954/art/1787981717",
+        "parentThumb": "/library/metadata/221212/thumb/1787985315",
+        "grandparentThumb": "/library/metadata/220954/thumb/1787981717",
+        "grandparentArt": "/library/metadata/220954/art/1787981717",
+        "grandparentTheme": "/library/metadata/220954/theme/1787981717",
+        "duration": 5550826,
+        "originallyAvailableAt": "2003-05-11",
+        "addedAt": 1787985313,
+        "updatedAt": 1787985316,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 312790,
+            "duration": 5550826,
+            "bitrate": 1950,
+            "width": 720,
+            "height": 480,
+            "aspectRatio": 1.33,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "480",
+            "container": "mkv",
+            "videoFrameRate": "NTSC",
+            "audioProfile": "lc",
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 312791,
+                "key": "/library/parts/312791/1787984403/file.mkv",
+                "duration": 5550826,
+                "file": "/library/movies/Fixture title 36 (2003)/Fixture title 36 (2003).mkv",
+                "size": 1354709898,
+                "audioProfile": "lc",
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "...And Then There Were Four",
+            "type": "coverPoster",
+            "url": "/library/metadata/220954/thumb/1787981717"
+          },
+          {
+            "alt": "...And Then There Were Four",
+            "type": "snapshot",
+            "url": "/library/metadata/221226/thumb/1787985316"
+          },
+          {
+            "alt": "...And Then There Were Four",
+            "type": "background",
+            "url": "/library/metadata/220954/art/1787981717"
+          },
+          {
+            "alt": "...And Then There Were Four",
+            "type": "clearLogo",
+            "url": "/library/metadata/220954/clearLogo/1787981717"
+          },
+          {
+            "alt": "...And Then There Were Four",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/220954/squareArt/1787981717"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "511808",
+          "topRight": "a42d20",
+          "bottomRight": "8c3e28",
+          "bottomLeft": "4a2312"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0761440"
+          },
+          {
+            "id": "tmdb://1137770"
+          },
+          {
+            "id": "tvdb://213286"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Charlie Parsons"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Jeff Probst"
+          },
+          {
+            "tag": "Rob Cesternino"
+          },
+          {
+            "tag": "Jenna Morasca"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "47941",
+        "key": "/library/metadata/47941",
+        "parentRatingKey": "13230",
+        "grandparentRatingKey": "171",
+        "guid": "plex://episode/5d9c129808fddd001f3182d1",
+        "parentGuid": "plex://season/602e6845de471d002d070631",
+        "grandparentGuid": "plex://show/5d9c086de9d5a1001f4d9d3f",
+        "grandparentSlug": "supernatural",
+        "type": "episode",
+        "title": "...And Then There Were None",
+        "titleSort": "And Then There Were None",
+        "grandparentKey": "/library/metadata/171",
+        "parentKey": "/library/metadata/13230",
+        "grandparentTitle": "Supernatural",
+        "parentTitle": "Season 6",
+        "contentRating": "TV-14",
+        "summary": "Eve, the Mother of All, unleashes a new monster upon the world: a black worm-slug that can enter the brain and force people to kill. Sam and Dean join forces with Bobby and Rufus and track it to a cannery, only to discover that Gwen and Samuel are also there looking for the monster... and none of them know who the monster is inside.",
+        "index": 16,
+        "parentIndex": 6,
+        "audienceRating": 7.7,
+        "year": 2011,
+        "thumb": "/library/metadata/47941/thumb/1786374025",
+        "art": "/library/metadata/171/art/1785603716",
+        "parentThumb": "/library/metadata/13230/thumb/1783658956",
+        "grandparentThumb": "/library/metadata/171/thumb/1785603716",
+        "grandparentArt": "/library/metadata/171/art/1785603716",
+        "grandparentTheme": "/library/metadata/171/theme/1785603716",
+        "duration": 2548416,
+        "originallyAvailableAt": "2011-03-04",
+        "addedAt": 1780939480,
+        "updatedAt": 1786374025,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 149536,
+            "duration": 2548416,
+            "bitrate": 10128,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 149537,
+                "key": "/library/parts/149537/1783643835/file.mkv",
+                "duration": 2548416,
+                "file": "/library/movies/Fixture title 37 (2011)/Fixture title 37 (2011).mkv",
+                "size": 3226962197,
+                "container": "mkv",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "...And Then There Were None",
+            "type": "coverPoster",
+            "url": "/library/metadata/171/thumb/1785603716"
+          },
+          {
+            "alt": "...And Then There Were None",
+            "type": "snapshot",
+            "url": "/library/metadata/47941/thumb/1786374025"
+          },
+          {
+            "alt": "...And Then There Were None",
+            "type": "background",
+            "url": "/library/metadata/171/art/1785603716"
+          },
+          {
+            "alt": "...And Then There Were None",
+            "type": "clearLogo",
+            "url": "/library/metadata/171/clearLogo/1785603716"
+          },
+          {
+            "alt": "...And Then There Were None",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/171/squareArt/1785603716"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "0f0d0c",
+          "topRight": "110303",
+          "bottomRight": "845012",
+          "bottomLeft": "8f470e"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt1627713"
+          },
+          {
+            "id": "tmdb://162672"
+          },
+          {
+            "id": "tvdb://3681681"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Mike Rohl"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Brett Matthews"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Jared Padalecki"
+          },
+          {
+            "tag": "Jensen Ackles"
+          },
+          {
+            "tag": "Misha Collins"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "47996",
+        "key": "/library/metadata/47996",
+        "parentRatingKey": "47993",
+        "grandparentRatingKey": "310",
+        "guid": "plex://episode/5d9c0fc37b5c2e001e6a7054",
+        "parentGuid": "plex://season/602e61e566dfdb002c096c28",
+        "grandparentGuid": "plex://show/5d9c083402391c001f583d09",
+        "grandparentSlug": "breaking-bad",
+        "type": "episode",
+        "title": "...And the Bag's in the River",
+        "titleSort": "And the Bag's in the River",
+        "grandparentKey": "/library/metadata/310",
+        "parentKey": "/library/metadata/47993",
+        "grandparentTitle": "Breaking Bad",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-MA",
+        "summary": "Walter fights with Jesse over his drug use, causing him to leave Walter alone with their captive, Krazy-8. Meanwhile, Hank has a scared straight moment with Walter Jr. after his aunt discovers he has been smoking pot. Also, Skylar is upset when Walter stays away from home.",
+        "index": 3,
+        "parentIndex": 1,
+        "audienceRating": 8.4,
+        "year": 2008,
+        "thumb": "/library/metadata/47996/thumb/1785603647",
+        "art": "/library/metadata/310/art/1787758746",
+        "parentThumb": "/library/metadata/47993/thumb/1785603647",
+        "grandparentThumb": "/library/metadata/310/thumb/1787758746",
+        "grandparentArt": "/library/metadata/310/art/1787758746",
+        "grandparentTheme": "/library/metadata/310/theme/1787758746",
+        "duration": 2884882,
+        "originallyAvailableAt": "2008-02-10",
+        "addedAt": 1780939539,
+        "updatedAt": 1785603647,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 63407,
+            "duration": 2884882,
+            "bitrate": 15463,
+            "width": 3840,
+            "height": 2160,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 63408,
+                "key": "/library/parts/63408/1774323730/file.mkv",
+                "duration": 2884882,
+                "file": "/library/movies/Fixture title 38 (2008)/Fixture title 38 (2008).mkv",
+                "size": 5575955498,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "...And the Bag's in the River",
+            "type": "coverPoster",
+            "url": "/library/metadata/310/thumb/1787758746"
+          },
+          {
+            "alt": "...And the Bag's in the River",
+            "type": "snapshot",
+            "url": "/library/metadata/47996/thumb/1785603647"
+          },
+          {
+            "alt": "...And the Bag's in the River",
+            "type": "background",
+            "url": "/library/metadata/310/art/1787758746"
+          },
+          {
+            "alt": "...And the Bag's in the River",
+            "type": "clearLogo",
+            "url": "/library/metadata/310/clearLogo/1787758746"
+          },
+          {
+            "alt": "...And the Bag's in the River",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/310/squareArt/1787758746"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "392c0b",
+          "topRight": "22452d",
+          "bottomRight": "27613b",
+          "bottomLeft": "864f05"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt1054725"
+          },
+          {
+            "id": "tmdb://62087"
+          },
+          {
+            "id": "tvdb://349235"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Adam Bernstein"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Vince Gilligan"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Bryan Cranston"
+          },
+          {
+            "tag": "Aaron Paul"
+          },
+          {
+            "tag": "Anna Gunn"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "228355",
+        "key": "/library/metadata/228355",
+        "skipParent": true,
+        "parentRatingKey": "228344",
+        "grandparentRatingKey": "228343",
+        "guid": "plex://episode/67e79840ee73e545808703e7",
+        "parentGuid": "plex://season/602e6048d88d7e002c6ad594",
+        "grandparentGuid": "plex://show/5d9c08271cae62001f74a1c4",
+        "grandparentSlug": "good-luck-girl",
+        "type": "episode",
+        "title": "...Who Are You?!",
+        "titleSort": "Who Are You?!",
+        "grandparentKey": "/library/metadata/228343",
+        "parentKey": "/library/metadata/228344",
+        "grandparentTitle": "Good Luck Girl!",
+        "parentTitle": "Season 1",
+        "originalTitle": "Round 11!「…誰!?」",
+        "contentRating": "TV-14",
+        "summary": "With her bath made a mess by Momiji, Ichiko goes with Ranmaru to the public baths, where they are joined by Seiji and his family. The trip proves to be less than peaceful with Bobby and Momou trying to take a peek and Momiji up to her usual tricks. Realising Momiji hasn't had a bath in ages, Ichiko gives her and her familiar, Kumagai, a thorough cleaning. After Bobby makes light of Ranmaru's looks, she ends up busting down the wall between the men's and women's baths, leading to some embarrassing reveals. The next day, Ichiko is surprised to find Momiji with such a radiant personality.",
+        "index": 11,
+        "parentIndex": 1,
+        "year": 2012,
+        "thumb": "/library/metadata/228355/thumb/1788268082",
+        "art": "/library/metadata/228343/art/1788261809",
+        "parentThumb": "/library/metadata/228344/thumb/1788261809",
+        "grandparentThumb": "/library/metadata/228343/thumb/1788261809",
+        "grandparentArt": "/library/metadata/228343/art/1788261809",
+        "grandparentTheme": "/library/metadata/228343/theme/1788261809",
+        "duration": 1431113,
+        "originallyAvailableAt": "2012-09-13",
+        "addedAt": 1788261798,
+        "updatedAt": 1788268082,
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 322663,
+            "duration": 1431113,
+            "bitrate": 2994,
+            "width": 1280,
+            "height": 720,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "720",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "lc",
+            "videoProfile": "high 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 322664,
+                "key": "/library/parts/322664/1788260422/file.mkv",
+                "duration": 1431113,
+                "file": "/library/movies/Fixture title 39 (2012)/Fixture title 39 (2012).mkv",
+                "size": 537470071,
+                "audioProfile": "lc",
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "...Who Are You?!",
+            "type": "coverPoster",
+            "url": "/library/metadata/228343/thumb/1788261809"
+          },
+          {
+            "alt": "...Who Are You?!",
+            "type": "snapshot",
+            "url": "/library/metadata/228355/thumb/1788268082"
+          },
+          {
+            "alt": "...Who Are You?!",
+            "type": "background",
+            "url": "/library/metadata/228343/art/1788261809"
+          },
+          {
+            "alt": "...Who Are You?!",
+            "type": "clearLogo",
+            "url": "/library/metadata/228343/clearLogo/1788261809"
+          },
+          {
+            "alt": "...Who Are You?!",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/228343/squareArt/1788261809"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "123241",
+          "topRight": "326092",
+          "bottomRight": "4b1c3f",
+          "bottomLeft": "2b6388"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt5826420"
+          },
+          {
+            "id": "tvdb://4355376"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Youichi Fujita"
+          },
+          {
+            "tag": "Tomoyuki Kawamura"
+          },
+          {
+            "tag": "Daisuke Nakajima"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Yoshiaki Sukeno"
+          },
+          {
+            "tag": "Kento Shimoyama"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Kana Hanazawa"
+          },
+          {
+            "tag": "Yumi Uchiyama"
+          },
+          {
+            "tag": "Koki Uchiyama"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "51594",
+        "key": "/library/metadata/51594",
+        "parentRatingKey": "51582",
+        "grandparentRatingKey": "25580",
+        "guid": "plex://episode/5e833b8663ea830042ef3c60",
+        "parentGuid": "plex://season/602e70e8ea35e0002c24a5d6",
+        "grandparentGuid": "plex://show/5d9c08cc705e7a001e6e4247",
+        "grandparentSlug": "the-kings-avatar",
+        "type": "episode",
+        "title": "10 Years of Glory, and It Continues",
+        "grandparentKey": "/library/metadata/25580",
+        "parentKey": "/library/metadata/51582",
+        "grandparentTitle": "The King's Avatar",
+        "parentTitle": "Season 1",
+        "originalTitle": "十年榮耀 一如既往",
+        "contentRating": "TV-PG",
+        "summary": "A longtime rival challenges Ye Xiu to a duel.",
+        "index": 12,
+        "parentIndex": 1,
+        "year": 2017,
+        "thumb": "/library/metadata/51594/thumb/1781697244",
+        "art": "/library/metadata/25580/art/1784910829",
+        "parentThumb": "/library/metadata/51582/thumb/1781697240",
+        "grandparentThumb": "/library/metadata/25580/thumb/1784910829",
+        "grandparentArt": "/library/metadata/25580/art/1784910829",
+        "duration": 1435225,
+        "originallyAvailableAt": "2017-06-16",
+        "addedAt": 1781697244,
+        "Media": [
+          {
+            "id": 166566,
+            "duration": 1435225,
+            "bitrate": 8107,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "PAL",
+            "audioProfile": "lc",
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 166567,
+                "key": "/library/parts/166567/1784284158/file.mkv",
+                "duration": 1435225,
+                "file": "/library/movies/Fixture title 40 (2017)/Fixture title 40 (2017).mkv",
+                "size": 1455592825,
+                "audioProfile": "lc",
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "10 Years of Glory, and It Continues",
+            "type": "coverPoster",
+            "url": "/library/metadata/25580/thumb/1784910829"
+          },
+          {
+            "alt": "10 Years of Glory, and It Continues",
+            "type": "snapshot",
+            "url": "/library/metadata/51594/thumb/1781697244"
+          },
+          {
+            "alt": "10 Years of Glory, and It Continues",
+            "type": "background",
+            "url": "/library/metadata/25580/art/1784910829"
+          },
+          {
+            "alt": "10 Years of Glory, and It Continues",
+            "type": "clearLogo",
+            "url": "/library/metadata/25580/clearLogo/1784910829"
+          },
+          {
+            "alt": "10 Years of Glory, and It Continues",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/25580/squareArt/1784910829"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1b1c44",
+          "topRight": "1c5398",
+          "bottomRight": "090310",
+          "bottomLeft": "040413"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt7116536"
+          },
+          {
+            "id": "tmdb://1330022"
+          },
+          {
+            "id": "tvdb://6037889"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Hudie Lan"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Ajie"
+          },
+          {
+            "tag": "Tong Xinzhu"
+          },
+          {
+            "tag": "Qiao Shiyu"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "203125",
+        "key": "/library/metadata/203125",
+        "parentRatingKey": "203124",
+        "grandparentRatingKey": "201299",
+        "guid": "plex://episode/65dcf75318dc3e356e60e037",
+        "parentGuid": "plex://season/602e67fcfdd281002cdf668c",
+        "grandparentGuid": "plex://show/5d9c086c7d06d9001ffd27b2",
+        "grandparentSlug": "american-dad",
+        "type": "episode",
+        "title": "100 A.D. (1)",
+        "grandparentKey": "/library/metadata/201299",
+        "parentKey": "/library/metadata/203124",
+        "grandparentTitle": "American Dad!",
+        "parentTitle": "Season 7",
+        "contentRating": "TV-14",
+        "summary": "Hayley sends the family into chaos after she and her old boyfriend run off and elope. Stan offers a reward to whomever stops the couple, sparking a cannonball run through town in order to stop them.",
+        "index": 1,
+        "parentIndex": 7,
+        "audienceRating": 7.8,
+        "year": 2010,
+        "thumb": "/library/metadata/203125/thumb/1787317557",
+        "art": "/library/metadata/201299/art/1787256642",
+        "parentThumb": "/library/metadata/203124/thumb/1787256649",
+        "grandparentThumb": "/library/metadata/201299/thumb/1787256642",
+        "grandparentArt": "/library/metadata/201299/art/1787256642",
+        "grandparentTheme": "/library/metadata/201299/theme/1787256642",
+        "duration": 1310912,
+        "originallyAvailableAt": "2010-10-03",
+        "addedAt": 1787249347,
+        "updatedAt": 1787317557,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 286971,
+            "duration": 1310912,
+            "bitrate": 7030,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 286972,
+                "key": "/library/parts/286972/1787218263/file.mkv",
+                "duration": 1310912,
+                "file": "/library/movies/Fixture title 41 (2010)/Fixture title 41 (2010).mkv",
+                "size": 1152690960,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "100 A.D. (1)",
+            "type": "coverPoster",
+            "url": "/library/metadata/201299/thumb/1787256642"
+          },
+          {
+            "alt": "100 A.D. (1)",
+            "type": "snapshot",
+            "url": "/library/metadata/203125/thumb/1787317557"
+          },
+          {
+            "alt": "100 A.D. (1)",
+            "type": "background",
+            "url": "/library/metadata/201299/art/1787256642"
+          },
+          {
+            "alt": "100 A.D. (1)",
+            "type": "clearLogo",
+            "url": "/library/metadata/201299/clearLogo/1787256642"
+          },
+          {
+            "alt": "100 A.D. (1)",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/201299/squareArt/1787256642"
+          }
+        ],
+        "Guid": [
+          {
+            "id": "imdb://tt1640740"
+          },
+          {
+            "id": "tmdb://65964"
+          },
+          {
+            "id": "tvdb://2405511"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Tim Parsons"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Keith Heisler"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Seth MacFarlane"
+          },
+          {
+            "tag": "Wendy Schaal"
+          },
+          {
+            "tag": "Rachael MacFarlane"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "202790",
+        "key": "/library/metadata/202790",
+        "parentRatingKey": "202789",
+        "grandparentRatingKey": "201299",
+        "guid": "plex://episode/65dcf72d18dc3e356e60cfd8",
+        "parentGuid": "plex://season/602e67fefdd281002cdf6697",
+        "grandparentGuid": "plex://show/5d9c086c7d06d9001ffd27b2",
+        "grandparentSlug": "american-dad",
+        "type": "episode",
+        "title": "100 Years a Solid Fool",
+        "grandparentKey": "/library/metadata/201299",
+        "parentKey": "/library/metadata/202789",
+        "grandparentTitle": "American Dad!",
+        "parentTitle": "Season 17",
+        "contentRating": "TV-14",
+        "summary": "While running an errand in Little Columbia, Stan is confronted by his hidden past.",
+        "index": 1,
+        "parentIndex": 17,
+        "audienceRating": 7.5,
+        "year": 2020,
+        "thumb": "/library/metadata/202790/thumb/1787317518",
+        "art": "/library/metadata/201299/art/1787256642",
+        "parentThumb": "/library/metadata/202789/thumb/1787256655",
+        "grandparentThumb": "/library/metadata/201299/thumb/1787256642",
+        "grandparentArt": "/library/metadata/201299/art/1787256642",
+        "grandparentTheme": "/library/metadata/201299/theme/1787256642",
+        "duration": 1267328,
+        "originallyAvailableAt": "2020-04-13",
+        "addedAt": 1787246303,
+        "updatedAt": 1787317518,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 286594,
+            "duration": 1267328,
+            "bitrate": 5417,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 286595,
+                "key": "/library/parts/286595/1787216371/file.mkv",
+                "duration": 1267328,
+                "file": "/library/movies/Fixture title 42 (2020)/Fixture title 42 (2020).mkv",
+                "size": 858848689,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "100 Years a Solid Fool",
+            "type": "coverPoster",
+            "url": "/library/metadata/201299/thumb/1787256642"
+          },
+          {
+            "alt": "100 Years a Solid Fool",
+            "type": "snapshot",
+            "url": "/library/metadata/202790/thumb/1787317518"
+          },
+          {
+            "alt": "100 Years a Solid Fool",
+            "type": "background",
+            "url": "/library/metadata/201299/art/1787256642"
+          },
+          {
+            "alt": "100 Years a Solid Fool",
+            "type": "clearLogo",
+            "url": "/library/metadata/201299/clearLogo/1787256642"
+          },
+          {
+            "alt": "100 Years a Solid Fool",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/201299/squareArt/1787256642"
+          }
+        ],
+        "Guid": [
+          {
+            "id": "tmdb://2224092"
+          },
+          {
+            "id": "tvdb://7675666"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Shawn Murray"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Charles Suozzi"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Seth MacFarlane"
+          },
+          {
+            "tag": "Wendy Schaal"
+          },
+          {
+            "tag": "Rachael MacFarlane"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "183335",
+        "key": "/library/metadata/183335",
+        "parentRatingKey": "183331",
+        "grandparentRatingKey": "183330",
+        "guid": "plex://episode/67401e008ed664b364e4ebfc",
+        "parentGuid": "plex://season/6616dbf66971965fe0a692c8",
+        "grandparentGuid": "plex://show/66047594f2781fe94954a721",
+        "grandparentSlug": "the-pitt",
+        "type": "episode",
+        "title": "10:00 A.M.",
+        "grandparentKey": "/library/metadata/183330",
+        "parentKey": "/library/metadata/183331",
+        "grandparentTitle": "The Pitt",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-MA",
+        "summary": "Bets are taken on the whereabouts of a stolen ambulance, while Santos learns a hard lesson, and Whitaker helps to tame “The Kraken.”",
+        "index": 4,
+        "parentIndex": 1,
+        "audienceRating": 7.9,
+        "year": 2025,
+        "thumb": "/library/metadata/183335/thumb/1786799032",
+        "art": "/library/metadata/183330/art/1786656573",
+        "parentThumb": "/library/metadata/183331/thumb/1786656575",
+        "grandparentThumb": "/library/metadata/183330/thumb/1786656573",
+        "grandparentArt": "/library/metadata/183330/art/1786656573",
+        "duration": 2982563,
+        "originallyAvailableAt": "2025-01-23",
+        "addedAt": 1786631097,
+        "updatedAt": 1786799032,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 259170,
+            "duration": 2982563,
+            "bitrate": 3024,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 259171,
+                "key": "/library/parts/259171/1786630113/file.mkv",
+                "duration": 2982563,
+                "file": "/library/movies/Fixture title 43 (2025)/Fixture title 43 (2025).mkv",
+                "size": 1127514267,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "10:00 A.M.",
+            "type": "coverPoster",
+            "url": "/library/metadata/183330/thumb/1786656573"
+          },
+          {
+            "alt": "10:00 A.M.",
+            "type": "snapshot",
+            "url": "/library/metadata/183335/thumb/1786799032"
+          },
+          {
+            "alt": "10:00 A.M.",
+            "type": "background",
+            "url": "/library/metadata/183330/art/1786656573"
+          },
+          {
+            "alt": "10:00 A.M.",
+            "type": "clearLogo",
+            "url": "/library/metadata/183330/clearLogo/1786656573"
+          },
+          {
+            "alt": "10:00 A.M.",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/183330/squareArt/1786656573"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "161213",
+          "topRight": "551c17",
+          "bottomRight": "602923",
+          "bottomLeft": "0d0d0e"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt32561846"
+          },
+          {
+            "id": "tmdb://5829267"
+          },
+          {
+            "id": "tvdb://10851519"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Amanda Marsalis"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Noah Wyle"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Noah Wyle"
+          },
+          {
+            "tag": "Tracy Ifeachor"
+          },
+          {
+            "tag": "Patrick Ball"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "183588",
+        "key": "/library/metadata/183588",
+        "parentRatingKey": "183584",
+        "grandparentRatingKey": "183330",
+        "guid": "plex://episode/694ad6312bf41624d91a2efa",
+        "parentGuid": "plex://season/6897089a8dca69dab194dad4",
+        "grandparentGuid": "plex://show/66047594f2781fe94954a721",
+        "grandparentSlug": "the-pitt",
+        "type": "episode",
+        "title": "10:00 A.M.",
+        "grandparentKey": "/library/metadata/183330",
+        "parentKey": "/library/metadata/183584",
+        "grandparentTitle": "The Pitt",
+        "parentTitle": "Season 2",
+        "contentRating": "TV-MA",
+        "summary": "With a nearby hospital shuttered on the busiest day of the year, Robby and team must field extra patients, including the victim of a parkour mishap.",
+        "index": 4,
+        "parentIndex": 2,
+        "audienceRating": 7.5,
+        "year": 2026,
+        "thumb": "/library/metadata/183588/thumb/1786798973",
+        "art": "/library/metadata/183330/art/1786656573",
+        "parentThumb": "/library/metadata/183584/thumb/1786656576",
+        "grandparentThumb": "/library/metadata/183330/thumb/1786656573",
+        "grandparentArt": "/library/metadata/183330/art/1786656573",
+        "duration": 2926144,
+        "originallyAvailableAt": "2026-01-29",
+        "addedAt": 1786632495,
+        "updatedAt": 1786798973,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 259520,
+            "duration": 2926144,
+            "bitrate": 3606,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "dolby digital plus + dolby atmos",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 259521,
+                "key": "/library/parts/259521/1786630928/file.mkv",
+                "duration": 2926144,
+                "file": "/library/movies/Fixture title 44 (2026)/Fixture title 44 (2026).mkv",
+                "size": 1318903826,
+                "audioProfile": "dolby digital plus + dolby atmos",
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "10:00 A.M.",
+            "type": "coverPoster",
+            "url": "/library/metadata/183330/thumb/1786656573"
+          },
+          {
+            "alt": "10:00 A.M.",
+            "type": "snapshot",
+            "url": "/library/metadata/183588/thumb/1786798973"
+          },
+          {
+            "alt": "10:00 A.M.",
+            "type": "background",
+            "url": "/library/metadata/183330/art/1786656573"
+          },
+          {
+            "alt": "10:00 A.M.",
+            "type": "clearLogo",
+            "url": "/library/metadata/183330/clearLogo/1786656573"
+          },
+          {
+            "alt": "10:00 A.M.",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/183330/squareArt/1786656573"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "2b2e31",
+          "topRight": "1f2123",
+          "bottomRight": "1e1f21",
+          "bottomLeft": "1c1717"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt37937639"
+          },
+          {
+            "id": "tmdb://6768676"
+          },
+          {
+            "id": "tvdb://11518793"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "John Cameron"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Cynthia Adarkwa"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Noah Wyle"
+          },
+          {
+            "tag": "Patrick Ball"
+          },
+          {
+            "tag": "Katherine LaNasa"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "personal": true,
+        "sourceTitle": "",
+        "ratingKey": "183336",
+        "key": "/library/metadata/183336",
+        "parentRatingKey": "183331",
+        "grandparentRatingKey": "183330",
+        "guid": "plex://episode/67401e008ed664b364e4ec18",
+        "parentGuid": "plex://season/6616dbf66971965fe0a692c8",
+        "grandparentGuid": "plex://show/66047594f2781fe94954a721",
+        "grandparentSlug": "the-pitt",
+        "type": "episode",
+        "title": "11:00 A.M.",
+        "grandparentKey": "/library/metadata/183330",
+        "parentKey": "/library/metadata/183331",
+        "grandparentTitle": "The Pitt",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-MA",
+        "summary": "Santos and Collins each deal with moral quandaries. Samira’s careful approach earns praise from patients – and reproach from Robby.",
+        "index": 5,
+        "parentIndex": 1,
+        "audienceRating": 7.8,
+        "year": 2025,
+        "thumb": "/library/metadata/183336/thumb/1786798930",
+        "art": "/library/metadata/183330/art/1786656573",
+        "parentThumb": "/library/metadata/183331/thumb/1786656575",
+        "grandparentThumb": "/library/metadata/183330/thumb/1786656573",
+        "grandparentArt": "/library/metadata/183330/art/1786656573",
+        "duration": 2842965,
+        "originallyAvailableAt": "2025-01-30",
+        "addedAt": 1786631097,
+        "updatedAt": 1786798930,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "Media": [
+          {
+            "id": 259171,
+            "duration": 2842965,
+            "bitrate": 3067,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 259172,
+                "key": "/library/parts/259172/1786630167/file.mkv",
+                "duration": 2842965,
+                "file": "/library/movies/Fixture title 45 (2025)/Fixture title 45 (2025).mkv",
+                "size": 1090098252,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "11:00 A.M.",
+            "type": "coverPoster",
+            "url": "/library/metadata/183330/thumb/1786656573"
+          },
+          {
+            "alt": "11:00 A.M.",
+            "type": "snapshot",
+            "url": "/library/metadata/183336/thumb/1786798930"
+          },
+          {
+            "alt": "11:00 A.M.",
+            "type": "background",
+            "url": "/library/metadata/183330/art/1786656573"
+          },
+          {
+            "alt": "11:00 A.M.",
+            "type": "clearLogo",
+            "url": "/library/metadata/183330/clearLogo/1786656573"
+          },
+          {
+            "alt": "11:00 A.M.",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/183330/squareArt/1786656573"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "150304",
+          "topRight": "6c5d1f",
+          "bottomRight": "292728",
+          "bottomLeft": "212026"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt32561847"
+          },
+          {
+            "id": "tmdb://5829269"
+          },
+          {
+            "id": "tvdb://10851520"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "John Cameron"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Simran Baidwan"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Noah Wyle"
+          },
+          {
+            "tag": "Tracy Ifeachor"
+          },
+          {
+            "tag": "Patrick Ball"
+          }
+        ]
+      }
+    ],
+    "Provider": [
+      {
+        "key": "/system/search",
+        "m_title": "Local Network",
+        "m_type": "mixed"
+      },
+      {
+        "key": "/search?type=10",
+        "m_title": "Tracks",
+        "m_type": "tracks"
+      },
+      {
+        "key": "/search/actor",
+        "m_title": "Actors",
+        "m_type": "actors"
+      },
+      {
+        "key": "/search/director",
+        "m_title": "Directors",
+        "m_type": "directors"
+      }
+    ]
+  }
+}

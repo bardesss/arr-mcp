@@ -28,6 +28,12 @@ export class IdentityResolver {
         return this.#config.default_user !== undefined;
     }
 
+    /** The underlying adapter's id — `jellyfin` or `plex` — for remedies and
+     *  log tags built outside this class, which must not hardcode either. */
+    get serviceId(): string {
+        return this.#adapter.id;
+    }
+
     async resolve(requested?: string): Promise<ServiceUser> {
         const wanted = this.#authorize(requested);
         const users = await this.#list();

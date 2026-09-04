@@ -29,7 +29,7 @@ export type LibrarySnapshot = {
     index: LibraryIndex;
     degraded: string[];
     /**
-     * Keyed by **source**, not by service: `jellyfin:episodes` is its own
+     * Keyed by **source**, not by service: `jellyfin:seasons` is its own
      * source and reports its own count. Widened from `ServiceId` for that
      * reason; every existing key is unchanged.
      */
@@ -152,8 +152,8 @@ export class LibraryLoader {
                 return { user: undefined, unconfigured: true };
             }
             logger.warn(
-                { service: 'jellyfin', err },
-                'jellyfin identity unavailable; building the library without watch state'
+                { service: this.#identity.serviceId, err },
+                'media server identity unavailable; building the library without watch state'
             );
             return { user: undefined, unconfigured: false };
         }
@@ -184,7 +184,11 @@ export class LibraryLoader {
         const seasons = this.#adapters.find(hasUserSeasons);
         if (seasons !== undefined) {
             sources.push({
-                id: `${seasons.id}:episodes`,
+                // Not `:episodes` — `listUserSeasons` returns one row per
+                // *series*, and the old name reported a series count as an
+                // episode count (362 vs. a real 23,492 on one tester's
+                // library). See F5.
+                id: `${seasons.id}:seasons`,
                 fetch:
                     user === undefined
                         ? () => Promise.reject(new Error(`no ${seasons.id} user resolved`))
@@ -206,12 +210,17 @@ export class LibraryLoader {
         // rating, which nothing else in the stack could give them.
         const rated = enrichWithImdb(items, this.#dataset);
 
+        // The actual configured media server's id (`jellyfin` or `plex`), not
+        // a hardcoded name — falls back to the identity's own adapter id for
+        // the pathological case where the two disagree.
+        const mediaServerId = mediaServer?.id ?? this.#identity?.serviceId;
+
         // Ordered most specific first: a media server that is configured but
         // unusable is a different remedy from none at all, and only one of the
         // two can be true — `resolved.unconfigured` needs an identity, which
         // needs an adapter.
         const note = resolved.unconfigured
-            ? 'Jellyfin is configured without a default_user, so watch state is not included. Set `services.jellyfin.default_user` in config.yaml, or pass `user` explicitly.'
+            ? `${mediaServerId} is configured without a default_user, so watch state is not included. Set \`services.${mediaServerId}.default_user\` in config.yaml, or pass \`user\` explicitly.`
             : mediaServer === undefined
               ? NO_MEDIA_SERVER_NOTE
               : undefined;

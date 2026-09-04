@@ -1,0 +1,86 @@
+{
+  "MediaContainer": {
+    "size": 3,
+    "allowSync": false,
+    "title1": "Plex Library",
+    "Directory": [
+      {
+        "allowSync": true,
+        "filters": true,
+        "refreshing": false,
+        "key": "1",
+        "type": "movie",
+        "title": "Movies",
+        "agent": "tv.plex.agents.movie",
+        "scanner": "Plex Movie",
+        "language": "en-US",
+        "metadataAgentProviderGroupId": 1,
+        "uuid": "",
+        "updatedAt": 1788414024,
+        "createdAt": 1773817126,
+        "scannedAt": 1788413969,
+        "content": true,
+        "directory": true,
+        "contentChangedAt": 3048979,
+        "hidden": 0,
+        "Location": [
+          {
+            "id": 1,
+            "path": "/media/library-1-1"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "filters": true,
+        "refreshing": false,
+        "key": "2",
+        "type": "show",
+        "title": "TV Shows",
+        "agent": "tv.plex.agents.series",
+        "scanner": "Plex TV Series",
+        "language": "en-US",
+        "metadataAgentProviderGroupId": 2,
+        "uuid": "",
+        "updatedAt": 1788415151,
+        "createdAt": 1773817136,
+        "scannedAt": 1788415096,
+        "content": true,
+        "directory": true,
+        "contentChangedAt": 3101725,
+        "hidden": 0,
+        "Location": [
+          {
+            "id": 2,
+            "path": "/media/library-2-1"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "filters": true,
+        "refreshing": false,
+        "key": "5",
+        "type": "movie",
+        "title": "Bumpers",
+        "agent": "com.plexapp.agents.none",
+        "scanner": "Plex Video Files Scanner",
+        "language": "xn",
+        "uuid": "",
+        "updatedAt": 1788412821,
+        "createdAt": 1780371855,
+        "scannedAt": 1788412766,
+        "content": true,
+        "directory": true,
+        "contentChangedAt": 652961,
+        "hidden": 0,
+        "Location": [
+          {
+            "id": 5,
+            "path": "/media/library-3-1"
+          }
+        ]
+      }
+    ]
+  }
+}

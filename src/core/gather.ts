@@ -15,10 +15,10 @@ export type Gathered<T> = {
  *
  * A source id names either a whole service — `radarr`, or `radarr/4k` for a
  * second instance of one — or a single source *within* a service, written
- * `service:source`. `jellyfin:episodes` is the only one today: it contributes
- * per-season watch state and nothing else. The colon is the discriminator; a
- * slash deliberately is not, because a second instance is still a whole
- * service whose absence is worth reporting.
+ * `service:source`. `jellyfin:seasons` and `plex:seasons` are the two today:
+ * each contributes per-season watch state and nothing else. The colon is the
+ * discriminator; a slash deliberately is not, because a second instance is
+ * still a whole service whose absence is worth reporting.
  *
  * For the consumers that reason about whether a *service's own view* of the
  * library was missed — diagnose's certainty, and get_media_details' hedge on a

@@ -168,7 +168,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     const degraded: string[] = [];
     // `string[]`, not `ServiceId[]`: what arrives here is `LibrarySnapshot`'s
     // own `degraded`, which is keyed by **source**, so it can hold
-    // `jellyfin:episodes` as well as a plain service id. The declaration was
+    // `jellyfin:seasons` as well as a plain service id. The declaration was
     // never enforced — the ids come in through a `string[]` parameter — so it
     // only claimed something untrue about what the array holds.
     const libraryDegraded: string[] = [];

@@ -982,7 +982,7 @@ export const hasUserLibrary = (a: ServiceAdapter): a is ServiceAdapter & UserLib
  * the two apart.
  */
 export const NO_MEDIA_SERVER_NOTE =
-    'No media server is configured, so there is no watch state to read — this is a blind spot, not an empty library. Add `services.jellyfin` in config.yaml.';
+    'No media server is configured, so there is no watch state to read — this is a blind spot, not an empty library. Add `services.jellyfin` or `services.plex` in config.yaml.';
 
 /**
  * The three per-user reads a media server answers. Jellyfin has had these
@@ -1017,7 +1017,7 @@ export type MediaServerAdapter = ServiceAdapter &
 /**
  * Separate from `UserLibraryCapable` so it can fail on its own. `LibraryLoader`
  * registers this as its own `gather` source, which is what lets an episode-read
- * failure degrade `jellyfin:episodes` while film watch state survives.
+ * failure degrade `jellyfin:seasons` while film watch state survives.
  */
 export interface UserSeasonsCapable {
     listUserSeasons(user: ServiceUser): Promise<IndexInput[]>;

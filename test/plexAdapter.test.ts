@@ -1,0 +1,791 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { MultiUserServiceConfig } from '../src/config/schema.ts';
+import { logger } from '../src/core/logger.ts';
+import { PlexAdapter } from '../src/services/plex.ts';
+import { jsonResponse, serving } from './helpers/serve.ts';
+
+const read = (name: string): unknown => JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/plex', name), 'utf8'));
+
+// Captured from a live Plex Media Server 1.43.3.10896 (issue #180) — see
+// docs/superpowers/plans/2026-08-31-plex-adapter.md.
+const IDENTITY = read('identity.json');
+const ACCOUNTS = read('accounts.json');
+const CAPTURED_SECTIONS = read('sections.json');
+const CAPTURED_SESSIONS = read('sessions.json');
+const CAPTURED_ONDECK = read('ondeck.json');
+const CAPTURED_HISTORY = read('history.json');
+const CAPTURED_SEARCH = read('search.json');
+const CAPTURED_SECTION_ALL = read('section-all.json');
+const CAPTURED_METADATA_DETAIL = read('metadata-detail.json');
+
+const config = (over: Partial<MultiUserServiceConfig> = {}): MultiUserServiceConfig => ({
+    url: 'http://192.0.2.10:32400',
+    api_key: 'tok',
+    timeout_ms: 10_000,
+    allow_other_users: false,
+    permissions: { safe_write: false, destructive: false },
+    ...over
+});
+
+const plex = (routes: Record<string, unknown>, over: Partial<MultiUserServiceConfig> = {}) => {
+    const adapter = new PlexAdapter(config(over), serving(routes));
+    return { adapter };
+};
+
+describe('PlexAdapter', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('reads the server version', async () => {
+        const { adapter } = plex({ '/identity': IDENTITY });
+        // The captured server reports a build suffix; getVersion passes it
+        // through as-is, and parseVersion (versions.ts) strips it before comparing.
+        expect(await adapter.getVersion()).toBe('1.43.3.10896-cb3ebc72d');
+    });
+
+    it('throws when /identity has no version field', async () => {
+        const { adapter } = plex({ '/identity': { MediaContainer: {} } });
+        await expect(adapter.getVersion()).rejects.toThrow(/version/);
+    });
+
+    it('reports exactly one user, the token owner, however many accounts the server lists', async () => {
+        const { adapter } = plex({ '/identity': IDENTITY, '/accounts': ACCOUNTS });
+        // Captured accounts.json holds 5 rows; only id 1's (anonymised) name comes back.
+        expect(await adapter.listUsers()).toEqual([{ id: '1', name: 'Account 1' }]);
+    });
+
+    it('falls back to default_user when the owner account has no usable name', async () => {
+        const blank = { MediaContainer: { Account: [{ id: 1, name: '' }] } };
+        const { adapter } = plex({ '/accounts': blank }, { default_user: 'Bartus' });
+        expect(await adapter.listUsers()).toEqual([{ id: '1', name: 'Bartus' }]);
+    });
+
+    it('falls back to default_user when the owner row is missing entirely', async () => {
+        const noOwner = { MediaContainer: { Account: [{ id: 2, name: 'Guest' }] } };
+        const { adapter } = plex({ '/accounts': noOwner }, { default_user: 'Bartus' });
+        expect(await adapter.listUsers()).toEqual([{ id: '1', name: 'Bartus' }]);
+    });
+
+    it('logs the unverified fallback exactly once across repeated calls', async () => {
+        const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined as never);
+        const blank = { MediaContainer: { Account: [{ id: 1, name: '' }] } };
+        const { adapter } = plex({ '/accounts': blank }, { default_user: 'Bartus' });
+
+        await adapter.listUsers();
+        await adapter.listUsers();
+
+        expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('names the config key when the owner cannot be identified and nothing is configured', async () => {
+        const blank = { MediaContainer: { Account: [{ id: 1, name: '' }] } };
+        const { adapter } = plex({ '/accounts': blank });
+        await expect(adapter.listUsers()).rejects.toThrow(/default_user/);
+    });
+
+    it('returns a diagnosis rather than throwing when the server is unreachable', async () => {
+        const { adapter } = plex({});
+        const d = await adapter.testConnection();
+        expect(d.ok).toBe(false);
+        expect(d.service).toBe('plex');
+    });
+
+    it('returns a passing diagnosis with the reported version when the server answers', async () => {
+        const { adapter } = plex({ '/identity': IDENTITY });
+        const d = await adapter.testConnection();
+        expect(d.ok).toBe(true);
+        expect(d.version).toBe('1.43.3.10896-cb3ebc72d');
+    });
+
+    describe('playback', () => {
+        const SESSIONS = {
+            MediaContainer: {
+                Metadata: [
+                    {
+                        ratingKey: '1234',
+                        type: 'episode',
+                        title: 'Pilot',
+                        grandparentTitle: 'Some Show',
+                        parentIndex: 1,
+                        index: 1,
+                        duration: 2_700_000,
+                        viewOffset: 600_000,
+                        User: { id: '1', title: 'Bartus' },
+                        Player: { title: 'Living Room TV' }
+                    }
+                ]
+            }
+        };
+
+        // onDeck carries no per-user field (see the doc comment on
+        // getPlayback), so an empty page is a legitimate stub for every
+        // getPlayback case below that isn't itself testing onDeck.
+        const EMPTY_MEDIA_CONTAINER = { MediaContainer: {} };
+
+        it('reports what is playing now, with position and completion in seconds', async () => {
+            const { adapter } = plex({ '/status/sessions': SESSIONS, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
+            const [entry] = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+
+            expect(entry).toMatchObject({
+                service: 'plex',
+                itemId: '1234',
+                kind: 'now_playing',
+                season: 1,
+                episode: 1,
+                user: 'Bartus',
+                positionSeconds: 600,
+                runtimeSeconds: 2700,
+                percentComplete: 22,
+                device: 'Living Room TV'
+            });
+        });
+
+        it('excludes other users sessions', async () => {
+            const other = {
+                MediaContainer: {
+                    Metadata: [{ ...SESSIONS.MediaContainer.Metadata[0], User: { id: '2', title: 'Guest' } }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions': other, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
+            expect(await adapter.getPlayback({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+
+        it('matches a session whose User.id came back as a JSON number, not a string', async () => {
+            // Plex's XML-derived JSON is inconsistent about id types. A strict
+            // `===` against the string user id would drop every session and
+            // read as "nothing playing" forever — see C1 in the fix report.
+            const numericUser = {
+                MediaContainer: {
+                    Metadata: [{ ...SESSIONS.MediaContainer.Metadata[0], User: { id: 1, title: 'Bartus' } }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions': numericUser, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
+            expect(await adapter.getPlayback({ id: '1', name: 'Bartus' })).toHaveLength(1);
+        });
+
+        it('omits the percentage rather than dividing by zero when duration is missing', async () => {
+            const noDuration = { MediaContainer: { Metadata: [{ ratingKey: 'x', title: 'X', viewOffset: 1000, User: { id: '1' } }] } };
+            const { adapter } = plex({ '/status/sessions': noDuration, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
+            expect((await adapter.getPlayback({ id: '1', name: 'Bartus' }))[0]?.percentComplete).toBeUndefined();
+        });
+
+        it('fences titles, which carry metadata we did not author', async () => {
+            const { adapter } = plex({ '/status/sessions': SESSIONS, '/library/onDeck': EMPTY_MEDIA_CONTAINER });
+            const [entry] = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+            expect(entry?.title.startsWith('<<untrusted:plex.')).toBe(true);
+        });
+
+        it('includes onDeck resume entries in getPlayback, with position, runtime and completion', async () => {
+            const onDeck = {
+                MediaContainer: {
+                    Metadata: [{ ratingKey: 'r1', title: 'Resuming', viewOffset: 300_000, duration: 1_200_000 }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions': EMPTY_MEDIA_CONTAINER, '/library/onDeck': onDeck });
+            const entries = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+            expect(entries).toEqual([
+                expect.objectContaining({
+                    kind: 'resume',
+                    itemId: 'r1',
+                    positionSeconds: 300,
+                    runtimeSeconds: 1200,
+                    percentComplete: 25
+                })
+            ]);
+        });
+
+        it('excludes onDeck next-up rows (no viewOffset) from getPlayback', async () => {
+            const onDeck = { MediaContainer: { Metadata: [{ ratingKey: 'n1', title: 'Next Episode' }] } };
+            const { adapter } = plex({ '/status/sessions': EMPTY_MEDIA_CONTAINER, '/library/onDeck': onDeck });
+            expect(await adapter.getPlayback({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+
+        it('dedupes the currently playing item against its own onDeck resume row, keeping now_playing', async () => {
+            // Verified live: a session's ratingKey also shows up in onDeck, so
+            // an un-deduped read reports one item twice — once as now_playing,
+            // once as resume — and doubles it in `total`. See F1.
+            const onDeck = {
+                MediaContainer: {
+                    Metadata: [{ ratingKey: '1234', title: 'Pilot', viewOffset: 600_000, duration: 2_700_000 }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions': SESSIONS, '/library/onDeck': onDeck });
+            const entries = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+
+            expect(entries).toHaveLength(1);
+            expect(entries[0]).toMatchObject({ kind: 'now_playing', itemId: '1234', device: 'Living Room TV' });
+        });
+
+        it('does not collapse two onDeck/session rows that both carry a blank id', async () => {
+            // #commonPlayback falls back to '' when a row has no ratingKey.
+            // Comparing blanks against each other would wrongly treat two
+            // unrelated no-id rows as the same item and drop one. See F1.
+            const blankSession = {
+                MediaContainer: { Metadata: [{ title: 'No Key', viewOffset: 1000, User: { id: '1' } }] }
+            };
+            const blankOnDeck = { MediaContainer: { Metadata: [{ title: 'Also No Key', viewOffset: 2000 }] } };
+            const { adapter } = plex({ '/status/sessions': blankSession, '/library/onDeck': blankOnDeck });
+            const entries = await adapter.getPlayback({ id: '1', name: 'Bartus' });
+
+            expect(entries).toHaveLength(2);
+            expect(entries.map(e => e.kind).sort()).toEqual(['now_playing', 'resume']);
+        });
+
+        it('turns an epoch lastViewedAt into an ISO timestamp', async () => {
+            const history = {
+                MediaContainer: { Metadata: [{ ratingKey: 'h1', title: 'A Film', lastViewedAt: 1_787_000_000, accountID: 1 }] }
+            };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const [entry] = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entry?.lastPlayed).toBe(new Date(1_787_000_000_000).toISOString());
+        });
+
+        it('reads viewedAt when a history row has no lastViewedAt', async () => {
+            const history = {
+                MediaContainer: { Metadata: [{ ratingKey: 'h1', title: 'A Film', viewedAt: 1_787_000_000, accountID: 1 }] }
+            };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const [entry] = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entry?.lastPlayed).toBe(new Date(1_787_000_000_000).toISOString());
+        });
+
+        it('prefers viewedAt over lastViewedAt when a row somehow carries both', async () => {
+            const history = {
+                MediaContainer: {
+                    Metadata: [{ ratingKey: 'h1', title: 'A Film', viewedAt: 1_787_000_000, lastViewedAt: 1_000_000, accountID: 1 }]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const [entry] = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entry?.lastPlayed).toBe(new Date(1_787_000_000_000).toISOString());
+        });
+
+        it('sends a descending sort on the history read, so the page cap truncates from the newest end', async () => {
+            let sentSort: string | null = null;
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                sentSort = url.searchParams.get('sort');
+                return jsonResponse({ MediaContainer: { Metadata: [] } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(sentSort).toMatch(/desc/i);
+        });
+
+        it('warns when the history scan gives up at the page cap, rather than staying silent', async () => {
+            const warnSpy = vi.spyOn(logger, 'warn');
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const start = Number(url.searchParams.get('X-Plex-Container-Start') ?? '0');
+                const page = start / 500;
+                const foreign = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `g${page}_${i}`, accountID: 2 }));
+                return jsonResponse({ MediaContainer: { Metadata: foreign } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+
+            expect(warnSpy).toHaveBeenCalledWith(expect.objectContaining({ service: 'plex' }), expect.stringMatching(/page cap|maxPages|gave up/i));
+        });
+
+        it('does not warn when the history scan finishes before the page cap', async () => {
+            const warnSpy = vi.spyOn(logger, 'warn');
+            const history = { MediaContainer: { Metadata: [{ ratingKey: 'h1', accountID: 1 }] } };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(warnSpy).not.toHaveBeenCalled();
+        });
+
+        it('filters server-wide history to the resolved user by accountID', async () => {
+            // /status/sessions/history/all is server-wide — it carries every
+            // account's rows, not just the token owner's. Attributing all of
+            // them to `user.name` would report a household guest's viewing as
+            // the owner's. See I4.
+            const history = {
+                MediaContainer: {
+                    Metadata: [
+                        { ratingKey: 'h1', title: 'Mine', accountID: 1 },
+                        { ratingKey: 'h2', title: 'Guest', accountID: 2 }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const entries = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entries.map(e => e.itemId)).toEqual(['h1']);
+        });
+
+        it('pages past a full first page of other accounts to find this users rows on a later page', async () => {
+            // The old code capped at one page of *server-wide* history before
+            // filtering, so a busy server's newest 500 rows being mostly
+            // someone else's silently starved this user's history. See F4.
+            const foreign = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `g${i}`, title: 'Guest', accountID: 2 }));
+            const mine = [{ ratingKey: 'h1', title: 'Mine', accountID: 1 }];
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                if (url.pathname !== '/status/sessions/history/all') return jsonResponse({ message: 'not found' }, 404);
+                // No explicit start (today's code) must read as the first
+                // page, same as an explicit start=0 — otherwise a call that
+                // never pages at all would satisfy this test by accident.
+                const start = url.searchParams.get('X-Plex-Container-Start') ?? '0';
+                return jsonResponse({ MediaContainer: { Metadata: start === '0' ? foreign : mine } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            const entries = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entries.map(e => e.itemId)).toEqual(['h1']);
+        });
+
+        it('gives up after a bounded scan of a huge foreign-heavy history rather than reading it all', async () => {
+            // A server with years of other households' history must not turn
+            // one call into thousands of requests. Hitting the bound returns
+            // whatever of this user's rows were found — honest, not silent —
+            // rather than throwing (this is Plex genuinely paging, not
+            // ignoring the pagination window). See F4.
+            let calls = 0;
+            const fetchImpl = (async (input: string | URL | Request) => {
+                calls += 1;
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const start = Number(url.searchParams.get('X-Plex-Container-Start') ?? '0');
+                const page = start / 500;
+                const foreign = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `g${page}_${i}`, accountID: 2 }));
+                return jsonResponse({ MediaContainer: { Metadata: foreign } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            const entries = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+
+            expect(entries).toEqual([]);
+            expect(calls).toBeGreaterThan(1);
+            expect(calls).toBeLessThan(100);
+        });
+
+        it('matches a numeric accountID against the string user id', async () => {
+            const history = { MediaContainer: { Metadata: [{ ratingKey: 'h1', title: 'Mine', accountID: 1 }] } };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            expect(await adapter.getWatchHistory({ id: '1', name: 'Bartus' })).toHaveLength(1);
+        });
+
+        it('excludes a history row with no accountID rather than guessing whose it is', async () => {
+            const history = { MediaContainer: { Metadata: [{ ratingKey: 'h1', title: 'No Account' }] } };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            expect(await adapter.getWatchHistory({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+
+        it('reports onDeck rows with no viewOffset as next up', async () => {
+            const onDeck = {
+                MediaContainer: {
+                    Metadata: [
+                        { ratingKey: 'r1', title: 'Resuming', viewOffset: 300_000 },
+                        { ratingKey: 'n1', title: 'Next Episode' }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/library/onDeck': onDeck });
+            const nextUp = await adapter.getNextUp({ id: '1', name: 'Bartus' });
+            expect(nextUp).toEqual([expect.objectContaining({ kind: 'next_up', itemId: 'n1' })]);
+        });
+
+        it('excludes onDeck rows with a non-zero viewOffset from next up — those are resumes', async () => {
+            const onDeck = { MediaContainer: { Metadata: [{ ratingKey: 'r1', title: 'Resuming', viewOffset: 300_000 }] } };
+            const { adapter } = plex({ '/library/onDeck': onDeck });
+            expect(await adapter.getNextUp({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+    });
+
+    describe('library', () => {
+        const SECTIONS = { MediaContainer: { Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'show' }] } };
+        const page = (items: unknown[]) => ({ MediaContainer: { Metadata: items } });
+        const withPaging = (start: number, extra = '') => `?${extra}includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=500`;
+
+        it('contributes items from both a movie section and a show section', async () => {
+            const { adapter } = plex({
+                '/library/sections': SECTIONS,
+                [`/library/sections/1/all${withPaging(0)}`]: page([{ ratingKey: 'm1', title: 'A Movie', type: 'movie' }]),
+                [`/library/sections/2/all${withPaging(0)}`]: page([{ ratingKey: 's1', title: 'A Show', type: 'show' }])
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items.map(i => i.kind).sort()).toEqual(['movie', 'series']);
+        });
+
+        it('maps a positive viewCount to watched, and no viewCount to unwatched', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
+                [`/library/sections/1/all${withPaging(0)}`]: page([
+                    { ratingKey: 'm1', title: 'Watched', viewCount: 3 },
+                    { ratingKey: 'm2', title: 'Unwatched' }
+                ])
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items.find(i => i.title.includes('Watched'))?.playback?.watched).toBe(true);
+            expect(items.find(i => i.title.includes('Unwatched'))?.playback?.watched).toBe(false);
+        });
+
+        it('marks a series watched only when every episode has been seen', async () => {
+            // viewCount>0 is a movie's semantics; a show's own completion
+            // counters are viewedLeafCount/leafCount. See I6.
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
+                [`/library/sections/2/all${withPaging(0)}`]: page([
+                    { ratingKey: 's1', title: 'Fully Watched', viewedLeafCount: 10, leafCount: 10 },
+                    { ratingKey: 's2', title: 'Partly Watched', viewedLeafCount: 3, leafCount: 10 }
+                ])
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items.find(i => i.title.includes('Fully'))?.playback?.watched).toBe(true);
+            expect(items.find(i => i.title.includes('Partly'))?.playback?.watched).toBe(false);
+        });
+
+        it('omits watched for a series with no leaf counts, rather than guessing from viewCount', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
+                [`/library/sections/2/all${withPaging(0)}`]: page([{ ratingKey: 's1', title: 'Unknown', viewCount: 5 }])
+            });
+            const [item] = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(item?.playback?.watched).toBeUndefined();
+        });
+
+        it('carries external ids from Guid into IndexInput.ids', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
+                [`/library/sections/1/all${withPaging(0)}`]: page([
+                    { ratingKey: 'm1', title: 'A Movie', Guid: [{ id: 'tmdb://603' }, { id: 'imdb://tt0133093' }] }
+                ])
+            });
+            const [item] = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(item?.ids).toEqual({ tmdb: 603, imdb: 'tt0133093' });
+        });
+
+        it('reads a library longer than one page to the end', async () => {
+            const fullPage = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `m${i}`, title: `Movie ${i}` }));
+            const shortPage = Array.from({ length: 10 }, (_, i) => ({ ratingKey: `m${500 + i}`, title: `Movie ${500 + i}` }));
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
+                [`/library/sections/1/all${withPaging(0)}`]: page(fullPage),
+                [`/library/sections/1/all${withPaging(500)}`]: page(shortPage)
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items).toHaveLength(510);
+        });
+
+        it('throws instead of looping forever when the server ignores the pagination window', async () => {
+            // A server that ignores X-Plex-Container-Start/Size as query
+            // parameters — Jellyfin does exactly this to a param it does not
+            // recognise — would otherwise hand back the whole library on
+            // every call, so `rows.length < PAGE_SIZE` never fires. See C2.
+            const fullPage = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `m${i}`, title: `Movie ${i}` }));
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const raw = input instanceof Request ? input.url : String(input);
+                const url = new URL(raw);
+                if (url.pathname === '/library/sections') {
+                    return jsonResponse({ MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } });
+                }
+                if (url.pathname === '/library/sections/1/all') return jsonResponse(page(fullPage));
+                return jsonResponse({ message: 'not found' }, 404);
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await expect(adapter.listUserLibrary({ id: '1', name: 'Bartus' })).rejects.toThrow(/paging|advance|ignor/i);
+        }, 2000);
+
+        it('throws instead of looping forever when the server ignores paging and the leading row has no ratingKey', async () => {
+            // Same non-advancing server as above, but the guard used to key
+            // only on rows[0].ratingKey — a row shape with no ratingKey at all
+            // (an aggregate or a malformed row) made `firstKey` undefined on
+            // every page, so `firstKey === previousFirstKey` never tripped.
+            // Without the fix this still eventually throws, but only after
+            // riding the loop out to the 1000-page cap — so the assertion
+            // below is on *how fast* it throws, not just that it does. See G5.
+            const fullPage = Array.from({ length: 500 }, (_, i) => ({ title: `Movie ${i}` }));
+            let sectionCalls = 0;
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const raw = input instanceof Request ? input.url : String(input);
+                const url = new URL(raw);
+                if (url.pathname === '/library/sections') {
+                    return jsonResponse({ MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } });
+                }
+                if (url.pathname === '/library/sections/1/all') {
+                    sectionCalls += 1;
+                    return jsonResponse(page(fullPage));
+                }
+                return jsonResponse({ message: 'not found' }, 404);
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await expect(adapter.listUserLibrary({ id: '1', name: 'Bartus' })).rejects.toThrow(/paging|advance|ignor/i);
+            expect(sectionCalls).toBeLessThan(5);
+        }, 2000);
+
+        it('does not throw when two adjacent pages legitimately share the same leading ratingKey', async () => {
+            // ratingKey identifies media, not a viewing event — two different
+            // pages can genuinely lead with the same one. The old guard
+            // fingerprinted only the leading row, so this false-positived as
+            // "paging did not advance" even though every other row on the
+            // page differed. Fingerprinting the whole page instead. See N7.
+            const page0 = [
+                { ratingKey: 'shared', title: 'Movie A' },
+                ...Array.from({ length: 499 }, (_, i) => ({ ratingKey: `m${i}`, title: `Movie ${i}` }))
+            ];
+            const page1 = [
+                { ratingKey: 'shared', title: 'Movie B (different row, same leading ratingKey)' },
+                ...Array.from({ length: 499 }, (_, i) => ({ ratingKey: `m${500 + i}`, title: `Movie ${500 + i}` }))
+            ];
+            const page2 = Array.from({ length: 10 }, (_, i) => ({ ratingKey: `m${1000 + i}`, title: `Movie ${1000 + i}` }));
+
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
+                [`/library/sections/1/all${withPaging(0)}`]: page(page0),
+                [`/library/sections/1/all${withPaging(500)}`]: page(page1),
+                [`/library/sections/1/all${withPaging(1000)}`]: page(page2)
+            });
+
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items).toHaveLength(1010);
+        });
+
+        it('aggregates per-season watch state onto the owning series, joined by external id', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
+                [`/library/sections/2/all${withPaging(0)}`]: page([
+                    { ratingKey: 's1', title: 'A Show', Guid: [{ id: 'tvdb://121361' }] }
+                ]),
+                [`/library/sections/2/all${withPaging(0, 'type=4&')}`]: page([
+                    { ratingKey: 'e1', grandparentRatingKey: 's1', parentIndex: 1, viewCount: 1 },
+                    { ratingKey: 'e2', grandparentRatingKey: 's1', parentIndex: 1, viewCount: 0 }
+                ])
+            });
+            const [series] = await adapter.listUserSeasons({ id: '1', name: 'Bartus' });
+            expect(series).toMatchObject({ ids: { tvdb: 121361 }, seasons: [{ season: 1, watched: 1 }] });
+        });
+
+        it('drops a series with no external id — it could never join', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
+                [`/library/sections/2/all${withPaging(0)}`]: page([{ ratingKey: 's1', title: 'No Ids' }]),
+                [`/library/sections/2/all${withPaging(0, 'type=4&')}`]: page([
+                    { ratingKey: 'e1', grandparentRatingKey: 's1', parentIndex: 1, viewCount: 1 }
+                ])
+            });
+            expect(await adapter.listUserSeasons({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+    });
+
+    describe('search, details and scan state', () => {
+        it('returns nothing for a source Plex cannot serve', async () => {
+            const { adapter } = plex({});
+            expect(await adapter.search('fight club', 'indexers')).toEqual([]);
+        });
+
+        it('sends includeGuids=1 on /search — without it Plex returns zero Guid children', async () => {
+            // Verified live: the identical query returned 0 Guid children
+            // without this param and 55 with it. The paged section read
+            // already sends it; /search did not, so anything resolved
+            // through search could never join to Radarr/Sonarr. See F3.
+            const fetchImpl = vi.fn(serving({ '/search?query=one&includeGuids=1': { MediaContainer: { Metadata: [] } } }));
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await adapter.search('one', 'library');
+            expect(fetchImpl).toHaveBeenCalledWith(expect.stringContaining('includeGuids=1'), expect.anything());
+        });
+
+        it('maps a library search hit with its id, year and external ids', async () => {
+            const results = {
+                MediaContainer: {
+                    Metadata: [
+                        { ratingKey: '603', type: 'movie', title: 'The Matrix', year: 1999, Guid: [{ id: 'tmdb://603' }] },
+                        { ratingKey: 'x', type: 'episode', title: 'Not a movie or show' }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/search?query=matrix&includeGuids=1': results });
+            const hits = await adapter.search('matrix', 'library');
+            expect(hits).toEqual([
+                { service: 'plex', source: 'library', kind: 'movie', id: '603', title: expect.stringContaining('The Matrix'), year: 1999, ids: { tmdb: 603 } }
+            ]);
+        });
+
+        it('refuses a non-numeric id before any network call', async () => {
+            const fetchImpl = vi.fn(serving({}));
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            await expect(adapter.getMediaDetails('not-a-rating-key')).rejects.toThrow(/rating key/);
+            expect(fetchImpl).not.toHaveBeenCalled();
+        });
+
+        it('fences the summary and file path, which are metadata we did not author', async () => {
+            const detail = {
+                MediaContainer: {
+                    Metadata: [
+                        {
+                            ratingKey: '603',
+                            type: 'movie',
+                            title: 'The Matrix',
+                            summary: 'A hacker learns the truth.',
+                            Media: [{ Part: [{ file: '/movies/The Matrix (1999).mkv', size: 123 }] }]
+                        }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/library/metadata/603': detail });
+            const details = await adapter.getMediaDetails('603');
+            expect(details.overview?.startsWith('<<untrusted:plex.summary>>')).toBe(true);
+            expect(details.path?.startsWith('<<untrusted:plex.file>>')).toBe(true);
+            expect(details.sizeBytes).toBe(123);
+        });
+
+        it('answers kind: item for anything Plex does not call movie or show', async () => {
+            // diagnose/evidence.ts uses `kind` to restrict its index scan; a
+            // wrong kind silently misses real hits. An episode ratingKey
+            // must not come back reading as a movie. See I7.
+            const detail = { MediaContainer: { Metadata: [{ ratingKey: '1234', type: 'episode', title: 'Pilot' }] } };
+            const { adapter } = plex({ '/library/metadata/1234': detail });
+            expect((await adapter.getMediaDetails('1234')).kind).toBe('item');
+        });
+
+        it('answers kind: series for a show', async () => {
+            const detail = { MediaContainer: { Metadata: [{ ratingKey: '5', type: 'show', title: 'A Show' }] } };
+            const { adapter } = plex({ '/library/metadata/5': detail });
+            expect((await adapter.getMediaDetails('5')).kind).toBe('series');
+        });
+
+        // `/activities` was dropped for scan state: on a live server it
+        // permanently carried unrelated `provider.subscription.refresh`
+        // activities that also matched a `/library|refresh/i` test, so
+        // `running` was true forever. `/library/sections`' own `refreshing`
+        // flag, already fetched for every library read, does not have that
+        // problem. See F2.
+        it('reports a scan as running when a section carries refreshing: "1"', async () => {
+            const sections = {
+                MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0' }, { key: '2', type: 'movie', refreshing: '1' }] }
+            };
+            const { adapter } = plex({ '/library/sections': sections });
+            expect((await adapter.getScanState()).running).toBe(true);
+        });
+
+        it('reports no scan running when every section reads refreshing: "0"', async () => {
+            const sections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0' }] } };
+            const { adapter } = plex({ '/library/sections': sections });
+            expect((await adapter.getScanState()).running).toBe(false);
+        });
+
+        it('accepts refreshing as a boolean or a number, not just the string Plex\'s XML-derived JSON usually sends', async () => {
+            const boolSections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: true }] } };
+            const { adapter: boolAdapter } = plex({ '/library/sections': boolSections });
+            expect((await boolAdapter.getScanState()).running).toBe(true);
+
+            const numSections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: 1 }] } };
+            const { adapter: numAdapter } = plex({ '/library/sections': numSections });
+            expect((await numAdapter.getScanState()).running).toBe(true);
+        });
+
+        it('reports lastCompleted as the most recent scannedAt across sections', async () => {
+            const sections = {
+                MediaContainer: {
+                    Directory: [
+                        { key: '1', type: 'movie', refreshing: '0', scannedAt: 1_700_000_000 },
+                        { key: '2', type: 'show', refreshing: '0', scannedAt: 1_800_000_000 }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/library/sections': sections });
+            expect((await adapter.getScanState()).lastCompleted).toBe(new Date(1_800_000_000_000).toISOString());
+        });
+
+        it('omits lastCompleted when no section reports a scannedAt', async () => {
+            const sections = { MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0' }] } };
+            const { adapter } = plex({ '/library/sections': sections });
+            expect((await adapter.getScanState()).lastCompleted).toBeUndefined();
+        });
+
+        it('accepts scannedAt as a numeric string, same as refreshing', async () => {
+            const sections = {
+                MediaContainer: { Directory: [{ key: '1', type: 'movie', refreshing: '0', scannedAt: '1700000000' }] }
+            };
+            const { adapter } = plex({ '/library/sections': sections });
+            expect((await adapter.getScanState()).lastCompleted).toBe(new Date(1_700_000_000_000).toISOString());
+        });
+    });
+
+    // Each captured response carries the real noise a live 1.43.3.10896
+    // sends alongside the fields the adapter reads — Role, Writer,
+    // UltraBlurColors, Field, and the rest #toIndexItem etc. never touch.
+    // The hand-built cases above prove individual branches; these prove the
+    // adapter still finds its fields inside that whole real shape.
+    describe('against captured fixtures', () => {
+        it('reads the real /library/sections shape for scan state', async () => {
+            const { adapter } = plex({ '/library/sections': CAPTURED_SECTIONS });
+            const state = await adapter.getScanState();
+            expect(state.running).toBe(false);
+            // Most recent of the three sections' own scannedAt (the show section).
+            expect(state.lastCompleted).toBe(new Date(1_788_415_096_000).toISOString());
+        });
+
+        it('reads a real /status/sessions row into a now_playing entry', async () => {
+            const { adapter } = plex({ '/status/sessions': CAPTURED_SESSIONS, '/library/onDeck': { MediaContainer: {} } });
+            const [entry] = await adapter.getPlayback({ id: '1', name: 'viewer' });
+            expect(entry).toMatchObject({
+                itemId: '1357',
+                kind: 'now_playing',
+                season: 22,
+                episode: 46,
+                positionSeconds: 138,
+                runtimeSeconds: 1416,
+                percentComplete: 10,
+                device: 'Fixture title 30'
+            });
+            expect(entry?.seriesTitle?.startsWith('<<untrusted:plex.grandparentTitle>>')).toBe(true);
+        });
+
+        it('splits a real /library/onDeck page into resume and next-up by viewOffset', async () => {
+            const { adapter } = plex({ '/status/sessions': { MediaContainer: {} }, '/library/onDeck': CAPTURED_ONDECK });
+            const resuming = (await adapter.getPlayback({ id: '1', name: 'viewer' })).filter(e => e.kind === 'resume');
+            const nextUp = await adapter.getNextUp({ id: '1', name: 'viewer' });
+            // Of the 17 captured rows, 6 carry a positive viewOffset (resume).
+            // The rest are next-up — some omit the key, some carry it explicitly
+            // zeroed, and #isResuming treats both the same. See #isResuming.
+            expect(resuming).toHaveLength(6);
+            expect(nextUp).toHaveLength(11);
+        });
+
+        it('reads real /status/sessions/history/all rows, filtered to this account', async () => {
+            const { adapter } = plex({ '/status/sessions/history/all': CAPTURED_HISTORY });
+            const entries = await adapter.getWatchHistory({ id: '1', name: 'viewer' });
+            expect(entries.map(e => e.itemId)).toEqual(['145030', '130618', '217697', '217861', '62551']);
+            expect(entries.every(e => e.kind === 'watched' && e.lastPlayed !== undefined)).toBe(true);
+        });
+
+        it('keeps only movie/show rows from a real /search response, dropping episodes', async () => {
+            const { adapter } = plex({ '/search': CAPTURED_SEARCH });
+            const hits = await adapter.search('a', 'library');
+            // 45 captured rows: 15 movie, 15 show, 15 episode — only the first two kinds join to Radarr/Sonarr.
+            expect(hits).toHaveLength(30);
+            const first = hits.find(h => h.id === '78430');
+            expect(first).toMatchObject({ kind: 'movie', year: 2013, ids: { imdb: 'tt1606378', tmdb: 47964, tvdb: 686 } });
+        });
+
+        it('lists a real movie section, unwatched throughout since none of the captured rows carries a viewCount', async () => {
+            const sections = { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } };
+            const { adapter } = plex({ '/library/sections': sections, '/library/sections/1/all': CAPTURED_SECTION_ALL });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'viewer' });
+            expect(items).toHaveLength(5);
+            expect(items.every(i => i.playback?.watched === false)).toBe(true);
+            const first = items.find(i => i.ids.imdb === 'tt1179933');
+            expect(first).toMatchObject({ kind: 'movie', year: 2016, ids: { imdb: 'tt1179933', tmdb: 333371, tvdb: 777 } });
+        });
+
+        it('reads a real /library/metadata/{id} detail response', async () => {
+            const { adapter } = plex({ '/library/metadata/44441': CAPTURED_METADATA_DETAIL });
+            const details = await adapter.getMediaDetails('44441');
+            expect(details).toMatchObject({
+                kind: 'movie',
+                id: '44441',
+                year: 2016,
+                sizeBytes: 6_751_369_330,
+                ids: { imdb: 'tt1179933', tmdb: 333371, tvdb: 777 }
+            });
+            expect(details.title.startsWith('<<untrusted:plex.title>>')).toBe(true);
+            expect(details.path?.startsWith('<<untrusted:plex.file>>')).toBe(true);
+        });
+    });
+});

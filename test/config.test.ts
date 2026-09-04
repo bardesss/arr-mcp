@@ -146,7 +146,7 @@ describe('ConfigSchema', () => {
     it('rejects an unknown service id', () => {
         const result = ConfigSchema.safeParse({
             auth: AUTH,
-            services: { plex: { url: 'http://h:32400', api_key: 'k' } }
+            services: { unknown: { url: 'http://h:9999', api_key: 'k' } }
         });
         expect(result.success).toBe(false);
     });
@@ -198,6 +198,56 @@ describe('an unclaimed config', () => {
         const written = await readFile(path, 'utf8');
         expect(written).not.toContain('password_hash');
         expect(written).not.toContain('null');
+    });
+});
+
+describe('plex', () => {
+    const AUTH2 = { bearer_token: 'a'.repeat(64), username: 'admin', allowed_hosts: [] };
+    const media = (url: string) => ({ url, api_key: 'k' });
+
+    it('accepts plex on its own', () => {
+        const c = ConfigSchema.parse({ auth: AUTH2, services: { plex: media('http://192.0.2.10:32400') } });
+        expect(c.services.plex?.url).toBe('http://192.0.2.10:32400');
+    });
+
+    it('refuses jellyfin and plex together, naming both keys', () => {
+        const run = () =>
+            ConfigSchema.parse({
+                auth: AUTH2,
+                services: { jellyfin: media('http://192.0.2.10:8096'), plex: media('http://192.0.2.10:32400') }
+            });
+        expect(run).toThrow(/jellyfin/);
+        expect(run).toThrow(/plex/);
+    });
+
+    it('refuses allow_other_users: true on plex — a token is scoped to one account', () => {
+        // Unlike Jellyfin/Seerr's admin-scoped keys, a Plex X-Plex-Token names
+        // exactly one account: there is no second user to permit, and the
+        // adapter never reads this flag, so accepting it here would admit a
+        // shape the code then silently ignores. See F7.
+        const run = () =>
+            ConfigSchema.parse({
+                auth: AUTH2,
+                services: { plex: { ...media('http://192.0.2.10:32400'), allow_other_users: true } }
+            });
+        expect(run).toThrow(/allow_other_users/);
+    });
+
+    it('still accepts allow_other_users: false on plex, which is the default', () => {
+        const c = ConfigSchema.parse({
+            auth: AUTH2,
+            services: { plex: { ...media('http://192.0.2.10:32400'), allow_other_users: false } }
+        });
+        expect(c.services.plex?.allow_other_users).toBe(false);
+    });
+
+    it('refuses plex as a list, like every other single-instance service', () => {
+        expect(() =>
+            ConfigSchema.parse({
+                auth: AUTH2,
+                services: { plex: [{ name: 'a', ...media('http://192.0.2.10:32400') }] }
+            })
+        ).toThrow(/list of instances/);
     });
 });
 

@@ -479,7 +479,7 @@ describe('get_media_details', () => {
     });
 
     it('does not hedge a title miss on a source that could only ever have added seasons', async () => {
-        // `jellyfin:episodes` intersects its own series list with this user's
+        // `jellyfin:seasons` intersects its own series list with this user's
         // episodes, so it can only add `seasons` to items `listUserLibrary`
         // already returned. It can never be why a title was not found, and
         // "this may be incomplete rather than a real absence" over it points a
@@ -514,7 +514,7 @@ describe('get_media_details', () => {
         const message = (thrown as Error).message;
         expect(message).toMatch(/nothing in your library matches/i);
         expect(message).not.toMatch(/could not be reached/i);
-        expect(message).not.toContain('jellyfin:episodes');
+        expect(message).not.toContain('jellyfin:seasons');
     });
 
     it('keeps the explicit form, which is how you inspect one side of a join', async () => {

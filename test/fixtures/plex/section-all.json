@@ -1,0 +1,681 @@
+{
+  "MediaContainer": {
+    "size": 5,
+    "totalSize": 553,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/movie-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786540085,
+    "thumb": "/:/resources/movie.png",
+    "title1": "Movies",
+    "title2": "All Movies",
+    "viewGroup": "movie",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "44441",
+        "key": "/library/metadata/44441",
+        "guid": "plex://movie/5d776b8e96b655001fe14e31",
+        "slug": "10-cloverfield-lane",
+        "studio": "Bad Robot",
+        "type": "movie",
+        "title": "10 Cloverfield Lane",
+        "contentRating": "PG-13",
+        "contentRatingAge": 14,
+        "summary": "After a catastrophic car crash, a young woman wakes up in a survivalist's underground bunker, where he claims to have saved her from an apocalyptic attack that has left the outside world uninhabitable.",
+        "rating": 9.1,
+        "audienceRating": 7.9,
+        "year": 2016,
+        "tagline": "Monsters come in many forms.",
+        "thumb": "/library/metadata/44441/thumb/1787967133",
+        "art": "/library/metadata/44441/art/1787967133",
+        "duration": 6214816,
+        "originallyAvailableAt": "2016-03-10",
+        "addedAt": 1780379060,
+        "updatedAt": 1787967133,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/44452",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 109307,
+            "duration": 6214816,
+            "bitrate": 8967,
+            "width": 1920,
+            "height": 800,
+            "aspectRatio": 2.35,
+            "audioChannels": 8,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "dolby digital plus + dolby atmos",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 109308,
+                "key": "/library/parts/109308/1782510093/file.mkv",
+                "duration": 6214816,
+                "file": "/library/movies/Fixture title 1 (2016)/Fixture title 1 (2016).mkv",
+                "size": 6751369330,
+                "audioProfile": "dolby digital plus + dolby atmos",
+                "container": "mkv",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "10 Cloverfield Lane",
+            "type": "coverPoster",
+            "url": "/library/metadata/44441/thumb/1787967133"
+          },
+          {
+            "alt": "10 Cloverfield Lane",
+            "type": "background",
+            "url": "/library/metadata/44441/art/1787967133"
+          },
+          {
+            "alt": "10 Cloverfield Lane",
+            "type": "clearLogo",
+            "url": "/library/metadata/44441/clearLogo/1787967133"
+          },
+          {
+            "alt": "10 Cloverfield Lane",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/44441/squareArt/1787967133"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "0b282a",
+          "topRight": "28606a",
+          "bottomRight": "296772",
+          "bottomLeft": "296871"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt1179933"
+          },
+          {
+            "id": "tmdb://333371"
+          },
+          {
+            "id": "tvdb://777"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Horror"
+          },
+          {
+            "tag": "Science Fiction"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Dan Trachtenberg"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Josh Campbell"
+          },
+          {
+            "tag": "Matthew Stuecken"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "John Goodman"
+          },
+          {
+            "tag": "Mary Elizabeth Winstead"
+          },
+          {
+            "tag": "John Gallagher Jr."
+          }
+        ]
+      },
+      {
+        "ratingKey": "67241",
+        "key": "/library/metadata/67241",
+        "guid": "plex://movie/5d776d6596b655001fe48154",
+        "slug": "2036-nexus-dawn",
+        "studio": "Alcon Entertainment",
+        "type": "movie",
+        "title": "2036: Nexus Dawn",
+        "originalTitle": "Blade Runner: 2036 Nexus Dawn",
+        "contentRating": "PG-13",
+        "summary": "This in-world short film takes place in the year 2036 and revolves around Jared Leto’s character, Niander Wallace. In this short, Wallace introduces a new line of “perfected” replicants called the Nexus 9, seeking to get the prohibition on replicants repealed. This no doubt has serious ramifications that will be crucial to the plot of Blade Runner 2049.",
+        "audienceRating": 6.9,
+        "year": 2017,
+        "thumb": "/library/metadata/67241/thumb/1785603707",
+        "art": "/library/metadata/67241/art/1785603707",
+        "duration": 345056,
+        "originallyAvailableAt": "2017-08-30",
+        "addedAt": 1782143948,
+        "updatedAt": 1785603707,
+        "audienceRatingImage": "imdb://image.rating",
+        "Media": [
+          {
+            "id": 95589,
+            "duration": 345056,
+            "bitrate": 12078,
+            "width": 1920,
+            "height": 800,
+            "aspectRatio": 2.35,
+            "audioChannels": 2,
+            "audioCodec": "ac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 95590,
+                "key": "/library/parts/95590/1782097986/file.mkv",
+                "duration": 345056,
+                "file": "/library/movies/Fixture title 2 (2017)/Fixture title 2 (2017).mkv",
+                "size": 521046568,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "2036: Nexus Dawn",
+            "type": "coverPoster",
+            "url": "/library/metadata/67241/thumb/1785603707"
+          },
+          {
+            "alt": "2036: Nexus Dawn",
+            "type": "background",
+            "url": "/library/metadata/67241/art/1785603707"
+          },
+          {
+            "alt": "2036: Nexus Dawn",
+            "type": "clearLogo",
+            "url": "/library/metadata/67241/clearLogo/1785603707"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "482207",
+          "topRight": "291c03",
+          "bottomRight": "173a50",
+          "bottomLeft": "894b26"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt7326248"
+          },
+          {
+            "id": "tmdb://473072"
+          },
+          {
+            "id": "tvdb://8902"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Science Fiction"
+          },
+          {
+            "tag": "Thriller"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United Kingdom"
+          },
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Blade Runner Universe"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Luke Scott"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Michael Green"
+          },
+          {
+            "tag": "Ridley Scott"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Jared Leto"
+          },
+          {
+            "tag": "Benedict Wong"
+          },
+          {
+            "tag": "Ania Marson"
+          }
+        ]
+      },
+      {
+        "ratingKey": "20924",
+        "key": "/library/metadata/20924",
+        "guid": "plex://movie/5d776d6f51dd69001fe4288a",
+        "slug": "2048-nowhere-to-run",
+        "studio": "Alcon Entertainment",
+        "type": "movie",
+        "title": "2048: Nowhere to Run",
+        "originalTitle": "Blade Runner: 2048 Nowhere to Run",
+        "contentRating": "PG-13",
+        "summary": "“2048: Nowhere to Run” takes place one year before the events of Blade Runner 2049. The short film focuses on Sapper, a man who is trying to make it through life day-by-day without turning back to his old ways. We’re introduced to both the gentle nature of Sapper and the violence he’s capable of when set off.",
+        "audienceRating": 6.8,
+        "year": 2017,
+        "thumb": "/library/metadata/20924/thumb/1787374838",
+        "art": "/library/metadata/20924/art/1787374838",
+        "duration": 317760,
+        "originallyAvailableAt": "2017-09-14",
+        "addedAt": 1778739424,
+        "updatedAt": 1787374838,
+        "audienceRatingImage": "imdb://image.rating",
+        "Media": [
+          {
+            "id": 29286,
+            "duration": 317760,
+            "bitrate": 1838,
+            "width": 1920,
+            "height": 800,
+            "aspectRatio": 2.35,
+            "audioChannels": 2,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 29287,
+                "key": "/library/parts/29287/1781417047/file.mkv",
+                "duration": 317760,
+                "file": "/library/movies/Fixture title 3 (2017)/Fixture title 3 (2017).mkv",
+                "size": 73067875,
+                "container": "mkv",
+                "videoProfile": "main"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "2048: Nowhere to Run",
+            "type": "coverPoster",
+            "url": "/library/metadata/20924/thumb/1787374838"
+          },
+          {
+            "alt": "2048: Nowhere to Run",
+            "type": "background",
+            "url": "/library/metadata/20924/art/1787374838"
+          },
+          {
+            "alt": "2048: Nowhere to Run",
+            "type": "clearLogo",
+            "url": "/library/metadata/20924/clearLogo/1787374838"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "093242",
+          "topRight": "444a59",
+          "bottomRight": "1c4657",
+          "bottomLeft": "102e3c"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt7387408"
+          },
+          {
+            "id": "tmdb://475759"
+          },
+          {
+            "id": "tvdb://6338"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Thriller"
+          },
+          {
+            "tag": "Science Fiction"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United Kingdom"
+          },
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Collection": [
+          {
+            "tag": "Blade Runner Universe"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Luke Scott"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Hampton Fancher"
+          },
+          {
+            "tag": "Michael Green"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Dave Bautista"
+          },
+          {
+            "tag": "Björn Freiberg"
+          },
+          {
+            "tag": "Adam Savage"
+          }
+        ]
+      },
+      {
+        "ratingKey": "176792",
+        "key": "/library/metadata/176792",
+        "guid": "plex://movie/5d776840eb5d26001f1e3615",
+        "slug": "the-adventures-of-tintin",
+        "studio": "Paramount Pictures",
+        "type": "movie",
+        "title": "The Adventures of Tintin",
+        "titleSort": "Adventures of Tintin",
+        "contentRating": "PG",
+        "contentRatingAge": 9,
+        "summary": "Intrepid reporter Tintin and Captain Haddock set off on a treasure hunt for a sunken ship commanded by Haddock's ancestor.",
+        "audienceRating": 10,
+        "year": 2011,
+        "tagline": "Discover how far adventure will take you.",
+        "thumb": "/library/metadata/176792/thumb/1786511509",
+        "art": "/library/metadata/176792/art/1786511509",
+        "duration": 6415424,
+        "originallyAvailableAt": "2011-10-26",
+        "addedAt": 1786446180,
+        "updatedAt": 1786511509,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/176793",
+        "Media": [
+          {
+            "id": 249700,
+            "duration": 6415424,
+            "bitrate": 4511,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 8,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 249701,
+                "key": "/library/parts/249701/1786446110/file.mkv",
+                "duration": 6415424,
+                "file": "/library/movies/Fixture title 4 (2011)/Fixture title 4 (2011).mkv",
+                "size": 3552355161,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "The Adventures of Tintin",
+            "type": "coverPoster",
+            "url": "/library/metadata/176792/thumb/1786511509"
+          },
+          {
+            "alt": "The Adventures of Tintin",
+            "type": "background",
+            "url": "/library/metadata/176792/art/1786511509"
+          },
+          {
+            "alt": "The Adventures of Tintin",
+            "type": "clearLogo",
+            "url": "/library/metadata/176792/clearLogo/1786511509"
+          },
+          {
+            "alt": "The Adventures of Tintin",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/176792/squareArt/1786511509"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "123240",
+          "topRight": "174e66",
+          "bottomRight": "0a2434",
+          "bottomLeft": "215161"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0983193"
+          },
+          {
+            "id": "tmdb://17578"
+          },
+          {
+            "id": "tvdb://1156"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Action"
+          },
+          {
+            "tag": "Adventure"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "New Zealand"
+          },
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Steven Spielberg"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Edgar Wright"
+          },
+          {
+            "tag": "Joe Cornish"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Jamie Bell"
+          },
+          {
+            "tag": "Andy Serkis"
+          },
+          {
+            "tag": "Daniel Craig"
+          }
+        ]
+      },
+      {
+        "ratingKey": "15862",
+        "key": "/library/metadata/15862",
+        "guid": "plex://movie/5d77682b103a2d001f56572e",
+        "slug": "airplane-ii-the-sequel",
+        "studio": "Paramount Pictures",
+        "type": "movie",
+        "title": "Airplane II: The Sequel",
+        "contentRating": "PG",
+        "contentRatingAge": 14,
+        "summary": "A faulty computer causes a passenger space shuttle to head straight for the sun, and man-with-a-past Ted Striker must save the day and get the shuttle back on track – again – all the while trying to patch up his relationship with Elaine.",
+        "rating": 4.1,
+        "audienceRating": 5,
+        "year": 1982,
+        "tagline": "For the ride of your life... All you need for Christmas are your two front seats!",
+        "thumb": "/library/metadata/15862/thumb/1786463808",
+        "art": "/library/metadata/15862/art/1786463808",
+        "duration": 5049898,
+        "originallyAvailableAt": "1982-12-10",
+        "addedAt": 1777901708,
+        "updatedAt": 1786463808,
+        "audienceRatingImage": "rottentomatoes://image.rating.spilled",
+        "chapterSource": "media",
+        "primaryExtraKey": "/library/metadata/15863",
+        "ratingImage": "rottentomatoes://image.rating.rotten",
+        "Media": [
+          {
+            "id": 110346,
+            "duration": 5049898,
+            "bitrate": 24900,
+            "width": 3840,
+            "height": 2076,
+            "aspectRatio": 1.85,
+            "audioChannels": 2,
+            "audioCodec": "aac",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "audioProfile": "lc",
+            "videoProfile": "main 10",
+            "hasVoiceActivity": false,
+            "Part": [
+              {
+                "id": 110347,
+                "key": "/library/parts/110347/1782519994/file.mkv",
+                "duration": 5049898,
+                "file": "/library/movies/Fixture title 5 (1982)/Fixture title 5 (1982).mkv",
+                "size": 15719752497,
+                "audioProfile": "lc",
+                "container": "mkv",
+                "videoProfile": "main 10"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Airplane II: The Sequel",
+            "type": "coverPoster",
+            "url": "/library/metadata/15862/thumb/1786463808"
+          },
+          {
+            "alt": "Airplane II: The Sequel",
+            "type": "background",
+            "url": "/library/metadata/15862/art/1786463808"
+          },
+          {
+            "alt": "Airplane II: The Sequel",
+            "type": "clearLogo",
+            "url": "/library/metadata/15862/clearLogo/1786463808"
+          },
+          {
+            "alt": "Airplane II: The Sequel",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/15862/squareArt/1786463808"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "4f0e16",
+          "topRight": "9d1515",
+          "bottomRight": "490d13",
+          "bottomLeft": "340f18"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0083530"
+          },
+          {
+            "id": "tmdb://2665"
+          },
+          {
+            "id": "tvdb://4040"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Comedy"
+          },
+          {
+            "tag": "Science Fiction"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Ken Finkleman"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Al Jean"
+          },
+          {
+            "tag": "Mike Reiss"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Lloyd Bridges"
+          },
+          {
+            "tag": "Raymond Burr"
+          },
+          {
+            "tag": "Chuck Connors"
+          }
+        ]
+      }
+    ]
+  }
+}
