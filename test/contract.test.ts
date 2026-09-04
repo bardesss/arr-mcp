@@ -413,16 +413,119 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { fixture: 'test/fixtures/qbittorrent/preferences.json', fields: ['save_path'] }
         ]
     },
-    // Hand-built and unverified — nobody here runs a live Plex server (see
-    // CONTRIBUTING.md). Only the two fixtures the adapter's own unit tests
-    // already depend on are contracted; the rest wait for a real
-    // `npm run capture` run against a tester's server.
+    // Captured live from Plex Media Server 1.43.3.10896 (issue #180) with
+    // `npm run capture`. All nine endpoints the adapter reads are contracted.
     plex: {
         dependencies: [
-            { fixture: 'test/fixtures/plex/unverified-identity.json', fields: ['MediaContainer.version'] },
+            { fixture: 'test/fixtures/plex/identity.json', fields: ['MediaContainer.version'] },
             {
-                fixture: 'test/fixtures/plex/unverified-accounts.json',
+                fixture: 'test/fixtures/plex/accounts.json',
                 fields: ['MediaContainer.Account', 'MediaContainer.Account.id', 'MediaContainer.Account.name']
+            },
+            {
+                // #sections() backs listUserLibrary, listUserSeasons and
+                // getScanState — refreshing/scannedAt feed getScanState directly.
+                fixture: 'test/fixtures/plex/sections.json',
+                fields: [
+                    'MediaContainer.Directory',
+                    'MediaContainer.Directory.key',
+                    'MediaContainer.Directory.type',
+                    'MediaContainer.Directory.refreshing',
+                    'MediaContainer.Directory.scannedAt'
+                ]
+            },
+            {
+                // getPlayback's now_playing half. User.id is the per-user
+                // filter; Player.title becomes `device`.
+                fixture: 'test/fixtures/plex/sessions.json',
+                fields: [
+                    'MediaContainer.Metadata',
+                    'MediaContainer.Metadata.ratingKey',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.grandparentTitle',
+                    'MediaContainer.Metadata.parentIndex',
+                    'MediaContainer.Metadata.index',
+                    'MediaContainer.Metadata.viewOffset',
+                    'MediaContainer.Metadata.duration',
+                    'MediaContainer.Metadata.User.id',
+                    'MediaContainer.Metadata.Player.title'
+                ]
+            },
+            {
+                // getPlayback's resume half and getNextUp, split by viewOffset.
+                // No User field on this endpoint — see #isResuming's doc comment.
+                fixture: 'test/fixtures/plex/ondeck.json',
+                fields: [
+                    'MediaContainer.Metadata',
+                    'MediaContainer.Metadata.ratingKey',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.grandparentTitle',
+                    'MediaContainer.Metadata.parentIndex',
+                    'MediaContainer.Metadata.index',
+                    'MediaContainer.Metadata.viewOffset',
+                    'MediaContainer.Metadata.duration'
+                ]
+            },
+            {
+                // getWatchHistory. lastViewedAt is read too (RawPlexItem), but
+                // this capture's rows carry only viewedAt — the field the
+                // adapter prefers — so lastViewedAt isn't contractable here.
+                fixture: 'test/fixtures/plex/history.json',
+                fields: [
+                    'MediaContainer.Metadata',
+                    'MediaContainer.Metadata.ratingKey',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.grandparentTitle',
+                    'MediaContainer.Metadata.parentIndex',
+                    'MediaContainer.Metadata.index',
+                    'MediaContainer.Metadata.accountID',
+                    'MediaContainer.Metadata.viewedAt'
+                ]
+            },
+            {
+                fixture: 'test/fixtures/plex/search.json',
+                fields: [
+                    'MediaContainer.Metadata',
+                    'MediaContainer.Metadata.ratingKey',
+                    'MediaContainer.Metadata.type',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.year',
+                    'MediaContainer.Metadata.Guid',
+                    'MediaContainer.Metadata.Guid.id'
+                ]
+            },
+            {
+                // listUserLibrary/listUserSeasons over a movie section.
+                // viewCount/lastViewedAt aren't contracted: none of the 5
+                // captured movies has ever been watched by this account, so
+                // neither field survives into the fixture.
+                fixture: 'test/fixtures/plex/section-all.json',
+                fields: [
+                    'MediaContainer.Metadata',
+                    'MediaContainer.Metadata.ratingKey',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.year',
+                    'MediaContainer.Metadata.Genre',
+                    'MediaContainer.Metadata.Genre.tag',
+                    'MediaContainer.Metadata.Guid',
+                    'MediaContainer.Metadata.Guid.id'
+                ]
+            },
+            {
+                // getMediaDetails. ratingKey comes from the caller, not the
+                // body, so it is not read off this fixture.
+                fixture: 'test/fixtures/plex/metadata-detail.json',
+                fields: [
+                    'MediaContainer.Metadata',
+                    'MediaContainer.Metadata.type',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.year',
+                    'MediaContainer.Metadata.summary',
+                    'MediaContainer.Metadata.Guid',
+                    'MediaContainer.Metadata.Guid.id',
+                    'MediaContainer.Metadata.Media.Part.file',
+                    'MediaContainer.Metadata.Media.Part.size'
+                ]
             }
         ]
     }
