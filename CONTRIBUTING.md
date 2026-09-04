@@ -334,9 +334,18 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Four of the nine services publish no usable OpenAPI spec, so the adapter
+Five of the ten services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
+
+That also decides what the nightly drift job can watch. `openapi-drift.yml`
+re-fetches the five published specs and regenerates types from them, so it
+catches an upstream change before a user does. A spec-less service has nothing
+to fetch: its contract is the fields declared in `test/contract.test.ts`,
+checked against committed fixtures. That catches us breaking our own adapter,
+and it cannot catch the service changing underneath it. For those five, the
+only real drift detector is somebody recapturing fixtures against a live
+instance.
 
 ## Adding a write tool
 
