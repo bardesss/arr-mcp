@@ -1,0 +1,472 @@
+{
+  "MediaContainer": {
+    "size": 1,
+    "Metadata": [
+      {
+        "addedAt": 1775125667,
+        "art": "",
+        "audienceRating": 8.1,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "contentRating": "TV-14",
+        "duration": 1415835,
+        "grandparentArt": "",
+        "grandparentGuid": "plex://9000001",
+        "grandparentKey": "",
+        "grandparentRatingKey": "1212",
+        "grandparentSlug": "",
+        "grandparentTheme": "",
+        "grandparentThumb": "",
+        "grandparentTitle": "Fixture grandparentTitle 2",
+        "guid": "plex://9000003",
+        "index": 46,
+        "key": "",
+        "lastViewedAt": 1788251872,
+        "librarySectionID": "2",
+        "librarySectionKey": "/library/sections/2",
+        "librarySectionTitle": "TV Shows",
+        "originalTitle": "Fixture originalTitle 4",
+        "originallyAvailableAt": "2025-06-01",
+        "parentGuid": "plex://9000005",
+        "parentIndex": 22,
+        "parentKey": "",
+        "parentRatingKey": "1213",
+        "parentThumb": "",
+        "parentTitle": "Fixture parentTitle 6",
+        "ratingKey": "1357",
+        "sessionKey": "89",
+        "thumb": "",
+        "title": "Fixture title 7",
+        "titleSort": "Fixture titleSort 8",
+        "type": "episode",
+        "updatedAt": 1788268231,
+        "viewOffset": 138000,
+        "year": 2025,
+        "Media": [
+          {
+            "aspectRatio": "1.78",
+            "audioChannels": 2,
+            "audioCodec": "eac3",
+            "audioProfile": "lc",
+            "bitrate": 1869,
+            "container": "mkv",
+            "duration": 1415835,
+            "hasVoiceActivity": "0",
+            "height": 1080,
+            "id": "1622",
+            "videoCodec": "hevc",
+            "videoFrameRate": "24p",
+            "videoProfile": "main",
+            "videoResolution": "1080",
+            "width": 1920,
+            "Part": [
+              {
+                "audioProfile": "lc",
+                "container": "mkv",
+                "duration": 1415835,
+                "file": "",
+                "id": "1622",
+                "key": "",
+                "size": 334971550,
+                "videoProfile": "main",
+                "Stream": [
+                  {
+                    "bitDepth": 8,
+                    "bitrate": 1228,
+                    "chromaLocation": "left",
+                    "chromaSubsampling": "4:2:0",
+                    "codec": "hevc",
+                    "codedHeight": 1080,
+                    "codedWidth": 1920,
+                    "colorPrimaries": "bt709",
+                    "colorRange": "tv",
+                    "colorSpace": "bt709",
+                    "colorTrc": "bt709",
+                    "default": true,
+                    "displayTitle": "1080p (HEVC Main)",
+                    "extendedDisplayTitle": "ToonsHub (1080p HEVC Main)",
+                    "frameRate": 23.976,
+                    "height": 1080,
+                    "id": "9080",
+                    "index": 0,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "level": 120,
+                    "profile": "main",
+                    "refFrames": 1,
+                    "streamType": 1,
+                    "title": "Fixture title 9",
+                    "width": 1920
+                  },
+                  {
+                    "audioChannelLayout": "stereo",
+                    "bitrate": 640,
+                    "channels": 2,
+                    "codec": "eac3",
+                    "default": true,
+                    "displayTitle": "Japanese (EAC3 Stereo)",
+                    "extendedDisplayTitle": "Japanese (EAC3 Stereo)",
+                    "id": "9081",
+                    "index": 1,
+                    "language": "Japanese",
+                    "languageCode": "jpn",
+                    "languageTag": "ja",
+                    "samplingRate": 44100,
+                    "selected": true,
+                    "streamType": 2
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "default": true,
+                    "displayTitle": "English (ASS)",
+                    "extendedDisplayTitle": "English (ASS)",
+                    "id": "9082",
+                    "index": 2,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "selected": true,
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "displayTitle": "Arabic (ASS)",
+                    "extendedDisplayTitle": "Arabic (ASS)",
+                    "id": "9083",
+                    "index": 3,
+                    "language": "Arabic",
+                    "languageCode": "ara",
+                    "languageTag": "ar",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "displayTitle": "Portuguese (ASS)",
+                    "extendedDisplayTitle": "Brazil (Portuguese ASS)",
+                    "id": "9084",
+                    "index": 4,
+                    "language": "Portuguese",
+                    "languageCode": "por",
+                    "languageTag": "pt-BR",
+                    "streamType": 3,
+                    "title": "Fixture title 10"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "displayTitle": "French (ASS)",
+                    "extendedDisplayTitle": "French (ASS)",
+                    "id": "9085",
+                    "index": 5,
+                    "language": "French",
+                    "languageCode": "fra",
+                    "languageTag": "fr",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "displayTitle": "German (ASS)",
+                    "extendedDisplayTitle": "German (ASS)",
+                    "id": "9086",
+                    "index": 6,
+                    "language": "German",
+                    "languageCode": "deu",
+                    "languageTag": "de",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "displayTitle": "Italian (ASS)",
+                    "extendedDisplayTitle": "Italian (ASS)",
+                    "id": "9087",
+                    "index": 7,
+                    "language": "Italian",
+                    "languageCode": "ita",
+                    "languageTag": "it",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "displayTitle": "Russian (ASS)",
+                    "extendedDisplayTitle": "Russian (ASS)",
+                    "id": "9088",
+                    "index": 8,
+                    "language": "Russian",
+                    "languageCode": "rus",
+                    "languageTag": "ru",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "displayTitle": "Spanish (ASS)",
+                    "extendedDisplayTitle": "Latin America (Spanish ASS)",
+                    "id": "9089",
+                    "index": 9,
+                    "language": "Spanish",
+                    "languageCode": "spa",
+                    "languageTag": "es",
+                    "streamType": 3,
+                    "title": "Fixture title 11"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "ass",
+                    "displayTitle": "Spanish (ASS)",
+                    "extendedDisplayTitle": "European (Spanish ASS)",
+                    "id": "9090",
+                    "index": 10,
+                    "language": "Spanish",
+                    "languageCode": "spa",
+                    "languageTag": "es",
+                    "streamType": 3,
+                    "title": "Fixture title 12"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "srt",
+                    "displayTitle": "Chinese (SRT)",
+                    "extendedDisplayTitle": "Simplified (Chinese SRT)",
+                    "id": "9091",
+                    "index": 11,
+                    "language": "Chinese",
+                    "languageCode": "zho",
+                    "languageTag": "zh",
+                    "streamType": 3,
+                    "title": "Fixture title 13"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "srt",
+                    "displayTitle": "Chinese (SRT)",
+                    "extendedDisplayTitle": "Traditional (Chinese SRT)",
+                    "id": "9092",
+                    "index": 12,
+                    "language": "Chinese",
+                    "languageCode": "zho",
+                    "languageTag": "zh",
+                    "streamType": 3,
+                    "title": "Fixture title 14"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "srt",
+                    "displayTitle": "Indonesian (SRT)",
+                    "extendedDisplayTitle": "Indonesian (SRT)",
+                    "id": "9093",
+                    "index": 13,
+                    "language": "Indonesian",
+                    "languageCode": "ind",
+                    "languageTag": "id",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "srt",
+                    "displayTitle": "Malay (SRT)",
+                    "extendedDisplayTitle": "Malay (SRT)",
+                    "id": "9094",
+                    "index": 14,
+                    "language": "Malay",
+                    "languageCode": "msa",
+                    "languageTag": "ms",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": "0",
+                    "codec": "srt",
+                    "displayTitle": "Thai (SRT)",
+                    "extendedDisplayTitle": "Thai (SRT)",
+                    "id": "9095",
+                    "index": 15,
+                    "language": "Thai",
+                    "languageCode": "tha",
+                    "languageTag": "th",
+                    "streamType": 3
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "UltraBlurColors": [
+          {
+            "bottomLeft": "562147",
+            "bottomRight": "8c3979",
+            "topLeft": "4a1a33",
+            "topRight": "91366e"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "type": "audience",
+            "value": "9.1"
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "type": "audience",
+            "value": "8.1"
+          }
+        ],
+        "Role": [
+          {
+            "filter": "",
+            "id": "10012",
+            "role": "Monkey D. Luffy (voice)",
+            "tag": "Fixture Person 15",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10013",
+            "role": "Roronoa Zoro (voice)",
+            "tag": "Fixture Person 16",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10025",
+            "role": "Yoko (voice)",
+            "tag": "Fixture Person 17",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10014",
+            "role": "Nami (voice)",
+            "tag": "Fixture Person 18",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "1123",
+            "role": "Usopp (voice)",
+            "tag": "Fixture Person 19",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10015",
+            "role": "Sanji (voice)",
+            "tag": "Fixture Person 20",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "1131",
+            "role": "Tony Tony Chopper (voice)",
+            "tag": "Fixture Person 21",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10016",
+            "role": "Nico Robin (voice)",
+            "tag": "Fixture Person 22",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10017",
+            "role": "Franky (voice)",
+            "tag": "Fixture Person 23",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10020",
+            "role": "Jinbe (voice)",
+            "tag": "Fixture Person 24",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10018",
+            "role": "Brook (voice)",
+            "tag": "Fixture Person 25",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10028",
+            "role": "Jewelry Bonney (voice)",
+            "tag": "Fixture Person 26",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10029",
+            "role": "Dr. Vegapunk (voice)",
+            "tag": "Fixture Person 27",
+            "tagKey": "",
+            "thumb": ""
+          },
+          {
+            "filter": "",
+            "id": "10024",
+            "role": "Donquixote Doflamingo (voice)",
+            "tag": "Fixture Person 28",
+            "tagKey": "",
+            "thumb": ""
+          }
+        ],
+        "Field": [
+          {
+            "locked": true,
+            "name": "thumb"
+          }
+        ],
+        "User": {
+          "id": "1",
+          "thumb": "",
+          "title": "viewer"
+        },
+        "Player": {
+          "address": "192.0.2.10",
+          "machineIdentifier": "",
+          "product": "arr-mcp fixture capture",
+          "remotePublicAddress": "203.0.113.10",
+          "state": "playing",
+          "title": "Fixture title 30",
+          "local": false,
+          "relayed": false,
+          "secure": false,
+          "userID": 1
+        }
+      }
+    ]
+  }
+}

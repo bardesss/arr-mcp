@@ -8,10 +8,17 @@ import { jsonResponse, serving } from './helpers/serve.ts';
 
 const read = (name: string): unknown => JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/plex', name), 'utf8'));
 
-// Hand-built and unverified — nobody on this side runs Plex. See
+// Captured from a live Plex Media Server 1.43.3.10896 (issue #180) — see
 // docs/superpowers/plans/2026-08-31-plex-adapter.md.
-const IDENTITY = read('unverified-identity.json');
-const ACCOUNTS = read('unverified-accounts.json');
+const IDENTITY = read('identity.json');
+const ACCOUNTS = read('accounts.json');
+const CAPTURED_SECTIONS = read('sections.json');
+const CAPTURED_SESSIONS = read('sessions.json');
+const CAPTURED_ONDECK = read('ondeck.json');
+const CAPTURED_HISTORY = read('history.json');
+const CAPTURED_SEARCH = read('search.json');
+const CAPTURED_SECTION_ALL = read('section-all.json');
+const CAPTURED_METADATA_DETAIL = read('metadata-detail.json');
 
 const config = (over: Partial<MultiUserServiceConfig> = {}): MultiUserServiceConfig => ({
     url: 'http://192.0.2.10:32400',
@@ -34,7 +41,9 @@ describe('PlexAdapter', () => {
 
     it('reads the server version', async () => {
         const { adapter } = plex({ '/identity': IDENTITY });
-        expect(await adapter.getVersion()).toBe('1.43.3.10896');
+        // The captured server reports a build suffix; getVersion passes it
+        // through as-is, and parseVersion (versions.ts) strips it before comparing.
+        expect(await adapter.getVersion()).toBe('1.43.3.10896-cb3ebc72d');
     });
 
     it('throws when /identity has no version field', async () => {
@@ -44,7 +53,8 @@ describe('PlexAdapter', () => {
 
     it('reports exactly one user, the token owner, however many accounts the server lists', async () => {
         const { adapter } = plex({ '/identity': IDENTITY, '/accounts': ACCOUNTS });
-        expect(await adapter.listUsers()).toEqual([{ id: '1', name: 'Bartus' }]);
+        // Captured accounts.json holds 5 rows; only id 1's (anonymised) name comes back.
+        expect(await adapter.listUsers()).toEqual([{ id: '1', name: 'Account 1' }]);
     });
 
     it('falls back to default_user when the owner account has no usable name', async () => {
@@ -87,7 +97,7 @@ describe('PlexAdapter', () => {
         const { adapter } = plex({ '/identity': IDENTITY });
         const d = await adapter.testConnection();
         expect(d.ok).toBe(true);
-        expect(d.version).toBe('1.43.3.10896');
+        expect(d.version).toBe('1.43.3.10896-cb3ebc72d');
     });
 
     describe('playback', () => {
@@ -694,6 +704,88 @@ describe('PlexAdapter', () => {
             };
             const { adapter } = plex({ '/library/sections': sections });
             expect((await adapter.getScanState()).lastCompleted).toBe(new Date(1_700_000_000_000).toISOString());
+        });
+    });
+
+    // Each captured response carries the real noise a live 1.43.3.10896
+    // sends alongside the fields the adapter reads — Role, Writer,
+    // UltraBlurColors, Field, and the rest #toIndexItem etc. never touch.
+    // The hand-built cases above prove individual branches; these prove the
+    // adapter still finds its fields inside that whole real shape.
+    describe('against captured fixtures', () => {
+        it('reads the real /library/sections shape for scan state', async () => {
+            const { adapter } = plex({ '/library/sections': CAPTURED_SECTIONS });
+            const state = await adapter.getScanState();
+            expect(state.running).toBe(false);
+            // Most recent of the three sections' own scannedAt (the show section).
+            expect(state.lastCompleted).toBe(new Date(1_788_415_096_000).toISOString());
+        });
+
+        it('reads a real /status/sessions row into a now_playing entry', async () => {
+            const { adapter } = plex({ '/status/sessions': CAPTURED_SESSIONS, '/library/onDeck': { MediaContainer: {} } });
+            const [entry] = await adapter.getPlayback({ id: '1', name: 'viewer' });
+            expect(entry).toMatchObject({
+                itemId: '1357',
+                kind: 'now_playing',
+                season: 22,
+                episode: 46,
+                positionSeconds: 138,
+                runtimeSeconds: 1416,
+                percentComplete: 10,
+                device: 'Fixture title 30'
+            });
+            expect(entry?.seriesTitle?.startsWith('<<untrusted:plex.grandparentTitle>>')).toBe(true);
+        });
+
+        it('splits a real /library/onDeck page into resume and next-up by viewOffset', async () => {
+            const { adapter } = plex({ '/status/sessions': { MediaContainer: {} }, '/library/onDeck': CAPTURED_ONDECK });
+            const resuming = (await adapter.getPlayback({ id: '1', name: 'viewer' })).filter(e => e.kind === 'resume');
+            const nextUp = await adapter.getNextUp({ id: '1', name: 'viewer' });
+            // Of the 17 captured rows, 6 carry a positive viewOffset (resume).
+            // The rest are next-up — some omit the key, some carry it explicitly
+            // zeroed, and #isResuming treats both the same. See #isResuming.
+            expect(resuming).toHaveLength(6);
+            expect(nextUp).toHaveLength(11);
+        });
+
+        it('reads real /status/sessions/history/all rows, filtered to this account', async () => {
+            const { adapter } = plex({ '/status/sessions/history/all': CAPTURED_HISTORY });
+            const entries = await adapter.getWatchHistory({ id: '1', name: 'viewer' });
+            expect(entries.map(e => e.itemId)).toEqual(['145030', '130618', '217697', '217861', '62551']);
+            expect(entries.every(e => e.kind === 'watched' && e.lastPlayed !== undefined)).toBe(true);
+        });
+
+        it('keeps only movie/show rows from a real /search response, dropping episodes', async () => {
+            const { adapter } = plex({ '/search': CAPTURED_SEARCH });
+            const hits = await adapter.search('a', 'library');
+            // 45 captured rows: 15 movie, 15 show, 15 episode — only the first two kinds join to Radarr/Sonarr.
+            expect(hits).toHaveLength(30);
+            const first = hits.find(h => h.id === '78430');
+            expect(first).toMatchObject({ kind: 'movie', year: 2013, ids: { imdb: 'tt1606378', tmdb: 47964, tvdb: 686 } });
+        });
+
+        it('lists a real movie section, unwatched throughout since none of the captured rows carries a viewCount', async () => {
+            const sections = { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } };
+            const { adapter } = plex({ '/library/sections': sections, '/library/sections/1/all': CAPTURED_SECTION_ALL });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'viewer' });
+            expect(items).toHaveLength(5);
+            expect(items.every(i => i.playback?.watched === false)).toBe(true);
+            const first = items.find(i => i.ids.imdb === 'tt1179933');
+            expect(first).toMatchObject({ kind: 'movie', year: 2016, ids: { imdb: 'tt1179933', tmdb: 333371, tvdb: 777 } });
+        });
+
+        it('reads a real /library/metadata/{id} detail response', async () => {
+            const { adapter } = plex({ '/library/metadata/44441': CAPTURED_METADATA_DETAIL });
+            const details = await adapter.getMediaDetails('44441');
+            expect(details).toMatchObject({
+                kind: 'movie',
+                id: '44441',
+                year: 2016,
+                sizeBytes: 6_751_369_330,
+                ids: { imdb: 'tt1179933', tmdb: 333371, tvdb: 777 }
+            });
+            expect(details.title.startsWith('<<untrusted:plex.title>>')).toBe(true);
+            expect(details.path?.startsWith('<<untrusted:plex.file>>')).toBe(true);
         });
     });
 });

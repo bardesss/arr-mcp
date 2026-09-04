@@ -1,9 +1,0 @@
-{
-  "MediaContainer": {
-    "size": 2,
-    "Account": [
-      { "id": 1, "name": "Bartus" },
-      { "id": 2, "name": "Guest" }
-    ]
-  }
-}
