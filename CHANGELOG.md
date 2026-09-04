@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/bardesss/arr-mcp/compare/v1.20.0...v1.21.0) (2026-09-04)
+
+
+### Features
+
+* **plex:** read-only Plex adapter, verified against a live 1.43.3.10896 ([#188](https://github.com/bardesss/arr-mcp/issues/188)) ([392bbe3](https://github.com/bardesss/arr-mcp/commit/392bbe396c06ec295daaee2ee7482cbc7d5da8a7))
+
 ## [1.20.0](https://github.com/bardesss/arr-mcp/compare/v1.19.0...v1.20.0) (2026-09-02)
 
 
