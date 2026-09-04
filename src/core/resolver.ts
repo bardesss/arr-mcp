@@ -108,9 +108,15 @@ export type MergedItem = {
          */
         addedAt?: string;
     };
-    /** `itemId` is the media server's own id for this title — what
-     *  `set_watched` takes. Named for the media server, not for Jellyfin. */
-    playback?: { user: string; itemId?: string; watched: boolean; playCount?: number; lastPlayed?: string };
+    /**
+     * `itemId` is the media server's own id for this title — what `set_watched`
+     * takes. Named for the media server, not for Jellyfin.
+     *
+     * `watched` is optional in its own right, not merely because the object is:
+     * a Plex series reporting no leaf counts has genuinely unknown completion,
+     * which is a different fact from "not watched".
+     */
+    playback?: { user: string; itemId?: string; watched?: boolean; playCount?: number; lastPlayed?: string };
     /** Series only. Films have no seasons and carry this field never. */
     seasons?: SeasonSummary[];
     ratings?: MergedRatings;
@@ -121,8 +127,10 @@ export type MergedItem = {
      * A degraded or unconfigured media server gets `unknown`, never
      * `arr_only` — that claim asserts the server looked and did not find it.
      *
-     * The value is named for Jellyfin because it is the only media server
-     * today. A second one renames it, with the old name aliased for a minor.
+     * Named for Jellyfin from when it was the only media server. Now that
+     * Plex is a second one, the literal stays `jellyfin_only` regardless —
+     * it is a frozen output contract, and a rename would break every saved
+     * prompt that matches on it.
      */
     presence: 'both' | 'arr_only' | 'jellyfin_only' | 'unknown';
 };

@@ -31,8 +31,8 @@ export const ScopeSchema = z
     .default('active')
     .describe(
         '`active` (default): now playing and what can be resumed. `next_up`: the next unwatched episode of every ' +
-            "series this user has in progress — Jellyfin's own answer to what to watch next. `history`: recently " +
-            'watched movies and episodes, newest first.'
+            "series this user has in progress — your media server's own answer to what to watch next. `history`: " +
+            'recently watched movies and episodes, newest first.'
     );
 
 const project = (e: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
@@ -116,7 +116,7 @@ export function registerGetPlayback(
             title: 'Playback activity',
             annotations: READ_ONLY,
             description:
-                'What a media server user is watching, has queued up next, or has already watched. Watch state exists only in your media server (Jellyfin) — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.',
+                'What a media server user is watching, has queued up next, or has already watched. Watch state exists only in your media server — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.',
             outputSchema: PagedOutputSchema.extend({
                 note: z
                     .string()

@@ -17,13 +17,41 @@ import type { Config, ServiceId } from '../src/config/schema.ts';
 import {
     apiKeyHeader,
     embyToken,
+    plexToken,
     qbittorrentSession,
     queryParamKey,
     transmissionRpc,
     type AuthStrategy
 } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
-import { hostsOf, redact, redactHosts, secretsOf } from './lib/redact.ts';
+import {
+    anonymisePlexAccounts,
+    anonymisePlexHistory,
+    anonymisePlexIdentity,
+    anonymisePlexSections,
+    createAccountIdMapper,
+    hostsInAuthorityPosition,
+    hostsOf,
+    neutralisePlexWatchState,
+    redact,
+    redactHosts,
+    redactPlexLibraryListing,
+    redactPlexSessions,
+    replaceIfString,
+    secretsOf,
+    synthesisePlexFilePaths,
+    type Row
+} from './lib/redact.ts';
+import {
+    firstPartBearingSectionAll,
+    firstRatingKeyWithPart,
+    plexAccountsPath,
+    plexHistoryPath,
+    plexOnDeckPath,
+    plexSearchPath,
+    plexSectionAllPath,
+    sectionKeys
+} from './lib/plexCapture.ts';
 
 /**
  * `path` may be a function when the endpoint needs an id from something
@@ -34,12 +62,21 @@ import { hostsOf, redact, redactHosts, secretsOf } from './lib/redact.ts';
  */
 type Endpoint = {
     name: string;
-    path: string | ((captured: Map<string, unknown>) => string | undefined);
+    path?: string | ((captured: Map<string, unknown>) => string | undefined);
     body?: unknown;
     /** The response is a bare string rather than JSON — qBittorrent only.
      *  `anonymise` is what shapes it into something writable as a fixture. */
     text?: boolean;
     anonymise?: (body: unknown) => unknown;
+    /**
+     * An override for endpoints that need more than one request to decide
+     * what to capture — `plex/section-all` walks sections looking for a
+     * Part-bearing one (see N5) rather than fetching a single fixed path.
+     * Takes over the request entirely: `path`/`body`/`text` are ignored when
+     * this is set, and it returns undefined to skip the endpoint the same
+     * way an undefined `path` does.
+     */
+    fetch?: (http: ServiceHttp, captured: Map<string, unknown>) => Promise<{ path: string; body: unknown } | undefined>;
 };
 
 /** First numeric `id` in an array-shaped fixture. */
@@ -90,8 +127,6 @@ const richestSeriesId = (body: unknown): string | undefined => {
     return best?.Id as string | undefined;
 };
 
-type Row = Record<string, unknown>;
-
 /**
  * Identity scrubbing, which is a different job from secret redaction above.
  *
@@ -108,10 +143,6 @@ const anonymousUrl = 'https://indexer.example.test/';
 
 /** Replaces any absolute URL, leaving surrounding text intact. */
 const scrubUrls = (value: string): string => value.replace(/https?:\/\/[^\s"',\]]+/gi, anonymousUrl);
-
-/** Keeps a field present and typed, but replaces a string value. */
-const replaceIfString = (value: unknown, replacement: string): unknown =>
-    typeof value === 'string' ? replacement : value;
 
 /**
  * Watch history is the one genuinely personal thing in the fixture set — the
@@ -248,6 +279,11 @@ function anonymiseSeerrUser(row: Row, index: number): Row {
  * What each adapter needs to see. Extend this when an adapter starts reading a
  * new endpoint — a fixture that does not exist cannot be tested against.
  */
+// One mapper for the whole run, shared by accounts/sessions/history below —
+// the same real account id must produce the same synthetic id in all three,
+// or the joins the adapter's tests rely on break. See G2.
+const mapPlexAccountId = createAccountIdMapper();
+
 const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     radarr: [
         { name: 'system-status', path: '/api/v3/system/status' },
@@ -440,6 +476,121 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: '/api/v2/app/preferences',
             anonymise: body => ({ save_path: (body as { save_path?: unknown }).save_path ?? '' })
         }
+    ],
+    plex: [
+        // machineIdentifier is the server's own real, stable 40-hex id —
+        // getVersion reads only `version` from this endpoint.
+        { name: 'identity', path: '/identity', anonymise: anonymisePlexIdentity },
+        // The tester's own account name — anonymised like Jellyfin's `users`.
+        // Capped the same way `history` is: a local token's owner lookup
+        // only needs the owner row, and the tester's server answers ~103
+        // accounts uncapped, most of it other households' names. `id` is
+        // remapped through the shared mapper below, not just `name` — three
+        // rows on his server carried a real plex.tv account id next to a
+        // name this already scrubbed. See G2.
+        { name: 'accounts', path: plexAccountsPath(0, 5), anonymise: body => anonymisePlexAccounts(body, mapPlexAccountId) },
+        // Real library names/types/paths are published by design (see the
+        // top-of-file comment), but `uuid` and `Location[].path` name a
+        // specific library and the tester's mount layout — #sections never
+        // reads either.
+        { name: 'sections', path: '/library/sections', anonymise: anonymisePlexSections },
+        // Carries Player.remotePublicAddress (the viewer's public IP) and
+        // User.title/User.thumb (a username and an avatar URL that can embed
+        // an account id). User.id is kept but remapped, same reasoning as
+        // `accounts` above — it joins to the same account there. See G2.
+        //
+        // excludeFields=summary only, not excludeElements: verified on the
+        // tester's server that /status/sessions silently ignores
+        // excludeElements (onDeck, queried the same way, honours it — that's
+        // the control) rather than erroring or trimming anything, so it would
+        // look like a working trim in code while doing nothing to the
+        // response. excludeFields IS honoured here, so it's kept as a free
+        // second layer on top of the row-level scrub, which is what's
+        // actually doing the work. Do not "simplify" this to match onDeck's
+        // excludeElements — that would silently stop trimming anything.
+        { name: 'sessions', path: '/status/sessions?excludeFields=summary', anonymise: body => redactPlexSessions(body, mapPlexAccountId) },
+        // The tester's resume list — his most recent watch state, per item.
+        // A row exists only because he watched or is watching it, so titles
+        // are scrubbed too, not just the watch-state numbers. See I1.
+        // Shares the same account-id mapper as accounts/sessions/history
+        // (N6) — no accountID was seen on an onDeck row on the tester's
+        // server, but onDeck is server-side scoped to one account the same
+        // as history, so nothing rules one out on another server.
+        // excludeElements/excludeFields (plexOnDeckPath) ask the server not
+        // to send Media/Part/Role/Writer/Director/Producer/summary at all —
+        // #commonPlayback never reads them, so not fetching beats fetching
+        // and scrubbing. See B3.
+        { name: 'ondeck', path: plexOnDeckPath(), anonymise: body => anonymisePlexHistory(body, mapPlexAccountId) },
+        // His complete watch history. Mirrors PlexAdapter#getWatchHistory's
+        // exact query form, including the sort — everything but
+        // X-Plex-Container-Size, deliberately smaller here: a handful of rows
+        // proves the shape without pulling his whole server-wide history. See
+        // I1, G1. accountID is remapped through the same shared mapper as
+        // `accounts`/`sessions`, so the join between all three still holds. See G2.
+        // Same excludeElements/excludeFields trim as onDeck, and the same
+        // reasoning. See B3.
+        { name: 'history', path: plexHistoryPath(0, 5), anonymise: body => anonymisePlexHistory(body, mapPlexAccountId) },
+        // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
+        // library response to the requesting account, so a search result can
+        // carry that account's viewCount/lastViewedAt same as any other listing.
+        // includeGuids=1 matches what PlexAdapter#search actually sends —
+        // without it Plex returns Guid-less rows. See F3. title/summary/studio
+        // stay real (a library listing, published by design), but
+        // sourceTitle (the server's own friendlyName) and librarySectionUUID
+        // are not media data, and Media[].Part[].file is the tester's real
+        // path, not a title — see redactPlexLibraryListing/synthesisePlexFilePaths.
+        {
+            name: 'search',
+            path: plexSearchPath('a'),
+            anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
+        },
+        // A short page: the tester's library may hold thousands of items, and
+        // the fixture only needs the shape. includeGuids=1 matches what
+        // PlexAdapter#paged actually sends (see src/services/plex.ts) — the
+        // same per-account listing that feeds `#toIndexItem`'s viewCount and
+        // lastViewedAt reads, so it carries the same watch state as history.
+        {
+            name: 'section-all',
+            // Walks sections looking for one whose page has a Part-bearing
+            // row, rather than just fetching the first section's key — a
+            // server whose first section is TV-only can hold thousands of
+            // Part-less show/season rows before any episode, and `metadata-detail`
+            // below picks its ratingKey out of *this* fixture. See N5.
+            //
+            // Deliberately no excludeElements/excludeFields trim here, unlike
+            // history/onDeck: getMediaDetails genuinely reads
+            // Media[0].Part[0].file/.size, and excluding Media from this raw
+            // capture would also starve the N5 walk above of the very field
+            // it's searching for. Real titles/studio are published here
+            // regardless — section-all is a library listing, not a watch
+            // record (design §7; see neutralisePlexWatchState's own comment
+            // in redact.ts) — but Media[].Part[].file is a real on-disk path,
+            // not a title, so it is synthesised rather than published; See
+            // B3 and synthesisePlexFilePaths's own doc. section-all's
+            // MediaContainer itself also carries the real librarySectionUUID
+            // (this listing is scoped to one library) — redactPlexLibraryListing
+            // handles that, same as it does for search/metadata-detail.
+            fetch: async (http, captured) => {
+                const keys = sectionKeys(captured.get('sections'));
+                if (keys.length === 0) return undefined;
+                const picked = await firstPartBearingSectionAll(keys, key => http.get<unknown>(plexSectionAllPath(key, 0, 5)));
+                return picked === undefined ? undefined : { path: plexSectionAllPath(picked.key, 0, 5), body: picked.body };
+            },
+            anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
+        },
+        {
+            name: 'metadata-detail',
+            // Deliberately not the *first* item: a section can list a
+            // Part-less row first (a bare `show` container, say), and a
+            // fixture built from one never contracts getMediaDetails'
+            // Media[0].Part[0].file/.size mapping. See G3. Same
+            // container-level librarySectionUUID as section-all above.
+            path: captured => {
+                const id = firstRatingKeyWithPart(captured.get('section-all'));
+                return id === undefined ? undefined : `/library/metadata/${id}`;
+            },
+            anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
+        }
     ]
 };
 
@@ -462,17 +613,21 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     }
     const key = (service as { api_key: string }).api_key;
     if (id === 'jellyfin') return embyToken(key);
+    if (id === 'plex') return plexToken(key);
     if (id === 'sabnzbd') return queryParamKey('apikey', key);
     if (id === 'bazarr') return apiKeyHeader('X-API-KEY', key);
     return apiKeyHeader('X-Api-Key', key);
 }
 
-// `hostsOf`, `secretsOf` and `redact` live in `scripts/lib/redact.ts`, shared
-// with `integration.ts` — all three scripts need the same "every host the user
-// configured" and "every credential" lists, and a second hand-written copy is
-// exactly the kind of drift this phase exists to eliminate. They are also the
-// only code standing between a live credential and a public repository, which
-// is why they are tested (`test/scriptsRedact.test.ts`) rather than inlined.
+// `hostsOf`, `secretsOf`, `redact` and `hostsInAuthorityPosition` live in
+// `scripts/lib/redact.ts`, shared with `integration.ts` — all three scripts
+// need the same "every host the user configured" and "every credential"
+// lists, and a second hand-written copy is exactly the kind of drift this
+// phase exists to eliminate. They are also the only code standing between a
+// live credential and a public repository, which is why they are tested
+// (`test/scriptsRedact.test.ts`) rather than inlined — including the gate's
+// own predicate above, which this script itself (top-level `loadConfig()` on
+// import) is too awkward to unit test directly.
 
 const configDir = process.env.ARR_MCP_CAPTURE_CONFIG ?? './config';
 // `persist: false` — capturing fixtures reads the user's config; it must never
@@ -514,19 +669,33 @@ for (const instance of listInstances(config)) {
     const soFar = new Map<string, unknown>();
 
     for (const endpoint of ENDPOINTS[id]) {
-        const path = typeof endpoint.path === 'function' ? endpoint.path(soFar) : endpoint.path;
-        if (path === undefined) {
-            console.warn(`skipped  ${id}/${endpoint.name}: needs an id from an endpoint that did not capture`);
-            skipped += 1;
-            continue;
+        let path: string | undefined;
+        if (endpoint.fetch === undefined) {
+            path = typeof endpoint.path === 'function' ? endpoint.path(soFar) : endpoint.path;
+            if (path === undefined) {
+                console.warn(`skipped  ${id}/${endpoint.name}: needs an id from an endpoint that did not capture`);
+                skipped += 1;
+                continue;
+            }
         }
 
         try {
-            const raw = endpoint.text
-                ? await http.getText(path)
-                : endpoint.body === undefined
-                  ? await http.get<unknown>(path)
-                  : await http.post<unknown>(path, endpoint.body);
+            let raw: unknown;
+            if (endpoint.fetch !== undefined) {
+                const result = await endpoint.fetch(http, soFar);
+                if (result === undefined) {
+                    console.warn(`skipped  ${id}/${endpoint.name}: needs an id from an endpoint that did not capture`);
+                    skipped += 1;
+                    continue;
+                }
+                raw = result.body;
+            } else if (endpoint.text === true) {
+                raw = await http.getText(path as string);
+            } else if (endpoint.body === undefined) {
+                raw = await http.get<unknown>(path as string);
+            } else {
+                raw = await http.post<unknown>(path as string, endpoint.body);
+            }
             soFar.set(endpoint.name, raw);
 
             // Anonymise identity first, then redact credentials — so a value
@@ -540,8 +709,13 @@ for (const instance of listInstances(config)) {
                 console.error(`REFUSING TO WRITE ${id}/${endpoint.name}: a configured credential survived redaction`);
                 process.exit(1);
             }
-            const leakedHost = hosts.find(h => serialised.includes(h));
-            if (leakedHost !== undefined) {
+            // hostsInAuthorityPosition, not a substring check: `redact()` above
+            // only rewrites a host in authority position, so a blind substring
+            // gate disagreed with it and fired on ordinary text (a host named
+            // `plex` next to `agent: "tv.plex.agents.movie"`). Both now share
+            // one predicate (scripts/lib/redact.ts), so they cannot drift
+            // apart again. See C1.
+            if (hostsInAuthorityPosition(serialised, hosts)) {
                 console.error(`REFUSING TO WRITE ${id}/${endpoint.name}: a configured host survived redaction`);
                 process.exit(1);
             }

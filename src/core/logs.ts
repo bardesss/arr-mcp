@@ -59,7 +59,7 @@ export type LogQuery = {
      *
      * A plain string rather than `ServiceId`: what writers actually put in this
      * column is the **instance** id (`radarr/4k`) and, from a fan-out read, the
-     * **source** id (`jellyfin:episodes`). Declaring the eight-name enum
+     * **source** id (`jellyfin:seasons`). Declaring the eight-name enum
      * described something the column never held.
      */
     service?: string | undefined;

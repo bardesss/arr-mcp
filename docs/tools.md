@@ -118,8 +118,8 @@ imported, scanned — and names the first thing that explains the absence, with
 what to do about it.
 
 No single service can answer this on its own. `get_library`'s
-`presence: arr_only` alone would only suggest Jellyfin hasn't seen a file the
-*arr believes exists; `diagnose` checks further, and may find Radarr itself has
+`presence: arr_only` alone would only suggest the media server hasn't seen a
+file the *arr believes exists; `diagnose` checks further, and may find Radarr itself has
 no file yet and that neither the download queue nor an indexer rejection
 explains why — which is the real answer, and the one that tells you what to do
 next.
@@ -237,14 +237,14 @@ A series carries `seasons`, one entry per season:
 | Field | From | Meaning |
 | --- | --- | --- |
 | `season` | Sonarr | 0 is specials, reported like any other season — filter `season > 0` if you don't want it |
-| `watched`, `lastPlayed` | Jellyfin | Per-user watch state |
+| `watched`, `lastPlayed` | media server | Per-user watch state |
 | `onDisk`, `aired`, `total` | Sonarr | `total` is TVDB's episode count by way of Sonarr, which is why this server needs no TVDB integration of its own |
 | `complete` | both | `watched` has reached `total` |
 | `monitored` | Sonarr | Its own per-season flag |
 
 **`complete` is absent, never `false`,** whenever either half cannot be
-compared — a series no *arr manages has no `total`, one Jellyfin has never seen
-has no `watched` — and also for a season Sonarr reports with zero total
+compared — a series no *arr manages has no `total`, one the media server has
+never seen has no `watched` — and also for a season Sonarr reports with zero total
 episodes, so an unannounced or empty season is never reported as finished.
 Treating an absent `complete` as `false` would put a season you already finished
 on a list of things still to watch.
@@ -278,9 +278,10 @@ anything in that season, and **omits it when nothing in the season has been
 played**. Absent means never played — it is not an unknown. `watched: 0` with
 no `lastPlayed` is the ordinary shape of a season nobody has started.
 
-### When Jellyfin's episode read fails
+### When the media server's episode read fails
 
-`degraded` gains `jellyfin:episodes`. Sonarr's half of `seasons` survives intact
+`degraded` gains `{service}:seasons` — `jellyfin:seasons` on a Jellyfin
+stack, `plex:seasons` on a Plex one. Sonarr's half of `seasons` survives intact
 (`onDisk`, `aired`, `total` and `monitored`); only the watch half (`watched`,
 `lastPlayed`) and `complete`, which needs both halves, go missing. Film watch
 state and `presence` are unaffected.
@@ -320,8 +321,31 @@ hand back.
 
 The tool is not Jellyfin-specific in its plumbing: it reads any adapter that
 implements `PlaybackCapable`, and the summary line names whichever media server
-failed. The endpoint detail above is Jellyfin's because Jellyfin is the only
-media server this stack talks to today.
+failed. The endpoint detail above is Jellyfin's; Plex answers the same three
+scopes from `/status/sessions`, `/library/onDeck` and
+`/status/sessions/history/all` — only one media server is ever configured, so
+the two never compete for an answer.
+
+Plex's `/library/onDeck` mixes resume and next-up rows with nothing marking
+which is which, so `active` and `next_up` split it by `viewOffset`: non-zero
+reads as resume, zero or absent as next-up. That split is unverified against a
+live server.
+
+**Plex answers for one user only.** A local `X-Plex-Token` is scoped to a
+single Plex account, so every Plex row here is that account's — reading anyone
+else's watch state would mean going through plex.tv, which this adapter's
+design refuses. Jellyfin's `allow_other_users` has no Plex equivalent, for the
+same reason — `services.plex.allow_other_users: true` is refused at config
+load.
+
+**Known limitation:** `listUsers` reports whichever account `/accounts` names
+as id `1`, on the assumption that a locally-issued token belongs to the server
+owner. A token that instead belongs to a managed user would be mislabelled and
+filtered as the owner. This has not been verified against a managed-user
+token; if you run one, a config UI issue with what `/accounts` actually
+returns for it would help.
+
+`set_watched`, below, remains Jellyfin-only: the Plex adapter is read-only.
 
 ### When no media server is configured
 

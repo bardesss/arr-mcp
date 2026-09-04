@@ -1,0 +1,1444 @@
+{
+  "MediaContainer": {
+    "size": 17,
+    "allowSync": false,
+    "identifier": "com.plexapp.plugins.library",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786540085,
+    "mixedParents": true,
+    "Metadata": [
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "1357",
+        "key": "",
+        "parentRatingKey": "1213",
+        "grandparentRatingKey": "1212",
+        "guid": "plex://9000001",
+        "parentGuid": "plex://9000002",
+        "grandparentGuid": "plex://9000003",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 4",
+        "type": "episode",
+        "title": "Fixture title 5",
+        "titleSort": "Fixture titleSort 6",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 7",
+        "parentTitle": "Fixture parentTitle 8",
+        "originalTitle": "Fixture originalTitle 9",
+        "contentRating": "TV-14",
+        "index": 46,
+        "parentIndex": 22,
+        "audienceRating": 8.1,
+        "viewOffset": 0,
+        "lastViewedAt": 1700000000,
+        "year": 2025,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1415835,
+        "originallyAvailableAt": "2025-06-01",
+        "addedAt": 1775125667,
+        "updatedAt": 1788268231,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 10",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 11",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 12",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 13",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 14",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "4a1a33",
+          "topRight": "91366e",
+          "bottomRight": "8c3979",
+          "bottomLeft": "562147"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "160595",
+        "key": "",
+        "skipParent": true,
+        "parentRatingKey": "99133",
+        "grandparentRatingKey": "99132",
+        "guid": "plex://9000015",
+        "parentGuid": "plex://9000016",
+        "grandparentGuid": "plex://9000017",
+        "grandparentSlug": "",
+        "type": "episode",
+        "title": "Fixture title 18",
+        "grandparentKey": "",
+        "parentKey": "",
+        "librarySectionKey": "/library/sections/2",
+        "grandparentTitle": "Fixture grandparentTitle 19",
+        "parentTitle": "Fixture parentTitle 20",
+        "originalTitle": "Fixture originalTitle 21",
+        "contentRating": "TV-MA",
+        "index": 6,
+        "parentIndex": 1,
+        "audienceRating": 8.3,
+        "lastViewedAt": 1700000001,
+        "year": 2026,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "duration": 1446027,
+        "originallyAvailableAt": "2026-08-07",
+        "addedAt": 1786053839,
+        "updatedAt": 1787288512,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 22",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 23",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 24",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 25",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 26",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "3b142f",
+          "topRight": "313d19",
+          "bottomRight": "38431c",
+          "bottomLeft": "23091d"
+        },
+        "Guid": [
+          {
+            "id": "tmdb://9000027"
+          },
+          {
+            "id": "tvdb://9000028"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "themoviedb://image.rating",
+            "value": 8.3,
+            "type": "audience"
+          }
+        ],
+        "Field": [
+          {
+            "locked": true,
+            "name": "thumb"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "138744",
+        "key": "",
+        "parentRatingKey": "138724",
+        "grandparentRatingKey": "94008",
+        "guid": "plex://9000029",
+        "parentGuid": "plex://9000030",
+        "grandparentGuid": "plex://9000031",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 32",
+        "type": "episode",
+        "title": "Fixture title 33",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 34",
+        "parentTitle": "Fixture parentTitle 35",
+        "originalTitle": "Fixture originalTitle 36",
+        "contentRating": "TV-14",
+        "index": 9,
+        "parentIndex": 2,
+        "audienceRating": 8.1,
+        "viewOffset": 0,
+        "lastViewedAt": 1700000002,
+        "year": 2019,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1452267,
+        "originallyAvailableAt": "2019-03-04",
+        "addedAt": 1785224232,
+        "updatedAt": 1787115933,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 37",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 38",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 39",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 40",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 41",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "5b0506",
+          "topRight": "660d0a",
+          "bottomRight": "aa1213",
+          "bottomLeft": "6d0e0c"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "62552",
+        "key": "",
+        "parentRatingKey": "62549",
+        "grandparentRatingKey": "62548",
+        "guid": "local://9000042",
+        "parentGuid": "tv.plex.agents.none://9000043",
+        "grandparentGuid": "tv.plex.agents.none://9000044",
+        "grandparentSlug": "",
+        "type": "episode",
+        "title": "Fixture title 45",
+        "titleSort": "Fixture titleSort 46",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 47",
+        "parentTitle": "Fixture parentTitle 48",
+        "originalTitle": "Fixture originalTitle 49",
+        "index": 3,
+        "parentIndex": 1,
+        "viewOffset": 120000,
+        "skipCount": 1,
+        "lastViewedAt": 1700000003,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "duration": 3636507,
+        "originallyAvailableAt": "2002-10-17",
+        "addedAt": 1781995069,
+        "updatedAt": 1782015968,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 50",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 51",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 52",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 53",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 54",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "570f0c",
+          "topRight": "4f3377",
+          "bottomRight": "071227",
+          "bottomLeft": "872a3a"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "12515",
+        "key": "",
+        "parentRatingKey": "12508",
+        "grandparentRatingKey": "615",
+        "guid": "plex://9000055",
+        "parentGuid": "plex://9000056",
+        "grandparentGuid": "plex://9000057",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 58",
+        "type": "episode",
+        "title": "Fixture title 59",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 60",
+        "parentTitle": "Fixture parentTitle 61",
+        "originalTitle": "Fixture originalTitle 62",
+        "contentRating": "TV-14",
+        "index": 7,
+        "parentIndex": 2,
+        "audienceRating": 6.7,
+        "viewOffset": 0,
+        "lastViewedAt": 1700000004,
+        "year": 2014,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1423094,
+        "originallyAvailableAt": "2014-05-17",
+        "addedAt": 1777134848,
+        "updatedAt": 1787679762,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 63",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 64",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 65",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 66",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 67",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "26262a",
+          "topRight": "904339",
+          "bottomRight": "3c414b",
+          "bottomLeft": "231c1c"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "99955",
+        "key": "",
+        "parentRatingKey": "99942",
+        "grandparentRatingKey": "99838",
+        "guid": "plex://9000068",
+        "parentGuid": "plex://9000069",
+        "grandparentGuid": "plex://9000070",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 71",
+        "type": "episode",
+        "title": "Fixture title 72",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 73",
+        "parentTitle": "Fixture parentTitle 74",
+        "contentRating": "TV-14",
+        "index": 13,
+        "parentIndex": 3,
+        "audienceRating": 7.4,
+        "viewOffset": 120000,
+        "lastViewedAt": 1700000005,
+        "year": 2007,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 2565312,
+        "originallyAvailableAt": "2007-02-06",
+        "addedAt": 1783291403,
+        "updatedAt": 1786463799,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 75",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 76",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 77",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 78",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 79",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "213418",
+          "topRight": "213d21",
+          "bottomRight": "3f6438",
+          "bottomLeft": "9b3a0d"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "205113",
+        "key": "",
+        "parentRatingKey": "1552",
+        "grandparentRatingKey": "1551",
+        "guid": "plex://9000080",
+        "parentGuid": "plex://9000081",
+        "grandparentGuid": "plex://9000082",
+        "grandparentSlug": "",
+        "type": "episode",
+        "title": "Fixture title 83",
+        "grandparentKey": "",
+        "parentKey": "",
+        "librarySectionKey": "/library/sections/2",
+        "grandparentTitle": "Fixture grandparentTitle 84",
+        "parentTitle": "Fixture parentTitle 85",
+        "originalTitle": "Fixture originalTitle 86",
+        "contentRating": "TV-14",
+        "index": 19,
+        "parentIndex": 4,
+        "audienceRating": 9,
+        "lastViewedAt": 1700000006,
+        "year": 2026,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1440830,
+        "originallyAvailableAt": "2026-08-21",
+        "addedAt": 1787340215,
+        "updatedAt": 1788268849,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 87",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 88",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 89",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 90",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 91",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "372d10",
+          "topRight": "2c2825",
+          "bottomRight": "252328",
+          "bottomLeft": "795612"
+        },
+        "Guid": [
+          {
+            "id": "imdb://9000092"
+          },
+          {
+            "id": "tmdb://9000093"
+          },
+          {
+            "id": "tvdb://9000094"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "value": 9,
+            "type": "audience"
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "value": 9,
+            "type": "audience"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "47602",
+        "key": "",
+        "parentRatingKey": "47596",
+        "grandparentRatingKey": "1",
+        "guid": "plex://9000095",
+        "parentGuid": "plex://9000096",
+        "grandparentGuid": "plex://9000097",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 98",
+        "type": "episode",
+        "title": "Fixture title 99",
+        "titleSort": "Fixture titleSort 100",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 101",
+        "parentTitle": "Fixture parentTitle 102",
+        "contentRating": "TV-MA",
+        "index": 6,
+        "parentIndex": 3,
+        "audienceRating": 7.9,
+        "viewOffset": 120000,
+        "lastViewedAt": 1700000007,
+        "year": 2002,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1776576,
+        "originallyAvailableAt": "2002-10-20",
+        "addedAt": 1780939263,
+        "updatedAt": 1781468745,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 103",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 104",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 105",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 106",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 107",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1c1e29",
+          "topRight": "672e24",
+          "bottomRight": "090a0b",
+          "bottomLeft": "040515"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "65542",
+        "key": "",
+        "parentRatingKey": "24756",
+        "grandparentRatingKey": "18609",
+        "guid": "plex://9000108",
+        "parentGuid": "plex://9000109",
+        "grandparentGuid": "plex://9000110",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 111",
+        "type": "episode",
+        "title": "Fixture title 112",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 113",
+        "parentTitle": "Fixture parentTitle 114",
+        "originalTitle": "Fixture originalTitle 115",
+        "contentRating": "TV-14",
+        "index": 17,
+        "parentIndex": 1,
+        "audienceRating": 7.2,
+        "viewOffset": 0,
+        "lastViewedAt": 1700000008,
+        "year": 2020,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1470620,
+        "originallyAvailableAt": "2020-01-25",
+        "addedAt": 1782092506,
+        "updatedAt": 1785603538,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 116",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 117",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 118",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 119",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 120",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "471a3c",
+          "topRight": "2958b3",
+          "bottomRight": "10487b",
+          "bottomLeft": "8a2843"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "47851",
+        "key": "",
+        "parentRatingKey": "47839",
+        "grandparentRatingKey": "230",
+        "guid": "plex://9000121",
+        "parentGuid": "plex://9000122",
+        "grandparentGuid": "plex://9000123",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 124",
+        "type": "episode",
+        "title": "Fixture title 125",
+        "titleSort": "Fixture titleSort 126",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 127",
+        "parentTitle": "Fixture parentTitle 128",
+        "contentRating": "TV-MA",
+        "index": 12,
+        "parentIndex": 4,
+        "audienceRating": 8.4,
+        "viewOffset": 120000,
+        "skipCount": 1,
+        "lastViewedAt": 1700000009,
+        "year": 2008,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1200704,
+        "originallyAvailableAt": "2008-11-13",
+        "addedAt": 1780939422,
+        "updatedAt": 1787758401,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 129",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 130",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 131",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 132",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 133",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "292e36",
+          "topRight": "4f3216",
+          "bottomRight": "040404",
+          "bottomLeft": "0c0b0d"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "135152",
+        "key": "",
+        "parentRatingKey": "16134",
+        "grandparentRatingKey": "15888",
+        "guid": "plex://9000134",
+        "parentGuid": "plex://9000135",
+        "grandparentGuid": "plex://9000136",
+        "grandparentSlug": "",
+        "type": "episode",
+        "title": "Fixture title 137",
+        "titleSort": "Fixture titleSort 138",
+        "grandparentKey": "",
+        "parentKey": "",
+        "librarySectionKey": "/library/sections/2",
+        "grandparentTitle": "Fixture grandparentTitle 139",
+        "parentTitle": "Fixture parentTitle 140",
+        "originalTitle": "Fixture originalTitle 141",
+        "contentRating": "TV-PG",
+        "index": 20,
+        "parentIndex": 1,
+        "audienceRating": 7.2,
+        "lastViewedAt": 1700000010,
+        "year": 1992,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1449469,
+        "originallyAvailableAt": "1992-08-01",
+        "addedAt": 1785092740,
+        "updatedAt": 1787757914,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 142",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 143",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 144",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 145",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 146",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1f234f",
+          "topRight": "2a3771",
+          "bottomRight": "29275b",
+          "bottomLeft": "1c1030"
+        },
+        "Guid": [
+          {
+            "id": "imdb://9000147"
+          },
+          {
+            "id": "tmdb://9000148"
+          },
+          {
+            "id": "tvdb://9000149"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "value": 6.9,
+            "type": "audience"
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "value": 7.2,
+            "type": "audience"
+          }
+        ],
+        "Field": [
+          {
+            "locked": true,
+            "name": "thumb"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "48270",
+        "key": "",
+        "parentRatingKey": "11879",
+        "grandparentRatingKey": "1310",
+        "guid": "plex://9000150",
+        "parentGuid": "plex://9000151",
+        "grandparentGuid": "plex://9000152",
+        "grandparentSlug": "",
+        "type": "episode",
+        "title": "Fixture title 153",
+        "titleSort": "Fixture titleSort 154",
+        "grandparentKey": "",
+        "parentKey": "",
+        "librarySectionKey": "/library/sections/2",
+        "grandparentTitle": "Fixture grandparentTitle 155",
+        "parentTitle": "Fixture parentTitle 156",
+        "originalTitle": "Fixture originalTitle 157",
+        "contentRating": "TV-14",
+        "index": 7,
+        "parentIndex": 3,
+        "audienceRating": 9.8,
+        "lastViewedAt": 1700000011,
+        "year": 2024,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1771840,
+        "originallyAvailableAt": "2024-11-13",
+        "addedAt": 1780939770,
+        "updatedAt": 1787337140,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 158",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 159",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 160",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 161",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 162",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "492103",
+          "topRight": "552403",
+          "bottomRight": "90460f",
+          "bottomLeft": "6c3703"
+        },
+        "Guid": [
+          {
+            "id": "imdb://9000163"
+          },
+          {
+            "id": "tmdb://9000164"
+          },
+          {
+            "id": "tvdb://9000165"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "value": 9.3,
+            "type": "audience"
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "value": 9.8,
+            "type": "audience"
+          }
+        ],
+        "Field": [
+          {
+            "locked": true,
+            "name": "thumb"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "29185",
+        "key": "",
+        "skipParent": true,
+        "parentRatingKey": "29162",
+        "grandparentRatingKey": "29161",
+        "guid": "plex://9000166",
+        "parentGuid": "plex://9000167",
+        "grandparentGuid": "plex://9000168",
+        "grandparentSlug": "",
+        "type": "episode",
+        "title": "Fixture title 169",
+        "grandparentKey": "",
+        "parentKey": "",
+        "librarySectionKey": "/library/sections/2",
+        "grandparentTitle": "Fixture grandparentTitle 170",
+        "parentTitle": "Fixture parentTitle 171",
+        "contentRating": "TV-MA",
+        "index": 5,
+        "parentIndex": 1,
+        "audienceRating": 7,
+        "lastViewedAt": 1700000012,
+        "year": 2018,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1422045,
+        "originallyAvailableAt": "2018-08-03",
+        "addedAt": 1779373434,
+        "updatedAt": 1785603552,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 172",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 173",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 174",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 175",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 176",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "302d2e",
+          "topRight": "191d1d",
+          "bottomRight": "341018",
+          "bottomLeft": "191617"
+        },
+        "Guid": [
+          {
+            "id": "imdb://9000177"
+          },
+          {
+            "id": "tmdb://9000178"
+          },
+          {
+            "id": "tvdb://9000179"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "value": 7.9,
+            "type": "audience"
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "value": 7,
+            "type": "audience"
+          }
+        ],
+        "Field": [
+          {
+            "locked": true,
+            "name": "thumb"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "11544",
+        "key": "",
+        "parentRatingKey": "11543",
+        "grandparentRatingKey": "11542",
+        "guid": "plex://9000180",
+        "parentGuid": "plex://9000181",
+        "grandparentGuid": "plex://9000182",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 183",
+        "type": "episode",
+        "title": "Fixture title 184",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 185",
+        "parentTitle": "Fixture parentTitle 186",
+        "originalTitle": "Fixture originalTitle 187",
+        "contentRating": "TV-14",
+        "index": 1,
+        "parentIndex": 1,
+        "audienceRating": 6.4,
+        "viewOffset": 120000,
+        "lastViewedAt": 1700000013,
+        "year": 1971,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1488128,
+        "originallyAvailableAt": "1971-10-24",
+        "addedAt": 1776820505,
+        "updatedAt": 1787158389,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 188",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 189",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 190",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 191",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 192",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "561011",
+          "topRight": "2f618d",
+          "bottomRight": "28547b",
+          "bottomLeft": "421917"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "192196",
+        "key": "",
+        "parentRatingKey": "192195",
+        "grandparentRatingKey": "22545",
+        "guid": "plex://9000193",
+        "parentGuid": "plex://9000194",
+        "grandparentGuid": "plex://9000195",
+        "grandparentSlug": "",
+        "type": "episode",
+        "title": "Fixture title 196",
+        "grandparentKey": "",
+        "parentKey": "",
+        "librarySectionKey": "/library/sections/2",
+        "grandparentTitle": "Fixture grandparentTitle 197",
+        "parentTitle": "Fixture parentTitle 198",
+        "originalTitle": "Fixture originalTitle 199",
+        "contentRating": "TV-14",
+        "index": 1,
+        "parentIndex": 2,
+        "audienceRating": 7.5,
+        "lastViewedAt": 1700000014,
+        "year": 2017,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1436047,
+        "originallyAvailableAt": "2017-04-01",
+        "addedAt": 1786840844,
+        "updatedAt": 1786924622,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 200",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 201",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 202",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 203",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 204",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "163526",
+          "topRight": "2b644e",
+          "bottomRight": "352d2b",
+          "bottomLeft": "b20101"
+        },
+        "Guid": [
+          {
+            "id": "imdb://9000205"
+          },
+          {
+            "id": "tmdb://9000206"
+          },
+          {
+            "id": "tvdb://9000207"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "value": 7.1,
+            "type": "audience"
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "value": 7.5,
+            "type": "audience"
+          }
+        ],
+        "Field": [
+          {
+            "locked": true,
+            "name": "thumb"
+          }
+        ]
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "47670",
+        "key": "",
+        "skipParent": true,
+        "parentRatingKey": "47669",
+        "grandparentRatingKey": "47668",
+        "guid": "plex://9000208",
+        "parentGuid": "plex://9000209",
+        "grandparentGuid": "plex://9000210",
+        "grandparentSlug": "",
+        "studio": "Fixture studio 211",
+        "type": "episode",
+        "title": "Fixture title 212",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 213",
+        "parentTitle": "Fixture parentTitle 214",
+        "originalTitle": "Fixture originalTitle 215",
+        "contentRating": "TV-14",
+        "index": 1,
+        "parentIndex": 2,
+        "audienceRating": 7.8,
+        "viewOffset": 120000,
+        "lastViewedAt": 1700000015,
+        "year": 2025,
+        "thumb": "",
+        "art": "",
+        "parentThumb": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 1411060,
+        "originallyAvailableAt": "2025-07-04",
+        "addedAt": 1780939294,
+        "updatedAt": 1785092523,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 216",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 217",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 218",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 219",
+            "type": "clearLogo",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 220",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1e2466",
+          "topRight": "38488b",
+          "bottomRight": "833781",
+          "bottomLeft": "4e1b50"
+        }
+      },
+      {
+        "allowSync": true,
+        "librarySectionID": 2,
+        "librarySectionTitle": "TV Shows",
+        "librarySectionUUID": "",
+        "ratingKey": "23238",
+        "key": "",
+        "parentRatingKey": "23237",
+        "grandparentRatingKey": "23170",
+        "guid": "plex://9000221",
+        "parentGuid": "plex://9000222",
+        "grandparentGuid": "plex://9000223",
+        "grandparentSlug": "",
+        "type": "episode",
+        "title": "Fixture title 224",
+        "grandparentKey": "",
+        "parentKey": "",
+        "grandparentTitle": "Fixture grandparentTitle 225",
+        "parentTitle": "Fixture parentTitle 226",
+        "contentRating": "TV-G",
+        "index": 1,
+        "parentIndex": 1940,
+        "viewOffset": 0,
+        "lastViewedAt": 1700000016,
+        "year": 1940,
+        "thumb": "",
+        "art": "",
+        "grandparentThumb": "",
+        "grandparentArt": "",
+        "grandparentTheme": "",
+        "duration": 556576,
+        "originallyAvailableAt": "1940-02-10",
+        "addedAt": 1778823547,
+        "updatedAt": 1784910743,
+        "mediaCount": 1,
+        "mediaCountOptimized": 0,
+        "Image": [
+          {
+            "alt": "Fixture alt 227",
+            "type": "coverPoster",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 228",
+            "type": "snapshot",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 229",
+            "type": "background",
+            "url": ""
+          },
+          {
+            "alt": "Fixture alt 230",
+            "type": "backgroundSquare",
+            "url": ""
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1b1c1e",
+          "topRight": "110205",
+          "bottomRight": "1c0404",
+          "bottomLeft": "170404"
+        }
+      }
+    ]
+  }
+}

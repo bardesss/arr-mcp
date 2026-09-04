@@ -31,6 +31,13 @@ export const ICONS: Record<ServiceId, string> = {
             '<path d="M6.5 11.5h4M13.5 11.5h4"/>'
     ),
     jellyfin: draw('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m10 8.5 6 3.5-6 3.5z"/>'),
+    // Jellyfin is a screen mid-playback; this one is the server behind it — a
+    // library you browse (the two lines) over a title you play (the triangle),
+    // split by one shelf. Not Plex's arc-and-triangle mark, which this avoids.
+    plex: draw(
+        '<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M4 12h16"/>' +
+            '<path d="M8 6.5h8M8 9h5"/><path d="m9 13.5 6 3-6 3z"/>'
+    ),
     seerr: draw(
         '<path d="M6.5 6.5h11l3 7v4.5a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3.5 18v-4.5z"/>' +
             '<path d="M3.5 13.5H8l1.5 2.5h5l1.5-2.5h4.5"/><path d="M12 8.5v3M10.5 10h3"/>'

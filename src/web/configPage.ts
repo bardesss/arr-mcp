@@ -43,7 +43,10 @@ export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].s
 
 /** Which extra fields each service actually has, so a card matches the schema
  *  rather than showing eight identical boxes. */
-const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'seerr']);
+const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'plex', 'seerr']);
+/** arr-mcp joins against exactly one media server — see the schema refinement
+ *  in `schema.ts` that this UI rule mirrors. */
+const MEDIA_SERVERS: readonly ServiceId[] = ['jellyfin', 'plex'];
 const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent'];
 const NO_API_KEY: ReadonlySet<string> = new Set(NO_API_KEY_IDS);
 
@@ -296,12 +299,18 @@ function addDialog(
     const instances = listInstances(config);
     const configured = new Set(instances.map(i => i.type));
 
+    // The schema already refuses jellyfin and plex together — arr-mcp joins
+    // against exactly one media server — so offering the rival here would
+    // only lead to a save that fails.
+    const mediaServer = MEDIA_SERVERS.find(id => configured.has(id));
+    const rivalMediaServer = mediaServer === undefined ? undefined : MEDIA_SERVERS.find(id => id !== mediaServer);
+
     /** A service that cannot have a second instance and already has one is not
      *  a choice — offering it only to answer "already configured" wastes the
      *  click. The three multi-instance types are always here, so this list is
      *  never empty. */
     const offerable = SERVICE_IDS_ALPHABETICAL.filter(
-        id => MULTI_INSTANCE.includes(id) || !configured.has(id)
+        id => id !== rivalMediaServer && (MULTI_INSTANCE.includes(id) || !configured.has(id))
     );
 
     const keyed = offerable.filter(id => !NO_API_KEY.has(id));
@@ -323,10 +332,21 @@ function addDialog(
                 ${offerable.length === SERVICE_IDS.length
                     ? raw('')
                     : html`<p class="note">
-                          Already configured, and limited to one instance:
-                          <span class="mono">${SERVICE_IDS_ALPHABETICAL.filter(
-                              id => !offerable.includes(id)
-                          ).join(', ')}</span>. Edit those on the card above.
+                          ${(() => {
+                              const alreadyConfigured = SERVICE_IDS_ALPHABETICAL.filter(
+                                  id => !offerable.includes(id) && id !== rivalMediaServer
+                              );
+                              return alreadyConfigured.length === 0
+                                  ? raw('')
+                                  : html`Already configured, and limited to one instance:
+                                        <span class="mono">${alreadyConfigured.join(', ')}</span>. Edit those on the
+                                        card above. `;
+                          })()}
+                          ${rivalMediaServer === undefined
+                              ? raw('')
+                              : html`<span class="mono">${rivalMediaServer}</span> is hidden because
+                                    <span class="mono">${mediaServer}</span> is already your media server —
+                                    arr-mcp joins against exactly one.`}
                       </p>`}
             </div>
 

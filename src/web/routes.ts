@@ -610,7 +610,7 @@ function logQuery(
 
     // Validated against what has actually been logged, not against the
     // eight-name service enum. The column holds instance ids (`radarr/4k`) and
-    // source ids (`jellyfin:episodes`), and `services()` builds the dropdown
+    // source ids (`jellyfin:seasons`), and `services()` builds the dropdown
     // from those same values — so parsing the choice as a bare ServiceId threw
     // away every selection the dropdown offered on a multi-instance install,
     // returned every line from every service, and looked like "nothing logged".

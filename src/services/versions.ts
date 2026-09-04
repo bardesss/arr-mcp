@@ -29,7 +29,11 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // RPC session handshake and download-dir-free-space.
     transmission: '3.0.0',
     // The v2 WebUI API, which 4.1.0 introduced and nothing before it has.
-    qbittorrent: '4.1.0'
+    qbittorrent: '4.1.0',
+    // Plex has not pinned a minimum; 1.0.0 is a placeholder. The one version
+    // this has actually been verified against is 1.43.3.10896 (issue #180) —
+    // a single data point, not enough to raise the floor from.
+    plex: '1.0.0'
 };
 
 /** Digits only; a build suffix such as Transmission's "(838877323f)" is dropped. */

@@ -13,20 +13,35 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * the undo puts the flag back but not the history behind it.
  */
 
+/**
+ * `set_watched` is Jellyfin-only by design — Plex stays read-only in
+ * arr-mcp — so the refusal itself is correct even for a Plex-only stack.
+ * Only the remedy needs to stop assuming the reader has no media server at
+ * all: a Plex user is told this is a Jellyfin-specific write, not "go add
+ * a media server". And since jellyfin and plex cannot both be configured
+ * (schema.ts refuses it), the remedy for a Plex user cannot be "add
+ * services.jellyfin" — that config would fail to start. It has to be
+ * "replace".
+ */
+const watchedRemedy = (adapters: readonly ServiceAdapter[]): string =>
+    adapters.some(a => a.type === 'plex')
+        ? 'set_watched needs Jellyfin — Plex is read-only in arr-mcp, and jellyfin/plex cannot both be configured. Replace the services.plex block with services.jellyfin and restart.'
+        : 'Watch state lives in Jellyfin. Add a services.jellyfin block to config.yaml and restart.';
+
 const jellyfinAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & WatchStateCapable => {
     const adapter = adapters.find(a => a.type === 'jellyfin');
     if (adapter === undefined || !hasWatchState(adapter)) {
         throw new ServiceError('NotFound', 'jellyfin', 'jellyfin is not configured', {
-            remedy: 'Watch state lives in Jellyfin. Add a services.jellyfin block to config.yaml and restart.'
+            remedy: watchedRemedy(adapters)
         });
     }
     return adapter;
 };
 
-const requireIdentity = (identity: IdentityResolver | undefined): IdentityResolver => {
+const requireIdentity = (adapters: readonly ServiceAdapter[], identity: IdentityResolver | undefined): IdentityResolver => {
     if (identity === undefined) {
         throw new ServiceError('NotFound', 'jellyfin', 'jellyfin is not configured', {
-            remedy: 'Add a services.jellyfin block to config.yaml and restart.'
+            remedy: watchedRemedy(adapters)
         });
     }
     return identity;
@@ -91,7 +106,7 @@ export function registerSetWatched(
             const adapter = jellyfinAdapter(adapters);
             // Configuration only, and before any network call — nothing
             // Jellyfin returns can widen whose state may be written.
-            const viewer = await requireIdentity(identity).resolve(user);
+            const viewer = await requireIdentity(adapters, identity).resolve(user);
 
             const item = await adapter.readWatchTarget(viewer, item_id);
             const { targets, total } = await pending(adapter, viewer, item, season, watched);
@@ -139,7 +154,7 @@ export function registerSetWatched(
 
         async apply(_plan, { item_id, season, watched, user }) {
             const adapter = jellyfinAdapter(adapters);
-            const viewer = await requireIdentity(identity).resolve(user);
+            const viewer = await requireIdentity(adapters, identity).resolve(user);
 
             const item = await adapter.readWatchTarget(viewer, item_id);
             const { targets } = await pending(adapter, viewer, item, season, watched);

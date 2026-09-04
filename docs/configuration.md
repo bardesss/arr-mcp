@@ -24,8 +24,8 @@ services:
     password: "…"
 ```
 
-All nine service ids: `radarr`, `sonarr`, `prowlarr`, `bazarr`, `jellyfin`,
-`seerr`, `sabnzbd`, `transmission`, `qbittorrent`. Configure only what you run —
+All ten service ids: `radarr`, `sonarr`, `prowlarr`, `bazarr`, `jellyfin`,
+`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
@@ -72,6 +72,35 @@ whole read.
 
 Leaving `jellyfin` out of `config.yaml` entirely is still fine — those tools
 just work from Radarr and Sonarr alone.
+
+## Plex
+
+```yaml
+services:
+  plex:
+    url: http://192.168.1.20:32400
+    api_key: "…"           # your server's X-Plex-Token — see below
+    default_user: "you"    # optional, same reasoning as Jellyfin's above
+```
+
+The `api_key` field carries Plex's own `X-Plex-Token`. The name comes from the
+schema this shares with every other service, not from Plex's vocabulary — worth
+knowing before you go looking for a field called `token` while editing the file
+by hand. [Plex's own support article on finding an authentication
+token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
+covers where to get it; it is a token for your own server, not a plex.tv
+sign-in.
+
+arr-mcp only ever talks to the server at `url`. It never contacts plex.tv, and
+the token is presented directly to that server — the same LAN-only reasoning
+every other service here follows.
+
+Read-only: there is no Plex `set_watched` and no library-scan trigger, only
+reads.
+
+**Only one media server.** `jellyfin` and `plex` cannot both be configured —
+`get_library`'s per-user join needs exactly one counterparty, and the schema
+refuses a config that sets both.
 
 ## Several Radarrs, Sonarrs or Bazarrs
 
@@ -168,6 +197,10 @@ On Jellyfin and Seerr, one admin-scoped API key can answer for anybody, so
 `default_user`'s. It governs reading — whose watch state, whose requests — and
 also whether `respond_to_request` and `delete_request` may act on a request
 somebody else made. It defaults to `false`.
+
+Plex has no equivalent: a Plex token is scoped to one account, so there is no
+second user to permit. `services.plex.allow_other_users: true` is refused at
+config load rather than accepted and ignored.
 
 ### Editing `config.yaml` by hand
 

@@ -6,7 +6,7 @@
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-**Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Seerr · SABnzbd · Transmission · qBittorrent**
+**Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · Transmission · qBittorrent**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
@@ -155,7 +155,7 @@ model stops finding a renamed tool rather than raising an error.
 ## Contributing
 
 **Contributions are welcome, and new service adapters most of all** — Lidarr,
-qBittorrent, Emby, Plex and Deluge would all be accepted today, and
+Emby and Deluge would all be accepted today, and
 [the list says so in advance](CONTRIBUTING.md#what-would-be-accepted-today),
 along with the ones that would not be. An adapter is deliberately the most
 self-contained thing in the codebase. Two things to know first: not every
@@ -165,15 +165,13 @@ request — [which services qualify](CONTRIBUTING.md#which-services-qualify). An
 it against your own live instance and the PR says what you tested and against
 which version.
 
-**Plex: I will write it, if you will test it.** It is the most-deployed media
-server arr-mcp cannot talk to, and the only thing blocking it is that nobody
-here runs Plex — an adapter that cannot be exercised against a real library
-before it ships is a bug report waiting to be filed. If you run Plex and are
-willing to test builds against it and report back,
-[say so in an issue](../../issues/new/choose). There is one design constraint
-worth reading first: it has to work from an operator-supplied token against your
-own server, never through plex.tv —
-[why, and what else is on the list](CONTRIBUTING.md#what-would-be-accepted-today).
+**One adapter remains unverified: qBittorrent.** The maintainer runs neither
+Plex nor qBittorrent — testing means running a build against your own server
+and reporting what worked. [Plex](../../issues/180) has since been verified
+against a live Plex Media Server 1.43.3.10896 by a volunteer tester;
+[qBittorrent](../../issues/147) has shipped but still waits on the same kind
+of report. [The design behind Plex, and what else is on the
+list](CONTRIBUTING.md#what-would-be-accepted-today).
 
 **AI-assisted contributions are welcome**, held to the same bar and no other;
 arr-mcp is itself built with a coding agent. Point yours at
