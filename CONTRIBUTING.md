@@ -223,9 +223,13 @@ small, shaped change, and a service in no slot at all is a different product.
 - **Emby.** Jellyfin's ancestor, near-identical API, and therefore the cheapest
   adapter on this list — plausibly a variant of the Jellyfin one rather than a
   new file.
-- **Plex.** A read-only adapter now exists, written against Plex's documented
-  but unverified API. It is not merge-ready: nobody here runs Plex, so nothing
-  in it has been exercised against a real server, only read.
+- **Plex.** A read-only adapter exists and has been verified against a live
+  Plex Media Server 1.43.3.10896 by a volunteer tester (issue #180): all nine
+  endpoints it reads were captured from that server and are contracted in
+  `test/contract.test.ts`. The maintainer still does not run Plex, so
+  coverage is one server's worth, not a range — a second tester on a
+  different version or library shape would still be useful, particularly for
+  the managed-user-token case `docs/tools.md` flags as unconfirmed.
 
   **The design still governs.** Plex's usual auth brokers through plex.tv —
   credential brokering *and* an outbound request to a host the operator never
@@ -233,11 +237,6 @@ small, shaped change, and a service in no slot at all is a different product.
   adapter takes an operator-supplied `X-Plex-Token` and talks only to the
   configured local server, never plex.tv. That constraint holds for any future
   change here, not just this one.
-
-  **Testers are what is missing.** If you run Plex and are willing to test a
-  build against it and report back — what worked, what didn't, against which
-  version — say so in an issue. That is what turns this from a draft into
-  something that can ship.
 
 Named and **not** accepted, so nobody spends a weekend finding out:
 
@@ -258,11 +257,11 @@ gets held against the four checks above, which is cheaper for everyone than
 finding out afterwards.
 
 **You will have to test it yourself, properly.** The maintainer runs neither
-Lidarr, Plex nor qBittorrent. Lidarr has no adapter yet; Plex and qBittorrent
-do, but neither has ever been exercised against a real instance —
-[Plex](../../issues/180) and [qBittorrent](../../issues/147) are both
-unverified for the same reason. Whichever you take on, your testing is the
-only testing it gets before it ships.
+Lidarr, Plex nor qBittorrent. Lidarr has no adapter yet. Plex has an adapter
+and, as of a volunteer tester's report on [issue #180](../../issues/180), has
+been exercised against a real instance. [qBittorrent](../../issues/147) has an
+adapter too but has never been exercised against a real instance — whichever
+you take on, your testing is the only testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
 you tested and against which version, and capture fixtures from the real service
