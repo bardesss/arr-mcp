@@ -3,7 +3,7 @@
   "name": "io.github.bardesss/arr-mcp",
   "title": "arr-mcp",
   "description": "One MCP server for the whole media stack: Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr",
-  "version": "1.21.0",
+  "version": "1.21.1",
   "websiteUrl": "https://github.com/bardesss/arr-mcp",
   "repository": {
     "url": "https://github.com/bardesss/arr-mcp",
