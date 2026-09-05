@@ -1745,3 +1745,46 @@ describe('claiming an instance', () => {
         expect(destinations).toEqual(['/ui', '/ui/login']);
     });
 });
+
+/**
+ * The `fields` a line was logged with — `ip`, `via`, the serialized `err` — were
+ * stored from the start and rendered nowhere, so a month of warnings said what
+ * had happened and never to whom or why.
+ */
+describe('the diagnostic fields on a log row', () => {
+    it('hands them to the polled table, already flattened', async () => {
+        logs.write(
+            JSON.stringify({
+                level: 40,
+                time: Date.now(),
+                msg: 'source failed; degrading rather than failing',
+                service: 'radarr',
+                err: { kind: 'Timeout', stack: 'multi\nline noise' }
+            })
+        );
+        await signIn();
+
+        const body = (await (await call('/ui/logs.json')).json()) as {
+            rows: { msg: string; detail: [string, string][] }[];
+        };
+        const row = body.rows.find(r => r.msg.startsWith('source failed'));
+        expect(row?.detail).toEqual([['err.kind', 'Timeout']]);
+    });
+
+    it('renders them under the message on the page itself', async () => {
+        logs.write(
+            JSON.stringify({
+                level: 40,
+                time: Date.now(),
+                msg: 'rejected unauthenticated MCP request',
+                ip: '192.168.178.82',
+                via: 'none'
+            })
+        );
+        await signIn();
+
+        const page = await (await call('/ui/logs?stream=problems')).text();
+        expect(page).toContain('class="fields"');
+        expect(page).toContain('192.168.178.82');
+    });
+});

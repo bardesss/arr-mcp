@@ -1,10 +1,11 @@
+import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
 import { saveConfig } from '../config/save.ts';
 import { ServiceIdSchema, ThemeSchema, type Config, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
-import type { LogStore } from '../core/logs.ts';
+import { logFields, type LogStore } from '../core/logs.ts';
 import type { Runtime } from '../core/runtime.ts';
 import {
     clearedSessionCookie,
@@ -123,7 +124,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         const token = runtime.sessions.issue();
         c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
-        logger.info({ ip: ipOf(c), username }, 'config UI claimed');
+        logger.info({ ...originOf(c), username }, 'config UI claimed');
         return c.redirect('/ui', 302);
     });
 
@@ -164,7 +165,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const justBlocked = loginThrottle.recordFailure();
         if (justBlocked) {
             const seconds = Math.ceil(loginThrottle.blockedFor() / 1000);
-            logger.warn({ ip: ipOf(c), seconds }, 'throttled config UI sign-in');
+            logger.warn({ ...originOf(c), seconds }, 'throttled config UI sign-in');
         }
 
         const form = await c.req.parseBody();
@@ -182,14 +183,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (!nameOk || !passOk) {
             // No username: this field routinely catches a password typed into
             // the wrong box, and the record is rendered at /ui/logs.
-            logger.warn({ ip: ipOf(c) }, 'rejected config UI sign-in');
+            logger.warn({ ...originOf(c) }, 'rejected config UI sign-in');
             return c.html(loginPage({ version, error: 'Wrong username or password.', theme: theme() }), 401);
         }
 
         loginThrottle.recordSuccess();
         const token = runtime.sessions.issue();
         c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
-        logger.info({ ip: ipOf(c), username }, 'config UI sign-in');
+        logger.info({ ...originOf(c), username }, 'config UI sign-in');
         return c.redirect('/ui', 302);
     });
 
@@ -282,7 +283,13 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401);
 
         const { minLevel, service } = logQuery(c, logs);
-        return c.json({ rows: logs.recent({ minLevel, service, limit: 300 }) }, 200, NO_STORE);
+        // `detail` is flattened here rather than in the browser so the polled
+        // table and the server-rendered one cannot disagree about what a row
+        // says.
+        const rows = logs
+            .recent({ minLevel, service, limit: 300 })
+            .map(r => ({ ...r, detail: logFields(r.fields) }));
+        return c.json({ rows }, 200, NO_STORE);
     });
 
     // --- write audit ----------------------------------------------------
@@ -417,7 +424,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 );
 
             if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
-                logger.warn({ ip: ipOf(c) }, 'rejected config save with a bad CSRF token');
+                logger.warn({ ...originOf(c) }, 'rejected config save with a bad CSRF token');
                 return render({ kind: 'err', text: 'That form was stale. Reload the page and try again.' }, 403);
             }
 
@@ -455,7 +462,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 return render({ kind: 'err', text: (err as Error).message }, 400);
             }
 
-            logger.info({ ip: ipOf(c), what }, 'configuration saved from the config UI');
+            logger.info({ ...originOf(c), what }, 'configuration saved from the config UI');
             return render({ kind: 'ok', text: `${what} Applied immediately; no restart needed.` }, 200);
         };
 
@@ -555,7 +562,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             wantsJson ? c.json({ ok: false, detail: text }, status) : render(status, { message: { kind: 'err', text } });
 
         if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
-            logger.warn({ ip: ipOf(c) }, 'rejected a connection test with a bad CSRF token');
+            logger.warn({ ...originOf(c) }, 'rejected a connection test with a bad CSRF token');
             return fail(403, 'That form was stale. Reload the page and try again.');
         }
 
@@ -568,7 +575,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             if (adapter === undefined) throw new Error(`${target} is not configured.`);
 
             const diagnosis = await adapter.testConnection();
-            logger.info({ ip: ipOf(c), service: target, ok: diagnosis.ok }, 'connection tested from the config UI');
+            logger.info({ ...originOf(c), service: target, ok: diagnosis.ok }, 'connection tested from the config UI');
 
             if (wantsJson) return c.json(diagnosis, 200);
             return render(200, isAdd ? { testedAdd: diagnosis } : { tested: { instance: target, diagnosis } });
@@ -586,7 +593,38 @@ const NO_STORE = { 'cache-control': 'no-store' };
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const on = (value: unknown): boolean => value === 'on' || value === 'true';
-export const ipOf = (c: Context): string => c.req.header('x-forwarded-for') ?? 'unknown';
+/**
+ * Who connected, for a log line — the peer address, plus what they claimed.
+ *
+ * `ip` used to be `X-Forwarded-For` alone, which recorded a literal "unknown"
+ * for every request on a direct LAN deployment: no proxy sets the header, and
+ * that is the common install. A refused sign-in or a refused `/mcp` call named
+ * nobody, which is the one thing those lines exist to do.
+ *
+ * The peer address is the socket fact and cannot be forged; the header is
+ * caller-supplied and can. So the header is recorded *beside* the peer under
+ * its own name rather than in place of it — behind a real proxy both are
+ * wanted anyway, and a client inventing a header can no longer overwrite the
+ * only identifying field on the line.
+ */
+export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
+    const claimed = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+    return {
+        ip: peerAddress(c),
+        ...(claimed === undefined || claimed === '' ? {} : { forwardedFor: claimed })
+    };
+};
+
+const peerAddress = (c: Context): string => {
+    try {
+        // IPv4-mapped IPv6 is what a dual-stack listener reports for a plain
+        // IPv4 client; the prefix is noise to a reader chasing a LAN address.
+        return (getConnInfo(c).remote.address ?? 'unknown').replace(/^::ffff:/, '');
+    } catch {
+        // No node socket behind the context — a Request built in a test.
+        return 'unknown';
+    }
+};
 
 function sessionOf(c: Context, runtime: Runtime): string | undefined {
     const token = readCookie(c.req.header('cookie'), SESSION_COOKIE);

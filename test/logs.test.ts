@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { LEVELS, LOG_RING_SIZE, LogStore } from '../src/core/logs.ts';
+import { LEVELS, LOG_RING_SIZE, LogStore, logFields } from '../src/core/logs.ts';
 
 let store: LogStore | undefined;
 const open = (): LogStore => (store = LogStore.ephemeral());
@@ -124,5 +124,56 @@ describe('ring behaviour', () => {
         // The newest survived, the oldest did not.
         expect(logs.recent(  { limit: 1 })[0]?.msg).toBe(`line ${LOG_RING_SIZE + 249}`);
         expect(logs.recent({ limit: LOG_RING_SIZE }).some(r => r.msg === 'line 0')).toBe(false);
+    });
+});
+
+describe('the fields a row carries', () => {
+    it('flattens one level, so a serialized error reads as fields rather than a blob', () => {
+        const logs = open();
+        logs.write(
+            line({
+                level: LEVELS.warn,
+                service: 'radarr',
+                msg: 'source failed; degrading rather than failing',
+                err: { type: 'ServiceError', kind: 'Timeout', detail: 'no response within the configured timeout' }
+            })
+        );
+
+        const [row] = logs.recent();
+        expect(logFields(row!.fields)).toEqual([
+            ['err.type', 'ServiceError'],
+            ['err.kind', 'Timeout'],
+            ['err.detail', 'no response within the configured timeout']
+        ]);
+    });
+
+    it('drops the stack, which is the one field a table cannot show', () => {
+        const logs = open();
+        logs.write(line({ err: { kind: 'Timeout', stack: 'ServiceError: ...\n    at somewhere' }, stack: 'top' }));
+
+        const keys = logFields(logs.recent()[0]!.fields).map(([key]) => key);
+        expect(keys).toEqual(['err.kind']);
+    });
+
+    it('keeps scalars as they are, and renders a non-string as JSON', () => {
+        const logs = open();
+        logs.write(line({ ip: '192.168.178.82', port: 6060, queryOffered: false }));
+
+        expect(logFields(logs.recent()[0]!.fields)).toEqual([
+            ['ip', '192.168.178.82'],
+            ['port', '6060'],
+            ['queryOffered', 'false']
+        ]);
+    });
+
+    it('has nothing to show for a line that carried no extra fields', () => {
+        const logs = open();
+        logs.write(line());
+
+        expect(logFields(logs.recent()[0]!.fields)).toEqual([]);
+    });
+
+    it('shows an unparseable blob verbatim rather than dropping it', () => {
+        expect(logFields('not json')).toEqual([['fields', 'not json']]);
     });
 });

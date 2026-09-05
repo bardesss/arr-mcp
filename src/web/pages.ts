@@ -1,6 +1,6 @@
 import type { Theme } from '../config/schema.ts';
 import type { AuditRow } from '../core/audit.ts';
-import type { LogRow } from '../core/logs.ts';
+import { logFields, type LogRow } from '../core/logs.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
@@ -599,14 +599,30 @@ export function logTable(rows: LogRow[]): SafeHtml {
             <tr><th>Time</th><th>Level</th><th>Service</th><th>Message</th></tr>
         </thead>
         <tbody>
-            ${rows.map(
-                r => html`<tr class="lvl-${r.level}">
+            ${rows.map(r => {
+                // Under the message rather than in a fifth column: these are
+                // the fields that answer "which client, which endpoint, what
+                // did the service say" — useless if the column holding them is
+                // squeezed to nothing, and there is no fixed set of them.
+                const detail = logFields(r.fields);
+                return html`<tr class="lvl-${r.level}">
                     <td class="mono">${shortTime(r.at)}</td>
                     <td>${r.levelName}</td>
                     <td>${r.service ?? '—'}</td>
-                    <td>${r.msg}</td>
-                </tr>`
-            )}
+                    <td>
+                        ${r.msg}
+                        ${detail.length === 0
+                            ? raw('')
+                            : html`<dl class="fields">
+                                  ${detail.map(
+                                      ([key, value]) =>
+                                          html`<dt class="mono">${key}</dt>
+                                              <dd class="mono">${value}</dd>`
+                                  )}
+                              </dl>`}
+                    </td>
+                </tr>`;
+            })}
         </tbody>
     </table>`;
 }

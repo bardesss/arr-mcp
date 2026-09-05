@@ -98,12 +98,21 @@ re-adding it.
 
 ## Logs and the write audit
 
-<img src="../screenshots/logs-dark.png" alt="The logs page: three stream tabs above a live-refreshing table of time, level, service and message" width="880">
+<img src="../screenshots/logs-dark.png" alt="The logs page: three stream tabs above a live-refreshing table of time, level, service and message, with each line's recorded fields underneath the message" width="880">
 
 <img src="../screenshots/audit-dark.png" alt="The write audit: one entry per write attempt, showing tool, target, tier and outcome" width="880">
 
 **Logs are a ring buffer**, kept beside your config and capped, so a chatty
 service cannot fill the disk. Full history stays in `docker logs`.
+
+**A line's fields are shown under its message**, the way the write audit shows
+its arguments: which address a refused request came from, which endpoint a
+service failed on, what kind of failure it was. A warning that says only
+*source failed; degrading rather than failing* tells you an hour later that
+something happened and nothing about what — the `err` beside it says
+`Timeout` or `HTTP 503` and names the path. A serialized error is flattened
+one level so it reads as fields rather than as a blob, and its stack trace is
+left out; that one is in `docker logs`.
 
 **The write audit reads as entries, not as a spreadsheet.** Each attempt gives
 its outcome, tool, service and time on one line, and its target and recorded
