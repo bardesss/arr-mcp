@@ -279,6 +279,12 @@ so far.
   further one with a growing backoff capped at 5 minutes. The counter is
   global rather than per-IP — deliberate, since nothing validates the client's
   claimed address.
+- A log line records two addresses where they differ: `ip` is the peer the
+  socket actually came from, and `forwardedFor` is the first hop of
+  `X-Forwarded-For` when a request carried one. Beside, not instead — the
+  header is caller-supplied, so a client inventing one cannot overwrite the
+  only identifying field on a refused sign-in. There is no trusted-proxy list;
+  treat `forwardedFor` as a claim.
 - Sessions end when you end them: signing out revokes that token, and changing
   the password revokes every session issued before it. Neither waits for the
   cookie to expire or for a restart.

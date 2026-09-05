@@ -212,3 +212,40 @@ export class LogStore {
             .run(LOG_RING_SIZE - 1);
     }
 }
+
+/**
+ * The `fields` blob as flat key/value pairs, for display.
+ *
+ * One level of nesting is flattened because the field that matters most is
+ * nested: a serialized `err` arrives as an object, and stringifying it whole
+ * put an unreadable JSON blob in one table cell. `stack` is dropped — it is
+ * the one field that is multi-line, and the message beside it already says
+ * what happened.
+ */
+export function logFields(fields: string): [string, string][] {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(fields);
+    } catch {
+        // A row that does not parse is shown verbatim rather than dropped.
+        return fields === '' ? [] : [['fields', fields]];
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return [];
+
+    const out: [string, string][] = [];
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (key === 'stack') continue;
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            for (const [sub, inner] of Object.entries(value as Record<string, unknown>)) {
+                if (sub === 'stack') continue;
+                out.push([`${key}.${sub}`, scalar(inner)]);
+            }
+        } else {
+            out.push([key, scalar(value)]);
+        }
+    }
+    return out;
+}
+
+const scalar = (value: unknown): string =>
+    typeof value === 'string' ? value : value === undefined ? 'undefined' : JSON.stringify(value);

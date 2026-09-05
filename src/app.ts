@@ -12,7 +12,7 @@ import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { registerAllTools } from './tools/register.ts';
-import { registerWebRoutes } from './web/routes.ts';
+import { originOf, registerWebRoutes } from './web/routes.ts';
 
 const NAME = 'arr-mcp';
 const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
@@ -192,7 +192,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
      * and rejected *every* request with 403. A container that rejects 100% of
      * traffic looks healthy until someone uses it.
      */
-    app.use('*', async (c, next) => {
+    app.use('*', async (c: Context, next) => {
         const allowed = runtime.config.auth.allowed_hosts;
         if (allowed.length === 0) return next();
 
@@ -207,7 +207,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         const bare = host.replace(/:\d{1,5}$/, '');
         if (allowed.some(a => a.toLowerCase() === host || a.toLowerCase() === bare)) return next();
 
-        logger.warn({ host, ip: c.req.header('x-forwarded-for') ?? 'unknown' }, 'rejected request with an unlisted Host');
+        logger.warn({ host, ...originOf(c) }, 'rejected request with an unlisted Host');
         return c.text('forbidden: Host not allowed', 403);
     });
 
@@ -221,8 +221,20 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         const presented = presentedToken(c.req.url, c.req.header('Authorization'), auth.allow_token_in_url);
 
         if (presented.via === 'none' || !tokenMatches(presented.token, auth.bearer_token)) {
+            // `via` is the whole diagnosis: 'none' is a client that sent no
+            // credentials at all — which every MCP client does once, on the
+            // 401-then-retry handshake this endpoint's WWW-Authenticate invites
+            // — while 'header' or 'query' is a token that was presented and did
+            // not match. Without it the two read identically in the log, and
+            // "a client reconnected" is indistinguishable from "a stale token
+            // is still trying".
             logger.warn(
-                { path: '/mcp', ip: c.req.header('x-forwarded-for') ?? 'unknown' },
+                {
+                    path: '/mcp',
+                    ...originOf(c),
+                    via: presented.via,
+                    ...(presented.via === 'none' ? { queryOffered: presented.queryOffered } : {})
+                },
                 'rejected unauthenticated MCP request'
             );
             return c.json(
