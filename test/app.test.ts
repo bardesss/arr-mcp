@@ -1085,3 +1085,50 @@ describe('2025-era back-compat', () => {
         expect(res.status).toBe(200);
     });
 });
+
+/**
+ * The fields on the rejection line, which are the whole diagnostic value of it:
+ * a 401 on `/mcp` is both the normal opening move of an MCP client and the
+ * symptom of a client still holding a rotated token, and the message alone
+ * cannot tell those apart.
+ */
+describe('what a refused /mcp request records', () => {
+    const rejection = async (path: string, headers: Record<string, string> = {}) => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        try {
+            const app = buildApp({
+                runtime: Runtime.fromConfig(config, audit(), { adapters: [] }),
+                audit: audit(),
+                logs
+            });
+            const res = await app.request(`http://localhost:6060${path}`, rpc(toolsList, headers));
+            expect(res.status).toBe(401);
+
+            const row = logs.recent().find(r => r.msg === 'rejected unauthenticated MCP request');
+            expect(row).toBeDefined();
+            return JSON.parse(row!.fields) as Record<string, unknown>;
+        } finally {
+            detachLogStore();
+            logs.close();
+        }
+    };
+
+    it('says when a client presented nothing at all', async () => {
+        expect(await rejection('/mcp')).toMatchObject({ via: 'none', queryOffered: false });
+    });
+
+    it('distinguishes a token that was presented and did not match', async () => {
+        expect(await rejection('/mcp', { Authorization: `Bearer ${WRONG}` })).toMatchObject({ via: 'header' });
+    });
+
+    it('names a query token refused by the flag, rather than logging it as no token', async () => {
+        expect(await rejection(`/mcp?token=${TOKEN}`)).toMatchObject({ via: 'none', queryOffered: true });
+    });
+
+    it('records a claimed X-Forwarded-For beside the peer address, never in place of it', async () => {
+        const fields = await rejection('/mcp', { 'X-Forwarded-For': '10.0.0.9, 10.0.0.1' });
+        expect(fields.forwardedFor).toBe('10.0.0.9');
+        expect(fields.ip).not.toBe('10.0.0.9');
+    });
+});

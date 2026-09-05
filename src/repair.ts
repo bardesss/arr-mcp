@@ -24,7 +24,7 @@ import { sameOrigin } from './web/origin.ts';
 import { CSS, JS } from './web/assets.ts';
 import { MARK_SVG } from './web/icons.ts';
 import { loginPage, setupPage } from './web/pages.ts';
-import { ipOf } from './web/routes.ts';
+import { originOf } from './web/routes.ts';
 import { repairPage, unreadableAuthPage } from './web/repairPage.ts';
 
 const NAME = 'arr-mcp';
@@ -133,7 +133,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         const host = (c.req.header('host') ?? '').toLowerCase();
         const bare = host.replace(/:\d{1,5}$/, '');
         if (auth.allowed_hosts.some(a => a.toLowerCase() === host || a.toLowerCase() === bare)) return next();
-        logger.warn({ host, ip: ipOf(c) }, 'rejected request with an unlisted Host');
+        logger.warn({ host, ...originOf(c) }, 'rejected request with an unlisted Host');
         return c.text('forbidden: Host not allowed', 403);
     });
 
@@ -199,7 +199,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                         password_hash: hash,
                         username: typeof name === 'string' ? name : auth.username
                     };
-                    logger.warn({ ip: ipOf(c) }, 'refused a claim over a password_hash added since startup');
+                    logger.warn({ ...originOf(c) }, 'refused a claim over a password_hash added since startup');
                     return c.redirect('/ui/login', 302);
                 }
                 if (hash !== undefined) {
@@ -259,7 +259,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         if (!nameOk || !passOk) {
             // The IP because this mode has no /ui/logs, so stdout is the
             // only record of an attack on a form anyone can reach.
-            logger.warn({ ip: ipOf(c) }, 'rejected config UI sign-in');
+            logger.warn({ ...originOf(c) }, 'rejected config UI sign-in');
             return c.html(loginPage({ version, error: 'Wrong username or password.' }), 401);
         }
 

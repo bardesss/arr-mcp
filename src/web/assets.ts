@@ -80,6 +80,11 @@ p.note { color: var(--dim); font-size: .9rem; margin: .35rem 0 1rem; }
 .card dl { margin: .5rem 0 0; display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; font-size: .88rem; }
 .card dt { color: var(--dim); }
 .card dd { margin: 0; word-break: break-word; }
+/* The structured fields under a log message. Dimmer and smaller than the
+   message so a scan still reads as one line per event. */
+.fields { margin: .25rem 0 0; display: grid; grid-template-columns: auto 1fr; gap: .1rem .6rem; font-size: .8rem; color: var(--dim); }
+.fields dt { opacity: .8; }
+.fields dd { margin: 0; word-break: break-word; }
 .svc-icon { width: 20px; height: 20px; flex: none; color: var(--dim); }
 /* Collapsed, a card is one row: mark, id, host, what it may write. Open, it is
    the form it always was. The marker is drawn here because a summary set to
@@ -462,7 +467,27 @@ if (stream) {
       tr.appendChild(cell(row.at, 'mono'));
       tr.appendChild(cell(row.levelName));
       tr.appendChild(cell(row.service || '—'));
-      tr.appendChild(cell(row.msg));
+
+      // The server flattened these; this only has to place them, still with
+      // textContent — err.message carries whatever the upstream service said.
+      const message = cell(row.msg);
+      const detail = Array.isArray(row.detail) ? row.detail : [];
+      if (detail.length) {
+        const dl = document.createElement('dl');
+        dl.className = 'fields';
+        for (const pair of detail) {
+          const dt = document.createElement('dt');
+          dt.className = 'mono';
+          dt.textContent = pair[0];
+          const dd = document.createElement('dd');
+          dd.className = 'mono';
+          dd.textContent = pair[1];
+          dl.appendChild(dt);
+          dl.appendChild(dd);
+        }
+        message.appendChild(dl);
+      }
+      tr.appendChild(message);
       body.appendChild(tr);
     }
     table.appendChild(body);
