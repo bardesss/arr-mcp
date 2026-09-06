@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.1](https://github.com/bardesss/arr-mcp/compare/v1.21.0...v1.21.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **logs:** show a line's fields, and record who a refused request came from ([#193](https://github.com/bardesss/arr-mcp/issues/193)) ([11c0031](https://github.com/bardesss/arr-mcp/commit/11c0031c9884dd8b55e88d1314f53b9dbb0fe015))
+
 ## [1.21.0](https://github.com/bardesss/arr-mcp/compare/v1.20.0...v1.21.0) (2026-09-04)
 
 
