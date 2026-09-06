@@ -44,10 +44,16 @@ describe('the single form is untouched', () => {
     });
 });
 
+// Transmission and qBittorrent take credentials rather than an api_key, so a
+// loop over every multi-instance type needs to build the right shape for each.
+const CREDENTIAL_TYPES = new Set(['transmission', 'qbittorrent']);
+const instanceOf = (type: string, name: string, port: number) =>
+    CREDENTIAL_TYPES.has(type) ? { name, url: `http://192.0.2.10:${port}`, permissions: {} } : entry(name, port);
+
 describe('the list form', () => {
     it('parses under each service that may repeat', () => {
         for (const type of MULTI_INSTANCE) {
-            const config = parse({ [type]: [entry('hd', 7878), entry('4k', 7879)] });
+            const config = parse({ [type]: [instanceOf(type, 'hd', 7878), instanceOf(type, '4k', 7879)] });
             expect(listInstances(config).map(i => i.id)).toEqual([`${type}/4k`, `${type}/hd`]);
         }
     });
@@ -97,14 +103,16 @@ describe('what the list form refuses', () => {
     /**
      * The boundary is the design, so it is tested rather than commented.
      *
-     * `register.ts` selects Prowlarr, Jellyfin and Seerr with a `.find`, and the
+     * `register.ts` selects Jellyfin, Seerr and Plex with a `.find`, and the
      * identity resolver is built from *the* Jellyfin config. Admitting a list
      * there would produce configurations the code silently degrades on.
      */
     it('refuses a list under a service that may not repeat, and names the ones that may', () => {
-        for (const type of ['prowlarr', 'sabnzbd', 'jellyfin', 'seerr', 'transmission']) {
+        for (const type of ['jellyfin', 'seerr', 'plex']) {
             expect(isMultiInstance(type as never)).toBe(false);
-            expect(() => parse({ [type]: [entry('a', 9999)] })).toThrow(/only bazarr, radarr, sonarr/i);
+            expect(() => parse({ [type]: [entry('a', 9999)] })).toThrow(
+                /only bazarr, prowlarr, qbittorrent, radarr, sabnzbd, sonarr, transmission/i
+            );
         }
     });
 });
@@ -178,5 +186,67 @@ describe('the audit trail', () => {
         } finally {
             audit.close();
         }
+    });
+});
+
+describe('the download clients and Prowlarr take a list', () => {
+    const credential = (name: string, port: number) => ({
+        name,
+        url: `http://192.0.2.10:${port}`,
+        permissions: {}
+    });
+
+    it('accepts two SABnzbds and gives each a qualified id', () => {
+        const config = parse({ sabnzbd: [entry('main', 8080), entry('spare', 8081)] });
+        expect(listInstances(config).map(i => i.id)).toEqual(['sabnzbd/main', 'sabnzbd/spare']);
+    });
+
+    it('accepts two Prowlarrs', () => {
+        const config = parse({ prowlarr: [entry('public', 9696), entry('private', 9697)] });
+        expect(listInstances(config).map(i => i.id)).toEqual(['prowlarr/private', 'prowlarr/public']);
+    });
+
+    // The credential shape has no api_key, so it needs its own named variant —
+    // the keyed one would reject it for a missing field.
+    it('accepts two qBittorrents, which carry credentials rather than a key', () => {
+        const config = parse({ qbittorrent: [credential('vpn', 8081), credential('direct', 8082)] });
+        expect(listInstances(config).map(i => i.id)).toEqual(['qbittorrent/direct', 'qbittorrent/vpn']);
+    });
+
+    it('accepts two Transmissions', () => {
+        const config = parse({ transmission: [credential('vpn', 9091), credential('direct', 9092)] });
+        expect(listInstances(config).map(i => i.id)).toEqual(['transmission/direct', 'transmission/vpn']);
+    });
+
+    it('refuses two instances sharing a name, whatever the case', () => {
+        expect(() => parse({ sabnzbd: [entry('Main', 8080), entry('main', 8081)] })).toThrow(/duplicate instance name/);
+        expect(() => parse({ qbittorrent: [credential('VPN', 8081), credential('vpn', 8082)] })).toThrow(
+            /duplicate instance name/
+        );
+    });
+
+    it('still refuses a list for the three that stay single, naming the seven that do not', () => {
+        for (const type of ['jellyfin', 'plex', 'seerr'] as const) {
+            expect(() => parse({ [type]: [entry('a', 8096), entry('b', 8097)] })).toThrow(/can be a list of instances/);
+        }
+        expect(() => parse({ seerr: [entry('a', 5055)] })).toThrow(/prowlarr/);
+    });
+
+    it('keeps every single block parsing unchanged, with a bare id', () => {
+        const config = parse({
+            sabnzbd: entry(undefined, 8080),
+            prowlarr: entry(undefined, 9696),
+            // A single-element list, not a bare block — a bare credential block
+            // has no `name` field, same as the keyed single form.
+            qbittorrent: [credential('x', 8081)]
+        });
+        expect(listInstances(config).map(i => i.id)).toEqual(['prowlarr', 'qbittorrent/x', 'sabnzbd']);
+    });
+
+    it('reports the new types as multi-instance', () => {
+        for (const type of ['sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const) {
+            expect(isMultiInstance(type)).toBe(true);
+        }
+        expect(MULTI_INSTANCE).toHaveLength(7);
     });
 });

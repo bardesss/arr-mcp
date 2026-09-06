@@ -24,8 +24,8 @@ describe('adding an instance', () => {
     });
 
     it('refuses a second instance of a service that may only have one', () => {
-        const one = base({ prowlarr: KEYED });
-        expect(() => addInstance(one, { type: 'prowlarr', name: 'b', fields: KEYED })).toThrow(ConfigEditError);
+        const one = base({ seerr: KEYED });
+        expect(() => addInstance(one, { type: 'seerr', name: 'b', fields: KEYED })).toThrow(ConfigEditError);
     });
 
     /**

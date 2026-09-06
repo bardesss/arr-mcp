@@ -48,15 +48,28 @@ const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape 
 export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
 
 /**
- * Which services may appear more than once. Quality tiers are the reason anyone
- * runs two — an HD and a 4K Radarr, their Sonarrs, and a Bazarr per stack
- * because Bazarr connects to exactly one of each.
+ * Which services may appear more than once.
  *
- * The other five are deliberately single: a second Prowlarr or Seerr is not a
- * tier, and `register.ts` selects those with a `.find`. Admitting a shape the
- * code then degrades on is worse than refusing it.
+ * Quality tiers are the reason anyone runs two *arrs, and a Bazarr follows each
+ * pair because it connects to exactly one of each. The download clients and
+ * Prowlarr are here for a different reason: nothing selects them by anything but
+ * capability, so a second one is merged into reads and named on writes with no
+ * special case.
+ *
+ * The three left out are refusals, not omissions. `get_library`'s `presence`
+ * asks whether the media server can see a file, which has no answer with two of
+ * them; and a Seerr request carries a user identity that a second instance
+ * makes ambiguous.
  */
-export const MULTI_INSTANCE: readonly ServiceId[] = ['bazarr', 'radarr', 'sonarr'];
+export const MULTI_INSTANCE: readonly ServiceId[] = [
+    'bazarr',
+    'prowlarr',
+    'qbittorrent',
+    'radarr',
+    'sabnzbd',
+    'sonarr',
+    'transmission'
+];
 
 /**
  * Goes into the qualified id (`radarr/4k`), which reaches audit rows, log
@@ -75,28 +88,35 @@ const NamedKeyedServiceSchema = z.strictObject({
 });
 
 /**
- * The list form. Names are compared case-insensitively because `4K` and `4k`
- * naming two different Radarrs is a typo every time, never an intention.
+ * Names are compared case-insensitively because `4K` and `4k` naming two
+ * different Radarrs is a typo every time, never an intention.
+ *
+ * Shared by the keyed and credential lists rather than pasted into both: two
+ * copies is two chances to disagree about whether `Main` and `main` are one
+ * instance.
  */
+const uniqueNames = (list: readonly { name: string }[], ctx: z.RefinementCtx): void => {
+    const seen = new Map<string, number>();
+    list.forEach((entry, index) => {
+        const key = entry.name.toLowerCase();
+        const first = seen.get(key);
+        if (first !== undefined) {
+            ctx.addIssue({
+                code: 'custom',
+                message: `duplicate instance name "${entry.name}" — already used by entry ${first + 1}`,
+                path: [index, 'name']
+            });
+            return;
+        }
+        seen.set(key, index);
+    });
+};
+
+/** The list form, for services taking an api_key. */
 const InstanceListSchema = z
     .array(NamedKeyedServiceSchema)
     .min(1, 'list at least one instance, or use a single block instead of a list')
-    .superRefine((list, ctx) => {
-        const seen = new Map<string, number>();
-        list.forEach((entry, index) => {
-            const key = entry.name.toLowerCase();
-            const first = seen.get(key);
-            if (first !== undefined) {
-                ctx.addIssue({
-                    code: 'custom',
-                    message: `duplicate instance name "${entry.name}" — already used by entry ${first + 1}`,
-                    path: [index, 'name']
-                });
-                return;
-            }
-            seen.set(key, index);
-        });
-    });
+    .superRefine(uniqueNames);
 
 /**
  * One block, as before, or a list of named ones. A union rather than a new key,
@@ -152,6 +172,20 @@ const CredentialServiceSchema = z.strictObject({
 });
 export type CredentialServiceConfig = z.infer<typeof CredentialServiceSchema>;
 
+const NamedCredentialServiceSchema = z.strictObject({
+    ...BaseServiceShape,
+    username: z.string().min(1).optional(),
+    password: z.string().optional(),
+    name: InstanceNameSchema
+});
+
+const CredentialInstanceListSchema = z
+    .array(NamedCredentialServiceSchema)
+    .min(1, 'list at least one instance, or use a single block instead of a list')
+    .superRefine(uniqueNames);
+
+const MultiInstanceCredentialSchema = z.union([CredentialServiceSchema, CredentialInstanceListSchema]);
+
 export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | CredentialServiceConfig;
 
 /**
@@ -183,12 +217,12 @@ const ServicesSchema = z
         radarr: MultiInstanceServiceSchema.optional(),
         sonarr: MultiInstanceServiceSchema.optional(),
         bazarr: MultiInstanceServiceSchema.optional(),
-        prowlarr: singleOnly(KeyedServiceSchema).optional(),
-        sabnzbd: singleOnly(KeyedServiceSchema).optional(),
+        prowlarr: MultiInstanceServiceSchema.optional(),
+        sabnzbd: MultiInstanceServiceSchema.optional(),
         jellyfin: singleOnly(MultiUserServiceSchema).optional(),
         seerr: singleOnly(MultiUserServiceSchema).optional(),
-        transmission: singleOnly(CredentialServiceSchema).optional(),
-        qbittorrent: singleOnly(CredentialServiceSchema).optional(),
+        transmission: MultiInstanceCredentialSchema.optional(),
+        qbittorrent: MultiInstanceCredentialSchema.optional(),
         plex: singleOnly(MultiUserServiceSchema).optional()
     })
     .superRefine((services, ctx) => {
