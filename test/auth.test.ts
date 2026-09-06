@@ -154,7 +154,7 @@ describe('qbittorrentSession', () => {
 
     it('fails rather than silently continuing when login sets no cookie', async () => {
         const impl = (async () => new Response('Ok.', { status: 200 })) as unknown as typeof fetch;
-        await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/no SID cookie/i);
+        await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/no session cookie/i);
     });
 
     it('names the ban when qBittorrent refuses the login itself', async () => {
@@ -189,5 +189,51 @@ describe('qbittorrentSession', () => {
 
     it('recovers from 403 only — a 404 is not an expired session', async () => {
         expect(await session().recover?.(new Response('', { status: 404 }))).toBe(false);
+    });
+
+    // qBittorrent 5.2 answers a good login with 204 and an empty body, and
+    // names the cookie after the WebUI's own port (issue #195).
+    it('accepts the 5.2 login: 204, empty body, QBT_SID_<port>', async () => {
+        const impl = (async () =>
+            new Response(null, {
+                status: 204,
+                headers: { 'set-cookie': 'QBT_SID_8081=sid-5; path=/; HttpOnly; SameSite=Lax' }
+            })) as unknown as typeof fetch;
+
+        const auth = session({}, impl);
+        expect(await auth.recover?.(forbidden())).toBe(true);
+
+        const c = ctx(`${BASE}/api/v2/app/version`);
+        auth.apply(c);
+        expect(c.headers.get('Cookie')).toBe('QBT_SID_8081=sid-5');
+    });
+
+    // The port in the name is the WebUI's configured port, which a container
+    // port mapping or a reverse proxy detaches from the one we dialled — so
+    // the name has to be echoed, never rebuilt.
+    it('echoes the cookie name it was offered rather than deriving it', async () => {
+        const impl = (async () =>
+            new Response(null, {
+                status: 204,
+                headers: { 'set-cookie': 'QBT_SID_9999=sid-6; path=/' }
+            })) as unknown as typeof fetch;
+
+        const auth = session({}, impl);
+        await auth.recover?.(forbidden());
+
+        const c = ctx(`${BASE}/api/v2/app/version`);
+        auth.apply(c);
+        expect(c.headers.get('Cookie')).toBe('QBT_SID_9999=sid-6');
+    });
+
+    // 5.2 replaced the 200 "Fails." body with a status line.
+    it('treats a 401 as wrong credentials', async () => {
+        const impl = (async () => new Response('Unauthorized', { status: 401 })) as unknown as typeof fetch;
+        await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/username and password/i);
+    });
+
+    it('fails when a 204 login sets no cookie', async () => {
+        const impl = (async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
+        await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/no session cookie/i);
     });
 });
