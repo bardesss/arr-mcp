@@ -103,9 +103,10 @@ describe('what the list form refuses', () => {
     /**
      * The boundary is the design, so it is tested rather than commented.
      *
-     * `register.ts` selects Jellyfin, Seerr and Plex with a `.find`, and the
-     * identity resolver is built from *the* Jellyfin config. Admitting a list
-     * there would produce configurations the code silently degrades on.
+     * `register.ts` selects Seerr with a `.find`; Jellyfin and Plex go through
+     * `theMediaServer`, which `.filter`s and throws on more than one. Either
+     * way, admitting a list here would produce configurations the code
+     * silently degrades on or rejects at request time instead of at parse time.
      */
     it('refuses a list under a service that may not repeat, and names the ones that may', () => {
         for (const type of ['jellyfin', 'seerr', 'plex']) {
@@ -236,11 +237,10 @@ describe('the download clients and Prowlarr take a list', () => {
         const config = parse({
             sabnzbd: entry(undefined, 8080),
             prowlarr: entry(undefined, 9696),
-            // A single-element list, not a bare block — a bare credential block
-            // has no `name` field, same as the keyed single form.
-            qbittorrent: [credential('x', 8081)]
+            qbittorrent: { url: 'http://192.0.2.10:8081', permissions: {} },
+            transmission: { url: 'http://192.0.2.10:9091', permissions: {} }
         });
-        expect(listInstances(config).map(i => i.id)).toEqual(['prowlarr', 'qbittorrent/x', 'sabnzbd']);
+        expect(listInstances(config).map(i => i.id)).toEqual(['prowlarr', 'qbittorrent', 'sabnzbd', 'transmission']);
     });
 
     it('reports the new types as multi-instance', () => {
