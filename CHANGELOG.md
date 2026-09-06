@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.2](https://github.com/bardesss/arr-mcp/compare/v1.21.1...v1.21.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* **qbittorrent:** accept the 5.2 login shape (204 + QBT_SID_&lt;port&gt;) ([#197](https://github.com/bardesss/arr-mcp/issues/197)) ([414a908](https://github.com/bardesss/arr-mcp/commit/414a908323e9c1d9ead6844800fc8902def25e63)), closes [#195](https://github.com/bardesss/arr-mcp/issues/195)
+
 ## [1.21.1](https://github.com/bardesss/arr-mcp/compare/v1.21.0...v1.21.1) (2026-09-05)
 
 
