@@ -114,7 +114,12 @@ const QB_LOGIN_PATH = '/api/v2/auth/login';
 
 /**
  * qBittorrent's WebUI: POST the credentials to `/api/v2/auth/login`, keep the
- * `SID` cookie, send it back on every call.
+ * session cookie, send it back on every call.
+ *
+ * The cookie is `SID` up to 5.1 and `QBT_SID_<webui-port>` from 5.2, where the
+ * port is the one qBittorrent itself is configured with — a container port
+ * mapping or a reverse proxy detaches that from the port we dialled, so the
+ * name is stored as offered rather than rebuilt.
  *
  * Nothing logs in ahead of time — there is no cheap way to ask whether a
  * session is still valid, so this lets the 403 happen and recovers from it, the
@@ -129,7 +134,7 @@ export function qbittorrentSession(creds: {
     fetchImpl?: typeof fetch;
 }): AuthStrategy {
     const doFetch = creds.fetchImpl ?? fetch;
-    let sid: string | undefined;
+    let cookie: SessionCookie | undefined;
     /**
      * The in-flight login, shared.
      *
@@ -139,12 +144,12 @@ export function qbittorrentSession(creds: {
      * points at — so a burst against briefly-wrong credentials accelerated the
      * ban it warns about. Same single-flight shape as IdentityResolver's list.
      */
-    let inFlight: Promise<string> | undefined;
+    let inFlight: Promise<SessionCookie> | undefined;
 
     return {
         id: 'qbittorrent-session',
         apply(ctx) {
-            if (sid !== undefined) ctx.headers.set('Cookie', `SID=${sid}`);
+            if (cookie !== undefined) ctx.headers.set('Cookie', `${cookie.name}=${cookie.value}`);
         },
         async recover(response) {
             if (response.status !== 403) return false;
@@ -155,16 +160,21 @@ export function qbittorrentSession(creds: {
                 inFlight = undefined;
             });
 
-            sid = await inFlight;
+            cookie = await inFlight;
             return true;
         }
     };
 }
 
+interface SessionCookie {
+    name: string;
+    value: string;
+}
+
 async function qbittorrentLogin(
     creds: { url: string; username?: string; password?: string; timeoutMs: number },
     doFetch: typeof fetch
-): Promise<string> {
+): Promise<SessionCookie> {
     const base = new URL(creds.url);
     const url = new URL(base.pathname.replace(/\/+$/, '') + QB_LOGIN_PATH, base);
 
@@ -194,29 +204,34 @@ async function qbittorrentLogin(
         });
     }
 
-    // A wrong password is HTTP 200 with the body "Fails.", so the status line
-    // alone would read as a successful login that set no cookie.
-    if (!response.ok || body !== 'Ok.') {
+    // Two shapes of success: 5.2 answers 204 with an empty body, earlier
+    // versions 200 "Ok.". Neither status line is enough on its own — up to 5.1
+    // a wrong password is also a 200, with the body "Fails." (5.2 uses 401).
+    const accepted = response.status === 204 ? body === '' : response.status === 200 && body === 'Ok.';
+    if (!accepted) {
         throw new ServiceError('AuthFailed', 'qbittorrent', `login returned "${body || response.status}"`, {
             remedy: 'Check username and password against Options → Web UI in qBittorrent.'
         });
     }
 
-    const offered = readSid(response);
+    const offered = readSessionCookie(response);
     if (offered === undefined) {
-        throw new ServiceError('AuthFailed', 'qbittorrent', 'login succeeded but set no SID cookie');
+        throw new ServiceError('AuthFailed', 'qbittorrent', 'login succeeded but set no session cookie');
     }
     return offered;
 }
 
-function readSid(response: Response): string | undefined {
+/** `SID` up to 5.1, `QBT_SID_<webui-port>` from 5.2. */
+const QB_SESSION_COOKIE = /(?:^|,\s*)(QBT_SID(?:_\d+)?|SID)=([^;,\s]+)/;
+
+function readSessionCookie(response: Response): SessionCookie | undefined {
     const multi = response.headers.getSetCookie?.() ?? [];
     const single = response.headers.get('set-cookie');
     const all = multi.length > 0 ? multi : single === null ? [] : [single];
 
     for (const cookie of all) {
-        const match = /(?:^|,\s*)SID=([^;,\s]+)/.exec(cookie);
-        if (match?.[1] !== undefined) return match[1];
+        const match = QB_SESSION_COOKIE.exec(cookie);
+        if (match?.[1] !== undefined && match[2] !== undefined) return { name: match[1], value: match[2] };
     }
     return undefined;
 }
