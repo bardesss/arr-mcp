@@ -139,7 +139,7 @@ export function registerSetMonitoring(
             ];
 
             return {
-                target: `${service}:${id}`,
+                target: `${adapter.id}:${id}`,
                 summary: `${verb} ${scope} in ${service}.`,
                 effects,
                 args: {
@@ -154,12 +154,13 @@ export function registerSetMonitoring(
         },
 
         async apply(_plan, { service, instance, id, monitored, season, episodes }) {
-            await findAdapter(adapters, service, instance).setMonitoring(id, {
+            const adapter = findAdapter(adapters, service, instance);
+            await adapter.setMonitoring(id, {
                 monitored,
                 ...(season === undefined ? {} : { season }),
                 ...(episodes === undefined ? {} : { episodeIds: episodes })
             });
-            return { monitored, target: `${service}:${id}` };
+            return { monitored, target: `${adapter.id}:${id}` };
         }
     });
 }
