@@ -72,7 +72,7 @@ export function registerRemoveQueueItem(
             }
             const item = (await adapter.getQueue()).find(q => q.id === id);
             if (item === undefined) {
-                throw new ServiceError('NotFound', service, `nothing in ${service}'s queue has id "${id}"`, {
+                throw new ServiceError('NotFound', service, `nothing in ${adapter.id}'s queue has id "${id}"`, {
                     remedy:
                         'It may have finished or already been removed. Call get_queue for a current list — queue ids are not stable once an item leaves the queue.'
                 });
@@ -80,8 +80,8 @@ export function registerRemoveQueueItem(
 
             const effects = [
                 remove_from_client
-                    ? `Removes it from ${service} and deletes any partial data already downloaded.`
-                    : `Removes it from ${service}'s queue but leaves the download itself alone.`
+                    ? `Removes it from ${adapter.id} and deletes any partial data already downloaded.`
+                    : `Removes it from ${adapter.id}'s queue but leaves the download itself alone.`
             ];
 
             // Accepting a flag that silently does nothing is how someone
@@ -90,16 +90,16 @@ export function registerRemoveQueueItem(
                 effects.push(
                     adapter.supportsBlocklist
                         ? 'Blocklists this release, so it will not be grabbed again. Undoing this means finding it in the service\'s blocklist by hand.'
-                        : `Ignored: ${service} has no blocklist of its own. To blocklist a release, remove it from the Radarr or Sonarr queue instead.`
+                        : `Ignored: ${adapter.id} has no blocklist of its own. To blocklist a release, remove it from the Radarr or Sonarr queue instead.`
                 );
             }
 
             return {
-                target: `${service}:${id}`,
-                summary: `Remove ${item.title} from ${service}'s queue (currently ${item.status}).`,
+                target: `${adapter.id}:${id}`,
+                summary: `Remove ${item.title} from ${adapter.id}'s queue (currently ${item.status}).`,
                 effects,
                 args: {
-                    service,
+                    service: adapter.id,
                     id,
                     removeFromClient: remove_from_client,
                     // The *effective* value, not the requested one, so the
@@ -117,7 +117,7 @@ export function registerRemoveQueueItem(
                 removeFromClient: remove_from_client,
                 blocklist: blocklist && adapter.supportsBlocklist
             });
-            return { removed: `${service}:${id}` };
+            return { removed: `${adapter.id}:${id}` };
         }
     });
 }

@@ -89,15 +89,15 @@ export function registerPauseDownloads(
                 const client = findLimitAdapter(adapters, service, instance);
                 const current = await client.readSpeedLimit();
                 const wanted = speed_limit_kbps === 0 ? undefined : speed_limit_kbps;
-                const target = `${service}:limit`;
+                const target = `${client.id}:limit`;
 
                 if (current.kbps === wanted) {
                     return {
                         target,
                         summary:
                             wanted === undefined
-                                ? `${service} already has no download limit.`
-                                : `${service} is already limited to ${wanted} KB/s.`,
+                                ? `${client.id} already has no download limit.`
+                                : `${client.id} is already limited to ${wanted} KB/s.`,
                         effects: [],
                         noop: true
                     };
@@ -107,12 +107,12 @@ export function registerPauseDownloads(
                     target,
                     summary:
                         wanted === undefined
-                            ? `Remove the download limit on ${service}.`
-                            : `Limit ${service} to ${wanted} KB/s.`,
+                            ? `Remove the download limit on ${client.id}.`
+                            : `Limit ${client.id} to ${wanted} KB/s.`,
                     effects: [
                         wanted === undefined
-                            ? `${service} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KB/s`}.`
-                            : `Caps ${service} at ${wanted} KB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KB/s`}. Client-wide, not per item.`,
+                            ? `${client.id} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KB/s`}.`
+                            : `Caps ${client.id} at ${wanted} KB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KB/s`}. Client-wide, not per item.`,
                         'Does NOT stop Radarr or Sonarr grabbing. They keep sending releases; they just arrive more slowly.',
                         'Undo it by calling this tool again with action: "limit" and a different value — 0 removes the cap.'
                     ],
@@ -124,14 +124,14 @@ export function registerPauseDownloads(
             const paused = action === 'pause';
             const state = await adapter.readPauseState(id);
 
-            const target = `${service}:${id ?? 'all'}`;
+            const target = `${adapter.id}:${id ?? 'all'}`;
 
             // Asking someone to confirm a no-op teaches them to confirm
             // without reading.
             if (state.paused === paused) {
                 return {
                     target,
-                    summary: `${state.scope} on ${service} ${paused ? 'is already paused' : 'is already running'}.`,
+                    summary: `${state.scope} on ${adapter.id} ${paused ? 'is already paused' : 'is already running'}.`,
                     effects: [],
                     noop: true
                 };
@@ -139,19 +139,19 @@ export function registerPauseDownloads(
 
             const effects = paused
                 ? [
-                      `Stops ${state.scope} on ${service}. Nothing already downloaded is lost, and partial downloads resume where they left off.`,
+                      `Stops ${state.scope} on ${adapter.id}. Nothing already downloaded is lost, and partial downloads resume where they left off.`,
                       // The thing a bare "paused" would let someone believe.
                       'Does NOT stop Radarr or Sonarr searching and grabbing. They keep sending releases, which pile up in this client until it is resumed.',
                       `Undo it by calling this tool again with action: "resume".`
                   ]
                 : [
-                      `Restarts ${state.scope} on ${service}. Downloading resumes immediately and uses bandwidth.`,
+                      `Restarts ${state.scope} on ${adapter.id}. Downloading resumes immediately and uses bandwidth.`,
                       'Anything Radarr or Sonarr grabbed while it was paused starts downloading too.'
                   ];
 
             return {
                 target,
-                summary: `${paused ? 'Pause' : 'Resume'} ${state.scope} on ${service}.`,
+                summary: `${paused ? 'Pause' : 'Resume'} ${state.scope} on ${adapter.id}.`,
                 effects,
                 args: { action, ...(id === undefined ? {} : { id }) }
             };
@@ -160,12 +160,14 @@ export function registerPauseDownloads(
         async apply(_plan, { service, instance, action, id, speed_limit_kbps }) {
             if (action === 'limit') {
                 const kbps = speed_limit_kbps === undefined || speed_limit_kbps === 0 ? undefined : speed_limit_kbps;
-                await findLimitAdapter(adapters, service, instance).setSpeedLimit(kbps);
-                return { limitKbps: kbps ?? null, service };
+                const client = findLimitAdapter(adapters, service, instance);
+                await client.setSpeedLimit(kbps);
+                return { limitKbps: kbps ?? null, service: client.id };
             }
 
-            await findAdapter(adapters, service, instance).setPaused(action === 'pause', id);
-            return { [action === 'pause' ? 'paused' : 'resumed']: `${service}:${id ?? 'all'}` };
+            const adapter = findAdapter(adapters, service, instance);
+            await adapter.setPaused(action === 'pause', id);
+            return { [action === 'pause' ? 'paused' : 'resumed']: `${adapter.id}:${id ?? 'all'}` };
         }
     });
 }
