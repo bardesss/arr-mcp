@@ -805,7 +805,8 @@ describe('buildChain — the file remedy matches what was actually checked (N2)'
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
             queue: undefined,
             rejections: undefined,
-            degraded: ['sabnzbd', 'prowlarr']
+            degraded: ['sabnzbd', 'prowlarr'],
+            prowlarrDegraded: ['prowlarr']
         });
         expect(d.verdict.stage).toBe('file');
         expect(d.verdict.certain).toBe(false);

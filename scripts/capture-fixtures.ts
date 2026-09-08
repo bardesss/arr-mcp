@@ -605,6 +605,7 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     if (id === 'qbittorrent') {
         const q = service as { url: string; timeout_ms: number; username?: string; password?: string };
         return qbittorrentSession({
+            id,
             url: q.url,
             timeoutMs: q.timeout_ms,
             ...(q.username === undefined ? {} : { username: q.username }),

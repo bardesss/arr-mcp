@@ -295,6 +295,44 @@ describe('several Prowlarrs', () => {
         );
     });
 
+    it('merges rejections newest-first, not in whichever order the instances answered', async () => {
+        const withRejection = (date: string) => ({
+            ...routes,
+            '/api/v1/history': {
+                records: [{ indexerId: 1, date, successful: false, data: { query: 'q', reason: 'r' } }]
+            }
+        });
+
+        // The older rejection belongs to the instance listed first, so a merge
+        // that trusted arrival order over `at` would put it first too.
+        const result = await buildGetIndexers(
+            [named('public', withRejection('2020-01-01T00:00:00Z')), named('private', withRejection('2025-01-01T00:00:00Z'))],
+            { detail: 'full', limit: 50 }
+        );
+
+        expect(result.recentRejections?.map(r => r.at)).toEqual(['2025-01-01T00:00:00Z', '2020-01-01T00:00:00Z']);
+    });
+
+    it('bounds the merged rejection list to the requested limit', async () => {
+        const withRejections = (dates: string[]) => ({
+            ...routes,
+            '/api/v1/history': {
+                records: dates.map(date => ({ indexerId: 1, date, successful: false, data: { query: 'q', reason: 'r' } }))
+            }
+        });
+
+        const result = await buildGetIndexers(
+            [
+                named('public', withRejections(['2025-01-03T00:00:00Z', '2025-01-01T00:00:00Z'])),
+                named('private', withRejections(['2025-01-04T00:00:00Z', '2025-01-02T00:00:00Z']))
+            ],
+            { detail: 'full', limit: 2 }
+        );
+
+        expect(result.recentRejections).toHaveLength(2);
+        expect(result.recentRejections?.map(r => r.at)).toEqual(['2025-01-04T00:00:00Z', '2025-01-03T00:00:00Z']);
+    });
+
     it('sorts by instance so two of them produce a stable order', async () => {
         const first = await buildGetIndexers([named('public'), named('private')], { detail: 'minimal', limit: 50 });
         const second = await buildGetIndexers([named('private'), named('public')], { detail: 'minimal', limit: 50 });

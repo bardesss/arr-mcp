@@ -98,6 +98,7 @@ export class QbittorrentAdapter
             this.id,
             config,
             qbittorrentSession({
+                id: this.id,
                 url: config.url,
                 timeoutMs: config.timeout_ms,
                 ...(config.username === undefined ? {} : { username: config.username }),

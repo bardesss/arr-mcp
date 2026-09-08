@@ -175,6 +175,21 @@ describe('qbittorrent pause', () => {
             jsonResponse([{ hash: 'a', state: 'pausedDL' }, { hash: 'b', state: 'stoppedUP' }])) as unknown as typeof fetch;
         expect((await adapterWith(impl).readPauseState()).paused).toBe(true);
     });
+
+    it('names the qualified instance, not the bare service, when login is refused', async () => {
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname.endsWith('/torrents/info')) return jsonResponse([{ hash: 'abc', state: 'downloading' }]);
+            if (url.pathname.endsWith('/auth/login')) return new Response('', { status: 403 });
+            return new Response('Forbidden', { status: 403 });
+        }) as unknown as typeof fetch;
+
+        const named = new QbittorrentAdapter(
+            { ...credential(8081), name: 'vpn', username: 'u', password: 'p' },
+            impl
+        );
+        await expect(named.setPaused(true, 'abc')).rejects.toThrow(/qbittorrent\/vpn/);
+    });
 });
 
 // --- the tool ------------------------------------------------------------

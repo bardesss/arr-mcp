@@ -208,6 +208,11 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // Each instance probed separately so one unreachable Prowlarr degrades by
     // name instead of erasing the rejections another returned.
     const prowlarrDegraded: string[] = [];
+    // `undefined` keeps meaning every instance failed, which is what the
+    // stage's total-failure branch reads. Flattened lists are re-sorted
+    // newest-first: each instance answers in its own order, but the merge
+    // settles in whatever order the promises resolve, and `mine[0]` below is
+    // read as the most recent rejection overall.
     const rejectionsP: Promise<IndexerRejection[] | undefined> = !prowlarrConfigured
         ? Promise.resolve(undefined)
         : Promise.all(
@@ -216,9 +221,11 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                   if (rows === undefined) prowlarrDegraded.push(p.id);
                   return rows ?? [];
               })
-              // `undefined` keeps meaning every instance failed, which is what
-              // the stage's total-failure branch reads.
-          ).then(lists => (prowlarrDegraded.length === prowlarrs.length ? undefined : lists.flat()));
+          ).then(lists =>
+              prowlarrDegraded.length === prowlarrs.length
+                  ? undefined
+                  : lists.flat().sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+          );
 
     const scanP: Promise<ScanState | undefined> =
         scanAdapter === undefined

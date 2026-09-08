@@ -81,12 +81,19 @@ export async function buildGetIndexers(
     // the projected items reported none disabled however many were.
     const disabledCount = shaped.items.filter(i => i.disabledUntil !== undefined).length;
 
+    // Rejections are time-ordered; each instance answers its own newest-first,
+    // but as they settle in whatever order the promises resolve. Re-sort the
+    // merge, and re-apply the limit that bounded each instance alone.
+    const mergedRejections = rejections
+        .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+        .slice(0, opts.limit);
+
     return {
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
         disabledCount,
         degraded: degraded.sort(),
-        ...(sawRejections ? { recentRejections: rejections } : {})
+        ...(sawRejections ? { recentRejections: mergedRejections } : {})
     };
 }
 
