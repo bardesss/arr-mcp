@@ -180,8 +180,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     const seerr = deps.adapters.find(hasRequests);
     const queueAdapters = deps.adapters.filter(hasQueue);
     const queueConfigured = queueAdapters.length > 0;
-    const prowlarr = deps.adapters.find(hasIndexers);
-    const prowlarrConfigured = prowlarr !== undefined;
+    const prowlarrs = deps.adapters.filter(hasIndexers);
+    const prowlarrConfigured = prowlarrs.length > 0;
     // `hasUserLibrary`, matching what `LibraryLoader` itself selects on, so this
     // stage's "configured" cannot disagree with whether the library was gathered.
     const mediaServerAdapter = deps.adapters.find(hasUserLibrary);
@@ -205,10 +205,20 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         ? gather(queueAdapters.map(a => ({ id: a.id, fetch: () => a.getQueue() })))
         : Promise.resolve(undefined);
 
-    const rejectionsP: Promise<IndexerRejection[] | undefined> =
-        prowlarr === undefined
-            ? Promise.resolve(undefined)
-            : probe(prowlarr.id, degraded, () => prowlarr.getRecentRejections(RECENT_REJECTION_LIMIT));
+    // Each instance probed separately so one unreachable Prowlarr degrades by
+    // name instead of erasing the rejections another returned.
+    const prowlarrDegraded: string[] = [];
+    const rejectionsP: Promise<IndexerRejection[] | undefined> = !prowlarrConfigured
+        ? Promise.resolve(undefined)
+        : Promise.all(
+              prowlarrs.map(async p => {
+                  const rows = await probe(p.id, degraded, () => p.getRecentRejections(RECENT_REJECTION_LIMIT));
+                  if (rows === undefined) prowlarrDegraded.push(p.id);
+                  return rows ?? [];
+              })
+              // `undefined` keeps meaning every instance failed, which is what
+              // the stage's total-failure branch reads.
+          ).then(lists => (prowlarrDegraded.length === prowlarrs.length ? undefined : lists.flat()));
 
     const scanP: Promise<ScanState | undefined> =
         scanAdapter === undefined
@@ -277,6 +287,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         queueConfigured,
         rejections,
         prowlarrConfigured,
+        prowlarrDegraded: prowlarrDegraded.sort(),
         scan,
         ...(mediaServer === undefined ? {} : { mediaServer }),
         scanCapable: scanAdapter !== undefined,

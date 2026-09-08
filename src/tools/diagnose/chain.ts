@@ -30,6 +30,9 @@ export type Evidence = {
     rejections: IndexerRejection[] | undefined;
     /** Analogue of `mediaServer !== undefined`: no Prowlarr configured, not merely unreachable. */
     prowlarrConfigured: boolean;
+    /** The Prowlarr instances whose rejection read failed. Named rather than a
+     *  boolean: the stage has to say which half of the answer is missing. */
+    prowlarrDegraded: string[];
     scan: ScanState | undefined;
     /**
      * A third state beyond looked/could-not-look: **never configured**. Without
@@ -313,26 +316,43 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 
 function indexerStep(ev: Evidence, item: MergedItem): Step {
     if (!ev.prowlarrConfigured) return SKIPPED('indexers', 'No indexer manager is configured.');
-    if (ev.degraded.includes('prowlarr')) {
-        // `degraded` is probe reachability — the same array `scanStep` and
-        // `queueStep` read, and right here too: Prowlarr contributes no
-        // library-read half, so there is no `libraryDegraded` for it to consult
-        // instead. A service's own probe failing must count even when
-        // `rejections` happens to be defined from a stale read.
-        return { stage: 'indexers', service: 'prowlarr', status: 'unknown', detail: 'Prowlarr could not be reached.' };
+
+    const down = ev.prowlarrDegraded;
+
+    // Every instance failed. `rejections` being defined from a stale read must
+    // not outvote the probes.
+    if (ev.rejections === undefined) {
+        return {
+            stage: 'indexers',
+            status: 'unknown',
+            ...(down[0] === undefined ? {} : { service: down[0] }),
+            detail: `${down.length > 0 ? down.join(', ') : 'Prowlarr'} could not be reached.`
+        };
     }
-    if (ev.rejections === undefined) return { stage: 'indexers', service: 'prowlarr', status: 'unknown', detail: 'Prowlarr could not be reached.' };
 
     const mine = ev.rejections.filter(r => (r.query === undefined ? false : mentions(r.query, item)));
-    if (mine.length === 0) return SKIPPED('indexers', 'No recent indexer failures mention it.');
+    if (mine.length > 0) {
+        const first = mine[0] as IndexerRejection;
+        return {
+            stage: 'indexers',
+            service: first.service,
+            status: 'blocked',
+            detail: `${mine.length} recent indexer failure(s), most recently ${first.indexer} on ${first.service}: ${first.reason}.`
+        };
+    }
 
-    const first = mine[0] as IndexerRejection;
-    return {
-        stage: 'indexers',
-        service: 'prowlarr',
-        status: 'blocked',
-        detail: `${mine.length} recent indexer failure(s), most recently ${first.indexer}: ${first.reason}.`
-    };
+    // Nothing matched, but part of the answer is missing — the rejection that
+    // explains this grab may be in the half that did not answer.
+    if (down.length > 0) {
+        return {
+            stage: 'indexers',
+            service: down[0] as string,
+            status: 'unknown',
+            detail: `${down.join(', ')} could not be reached, so the indexers cannot be ruled out. The rest reported no failures mentioning it.`
+        };
+    }
+
+    return SKIPPED('indexers', 'No recent indexer failures mention it.');
 }
 
 function libraryStep(ev: Evidence, item: MergedItem): Step {

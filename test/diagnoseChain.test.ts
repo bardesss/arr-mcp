@@ -58,6 +58,7 @@ const healthy = (over: EvidenceOverride = {}): Evidence => {
         queueConfigured: true,
         rejections: [],
         prowlarrConfigured: true,
+        prowlarrDegraded: [],
         scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
         mediaServer: 'jellyfin',
         scanCapable: true,
@@ -383,6 +384,7 @@ describe('buildChain — certainty', () => {
             queueConfigured: true,
             rejections: [],
             prowlarrConfigured: true,
+            prowlarrDegraded: [],
             scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
             mediaServer: 'jellyfin',
             scanCapable: true,
@@ -477,6 +479,7 @@ describe('buildChain — certainty', () => {
             queueConfigured: true,
             rejections: [],
             prowlarrConfigured: true,
+            prowlarrDegraded: [],
             scan: undefined,
             mediaServer: 'jellyfin',
             scanCapable: true,
@@ -1167,16 +1170,16 @@ describe('buildChain — a queue fault does not outrank an already-playable file
 });
 
 describe('buildChain — degraded is read the same way for every stage (N8)', () => {
-    it('reports indexers as unreachable when Prowlarr is named in degraded, even if rejections happens to be present', () => {
+    it('reports indexers as unreachable when Prowlarr is named in prowlarrDegraded, even if rejections happens to be present', () => {
         // `scanStep`/`queueStep` already treat `degraded` (probe reachability
         // — item 2 keeps it separate from `libraryStep`'s `libraryDegraded`)
-        // as authoritative over their own dedicated field; `indexerStep` used
-        // to only ever consult `ev.rejections === undefined`.
+        // as authoritative over their own dedicated field; `indexerStep`
+        // reads its own `prowlarrDegraded` the same way.
         const d = buildChain('some film', {
             ...healthy(),
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
             rejections: [],
-            degraded: ['prowlarr']
+            prowlarrDegraded: ['prowlarr']
         });
         expect(stepFor(d, 'indexers')?.status).toBe('unknown');
     });
@@ -1190,6 +1193,68 @@ describe('buildChain — degraded is read the same way for every stage (N8)', ()
         });
         expect(stepFor(d, 'queue')?.status).toBe('unknown');
         expect(d.verdict.certain).toBe(false);
+    });
+});
+
+describe('buildChain — the indexer stage with several Prowlarrs', () => {
+    const rejection = (service: string, query: string) => ({
+        service,
+        indexer: 'NZBgeek',
+        at: '2026-09-01T10:00:00Z',
+        reason: 'Query rate limit exceeded',
+        query
+    });
+
+    it('names the instance that reported the blocking rejection', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            prowlarrDegraded: [],
+            rejections: [rejection('prowlarr/private', 'some film 2026')]
+        });
+        expect(stepFor(d, 'indexers')).toMatchObject({ status: 'blocked', service: 'prowlarr/private' });
+    });
+
+    // The blocking rejection may be in the half that did not answer, so the
+    // stage says it cannot tell rather than that the indexers are fine.
+    it('answers unknown when one instance is unreachable and the rest found nothing', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            prowlarrDegraded: ['prowlarr/private'],
+            rejections: []
+        });
+        const step = stepFor(d, 'indexers');
+        expect(step?.status).toBe('unknown');
+        expect(step?.detail).toContain('prowlarr/private');
+    });
+
+    it('still skips when every instance answered and none mentions it', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            prowlarrDegraded: [],
+            rejections: []
+        });
+        expect(stepFor(d, 'indexers')?.status).toBe('skipped');
+    });
+
+    it('answers unknown when every instance is unreachable', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            prowlarrDegraded: ['prowlarr/private', 'prowlarr/public'],
+            rejections: undefined
+        });
+        const step = stepFor(d, 'indexers');
+        expect(step?.status).toBe('unknown');
+        expect(step?.detail).toContain('prowlarr/public');
+    });
+
+    it('skips when none is configured', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            prowlarrConfigured: false,
+            prowlarrDegraded: [],
+            rejections: undefined
+        });
+        expect(stepFor(d, 'indexers')?.status).toBe('skipped');
     });
 });
 
