@@ -213,6 +213,7 @@ export class ProwlarrAdapter
                         .filter(Boolean)
                         .join(', ');
                 return {
+                    service: this.id,
                     indexer: nameOf(r.indexerId),
                     at: r.date,
                     reason: fenceText(described === '' ? 'failed, no reason recorded' : described, {

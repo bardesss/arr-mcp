@@ -26,34 +26,56 @@ const project = (i: IndexerSummary, detail: DetailLevel): IndexerSummary => {
     return rest;
 };
 
+/**
+ * Every configured Prowlarr, merged.
+ *
+ * A merged indexer list is the reason to run a second one, so this is a read
+ * that spans instances rather than one that asks which to look in. One failing
+ * degrades by name and the others still answer.
+ */
 export async function buildGetIndexers(
-    adapter: (ServiceAdapter & IndexerCapable) | undefined,
+    adapters: readonly (ServiceAdapter & IndexerCapable)[],
     opts: { detail: DetailLevel; limit: number; offset?: number }
 ): Promise<GetIndexersResult> {
-    if (adapter === undefined) {
+    if (adapters.length === 0) {
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [], disabledCount: 0 };
     }
 
-    let indexers: IndexerSummary[];
-    try {
-        indexers = await adapter.getIndexers();
-    } catch (err) {
-        logger.warn({ service: adapter.id, err }, 'indexer read failed; degrading');
-        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id], disabledCount: 0 };
-    }
+    const indexers: IndexerSummary[] = [];
+    const rejections: IndexerRejection[] = [];
+    const degraded: string[] = [];
+    let sawRejections = false;
 
-    // Rejections only at full detail, and never allowed to fail the call: a
-    // Prowlarr without a history endpoint still has indexers worth reporting.
-    let recentRejections: IndexerRejection[] | undefined;
-    if (opts.detail === 'full') {
-        try {
-            recentRejections = await adapter.getRecentRejections(opts.limit);
-        } catch (err) {
-            logger.warn({ service: adapter.id, err }, 'rejection history unavailable; omitting');
-        }
-    }
+    await Promise.all(
+        adapters.map(async adapter => {
+            try {
+                indexers.push(...(await adapter.getIndexers()));
+            } catch (err) {
+                logger.warn({ service: adapter.id, err }, 'indexer read failed; degrading');
+                degraded.push(adapter.id);
+                return;
+            }
 
-    const shaped = applyLimit(indexers, opts.limit, opts.offset);
+            // Rejections only at full detail, and never allowed to fail the
+            // call: a Prowlarr without a history endpoint still has indexers
+            // worth reporting.
+            if (opts.detail !== 'full') return;
+            try {
+                rejections.push(...(await adapter.getRecentRejections(opts.limit)));
+                sawRejections = true;
+            } catch (err) {
+                logger.warn({ service: adapter.id, err }, 'rejection history unavailable; omitting');
+            }
+        })
+    );
+
+    // Sorted so two instances produce a stable order rather than whichever
+    // answered first, which would make the output differ run to run.
+    const shaped = applyLimit(
+        indexers.sort((a, b) => a.service.localeCompare(b.service) || a.name.localeCompare(b.name)),
+        opts.limit,
+        opts.offset
+    );
 
     // Counted before projecting: `minimal` strips `disabledUntil`, so counting
     // the projected items reported none disabled however many were.
@@ -63,12 +85,15 @@ export async function buildGetIndexers(
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
         disabledCount,
-        degraded: [],
-        ...(recentRejections === undefined ? {} : { recentRejections })
+        degraded: degraded.sort(),
+        ...(sawRejections ? { recentRejections: rejections } : {})
     };
 }
 
-export function registerGetIndexers(server: McpServer, adapter: (ServiceAdapter & IndexerCapable) | undefined): void {
+export function registerGetIndexers(
+    server: McpServer,
+    adapters: readonly (ServiceAdapter & IndexerCapable)[]
+): void {
     server.registerTool(
         'get_indexers',
         {
@@ -86,12 +111,12 @@ export function registerGetIndexers(server: McpServer, adapter: (ServiceAdapter 
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
         },
         async ({ detail, limit, offset }) => {
-            const result = await buildGetIndexers(adapter, { detail, limit, offset });
+            const result = await buildGetIndexers(adapters, { detail, limit, offset });
             const disabled = result.disabledCount;
             const summary =
-                result.degraded.length > 0
-                    ? 'Prowlarr could not be reached; no indexer information available.'
-                    : `${result.returned} of ${result.total} indexer(s)${disabled > 0 ? `, ${disabled} temporarily disabled` : ''}.`;
+                result.degraded.length > 0 && result.total === 0
+                    ? `${result.degraded.join(', ')} could not be reached; no indexer information available.`
+                    : `${result.returned} of ${result.total} indexer(s)${disabled > 0 ? `, ${disabled} temporarily disabled` : ''}${result.degraded.length > 0 ? `. ${result.degraded.join(', ')} could not be reached` : ''}.`;
 
             return { content: [{ type: 'text', text: summary }], structuredContent: result };
         }

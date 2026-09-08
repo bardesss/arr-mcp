@@ -275,7 +275,7 @@ describe('buildChain — a symptom never outranks its cause', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: noFile,
-            rejections: [{ indexer: 'Indexer 1', at: '2026-08-05T09:00:00Z', reason: 'query failed', query: 'Some Film' }]
+            rejections: [{ service: 'prowlarr', indexer: 'Indexer 1', at: '2026-08-05T09:00:00Z', reason: 'query failed', query: 'Some Film' }]
         });
         expect(d.verdict.stage).toBe('indexers');
     });
@@ -303,7 +303,7 @@ describe('buildChain — a symptom does not outrank a chain that is not actually
     it('does not let a stale indexer rejection outrank a file already on disk', () => {
         const d = buildChain('some film', {
             ...healthy(),
-            rejections: [{ indexer: 'Indexer 1', at: '2020-01-01T00:00:00Z', reason: 'query failed', query: 'Some Film' }]
+            rejections: [{ service: 'prowlarr', indexer: 'Indexer 1', at: '2020-01-01T00:00:00Z', reason: 'query failed', query: 'Some Film' }]
         });
         expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
     });
@@ -567,7 +567,7 @@ describe('buildChain — verdict order is pinned, not incidental (I7)', () => {
             ...healthy(),
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
             queue: { items: [{ service: 'sabnzbd', id: '1', title: queueTitle('sabnzbd', 'Some.Film.2026'), status: 'stalled', errorMessage: 'x' }], partial: [] },
-            rejections: [{ indexer: 'Indexer 1', at: '2026-08-05T09:00:00Z', reason: 'query failed', query: 'Some Film' }]
+            rejections: [{ service: 'prowlarr', indexer: 'Indexer 1', at: '2026-08-05T09:00:00Z', reason: 'query failed', query: 'Some Film' }]
         });
         expect(d.verdict.stage).toBe('queue');
     });
@@ -576,7 +576,7 @@ describe('buildChain — verdict order is pinned, not incidental (I7)', () => {
         const d = buildChain('some film', {
             ...healthy(),
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
-            rejections: [{ indexer: 'Indexer 1', at: '2026-08-05T09:00:00Z', reason: 'query failed', query: 'Some Film' }]
+            rejections: [{ service: 'prowlarr', indexer: 'Indexer 1', at: '2026-08-05T09:00:00Z', reason: 'query failed', query: 'Some Film' }]
         });
         expect(d.verdict.stage).toBe('indexers');
     });
