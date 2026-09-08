@@ -134,7 +134,7 @@ Thirty-four tools, but you never name them — you ask, and the model picks:
 | --- | --- |
 | **[Tools](docs/tools.md)** | All thirty-four, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
-| **[Configuration](docs/configuration.md)** | `config.yaml`, several Radarrs, Jellyfin's `default_user` |
+| **[Configuration](docs/configuration.md)** | `config.yaml`, the seven services that take a list, Jellyfin's `default_user` |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
 | **[IMDb ratings](docs/imdb.md)** | The only way to get an IMDb score for a series, and what it costs |
 | **[Security](docs/security.md)** | The threat model, walked against the OWASP MCP Top 10, including what it does not solve |
