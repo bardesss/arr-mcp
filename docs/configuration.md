@@ -144,12 +144,10 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Three services stay single.** Jellyfin and Plex because `get_library`'s
-`presence` asks whether the media server can see a file, and with two of them
-that question has no answer — which is also why the two cannot both be
-configured. Seerr because a request carries the identity of the person who made
-it, and a second Seerr makes "which one do I ask" a guess with an approver on
-the other end of it.
+**Three services stay single.** Jellyfin and Plex because, as explained above,
+`get_library`'s per-user join needs exactly one counterparty. Seerr because a
+request carries the identity of the person who made it, and a second Seerr makes
+"which one do I ask" a guess with an approver on the other end of it.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 Transmission and qBittorrent.
