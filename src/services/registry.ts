@@ -28,6 +28,18 @@ import type { ServiceAdapter } from './types.ts';
  * The casts are narrowing a union the schema has already discriminated by key:
  * `services.jellyfin` cannot be a Transmission block. A `switch` cannot see
  * that, so each case restates the type its constructor needs.
+ *
+ * With two exceptions, and they are worth knowing about rather than tidying
+ * away. `qbittorrent` and `transmission` carry no cast because they need none:
+ * every `AnyServiceConfig` member structurally satisfies
+ * `Instanced<CredentialServiceConfig>`, so the compiler accepts any of them
+ * there. Adding a cast is rejected as unnecessary, which is the compiler
+ * confirming the gap rather than closing it.
+ *
+ * The consequence: swapping those two case bodies would hand the wrong config
+ * to the wrong constructor and still compile. Closing it properly means a
+ * type-level map from service id to config type, which is a change to the
+ * schema rather than to this file (#201).
  */
 export function buildAdapters(config: Config): ServiceAdapter[] {
     return listInstances(config).map(buildAdapter);

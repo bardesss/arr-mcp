@@ -380,3 +380,80 @@ describe('summarizeIndexers', () => {
         expect(summary).toContain('prowlarr/b could not be reached');
     });
 });
+
+/**
+ * #201 item 2. With one Prowlarr, a failed rejection history left
+ * `recentRejections` absent, which a caller can see. With two, one failing and
+ * one succeeding gave a list that was present, plausible, and missing half the
+ * stack — indistinguishable from a quiet week.
+ */
+describe('a partial rejection history says so', () => {
+    const working = {
+        id: 'prowlarr/main',
+        type: 'prowlarr' as const,
+        getIndexers: async () => [
+            {
+                service: 'prowlarr/main',
+                id: 1,
+                name: 'Alpha',
+                enabled: true,
+                protocol: 'usenet',
+                priority: 25
+            }
+        ],
+        getRecentRejections: async () => [
+            { service: 'prowlarr/main', indexer: 'Alpha', at: '2026-09-01T10:00:00Z', reason: 'no results' }
+        ]
+    };
+
+    const brokenHistory = {
+        ...working,
+        id: 'prowlarr/spare',
+        type: 'prowlarr' as const,
+        getIndexers: async () => [
+            {
+                service: 'prowlarr/spare',
+                id: 2,
+                name: 'Beta',
+                enabled: true,
+                protocol: 'torrent',
+                priority: 25
+            }
+        ],
+        getRecentRejections: async () => {
+            throw new Error('history endpoint gone');
+        }
+    };
+
+    const build = () =>
+        buildGetIndexers([working, brokenHistory] as never, { detail: 'full', limit: 50, offset: 0 });
+
+    it('names the instance whose history could not be read', async () => {
+        const result = await build();
+        expect(result.rejectionsUnavailable).toEqual(['prowlarr/spare']);
+    });
+
+    /** The instance answered its indexers, so it is not degraded — the two
+     *  fields describe different failures and must not be merged. */
+    it('does not call that instance degraded, because its indexers answered', async () => {
+        const result = await build();
+        expect(result.degraded).toEqual([]);
+        expect(result.total).toBe(2);
+    });
+
+    it('still returns what the working instance rejected', async () => {
+        const result = await build();
+        expect(result.recentRejections).toHaveLength(1);
+    });
+
+    it('says the list is partial in the sentence, not only the structure', async () => {
+        const result = await build();
+        expect(summarizeIndexers(result, 2)).toContain('partial');
+    });
+
+    it('stays absent when every instance answered', async () => {
+        const result = await buildGetIndexers([working] as never, { detail: 'full', limit: 50, offset: 0 });
+        expect(result.rejectionsUnavailable).toBeUndefined();
+        expect(summarizeIndexers(result, 1)).not.toContain('partial');
+    });
+});

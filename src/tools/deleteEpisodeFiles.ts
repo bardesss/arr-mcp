@@ -141,7 +141,7 @@ export function registerDeleteEpisodeFiles(
 
             if (fileIds.length === 0) {
                 return {
-                    target: `${service}:${id}:${season !== undefined ? `s${season}` : 'e'}`,
+                    target: `${adapter.id}:${id}:${season !== undefined ? `s${season}` : 'e'}`,
                     summary: `${scope} has no files on disk.`,
                     effects: [],
                     noop: true
@@ -206,7 +206,7 @@ export function registerDeleteEpisodeFiles(
             );
 
             return {
-                target: `${service}:${id}:${season !== undefined ? `s${season}` : `e${fileIds.join(',')}`}`,
+                target: `${adapter.id}:${id}:${season !== undefined ? `s${season}` : `e${fileIds.join(',')}`}`,
                 summary: `Delete ${fileIds.length} episode file(s) from ${scope}${size === undefined ? '' : `, ${size}`} from disk.`,
                 effects,
                 // The ids, not the season: a file imported between preview and

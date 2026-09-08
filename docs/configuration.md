@@ -169,6 +169,14 @@ services:
 `qbittorrent/vpn`. `pause_downloads` needs `instance` to say which one to stop —
 with two configured, omitting it is refused rather than guessed.
 
+**Two Prowlarrs with overlapping indexers return the same release twice.**
+`search_media` fans out across every configured Prowlarr and labels each row
+with the instance it came from, so a release both of them index comes back once
+per instance. That is the intended behaviour rather than a bug — de-duplicating
+would mean deciding which instance's copy to discard, and the two may differ in
+priority or in what they will actually grab — but it is worth knowing before
+you set up a public plus private split and wonder why the list looks doubled.
+
 ## Access
 
 ```yaml

@@ -58,7 +58,7 @@ export function registerRemoveBlocklistItem(
             }
 
             return {
-                target: `${service}:${id}`,
+                target: `${adapter.id}:${id}`,
                 summary: `Un-blocklist ${entry.title} on ${service}.`,
                 effects: [
                     `${service} may grab this release again the next time it searches.`,

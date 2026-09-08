@@ -145,7 +145,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             // be a duplicate entry rather than a second copy of the film.
             if (candidate.existingId !== undefined) {
                 return {
-                    target: `${service}:${external_id}`,
+                    target: `${adapter.id}:${external_id}`,
                     summary: `${label} is already in ${service} (id ${candidate.existingId}).`,
                     effects: [],
                     noop: true
@@ -205,7 +205,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             );
 
             return {
-                target: `${service}:${external_id}`,
+                target: `${adapter.id}:${external_id}`,
                 summary: `Add ${label} to ${service}.`,
                 effects,
                 // The resolved profile and folder, not the strings asked for:

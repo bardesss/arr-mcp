@@ -69,7 +69,10 @@ describe('buildAdapters', () => {
 });
 
 describe('multi-instance download clients and Prowlarr', () => {
-    const keyed = (name: string | undefined, port: number) => ({
+    // Named rather than a second `keyed`: the file-level one takes a port
+    // alone, and two same-named helpers with different arities twenty lines
+    // apart compile fine and read as a trap (#201).
+    const namedKeyed = (name: string | undefined, port: number) => ({
         ...(name === undefined ? {} : { name }),
         url: `http://192.0.2.10:${port}`,
         api_key: 'k',
@@ -86,7 +89,7 @@ describe('multi-instance download clients and Prowlarr', () => {
         buildAdapters(ConfigSchema.parse({ auth: AUTH, services }));
 
     it('gives two SABnzbds distinct ids and names', () => {
-        const adapters = build({ sabnzbd: [keyed('main', 8080), keyed('spare', 8081)] });
+        const adapters = build({ sabnzbd: [namedKeyed('main', 8080), namedKeyed('spare', 8081)] });
         expect(adapters.map(a => a.id)).toEqual(['sabnzbd/main', 'sabnzbd/spare']);
         expect(adapters.map(a => a.instance)).toEqual(['main', 'spare']);
         // Capability dispatch keys on this, so both must still say what they are.
@@ -94,7 +97,7 @@ describe('multi-instance download clients and Prowlarr', () => {
     });
 
     it('gives two Prowlarrs distinct ids', () => {
-        expect(build({ prowlarr: [keyed('public', 9696), keyed('private', 9697)] }).map(a => a.id)).toEqual([
+        expect(build({ prowlarr: [namedKeyed('public', 9696), namedKeyed('private', 9697)] }).map(a => a.id)).toEqual([
             'prowlarr/private',
             'prowlarr/public'
         ]);
@@ -112,8 +115,8 @@ describe('multi-instance download clients and Prowlarr', () => {
     });
 
     it('keeps the bare id for a single block', () => {
-        expect(build({ sabnzbd: keyed(undefined, 8080) })[0]?.id).toBe('sabnzbd');
-        expect(build({ sabnzbd: keyed(undefined, 8080) })[0]?.instance).toBeUndefined();
+        expect(build({ sabnzbd: namedKeyed(undefined, 8080) })[0]?.id).toBe('sabnzbd');
+        expect(build({ sabnzbd: namedKeyed(undefined, 8080) })[0]?.instance).toBeUndefined();
     });
 
     // ServiceHttp's first argument is what reaches error messages and log rows.
@@ -123,7 +126,7 @@ describe('multi-instance download clients and Prowlarr', () => {
             throw new Error('connection refused');
         }) as unknown as typeof fetch;
 
-        const adapter = new SabnzbdAdapter({ ...keyed('spare', 8081), timeout_ms: 10_000 } as never, refuse);
+        const adapter = new SabnzbdAdapter({ ...namedKeyed('spare', 8081), timeout_ms: 10_000 } as never, refuse);
         await expect(adapter.getVersion()).rejects.toMatchObject({ service: 'sabnzbd/spare' });
     });
 });

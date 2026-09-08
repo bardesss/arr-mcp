@@ -104,7 +104,7 @@ export function registerDeleteMedia(
             }
 
             return {
-                target: `${service}:${id}`,
+                target: `${adapter.id}:${id}`,
                 summary:
                     `Delete ${label} from ${service}` +
                     (delete_files

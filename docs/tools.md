@@ -64,9 +64,19 @@ rather than accepting their ten-row default, and `get_requests` and
 `get_indexers` push a status filter upstream where the service supports one, so
 a filtered answer is not a filtered slice of an arbitrary window.
 
-Tools spanning several services also report which ones they could not reach, and
-how many results each contributed, so a long answer from one service can never
-silently hide another.
+Tools spanning several services also report which ones they could not reach, so
+a long answer from one service can never silently hide another being down. Most
+of them carry `counts` as well, saying how many results each contributed;
+`get_indexers` and `get_subtitles` do not, and every row there names its own
+service instead.
+
+Two of those tools carry a second kind of gap. `get_indexers` reads rejection
+history alongside the indexers themselves, and `get_subtitles` reads provider
+state alongside the gaps; either can fail while the main read succeeds. That is
+**not** `degraded` — the instance did answer — so it is reported separately as
+`rejectionsUnavailable` and `providersUnavailable`, naming the instances whose
+half is missing. Without it, one of two Prowlarrs failing leaves a rejection
+list that is present, plausible and missing half the stack.
 
 `get_indexers` does the same across instances of one service: it merges every
 configured Prowlarr, each row naming the instance it came from, and one

@@ -157,7 +157,7 @@ export function registerGrabRelease(
             }
 
             return {
-                target: `${service}:${guid}`,
+                target: `${adapter.id}:${guid}`,
                 summary: `Grab ${match.title} from ${match.indexer} for ${service}.`,
                 effects,
                 // Both, because both decide what apply() sends. A token that
