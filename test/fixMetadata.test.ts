@@ -93,8 +93,12 @@ function harness(
             return new Response(null, { status: 204 });
         }
 
-        if (url.pathname === '/Items' && url.searchParams.get('IncludeItemTypes') === 'Movie') {
-            return jsonResponse({ Items: opts.films ?? [] });
+        // Both film reads: the whole-library one and the by-id one fix_metadata
+        // uses so a single repair does not pull the entire film library.
+        if (url.pathname === '/Items') {
+            const wanted = url.searchParams.get('ids');
+            const films = opts.films ?? [];
+            return jsonResponse({ Items: wanted === null ? films : films.filter(f => f.Id === wanted) });
         }
 
         if (url.pathname.startsWith('/Shows/')) {
@@ -338,8 +342,20 @@ describe('episodes pinned to their own provider ids', () => {
         expect(text).not.toContain('pinned');
     });
 
-    it('reports the repair unverified when the mismatch count did not move', async () => {
+    /** A write the preview predicts will do nothing no longer issues a token:
+     *  confirming a destructive no-op is how confirming becomes reflexive. */
+    it('does not offer to confirm a repair it expects to achieve nothing', async () => {
         const h = harness({ episodes: [pinned(1)] });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.confirm_token).toBeUndefined();
+        expect(h.wrote).toHaveLength(0);
+    });
+
+    it('reports the repair unverified when the mismatch count did not move', async () => {
+        // Unpinned, so the repair is worth attempting and a token is issued.
+        const h = harness({ episodes: [broken(1)] });
         const preview = await h.call({ query: 'Dragon Ball Kai' });
         const { structuredContent } = await h.call({
             query: 'Dragon Ball Kai',

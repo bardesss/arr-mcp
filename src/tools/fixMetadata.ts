@@ -83,6 +83,29 @@ type Resolved = {
     kind: 'movie' | 'series';
     tvdbId?: number;
     tmdbId?: number;
+    /** No Radarr or Sonarr manages this, so any provider id on it is the media
+     *  server's own — possibly the wrong one that caused the mismatch. */
+    unmanaged: boolean;
+};
+
+/**
+ * Which provider id the repair will actually pin, decided once.
+ *
+ * TMDB for a film because Radarr is built on it, TVDB for a series because
+ * Sonarr is, with the other as a fallback. The summary, the "not pinned"
+ * warning and the confirmation token all read this, so none of the three can
+ * describe a different id from the one `apply` sends.
+ */
+const pinnedProvider = (
+    item: Resolved
+): { label: string; id?: { tvdbId?: number; tmdbId?: number } } => {
+    const order = item.kind === 'movie' ? ([['TMDB', 'tmdbId'], ['TVDB', 'tvdbId']] as const) : ([['TVDB', 'tvdbId'], ['TMDB', 'tmdbId']] as const);
+
+    for (const [label, key] of order) {
+        const value = item[key];
+        if (value !== undefined) return { label: `${label} ${value}`, id: { [key]: value } };
+    }
+    return { label: 'no pinned provider id' };
 };
 
 /**
@@ -111,6 +134,7 @@ async function resolve(loader: LibraryLoader, query: string): Promise<Resolved> 
         itemId,
         title: best.title,
         kind: best.kind,
+        unmanaged: best.acquisition === undefined,
         ...(best.ids.tvdb === undefined ? {} : { tvdbId: best.ids.tvdb }),
         ...(best.ids.tmdb === undefined ? {} : { tmdbId: best.ids.tmdb })
     };
@@ -155,7 +179,7 @@ export function registerFixMetadata(
             let mismatches: Mismatch[];
 
             if (series.kind === 'movie') {
-                const films = (await adapter.readMovieMetadata(viewer)).filter(m => m.id === series.itemId);
+                const films = await adapter.readMovieMetadata(viewer, series.itemId);
                 parts = films;
                 mismatches = findMovieMismatches(films);
             } else {
@@ -199,27 +223,33 @@ export function registerFixMetadata(
              * 68 mismatching episodes carried their own AniDB/TVDB ids, the
              * repair applied cleanly, and every title came back identical.
              */
+            // Films are exempt. An episode pinned to a provider id keeps its
+            // scan-time numbering across a refresh, which is what makes the
+            // repair pointless there. A film has no such index: its year and
+            // title come from the match, and re-identifying re-derives both —
+            // so every matched film would otherwise be told, wrongly, that this
+            // repair achieves nothing and to rename a Sonarr series.
             const byId = new Map(parts.map(e => [e.id, e]));
-            const pinned = mismatches.filter(m => {
-                const record = byId.get(m.id);
-                return record !== undefined && pinnedToProvider(record);
-            }).length;
+            const pinned =
+                series.kind === 'movie'
+                    ? 0
+                    : mismatches.filter(m => {
+                          const record = byId.get(m.id);
+                          return record !== undefined && pinnedToProvider(record);
+                      }).length;
 
             const numbering = mismatches.filter(m => m.reasons.includes('numbering')).length;
             const titleOnly = mismatches.length - numbering;
-            const provider =
-                series.tvdbId !== undefined
-                    ? `TVDB ${series.tvdbId}`
-                    : series.tmdbId !== undefined
-                      ? `TMDB ${series.tmdbId}`
-                      : 'no pinned provider id';
+            // One decision, used by the summary, the warning and the token
+            // binding, so the three cannot disagree about which id is pinned.
+            const provider = pinnedProvider(series);
 
             return {
                 target,
                 summary:
                     pinned === mismatches.length
                         ? `${series.title} has ${mismatches.length} of ${comparable} episodes disagreeing with their files, but every one of them was matched to a specific provider episode — a refresh will not move those, and this repair is expected to change nothing.`
-                        : `Re-identify ${series.title} against ${provider} and replace all of its metadata: ${mismatches.length} of ${comparable} ${unit} disagree with their files.`,
+                        : `Re-identify ${series.title} against ${provider.label} and replace all of its metadata: ${mismatches.length} of ${comparable} ${unit} disagree with their files.`,
                 effects: [
                     ...(pinned === 0
                         ? []
@@ -229,9 +259,17 @@ export function registerFixMetadata(
                                   : `${pinned} of the ${mismatches.length} mismatching episodes were matched to a specific provider episode, and a refresh will not move those — an episode's numbers and title are stored on the item from the original scan, not re-derived from the file. For those, trigger_scan with action "rename" on the Sonarr series and then a Jellyfin rescan is the repair that works.`
                           ]),
                     'Replaces every metadata field on the series and its episodes. Anything corrected by hand in Jellyfin is overwritten, and the previous values are not recoverable.',
-                    ...(series.tvdbId === undefined
+                    ...(provider.id === undefined
                         ? [
-                              'No TVDB id is known for this series, so the identity is not pinned before the refresh — the server may re-match it the same wrong way. Consider fixing the series in Sonarr first.'
+                              'No provider id is known for this title, so the identity is not pinned before the refresh — the server may re-match it the same wrong way. Fix it in Radarr or Sonarr first.'
+                          ]
+                        : []),
+                    // m3: an id that came only from the media server is not
+                    // independent evidence — it may be the wrong id that caused
+                    // this. Say so rather than presenting it as a fix.
+                    ...(provider.id !== undefined && series.unmanaged
+                        ? [
+                              `${provider.label} is the media server's own id for this title, and no Radarr or Sonarr manages it — so re-identifying may pin exactly the id that is already wrong.`
                           ]
                         : []),
                     `${numbering} episode${numbering === 1 ? '' : 's'} where the path's own season/episode number disagrees with the server.`,
@@ -243,6 +281,11 @@ export function registerFixMetadata(
                 // changed between preview and confirm, the evidence the person
                 // agreed to no longer describes what would happen, and a fresh
                 // preview is the right outcome.
+                // No token for a write this predicts will do nothing. Issuing
+                // one asks a person to confirm a destructive, irreversible
+                // operation whose own preview says it achieves nothing, which
+                // is how confirming becomes reflexive.
+                ...(pinned > 0 && pinned === mismatches.length && numbering > 0 ? { noop: true } : {}),
                 args: {
                     itemId: series.itemId,
                     mismatches: mismatches.length,
@@ -250,39 +293,35 @@ export function registerFixMetadata(
                     // for a preview that unpinned nothing must not authorise one
                     // that unpins sixty-eight episodes.
                     pinned,
-                    ...(series.tvdbId === undefined ? {} : { tvdbId: series.tvdbId })
+                    kind: series.kind,
+                    // The id `apply` will actually pin, not just the series one:
+                    // a film pins TMDB, and binding only TVDB left a change to
+                    // the film's merged TMDB id invisible to the token.
+                    ...(provider.id === undefined ? {} : { providerId: provider.id })
                 }
             };
         },
 
-        async apply(_plan, { query, user }) {
+        async apply(plan, { user }) {
             const adapter = jellyfinAdapter(adapters);
             const viewer = await requireIdentity(adapters, identity).resolve(user);
-            const series = await resolve(loader, query);
+
+            // From the plan the token was verified against, not a second
+            // resolve. Re-resolving would let a concurrent write that
+            // invalidated the library index land this repair on a different
+            // item than the one the confirmation names.
+            const bound = plan.args as { itemId: string; kind: 'movie' | 'series'; providerId?: { tvdbId?: number; tmdbId?: number } };
+            const series = { itemId: bound.itemId, kind: bound.kind, title: plan.summary };
 
             const read = async (): Promise<Mismatch[]> =>
                 series.kind === 'movie'
-                    ? findMovieMismatches((await adapter.readMovieMetadata(viewer)).filter(m => m.id === series.itemId))
+                    ? findMovieMismatches(await adapter.readMovieMetadata(viewer, series.itemId))
                     : findMismatches(await adapter.readEpisodeMetadata(viewer, series.itemId));
 
             const before = await read();
 
-            await adapter.repairMetadata(series.itemId, {
-                // Whichever provider the managing *arr is the source of truth
-                // for: TMDB for a film, because Radarr is built on it, and TVDB
-                // for a series, because Sonarr is and its id is the one the file
-                // layout was built from. The other rides along only as a
-                // fallback when the first is unknown.
-                ...(series.kind === 'movie'
-                    ? {
-                          ...(series.tmdbId === undefined ? {} : { tmdbId: series.tmdbId }),
-                          ...(series.tmdbId === undefined && series.tvdbId !== undefined ? { tvdbId: series.tvdbId } : {})
-                      }
-                    : {
-                          ...(series.tvdbId === undefined ? {} : { tvdbId: series.tvdbId }),
-                          ...(series.tvdbId === undefined && series.tmdbId !== undefined ? { tmdbId: series.tmdbId } : {})
-                      })
-            });
+            // Exactly the id the preview named and the token bound.
+            await adapter.repairMetadata(series.itemId, bound.providerId ?? {});
 
             // Jellyfin refreshes asynchronously, so this re-read is a snapshot
             // taken while the work is very likely still running. It is reported

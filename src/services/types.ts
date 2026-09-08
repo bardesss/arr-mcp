@@ -346,9 +346,10 @@ export interface MetadataInspectCapable {
      *  where it has one. */
     readEpisodeMetadata(user: ServiceUser, seriesItemId: string): Promise<EpisodeRecord[]>;
 
-    /** Every film in one call. Films need no per-title read the way episodes
-     *  need a per-series one. */
-    readMovieMetadata(user: ServiceUser): Promise<MovieRecord[]>;
+    /** Every film in one call, or just one when `itemId` is given. Films need
+     *  no per-title read the way episodes need a per-series one, but a caller
+     *  repairing a single film should not pull the whole library to find it. */
+    readMovieMetadata(user: ServiceUser, itemId?: string): Promise<MovieRecord[]>;
 }
 
 export const hasMetadataInspect = (a: ServiceAdapter): a is ServiceAdapter & MetadataInspectCapable =>

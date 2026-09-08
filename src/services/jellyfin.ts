@@ -570,9 +570,18 @@ export class JellyfinAdapter
      * sweep of a large library costs one request here and one per series
      * there.
      */
-    async readMovieMetadata(user: ServiceUser): Promise<MovieRecord[]> {
+    async readMovieMetadata(user: ServiceUser, itemId?: string): Promise<MovieRecord[]> {
+        // One film by id when the caller wants one. `fix_metadata` reads a film
+        // four times across a preview and a confirm, and pulling the whole film
+        // library each time is a multi-megabyte response under a read timeout
+        // meant for a small one — which `get` then retries once before failing.
+        const scope =
+            itemId === undefined
+                ? '&Recursive=true&IncludeItemTypes=Movie'
+                : `&ids=${encodeURIComponent(this.#itemId(itemId))}`;
+
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
-            `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Movie` +
+            `/Items?userId=${encodeURIComponent(user.id)}${scope}` +
                 '&Fields=Path,ProviderIds&EnableImages=false'
         );
 

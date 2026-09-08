@@ -127,7 +127,13 @@ export function registerGetSubtitles(server: McpServer, adapters: readonly (Serv
             const unhealthy = (result.providers ?? []).filter(p => !p.healthy).length;
             const summary =
                 result.degraded.length > 0
-                    ? `Bazarr could not be reached (${result.degraded.join(', ')}); subtitle information may be incomplete.`
+                    ? `Bazarr could not be reached (${result.degraded.join(', ')}); subtitle information may be incomplete.` +
+                      // Kept on this branch too: one instance down and another
+                      // half-answering are different holes, and naming only the
+                      // first hides the second.
+                      (result.providersUnavailable === undefined
+                          ? ''
+                          : ` Provider state is also missing for ${result.providersUnavailable.join(', ')}.`)
                     : `${result.returned} of ${result.total} item(s) missing subtitles` +
                       (unhealthy > 0 ? `; ${unhealthy} provider(s) unavailable.` : '.') +
                       // Said out loud for the same reason get_indexers says it:

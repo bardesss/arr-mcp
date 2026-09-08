@@ -678,7 +678,7 @@ enough to be certain — treat it as the likely fix rather than a verdict:
 - Dragon Ball Kai, where a refresh changed nothing twice.
 
 Rows are worst-first: `numbering` findings outrank title ones, then sheer count.
-`seriesScanned` is the denominator — without it, "0 problems" and "0 series
+`itemsScanned` is the denominator — without it, "0 problems" and "0 series
 looked at" read identically.
 
 ## `fix_metadata`
@@ -808,8 +808,9 @@ a read that asks for it and only for a user who may see it.
 ### The result does not claim the repair finished
 
 Jellyfin refreshes in the background, so the re-read that follows the write is
-a snapshot taken while the work is very likely still running. A non-zero
-`remaining` immediately afterwards is not evidence the repair failed. Check
+a snapshot taken while the work is very likely still running. A
+`mismatchesAfter` still equal to `mismatchesBefore` immediately afterwards is
+not evidence the repair failed, which is what `verified: false` says. Check
 `stack_health` for the running task, then re-run with `dry_run` to see the
 settled result.
 

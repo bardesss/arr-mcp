@@ -209,7 +209,7 @@ export function registerUpdateMedia(
                 changes.push('tags');
             }
 
-            const target = `${service}:${id}`;
+            const target = `${adapter.id}:${id}`;
 
             // A folder change is never a no-op even when the path looks the
             // same: `root_folder` is matched loosely, and the service decides
