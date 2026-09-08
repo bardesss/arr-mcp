@@ -102,7 +102,7 @@ reads.
 `get_library`'s per-user join needs exactly one counterparty, and the schema
 refuses a config that sets both.
 
-## Several Radarrs, Sonarrs or Bazarrs
+## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
 both. Give each one a name:
@@ -144,10 +144,30 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-Only Radarr, Sonarr and Bazarr take a list. The other five are one each:
-Prowlarr feeds every *arr from one place, Seerr connects to your instances
-itself, and a second download client is a different kind of setup from a quality
-tier.
+**Three services stay single.** Jellyfin and Plex because, as explained above,
+`get_library`'s per-user join needs exactly one counterparty. Seerr because a
+request carries the identity of the person who made it, and a second Seerr makes
+"which one do I ask" a guess with an approver on the other end of it.
+
+Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
+Transmission and qBittorrent.
+
+Two download clients, one behind a VPN and one not:
+
+```yaml
+services:
+  qbittorrent:
+    - name: vpn
+      url: http://192.168.1.20:8081
+      username: admin
+      password: "…"
+    - name: direct
+      url: http://192.168.1.20:8082
+```
+
+`get_queue` reports both, each row saying which client it came from as
+`qbittorrent/vpn`. `pause_downloads` needs `instance` to say which one to stop —
+with two configured, omitting it is refused rather than guessed.
 
 ## Access
 

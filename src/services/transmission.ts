@@ -1,4 +1,5 @@
-import type { ServiceId, CredentialServiceConfig } from '../config/schema.ts';
+import { instanceId } from '../config/instances.ts';
+import type { ServiceId, CredentialServiceConfig, Instanced } from '../config/schema.ts';
 import { transmissionRpc } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -70,12 +71,15 @@ export class TransmissionAdapter
         MagnetAddCapable
 {
     readonly type: ServiceId = 'transmission';
-    readonly id: string = 'transmission';
+    readonly instance: string | undefined;
+    readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: CredentialServiceConfig, fetchImpl: typeof fetch = fetch) {
+    constructor(config: Instanced<CredentialServiceConfig>, fetchImpl: typeof fetch = fetch) {
+        this.instance = config.name;
+        this.id = instanceId('transmission', config.name);
         this.#http = new ServiceHttp(
-            'transmission',
+            this.id,
             config,
             transmissionRpc({
                 ...(config.username === undefined ? {} : { username: config.username }),

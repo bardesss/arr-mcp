@@ -90,9 +90,9 @@ save is one the service actually knows rather than one you typed from memory. If
 the service does not answer, the field stays a plain text box and says so — you
 can always configure a service that is currently down.
 
-Adding a second Radarr, Sonarr or Bazarr asks you to name the one you already
-have, and says why: the name becomes part of the id, and that id is the
-permission key, the audit column, and what your agent passes. Removing an
+Adding a second instance of a service that takes several asks you to name the
+one you already have, and says why: the name becomes part of the id, and that id
+is the permission key, the audit column, and what your agent passes. Removing an
 instance asks once before it goes, because its API key is not recovered by
 re-adding it.
 

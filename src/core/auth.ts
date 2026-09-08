@@ -127,6 +127,7 @@ const QB_LOGIN_PATH = '/api/v2/auth/login';
  * clients on localhost" enabled therefore never logs in at all.
  */
 export function qbittorrentSession(creds: {
+    id: string;
     url: string;
     username?: string;
     password?: string;
@@ -172,7 +173,7 @@ interface SessionCookie {
 }
 
 async function qbittorrentLogin(
-    creds: { url: string; username?: string; password?: string; timeoutMs: number },
+    creds: { id: string; url: string; username?: string; password?: string; timeoutMs: number },
     doFetch: typeof fetch
 ): Promise<SessionCookie> {
     const base = new URL(creds.url);
@@ -190,7 +191,7 @@ async function qbittorrentLogin(
             signal: AbortSignal.timeout(creds.timeoutMs)
         });
     } catch (err) {
-        throw new ServiceError('AuthFailed', 'qbittorrent', 'the login request failed', { cause: err });
+        throw new ServiceError('AuthFailed', creds.id, 'the login request failed', { cause: err });
     }
 
     // Read before the status check, not after: a banned client sees 403 on
@@ -199,7 +200,7 @@ async function qbittorrentLogin(
     const body = (await response.text()).trim();
 
     if (response.status === 403) {
-        throw new ServiceError('AuthFailed', 'qbittorrent', 'login refused', {
+        throw new ServiceError('AuthFailed', creds.id, 'login refused', {
             remedy: 'qBittorrent bans a client after repeated failed logins. Wait, or clear the ban in Options → Web UI.'
         });
     }
@@ -209,14 +210,14 @@ async function qbittorrentLogin(
     // a wrong password is also a 200, with the body "Fails." (5.2 uses 401).
     const accepted = response.status === 204 ? body === '' : response.status === 200 && body === 'Ok.';
     if (!accepted) {
-        throw new ServiceError('AuthFailed', 'qbittorrent', `login returned "${body || response.status}"`, {
+        throw new ServiceError('AuthFailed', creds.id, `login returned "${body || response.status}"`, {
             remedy: 'Check username and password against Options → Web UI in qBittorrent.'
         });
     }
 
     const offered = readSessionCookie(response);
     if (offered === undefined) {
-        throw new ServiceError('AuthFailed', 'qbittorrent', 'login succeeded but set no session cookie');
+        throw new ServiceError('AuthFailed', creds.id, 'login succeeded but set no session cookie');
     }
     return offered;
 }

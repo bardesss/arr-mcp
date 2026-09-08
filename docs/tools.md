@@ -66,6 +66,10 @@ Tools spanning several services also report which ones they could not reach, and
 how many results each contributed, so a long answer from one service can never
 silently hide another.
 
+`get_indexers` does the same across instances of one service: it merges every
+configured Prowlarr, each row naming the instance it came from, and one
+unreachable instance degrades by name rather than emptying the answer.
+
 `diagnose` takes a title, or an exact `service` plus `id`, and returns a verdict
 rather than a list. With several instances of a service configured it also takes
 `instance`, worded exactly as the write tools word it.

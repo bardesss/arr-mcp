@@ -1,6 +1,7 @@
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import type {
     Config,
+    Instanced,
     KeyedServiceConfig,
     MultiUserServiceConfig
 } from '../config/schema.ts';
@@ -33,7 +34,7 @@ export function buildAdapters(config: Config): ServiceAdapter[] {
 }
 
 function buildAdapter(instance: ServiceInstance): ServiceAdapter {
-    const keyed = instance.config as KeyedServiceConfig;
+    const keyed = instance.config as Instanced<KeyedServiceConfig>;
 
     switch (instance.type) {
         case 'bazarr':

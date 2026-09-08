@@ -212,7 +212,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
 
     registerDiagnose(server, { adapters, library });
     registerStackHealth(server, adapters, instances);
-    registerGetIndexers(server, adapters.find(hasIndexers));
+    registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
     registerGetQueue(server, adapters);
     registerGetHistory(server, adapters);

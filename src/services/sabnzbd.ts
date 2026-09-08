@@ -1,4 +1,5 @@
-import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import { instanceId } from '../config/instances.ts';
+import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { queryParamKey } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -102,11 +103,14 @@ export class SabnzbdAdapter
         HistoryCapable
 {
     readonly type: ServiceId = 'sabnzbd';
-    readonly id: string = 'sabnzbd';
+    readonly instance: string | undefined;
+    readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: KeyedServiceConfig, fetchImpl: typeof fetch = fetch) {
-        this.#http = new ServiceHttp('sabnzbd', config, queryParamKey('apikey', config.api_key), fetchImpl);
+    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+        this.instance = config.name;
+        this.id = instanceId('sabnzbd', config.name);
+        this.#http = new ServiceHttp(this.id, config, queryParamKey('apikey', config.api_key), fetchImpl);
     }
 
     async getVersion(): Promise<string> {

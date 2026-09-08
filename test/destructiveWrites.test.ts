@@ -1,6 +1,6 @@
-import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
+import { instanceId, type ServiceInstance } from '../src/config/instances.ts';
 import type { AnyServiceConfig, KeyedServiceConfig, ServiceId, CredentialServiceConfig } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
@@ -418,6 +418,25 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
+// `instancesOf` (test/helpers/instances.ts) deliberately ignores `name` — this
+// file's tests are almost all a single unnamed instance per service. This
+// reads it when present, so a config built as `{ ...keyed(port), name: 'spare' }`
+// produces the qualified id its adapter actually carries, without growing that
+// shared helper to cover a case it was written to skip.
+const instancesWithNames = (map: Partial<Record<ServiceId, AnyServiceConfig>>): ServiceInstance[] =>
+    Object.entries(map).flatMap(([type, config]) => {
+        if (config === undefined) return [];
+        const name = (config as { name?: string }).name;
+        return [
+            {
+                id: instanceId(type as ServiceId, name),
+                type: type as ServiceId,
+                ...(name === undefined ? {} : { name }),
+                config
+            }
+        ];
+    });
+
 function harness(
     register: typeof registerDeleteMedia,
     opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}
@@ -443,7 +462,7 @@ function harness(
         server as never,
         {
             permissions: permissionSourceFrom(
-                instancesOf(opts.permissions ?? { radarr: tiered(false, true), sonarr: tiered(false, true) })
+                instancesWithNames(opts.permissions ?? { radarr: tiered(false, true), sonarr: tiered(false, true) })
             ),
             confirm: new ConfirmTokens(),
             audit,
@@ -597,6 +616,33 @@ describe('remove_queue_item', () => {
         });
 
         expect(structuredContent.effects.join(' ')).toContain('has no blocklist of its own');
+    });
+
+    it('records the instance in the audit target, not the bare service', async () => {
+        const spare = { ...tiered(false, true), name: 'spare' } as never;
+        const sabQueue = {
+            queue: { slots: [{ nzo_id: 'SABnzbd_nzo_ab12', filename: 'Alien.1979-GROUP', status: 'Downloading' }] }
+        };
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.search.includes('name=delete')) return jsonResponse({ status: true });
+            return jsonResponse(sabQueue);
+        }) as unknown as typeof fetch;
+
+        const h = harness(registerRemoveQueueItem, {
+            adapters: [new SabnzbdAdapter(spare, impl)],
+            permissions: { sabnzbd: spare }
+        });
+
+        const first = await h.call({ service: 'sabnzbd', instance: 'spare', id: 'SABnzbd_nzo_ab12' });
+        await h.call({
+            service: 'sabnzbd',
+            instance: 'spare',
+            id: 'SABnzbd_nzo_ab12',
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(h.audit.recent(10)[0]?.target).toBe('sabnzbd/spare:SABnzbd_nzo_ab12');
     });
 
     it('is refused by safe_write alone', async () => {

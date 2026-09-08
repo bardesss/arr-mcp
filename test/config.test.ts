@@ -1,4 +1,4 @@
-import type { KeyedServiceConfig } from '../src/config/schema.ts';
+import type { CredentialServiceConfig, KeyedServiceConfig } from '../src/config/schema.ts';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +10,8 @@ import { saveConfig, writeConfigAtomic } from '../src/config/save.ts';
 /** The list form makes each service key a union; every assertion here is
  *  about the single form, so this narrows once rather than at each call. */
 const single = (value: unknown): KeyedServiceConfig | undefined => value as KeyedServiceConfig | undefined;
+const singleCredential = (value: unknown): CredentialServiceConfig | undefined =>
+    value as CredentialServiceConfig | undefined;
 
 const freshDir = () => mkdtemp(join(tmpdir(), 'arr-mcp-cfg-'));
 /**
@@ -257,7 +259,7 @@ describe('per-service config shapes', () => {
             auth: AUTH,
             services: { transmission: { url: 'http://h:9091', username: 'u', password: 'p' } }
         });
-        expect(parsed.services.transmission?.username).toBe('u');
+        expect(singleCredential(parsed.services.transmission)?.username).toBe('u');
     });
 
     it('accepts transmission with no credentials at all — LAN RPC is often unauthenticated', () => {

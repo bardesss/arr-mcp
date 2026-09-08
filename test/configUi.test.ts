@@ -468,12 +468,12 @@ describe('adding an instance', () => {
     });
 
     it('refuses a second instance of a service that may only have one', async () => {
-        await seed('  prowlarr:\n    url: http://192.0.2.10:9696\n    api_key: k\n');
+        await seed('  seerr:\n    url: http://192.0.2.10:5055\n    api_key: k\n');
         await signIn();
 
         const res = await call(
             '/ui/config/add',
-            form({ csrf: await csrfFrom(), ...addForm({ type: 'prowlarr', name: 'second' }) })
+            form({ csrf: await csrfFrom(), ...addForm({ type: 'seerr', name: 'second' }) })
         );
         expect(res.status).toBe(400);
     });
@@ -548,14 +548,14 @@ describe('the add dialog', () => {
      *  one, is a click whose only outcome is "already configured". */
     it('drops a configured single-instance service from the picker', async () => {
         await seed(
-            '  prowlarr:\n    url: http://192.0.2.10:9696\n    api_key: k\n' +
+            '  seerr:\n    url: http://192.0.2.10:5055\n    api_key: k\n' +
                 '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n'
         );
         await signIn();
         const page = await (await call('/ui/config')).text();
 
         const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
-        expect(offered).not.toContain('prowlarr');
+        expect(offered).not.toContain('seerr');
         // Radarr takes more than one, so it stays.
         expect(offered).toContain('radarr');
         expect(page).toContain('Already configured, and limited to one instance');

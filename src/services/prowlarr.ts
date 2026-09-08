@@ -1,4 +1,5 @@
-import type { KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import { instanceId } from '../config/instances.ts';
+import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
@@ -68,11 +69,14 @@ export class ProwlarrAdapter
     implements ServiceAdapter, HealthCheckCapable, IndexerCapable, SearchCapable, LibraryScanCapable
 {
     readonly type: ServiceId = 'prowlarr';
-    readonly id: string = 'prowlarr';
+    readonly instance: string | undefined;
+    readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: KeyedServiceConfig, fetchImpl: typeof fetch = fetch) {
-        this.#http = new ServiceHttp('prowlarr', config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
+    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+        this.instance = config.name;
+        this.id = instanceId('prowlarr', config.name);
+        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
     }
 
     async getVersion(): Promise<string> {
@@ -209,6 +213,7 @@ export class ProwlarrAdapter
                         .filter(Boolean)
                         .join(', ');
                 return {
+                    service: this.id,
                     indexer: nameOf(r.indexerId),
                     at: r.date,
                     reason: fenceText(described === '' ? 'failed, no reason recorded' : described, {

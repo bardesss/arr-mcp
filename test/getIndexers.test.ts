@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
-import { buildGetIndexers } from '../src/tools/getIndexers.ts';
+import { buildGetIndexers, summarizeIndexers } from '../src/tools/getIndexers.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
@@ -57,7 +57,7 @@ const adapter = (r: Record<string, unknown> = routes) => new ProwlarrAdapter(con
 
 describe('get_indexers', () => {
     it('joins indexers with their status and statistics', async () => {
-        const result = await buildGetIndexers(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetIndexers([adapter()], { detail: 'full', limit: 50 });
         expect(result.items.find(i => i.name === 'NZBgeek')).toMatchObject({
             service: 'prowlarr',
             id: 1,
@@ -71,34 +71,34 @@ describe('get_indexers', () => {
     });
 
     it('fences the failure message, which is text the indexer chose', async () => {
-        const result = await buildGetIndexers(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetIndexers([adapter()], { detail: 'full', limit: 50 });
         expect(result.items.find(i => i.name === 'NZBgeek')?.lastFailure).toBe(
             '<<untrusted:prowlarr.mostRecentFailure>>Request limit reached<</untrusted>>'
         );
     });
 
     it('reports an indexer with no status row as not disabled rather than omitting it', async () => {
-        const result = await buildGetIndexers(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetIndexers([adapter()], { detail: 'full', limit: 50 });
         const torrentio = result.items.find(i => i.name === 'Torrentio');
         expect(torrentio?.enabled).toBe(false);
         expect(torrentio?.disabledUntil).toBeUndefined();
     });
 
     it('drops statistics at detail: standard but keeps health', async () => {
-        const result = await buildGetIndexers(adapter(), { detail: 'standard', limit: 50 });
+        const result = await buildGetIndexers([adapter()], { detail: 'standard', limit: 50 });
         const geek = result.items.find(i => i.name === 'NZBgeek');
         expect(geek?.queries).toBeUndefined();
         expect(geek?.disabledUntil).toBe('2026-08-05T12:00:00Z');
     });
 
     it('returns name and enabled only at detail: minimal', async () => {
-        const result = await buildGetIndexers(adapter(), { detail: 'minimal', limit: 50 });
+        const result = await buildGetIndexers([adapter()], { detail: 'minimal', limit: 50 });
         expect(Object.keys(result.items[0] ?? {}).sort()).toEqual(['enabled', 'id', 'name', 'service']);
     });
 
     it('reports truncation honestly', async () => {
         const many = repeat(INDEXERS[0]!, 120).map((i, n) => ({ ...i, id: n }));
-        const result = await buildGetIndexers(adapter({ ...routes, '/api/v1/indexer': many }), {
+        const result = await buildGetIndexers([adapter({ ...routes, '/api/v1/indexer': many })], {
             detail: 'standard',
             limit: 50
         });
@@ -107,7 +107,7 @@ describe('get_indexers', () => {
 
     it('still returns indexers when the statistics endpoint is down', async () => {
         const result = await buildGetIndexers(
-            adapter({ '/api/v1/indexer': INDEXERS, '/api/v1/indexerstatus': STATUS }),
+            [adapter({ '/api/v1/indexer': INDEXERS, '/api/v1/indexerstatus': STATUS })],
             { detail: 'full', limit: 50 }
         );
         expect(result.items).toHaveLength(2);
@@ -120,13 +120,13 @@ describe('get_indexers', () => {
             throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
         }) as unknown as typeof fetch;
 
-        const result = await buildGetIndexers(new ProwlarrAdapter(config, refuse), { detail: 'standard', limit: 50 });
+        const result = await buildGetIndexers([new ProwlarrAdapter(config, refuse)], { detail: 'standard', limit: 50 });
         expect(result.items).toEqual([]);
         expect(result.degraded).toEqual(['prowlarr']);
     });
 
     it('returns an empty result rather than throwing when Prowlarr is not configured', async () => {
-        expect(await buildGetIndexers(undefined, { detail: 'standard', limit: 50 })).toMatchObject({
+        expect(await buildGetIndexers([], { detail: 'standard', limit: 50 })).toMatchObject({
             items: [],
             total: 0,
             degraded: []
@@ -134,9 +134,10 @@ describe('get_indexers', () => {
     });
 
     it('returns the actual recent rejections, not just a count of them', async () => {
-        const result = await buildGetIndexers(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetIndexers([adapter()], { detail: 'full', limit: 50 });
         expect(result.recentRejections).toEqual([
             {
+                service: 'prowlarr',
                 indexer: 'NZBgeek',
                 at: '2026-08-04T22:10:00Z',
                 reason: '<<untrusted:prowlarr.reason>>Query rate limit exceeded<</untrusted>>',
@@ -146,19 +147,19 @@ describe('get_indexers', () => {
     });
 
     it('ignores successful history rows — those are not rejections', async () => {
-        const result = await buildGetIndexers(adapter(), { detail: 'full', limit: 50 });
+        const result = await buildGetIndexers([adapter()], { detail: 'full', limit: 50 });
         expect(result.recentRejections).toHaveLength(1);
     });
 
     it('omits rejections below detail: full, where they are noise', async () => {
         for (const detail of ['minimal', 'standard'] as const) {
-            const result = await buildGetIndexers(adapter(), { detail, limit: 50 });
+            const result = await buildGetIndexers([adapter()], { detail, limit: 50 });
             expect(result.recentRejections).toBeUndefined();
         }
     });
 
     it('reports an empty rejection list rather than omitting it when nothing was rejected', async () => {
-        const result = await buildGetIndexers(adapter({ ...routes, '/api/v1/history': { records: [] } }), {
+        const result = await buildGetIndexers([adapter({ ...routes, '/api/v1/history': { records: [] } })], {
             detail: 'full',
             limit: 50
         });
@@ -171,7 +172,7 @@ describe('get_indexers', () => {
             '/api/v1/indexerstatus': STATUS,
             '/api/v1/indexerstats': STATS
         };
-        const result = await buildGetIndexers(adapter(noHistory), { detail: 'full', limit: 50 });
+        const result = await buildGetIndexers([adapter(noHistory)], { detail: 'full', limit: 50 });
         expect(result.items).toHaveLength(2);
         expect(result.recentRejections).toBeUndefined();
         expect(result.degraded).toEqual([]);
@@ -181,7 +182,7 @@ describe('get_indexers', () => {
         // A busy Prowlarr has tens of indexers, not hundreds. This is the
         // number that matters in practice, and it should be cheap.
         const fifty = repeat(INDEXERS[0]!, 50).map((i, n) => ({ ...i, id: n, name: `Indexer number ${n}` }));
-        const result = await buildGetIndexers(adapter({ ...routes, '/api/v1/indexer': fifty }), {
+        const result = await buildGetIndexers([adapter({ ...routes, '/api/v1/indexer': fifty })], {
             detail: 'full',
             limit: 500
         });
@@ -193,7 +194,7 @@ describe('get_indexers', () => {
         // The ceiling exists so a shaping regression — an extra field, an
         // unfenced blob — shows up as a jump rather than silently.
         const many = repeat(INDEXERS[0]!, 500).map((i, n) => ({ ...i, id: n, name: `Indexer number ${n}` }));
-        const result = await buildGetIndexers(adapter({ ...routes, '/api/v1/indexer': many }), {
+        const result = await buildGetIndexers([adapter({ ...routes, '/api/v1/indexer': many })], {
             detail: 'full',
             limit: 500
         });
@@ -245,16 +246,137 @@ describe('counting disabled indexers at minimal detail', () => {
     };
 
     it('counts the disabled ones even when the projection drops the field', async () => {
-        const result = await buildGetIndexers(adapter(rows), { detail: 'minimal', limit: 50 });
+        const result = await buildGetIndexers([adapter(rows)], { detail: 'minimal', limit: 50 });
 
         expect(result.items[0]?.disabledUntil).toBeUndefined(); // the premise
         expect(result.disabledCount).toBe(2);
     });
 
     it('agrees with the full-detail count', async () => {
-        const minimal = await buildGetIndexers(adapter(rows), { detail: 'minimal', limit: 50 });
-        const full = await buildGetIndexers(adapter(rows), { detail: 'full', limit: 50 });
+        const minimal = await buildGetIndexers([adapter(rows)], { detail: 'minimal', limit: 50 });
+        const full = await buildGetIndexers([adapter(rows)], { detail: 'full', limit: 50 });
 
         expect(minimal.disabledCount).toBe(full.disabledCount);
+    });
+});
+
+describe('several Prowlarrs', () => {
+    const named = (name: string, r: Record<string, unknown> = routes) =>
+        new ProwlarrAdapter({ ...config, name }, serving(r));
+
+    const refuse = (async () => {
+        throw new Error('connection refused');
+    }) as unknown as typeof fetch;
+
+    it('merges the indexers of every instance, attributed to each', async () => {
+        const result = await buildGetIndexers([named('public'), named('private')], { detail: 'standard', limit: 50 });
+
+        expect(result.total).toBe(4);
+        expect(new Set(result.items.map(i => i.service))).toEqual(new Set(['prowlarr/public', 'prowlarr/private']));
+    });
+
+    // A partial list that says which Prowlarr is missing is useful; one that
+    // silently drops half is not.
+    it('degrades one by name while the other still answers', async () => {
+        const broken = new ProwlarrAdapter({ ...config, name: 'private' }, refuse);
+        const result = await buildGetIndexers([named('public'), broken], { detail: 'standard', limit: 50 });
+
+        expect(result.degraded).toEqual(['prowlarr/private']);
+        expect(result.total).toBe(2);
+        expect(result.items.every(i => i.service === 'prowlarr/public')).toBe(true);
+    });
+
+    it('attributes a merged rejection to the instance that reported it', async () => {
+        const result = await buildGetIndexers([named('public'), named('private')], { detail: 'full', limit: 50 });
+
+        expect(result.recentRejections?.length).toBeGreaterThan(0);
+        expect(new Set(result.recentRejections?.map(r => r.service))).toEqual(
+            new Set(['prowlarr/public', 'prowlarr/private'])
+        );
+    });
+
+    it('merges rejections newest-first, not in whichever order the instances answered', async () => {
+        const withRejection = (date: string) => ({
+            ...routes,
+            '/api/v1/history': {
+                records: [{ indexerId: 1, date, successful: false, data: { query: 'q', reason: 'r' } }]
+            }
+        });
+
+        // The older rejection belongs to the instance listed first, so a merge
+        // that trusted arrival order over `at` would put it first too.
+        const result = await buildGetIndexers(
+            [named('public', withRejection('2020-01-01T00:00:00Z')), named('private', withRejection('2025-01-01T00:00:00Z'))],
+            { detail: 'full', limit: 50 }
+        );
+
+        expect(result.recentRejections?.map(r => r.at)).toEqual(['2025-01-01T00:00:00Z', '2020-01-01T00:00:00Z']);
+    });
+
+    it('bounds the merged rejection list to the requested limit', async () => {
+        const withRejections = (dates: string[]) => ({
+            ...routes,
+            '/api/v1/history': {
+                records: dates.map(date => ({ indexerId: 1, date, successful: false, data: { query: 'q', reason: 'r' } }))
+            }
+        });
+
+        const result = await buildGetIndexers(
+            [
+                named('public', withRejections(['2025-01-03T00:00:00Z', '2025-01-01T00:00:00Z'])),
+                named('private', withRejections(['2025-01-04T00:00:00Z', '2025-01-02T00:00:00Z']))
+            ],
+            { detail: 'full', limit: 2 }
+        );
+
+        expect(result.recentRejections).toHaveLength(2);
+        expect(result.recentRejections?.map(r => r.at)).toEqual(['2025-01-04T00:00:00Z', '2025-01-03T00:00:00Z']);
+    });
+
+    it('sorts by instance so two of them produce a stable order', async () => {
+        const first = await buildGetIndexers([named('public'), named('private')], { detail: 'minimal', limit: 50 });
+        const second = await buildGetIndexers([named('private'), named('public')], { detail: 'minimal', limit: 50 });
+
+        expect(first.items.map(i => `${i.service}:${i.name}`)).toEqual(second.items.map(i => `${i.service}:${i.name}`));
+    });
+
+    it('answers empty when none is configured', async () => {
+        expect(await buildGetIndexers([], { detail: 'standard', limit: 50 })).toMatchObject({ total: 0, degraded: [] });
+    });
+
+    // A healthy Prowlarr with nothing configured also has total === 0. Only
+    // the fraction of instances actually degraded may claim total failure.
+    it('does not claim total failure when a healthy instance simply has no indexers', async () => {
+        const broken = new ProwlarrAdapter({ ...config, name: 'private' }, refuse);
+        const empty = named('public', { ...routes, '/api/v1/indexer': [] });
+        const result = await buildGetIndexers([empty, broken], { detail: 'standard', limit: 50 });
+
+        expect(result.total).toBe(0);
+        expect(result.degraded).toEqual(['prowlarr/private']);
+
+        const summary = summarizeIndexers(result, 2);
+        expect(summary).not.toContain('no indexer information available');
+        expect(summary).toContain('prowlarr/private could not be reached');
+    });
+});
+
+describe('summarizeIndexers', () => {
+    const base = { items: [], returned: 0, offset: 0, truncated: false, disabledCount: 0 };
+
+    it('claims total failure only when every configured instance degraded', () => {
+        const result = { ...base, total: 0, degraded: ['prowlarr/a', 'prowlarr/b'] };
+        expect(summarizeIndexers(result, 2)).toBe('prowlarr/a, prowlarr/b could not be reached; no indexer information available.');
+    });
+
+    it('names the degraded instance alongside the count when the others answered', () => {
+        const result = { ...base, total: 3, returned: 3, degraded: ['prowlarr/b'] };
+        expect(summarizeIndexers(result, 2)).toBe('3 of 3 indexer(s). prowlarr/b could not be reached.');
+    });
+
+    it('does not claim total failure when a healthy instance has zero indexers and another degraded', () => {
+        const result = { ...base, total: 0, degraded: ['prowlarr/b'] };
+        const summary = summarizeIndexers(result, 2);
+        expect(summary).not.toMatch(/no indexer information available/);
+        expect(summary).toContain('prowlarr/b could not be reached');
     });
 });

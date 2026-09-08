@@ -24,8 +24,8 @@ describe('adding an instance', () => {
     });
 
     it('refuses a second instance of a service that may only have one', () => {
-        const one = base({ prowlarr: KEYED });
-        expect(() => addInstance(one, { type: 'prowlarr', name: 'b', fields: KEYED })).toThrow(ConfigEditError);
+        const one = base({ seerr: KEYED });
+        expect(() => addInstance(one, { type: 'seerr', name: 'b', fields: KEYED })).toThrow(ConfigEditError);
     });
 
     /**
@@ -76,6 +76,26 @@ describe('adding an instance', () => {
             fields: KEYED
         });
         expect(() => addInstance(two, { type: 'radarr', name: '4K', fields: KEYED })).toThrow(/already has an instance/);
+    });
+
+    /**
+     * qBittorrent and Transmission are credential-shaped, not keyed: `applyFields`
+     * takes a different branch for them (username/password, no `api_key`), and
+     * this is the only place that path is exercised through `addInstance` at all.
+     */
+    it('adds a second qBittorrent, forcing the rename of the unnamed one', () => {
+        const one = base({ qbittorrent: { url: 'http://192.0.2.10:8081', username: 'u', password: 'p' } });
+        const two = addInstance(one, {
+            type: 'qbittorrent',
+            name: 'vpn',
+            renameExistingTo: 'direct',
+            fields: { url: 'http://192.0.2.11:8081', username: 'u2', password: 'p2' }
+        });
+
+        expect(ids(two)).toEqual(['qbittorrent/direct', 'qbittorrent/vpn']);
+        const vpn = listInstances(two).find(i => i.id === 'qbittorrent/vpn');
+        expect((vpn?.config as { username?: string }).username).toBe('u2');
+        expect((vpn?.config as { api_key?: string }).api_key).toBeUndefined();
     });
 
     it('refuses an edit that would produce an invalid config, before it reaches disk', () => {
