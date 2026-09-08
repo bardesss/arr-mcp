@@ -68,11 +68,11 @@ export function registerRemoveQueueItem(
             // an opaque id, and so an id that has already finished downloading
             // fails here instead of as a confusing 404 from a delete.
             if (!hasQueue(adapter)) {
-                throw new ServiceError('NotFound', service, `${adapter.id} cannot list its own queue`);
+                throw new ServiceError('NotFound', adapter.id, `${adapter.id} cannot list its own queue`);
             }
             const item = (await adapter.getQueue()).find(q => q.id === id);
             if (item === undefined) {
-                throw new ServiceError('NotFound', service, `nothing in ${adapter.id}'s queue has id "${id}"`, {
+                throw new ServiceError('NotFound', adapter.id, `nothing in ${adapter.id}'s queue has id "${id}"`, {
                     remedy:
                         'It may have finished or already been removed. Call get_queue for a current list — queue ids are not stable once an item leaves the queue.'
                 });

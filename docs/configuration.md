@@ -102,7 +102,7 @@ reads.
 `get_library`'s per-user join needs exactly one counterparty, and the schema
 refuses a config that sets both.
 
-## Several Radarrs, Sonarrs or Bazarrs
+## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
 both. Give each one a name:

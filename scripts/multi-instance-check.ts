@@ -178,11 +178,15 @@ await run('diagnose over the doubled library', 'diagnose', { query: 'the' });
 // caught by the zero-total SKIP below.
 type FanOutContent = { total?: number; items?: { service?: string }[]; counts?: Record<string, number> };
 
-const checkFanOut = async (tool: 'get_queue' | 'get_indexers', types: readonly string[]) => {
+const checkFanOut = async (
+    tool: 'get_queue' | 'get_indexers',
+    types: readonly string[],
+    args: Record<string, unknown> = {}
+) => {
     if (types.length === 0) return;
 
-    const before = ((await callTool(single, token, tool, {})).structuredContent as FanOutContent | undefined)?.total;
-    const afterContent = (await callTool(multi, token, tool, {})).structuredContent as FanOutContent | undefined;
+    const before = ((await callTool(single, token, tool, args)).structuredContent as FanOutContent | undefined)?.total;
+    const afterContent = (await callTool(multi, token, tool, args)).structuredContent as FanOutContent | undefined;
     const after = afterContent?.total;
 
     if (typeof before !== 'number' || typeof after !== 'number') {
@@ -218,7 +222,10 @@ const checkFanOut = async (tool: 'get_queue' | 'get_indexers', types: readonly s
 };
 
 await checkFanOut('get_queue', downloadClientTypes);
-await checkFanOut('get_indexers', Array.isArray(multiConfig.services.prowlarr) ? ['prowlarr'] : []);
+// A merged indexer list clumps by service and is limit-bounded, so the
+// default limit of 50 can hold only the first instance's indexers on a large
+// Prowlarr. 500 is the schema max.
+await checkFanOut('get_indexers', Array.isArray(multiConfig.services.prowlarr) ? ['prowlarr'] : [], { limit: 500 });
 
 // --- 3. writes refuse to guess which instance -----------------------------
 
@@ -266,9 +273,11 @@ await expectRefusal(
 // --- 3a. the write path refuses ambiguity and scopes permissions ----------
 //
 // Looped over whichever download clients are configured, one type fully at a
-// time — never Promise.all across or within a type. qBittorrent bans a client
-// that bursts two logins at it, and two doubled adapters against one URL is
-// exactly that if these ever ran concurrently.
+// time, rather than Promise.all across or within a type. This section never
+// deliberately runs two logins against the same client concurrently — unlike
+// `get_queue` above, which fans out internally via `gather` and does. That's
+// fine: qBittorrent's ban counts failed logins, and two doubled adapters
+// logging in successfully at once does not trip it.
 
 for (const type of downloadClientTypes) {
     // Guessing which client to pause is the failure resolveInstance exists to
