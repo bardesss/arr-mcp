@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.1](https://github.com/bardesss/arr-mcp/compare/v1.23.0...v1.23.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* name the instance in audit targets, and say when a merged list is partial ([#206](https://github.com/bardesss/arr-mcp/issues/206)) ([de7aeaa](https://github.com/bardesss/arr-mcp/commit/de7aeaab7f3d064f4e9ab775a54b7f66f286cf2f))
+
 ## [1.23.0](https://github.com/bardesss/arr-mcp/compare/v1.22.0...v1.23.0) (2026-09-08)
 
 
