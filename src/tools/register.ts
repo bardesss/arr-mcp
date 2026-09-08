@@ -23,12 +23,14 @@ import { registerCleanQueue } from './cleanQueue.ts';
 import { registerDeleteMedia } from './deleteMedia.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
+import { registerFixMetadata } from './fixMetadata.ts';
 import { registerGetBlocklist } from './getBlocklist.ts';
 import { registerGetCalendar } from './getCalendar.ts';
 import { registerGetHistory } from './getHistory.ts';
 import { registerGetIndexers } from './getIndexers.ts';
 import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
+import { registerGetMetadataIssues } from './getMetadataIssues.ts';
 import { registerGetPlayback } from './getPlayback.ts';
 import { registerGetQueue } from './getQueue.ts';
 import { registerGetReleases } from './getReleases.ts';
@@ -223,6 +225,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetPlayback(server, mediaServer, mediaServerIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset);
+    registerGetMetadataIssues(server, adapters, mediaServerIdentity);
     registerGetLibrary(server, library);
     registerSearchMedia(server, adapters, dataset);
     registerLookupMedia(server, adapters, dataset);
@@ -249,6 +252,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerRequestMedia(server, write, adapters, seerrIdentity);
     registerPauseDownloads(server, write, adapters);
     registerSetWatched(server, write, adapters, mediaServerIdentity);
+    registerFixMetadata(server, write, adapters, library, mediaServerIdentity);
     registerRemoveBlocklistItem(server, write, adapters);
 }
 
@@ -273,6 +277,7 @@ export const TOOL_NAMES = [
     'get_playback',
     'get_requests',
     'get_media_details',
+    'get_metadata_issues',
     'get_library',
     'search_media',
     'lookup_media',
@@ -293,5 +298,6 @@ export const TOOL_NAMES = [
     'request_media',
     'pause_downloads',
     'set_watched',
+    'fix_metadata',
     'remove_blocklist_item'
 ] as const;

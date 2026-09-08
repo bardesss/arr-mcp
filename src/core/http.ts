@@ -106,13 +106,14 @@ export class ServiceHttp {
      * a failure report for work that had succeeded, inviting a retry that
      * would start it a second time.
      */
-    async post<T>(path: string, body: unknown, discardBody = false): Promise<T> {
+    async post<T>(path: string, body: unknown, discardBody = false, opts?: { timeoutMs?: number }): Promise<T> {
         return this.#request<T>(
             'POST',
             path,
             body === undefined ? undefined : { json: body },
             false,
-            discardBody ? 'none' : 'json'
+            discardBody ? 'none' : 'json',
+            opts?.timeoutMs
         );
     }
 

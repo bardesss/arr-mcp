@@ -1,4 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
+import type { EpisodeRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { assertVersionSupported } from './versions.ts';
@@ -334,6 +335,41 @@ export interface ReleaseGrabCapable {
 
 export const hasReleaseGrab = (a: ServiceAdapter): a is ServiceAdapter & ReleaseGrabCapable =>
     typeof (a as Partial<ReleaseGrabCapable>).grabRelease === 'function';
+
+/**
+ * Reading a series' episodes as *files plus metadata*, which is what
+ * `fix_metadata` compares. Distinct from `listEpisodeItems`, which answers
+ * about watch state and deliberately does not ask the server for file paths.
+ */
+export interface MetadataInspectCapable {
+    /** Every episode of one series, with the file path the server has for it
+     *  where it has one. */
+    readEpisodeMetadata(user: ServiceUser, seriesItemId: string): Promise<EpisodeRecord[]>;
+}
+
+export const hasMetadataInspect = (a: ServiceAdapter): a is ServiceAdapter & MetadataInspectCapable =>
+    typeof (a as Partial<MetadataInspectCapable>).readEpisodeMetadata === 'function';
+
+/**
+ * Rewriting that metadata from the provider.
+ *
+ * Split from `MetadataInspectCapable` for the same reason the release pair is
+ * split, and here the split is load-bearing rather than tidy: the Plex adapter
+ * is read-only and is expected to implement the inspect half alone (#203), so
+ * a media server that can find the problem but not repair it is a real
+ * configuration, not a hypothetical one.
+ */
+export interface MetadataRepairCapable {
+    /**
+     * Re-match the item to a provider and replace its metadata wholesale.
+     * Irreversible: the previous metadata is not recoverable, which is why
+     * every caller is `destructive` tier.
+     */
+    repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<void>;
+}
+
+export const hasMetadataRepair = (a: ServiceAdapter): a is ServiceAdapter & MetadataRepairCapable =>
+    typeof (a as Partial<MetadataRepairCapable>).repairMetadata === 'function';
 
 /**
  * One release Radarr or Sonarr has decided not to grab again.
