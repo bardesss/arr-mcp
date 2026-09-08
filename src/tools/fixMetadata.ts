@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { findMismatches, pinnedToProvider, type Mismatch } from '../core/episodeMismatch.ts';
+import { findMismatches, findMovieMismatches, pinnedToProvider, type EpisodeRecord, type Mismatch, type MovieRecord } from '../core/episodeMismatch.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { unfenced } from '../core/titleMatch.ts';
@@ -69,15 +69,18 @@ const describe = (m: Mismatch): string => {
     const raw = unfenced(m.path);
     const file = fenceText(raw.split(/[/\\]/).at(-1) ?? raw, { service: 'jellyfin', field: 'Path' });
     const server =
-        m.serverSeason === undefined || m.serverEpisode === undefined
-            ? m.serverTitle
-            : `S${m.serverSeason}E${m.serverEpisode} ${m.serverTitle}`;
+        m.serverSeason !== undefined && m.serverEpisode !== undefined
+            ? `S${m.serverSeason}E${m.serverEpisode} ${m.serverTitle}`
+            : m.serverYear === undefined
+              ? m.serverTitle
+              : `${m.serverTitle} (${m.serverYear})`;
     return `${file} → ${server} (${m.reasons.join(' + ')})`;
 };
 
 type Resolved = {
     itemId: string;
     title: string;
+    kind: 'movie' | 'series';
     tvdbId?: number;
     tmdbId?: number;
 };
@@ -86,20 +89,15 @@ type Resolved = {
  * Title to Jellyfin item, through the same library index `get_media_details`
  * uses — so a title that resolves there resolves the same way here.
  *
- * Series only, and the refusal is deliberate rather than an oversight. The
- * mismatch evidence is built from episode numbering and episode filenames; a
- * film has neither, so a film could only be repaired on no evidence at all.
- * A destructive write with nothing in its preview is worse than a refusal.
+ * Films and series both, but on different evidence. A series is judged on
+ * episode numbering and episode filenames; a film has neither, so it is judged
+ * on its **year** and its title. The year is the film's confident signal for
+ * the same reason numbering is the series' one: a film file names its year
+ * almost universally, and a year that disagrees means the server matched a
+ * different film rather than the same one worded differently.
  */
 async function resolve(loader: LibraryLoader, query: string): Promise<Resolved> {
     const best = await buildResolvedMediaDetails(loader, query);
-
-    if (best.kind !== 'series') {
-        throw new ServiceError('NotFound', 'jellyfin', `"${best.title}" is a film, and fix_metadata only repairs series`, {
-            remedy:
-                'Film repair is not implemented: the mismatch evidence this tool previews comes from episode numbering and episode filenames, which a film has neither of. Re-identify a film in Jellyfin directly.'
-        });
-    }
 
     const itemId = best.playback?.itemId;
     if (itemId === undefined) {
@@ -112,6 +110,7 @@ async function resolve(loader: LibraryLoader, query: string): Promise<Resolved> 
     return {
         itemId,
         title: best.title,
+        kind: best.kind,
         ...(best.ids.tvdb === undefined ? {} : { tvdbId: best.ids.tvdb }),
         ...(best.ids.tmdb === undefined ? {} : { tmdbId: best.ids.tmdb })
     };
@@ -128,9 +127,9 @@ export function registerFixMetadata(
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Finds and repairs episodes whose Jellyfin metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a series title as `query`. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). Series only: a film carries no episode numbering to compare, so one is refused rather than repaired on no evidence. **Destructive**: the repair re-identifies the series against TVDB and refreshes with `replaceAllMetadata`, which overwrites everything the server held, including anything corrected by hand. There is no undo. It also has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes that were matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a Jellyfin rescan — not this tool. **The repair is slow**: Jellyfin holds the identify request open while it talks to the provider and rebuilds the item, and a live run on a 69-episode series took longer than a normal read timeout allows. A long wait is not a hang — do not retry, which starts a second full rematch. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Finds and repairs episodes whose Jellyfin metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a film file names its year almost universally, and a year that disagrees means the server matched a different film rather than the same one worded differently. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and refreshes with `replaceAllMetadata`, which overwrites everything the server held, including anything corrected by hand. There is no undo. It also has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes that were matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a Jellyfin rescan — not this tool. **The repair is slow**: Jellyfin holds the identify request open while it talks to the provider and rebuilds the item, and a live run on a 69-episode series took longer than a normal read timeout allows. A long wait is not a hang — do not retry, which starts a second full rematch. Previews by default — call again with the returned `confirm` token to apply it.',
         inputSchema: z.object({
-            query: z.string().min(1).describe('The series title. Resolved through the library index, the same way get_media_details resolves one.'),
+            query: z.string().min(1).describe('A film or series title. Resolved through the library index, the same way get_media_details resolves one.'),
             user: z
                 .string()
                 .optional()
@@ -147,11 +146,27 @@ export function registerFixMetadata(
             const viewer = await requireIdentity(adapters, identity).resolve(user);
             const series = await resolve(loader, query);
 
-            const episodes = await adapter.readEpisodeMetadata(viewer, series.itemId);
-            const mismatches = findMismatches(episodes);
-            const target = `jellyfin:${series.itemId}`;
+            /**
+             * A film is read out of the whole-library film list rather than by
+             * id: the media server has no per-title episode endpoint to stand
+             * in for one, and this read is a single request either way.
+             */
+            let parts: readonly (EpisodeRecord | MovieRecord)[];
+            let mismatches: Mismatch[];
 
-            const comparable = episodes.filter(e => e.path !== undefined).length;
+            if (series.kind === 'movie') {
+                const films = (await adapter.readMovieMetadata(viewer)).filter(m => m.id === series.itemId);
+                parts = films;
+                mismatches = findMovieMismatches(films);
+            } else {
+                const episodes = await adapter.readEpisodeMetadata(viewer, series.itemId);
+                parts = episodes;
+                mismatches = findMismatches(episodes);
+            }
+            const target = `jellyfin:${series.itemId}`;
+            const unit = series.kind === 'movie' ? 'file' : 'episodes';
+
+            const comparable = parts.filter(e => e.path !== undefined).length;
             if (comparable === 0) {
                 // Distinct from "nothing is wrong", and the difference matters:
                 // a server that returned no paths was never actually asked the
@@ -159,14 +174,14 @@ export function registerFixMetadata(
                 // be a lie in the reassuring direction.
                 throw new ServiceError('UpstreamError', 'jellyfin', `Jellyfin returned no file paths for "${series.title}"`, {
                     remedy:
-                        'Nothing could be compared, so nothing is claimed. This read needs a token whose user can see file paths — an administrator — and a series whose episodes have files.'
+                        'Nothing could be compared, so nothing is claimed. This read needs a token whose user can see file paths — an administrator — and an item whose files are on disk.'
                 });
             }
 
             if (mismatches.length === 0) {
                 return {
                     target,
-                    summary: `Nothing in ${series.title} disagrees with its files (${comparable} episodes checked).`,
+                    summary: `Nothing in ${series.title} disagrees with its files (${comparable} ${unit} checked).`,
                     effects: [],
                     noop: true
                 };
@@ -184,7 +199,7 @@ export function registerFixMetadata(
              * 68 mismatching episodes carried their own AniDB/TVDB ids, the
              * repair applied cleanly, and every title came back identical.
              */
-            const byId = new Map(episodes.map(e => [e.id, e]));
+            const byId = new Map(parts.map(e => [e.id, e]));
             const pinned = mismatches.filter(m => {
                 const record = byId.get(m.id);
                 return record !== undefined && pinnedToProvider(record);
@@ -204,7 +219,7 @@ export function registerFixMetadata(
                 summary:
                     pinned === mismatches.length
                         ? `${series.title} has ${mismatches.length} of ${comparable} episodes disagreeing with their files, but every one of them was matched to a specific provider episode — a refresh will not move those, and this repair is expected to change nothing.`
-                        : `Re-identify ${series.title} against ${provider} and replace all of its metadata: ${mismatches.length} of ${comparable} episodes disagree with their files.`,
+                        : `Re-identify ${series.title} against ${provider} and replace all of its metadata: ${mismatches.length} of ${comparable} ${unit} disagree with their files.`,
                 effects: [
                     ...(pinned === 0
                         ? []
@@ -245,13 +260,28 @@ export function registerFixMetadata(
             const viewer = await requireIdentity(adapters, identity).resolve(user);
             const series = await resolve(loader, query);
 
-            const before = findMismatches(await adapter.readEpisodeMetadata(viewer, series.itemId));
+            const read = async (): Promise<Mismatch[]> =>
+                series.kind === 'movie'
+                    ? findMovieMismatches((await adapter.readMovieMetadata(viewer)).filter(m => m.id === series.itemId))
+                    : findMismatches(await adapter.readEpisodeMetadata(viewer, series.itemId));
+
+            const before = await read();
 
             await adapter.repairMetadata(series.itemId, {
-                // TVDB first: Sonarr is the source of truth for a series, and
-                // its id is the one the file layout was built from.
-                ...(series.tvdbId === undefined ? {} : { tvdbId: series.tvdbId }),
-                ...(series.tvdbId === undefined && series.tmdbId !== undefined ? { tmdbId: series.tmdbId } : {})
+                // Whichever provider the managing *arr is the source of truth
+                // for: TMDB for a film, because Radarr is built on it, and TVDB
+                // for a series, because Sonarr is and its id is the one the file
+                // layout was built from. The other rides along only as a
+                // fallback when the first is unknown.
+                ...(series.kind === 'movie'
+                    ? {
+                          ...(series.tmdbId === undefined ? {} : { tmdbId: series.tmdbId }),
+                          ...(series.tmdbId === undefined && series.tvdbId !== undefined ? { tvdbId: series.tvdbId } : {})
+                      }
+                    : {
+                          ...(series.tvdbId === undefined ? {} : { tvdbId: series.tvdbId }),
+                          ...(series.tvdbId === undefined && series.tmdbId !== undefined ? { tmdbId: series.tmdbId } : {})
+                      })
             });
 
             // Jellyfin refreshes asynchronously, so this re-read is a snapshot
@@ -259,7 +289,7 @@ export function registerFixMetadata(
             // as exactly that — a non-zero `remaining` here is not evidence the
             // repair failed, and calling it one would be the reassuring lie in
             // reverse.
-            const after = findMismatches(await adapter.readEpisodeMetadata(viewer, series.itemId));
+            const after = await read();
 
             /**
              * The write succeeding and the problem being fixed are two different

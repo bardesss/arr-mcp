@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { findMismatches, parseFileNumbering, summariseSeries, type EpisodeRecord } from '../src/core/episodeMismatch.ts';
+import {
+    findMismatches,
+    findMovieMismatches,
+    parseFileNumbering,
+    parseMovieFile,
+    summariseSeries,
+    type EpisodeRecord
+} from '../src/core/episodeMismatch.ts';
 import { fenceText } from '../src/core/fence.ts';
 
 const ep = (over: Partial<EpisodeRecord> & Pick<EpisodeRecord, 'id'>): EpisodeRecord => ({
@@ -359,5 +366,60 @@ describe('summariseSeries', () => {
             ep({ id: 'nopath', name: 'Y', season: 1, episode: 2 })
         ]);
         expect(verdict?.compared).toBe(1);
+    });
+});
+
+/**
+ * The film parser, and the false positive that shaped it. A bare four-digit
+ * token is not a year, it is a number that looks like one, and several real
+ * films are named after years.
+ */
+describe('parseMovieFile', () => {
+    it('reads the parenthesised year and the title before it', () => {
+        expect(parseMovieFile('/movies/Alien (1979)/Alien (1979) [Bluray-1080p].mkv')).toEqual({
+            title: 'Alien',
+            year: 1979
+        });
+    });
+
+    it('does not read a year out of a title that is a number', () => {
+        // Caught by a test rather than by a library: stripping brackets first
+        // removed (2017) and left 2049 looking like the year.
+        expect(parseMovieFile('/movies/Blade Runner 2049 (2017)/Blade Runner 2049 (2017) [Bluray-2160p].mkv')).toEqual({
+            title: 'Blade Runner 2049',
+            year: 2017
+        });
+    });
+
+    it('claims nothing when there is no parenthesised year', () => {
+        expect(parseMovieFile('/movies/The.Matrix.1999.1080p.BluRay.x264-GROUP.mkv')).toEqual({});
+    });
+});
+
+describe('findMovieMismatches', () => {
+    const film = (over: Partial<import('../src/core/episodeMismatch.ts').MovieRecord> & { id: string }) => ({
+        name: '',
+        ...over
+    });
+
+    it('is silent on a film whose file agrees with it', () => {
+        expect(
+            findMovieMismatches([
+                film({ id: 'a', name: 'Alien', year: 1979, path: '/movies/Alien (1979)/Alien (1979) [Bluray-1080p].mkv' })
+            ])
+        ).toEqual([]);
+    });
+
+    it('flags a year that disagrees, which means a different film was matched', () => {
+        const [found] = findMovieMismatches([
+            film({ id: 'y', name: 'The Thing', year: 2011, path: '/movies/The Thing (1982)/The Thing (1982).mkv' })
+        ]);
+        expect(found?.reasons).toEqual(['year']);
+        expect(found?.fileYear).toBe(1982);
+        expect(found?.serverYear).toBe(2011);
+    });
+
+    it('says nothing about a film with no file', () => {
+        expect(findMovieMismatches([film({ id: 'n', name: 'Alien', year: 1979 })])).toEqual([]);
     });
 });

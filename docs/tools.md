@@ -1,6 +1,6 @@
 # Tools
 
-Thirty-four of them. The first seventeen read; the last seventeen write, and are
+Thirty-six of them. The first eighteen read; the last eighteen write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -9,6 +9,7 @@ off until you turn them on — see [writes](writes.md).
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
 | `search_media` | What do I have, what exists, what can I get? |
 | `get_media_details` | Everything about one item |
+| `get_metadata_issues` | Which films and series have metadata that does not describe their files |
 | `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
 | `get_queue` | What is downloading, across all four download paths |
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd and Bazarr did |
@@ -33,6 +34,7 @@ off until you turn them on — see [writes](writes.md).
 | `delete_request` | Drop a request record entirely |
 | `add_media` | Add this film or series and start looking for it |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there |
+| `fix_metadata` | Repair one item whose metadata does not describe its files |
 
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
@@ -92,11 +94,11 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the seventeen that only
-read, and on the seventeen writes `destructiveHint`, taken from the same permission
+tool carries a title and an annotation: `readOnlyHint` on the eighteen that only
+read, and on the eighteen writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from thirty-four similarly-shaped
+about, reads those rather than guessing from thirty-six similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -640,9 +642,10 @@ suspect, and on a real library you mostly do not know which to suspect —
 sweeping 101 series turned up two problems nobody had noticed beside the one
 that prompted the work.
 
-Read-only, and deliberately **not** folded into `get_library`: it costs one
-episode read per series, far too expensive to ride along on a cached list every
-caller pays for. A hundred-series library takes about a minute.
+Covers films and series. Films cost one request for the whole library, because
+they need no per-title read; series cost one each, which is why this is
+deliberately **not** folded into `get_library` where every caller would pay for
+it. A real library of 101 series and 118 films sweeps in seconds.
 
 ### `remedy` is the field that matters
 
@@ -652,8 +655,8 @@ server ever matched the episode:
 
 | `remedy` | Means | What to run |
 | --- | --- | --- |
-| `refresh_metadata` | The episodes carry no provider ids, so the server never matched them and holds nothing for the file to contradict. | `fix_metadata` |
-| `rename_files` | The server matched them, so its title is the considered one and the **filename** is the outlier. Also every `numbering` finding, which no refresh moves. | `trigger_scan` rename on Sonarr, then a Jellyfin rescan |
+| `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. | `fix_metadata` |
+| `rename_files` | The server matched it, so its title is the considered one and the **filename** is the outlier. Also every `numbering` finding, and every film whose year disagrees. | `trigger_scan` rename on the managing Radarr or Sonarr, then a Jellyfin rescan |
 
 Three real series stand behind that rule, which is enough to act on and not
 enough to be certain — treat it as the likely fix rather than a verdict:
@@ -758,12 +761,24 @@ and `verified`. `verified: false` means the calls succeeded and the count did
 not move — which is either "the background refresh has not finished" or "this
 was never going to work", and the tool does not guess which.
 
-### Two things it deliberately will not do
+### Films are judged on their year
 
-**Films are refused.** The evidence in the preview comes from episode
-numbering and episode filenames, and a film has neither — so a film could only
-be repaired on no evidence at all. A destructive write with an empty preview is
-worse than a refusal.
+A film has no episode numbering, so the **year** does that job, and it does it
+well: a film file names its year almost universally, and a year that disagrees
+means the server matched a *different film* rather than the same one worded
+differently. The title check runs too, as the advisory half, exactly as it does
+for an episode.
+
+Only the parenthesised `(YYYY)` form counts, and that is a precision guard
+rather than pedantry. A bare four-digit token is not a year, it is a number that
+looks like one — `Blade Runner 2049 (2017)` parsed as year 2049 with the title
+"Blade Runner", which then disagreed with a perfectly correct record. `1917` and
+`2012` are the same trap. No parenthesised year, no claim.
+
+Swept across a real library of 118 films, this produced no findings at all,
+which is the answer a healthy film library should give.
+
+### Two things it deliberately will not do
 
 **An episode the server never matched at all reads as clean.** When Jellyfin
 cannot match an episode it falls back to naming it after the file, so the

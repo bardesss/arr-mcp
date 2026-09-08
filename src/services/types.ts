@@ -1,5 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
-import type { EpisodeRecord } from '../core/episodeMismatch.ts';
+import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { assertVersionSupported } from './versions.ts';
@@ -345,6 +345,10 @@ export interface MetadataInspectCapable {
     /** Every episode of one series, with the file path the server has for it
      *  where it has one. */
     readEpisodeMetadata(user: ServiceUser, seriesItemId: string): Promise<EpisodeRecord[]>;
+
+    /** Every film in one call. Films need no per-title read the way episodes
+     *  need a per-series one. */
+    readMovieMetadata(user: ServiceUser): Promise<MovieRecord[]>;
 }
 
 export const hasMetadataInspect = (a: ServiceAdapter): a is ServiceAdapter & MetadataInspectCapable =>

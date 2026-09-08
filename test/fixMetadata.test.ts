@@ -67,6 +67,7 @@ function harness(
         config?: MultiUserServiceConfig;
         episodes?: Record<string, unknown>[];
         item?: MergedItem;
+        films?: Record<string, unknown>[];
         /** Stand in a Plex adapter beside (or instead of) Jellyfin. */
         adapters?: 'plex-only';
     } = {}
@@ -90,6 +91,10 @@ function harness(
             // 204 rather than an empty JSON body: a Response cannot carry one
             // at that status, and this is what Jellyfin actually answers.
             return new Response(null, { status: 204 });
+        }
+
+        if (url.pathname === '/Items' && url.searchParams.get('IncludeItemTypes') === 'Movie') {
+            return jsonResponse({ Items: opts.films ?? [] });
         }
 
         if (url.pathname.startsWith('/Shows/')) {
@@ -188,9 +193,44 @@ describe('fix_metadata', () => {
         await expect(h.call({ query: 'Dragon Ball Kai' })).rejects.toThrow(/no file paths/i);
     });
 
-    it('refuses a film, which has no episode numbering to show as evidence', async () => {
-        const h = harness({ item: seriesItem({ kind: 'movie', title: 'Alien' }) });
-        await expect(h.call({ query: 'Alien' })).rejects.toThrow(/only repairs series/);
+    describe('films', () => {
+        const MOVIE = 'aa939e2aa448fbe76b4f5eb80fa0d39f';
+        const asFilm = (over: Record<string, unknown> = {}) => ({
+            Id: MOVIE,
+            Name: 'The Thing',
+            ProductionYear: 2011,
+            Path: '/movies/The Thing (1982)/The Thing (1982) [Bluray-1080p].mkv',
+            ...over
+        });
+        const filmItem = seriesItem({ kind: 'movie', title: 'The Thing', playback: { user: 'Sam', itemId: MOVIE } });
+
+        /** The year is the film's confident signal, standing in for the
+         *  numbering a film does not have. */
+        it('flags a film whose file names a different year', async () => {
+            const h = harness({ item: filmItem, films: [asFilm()] });
+            const { structuredContent } = await h.call({ query: 'The Thing' });
+
+            expect(structuredContent.noop).toBe(false);
+            expect(structuredContent.effects.join('\n')).toContain('year');
+            expect(structuredContent.summary).toContain('1 of 1 file');
+        });
+
+        it('is a no-op on a film whose file agrees with it', async () => {
+            const h = harness({ item: filmItem, films: [asFilm({ ProductionYear: 1982 })] });
+            expect((await h.call({ query: 'The Thing' })).structuredContent.noop).toBe(true);
+        });
+
+        it('prefers TMDB for a film, because Radarr is built on it', async () => {
+            const h = harness({
+                item: seriesItem({ kind: 'movie', title: 'The Thing', ids: { tmdb: 1234, tvdb: 9999 }, playback: { user: 'Sam', itemId: MOVIE } }),
+                films: [asFilm()]
+            });
+            const preview = await h.call({ query: 'The Thing' });
+            await h.call({ query: 'The Thing', confirm: preview.structuredContent.confirm_token });
+
+            const apply = h.wrote.find(w => w.path.startsWith('/Items/RemoteSearch/Apply/'));
+            expect(apply?.body).toEqual({ ProviderIds: { Tmdb: '1234' } });
+        });
     });
 
     it('tells a Plex user this is a Jellyfin repair, not that they have no media server', async () => {

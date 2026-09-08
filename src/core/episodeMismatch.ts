@@ -50,10 +50,25 @@ export type EpisodeRecord = {
  * This is the difference between a repairable mismatch and one that will
  * survive any number of full refreshes.
  */
-export const pinnedToProvider = (item: EpisodeRecord): boolean =>
+export const pinnedToProvider = (item: { providerIds?: Record<string, string> }): boolean =>
     item.providerIds !== undefined && Object.keys(item.providerIds).length > 0;
 
-export type MismatchReason = 'numbering' | 'title';
+export type MismatchReason = 'numbering' | 'title' | 'year';
+
+/**
+ * A film, which has no episode numbering to compare and so needs its own
+ * confident signal. The year is that signal: a film file names its year far
+ * more reliably than an episode file names its title, and a year that
+ * disagrees means the server matched a different film, not a differently
+ * worded one.
+ */
+export type MovieRecord = {
+    id: string;
+    name: string;
+    year?: number;
+    path?: string;
+    providerIds?: Record<string, string>;
+};
 
 export type Mismatch = {
     id: string;
@@ -64,6 +79,9 @@ export type Mismatch = {
     fileSeason?: number;
     fileEpisode?: number;
     fileTitle?: string;
+    /** Films only. */
+    serverYear?: number;
+    fileYear?: number;
     /** Most trustworthy first: `numbering` before `title`. */
     reasons: MismatchReason[];
 };
@@ -307,6 +325,80 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         // help the unpinned half, and it refuses to pretend about the rest.
         remedy: numbering > 0 || pinned === mismatches.length ? 'rename_files' : 'refresh_metadata'
     };
+}
+
+/**
+ * The **parenthesised** year only, and that is the precision guard rather than
+ * pedantry.
+ *
+ * A bare four-digit token is not a year, it is a number that looks like one:
+ * `Blade Runner 2049 (2017)` reads as year 2049 and title "Blade Runner", which
+ * then disagrees with a perfectly correct server record. `1917`, `2012` and
+ * `Blade Runner 2049` are all real films whose titles are years.
+ *
+ * `(YYYY)` is the library-manager convention and is unambiguous, the same
+ * "delimited form or no claim" rule the episode title extractor uses.
+ */
+const MOVIE_YEAR = /\((19|20)\d{2}\)/;
+
+/**
+ * What a film's filename claims: its title and its year.
+ *
+ * The year is required, and that is the precision guard. A film file names its
+ * year almost universally (`Alien (1979) …`, `Alien.1979.1080p…`), and without
+ * one there is no reliable boundary between the title and the release tags —
+ * the same trap that made scene episode names unreadable. No year, no claim.
+ */
+export function parseMovieFile(path: string): { title?: string; year?: number } {
+    // Read before any bracket stripping: the year lives in the parentheses that
+    // stripping would remove, and removing it first is what made
+    // `Blade Runner 2049 (2017)` parse as year 2049.
+    const raw = withoutExtension(segments(path).at(-1) ?? '');
+
+    const found = MOVIE_YEAR.exec(raw);
+    if (found === null) return {};
+
+    const year = Number(found[0].slice(1, -1));
+    // Everything before the year is the title; everything after it is tags.
+    const title = raw
+        .slice(0, found.index)
+        .replace(BRACKETED, ' ')
+        .replace(/\./g, ' ')
+        .trim();
+
+    return { ...(title === '' ? {} : { title }), year };
+}
+
+/**
+ * Films whose file disagrees with their metadata. Same bias as the episode
+ * pass: anything it cannot read confidently produces no finding.
+ */
+export function findMovieMismatches(items: readonly MovieRecord[]): Mismatch[] {
+    const out: Mismatch[] = [];
+
+    for (const item of items) {
+        const path = item.path;
+        if (path === undefined || path.trim() === '') continue;
+
+        const { title: fileTitle, year: fileYear } = parseMovieFile(path);
+        const reasons: MismatchReason[] = [];
+
+        if (fileYear !== undefined && item.year !== undefined && fileYear !== item.year) reasons.push('year');
+        if (fileTitle !== undefined && titlesDisagree(item.name, fileTitle)) reasons.push('title');
+        if (reasons.length === 0) continue;
+
+        out.push({
+            id: item.id,
+            path,
+            serverTitle: item.name,
+            ...(item.year === undefined ? {} : { serverYear: item.year }),
+            ...(fileYear === undefined ? {} : { fileYear }),
+            ...(fileTitle === undefined ? {} : { fileTitle }),
+            reasons
+        });
+    }
+
+    return out;
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
-import type { EpisodeRecord } from '../core/episodeMismatch.ts';
+import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { embyToken } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -559,6 +559,31 @@ export class JellyfinAdapter
                 // Not fenced: these are read as structure — whether an id
                 // exists at all — and never printed as prose.
                 ...(e.ProviderIds === undefined ? {} : { providerIds: e.ProviderIds })
+            }));
+    }
+
+    /**
+     * Every film, in one call rather than one call per title.
+     *
+     * The asymmetry with the episode read is the library's, not a design
+     * choice: episodes have to be asked for per series, films do not, so a
+     * sweep of a large library costs one request here and one per series
+     * there.
+     */
+    async readMovieMetadata(user: ServiceUser): Promise<MovieRecord[]> {
+        const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
+            `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Movie` +
+                '&Fields=Path,ProviderIds&EnableImages=false'
+        );
+
+        return (page.Items ?? [])
+            .filter((i): i is RawItemDetail & { Id: string } => typeof i.Id === 'string')
+            .map(i => ({
+                id: i.Id,
+                name: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
+                ...(i.ProductionYear === undefined ? {} : { year: i.ProductionYear }),
+                ...(i.Path === undefined ? {} : { path: fenceText(i.Path, { service: this.id, field: 'Path' }) }),
+                ...(i.ProviderIds === undefined ? {} : { providerIds: i.ProviderIds })
             }));
     }
 

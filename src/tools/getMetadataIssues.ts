@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import { findMismatches, summariseSeries, type Remedy } from '../core/episodeMismatch.ts';
+import { findMismatches, findMovieMismatches, pinnedToProvider, summariseSeries, type Remedy } from '../core/episodeMismatch.ts';
 import { fenceText } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import type { IdentityResolver } from '../core/identity.ts';
@@ -33,6 +33,9 @@ export type MetadataIssue = {
     service: string;
     /** The media server's item id — what `fix_metadata` acts on. */
     itemId: string;
+    /** Which kind of item this row is about. Films have no episode numbering,
+     *  so their confident signal is the year instead. */
+    kind: 'movie' | 'series';
     title: string;
     mismatches: number;
     /**
@@ -62,15 +65,15 @@ export type GetMetadataIssuesResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
-    /** How many series were read, so a small `total` can be read as "few
-     *  problems" rather than "few looked at". */
-    seriesScanned: number;
+    /** How many films and series were read, so a small `total` can be read as
+     *  "few problems" rather than "few looked at". */
+    itemsScanned: number;
 };
 
 const FIX: Record<Remedy, string> = {
-    refresh_metadata: 'fix_metadata — the server never matched these episodes, so a refresh can fill them in.',
+    refresh_metadata: 'fix_metadata — the server never matched this, so a refresh can fill it in.',
     rename_files:
-        'trigger_scan with action "rename" on the Sonarr series, then trigger_scan on Jellyfin — the file is the outlier here, and no metadata refresh moves it.'
+        'trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on Jellyfin — the file is the outlier here, and no metadata refresh moves it.'
 };
 
 const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
@@ -93,7 +96,7 @@ export async function buildGetMetadataIssues(
     opts: { detail: DetailLevel; limit: number; offset: number; user?: string }
 ): Promise<GetMetadataIssuesResult> {
     const adapter = adapters.find(a => hasMetadataInspect(a) && hasUserLibrary(a));
-    const empty = { items: [], total: 0, returned: 0, offset: 0, truncated: false, seriesScanned: 0 };
+    const empty = { items: [], total: 0, returned: 0, offset: 0, truncated: false, itemsScanned: 0 };
 
     if (adapter === undefined || !hasMetadataInspect(adapter) || !hasUserLibrary(adapter) || identity === undefined) {
         // Not an error: no media server is a configuration, not a failure, and
@@ -108,6 +111,41 @@ export async function buildGetMetadataIssues(
     const issues: MetadataIssue[] = [];
     const degraded: string[] = [];
     let scanned = 0;
+
+    // Films first, and in one request: they need no per-title read, so the
+    // whole film half of the library costs what a single series costs.
+    try {
+        const movies = await adapter.readMovieMetadata(viewer);
+        scanned += movies.length;
+        for (const mismatch of findMovieMismatches(movies)) {
+            const record = movies.find(m => m.id === mismatch.id);
+            const pinned = record !== undefined && pinnedToProvider(record) ? 1 : 0;
+            const remedy: Remedy = mismatch.reasons.includes('year') || pinned === 1 ? 'rename_files' : 'refresh_metadata';
+
+            issues.push({
+                service: adapter.id,
+                itemId: mismatch.id,
+                kind: 'movie',
+                title: mismatch.serverTitle,
+                compared: 1,
+                mismatches: 1,
+                numbering: mismatch.reasons.includes('year') ? 1 : 0,
+                titleOnly: mismatch.reasons.includes('year') ? 0 : 1,
+                pinned,
+                remedy,
+                fix: FIX[remedy],
+                examples: [
+                    fenceText(
+                        `${unfenced(mismatch.path).split(/[/\\]/).at(-1) ?? ''} → ${unfenced(mismatch.serverTitle)}${mismatch.serverYear === undefined ? '' : ` (${mismatch.serverYear})`}`,
+                        { service: adapter.id, field: 'Path' }
+                    )
+                ]
+            });
+        }
+    } catch (err) {
+        logger.warn({ service: adapter.id, err }, 'metadata sweep could not read films');
+        if (!degraded.includes(adapter.id)) degraded.push(adapter.id);
+    }
 
     for (const item of series) {
         const itemId = item.playback?.itemId;
@@ -125,6 +163,7 @@ export async function buildGetMetadataIssues(
             issues.push({
                 service: adapter.id,
                 itemId,
+                kind: 'series',
                 title: item.title,
                 compared: verdict.compared,
                 mismatches: verdict.mismatches,
@@ -156,7 +195,7 @@ export async function buildGetMetadataIssues(
         ...paged,
         items: paged.items.map(i => project(i, opts.detail)),
         degraded,
-        seriesScanned: scanned
+        itemsScanned: scanned
     };
 }
 
@@ -180,9 +219,9 @@ export function registerGetMetadataIssues(
 
             const rename = result.items.filter(i => i.remedy === 'rename_files').length;
             const summary =
-                result.seriesScanned === 0
+                result.itemsScanned === 0
                     ? 'No media server library could be read, so nothing was compared — this is not a clean result.'
-                    : `${result.total} of ${result.seriesScanned} series have metadata that disagrees with their files` +
+                    : `${result.total} of ${result.itemsScanned} items have metadata that disagrees with their files` +
                       (result.total === 0
                           ? '.'
                           : `; ${rename} need a rename rather than a metadata refresh.`) +
