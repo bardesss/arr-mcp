@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.2](https://github.com/bardesss/arr-mcp/compare/v1.23.1...v1.23.2) (2026-09-08)
+
+
+### Bug Fixes
+
+* correct the metadata detector's false positives and its remedy rule ([#208](https://github.com/bardesss/arr-mcp/issues/208)) ([9dabacd](https://github.com/bardesss/arr-mcp/commit/9dabacdfff37ae5c3acfc703a350c1437e705075))
+
 ## [1.23.1](https://github.com/bardesss/arr-mcp/compare/v1.23.0...v1.23.1) (2026-09-08)
 
 
