@@ -151,7 +151,7 @@ export function registerFixMetadata(
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Finds and repairs episodes whose Jellyfin metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a film file names its year almost universally, and a year that disagrees means the server matched a different film rather than the same one worded differently. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and refreshes with `replaceAllMetadata`, which overwrites everything the server held, including anything corrected by hand. There is no undo. It also has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes that were matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a Jellyfin rescan — not this tool. **The repair is slow**: Jellyfin holds the identify request open while it talks to the provider and rebuilds the item, and a live run on a 69-episode series took longer than a normal read timeout allows. A long wait is not a hang — do not retry, which starts a second full rematch. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Finds and repairs episodes whose Jellyfin metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a film file names its year almost universally, and a year that disagrees means the server matched a different film rather than the same one worded differently. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film, which the server performs as a full refresh with `replaceAllMetadata` and `removeOldMetadata` — overwriting everything it held, including anything corrected by hand. There is no undo. It also has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes that were matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a Jellyfin rescan — not this tool. **The repair is slow**: Jellyfin holds the identify request open while it talks to the provider and rebuilds the item, and a live run on a 69-episode series took longer than a normal read timeout allows. A long wait is not a hang — do not retry, which starts a second full rematch. Previews by default — call again with the returned `confirm` token to apply it.',
         inputSchema: z.object({
             query: z.string().min(1).describe('A film or series title. Resolved through the library index, the same way get_media_details resolves one.'),
             user: z
@@ -321,7 +321,7 @@ export function registerFixMetadata(
             const before = await read();
 
             // Exactly the id the preview named and the token bound.
-            await adapter.repairMetadata(series.itemId, bound.providerId ?? {});
+            const { settled } = await adapter.repairMetadata(series.itemId, bound.providerId ?? {});
 
             // Jellyfin refreshes asynchronously, so this re-read is a snapshot
             // taken while the work is very likely still running. It is reported
@@ -337,10 +337,12 @@ export function registerFixMetadata(
              * the reassuring lie every other part of this file is written to
              * avoid — so the outcome is stated in its own words here.
              *
-             * `unchanged` is not the same as failure: Jellyfin refreshes in the
-             * background, so an identical count immediately afterwards may mean
-             * "not finished yet" or may mean "did nothing". Both are reported as
-             * unverified rather than one being guessed at.
+             * Whether an unchanged count is a failure depends on which call ran.
+             * The identify path finishes the refresh before it answers, so its
+             * result is final and an unchanged count means it genuinely did
+             * nothing. The plain refresh is queued, so an unchanged count there
+             * may only be too early. `settled` carries that distinction instead
+             * of hedging over both.
              */
             return {
                 mismatchesBefore: before.length,
@@ -348,8 +350,11 @@ export function registerFixMetadata(
                 verified: after.length < before.length,
                 note:
                     after.length < before.length
-                        ? `Repaired: ${before.length - after.length} of ${before.length} mismatches are gone. Jellyfin may still be refreshing, so the final count can improve further.`
-                        : `NOT VERIFIED: the calls succeeded but ${after.length} mismatches remain, the same as before. Jellyfin refreshes in the background, so this may be too early — re-run with dry_run in a minute. If the count is still identical then a refresh cannot fix this library: an episode's numbers and title are stored on the item from the original scan, not re-derived from the file. The repair that works is trigger_scan with action "rename" on the Sonarr series, then trigger_scan on Jellyfin.`
+                        ? `Repaired: ${before.length - after.length} of ${before.length} mismatches are gone.` +
+                          (settled ? '' : ' The refresh is queued, so the final count can improve further.')
+                        : settled
+                          ? `NOT FIXED: the re-identify completed and ${after.length} mismatches remain, the same as before. This is a final answer rather than an early one, because the server finished the work before replying. An episode's season and number are stored on the item from the original scan and no refresh re-derives them, so the repair that works is trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on Jellyfin.`
+                          : `NOT VERIFIED: the refresh was accepted but ${after.length} mismatches remain, the same as before. No provider id could be pinned, so this was a plain refresh, which the server queues — re-run with dry_run in a minute to see the settled result.`
             };
         }
     });

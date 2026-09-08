@@ -255,7 +255,13 @@ describe('fix_metadata', () => {
             return h.call({ query: 'Dragon Ball Kai', confirm: preview.structuredContent.confirm_token });
         };
 
-        it('pins the TVDB id before refreshing, so the agent cannot re-match the same way', async () => {
+        /**
+         * One call, not two. Checked against the server source:
+         * ApplySearchCriteria sets the provider ids and then awaits a full
+         * refresh itself before answering, so a second /Refresh is another full
+         * provider fetch of the same item for nothing.
+         */
+        it('pins the id and stops, because the identify call refreshes on its own', async () => {
             const h = harness();
             const { structuredContent } = await confirmed(h);
 
@@ -263,10 +269,7 @@ describe('fix_metadata', () => {
 
             const apply = h.wrote.find(w => w.path.startsWith('/Items/RemoteSearch/Apply/'));
             expect(apply?.body).toEqual({ ProviderIds: { Tvdb: String(TVDB) } });
-
-            const refresh = h.wrote.find(w => w.path.endsWith('/Refresh'));
-            expect(refresh).toBeDefined();
-            expect(h.wrote.indexOf(apply!)).toBeLessThan(h.wrote.indexOf(refresh!));
+            expect(h.wrote.some(w => w.path.endsWith('/Refresh'))).toBe(false);
         });
 
         /**
@@ -275,7 +278,8 @@ describe('fix_metadata', () => {
          * a completed repair. The casing comes from the vendored spec.
          */
         it('spells the refresh parameters the way the server actually reads them', async () => {
-            const h = harness();
+            // The plain refresh only runs when there is no id to pin.
+            const h = harness({ item: seriesItem({ ids: {} }) });
             await confirmed(h);
 
             const refresh = h.wrote.find(w => w.path.endsWith('/Refresh'));
@@ -293,11 +297,23 @@ describe('fix_metadata', () => {
             expect(h.wrote.some(w => w.path.endsWith('/Refresh'))).toBe(true);
         });
 
-        it('does not claim the refresh finished, because Jellyfin runs it in the background', async () => {
+        /** The queued path is the only one that cannot answer yet. */
+        it('says the count may improve only when the refresh was queued', async () => {
+            const queued = harness({ item: seriesItem({ ids: {} }) });
+            const { structuredContent } = await confirmed(queued);
+            expect(JSON.stringify(structuredContent.result)).toContain('queues');
+        });
+
+        /** The identify path finished the work before replying, so an unchanged
+         *  count is a final answer and saying "may be too early" would be a
+         *  hedge the server has already resolved. */
+        it('gives a final answer when the server finished before replying', async () => {
             const h = harness();
             const { structuredContent } = await confirmed(h);
+            const text = JSON.stringify(structuredContent.result);
 
-            expect(JSON.stringify(structuredContent.result)).toContain('background');
+            expect(text).toContain('final answer');
+            expect(text).not.toContain('too early');
         });
 
         it('is refused outright when the destructive tier is off', async () => {
@@ -366,6 +382,6 @@ describe('episodes pinned to their own provider ids', () => {
         expect(structuredContent.applied).toBe(true);
         const result = structuredContent.result as { verified: boolean; note: string };
         expect(result.verified).toBe(false);
-        expect(result.note).toContain('NOT VERIFIED');
+        expect(result.note).toContain('NOT FIXED');
     });
 });

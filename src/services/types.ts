@@ -370,7 +370,10 @@ export interface MetadataRepairCapable {
      * Irreversible: the previous metadata is not recoverable, which is why
      * every caller is `destructive` tier.
      */
-    repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<void>;
+    /** `settled` is true when the server finished the work before answering,
+     *  so a caller reading straight afterwards is reading a final result rather
+     *  than a snapshot mid-refresh. */
+    repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<{ settled: boolean }>;
 }
 
 export const hasMetadataRepair = (a: ServiceAdapter): a is ServiceAdapter & MetadataRepairCapable =>

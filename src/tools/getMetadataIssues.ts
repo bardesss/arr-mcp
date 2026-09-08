@@ -82,6 +82,9 @@ export type GetMetadataIssuesResult = {
      * is "could not look" rather than "nothing is wrong".
      */
     notComparable?: string[];
+    /** How many reads failed outright. `itemsScanned` counts successes only, so
+     *  without this the denominator silently shrinks. */
+    itemsSkipped?: number;
 };
 
 const FIX: Record<Remedy, string> = {
@@ -132,6 +135,7 @@ export async function buildGetMetadataIssues(
     const degraded: string[] = [];
     const notComparable: string[] = [];
     let scanned = 0;
+    let skipped = 0;
 
     // Films first, and in one request: they need no per-title read, so the
     // whole film half of the library costs what a single series costs.
@@ -217,6 +221,7 @@ export async function buildGetMetadataIssues(
             // One unreadable series must not turn a useful sweep into an
             // error. Named rather than swallowed, so a short list is legible.
             logger.warn({ service: adapter.id, itemId, err }, 'metadata sweep skipped a series');
+            skipped += 1;
             if (!degraded.includes(adapter.id)) degraded.push(adapter.id);
         }
     }
@@ -231,6 +236,7 @@ export async function buildGetMetadataIssues(
         items: paged.items.map(i => project(i, opts.detail)),
         degraded,
         itemsScanned: scanned,
+        ...(skipped === 0 ? {} : { itemsSkipped: skipped }),
         ...(notComparable.length === 0 ? {} : { notComparable })
     };
 }
@@ -263,7 +269,9 @@ export function registerGetMetadataIssues(
                           ? '.'
                           : `; ${rename} ${rename === 1 ? 'needs' : 'need'} a rename rather than a metadata refresh` +
                             (look === 0 ? '.' : `, and ${look} ${look === 1 ? 'needs' : 'need'} a look because this cannot tell which side is wrong.`)) +
-                      (result.degraded.length > 0 ? ` Some items could not be read (${result.degraded.join(', ')}).` : '') +
+                      (result.degraded.length > 0
+                          ? ` ${result.itemsSkipped ?? 0} could not be read at all (${result.degraded.join(', ')}), so the count above is out of fewer than the library holds.`
+                          : '') +
                       // Said out loud, because it is the difference between a
                       // quiet library and one nothing could be compared in.
                       (result.notComparable === undefined
