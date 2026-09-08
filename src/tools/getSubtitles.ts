@@ -16,6 +16,14 @@ export type GetSubtitlesResult = {
      * is noise in every response.
      */
     providers?: SubtitleProvider[];
+    /**
+     * Instances whose provider state could not be read, while their gaps
+     * could. The same hole `rejectionsUnavailable` closes in `get_indexers`,
+     * decided once for both (#201): with two Bazarrs, one failing here leaves
+     * `providers` present and missing half the stack, which reads as a
+     * complete answer.
+     */
+    providersUnavailable?: string[];
 };
 
 const project = (gap: SubtitleGap, detail: DetailLevel): SubtitleGap => {
@@ -61,6 +69,7 @@ export async function buildGetSubtitles(
     const gaps: SubtitleGap[] = [];
     const providers: SubtitleProvider[] = [];
     const degraded: string[] = [];
+    const providersUnavailable: string[] = [];
     let sawProviders = false;
 
     await Promise.all(
@@ -81,6 +90,7 @@ export async function buildGetSubtitles(
                 sawProviders = true;
             } catch (err) {
                 logger.warn({ service: adapter.id, err }, 'provider state unavailable; omitting');
+                providersUnavailable.push(adapter.id);
             }
         })
     );
@@ -96,7 +106,8 @@ export async function buildGetSubtitles(
         ...shaped,
         items: shaped.items.map(g => project(g, opts.detail)),
         degraded: degraded.sort(),
-        ...(sawProviders ? { providers } : {})
+        ...(sawProviders ? { providers } : {}),
+        ...(providersUnavailable.length === 0 ? {} : { providersUnavailable: providersUnavailable.sort() })
     };
 }
 
@@ -118,7 +129,13 @@ export function registerGetSubtitles(server: McpServer, adapters: readonly (Serv
                 result.degraded.length > 0
                     ? `Bazarr could not be reached (${result.degraded.join(', ')}); subtitle information may be incomplete.`
                     : `${result.returned} of ${result.total} item(s) missing subtitles` +
-                      (unhealthy > 0 ? `; ${unhealthy} provider(s) unavailable.` : '.');
+                      (unhealthy > 0 ? `; ${unhealthy} provider(s) unavailable.` : '.') +
+                      // Said out loud for the same reason get_indexers says it:
+                      // a provider list missing half the stack looks exactly
+                      // like a healthy one.
+                      (result.providersUnavailable === undefined
+                          ? ''
+                          : ` Provider state is missing for ${result.providersUnavailable.join(', ')}, so that list is partial.`);
 
             return { content: [{ type: 'text', text: summary }], structuredContent: result };
         }

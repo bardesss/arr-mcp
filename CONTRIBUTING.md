@@ -124,7 +124,7 @@ why `stack_health` reports per-instance permissions.
 
 ## Adding a service adapter
 
-The highest-value contribution, and deliberately self-contained. Seven steps,
+The highest-value contribution, and deliberately self-contained. Eight steps,
 each with a worked example already in the tree.
 
 ### Which services qualify
@@ -298,10 +298,30 @@ around them.
    `UserDirectoryCapable` — together `MediaServerAdapter` — and exactly one may
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
-5. **Declare its contract** in `test/contract.test.ts` — the response fields your
+5. **Decide whether it can be configured twice**, and say so in the adapter.
+   Seven of the ten services can be, so this is the common case rather than the
+   exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
+   '<type>'`, which is the *single*-instance shape. That is the safe default
+   (a service that simply cannot be configured twice, rather than two adapters
+   with colliding ids), so getting it wrong fails closed. Making it
+   multi-instance is four moves:
+
+   - accept `Instanced<…>` rather than the bare config type,
+   - set `readonly instance` from `config.name`,
+   - derive `readonly id` with `instanceId()` rather than a type literal,
+   - **pass `this.id` into `ServiceHttp`, not the type literal.**
+
+   That last one is the trap. `ServiceHttp` puts the id it was given into every
+   error it raises, so a hardcoded literal there produces errors blaming
+   `qbittorrent` when the failure was `qbittorrent/vpn` — and a service that
+   authenticates *outside* `ServiceHttp` needs the same care in its own login
+   path. qBittorrent does exactly that, and its login errors had to be fixed
+   separately from the rest of the adapter for precisely this reason.
+
+6. **Declare its contract** in `test/contract.test.ts` — the response fields your
    adapter reads. Omit the `spec` when the service publishes no OpenAPI document.
-6. **Register it** in `src/services/registry.ts`.
-7. **Draw it an icon** in `src/web/icons.ts` — stroke-only, `currentColor`, on
+7. **Register it** in `src/services/registry.ts`.
+8. **Draw it an icon** in `src/web/icons.ts` — stroke-only, `currentColor`, on
    the same 24×24 grid as the rest, saying what kind of thing the service is
    rather than which one. The UI uses one drawn set rather than per-service
    artwork, so a new icon is drawn to match the others instead of sourced. A

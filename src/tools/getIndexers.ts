@@ -16,6 +16,20 @@ export type GetIndexersResult = {
     disabledCount: number;
     /** the "recent rejections". Present only at detail: full. */
     recentRejections?: IndexerRejection[];
+    /**
+     * Instances whose rejection history could not be read, while their
+     * indexers could.
+     *
+     * Not `degraded`: the indexers themselves answered, so the instance is not
+     * degraded. But with two Prowlarrs, one failing here leaves
+     * `recentRejections` present, plausible and missing half the stack, which
+     * reads exactly like a complete history. #200 put `service` on every
+     * rejection so a merged list could say which Prowlarr refused a query; this
+     * is the same argument for saying which one never answered.
+     *
+     * Present only at detail: full, and only when something actually failed.
+     */
+    rejectionsUnavailable?: string[];
 };
 
 const project = (i: IndexerSummary, detail: DetailLevel): IndexerSummary => {
@@ -44,6 +58,7 @@ export async function buildGetIndexers(
     const indexers: IndexerSummary[] = [];
     const rejections: IndexerRejection[] = [];
     const degraded: string[] = [];
+    const rejectionsUnavailable: string[] = [];
     let sawRejections = false;
 
     await Promise.all(
@@ -65,6 +80,7 @@ export async function buildGetIndexers(
                 sawRejections = true;
             } catch (err) {
                 logger.warn({ service: adapter.id, err }, 'rejection history unavailable; omitting');
+                rejectionsUnavailable.push(adapter.id);
             }
         })
     );
@@ -93,7 +109,8 @@ export async function buildGetIndexers(
         items: shaped.items.map(i => project(i, opts.detail)),
         disabledCount,
         degraded: degraded.sort(),
-        ...(sawRejections ? { recentRejections: mergedRejections } : {})
+        ...(sawRejections ? { recentRejections: mergedRejections } : {}),
+        ...(rejectionsUnavailable.length === 0 ? {} : { rejectionsUnavailable: rejectionsUnavailable.sort() })
     };
 }
 
@@ -107,7 +124,14 @@ export const summarizeIndexers = (result: GetIndexersResult, instanceCount: numb
     const disabled = result.disabledCount;
     if (result.degraded.length > 0 && result.degraded.length === instanceCount)
         return `${result.degraded.join(', ')} could not be reached; no indexer information available.`;
-    return `${result.returned} of ${result.total} indexer(s)${disabled > 0 ? `, ${disabled} temporarily disabled` : ''}${result.degraded.length > 0 ? `. ${result.degraded.join(', ')} could not be reached` : ''}.`;
+    // The unavailable-history note rides on the sentence rather than only in
+    // the structure, because the failure it describes is invisible: a short
+    // rejection list looks like a quiet week.
+    const partial =
+        result.rejectionsUnavailable === undefined
+            ? ''
+            : ` Rejection history is missing for ${result.rejectionsUnavailable.join(', ')}, so the list below is partial.`;
+    return `${result.returned} of ${result.total} indexer(s)${disabled > 0 ? `, ${disabled} temporarily disabled` : ''}${result.degraded.length > 0 ? `. ${result.degraded.join(', ')} could not be reached` : ''}.${partial}`;
 };
 
 export function registerGetIndexers(

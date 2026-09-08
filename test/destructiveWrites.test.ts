@@ -1,6 +1,6 @@
+import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
-import { instanceId, type ServiceInstance } from '../src/config/instances.ts';
 import type { AnyServiceConfig, KeyedServiceConfig, ServiceId, CredentialServiceConfig } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
@@ -423,20 +423,6 @@ type Call = (args: Record<string, unknown>) => Promise<{
 // reads it when present, so a config built as `{ ...keyed(port), name: 'spare' }`
 // produces the qualified id its adapter actually carries, without growing that
 // shared helper to cover a case it was written to skip.
-const instancesWithNames = (map: Partial<Record<ServiceId, AnyServiceConfig>>): ServiceInstance[] =>
-    Object.entries(map).flatMap(([type, config]) => {
-        if (config === undefined) return [];
-        const name = (config as { name?: string }).name;
-        return [
-            {
-                id: instanceId(type as ServiceId, name),
-                type: type as ServiceId,
-                ...(name === undefined ? {} : { name }),
-                config
-            }
-        ];
-    });
-
 function harness(
     register: typeof registerDeleteMedia,
     opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}
@@ -462,7 +448,7 @@ function harness(
         server as never,
         {
             permissions: permissionSourceFrom(
-                instancesWithNames(opts.permissions ?? { radarr: tiered(false, true), sonarr: tiered(false, true) })
+                instancesOf(opts.permissions ?? { radarr: tiered(false, true), sonarr: tiered(false, true) })
             ),
             confirm: new ConfirmTokens(),
             audit,
@@ -1240,5 +1226,57 @@ describe('qBittorrent queue removal', () => {
             })
         ).rejects.toThrow(/not found/i);
         expect(sent.some(s => s.method === 'POST')).toBe(false);
+    });
+});
+
+/**
+ * #201 item 1. Seven write tools built their audit target from the bare
+ * `service` string the caller passed rather than the resolved adapter, so with
+ * a `radarr/hd` plus `radarr/4k` pair an audit row said `radarr:412` and could
+ * not say which library was written to. That had been true since the first
+ * multi-instance release, and no test covered it — which is why it survived
+ * the fix that corrected the same defect in the queue tools.
+ */
+describe('audit targets name the instance', () => {
+    const namedRadarr = { ...tiered(false, true), name: '4k' } as never;
+
+    const withNamedRadarr = (register: Parameters<typeof harness>[0]) =>
+        harness(register, {
+            adapters: [
+                new RadarrAdapter(
+                    namedRadarr,
+                    recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE }).impl
+                )
+            ],
+            permissions: { radarr: namedRadarr }
+        });
+
+    const applied = async (h: ReturnType<typeof harness>, args: Record<string, unknown>) => {
+        const first = await h.call({ ...args, instance: '4k' });
+        await h.call({ ...args, instance: '4k', confirm: first.structuredContent.confirm_token });
+        return h.audit.recent(10);
+    };
+
+    it('delete_media records radarr/4k, not radarr', async () => {
+        const h = withNamedRadarr(registerDeleteMedia);
+        const rows = await applied(h, { service: 'radarr', id: '412', delete_files: false });
+
+        expect(rows[0]?.target).toBe('radarr/4k:412');
+    });
+
+    /** The preview carries the same target, because the confirmation token
+     *  binds to it — a token issued against one instance must not spend on
+     *  another. */
+    it('binds the preview target to the instance too', async () => {
+        const h = withNamedRadarr(registerDeleteMedia);
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            instance: '4k',
+            id: '412',
+            delete_files: false,
+            dry_run: true
+        });
+
+        expect(structuredContent.target).toBe('radarr/4k:412');
     });
 });

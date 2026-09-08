@@ -140,7 +140,7 @@ export function registerTriggerSearch(
             }
 
             return {
-                target: `${service}:${id}`,
+                target: `${adapter.id}:${id}`,
                 summary: `Ask ${service} to search for releases for ${scope}.`,
                 effects,
                 args: {

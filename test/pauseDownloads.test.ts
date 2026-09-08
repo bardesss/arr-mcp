@@ -1,6 +1,6 @@
+import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type * as z from 'zod/v4';
-import { instanceId, type ServiceInstance } from '../src/config/instances.ts';
 import type { AnyServiceConfig, CredentialServiceConfig, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
@@ -214,20 +214,6 @@ function sabFetch(paused: { value: boolean } = { value: false }): typeof fetch {
 // `{ ...keyed(port), name: 'spare' }` produces the qualified id its adapter
 // actually carries, without growing that shared helper to cover a case it was
 // written to skip.
-const instancesWithNames = (map: Partial<Record<ServiceId, AnyServiceConfig>>): ServiceInstance[] =>
-    Object.entries(map).flatMap(([type, config]) => {
-        if (config === undefined) return [];
-        const name = (config as { name?: string }).name;
-        return [
-            {
-                id: instanceId(type as ServiceId, name),
-                type: type as ServiceId,
-                ...(name === undefined ? {} : { name }),
-                config
-            }
-        ];
-    });
-
 function harness(
     opts: { adapters?: ServiceAdapter[]; permissions?: Partial<Record<ServiceId, AnyServiceConfig>> } = {}
 ) {
@@ -246,7 +232,7 @@ function harness(
         server as never,
         {
             permissions: permissionSourceFrom(
-                instancesWithNames(opts.permissions ?? { sabnzbd: keyed(8080) as unknown as AnyServiceConfig })
+                instancesOf(opts.permissions ?? { sabnzbd: keyed(8080) as unknown as AnyServiceConfig })
             ),
             confirm: new ConfirmTokens(),
             audit,
