@@ -25,9 +25,11 @@ const { config: real } = await loadConfig(CONFIG_DIR, { persist: false });
 const hosts = hostsOf(real);
 
 /** The same service twice, under two names. */
+const DOUBLED_TYPES = ['radarr', 'sonarr', 'sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const;
+
 function doubled(config: Config): Config {
     const services = { ...config.services } as Record<string, unknown>;
-    for (const type of ['radarr', 'sonarr'] as const) {
+    for (const type of DOUBLED_TYPES) {
         const block = services[type];
         if (block === undefined || Array.isArray(block)) continue;
         services[type] = [
@@ -66,11 +68,12 @@ const multi = appFor(multiConfig);
 const token = real.auth.bearer_token;
 
 const arrTypes = (['radarr', 'sonarr'] as const).filter(t => Array.isArray(multiConfig.services[t]));
-if (arrTypes.length === 0) {
-    console.error('This config has no single-block radarr or sonarr to double. Nothing to check.');
+const doubledTypes = DOUBLED_TYPES.filter(t => Array.isArray(multiConfig.services[t]));
+if (doubledTypes.length === 0) {
+    console.error('This config has no single-block service to double. Nothing to check.');
     process.exit(1);
 }
-console.log(`Doubling: ${arrTypes.map(t => `${t}/hd + ${t}/4k`).join(', ')}\n`);
+console.log(`Doubling: ${doubledTypes.map(t => `${t}/hd + ${t}/4k`).join(', ')}\n`);
 
 const run = async (label: string, tool: string, args: Record<string, unknown>): Promise<ToolCallResult | undefined> => {
     const started = performance.now();
@@ -151,6 +154,36 @@ await run('search_media over the doubled library', 'search_media', { query: 'the
 await run('get_media_details over the doubled library', 'get_media_details', { query: 'the' });
 await run('diagnose over the doubled library', 'diagnose', { query: 'the' });
 
+// --- 2a. the queue and indexer fan-outs double ----------------------------
+//
+// Doubling one service is what makes a fan-out checkable: the same rows arrive
+// twice under two ids, so a total that did not move means an instance was
+// dropped rather than that nothing was duplicated.
+for (const [tool, type] of [['get_queue', 'sabnzbd'], ['get_indexers', 'prowlarr']] as const) {
+    if (!Array.isArray(multiConfig.services[type])) continue;
+
+    const beforeContent = (await callTool(single, token, tool, {})).structuredContent as
+        | { total?: number; items?: { service?: string }[] }
+        | undefined;
+    const afterContent = (await callTool(multi, token, tool, {})).structuredContent as
+        | { total?: number; items?: { service?: string }[] }
+        | undefined;
+    const before = beforeContent?.total;
+    const after = afterContent?.total;
+
+    if (typeof before !== 'number' || typeof after !== 'number') {
+        fail(`${tool} total`, `missing total — got ${JSON.stringify({ before, after })}`);
+    } else if (after !== before * 2) {
+        fail(`${tool} total`, `expected ${before * 2} with two instances, got ${after}`);
+    } else {
+        pass(`${tool} total`, `${before} → ${after}`);
+    }
+
+    const ids = new Set((afterContent?.items ?? []).map(i => i.service));
+    if (ids.has(`${type}/hd`) && ids.has(`${type}/4k`)) pass(`${tool} attribution`, [...ids].join(', '));
+    else fail(`${tool} attribution`, `expected both ids, saw ${[...ids].join(', ') || 'none'}`);
+}
+
 // --- 3. writes refuse to guess which instance -----------------------------
 
 const searchHits =
@@ -193,6 +226,52 @@ await expectRefusal(
     { service: 'radarr', external_id: '603', dry_run: true },
     /instances configured|does not say which/
 );
+
+// --- 3a. the write path refuses ambiguity and scopes permissions ----------
+
+if (Array.isArray(multiConfig.services.sabnzbd)) {
+    // Guessing which client to pause is the failure resolveInstance exists to
+    // prevent, and the refusal has to name the alternatives.
+    const ambiguous = await callTool(multi, token, 'pause_downloads', { service: 'sabnzbd', action: 'pause' });
+    const text = JSON.stringify(ambiguous);
+    if (/2 instances/.test(text) && /hd/.test(text) && /4k/.test(text)) pass('pause_downloads ambiguity refused');
+    else fail('pause_downloads ambiguity', `expected a refusal naming hd and 4k, got ${redactHosts(text, hosts)}`);
+}
+
+if (Array.isArray(multiConfig.services.sabnzbd)) {
+    // safe_write on `hd` and nothing on `4k` is a configuration the schema can
+    // express, so it has to be one the gate actually honours.
+    const scoped = ConfigSchema.parse({
+        ...multiConfig,
+        services: {
+            ...multiConfig.services,
+            sabnzbd: (multiConfig.services.sabnzbd as { name: string }[]).map(e => ({
+                ...e,
+                permissions: { safe_write: e.name === 'hd', destructive: false }
+            }))
+        }
+    });
+    const app = appFor(scoped);
+
+    const allowed = await callTool(app, token, 'pause_downloads', {
+        service: 'sabnzbd',
+        instance: 'hd',
+        action: 'pause'
+    });
+    const denied = await callTool(app, token, 'pause_downloads', {
+        service: 'sabnzbd',
+        instance: '4k',
+        action: 'pause'
+    });
+
+    if (/safe_write/.test(JSON.stringify(allowed))) {
+        fail('permissions scoped', 'hd was granted safe_write but the preview was refused');
+    } else if (!/safe_write/.test(JSON.stringify(denied))) {
+        fail('permissions scoped', '4k has no safe_write but was not refused');
+    } else {
+        pass('permissions scoped', 'hd allowed, 4k refused');
+    }
+}
 
 // --- 4. what search_media reports as `service` ----------------------------
 //
