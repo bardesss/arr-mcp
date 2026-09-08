@@ -70,8 +70,9 @@ export function registerRemoveBlocklistItem(
         },
 
         async apply(_plan, { service, instance, id }) {
-            await findAdapter(adapters, service, instance).removeBlocklistItem(id);
-            return { removed: `${service}:${id}` };
+            const adapter = findAdapter(adapters, service, instance);
+            await adapter.removeBlocklistItem(id);
+            return { removed: `${adapter.id}:${id}` };
         }
     });
 }

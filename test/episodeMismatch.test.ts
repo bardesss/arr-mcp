@@ -4,6 +4,8 @@ import {
     findMismatches,
     findMovieMismatches,
     parseFileNumbering,
+    extractFileTitle,
+    movieRemedy,
     parseMovieFile,
     summariseSeries,
     type EpisodeRecord
@@ -330,13 +332,17 @@ describe('summariseSeries', () => {
         expect(verdict).toMatchObject({ mismatches: 1, numbering: 0, titleOnly: 1, pinned: 0, remedy: 'refresh_metadata' });
     });
 
-    /** The Furious shape: the server matched it and is right, the filename is
-     *  the outlier — refreshing would rewrite correct metadata. */
-    it('sends a matched title mismatch to a rename', () => {
+    /**
+     * The Furious shape. This used to be sent to a rename on the strength of one
+     * series where the filenames were the outlier — but the identical finding is
+     * produced by a server holding correct titles in another language, and
+     * nothing here separates the two. It says "look" rather than naming a fix.
+     */
+    it('refuses to name a fix for a matched title mismatch', () => {
         const verdict = summariseSeries([
             withIds({ id: 'p', name: 'My Life Had Stood a Loaded Gun', season: 1, episode: 2, path: '/tv/F/Season 01/F - S01E02 - Flash Flood.mkv' })
         ]);
-        expect(verdict).toMatchObject({ mismatches: 1, titleOnly: 1, pinned: 1, remedy: 'rename_files' });
+        expect(verdict).toMatchObject({ mismatches: 1, titleOnly: 1, pinned: 1, remedy: 'inspect' });
     });
 
     /** The Dragon Ball Kai shape. Numbering is stored at scan time and no
@@ -421,5 +427,102 @@ describe('findMovieMismatches', () => {
 
     it('says nothing about a film with no file', () => {
         expect(findMovieMismatches([film({ id: 'n', name: 'Alien', year: 1979 })])).toEqual([]);
+    });
+});
+
+/**
+ * Every one of these was a false positive found by review rather than by the
+ * suite, on a library shaped unlike the one this was developed against. The
+ * detector feeds an irreversible write, so each gets a test.
+ */
+describe('false positives found by review', () => {
+    it('reads a four-digit episode number, rather than dropping the fourth digit', () => {
+        // Sonarr's default {episode:00} emits E1000 past 999. Read as episode
+        // 100, every long-running anime got a confident numbering finding.
+        expect(parseFileNumbering('/tv/One Piece/Season 21/One Piece - S21E1000 - Overwhelming Strength.mkv')).toMatchObject({
+            season: 21,
+            episode: 1000
+        });
+    });
+
+    it('does not read a series title as numbering', () => {
+        // 2x2 Shinobuden is a real series; 4x4 Adventures stands for the shape.
+        expect(parseFileNumbering('/tv/2x2 Shinobuden/Season 01/2x2 Shinobuden - Episode 1 - Ninja Nonsense.mkv')).toMatchObject({
+            season: 1,
+            episode: 1
+        });
+    });
+
+    it('does not read a resolution tag as numbering', () => {
+        expect(parseFileNumbering('/tv/Old Show/Season 01/Old Show - Episode 3 - The Pilot 640x480.avi')).toMatchObject({
+            season: 1,
+            episode: 3
+        });
+    });
+
+    it('takes the last numbering in the name, so a title containing one is not a decoy', () => {
+        expect(parseFileNumbering('/tv/The S1E1 Podcast/Season 02/The S1E1 Podcast - S02E03 - Title.mkv')).toMatchObject({
+            season: 2,
+            episode: 3
+        });
+    });
+
+    it('takes the first title field, not the longest, so release tags do not win', () => {
+        expect(extractFileTitle('/tv/S/Season 01/Show - S01E01 - Pilot - AMZN WEB-DL DDP5.1 H.264-NTb.mkv')).toBe('Pilot');
+    });
+
+    /** Sonarr and Radarr name files in English; a server set to another
+     *  metadata language disagrees on every title while both are correct. */
+    it('does not compare titles across scripts', () => {
+        const items: EpisodeRecord[] = [
+            ep({
+                id: 'ja',
+                name: '進撃の巨人 第一話',
+                season: 1,
+                episode: 1,
+                path: '/tv/AoT/Season 01/AoT - S01E01 - Shingeki no Kyojin.mkv'
+            })
+        ];
+        expect(findMismatches(items)).toEqual([]);
+    });
+
+    /** Radarr names a file with the year it held at import; TMDB moves festival
+     *  and limited dates across a year boundary afterwards. */
+    it('tolerates a one-year drift on a film', () => {
+        expect(
+            findMovieMismatches([
+                { id: 'd', name: 'Some Film', year: 2024, path: '/movies/Some Film (2023)/Some Film (2023) [Bluray-1080p].mkv' }
+            ])
+        ).toEqual([]);
+    });
+
+    it('still flags a film that is two years out', () => {
+        expect(
+            findMovieMismatches([
+                { id: 'w', name: 'The Thing', year: 2011, path: '/movies/The Thing (1982)/The Thing (1982).mkv' }
+            ])[0]?.reasons
+        ).toEqual(['year']);
+    });
+
+    it('takes the last parenthesised year', () => {
+        expect(parseMovieFile('/movies/Death Race 2000 (2008)/Death Race 2000 (2008).mkv')).toMatchObject({ year: 2008 });
+    });
+});
+
+describe('movieRemedy', () => {
+    /** The episode rule does not carry over. A film's year comes from the
+     *  provider match, not from a scan-time index, so re-identifying re-derives
+     *  it — and every matched film is pinned, so the episode rule would have
+     *  sent every single film finding to a pointless rename. */
+    it('sends a wrong year to a re-identify, even though the film is matched', () => {
+        expect(movieRemedy(['year'], true)).toBe('refresh_metadata');
+    });
+
+    it('refuses to name a fix for a matched title-only disagreement', () => {
+        expect(movieRemedy(['title'], true)).toBe('inspect');
+    });
+
+    it('fills in an unmatched film', () => {
+        expect(movieRemedy(['title'], false)).toBe('refresh_metadata');
     });
 });

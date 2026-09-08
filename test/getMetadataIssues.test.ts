@@ -96,11 +96,17 @@ describe('get_metadata_issues', () => {
         expect(result.items[0]?.fix).toContain('fix_metadata');
     });
 
-    it('sends a matched title mismatch to a rename instead', async () => {
+    /**
+     * A matched title mismatch used to be sent to a rename, on the strength of
+     * one series where the filenames were the outlier. It cannot know that: the
+     * same finding is produced by a Jellyfin holding correct titles in another
+     * language. It says so instead of naming a fix.
+     */
+    it('refuses to name a fix for a matched title mismatch', async () => {
         const result = await sweep(adapterWith({ Furious: [healthy(1), misnamed(2)] }));
 
-        expect(result.items[0]).toMatchObject({ remedy: 'rename_files', titleOnly: 1, pinned: 1 });
-        expect(result.items[0]?.fix).toContain('rename');
+        expect(result.items[0]).toMatchObject({ remedy: 'inspect', titleOnly: 1, pinned: 1 });
+        expect(result.items[0]?.fix).toContain('cannot tell which is right');
     });
 
     it('ranks numbering findings above title ones', async () => {
@@ -188,7 +194,10 @@ describe('films', () => {
         });
         const [row] = (await sweep(adapterWith({}, [], [wrong]))).items;
 
-        expect(row).toMatchObject({ kind: 'movie', numbering: 1, remedy: 'rename_files' });
+        // Not a rename. A film's year comes from the provider match rather than
+        // from a scan-time index, so re-identifying re-derives it — the episode
+        // rule does not carry over, and every matched film is pinned.
+        expect(row).toMatchObject({ kind: 'movie', numbering: 1, remedy: 'refresh_metadata' });
         expect(row?.examples?.[0]).toContain('2011');
     });
 
@@ -231,5 +240,34 @@ describe('films', () => {
 
         expect(result.total).toBe(1);
         expect(result.degraded).toEqual(['jellyfin']);
+    });
+});
+
+/**
+ * M3. "Could not look" and "looked and found nothing" arrive at the same count.
+ * A sweep whose token cannot see file paths — a non-administrator, which the
+ * sibling tool's own remedy text warns about — answered "0 items disagree",
+ * a clean bill of health from comparing nothing. `fix_metadata` already refuses
+ * that exact state as an error; the two must not contradict each other.
+ */
+describe('a series with no file paths is not a clean one', () => {
+    const noPaths = (n: number): EpisodeRecord => ({ id: `np${n}`, name: `Episode ${n}`, season: 1, episode: n });
+
+    it('reports it as not comparable rather than as scanned and clean', async () => {
+        const result = await sweep(adapterWith({ Hidden: [noPaths(1), noPaths(2)] }));
+
+        expect(result.notComparable).toEqual(['Hidden']);
+        expect(result.itemsScanned).toBe(0);
+        expect(result.total).toBe(0);
+    });
+
+    it('does not call the instance degraded, because the read succeeded', async () => {
+        const result = await sweep(adapterWith({ Hidden: [noPaths(1)] }));
+        expect(result.degraded).toEqual([]);
+    });
+
+    it('stays absent when every series had something to compare', async () => {
+        const result = await sweep(adapterWith({ Fine: [healthy(1)] }));
+        expect(result.notComparable).toBeUndefined();
     });
 });

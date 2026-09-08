@@ -119,11 +119,12 @@ export function registerDeleteMedia(
         },
 
         async apply(_plan, { service, instance, id, delete_files, add_import_exclusion }) {
-            await findAdapter(adapters, service, instance).deleteMedia(id, {
+            const adapter = findAdapter(adapters, service, instance);
+            await adapter.deleteMedia(id, {
                 deleteFiles: delete_files,
                 addImportExclusion: add_import_exclusion
             });
-            return { deleted: `${service}:${id}` };
+            return { deleted: `${adapter.id}:${id}` };
         }
     });
 }

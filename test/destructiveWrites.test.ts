@@ -17,6 +17,7 @@ import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import { registerSetMonitoring } from '../src/tools/setMonitoring.ts';
+import { registerUpdateMedia } from '../src/tools/updateMedia.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
@@ -1274,6 +1275,36 @@ describe('audit targets name the instance', () => {
             instance: '4k',
             id: '412',
             delete_files: false,
+            dry_run: true
+        });
+
+        expect(structuredContent.target).toBe('radarr/4k:412');
+    });
+});
+
+/**
+ * M9. `update_media` builds its target the same way the seven tools #201 named
+ * did, and the issue's own list missed it. Found by review, not by the sweep
+ * that produced the list.
+ */
+describe('update_media names the instance too', () => {
+    it('records radarr/4k, not radarr', async () => {
+        const namedRadarr = { ...tiered(false, true), name: '4k' } as never;
+        const h = harness(registerUpdateMedia, {
+            adapters: [
+                new RadarrAdapter(
+                    namedRadarr,
+                    recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE }).impl
+                )
+            ],
+            permissions: { radarr: namedRadarr }
+        });
+
+        const { structuredContent } = await h.call({
+            service: 'radarr',
+            instance: '4k',
+            id: '412',
+            monitored: false,
             dry_run: true
         });
 

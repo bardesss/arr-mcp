@@ -678,7 +678,7 @@ enough to be certain — treat it as the likely fix rather than a verdict:
 - Dragon Ball Kai, where a refresh changed nothing twice.
 
 Rows are worst-first: `numbering` findings outrank title ones, then sheer count.
-`seriesScanned` is the denominator — without it, "0 problems" and "0 series
+`itemsScanned` is the denominator — without it, "0 problems" and "0 series
 looked at" read identically.
 
 ## `fix_metadata`
@@ -714,10 +714,17 @@ to be able to see what the tool believes is wrong.
 
 ### What it actually does
 
-On confirm, two calls in order. The identity is pinned first
-(`/Items/RemoteSearch/Apply/{id}` with the TVDB id, TMDB as fallback), then a
-full refresh with `replaceAllMetadata`. Both are needed: a refresh on its own
-asks the agent to match the item again and it matches it the same wrong way.
+On confirm, **one** call. `/Items/RemoteSearch/Apply/{id}` with the TVDB id for
+a series or TMDB for a film is not just a pin: checked against the server
+source, it sets the provider ids and then awaits a full refresh itself, with
+`ReplaceAllMetadata` and `RemoveOldMetadata`, before answering. A second
+`/Refresh` would be another full provider fetch of the same item for nothing.
+
+That call is **synchronous**, so when it returns the metadata is settled and
+the before/after comparison is a final answer. With no provider id to pin there
+is nothing to identify against, so the fallback is a plain `/Refresh`, which the
+server *queues* — there the comparison is a snapshot mid-flight, and the result
+says which of the two happened rather than hedging over both.
 TVDB is preferred because Sonarr is the source of truth for a series and its
 id is what the file layout was built from. When no provider id is known the
 identify step is **skipped rather than guessed** — applying an empty match
@@ -808,8 +815,9 @@ a read that asks for it and only for a user who may see it.
 ### The result does not claim the repair finished
 
 Jellyfin refreshes in the background, so the re-read that follows the write is
-a snapshot taken while the work is very likely still running. A non-zero
-`remaining` immediately afterwards is not evidence the repair failed. Check
+a snapshot taken while the work is very likely still running. A
+`mismatchesAfter` still equal to `mismatchesBefore` immediately afterwards is
+not evidence the repair failed, which is what `verified: false` says. Check
 `stack_health` for the running task, then re-run with `dry_run` to see the
 settled result.
 

@@ -91,8 +91,40 @@ export type Mismatch = {
  *  parsed with these removed. */
 const BRACKETED = /\[[^\]]*\]|\([^)]*\)/g;
 
-const SEASON_EPISODE = /[Ss](\d{1,3})[Ee](\d{1,3})/;
-const SEASON_X_EPISODE = /\b(\d{1,3})x(\d{1,3})\b/;
+/**
+ * Four digits for the episode, not three, and a right boundary so the fourth
+ * is not silently dropped. Sonarr's default `{episode:00}` emits `E1000` past
+ * episode 999, and `\d{1,3}` read that as episode 100 — a *confident* numbering
+ * finding on every long-running anime, pointing at a rename that would change
+ * nothing. `EPISODE_WORD` already allowed four; this did not.
+ *
+ * The left boundary stops a series title ending in a letter or digit from
+ * contributing its tail to the match.
+ */
+const SEASON_EPISODE = /(?<![A-Za-z0-9])[Ss](\d{1,3})[Ee](\d{1,4})(?!\d)/;
+
+/**
+ * The `1x02` form, narrowed to what that convention actually looks like: a
+ * two- or three-digit episode, space-delimited. Anything looser reads a series
+ * title as numbering — `2x2 Shinobuden` (a real series) parsed as season 2
+ * episode 2, `4x4 Adventures` as season 4 episode 4, and a `640x480` resolution
+ * tag as season 640.
+ */
+const SEASON_X_EPISODE = /(?:^|\s)(\d{1,2})x(\d{2,3})(?=\s|$)/;
+
+/**
+ * The *last* numbering match in a filename, not the first.
+ *
+ * A series whose own title contains one — `The S1E1 Podcast - S02E03 - …` —
+ * puts a decoy to the left of the real thing, and every naming convention in
+ * use puts the real numbering after the series name.
+ */
+const lastMatch = (re: RegExp, value: string): RegExpExecArray | null => {
+    const global = new RegExp(re.source, `${re.flags.replace('g', '')}g`);
+    let found: RegExpExecArray | null = null;
+    for (let m = global.exec(value); m !== null; m = global.exec(value)) found = m;
+    return found;
+};
 const EPISODE_WORD = /\bepisode\s*(\d{1,4})\b/i;
 const SEASON_FOLDER = /^season\s*(\d{1,3})$/i;
 const SPECIALS_FOLDER = /^specials?$/i;
@@ -127,7 +159,7 @@ export function parseFileNumbering(path: string): { season?: number; episode?: n
         if (folder?.[1] !== undefined) season = Number(folder[1]);
     }
 
-    const sxe = SEASON_EPISODE.exec(base) ?? SEASON_X_EPISODE.exec(base);
+    const sxe = lastMatch(SEASON_EPISODE, base) ?? lastMatch(SEASON_X_EPISODE, base);
     if (sxe?.[1] !== undefined && sxe[2] !== undefined) {
         season = Number(sxe[1]);
         episode = Number(sxe[2]);
@@ -158,7 +190,7 @@ export function extractFileTitle(path: string): string | undefined {
         .replace(BRACKETED, ' ')
         .replace(/\./g, ' ');
 
-    const numbered = SEASON_EPISODE.exec(base) ?? SEASON_X_EPISODE.exec(base);
+    const numbered = lastMatch(SEASON_EPISODE, base) ?? lastMatch(SEASON_X_EPISODE, base);
     const worded = numbered === null ? EPISODE_WORD.exec(base) : null;
     const marker = numbered ?? worded;
     if (marker === null) return undefined;
@@ -191,9 +223,12 @@ export function extractFileTitle(path: string): string | undefined {
         .map(part => part.replace(/-[A-Za-z0-9_.]+$/, '').trim())
         .filter(part => part !== '' && !/^\d+$/.test(part));
 
-    // The absolute episode number sits in its own ` - 001 - ` field between the
-    // numbering and the title, so take the longest field rather than the first.
-    const candidate = fields.sort((a, b) => b.length - a.length)[0];
+    // The first surviving field, not the longest. The absolute episode number
+    // that sits in its own ` - 001 - ` field is already gone (the numeric
+    // filter above), and "longest" preferred a trailing release-tag blob:
+    // `… - Pilot - AMZN WEB-DL DDP5.1 H.264-NTb` extracted the tags as the
+    // title, whose surviving words then matched nothing.
+    const candidate = fields[0];
     return candidate === undefined || candidate === '' ? undefined : candidate;
 }
 
@@ -256,7 +291,21 @@ const MIN_WORDS = 2;
  * punctuation, transliteration and part-numbering differ constantly on
  * correct libraries.
  */
+/**
+ * Anything outside the Latin script, which the word comparison cannot read.
+ *
+ * A Jellyfin set to a non-English `PreferredMetadataLanguage` holds titles in
+ * that language while Sonarr and Radarr name files in English, so every pinned
+ * episode in such a library disagrees by word overlap while both sides are
+ * correct. Script is only the half of that this can detect cheaply — English
+ * against Dutch is invisible here — which is why the remedy for a title-only
+ * finding is `inspect` rather than an instruction.
+ */
+const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
+
 function titlesDisagree(serverTitle: string, fileTitle: string): boolean {
+    if (NON_LATIN.test(unfenced(serverTitle)) || NON_LATIN.test(unfenced(fileTitle))) return false;
+
     const server = contentWords(serverTitle);
     const file = contentWords(fileTitle);
     if (server.size < MIN_WORDS || file.size < MIN_WORDS) return false;
@@ -290,7 +339,7 @@ function titlesDisagree(serverTitle: string, fileTitle: string): boolean {
  * enough to be certain. Callers should present it as the likely fix, not a
  * verdict.
  */
-export type Remedy = 'refresh_metadata' | 'rename_files';
+export type Remedy = 'refresh_metadata' | 'rename_files' | 'inspect';
 
 export type SeriesVerdict = {
     /** How many episodes had a file to compare at all. */
@@ -301,6 +350,40 @@ export type SeriesVerdict = {
     /** Of the mismatching episodes, how many the server had already matched. */
     pinned: number;
     remedy: Remedy;
+};
+
+/**
+ * Which way a *series* disagreement points.
+ *
+ *  is the only signal confident enough to name a fix on its own: an
+ * episode's season and number are stored on the item at scan time and no
+ * refresh re-derives them, so the file has to change. Measured.
+ *
+ * A title-only disagreement says the two sides differ, not which is wrong, and
+ * the honest answer depends on something not in the comparison. An episode the
+ * server never matched holds no title of its own, so filling it in is safe. An
+ * episode it *did* match could be either a wrong match or a correct title in
+ * another language, and this cannot tell those apart — so it says 
+ * rather than sending a destructive write at a coin flip. That is narrower
+ * than the rule three series originally suggested, and deliberately so.
+ */
+const seriesRemedy = (numbering: number, pinned: number, mismatches: number): Remedy => {
+    if (numbering > 0) return 'rename_files';
+    return pinned === mismatches ? 'inspect' : 'refresh_metadata';
+};
+
+/**
+ * And a *film*.
+ *
+ * A film has no scan-time numbering, so the episode rule does not carry over:
+ * its year and title both come from the provider match, and re-identifying it
+ * re-derives both. A wrong year therefore means the wrong film was matched and
+ *  is exactly the repair — the opposite of what the episode rule
+ * would have said, since every matched film carries provider ids.
+ */
+export const movieRemedy = (reasons: readonly MismatchReason[], pinned: boolean): Remedy => {
+    if (reasons.includes('year')) return 'refresh_metadata';
+    return pinned ? 'inspect' : 'refresh_metadata';
 };
 
 export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict | undefined {
@@ -321,9 +404,7 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         numbering,
         titleOnly: mismatches.length - numbering,
         pinned,
-        // A mixed series still goes to `fix_metadata`: it is the tool that can
-        // help the unpinned half, and it refuses to pretend about the rest.
-        remedy: numbering > 0 || pinned === mismatches.length ? 'rename_files' : 'refresh_metadata'
+        remedy: seriesRemedy(numbering, pinned, mismatches.length)
     };
 }
 
@@ -355,7 +436,7 @@ export function parseMovieFile(path: string): { title?: string; year?: number } 
     // `Blade Runner 2049 (2017)` parse as year 2049.
     const raw = withoutExtension(segments(path).at(-1) ?? '');
 
-    const found = MOVIE_YEAR.exec(raw);
+    const found = lastMatch(MOVIE_YEAR, raw);
     if (found === null) return {};
 
     const year = Number(found[0].slice(1, -1));
@@ -383,7 +464,11 @@ export function findMovieMismatches(items: readonly MovieRecord[]): Mismatch[] {
         const { title: fileTitle, year: fileYear } = parseMovieFile(path);
         const reasons: MismatchReason[] = [];
 
-        if (fileYear !== undefined && item.year !== undefined && fileYear !== item.year) reasons.push('year');
+        // Two years apart, not one. Radarr names a file with the release year
+        // it held at import and TMDB moves festival and limited dates across a
+        // year boundary afterwards, so a drift of one is ordinary rather than
+        // evidence the wrong film was matched.
+        if (fileYear !== undefined && item.year !== undefined && Math.abs(fileYear - item.year) > 1) reasons.push('year');
         if (fileTitle !== undefined && titlesDisagree(item.name, fileTitle)) reasons.push('title');
         if (reasons.length === 0) continue;
 
