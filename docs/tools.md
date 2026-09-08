@@ -1,6 +1,6 @@
 # Tools
 
-Thirty-four of them. The first seventeen read; the last seventeen write, and are
+Thirty-six of them. The first eighteen read; the last eighteen write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -9,6 +9,7 @@ off until you turn them on — see [writes](writes.md).
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
 | `search_media` | What do I have, what exists, what can I get? |
 | `get_media_details` | Everything about one item |
+| `get_metadata_issues` | Which films and series have metadata that does not describe their files |
 | `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
 | `get_queue` | What is downloading, across all four download paths |
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd and Bazarr did |
@@ -33,6 +34,7 @@ off until you turn them on — see [writes](writes.md).
 | `delete_request` | Drop a request record entirely |
 | `add_media` | Add this film or series and start looking for it |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there |
+| `fix_metadata` | Repair one item whose metadata does not describe its files |
 
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
@@ -92,11 +94,11 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the seventeen that only
-read, and on the seventeen writes `destructiveHint`, taken from the same permission
+tool carries a title and an annotation: `readOnlyHint` on the eighteen that only
+read, and on the eighteen writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from thirty-four similarly-shaped
+about, reads those rather than guessing from thirty-six similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -632,6 +634,178 @@ position. That history is not recoverable.
 
 `user` names whose watch state changes; anyone but `default_user` needs
 `services.jellyfin.allow_other_users`.
+
+## `get_metadata_issues`
+
+The discovery half. `fix_metadata` only ever looks at a series you already
+suspect, and on a real library you mostly do not know which to suspect —
+sweeping 101 series turned up two problems nobody had noticed beside the one
+that prompted the work.
+
+Covers films and series. Films cost one request for the whole library, because
+they need no per-title read; series cost one each, which is why this is
+deliberately **not** folded into `get_library` where every caller would pay for
+it. A real library of 101 series and 118 films sweeps in seconds.
+
+### `remedy` is the field that matters
+
+A title mismatch says the file and the server disagree. It does not say which
+one is wrong, and both directions are real. What separates them is whether the
+server ever matched the episode:
+
+| `remedy` | Means | What to run |
+| --- | --- | --- |
+| `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. | `fix_metadata` |
+| `rename_files` | The server matched it, so its title is the considered one and the **filename** is the outlier. Also every `numbering` finding, and every film whose year disagrees. | `trigger_scan` rename on the managing Radarr or Sonarr, then a Jellyfin rescan |
+
+Three real series stand behind that rule, which is enough to act on and not
+enough to be certain — treat it as the likely fix rather than a verdict:
+
+- A series whose episodes were titled after the series itself, with no provider
+  ids. `fix_metadata` repaired both episodes.
+- A series where the first three files carried titles belonging to episodes 7,
+  4 and 6. The server *and* Sonarr both had it right; the filenames were wrong.
+- Dragon Ball Kai, where a refresh changed nothing twice.
+
+Rows are worst-first: `numbering` findings outrank title ones, then sheer count.
+`seriesScanned` is the denominator — without it, "0 problems" and "0 series
+looked at" read identically.
+
+## `fix_metadata`
+
+The repair `trigger_scan` was never for. A scan asks whether a file is on
+disk; this asks whether the metadata bolted to that file **describes** it, and
+replaces it when it does not. The case it exists for: a file named
+`Specials/Episode 101 Videl's Crisis…` displayed as S1E1 *Prologue to Battle!*,
+which a scan reports as perfectly fine because the file is exactly where it
+should be.
+
+Give a series title as `query`, resolved through the library index the same
+way `get_media_details` resolves one.
+
+### The two findings are not equally trustworthy
+
+The preview splits them, because acting on them differently is the point:
+
+- **`numbering`** — the season or episode number the *path itself* states
+  disagrees with the server's. A `SxxExx` or a `Specials` folder is an
+  explicit claim, not an inference, so this is the confident half.
+- **`title`** — the filename and the server's title share no meaningful word.
+  Advisory only. A romanised filename against an English title disagrees
+  completely while both are correct, and that is common enough that a title
+  finding alone is a reason to look, not a reason to repair.
+
+Short words and stopwords are excluded from that comparison. Without it "the"
+and "of" satisfy the overlap test and it never fires.
+
+The preview lists the offending filenames themselves, up to five. A count on
+its own is not approvable for a write of this tier — the person confirming has
+to be able to see what the tool believes is wrong.
+
+### What it actually does
+
+On confirm, two calls in order. The identity is pinned first
+(`/Items/RemoteSearch/Apply/{id}` with the TVDB id, TMDB as fallback), then a
+full refresh with `replaceAllMetadata`. Both are needed: a refresh on its own
+asks the agent to match the item again and it matches it the same wrong way.
+TVDB is preferred because Sonarr is the source of truth for a series and its
+id is what the file layout was built from. When no provider id is known the
+identify step is **skipped rather than guessed** — applying an empty match
+would unpin whatever identity the item already had — and the preview says so.
+
+The identify call is **slow**, and the timeout on it is raised to 120s for
+that reason. Jellyfin holds the request open while it talks to the provider and
+rebuilds the item; the first live run of this tool, against a 69-episode
+series, exceeded the ordinary 10s service timeout and the repair never landed
+at all. A long wait here is not a hang — retrying starts a second full
+rematch.
+
+**Destructive tier, and not as a formality.** `replaceAllMetadata` overwrites
+every field the server held, including anything corrected by hand in Jellyfin.
+There is no undo.
+
+### When it will not help, said before you confirm
+
+A full refresh re-fetches each episode **from the provider id stored on that
+episode**, not from the series. So an episode pinned to the *wrong* id is
+re-written with the same wrong metadata, and the repair completes having
+changed nothing.
+
+This is not theoretical — it is what the first live run did. All 68 mismatching
+Dragon Ball Kai episodes carried their own AniDB, IMDb and TVDB ids
+(`Episode 101 Videl's Crisis…` pinned to Tvdb `507731`, which *is* Kai S1E1
+*Prologue to Battle!*). The repair applied cleanly, reported success, and every
+title came back identical.
+
+Clearing those ids does not help either, which was measured rather than
+assumed: one episode had its provider ids cleared and a full refresh run
+against it alone, and its season, number and title all came back unchanged.
+An episode's numbering and title are stored **on the item** from the original
+scan, and a refresh does not re-derive them from the file. That is why this
+tool does not offer to clear them — it would be a large destructive capability
+that provably changes nothing.
+
+The preview therefore reads `ProviderIds` alongside `Path` and leads with
+**EXPECTED TO ACHIEVE NOTHING** when every mismatching episode is pinned, or a
+proportional warning when only some are, and it names the repair that does
+work. That repair is two tools that already exist, not this one:
+
+1. `trigger_scan` with `action: "rename"` on the **Sonarr** series, which
+   renames the files to Sonarr's own naming scheme — Sonarr holds the correct
+   mapping, so the files come out with proper `SxxExx` names.
+2. `trigger_scan` on **Jellyfin**, so the renamed files are scanned in and
+   parsed correctly.
+
+The result of an applied repair carries `mismatchesBefore`, `mismatchesAfter`
+and `verified`. `verified: false` means the calls succeeded and the count did
+not move — which is either "the background refresh has not finished" or "this
+was never going to work", and the tool does not guess which.
+
+### Films are judged on their year
+
+A film has no episode numbering, so the **year** does that job, and it does it
+well: a film file names its year almost universally, and a year that disagrees
+means the server matched a *different film* rather than the same one worded
+differently. The title check runs too, as the advisory half, exactly as it does
+for an episode.
+
+Only the parenthesised `(YYYY)` form counts, and that is a precision guard
+rather than pedantry. A bare four-digit token is not a year, it is a number that
+looks like one — `Blade Runner 2049 (2017)` parsed as year 2049 with the title
+"Blade Runner", which then disagreed with a perfectly correct record. `1917` and
+`2012` are the same trap. No parenthesised year, no claim.
+
+Swept across a real library of 118 films, this produced no findings at all,
+which is the answer a healthy film library should give.
+
+### Two things it deliberately will not do
+
+**An episode the server never matched at all reads as clean.** When Jellyfin
+cannot match an episode it falls back to naming it after the file, so the
+filename and the title agree perfectly and both checks pass. Verified on the
+real Dragon Ball Kai series: 68 of its 69 episodes were flagged, and the one
+that was not is the one Jellyfin holds no metadata for — its title is
+literally its filename. The count is therefore a floor, not a total. It costs
+nothing in practice, because the repair is applied to the whole series rather
+than to the episodes named in the preview.
+
+**A series whose episodes came back with no file paths is an error, not a
+clean bill of health.** "Nothing was compared" and "nothing is wrong" arrive at
+the same count of zero, and reporting the first as the second is the
+reassuring lie the preview exists to prevent. Jellyfin returns `Path` only to
+a read that asks for it and only for a user who may see it.
+
+### The result does not claim the repair finished
+
+Jellyfin refreshes in the background, so the re-read that follows the write is
+a snapshot taken while the work is very likely still running. A non-zero
+`remaining` immediately afterwards is not evidence the repair failed. Check
+`stack_health` for the running task, then re-run with `dry_run` to see the
+settled result.
+
+Jellyfin-only, like `set_watched` and for the same reason: the Plex adapter is
+read-only. A Plex stack can reach the detect half through the same reads and
+never the repair — see [#203](../../issues/203).
 
 ## `pause_downloads`
 

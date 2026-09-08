@@ -360,6 +360,7 @@ describe('the advertised tool surface', () => {
         'delete_episode_files',
         'delete_media',
         'delete_request',
+        'fix_metadata',
         'grab_release',
         'pause_downloads',
         'remove_blocklist_item',
@@ -374,8 +375,22 @@ describe('the advertised tool surface', () => {
         'update_media'
     ];
 
-    /** Of those, the five whose effect cannot be undone by calling again. */
-    const DESTRUCTIVE = ['clean_queue', 'delete_episode_files', 'delete_media', 'delete_request', 'remove_queue_item'];
+    /**
+     * Of those, the six whose effect cannot be undone by calling again.
+     *
+     * `fix_metadata` is the one that destroys no *file*: it replaces metadata
+     * with `replaceAllMetadata`, so what it overwrites — including anything
+     * corrected by hand in Jellyfin — is gone. Unrecoverable is the tier test,
+     * not whether bytes were deleted.
+     */
+    const DESTRUCTIVE = [
+        'clean_queue',
+        'delete_episode_files',
+        'delete_media',
+        'delete_request',
+        'fix_metadata',
+        'remove_queue_item'
+    ];
 
     /**
      * Design spec §18: the tool surface is the public API, and renaming one

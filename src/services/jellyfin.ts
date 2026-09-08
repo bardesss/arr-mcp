@@ -1,4 +1,5 @@
 import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
+import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { embyToken } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -9,6 +10,8 @@ import {
     type ConnectionDiagnosis,
     type MediaDetailCapable,
     type MediaDetails,
+    type MetadataInspectCapable,
+    type MetadataRepairCapable,
     type PlaybackEntry,
     type PlaybackCapable,
     type ScanState,
@@ -25,6 +28,20 @@ import {
     type WatchTarget,
     type CommandHandle
 } from './types.ts';
+
+/**
+ * The identify half of a metadata repair is a *synchronous* remote provider
+ * lookup — Jellyfin holds the request open while it talks to TVDB and rebuilds
+ * the item — so it does not fit the per-service read timeout. A live run
+ * against a 69-episode series blew the configured 10s and the repair never
+ * landed, which is exactly the shape `RELEASE_SEARCH_TIMEOUT_MS` already
+ * documents for the *arrs' indexer sweeps.
+ *
+ * Deliberately generous rather than tuned: too short reports a repair that is
+ * still running as a failure, and a caller who retries that starts a second
+ * full rematch.
+ */
+export const METADATA_REPAIR_TIMEOUT_MS = 120_000;
 
 /**
  * Jellyfin's generated types are a megabyte of declarations and its PascalCase
@@ -97,6 +114,11 @@ type RawEpisodeItem = {
     /** Jellyfin's season number. `IndexNumber` is the episode's. */
     ParentIndexNumber?: number;
     IndexNumber?: number;
+    /** Only present when the read asks for it via `Fields=Path`. */
+    Path?: string;
+    /** Likewise `Fields=ProviderIds`. An episode carrying one is pinned to it
+     *  across refreshes — see `pinnedToProvider`. */
+    ProviderIds?: Record<string, string>;
     UserData?: { Played?: boolean; LastPlayedDate?: string };
 };
 
@@ -124,6 +146,8 @@ export class JellyfinAdapter
         UserLibraryCapable,
         UserSeasonsCapable,
         WatchStateCapable,
+        MetadataInspectCapable,
+        MetadataRepairCapable,
         PlaybackCapable
 {
     readonly type: ServiceId = 'jellyfin';
@@ -502,6 +526,105 @@ export class JellyfinAdapter
         } else {
             await this.#http.delete(path);
         }
+    }
+
+    /**
+     * The same endpoint `listEpisodeItems` reads, asked a different question.
+     * `Fields=Path` is the entire reason this is a separate method: Jellyfin
+     * omits `Path` unless a read asks for it, and `set_watched` has no use for
+     * a file path — widening its read to carry one would change a verified
+     * request for nothing.
+     */
+    async readEpisodeMetadata(user: ServiceUser, seriesItemId: string): Promise<EpisodeRecord[]> {
+        const id = this.#itemId(seriesItemId);
+        // `ProviderIds` alongside `Path` because the two together decide
+        // whether a mismatch is repairable at all: an episode pinned to its own
+        // provider id is re-fetched from that id by a refresh, so refreshing it
+        // rewrites exactly the metadata it already had.
+        const page = await this.#http.get<{ Items?: RawEpisodeItem[] }>(
+            `/Shows/${id}/Episodes?userId=${encodeURIComponent(user.id)}&Fields=Path,ProviderIds&EnableImages=false`
+        );
+
+        return (page.Items ?? [])
+            .filter((e): e is RawEpisodeItem & { Id: string } => typeof e.Id === 'string')
+            .map(e => ({
+                id: e.Id,
+                name: fenceText(e.Name ?? '', { service: this.id, field: 'Name' }),
+                ...(e.ParentIndexNumber === undefined ? {} : { season: e.ParentIndexNumber }),
+                ...(e.IndexNumber === undefined ? {} : { episode: e.IndexNumber }),
+                // Fenced like every other server-supplied string. The mismatch
+                // parser unfences before it reads the path, so the fence costs
+                // the comparison nothing and the value stays safe to print.
+                ...(e.Path === undefined ? {} : { path: fenceText(e.Path, { service: this.id, field: 'Path' }) }),
+                // Not fenced: these are read as structure — whether an id
+                // exists at all — and never printed as prose.
+                ...(e.ProviderIds === undefined ? {} : { providerIds: e.ProviderIds })
+            }));
+    }
+
+    /**
+     * Every film, in one call rather than one call per title.
+     *
+     * The asymmetry with the episode read is the library's, not a design
+     * choice: episodes have to be asked for per series, films do not, so a
+     * sweep of a large library costs one request here and one per series
+     * there.
+     */
+    async readMovieMetadata(user: ServiceUser): Promise<MovieRecord[]> {
+        const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
+            `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Movie` +
+                '&Fields=Path,ProviderIds&EnableImages=false'
+        );
+
+        return (page.Items ?? [])
+            .filter((i): i is RawItemDetail & { Id: string } => typeof i.Id === 'string')
+            .map(i => ({
+                id: i.Id,
+                name: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
+                ...(i.ProductionYear === undefined ? {} : { year: i.ProductionYear }),
+                ...(i.Path === undefined ? {} : { path: fenceText(i.Path, { service: this.id, field: 'Path' }) }),
+                ...(i.ProviderIds === undefined ? {} : { providerIds: i.ProviderIds })
+            }));
+    }
+
+    /**
+     * Identify, then replace. Two calls, and both are needed: a refresh on its
+     * own asks the agent to match the item again and it matches it the same
+     * wrong way, so the provider id has to be pinned first.
+     *
+     * The query names are camelCase because that is what the vendored spec
+     * says (`RefreshItem`), not the capitalised spelling issue #199 quoted.
+     * Jellyfin ignores parameters it does not recognise, so a wrong spelling
+     * here would return 204 and change nothing — the failure this whole tool
+     * exists to stop being reported as success.
+     */
+    async repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<void> {
+        const id = this.#itemId(itemId);
+        const slow = { timeoutMs: METADATA_REPAIR_TIMEOUT_MS };
+
+        const providerIds: Record<string, string> = {
+            ...(opts.tvdbId === undefined ? {} : { Tvdb: String(opts.tvdbId) }),
+            ...(opts.tmdbId === undefined ? {} : { Tmdb: String(opts.tmdbId) })
+        };
+
+        // Skipped rather than guessed when no provider id is known: applying an
+        // empty match would unpin whatever identity the item already had.
+        if (Object.keys(providerIds).length > 0) {
+            await this.#http.post(
+                `/Items/RemoteSearch/Apply/${id}?replaceAllImages=false`,
+                { ProviderIds: providerIds },
+                true,
+                slow
+            );
+        }
+
+        await this.#http.post(
+            `/Items/${id}/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=FullRefresh` +
+                '&replaceAllMetadata=true&replaceAllImages=false',
+            undefined,
+            true,
+            slow
+        );
     }
 
     async listUserSeasons(user: ServiceUser): Promise<IndexInput[]> {

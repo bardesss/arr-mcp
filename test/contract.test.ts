@@ -336,7 +336,12 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 path: '/Shows/{seriesId}/Episodes',
                 method: 'get',
                 fixture: 'test/fixtures/jellyfin/show-episodes.json',
-                fields: ['Items.Id', 'Items.Name', 'Items.IndexNumber', 'Items.ParentIndexNumber', 'Items.UserData.Played']
+                // `Items.Path` comes back only because the read asks for it
+                // via `Fields=Path` — it is absent from an unqualified
+                // episode read, so the fixture had to be recaptured for it.
+                // fix_metadata compares it against `Name` and the index
+                // numbers, which is the whole mismatch heuristic.
+                fields: ['Items.Id', 'Items.Name', 'Items.IndexNumber', 'Items.ParentIndexNumber', 'Items.Path', 'Items.UserData.Played']
             }
         ]
     },

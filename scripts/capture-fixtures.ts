@@ -414,7 +414,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                 const seriesId = richestSeriesId(captured.get('items-library'));
                 return userId === undefined || seriesId === undefined
                     ? undefined
-                    : `/Shows/${seriesId}/Episodes?userId=${userId}&EnableUserData=true&EnableImages=false`;
+                    : `/Shows/${seriesId}/Episodes?userId=${userId}&EnableUserData=true&EnableImages=false&Fields=Path`;
             },
             anonymise: neutraliseWatchState
         }

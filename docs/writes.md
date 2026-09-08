@@ -46,6 +46,7 @@ re-monitor it.
 | `delete_media` | destructive | `destructive` |
 | `delete_episode_files` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
+| `fix_metadata` | destructive | `destructive` |
 
 ### Where the tier boundary falls
 
@@ -61,6 +62,12 @@ release — which is hard to notice and hard to undo months later, when the same
 film mysteriously never grabs. SABnzbd and the torrent clients have no blocklist of
 their own; ask for one there and the preview tells you it is being ignored
 rather than silently accepting a flag that does nothing.
+
+`fix_metadata` is destructive without deleting a single byte, which is the
+clearest statement of where the line actually is: it replaces every metadata
+field the media server held, including anything corrected by hand there, and
+the previous values are not recoverable. Unrecoverable is the test, not
+whether files were removed.
 
 `set_watched` is safe rather than destructive, but it is the one safe write
 whose undo is not perfectly clean: unmarking and re-marking restores the
