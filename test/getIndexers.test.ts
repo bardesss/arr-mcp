@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
-import { buildGetIndexers } from '../src/tools/getIndexers.ts';
+import { buildGetIndexers, summarizeIndexers } from '../src/tools/getIndexers.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
@@ -304,5 +304,41 @@ describe('several Prowlarrs', () => {
 
     it('answers empty when none is configured', async () => {
         expect(await buildGetIndexers([], { detail: 'standard', limit: 50 })).toMatchObject({ total: 0, degraded: [] });
+    });
+
+    // A healthy Prowlarr with nothing configured also has total === 0. Only
+    // the fraction of instances actually degraded may claim total failure.
+    it('does not claim total failure when a healthy instance simply has no indexers', async () => {
+        const broken = new ProwlarrAdapter({ ...config, name: 'private' }, refuse);
+        const empty = named('public', { ...routes, '/api/v1/indexer': [] });
+        const result = await buildGetIndexers([empty, broken], { detail: 'standard', limit: 50 });
+
+        expect(result.total).toBe(0);
+        expect(result.degraded).toEqual(['prowlarr/private']);
+
+        const summary = summarizeIndexers(result, 2);
+        expect(summary).not.toContain('no indexer information available');
+        expect(summary).toContain('prowlarr/private could not be reached');
+    });
+});
+
+describe('summarizeIndexers', () => {
+    const base = { items: [], returned: 0, offset: 0, truncated: false, disabledCount: 0 };
+
+    it('claims total failure only when every configured instance degraded', () => {
+        const result = { ...base, total: 0, degraded: ['prowlarr/a', 'prowlarr/b'] };
+        expect(summarizeIndexers(result, 2)).toBe('prowlarr/a, prowlarr/b could not be reached; no indexer information available.');
+    });
+
+    it('names the degraded instance alongside the count when the others answered', () => {
+        const result = { ...base, total: 3, returned: 3, degraded: ['prowlarr/b'] };
+        expect(summarizeIndexers(result, 2)).toBe('3 of 3 indexer(s). prowlarr/b could not be reached.');
+    });
+
+    it('does not claim total failure when a healthy instance has zero indexers and another degraded', () => {
+        const result = { ...base, total: 0, degraded: ['prowlarr/b'] };
+        const summary = summarizeIndexers(result, 2);
+        expect(summary).not.toMatch(/no indexer information available/);
+        expect(summary).toContain('prowlarr/b could not be reached');
     });
 });

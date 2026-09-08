@@ -90,6 +90,19 @@ export async function buildGetIndexers(
     };
 }
 
+/**
+ * Total failure is claimed only when every configured instance degraded —
+ * `degraded.length === instanceCount`, not `result.total === 0`. A healthy
+ * instance with no indexers configured also has `total === 0`, and pairing it
+ * with one degraded instance must not read as "nothing could be reached."
+ */
+export const summarizeIndexers = (result: GetIndexersResult, instanceCount: number): string => {
+    const disabled = result.disabledCount;
+    if (result.degraded.length > 0 && result.degraded.length === instanceCount)
+        return `${result.degraded.join(', ')} could not be reached; no indexer information available.`;
+    return `${result.returned} of ${result.total} indexer(s)${disabled > 0 ? `, ${disabled} temporarily disabled` : ''}${result.degraded.length > 0 ? `. ${result.degraded.join(', ')} could not be reached` : ''}.`;
+};
+
 export function registerGetIndexers(
     server: McpServer,
     adapters: readonly (ServiceAdapter & IndexerCapable)[]
@@ -112,11 +125,7 @@ export function registerGetIndexers(
         },
         async ({ detail, limit, offset }) => {
             const result = await buildGetIndexers(adapters, { detail, limit, offset });
-            const disabled = result.disabledCount;
-            const summary =
-                result.degraded.length > 0 && result.total === 0
-                    ? `${result.degraded.join(', ')} could not be reached; no indexer information available.`
-                    : `${result.returned} of ${result.total} indexer(s)${disabled > 0 ? `, ${disabled} temporarily disabled` : ''}${result.degraded.length > 0 ? `. ${result.degraded.join(', ')} could not be reached` : ''}.`;
+            const summary = summarizeIndexers(result, adapters.length);
 
             return { content: [{ type: 'text', text: summary }], structuredContent: result };
         }
