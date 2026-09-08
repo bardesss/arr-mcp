@@ -346,9 +346,10 @@ export interface MetadataInspectCapable {
      *  where it has one. */
     readEpisodeMetadata(user: ServiceUser, seriesItemId: string): Promise<EpisodeRecord[]>;
 
-    /** Every film in one call. Films need no per-title read the way episodes
-     *  need a per-series one. */
-    readMovieMetadata(user: ServiceUser): Promise<MovieRecord[]>;
+    /** Every film in one call, or just one when `itemId` is given. Films need
+     *  no per-title read the way episodes need a per-series one, but a caller
+     *  repairing a single film should not pull the whole library to find it. */
+    readMovieMetadata(user: ServiceUser, itemId?: string): Promise<MovieRecord[]>;
 }
 
 export const hasMetadataInspect = (a: ServiceAdapter): a is ServiceAdapter & MetadataInspectCapable =>
@@ -369,7 +370,10 @@ export interface MetadataRepairCapable {
      * Irreversible: the previous metadata is not recoverable, which is why
      * every caller is `destructive` tier.
      */
-    repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<void>;
+    /** `settled` is true when the server finished the work before answering,
+     *  so a caller reading straight afterwards is reading a final result rather
+     *  than a snapshot mid-refresh. */
+    repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<{ settled: boolean }>;
 }
 
 export const hasMetadataRepair = (a: ServiceAdapter): a is ServiceAdapter & MetadataRepairCapable =>

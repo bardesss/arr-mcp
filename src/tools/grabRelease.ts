@@ -180,8 +180,9 @@ export function registerGrabRelease(
                 throw new Error('`guid` and `indexer_id` are both required to grab a release.');
             }
 
-            await findAdapter(adapters, service, instance).grabRelease({ guid, indexerId: indexer_id });
-            return { grabbed: `${service}:${guid}` };
+            const adapter = findAdapter(adapters, service, instance);
+            await adapter.grabRelease({ guid, indexerId: indexer_id });
+            return { grabbed: `${adapter.id}:${guid}` };
         }
     });
 }

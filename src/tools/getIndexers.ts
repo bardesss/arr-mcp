@@ -130,7 +130,9 @@ export const summarizeIndexers = (result: GetIndexersResult, instanceCount: numb
     const partial =
         result.rejectionsUnavailable === undefined
             ? ''
-            : ` Rejection history is missing for ${result.rejectionsUnavailable.join(', ')}, so the list below is partial.`;
+            : result.recentRejections === undefined
+              ? ` Rejection history could not be read for ${result.rejectionsUnavailable.join(', ')}, so none is reported.`
+              : ` Rejection history is missing for ${result.rejectionsUnavailable.join(', ')}, so the list below is partial.`;
     return `${result.returned} of ${result.total} indexer(s)${disabled > 0 ? `, ${disabled} temporarily disabled` : ''}${result.degraded.length > 0 ? `. ${result.degraded.join(', ')} could not be reached` : ''}.${partial}`;
 };
 

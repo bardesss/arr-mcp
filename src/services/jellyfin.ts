@@ -570,9 +570,18 @@ export class JellyfinAdapter
      * sweep of a large library costs one request here and one per series
      * there.
      */
-    async readMovieMetadata(user: ServiceUser): Promise<MovieRecord[]> {
+    async readMovieMetadata(user: ServiceUser, itemId?: string): Promise<MovieRecord[]> {
+        // One film by id when the caller wants one. `fix_metadata` reads a film
+        // four times across a preview and a confirm, and pulling the whole film
+        // library each time is a multi-megabyte response under a read timeout
+        // meant for a small one — which `get` then retries once before failing.
+        const scope =
+            itemId === undefined
+                ? '&Recursive=true&IncludeItemTypes=Movie'
+                : `&ids=${encodeURIComponent(this.#itemId(itemId))}`;
+
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
-            `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Movie` +
+            `/Items?userId=${encodeURIComponent(user.id)}${scope}` +
                 '&Fields=Path,ProviderIds&EnableImages=false'
         );
 
@@ -588,17 +597,31 @@ export class JellyfinAdapter
     }
 
     /**
-     * Identify, then replace. Two calls, and both are needed: a refresh on its
-     * own asks the agent to match the item again and it matches it the same
-     * wrong way, so the provider id has to be pinned first.
+     * One call, not two, and which one depends on whether an identity can be
+     * pinned.
      *
-     * The query names are camelCase because that is what the vendored spec
-     * says (`RefreshItem`), not the capitalised spelling issue #199 quoted.
+     * `ApplySearchCriteria` is not just a pin. Checked against the server
+     * source rather than assumed: it sets the item's `ProviderIds` and then
+     * **awaits `RefreshFullItem` itself**, with `MetadataRefreshMode.FullRefresh`,
+     * `ReplaceAllMetadata = true` and `RemoveOldMetadata = true`, before
+     * answering 204. So a following `/Refresh` is a second full provider fetch
+     * of the same item for no gain, and the comment that used to sit here
+     * claiming "two calls, and both are needed" was wrong.
+     *
+     * The difference matters beyond the wasted work: Apply is **synchronous**,
+     * so when it returns the metadata is settled and a caller comparing before
+     * and after is reading a final answer. The standalone refresh is queued, so
+     * a caller reading straight after it is reading a snapshot mid-flight.
+     * `settled` says which of the two happened rather than making the caller
+     * guess.
+     *
+     * The refresh query names are camelCase because that is what the vendored
+     * spec says (`RefreshItem`), not the capitalised spelling issue #199 quoted.
      * Jellyfin ignores parameters it does not recognise, so a wrong spelling
      * here would return 204 and change nothing — the failure this whole tool
      * exists to stop being reported as success.
      */
-    async repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<void> {
+    async repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<{ settled: boolean }> {
         const id = this.#itemId(itemId);
         const slow = { timeoutMs: METADATA_REPAIR_TIMEOUT_MS };
 
@@ -607,8 +630,9 @@ export class JellyfinAdapter
             ...(opts.tmdbId === undefined ? {} : { Tmdb: String(opts.tmdbId) })
         };
 
-        // Skipped rather than guessed when no provider id is known: applying an
-        // empty match would unpin whatever identity the item already had.
+        // Applying an empty match would unpin whatever identity the item
+        // already had, so with no id to pin this falls back to the plain
+        // refresh — which cannot fix a wrong match, only a missing one.
         if (Object.keys(providerIds).length > 0) {
             await this.#http.post(
                 `/Items/RemoteSearch/Apply/${id}?replaceAllImages=false`,
@@ -616,6 +640,7 @@ export class JellyfinAdapter
                 true,
                 slow
             );
+            return { settled: true };
         }
 
         await this.#http.post(
@@ -625,6 +650,7 @@ export class JellyfinAdapter
             true,
             slow
         );
+        return { settled: false };
     }
 
     async listUserSeasons(user: ServiceUser): Promise<IndexInput[]> {

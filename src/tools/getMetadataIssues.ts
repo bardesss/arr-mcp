@@ -1,5 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import { findMismatches, findMovieMismatches, pinnedToProvider, summariseSeries, type Remedy } from '../core/episodeMismatch.ts';
+import {
+    findMismatches,
+    findMovieMismatches,
+    movieRemedy,
+    pinnedToProvider,
+    summariseSeries,
+    type Remedy
+} from '../core/episodeMismatch.ts';
 import { fenceText } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import type { IdentityResolver } from '../core/identity.ts';
@@ -68,12 +75,28 @@ export type GetMetadataIssuesResult = {
     /** How many films and series were read, so a small `total` can be read as
      *  "few problems" rather than "few looked at". */
     itemsScanned: number;
+    /**
+     * Items whose files the server would not name, so nothing about them was
+     * compared. Reported apart from both `itemsScanned` and `degraded`: the
+     * read succeeded, so the instance is not degraded, but the answer for these
+     * is "could not look" rather than "nothing is wrong".
+     */
+    notComparable?: string[];
+    /** How many reads failed outright. `itemsScanned` counts successes only, so
+     *  without this the denominator silently shrinks. */
+    itemsSkipped?: number;
 };
 
 const FIX: Record<Remedy, string> = {
-    refresh_metadata: 'fix_metadata — the server never matched this, so a refresh can fill it in.',
+    refresh_metadata: 'fix_metadata — the server holds nothing of its own here, or matched the wrong thing, and re-identifying re-derives it.',
     rename_files:
-        'trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on Jellyfin — the file is the outlier here, and no metadata refresh moves it.'
+        'trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on Jellyfin. An episode\'s season and number are stored at scan time, so only the file can change.',
+    // Deliberately not an instruction. A title-only disagreement on an item the
+    // server already matched could be a wrong match or a correct title in
+    // another language, and nothing in the comparison separates those. Naming a
+    // fix here would send a destructive write at a coin flip.
+    inspect:
+        'Look before acting: the file and the server disagree on wording only, and this cannot tell which is right. A title in a different language from the filename is a legitimate disagreement. Compare against the managing Radarr or Sonarr.'
 };
 
 const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
@@ -110,7 +133,9 @@ export async function buildGetMetadataIssues(
 
     const issues: MetadataIssue[] = [];
     const degraded: string[] = [];
+    const notComparable: string[] = [];
     let scanned = 0;
+    let skipped = 0;
 
     // Films first, and in one request: they need no per-title read, so the
     // whole film half of the library costs what a single series costs.
@@ -120,7 +145,7 @@ export async function buildGetMetadataIssues(
         for (const mismatch of findMovieMismatches(movies)) {
             const record = movies.find(m => m.id === mismatch.id);
             const pinned = record !== undefined && pinnedToProvider(record) ? 1 : 0;
-            const remedy: Remedy = mismatch.reasons.includes('year') || pinned === 1 ? 'rename_files' : 'refresh_metadata';
+            const remedy = movieRemedy(mismatch.reasons, pinned === 1);
 
             issues.push({
                 service: adapter.id,
@@ -137,7 +162,9 @@ export async function buildGetMetadataIssues(
                 examples: [
                     fenceText(
                         `${unfenced(mismatch.path).split(/[/\\]/).at(-1) ?? ''} → ${unfenced(mismatch.serverTitle)}${mismatch.serverYear === undefined ? '' : ` (${mismatch.serverYear})`}`,
-                        { service: adapter.id, field: 'Path' }
+                        // The line is a filename and a title together, so the
+                        // label names the pair rather than claiming it is a path.
+                        { service: adapter.id, field: 'Path/Name' }
                     )
                 ]
             });
@@ -152,6 +179,18 @@ export async function buildGetMetadataIssues(
         if (itemId === undefined) continue;
         try {
             const episodes = await adapter.readEpisodeMetadata(viewer, itemId);
+
+            // "Could not look" is not "looked and found nothing". A series whose
+            // episodes came back with no file paths compared nothing, and
+            // counting it as scanned-and-clean is how a sweep of a library the
+            // token cannot see file paths for answers "0 items disagree".
+            // fix_metadata already refuses this exact state as an error; the two
+            // must not contradict each other about the same input.
+            if (episodes.length > 0 && episodes.every(e => e.path === undefined || e.path.trim() === '')) {
+                notComparable.push(item.title);
+                continue;
+            }
+
             scanned += 1;
             const verdict = summariseSeries(episodes);
             if (verdict === undefined) continue;
@@ -176,12 +215,13 @@ export async function buildGetMetadataIssues(
                 // fixMetadata's own formatter documents: the closing marker
                 // contains a slash, so splitting a fenced path on separators
                 // returns the tail of the marker instead of the filename.
-                examples: examples.map(e => fenceText(e, { service: adapter.id, field: 'Path' }))
+                examples: examples.map(e => fenceText(e, { service: adapter.id, field: 'Path/Name' }))
             });
         } catch (err) {
             // One unreadable series must not turn a useful sweep into an
             // error. Named rather than swallowed, so a short list is legible.
             logger.warn({ service: adapter.id, itemId, err }, 'metadata sweep skipped a series');
+            skipped += 1;
             if (!degraded.includes(adapter.id)) degraded.push(adapter.id);
         }
     }
@@ -195,7 +235,9 @@ export async function buildGetMetadataIssues(
         ...paged,
         items: paged.items.map(i => project(i, opts.detail)),
         degraded,
-        itemsScanned: scanned
+        itemsScanned: scanned,
+        ...(skipped === 0 ? {} : { itemsSkipped: skipped }),
+        ...(notComparable.length === 0 ? {} : { notComparable })
     };
 }
 
@@ -218,14 +260,23 @@ export function registerGetMetadataIssues(
             const result = await buildGetMetadataIssues(adapters, identity, { detail, limit, offset });
 
             const rename = result.items.filter(i => i.remedy === 'rename_files').length;
+            const look = result.items.filter(i => i.remedy === 'inspect').length;
             const summary =
                 result.itemsScanned === 0
                     ? 'No media server library could be read, so nothing was compared — this is not a clean result.'
                     : `${result.total} of ${result.itemsScanned} items have metadata that disagrees with their files` +
                       (result.total === 0
                           ? '.'
-                          : `; ${rename} need a rename rather than a metadata refresh.`) +
-                      (result.degraded.length > 0 ? ` Some series could not be read (${result.degraded.join(', ')}).` : '');
+                          : `; ${rename} ${rename === 1 ? 'needs' : 'need'} a rename rather than a metadata refresh` +
+                            (look === 0 ? '.' : `, and ${look} ${look === 1 ? 'needs' : 'need'} a look because this cannot tell which side is wrong.`)) +
+                      (result.degraded.length > 0
+                          ? ` ${result.itemsSkipped ?? 0} could not be read at all (${result.degraded.join(', ')}), so the count above is out of fewer than the library holds.`
+                          : '') +
+                      // Said out loud, because it is the difference between a
+                      // quiet library and one nothing could be compared in.
+                      (result.notComparable === undefined
+                          ? ''
+                          : ` ${result.notComparable.length} series had no file paths to compare, so nothing is claimed about them.`);
 
             return { content: [{ type: 'text', text: summary }], structuredContent: result };
         }
