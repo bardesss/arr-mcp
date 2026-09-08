@@ -4,9 +4,11 @@
  *
  *     ARR_MCP_CONFIG_DIR=./config node scripts/multi-instance-check.ts
  *
- * It configures the real Radarr and Sonarr twice, as `hd` and `4k`. Doubling
- * one service is what makes the library total checkable: the same ids merge, so
- * a fan-out that double-counted shows up as a changed total.
+ * It configures whichever of Radarr, Sonarr, SABnzbd, Prowlarr, Transmission
+ * and qBittorrent the live config holds twice, as `hd` and `4k`. Doubling one
+ * service is what makes its totals checkable: the same ids merge, so a
+ * fan-out that double-counted or dropped an instance shows up as a total that
+ * did not move the way doubling should have moved it.
  *
  * Reads only — the write tools it calls are dry runs or refusals.
  */
@@ -26,6 +28,9 @@ const hosts = hostsOf(real);
 
 /** The same service twice, under two names. */
 const DOUBLED_TYPES = ['radarr', 'sonarr', 'sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const;
+
+/** The subset of `DOUBLED_TYPES` that are download clients, not *arr apps or Prowlarr. */
+const DOWNLOAD_CLIENT_TYPES = ['sabnzbd', 'transmission', 'qbittorrent'] as const;
 
 function doubled(config: Config): Config {
     const services = { ...config.services } as Record<string, unknown>;
@@ -69,6 +74,7 @@ const token = real.auth.bearer_token;
 
 const arrTypes = (['radarr', 'sonarr'] as const).filter(t => Array.isArray(multiConfig.services[t]));
 const doubledTypes = DOUBLED_TYPES.filter(t => Array.isArray(multiConfig.services[t]));
+const downloadClientTypes = DOWNLOAD_CLIENT_TYPES.filter(t => Array.isArray(multiConfig.services[t]));
 if (doubledTypes.length === 0) {
     console.error('This config has no single-block service to double. Nothing to check.');
     process.exit(1);
@@ -158,31 +164,61 @@ await run('diagnose over the doubled library', 'diagnose', { query: 'the' });
 //
 // Doubling one service is what makes a fan-out checkable: the same rows arrive
 // twice under two ids, so a total that did not move means an instance was
-// dropped rather than that nothing was duplicated.
-for (const [tool, type] of [['get_queue', 'sabnzbd'], ['get_indexers', 'prowlarr']] as const) {
-    if (!Array.isArray(multiConfig.services[type])) continue;
+// dropped rather than that nothing was duplicated. A single-instance total of
+// zero proves nothing either way, so that's SKIP rather than a vacuous PASS
+// paired with a spurious attribution FAIL.
+//
+// Attribution prefers `counts`, keyed by adapter id and populated by `gather`
+// for every adapter that answered — including with zero items — so it tells
+// "attribution is broken" apart from "this instance's queue is idle", which
+// `items[].service` cannot: an idle instance contributes no items to inspect.
+// `get_indexers` builds its own result without `gather` and has no `counts`
+// field, so it falls back to `items[].service` — fine there, since an
+// indexer list only reads empty when nothing is configured, a state already
+// caught by the zero-total SKIP below.
+type FanOutContent = { total?: number; items?: { service?: string }[]; counts?: Record<string, number> };
 
-    const beforeContent = (await callTool(single, token, tool, {})).structuredContent as
-        | { total?: number; items?: { service?: string }[] }
-        | undefined;
-    const afterContent = (await callTool(multi, token, tool, {})).structuredContent as
-        | { total?: number; items?: { service?: string }[] }
-        | undefined;
-    const before = beforeContent?.total;
+const checkFanOut = async (tool: 'get_queue' | 'get_indexers', types: readonly string[]) => {
+    if (types.length === 0) return;
+
+    const before = ((await callTool(single, token, tool, {})).structuredContent as FanOutContent | undefined)?.total;
+    const afterContent = (await callTool(multi, token, tool, {})).structuredContent as FanOutContent | undefined;
     const after = afterContent?.total;
 
     if (typeof before !== 'number' || typeof after !== 'number') {
         fail(`${tool} total`, `missing total — got ${JSON.stringify({ before, after })}`);
-    } else if (after !== before * 2) {
-        fail(`${tool} total`, `expected ${before * 2} with two instances, got ${after}`);
-    } else {
-        pass(`${tool} total`, `${before} → ${after}`);
+        fail(`${tool} attribution`, 'no total to compare against');
+        return;
     }
+    if (before === 0) {
+        console.log(`SKIP ${tool} total — single-instance total is 0, nothing to double.`);
+        console.log(`SKIP ${tool} attribution — single-instance total is 0, nothing to double.`);
+        return;
+    }
+    if (after !== before * 2) fail(`${tool} total`, `expected ${before * 2} with two instances, got ${after}`);
+    else pass(`${tool} total`, `${before} → ${after}`);
 
-    const ids = new Set((afterContent?.items ?? []).map(i => i.service));
-    if (ids.has(`${type}/hd`) && ids.has(`${type}/4k`)) pass(`${tool} attribution`, [...ids].join(', '));
-    else fail(`${tool} attribution`, `expected both ids, saw ${[...ids].join(', ') || 'none'}`);
-}
+    const counts = afterContent?.counts;
+    const items = afterContent?.items ?? [];
+    for (const type of types) {
+        if (counts !== undefined) {
+            const hd = `${type}/hd`;
+            const k4 = `${type}/4k`;
+            if (Object.hasOwn(counts, hd) && Object.hasOwn(counts, k4)) {
+                pass(`${tool} attribution (${type})`, `${hd}: ${counts[hd]}, ${k4}: ${counts[k4]}`);
+            } else {
+                fail(`${tool} attribution (${type})`, `expected both ids in counts, saw ${Object.keys(counts).join(', ') || 'none'}`);
+            }
+        } else {
+            const ids = new Set(items.map(i => i.service));
+            if (ids.has(`${type}/hd`) && ids.has(`${type}/4k`)) pass(`${tool} attribution (${type})`, [...ids].join(', '));
+            else fail(`${tool} attribution (${type})`, `expected both ids, saw ${[...ids].join(', ') || 'none'}`);
+        }
+    }
+};
+
+await checkFanOut('get_queue', downloadClientTypes);
+await checkFanOut('get_indexers', Array.isArray(multiConfig.services.prowlarr) ? ['prowlarr'] : []);
 
 // --- 3. writes refuse to guess which instance -----------------------------
 
@@ -228,24 +264,29 @@ await expectRefusal(
 );
 
 // --- 3a. the write path refuses ambiguity and scopes permissions ----------
+//
+// Looped over whichever download clients are configured, one type fully at a
+// time — never Promise.all across or within a type. qBittorrent bans a client
+// that bursts two logins at it, and two doubled adapters against one URL is
+// exactly that if these ever ran concurrently.
 
-if (Array.isArray(multiConfig.services.sabnzbd)) {
+for (const type of downloadClientTypes) {
     // Guessing which client to pause is the failure resolveInstance exists to
     // prevent, and the refusal has to name the alternatives.
-    const ambiguous = await callTool(multi, token, 'pause_downloads', { service: 'sabnzbd', action: 'pause' });
+    const ambiguous = await callTool(multi, token, 'pause_downloads', { service: type, action: 'pause' });
     const text = JSON.stringify(ambiguous);
-    if (/2 instances/.test(text) && /hd/.test(text) && /4k/.test(text)) pass('pause_downloads ambiguity refused');
-    else fail('pause_downloads ambiguity', `expected a refusal naming hd and 4k, got ${redactHosts(text, hosts)}`);
+    if (/2 instances/.test(text) && /hd/.test(text) && /4k/.test(text)) pass(`pause_downloads ambiguity refused (${type})`);
+    else fail(`pause_downloads ambiguity (${type})`, `expected a refusal naming hd and 4k, got ${redactHosts(text, hosts)}`);
 }
 
-if (Array.isArray(multiConfig.services.sabnzbd)) {
+for (const type of downloadClientTypes) {
     // safe_write on `hd` and nothing on `4k` is a configuration the schema can
     // express, so it has to be one the gate actually honours.
     const scoped = ConfigSchema.parse({
         ...multiConfig,
         services: {
             ...multiConfig.services,
-            sabnzbd: (multiConfig.services.sabnzbd as { name: string }[]).map(e => ({
+            [type]: (multiConfig.services[type] as { name: string }[]).map(e => ({
                 ...e,
                 permissions: { safe_write: e.name === 'hd', destructive: false }
             }))
@@ -253,23 +294,15 @@ if (Array.isArray(multiConfig.services.sabnzbd)) {
     });
     const app = appFor(scoped);
 
-    const allowed = await callTool(app, token, 'pause_downloads', {
-        service: 'sabnzbd',
-        instance: 'hd',
-        action: 'pause'
-    });
-    const denied = await callTool(app, token, 'pause_downloads', {
-        service: 'sabnzbd',
-        instance: '4k',
-        action: 'pause'
-    });
+    const allowed = await callTool(app, token, 'pause_downloads', { service: type, instance: 'hd', action: 'pause' });
+    const denied = await callTool(app, token, 'pause_downloads', { service: type, instance: '4k', action: 'pause' });
 
     if (/safe_write/.test(JSON.stringify(allowed))) {
-        fail('permissions scoped', 'hd was granted safe_write but the preview was refused');
+        fail(`permissions scoped (${type})`, 'hd was granted safe_write but the preview was refused');
     } else if (!/safe_write/.test(JSON.stringify(denied))) {
-        fail('permissions scoped', '4k has no safe_write but was not refused');
+        fail(`permissions scoped (${type})`, '4k has no safe_write but was not refused');
     } else {
-        pass('permissions scoped', 'hd allowed, 4k refused');
+        pass(`permissions scoped (${type})`, 'hd allowed, 4k refused');
     }
 }
 
