@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/bardesss/arr-mcp/compare/v1.21.2...v1.22.0) (2026-09-08)
+
+
+### Features
+
+* let the download clients and Prowlarr be configured more than once ([#200](https://github.com/bardesss/arr-mcp/issues/200)) ([1b6a3af](https://github.com/bardesss/arr-mcp/commit/1b6a3affadb8aa4df4f584ce101803a5105fe443))
+
 ## [1.21.2](https://github.com/bardesss/arr-mcp/compare/v1.21.1...v1.21.2) (2026-09-06)
 
 
