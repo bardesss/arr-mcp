@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/bardesss/arr-mcp/compare/v1.22.0...v1.23.0) (2026-09-08)
+
+
+### Features
+
+* find and repair metadata that does not describe the files ([#204](https://github.com/bardesss/arr-mcp/issues/204)) ([4127920](https://github.com/bardesss/arr-mcp/commit/4127920f32aa6fe65a1f7c277e1794ee05413d5e))
+
 ## [1.22.0](https://github.com/bardesss/arr-mcp/compare/v1.21.2...v1.22.0) (2026-09-08)
 
 
