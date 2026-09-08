@@ -101,6 +101,7 @@ describe('qbittorrentSession', () => {
 
     const session = (over: Partial<Parameters<typeof qbittorrentSession>[0]> = {}, impl?: typeof fetch) =>
         qbittorrentSession({
+            id: 'qbittorrent',
             url: BASE,
             timeoutMs: 1000,
             username: 'u',
@@ -182,7 +183,7 @@ describe('qbittorrentSession', () => {
             return loggedIn();
         }) as unknown as typeof fetch;
 
-        const auth = qbittorrentSession({ url: BASE, timeoutMs: 1000, fetchImpl: impl });
+        const auth = qbittorrentSession({ id: 'qbittorrent', url: BASE, timeoutMs: 1000, fetchImpl: impl });
         expect(await auth.recover?.(forbidden())).toBe(false);
         expect(called).toBe(false);
     });
@@ -235,5 +236,12 @@ describe('qbittorrentSession', () => {
     it('fails when a 204 login sets no cookie', async () => {
         const impl = (async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
         await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/no session cookie/i);
+    });
+
+    it('names the qualified instance id, not the bare service, in a login failure', async () => {
+        const impl = (async () => new Response('', { status: 403 })) as unknown as typeof fetch;
+        await expect(session({ id: 'qbittorrent/vpn' }, impl).recover?.(forbidden())).rejects.toThrow(
+            /qbittorrent\/vpn/
+        );
     });
 });

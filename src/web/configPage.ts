@@ -307,7 +307,7 @@ function addDialog(
 
     /** A service that cannot have a second instance and already has one is not
      *  a choice — offering it only to answer "already configured" wastes the
-     *  click. The three multi-instance types are always here, so this list is
+     *  click. The multi-instance types are always here, so this list is
      *  never empty. */
     const offerable = SERVICE_IDS_ALPHABETICAL.filter(
         id => id !== rivalMediaServer && (MULTI_INSTANCE.includes(id) || !configured.has(id))

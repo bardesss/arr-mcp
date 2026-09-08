@@ -1,6 +1,6 @@
-import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type * as z from 'zod/v4';
+import { instanceId, type ServiceInstance } from '../src/config/instances.ts';
 import type { AnyServiceConfig, CredentialServiceConfig, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
@@ -175,6 +175,21 @@ describe('qbittorrent pause', () => {
             jsonResponse([{ hash: 'a', state: 'pausedDL' }, { hash: 'b', state: 'stoppedUP' }])) as unknown as typeof fetch;
         expect((await adapterWith(impl).readPauseState()).paused).toBe(true);
     });
+
+    it('names the qualified instance, not the bare service, when login is refused', async () => {
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname.endsWith('/torrents/info')) return jsonResponse([{ hash: 'abc', state: 'downloading' }]);
+            if (url.pathname.endsWith('/auth/login')) return new Response('', { status: 403 });
+            return new Response('Forbidden', { status: 403 });
+        }) as unknown as typeof fetch;
+
+        const named = new QbittorrentAdapter(
+            { ...credential(8081), name: 'vpn', username: 'u', password: 'p' },
+            impl
+        );
+        await expect(named.setPaused(true, 'abc')).rejects.toThrow(/qbittorrent\/vpn/);
+    });
 });
 
 // --- the tool ------------------------------------------------------------
@@ -184,17 +199,40 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
+/** Shared by `harness`'s default SABnzbd and any test that needs a second,
+ *  independently-named one against the same fake queue behaviour. */
+function sabFetch(paused: { value: boolean } = { value: false }): typeof fetch {
+    return (async (input: string | URL | Request) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        if (url.search.includes('mode=queue')) return jsonResponse({ queue: { paused: paused.value, slots: [] } });
+        return jsonResponse({ status: true });
+    }) as unknown as typeof fetch;
+}
+
+// `instancesOf` deliberately ignores `name` — almost every test here wants a
+// single unnamed instance. This reads it when present, so a config built as
+// `{ ...keyed(port), name: 'spare' }` produces the qualified id its adapter
+// actually carries, without growing that shared helper to cover a case it was
+// written to skip.
+const instancesWithNames = (map: Partial<Record<ServiceId, AnyServiceConfig>>): ServiceInstance[] =>
+    Object.entries(map).flatMap(([type, config]) => {
+        if (config === undefined) return [];
+        const name = (config as { name?: string }).name;
+        return [
+            {
+                id: instanceId(type as ServiceId, name),
+                type: type as ServiceId,
+                ...(name === undefined ? {} : { name }),
+                config
+            }
+        ];
+    });
+
 function harness(
     opts: { adapters?: ServiceAdapter[]; permissions?: Partial<Record<ServiceId, AnyServiceConfig>> } = {}
 ) {
     const sabPaused = { value: false };
-    const sabImpl = (async (input: string | URL | Request) => {
-        const url = new URL(input instanceof Request ? input.url : String(input));
-        if (url.search.includes('mode=queue')) return jsonResponse({ queue: { paused: sabPaused.value, slots: [] } });
-        return jsonResponse({ status: true });
-    }) as unknown as typeof fetch;
-
-    const adapters = opts.adapters ?? [new SabnzbdAdapter(keyed(8080), sabImpl)];
+    const adapters = opts.adapters ?? [new SabnzbdAdapter(keyed(8080), sabFetch(sabPaused))];
 
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
@@ -208,7 +246,7 @@ function harness(
         server as never,
         {
             permissions: permissionSourceFrom(
-                instancesOf(opts.permissions ?? { sabnzbd: keyed(8080) as unknown as AnyServiceConfig })
+                instancesWithNames(opts.permissions ?? { sabnzbd: keyed(8080) as unknown as AnyServiceConfig })
             ),
             confirm: new ConfirmTokens(),
             audit,
@@ -301,5 +339,23 @@ describe('pause_downloads', () => {
         });
 
         expect(applied.structuredContent.applied).toBe(true);
+    });
+
+    it('records the instance in the audit target, not the bare service', async () => {
+        const spare = { ...keyed(8081), name: 'spare' } as never;
+        const h = harness({
+            adapters: [new SabnzbdAdapter(spare, sabFetch())],
+            permissions: { sabnzbd: spare }
+        });
+
+        const preview = await h.call({ service: 'sabnzbd', instance: 'spare', action: 'pause' });
+        await h.call({
+            service: 'sabnzbd',
+            instance: 'spare',
+            action: 'pause',
+            confirm: preview.structuredContent.confirm_token
+        });
+
+        expect(h.audit.recent(10)[0]?.target).toBe('sabnzbd/spare:all');
     });
 });

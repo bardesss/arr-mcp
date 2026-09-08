@@ -96,8 +96,9 @@ export type IndexerSummary = {
     rejectedGrabs?: number;
 };
 
-/** A query an indexer refused, with the reason it gave. */
-export type IndexerRejection = { indexer: string; at: string; reason: string; query?: string };
+/** A query an indexer refused, with the reason it gave. `service` is the
+ *  Prowlarr that reported it — a merged list cannot be read without it. */
+export type IndexerRejection = { service: string; indexer: string; at: string; reason: string; query?: string };
 
 export interface IndexerCapable {
     getIndexers(): Promise<IndexerSummary[]>;
