@@ -851,7 +851,22 @@ export type QualityProfile = { id: number; name: string; display: string };
  * both is what stops anyone having to un-fence a value, which `fenceText` is
  * deliberately not reversible for.
  */
-export type RootFolder = { path: string; display: string; freeSpaceBytes?: number };
+export type RootFolder = {
+    path: string;
+    display: string;
+    freeSpaceBytes?: number;
+    /**
+     * Folder names inside this root that the service maps to no item, fenced —
+     * these are read, never posted back, so unlike `path` there is no raw half.
+     *
+     * A fact rather than a verdict. It can be a mapping the service lost, a
+     * folder someone dropped in by hand, or a delete that kept the files, and
+     * nothing in the response separates those. Absent rather than empty when
+     * the root is fully mapped, so "nothing unmapped" and "the service did not
+     * say" stay distinguishable.
+     */
+    unmappedFolders?: string[];
+};
 
 /** What an external id resolves to, and whether the service already has it. */
 export type AddCandidate = {

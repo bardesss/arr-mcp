@@ -485,6 +485,34 @@ describe('stack_health add options', () => {
         ]);
     });
 
+    /**
+     * Carried on the root folder that reported it, not as a list of its own:
+     * "three folders under /movies answer to nothing" is the finding, and a
+     * bare list of names would lose which root they sit in on a stack with
+     * more than one.
+     */
+    it('carries the folders a root maps to nothing', async () => {
+        const result = await buildStackHealth(
+            [
+                addable({
+                    folders: async () => [
+                        {
+                            path: '/movies',
+                            display: '/movies',
+                            freeSpaceBytes: 100,
+                            unmappedFolders: ['Back to Black (2024) [tmdbid-998846]']
+                        }
+                    ]
+                })
+            ],
+            { detail: 'full', limit: 50 }
+        );
+
+        expect(result.options?.[0]?.rootFolders).toEqual([
+            { path: '/movies', freeSpaceBytes: 100, unmappedFolders: ['Back to Black (2024) [tmdbid-998846]'] }
+        ]);
+    });
+
     it('leaves them out below full — a profile list is not a fault', async () => {
         expect((await buildStackHealth([addable()], std)).options).toBeUndefined();
         expect((await buildStackHealth([addable()], { detail: 'minimal', limit: 50 })).options).toBeUndefined();
