@@ -24,6 +24,7 @@ import {
     type AuthStrategy
 } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
+import { parseServiceFilter } from './lib/captureArgs.ts';
 import {
     anonymisePlexAccounts,
     anonymisePlexHistory,
@@ -658,6 +659,10 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
 // own predicate above, which this script itself (top-level `loadConfig()` on
 // import) is too awkward to unit test directly.
 
+// `npm run capture -- plex` captures only Plex. No argument keeps the old
+// behaviour, every configured service, which is the maintainer refresh.
+const only = parseServiceFilter(process.argv.slice(2));
+
 const configDir = process.env.ARR_MCP_CAPTURE_CONFIG ?? './config';
 // `persist: false` — capturing fixtures reads the user's config; it must never
 // write to the file holding their credentials.
@@ -680,6 +685,8 @@ let skipped = 0;
 const capturedTypes = new Set<ServiceId>();
 
 for (const instance of listInstances(config)) {
+    if (only !== undefined && !only.includes(instance.type)) continue;
+
     if (capturedTypes.has(instance.type)) {
         console.log(`  skipping ${instance.id}: already captured ${instance.type}`);
         continue;
