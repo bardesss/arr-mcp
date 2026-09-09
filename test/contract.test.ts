@@ -168,6 +168,19 @@ const CONTRACTS: Record<string, ServiceContract> = {
             },
             { fixture: 'test/fixtures/radarr/movie-lookup.json', fields: ['title', 'tmdbId'] },
             {
+                // `unmappedFolders[].name` is the whole of what `stack_health`
+                // reports about a folder the instance maps to no item, and it
+                // is the only API-visible trace of a mapping the service has
+                // lost. `readRootFolders` has read `path` and `freeSpace` here
+                // uncontracted since it was written; contracting all three now
+                // means the nightly spec drift job catches an upstream rename
+                // rather than a user finding a field that silently went empty.
+                path: '/api/v3/rootfolder',
+                method: 'get',
+                fixture: 'test/fixtures/radarr/rootfolder.json',
+                fields: ['path', 'freeSpace', 'unmappedFolders', 'unmappedFolders.name']
+            },
+            {
                 path: '/api/v3/blocklist',
                 method: 'get',
                 fixture: 'test/fixtures/radarr/blocklist.json',
@@ -182,6 +195,19 @@ const CONTRACTS: Record<string, ServiceContract> = {
         dependencies: [
             { path: '/api/v3/system/status', method: 'get', fixture: 'test/fixtures/sonarr/system-status.json', fields: ['version'] },
             { path: '/api/v3/diskspace', method: 'get', fixture: 'test/fixtures/sonarr/diskspace.json', fields: ['path', 'label', 'freeSpace', 'totalSpace'] },
+            {
+                // No `unmappedFolders.name` here, unlike Radarr: the capture
+                // run found every folder in this instance's root mapped, so
+                // the recorded array is empty and there is no row to assert
+                // against. Same reasoning as the absent health dependencies
+                // above — left open rather than closed on an assumption. Add
+                // it the first time a real instance reports an unmapped
+                // folder.
+                path: '/api/v3/rootfolder',
+                method: 'get',
+                fixture: 'test/fixtures/sonarr/rootfolder.json',
+                fields: ['path', 'freeSpace', 'unmappedFolders']
+            },
             { path: '/api/v3/system/task', method: 'get', fixture: 'test/fixtures/sonarr/system-task.json', fields: ['taskName', 'lastExecution'] },
             {
                 fixture: 'test/fixtures/sonarr/calendar.json',
