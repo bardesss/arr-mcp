@@ -67,7 +67,7 @@ export const SONARR_ADD: ArrAddShape = {
 };
 
 type RawProfile = { id?: number; name?: string };
-type RawRootFolder = { path?: string; freeSpace?: number };
+type RawRootFolder = { path?: string; freeSpace?: number; unmappedFolders?: { name?: string }[] };
 type RawLookup = { id?: number; title?: string; year?: number };
 
 export async function readQualityProfiles(http: ServiceHttp, service: string): Promise<QualityProfile[]> {
@@ -85,13 +85,24 @@ export async function readRootFolders(http: ServiceHttp, service: string): Promi
     const rows = await http.get<RawRootFolder[]>('/api/v3/rootfolder');
     return rows
         .filter((r): r is RawRootFolder & { path: string } => typeof r.path === 'string' && r.path !== '')
-        .map(r => ({
-            // Raw, because this is what gets posted back as a directory.
-            path: r.path,
-            // Fenced, because this is what reaches model context as prose.
-            display: fenceText(r.path, { service, field: 'path' }),
-            ...(typeof r.freeSpace === 'number' ? { freeSpaceBytes: r.freeSpace } : {})
-        }));
+        .map(r => {
+            // The service reports each unmapped folder three ways: `name`,
+            // `relativePath` and an absolute `path`. `name` is the one that is
+            // not already implied by the root's own path beside it.
+            const unmapped = (r.unmappedFolders ?? [])
+                .map(u => u.name)
+                .filter((n): n is string => typeof n === 'string' && n !== '')
+                .map(n => fenceText(n, { service, field: 'unmappedFolder' }));
+
+            return {
+                // Raw, because this is what gets posted back as a directory.
+                path: r.path,
+                // Fenced, because this is what reaches model context as prose.
+                display: fenceText(r.path, { service, field: 'path' }),
+                ...(typeof r.freeSpace === 'number' ? { freeSpaceBytes: r.freeSpace } : {}),
+                ...(unmapped.length === 0 ? {} : { unmappedFolders: unmapped })
+            };
+        });
 }
 
 export async function readTags(http: ServiceHttp, service: string): Promise<Tag[]> {

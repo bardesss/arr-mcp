@@ -167,6 +167,16 @@ is three extra calls per instance and it answers "what may I choose", not "is
 anything broken". An instance whose profile list cannot be read is named in
 `degraded` and left out of `options` — the rest of the answer stands.
 
+Each root folder also carries `unmappedFolders` when the instance reports any:
+the folder names under that root it associates with no item. It rides along on
+a call already being made, and it is the only trace the API gives of a mapping
+the service has lost — an item whose files it no longer knows about is never
+renamed, upgraded or searched for again. Read it as a fact rather than a
+verdict: a folder dropped in by hand and a delete that kept its files look
+exactly the same from here. Absent rather than empty when the root is fully
+mapped, so "nothing unmapped" stays distinguishable from "the service did not
+say".
+
 ### Did that command finish?
 
 `commands` is every **followable** task a service has queued or running, plus
@@ -1004,7 +1014,7 @@ no-op, and a request naming no field at all is refused rather than previewed.
 
 ## Prompts and resources
 
-Thirty-four tools do not tell you which one to reach for, and the questions
+Thirty-six tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

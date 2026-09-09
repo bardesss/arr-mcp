@@ -119,4 +119,44 @@ describe('RadarrAdapter', () => {
         const a = adapter({});
         expect([hasDiskSpace(a), hasHealthChecks(a), hasScanState(a)]).toEqual([true, true, true]);
     });
+
+    /**
+     * A folder in the root that the service maps to no item. It is a fact
+     * rather than a verdict: it can be a lost mapping, something dropped in by
+     * hand, or a delete that kept the files. The service reports it on the
+     * root folder read we already make, and discarding it hid the only
+     * API-visible trace of the first case.
+     */
+    it('reports the root folders the service maps to nothing', async () => {
+        const folders = await adapter({
+            '/api/v3/rootfolder': [
+                {
+                    path: '/movies',
+                    freeSpace: 100,
+                    unmappedFolders: [
+                        {
+                            name: 'Back to Black (2024) [tmdbid-998846]',
+                            path: '/movies/Back to Black (2024) [tmdbid-998846]',
+                            relativePath: 'Back to Black (2024) [tmdbid-998846]'
+                        }
+                    ]
+                }
+            ]
+        }).listRootFolders();
+
+        // Fenced: a folder name is free text from the service and reaches model
+        // context as prose. Unlike `path` it is never posted back, so there is
+        // no raw half to keep beside it.
+        expect(folders[0]?.unmappedFolders).toEqual([
+            '<<untrusted:radarr.unmappedFolder>>Back to Black (2024) [tmdbid-998846]<</untrusted>>'
+        ]);
+    });
+
+    it('omits unmappedFolders rather than reporting an empty list when the root is fully mapped', async () => {
+        const folders = await adapter({
+            '/api/v3/rootfolder': [{ path: '/movies', freeSpace: 100, unmappedFolders: [] }]
+        }).listRootFolders();
+
+        expect(folders[0]).not.toHaveProperty('unmappedFolders');
+    });
 });
