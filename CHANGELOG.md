@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.1](https://github.com/bardesss/arr-mcp/compare/v1.25.0...v1.25.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* say a download is still running, rather than passing on Radarr's 500 ([#220](https://github.com/bardesss/arr-mcp/issues/220)) ([7e8366a](https://github.com/bardesss/arr-mcp/commit/7e8366a9d95a6c6f25410193d826655387b63ce3))
+
 ## [1.25.0](https://github.com/bardesss/arr-mcp/compare/v1.24.0...v1.25.0) (2026-09-09)
 
 
