@@ -45,6 +45,7 @@ import {
 import {
     firstPartBearingSectionAll,
     firstRatingKeyWithPart,
+    PLEX_TYPE_EPISODE,
     plexAccountsPath,
     plexHistoryPath,
     plexOnDeckPath,
@@ -575,6 +576,33 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                 if (keys.length === 0) return undefined;
                 const picked = await firstPartBearingSectionAll(keys, key => http.get<unknown>(plexSectionAllPath(key, 0, 5)));
                 return picked === undefined ? undefined : { path: plexSectionAllPath(picked.key, 0, 5), body: picked.body };
+            },
+            anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
+        },
+        // The episode half of a TV library, which no other Plex fixture holds:
+        // `section-all` walks movie and show sections alike and settles on
+        // whichever lists a Part-bearing row first, and `ondeck` asks the
+        // server to omit `Media` entirely. `readEpisodeMetadata` (#203) needs
+        // a row with `Media[].Part[].file` alongside `index`/`parentIndex`,
+        // and there is currently nothing to write it against.
+        //
+        // `type=4` mirrors `PlexAdapter#listUserSeasons`, which reads episodes
+        // this exact way against a live server; `test/scriptsPlexCapture.test.ts`
+        // asserts the two requests match, since nobody here can run the capture.
+        //
+        // Show sections only. A movie section holds no episodes, and the walk
+        // would skip with "needs an id" on a server full of TV.
+        {
+            name: 'section-episodes',
+            fetch: async (http, captured) => {
+                const keys = sectionKeys(captured.get('sections'), ['show']);
+                if (keys.length === 0) return undefined;
+                const picked = await firstPartBearingSectionAll(keys, key =>
+                    http.get<unknown>(plexSectionAllPath(key, 0, 5, PLEX_TYPE_EPISODE))
+                );
+                return picked === undefined
+                    ? undefined
+                    : { path: plexSectionAllPath(picked.key, 0, 5, PLEX_TYPE_EPISODE), body: picked.body };
             },
             anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
         },
