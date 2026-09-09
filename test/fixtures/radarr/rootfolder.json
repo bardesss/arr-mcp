@@ -1,0 +1,25 @@
+[
+  {
+    "path": "/storage/movies",
+    "accessible": true,
+    "freeSpace": 6060866371584,
+    "unmappedFolders": [
+      {
+        "name": "Back to Black (2024) [tmdbid-998846]",
+        "path": "/storage/movies/Back to Black (2024) [tmdbid-998846]",
+        "relativePath": "Back to Black (2024) [tmdbid-998846]"
+      },
+      {
+        "name": "Influencers (2025) [tmdbid-1476740]",
+        "path": "/storage/movies/Influencers (2025) [tmdbid-1476740]",
+        "relativePath": "Influencers (2025) [tmdbid-1476740]"
+      },
+      {
+        "name": "Night Always Comes (2025) [tmdbid-1254624]",
+        "path": "/storage/movies/Night Always Comes (2025) [tmdbid-1254624]",
+        "relativePath": "Night Always Comes (2025) [tmdbid-1254624]"
+      }
+    ],
+    "id": 2
+  }
+]

@@ -168,6 +168,19 @@ const CONTRACTS: Record<string, ServiceContract> = {
             },
             { fixture: 'test/fixtures/radarr/movie-lookup.json', fields: ['title', 'tmdbId'] },
             {
+                // `unmappedFolders[].name` is the whole of what `stack_health`
+                // reports about a folder the instance maps to no item, and it
+                // is the only API-visible trace of a mapping the service has
+                // lost. `readRootFolders` has read `path` and `freeSpace` here
+                // uncontracted since it was written; contracting all three now
+                // means the nightly spec drift job catches an upstream rename
+                // rather than a user finding a field that silently went empty.
+                path: '/api/v3/rootfolder',
+                method: 'get',
+                fixture: 'test/fixtures/radarr/rootfolder.json',
+                fields: ['path', 'freeSpace', 'unmappedFolders', 'unmappedFolders.name']
+            },
+            {
                 path: '/api/v3/blocklist',
                 method: 'get',
                 fixture: 'test/fixtures/radarr/blocklist.json',
@@ -182,6 +195,19 @@ const CONTRACTS: Record<string, ServiceContract> = {
         dependencies: [
             { path: '/api/v3/system/status', method: 'get', fixture: 'test/fixtures/sonarr/system-status.json', fields: ['version'] },
             { path: '/api/v3/diskspace', method: 'get', fixture: 'test/fixtures/sonarr/diskspace.json', fields: ['path', 'label', 'freeSpace', 'totalSpace'] },
+            {
+                // No `unmappedFolders.name` here, unlike Radarr: the capture
+                // run found every folder in this instance's root mapped, so
+                // the recorded array is empty and there is no row to assert
+                // against. Same reasoning as the absent health dependencies
+                // above — left open rather than closed on an assumption. Add
+                // it the first time a real instance reports an unmapped
+                // folder.
+                path: '/api/v3/rootfolder',
+                method: 'get',
+                fixture: 'test/fixtures/sonarr/rootfolder.json',
+                fields: ['path', 'freeSpace', 'unmappedFolders']
+            },
             { path: '/api/v3/system/task', method: 'get', fixture: 'test/fixtures/sonarr/system-task.json', fields: ['taskName', 'lastExecution'] },
             {
                 fixture: 'test/fixtures/sonarr/calendar.json',
@@ -330,6 +356,29 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'Items.UserData.Played',
                     'Items.UserData.PlayCount',
                     'Items.Genres'
+                ]
+            },
+            {
+                // getPlayback's resumable half, which went uncontracted while it
+                // called `/Users/{userId}/Items/Resume`: that route is absent
+                // from the spec (obsolete since 10.9, undocumented in 12), so
+                // no entry here could have covered it. `/UserItems/Resume` is
+                // the documented form, and this entry now fails loudly if it
+                // goes the same way.
+                //
+                // `PlaybackPositionTicks` and `LastPlayedDate` are what become
+                // `percentComplete` and `lastPlayed`; a rename to either would
+                // leave every resume row looking freshly started.
+                path: '/UserItems/Resume',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/resume.json',
+                fields: [
+                    'Items.Id',
+                    'Items.Name',
+                    'Items.Type',
+                    'Items.RunTimeTicks',
+                    'Items.UserData.PlaybackPositionTicks',
+                    'Items.UserData.LastPlayedDate'
                 ]
             },
             {

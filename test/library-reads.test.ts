@@ -396,7 +396,7 @@ describe('Jellyfin.listUserSeasons', () => {
     });
 });
 
-const RESUMABLE_ROUTE = '/Users/u1/Items/Resume?Limit=500';
+const RESUMABLE_ROUTE = '/UserItems/Resume?userId=u1&Limit=500';
 
 const RESUMABLE = {
     Items: [
@@ -426,9 +426,9 @@ describe('Jellyfin.getPlayback', () => {
     const someone = { id: 'u1', name: 'Someone' };
 
     it('reads the resumable set from the supported endpoint', async () => {
-        // /Users/{id}/Items/Resume is the supported way to ask for the resumable
-        // set. /Items?IsResumable=true looks like the right query but is silently
-        // ignored by Jellyfin 10.11 — it returns the entire library.
+        // /UserItems/Resume is the documented way to ask for the resumable set.
+        // /Items?IsResumable=true looks like the right query but is silently
+        // ignored — it returns the entire library.
         const entries = await adapter().getPlayback(someone);
         expect(entries).toHaveLength(2);
         expect(entries.every(e => e.kind === 'resume')).toBe(true);
