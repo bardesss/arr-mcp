@@ -101,7 +101,7 @@ describe('assertVersionSupported', () => {
     });
 
     it('has a floor for every service', () => {
-        const services = ['radarr', 'sonarr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'transmission', 'qbittorrent', 'plex'];
+        const services = ['radarr', 'sonarr', 'whisparr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'transmission', 'qbittorrent', 'plex'];
         for (const s of services) expect(MINIMUM_VERSIONS[s as keyof typeof MINIMUM_VERSIONS]).toBeTruthy();
     });
 
@@ -137,7 +137,12 @@ describe('assertVersionSupported against captured evidence', () => {
         sabnzbd: (read('test/fixtures/sabnzbd/version.json') as { version: string }).version,
         transmission: (read('test/fixtures/transmission/session-get.json') as { arguments: { version: string } }).arguments.version,
         qbittorrent: (read('test/fixtures/qbittorrent/version.json') as { version: string }).version,
-        plex: '1.0.0'
+        plex: '1.0.0',
+        // Placeholder, like Plex's above: no Whisparr fixture exists yet, and
+        // a fixture that does not exist cannot be read. Replaced with the
+        // captured `system-status.json` version when the adapter's fixtures
+        // land.
+        whisparr: '2.0.0'
     };
 
     for (const [service, version] of Object.entries(captured)) {

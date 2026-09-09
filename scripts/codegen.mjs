@@ -23,7 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 
 const GENERATOR = 'openapi-typescript@7.13.0';
-const SERVICES = ['radarr', 'sonarr', 'prowlarr', 'jellyfin', 'seerr'];
+const SERVICES = ['radarr', 'sonarr', 'whisparr', 'prowlarr', 'jellyfin', 'seerr'];
 const OUT_DIR = 'src/services/generated';
 
 mkdirSync(OUT_DIR, { recursive: true });

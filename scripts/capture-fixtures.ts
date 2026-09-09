@@ -309,6 +309,123 @@ function anonymiseSeerrUser(row: Row, index: number): Row {
 }
 
 /**
+ * Whisparr is the one service here whose *library* is the sensitive part.
+ *
+ * Everywhere else the fixtures carry film and series titles that are already
+ * public facts, so only paths, release names and account identities are
+ * scrubbed. Here the title, the studio, the artwork URL and the external id all
+ * say what the operator's library holds, so every row-bearing endpoint is
+ * anonymised rather than only the file-shaped ones.
+ *
+ * Values are replaced, never dropped. The contract test reads the shape, so
+ * every key and every type has to survive the pass.
+ *
+ * External ids go with the titles. A real `tvdbId` resolves to a real TPDB
+ * site, so it still names the content by reference once the title is gone.
+ * Internal `id`s and their types stay — the id type is precisely what these
+ * fixtures exist to prove.
+ */
+const isRow = (value: unknown): value is Row =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Maps the `records` array of a paged *arr response, leaving the page counters
+ *  alone — they are shape the adapter reads and say nothing about the library. */
+const mapRecords = (fn: (row: Row, index: number) => Row) => (body: unknown) =>
+    isRow(body) && Array.isArray(body.records)
+        ? { ...body, records: (body.records as Row[]).map(fn) }
+        : body;
+
+const mapRows = (fn: (row: Row, index: number) => Row) => (body: unknown) =>
+    Array.isArray(body) ? (body as Row[]).map(fn) : body;
+
+const anonymiseImages = (images: unknown): unknown =>
+    Array.isArray(images)
+        ? (images as Row[]).map(image => ({
+              ...image,
+              url: replaceIfString(image.url, '/MediaCover/1/poster.jpg'),
+              remoteUrl: replaceIfString(image.remoteUrl, anonymousUrl)
+          }))
+        : images;
+
+/** A site, in Whisparr's UI; a series on its API, because it is a Sonarr fork. */
+function anonymiseWhisparrSeries(row: Row, index: number): Row {
+    const n = index + 1;
+    return {
+        ...row,
+        title: replaceIfString(row.title, `Site ${n}`),
+        sortTitle: replaceIfString(row.sortTitle, `site ${n}`),
+        cleanTitle: replaceIfString(row.cleanTitle, `site${n}`),
+        titleSlug: replaceIfString(row.titleSlug, `site-${n}`),
+        overview: replaceIfString(row.overview, 'A site.'),
+        network: replaceIfString(row.network, `Network ${n}`),
+        path: replaceIfString(row.path, `/media/whisparr/Site ${n}`),
+        rootFolderPath: replaceIfString(row.rootFolderPath, '/media/whisparr'),
+        folder: replaceIfString(row.folder, `Site ${n}`),
+        imdbId: replaceIfString(row.imdbId, `tt${1_000_000 + n}`),
+        foreignId: replaceIfString(row.foreignId, `site-${n}`),
+        tvdbId: typeof row.tvdbId === 'number' ? 1000 + n : row.tvdbId,
+        tmdbId: typeof row.tmdbId === 'number' ? 2000 + n : row.tmdbId,
+        tvMazeId: typeof row.tvMazeId === 'number' ? 3000 + n : row.tvMazeId,
+        images: anonymiseImages(row.images)
+    };
+}
+
+/** A scene, in the UI; an episode on the API. */
+function anonymiseWhisparrEpisode(row: Row, index: number): Row {
+    const n = index + 1;
+    return {
+        ...row,
+        title: replaceIfString(row.title, `Scene ${n}`),
+        overview: replaceIfString(row.overview, 'A scene.'),
+        images: anonymiseImages(row.images),
+        series: isRow(row.series) ? anonymiseWhisparrSeries(row.series, index) : row.series
+    };
+}
+
+function anonymiseWhisparrQueueItem(row: Row, index: number): Row {
+    const n = index + 1;
+    return {
+        ...row,
+        title: replaceIfString(row.title, `Scene.${n}.1080p.WEB-DL.x264-GROUP`),
+        outputPath: replaceIfString(row.outputPath, `/downloads/scene-${n}`),
+        // A download id is the client's handle on the release, and for a
+        // torrent it is the info hash — which identifies the content exactly.
+        downloadId: replaceIfString(row.downloadId, String(n).repeat(32).slice(0, 32)),
+        errorMessage: replaceIfString(row.errorMessage, ''),
+        series: isRow(row.series) ? anonymiseWhisparrSeries(row.series, index) : row.series,
+        episode: isRow(row.episode) ? anonymiseWhisparrEpisode(row.episode, index) : row.episode
+    };
+}
+
+function anonymiseWhisparrBlocklistItem(row: Row, index: number): Row {
+    const n = index + 1;
+    return {
+        ...row,
+        sourceTitle: replaceIfString(row.sourceTitle, `Scene.${n}.1080p.WEB-DL.x264-GROUP`),
+        series: isRow(row.series) ? anonymiseWhisparrSeries(row.series, index) : row.series
+    };
+}
+
+/** `unmappedFolders` is the point of this fixture (#214), and every entry in it
+ *  is a folder name the operator chose — which is a title by another route. */
+function anonymiseWhisparrRootFolder(row: Row, index: number): Row {
+    const unmapped = Array.isArray(row.unmappedFolders)
+        ? (row.unmappedFolders as Row[]).map((folder, i) => ({
+              ...folder,
+              name: replaceIfString(folder.name, `Unmapped ${i + 1}`),
+              path: replaceIfString(folder.path, `/media/whisparr/Unmapped ${i + 1}`),
+              relativePath: replaceIfString(folder.relativePath, `Unmapped ${i + 1}`)
+          }))
+        : row.unmappedFolders;
+
+    return {
+        ...row,
+        path: replaceIfString(row.path, `/media/whisparr${index === 0 ? '' : `-${index + 1}`}`),
+        unmappedFolders: unmapped
+    };
+}
+
+/**
  * What each adapter needs to see. Extend this when an adapter starts reading a
  * new endpoint — a fixture that does not exist cannot be tested against.
  */
@@ -375,6 +492,74 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: body => (Array.isArray(body) ? (body as Row[]).map(anonymiseEpisodeFile) : body)
         },
         { name: 'series-lookup', path: '/api/v3/series/lookup?term=breaking%20bad' }
+    ],
+    // Whisparr V2 only — a Sonarr fork, so `/series` and `/episode` throughout.
+    // Eros answers on the same path with `/movie` and is a separate service id,
+    // which is what keeps this list static instead of probed for at runtime.
+    //
+    // Every row-bearing entry carries an `anonymise` hook. That is not optional
+    // here: `test/fixtures/` is committed to a public repository and this
+    // service's library is the sensitive part.
+    whisparr: [
+        { name: 'system-status', path: '/api/v3/system/status' },
+        {
+            name: 'diskspace',
+            path: '/api/v3/diskspace',
+            anonymise: mapRows((row, i) => ({
+                ...row,
+                path: replaceIfString(row.path, `/media/whisparr${i === 0 ? '' : `-${i + 1}`}`),
+                label: replaceIfString(row.label, `Volume ${i + 1}`)
+            }))
+        },
+        {
+            name: 'health',
+            // A health message quotes the item it is about, so the text is
+            // library content even though the field is diagnostic.
+            path: '/api/v3/health',
+            anonymise: mapRows((row, i) => ({
+                ...row,
+                message: replaceIfString(row.message, `Health message ${i + 1}`)
+            }))
+        },
+        { name: 'system-task', path: '/api/v3/system/task' },
+        { name: 'queue', path: '/api/v3/queue', anonymise: mapRecords(anonymiseWhisparrQueueItem) },
+        {
+            name: 'blocklist',
+            path: '/api/v3/blocklist?page=1&pageSize=10',
+            anonymise: mapRecords(anonymiseWhisparrBlocklistItem)
+        },
+        { name: 'calendar', path: '/api/v3/calendar', anonymise: mapRows(anonymiseWhisparrEpisode) },
+        // See the Radarr entry: `unmappedFolders` rides along on this read.
+        { name: 'rootfolder', path: '/api/v3/rootfolder', anonymise: mapRows(anonymiseWhisparrRootFolder) },
+        { name: 'series', path: '/api/v3/series', anonymise: mapRows(anonymiseWhisparrSeries) },
+        {
+            name: 'episode',
+            path: captured => {
+                const id = firstId(captured.get('series'));
+                return id === undefined ? undefined : `/api/v3/episode?seriesId=${id}`;
+            },
+            anonymise: mapRows(anonymiseWhisparrEpisode)
+        },
+        {
+            // Same reasoning as Sonarr's: `id`, `seasonNumber` and `size` are
+            // what a delete resolves against, and an empty array contracts
+            // nothing. Sonarr's own hook applies unchanged — the resource is
+            // the same one, and its synthetic values are already generic.
+            name: 'episodefile',
+            path: captured => {
+                const id = firstSeriesWithFiles(captured.get('series'));
+                return id === undefined ? undefined : `/api/v3/episodefile?seriesId=${id}`;
+            },
+            anonymise: mapRows(anonymiseEpisodeFile)
+        },
+        {
+            // A neutral term, because the query string is captured alongside
+            // the results — searching for something real would put it in the
+            // fixture's own filename path.
+            name: 'series-lookup',
+            path: '/api/v3/series/lookup?term=studio',
+            anonymise: mapRows(anonymiseWhisparrSeries)
+        }
     ],
     prowlarr: [
         { name: 'system-status', path: '/api/v1/system/status' },
