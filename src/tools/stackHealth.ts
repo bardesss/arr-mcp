@@ -72,7 +72,14 @@ export type StackHealthResult = {
 export type InstanceOptions = {
     instance: string;
     qualityProfiles: { id: number; name: string }[];
-    rootFolders: { path: string; freeSpaceBytes?: number }[];
+    /**
+     * `unmappedFolders` names folders under this root that the instance
+     * associates with no item. Reported here because the root folder read
+     * already returns it and dropping it hid the only API-visible trace of a
+     * mapping the service has lost. It is a fact, not a fault: a hand-dropped
+     * folder and a delete that kept its files look identical from here.
+     */
+    rootFolders: { path: string; freeSpaceBytes?: number; unmappedFolders?: string[] }[];
     tags: string[];
 };
 
@@ -273,7 +280,8 @@ export async function buildStackHealth(
                                       qualityProfiles: profiles.map(p => ({ id: p.id, name: p.display })),
                                       rootFolders: folders.map(f => ({
                                           path: f.display,
-                                          ...(f.freeSpaceBytes === undefined ? {} : { freeSpaceBytes: f.freeSpaceBytes })
+                                          ...(f.freeSpaceBytes === undefined ? {} : { freeSpaceBytes: f.freeSpaceBytes }),
+                                          ...(f.unmappedFolders === undefined ? {} : { unmappedFolders: f.unmappedFolders })
                                       })),
                                       tags: tags.map(t => t.display)
                                   }
