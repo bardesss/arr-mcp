@@ -646,24 +646,40 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
  * The manual import, previewed against whatever the queue actually holds.
  * Skipped rather than invented when nothing is downloading: a made-up
  * download id captures a refusal, not the mapping.
+ *
+ * Which outcome is correct depends on the state of the row, so the row is
+ * chosen before the assertion is: only a *completed* download has anything to
+ * import, and Radarr and Sonarr answer a still-running one with an HTTP 500
+ * from their own null dereference. Taking `items[0]` and always expecting
+ * success painted the stack red for a whole release whenever the one thing in
+ * the queue happened to still be downloading.
  */
-const queueRow = (queueResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
-    | { service?: unknown; downloadId?: unknown }
-    | undefined;
+type QueueRow = { service?: unknown; downloadId?: unknown; status?: unknown };
+const queueRows = ((queueResult?.structuredContent as { items?: unknown[] } | undefined)?.items ?? []) as QueueRow[];
+const withId = queueRows.filter(r => typeof r.service === 'string' && typeof r.downloadId === 'string');
+const finished = (r: QueueRow): boolean => String(r.status).toLowerCase() === 'completed';
+const queueRow = withId.find(finished) ?? withId[0];
 
-if (typeof queueRow?.service === 'string' && typeof queueRow.downloadId === 'string') {
-    await run(
-        'trigger_scan',
-        {
-            service: queueRow.service.split('/')[0],
-            action: 'import',
-            download_id: queueRow.downloadId,
-            dry_run: true
-        },
-        'DRY RUN ONLY — the manual import path'
-    );
-} else {
+if (queueRow === undefined) {
     console.log('SKIP trigger_scan import — nothing in the queue carries a downloadId to preview against.');
+} else {
+    const importArgs = {
+        service: (queueRow.service as string).split('/')[0],
+        action: 'import',
+        download_id: queueRow.downloadId as string,
+        dry_run: true
+    };
+
+    if (finished(queueRow)) {
+        await run('trigger_scan', importArgs, 'DRY RUN ONLY — the manual import path');
+    } else {
+        await expectError(
+            'trigger_scan',
+            importArgs,
+            /has not finished downloading/,
+            'DRY RUN ONLY — nothing in the queue has finished, so the manual import path must say that rather than pass on the 500'
+        );
+    }
 }
 
 const gap = (subtitlesResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
