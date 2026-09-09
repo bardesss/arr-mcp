@@ -1,10 +1,5 @@
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
-import type {
-    Config,
-    Instanced,
-    KeyedServiceConfig,
-    MultiUserServiceConfig
-} from '../config/schema.ts';
+import type { Config } from '../config/schema.ts';
 import { BazarrAdapter } from './bazarr.ts';
 import { JellyfinAdapter } from './jellyfin.ts';
 import { PlexAdapter } from './plex.ts';
@@ -25,49 +20,58 @@ import type { ServiceAdapter } from './types.ts';
  * is still alphabetical by id, which keeps stack_health's output stable across
  * restarts and diffable in tests, and now keeps `radarr/4k` next to `radarr/hd`.
  *
- * The casts are narrowing a union the schema has already discriminated by key:
- * `services.jellyfin` cannot be a Transmission block. A `switch` cannot see
- * that, so each case restates the type its constructor needs.
+ * No casts. `ServiceInstance` is discriminated on `type`, so each case
+ * narrows its own config and hands it straight to the constructor. Before
+ * that, every case restated its type with an unchecked `as`, and two needed
+ * no cast at all: every member of `AnyServiceConfig` structurally satisfies
+ * `Instanced<CredentialServiceConfig>`, so the compiler accepted anything in
+ * those two and a swapped case body would have shipped (#201).
  *
- * With two exceptions, and they are worth knowing about rather than tidying
- * away. `qbittorrent` and `transmission` carry no cast because they need none:
- * every `AnyServiceConfig` member structurally satisfies
- * `Instanced<CredentialServiceConfig>`, so the compiler accepts any of them
- * there. Adding a cast is rejected as unnecessary, which is the compiler
- * confirming the gap rather than closing it.
+ * **What this does and does not catch**, measured by swapping bodies and
+ * running `tsc` rather than assumed:
  *
- * The consequence: swapping those two case bodies would hand the wrong config
- * to the wrong constructor and still compile. Closing it properly means a
- * type-level map from service id to config type, which is a change to the
- * schema rather than to this file (#201).
+ * - Caught: handing a config to an adapter that needs a field it lacks.
+ *   `radarr` to `JellyfinAdapter` fails (no `allow_other_users`), and
+ *   `qbittorrent` to `RadarrAdapter` fails (no `api_key`).
+ * - Not caught: the reverse. `MultiUserServiceConfig` is a superset of
+ *   `KeyedServiceConfig`, so `jellyfin` to `RadarrAdapter` compiles, as does
+ *   `radarr` to `QbittorrentAdapter` — the credential fields are optional.
+ * - Not caught: swapping two services whose configs are the same type at all.
+ *   `seerr` and `plex` and `jellyfin` are all `MultiUserServiceConfig`;
+ *   `transmission` and `qbittorrent` are both credential blocks.
+ *
+ * That is structural typing, not a gap in this file. Closing it needs a
+ * required brand on each entry of `ConfigByService`, minted by the one cast
+ * in `listInstances` — which would also mean every adapter constructor and
+ * every test that builds one by hand taking the branded type. Not worth it
+ * for the residue; worth writing down so nobody reads "no casts" as "no
+ * mix-ups possible".
  */
 export function buildAdapters(config: Config): ServiceAdapter[] {
     return listInstances(config).map(buildAdapter);
 }
 
 function buildAdapter(instance: ServiceInstance): ServiceAdapter {
-    const keyed = instance.config as Instanced<KeyedServiceConfig>;
-
     switch (instance.type) {
         case 'bazarr':
-            return new BazarrAdapter(keyed);
+            return new BazarrAdapter(instance.config);
         case 'jellyfin':
-            return new JellyfinAdapter(instance.config as MultiUserServiceConfig);
+            return new JellyfinAdapter(instance.config);
         case 'prowlarr':
-            return new ProwlarrAdapter(keyed);
+            return new ProwlarrAdapter(instance.config);
         case 'qbittorrent':
             return new QbittorrentAdapter(instance.config);
         case 'radarr':
-            return new RadarrAdapter(keyed);
+            return new RadarrAdapter(instance.config);
         case 'sabnzbd':
-            return new SabnzbdAdapter(keyed);
+            return new SabnzbdAdapter(instance.config);
         case 'seerr':
-            return new SeerrAdapter(instance.config as MultiUserServiceConfig);
+            return new SeerrAdapter(instance.config);
         case 'sonarr':
-            return new SonarrAdapter(keyed);
+            return new SonarrAdapter(instance.config);
         case 'transmission':
             return new TransmissionAdapter(instance.config);
         case 'plex':
-            return new PlexAdapter(instance.config as MultiUserServiceConfig);
+            return new PlexAdapter(instance.config);
     }
 }

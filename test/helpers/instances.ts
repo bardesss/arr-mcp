@@ -30,7 +30,7 @@ export const instancesOf = (map: Partial<Record<ServiceId, AnyServiceConfig>>): 
                 type: type as ServiceId,
                 ...(name === undefined ? {} : { name }),
                 config
-            }
+            } as ServiceInstance
         ];
     });
 
@@ -44,5 +44,5 @@ export const namedInstances = (type: ServiceId, configs: readonly AnyServiceConf
             type,
             ...(name === undefined ? {} : { name }),
             config
-        };
+        } as ServiceInstance;
     });

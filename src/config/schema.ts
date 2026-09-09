@@ -189,6 +189,34 @@ const MultiInstanceCredentialSchema = z.union([CredentialServiceSchema, Credenti
 export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | CredentialServiceConfig;
 
 /**
+ * Which config shape each service id carries.
+ *
+ * Written out rather than inferred from `ServicesSchema`, because the schema's
+ * entry for a multi-instance service is a union of one block and a list of
+ * named ones, and unwrapping that in the type system reads far worse than the
+ * ten lines it would replace.
+ *
+ * This exists so `buildAdapter` can narrow on `type` instead of casting.
+ * Before it, every case in that switch restated its config type with an
+ * unchecked `as`, and two of them needed no cast at all — every member of
+ * `AnyServiceConfig` structurally satisfies `Instanced<CredentialServiceConfig>`,
+ * so the compiler accepted anything there and a swapped case body would have
+ * shipped.
+ */
+export type ConfigByService = {
+    radarr: Instanced<KeyedServiceConfig>;
+    sonarr: Instanced<KeyedServiceConfig>;
+    bazarr: Instanced<KeyedServiceConfig>;
+    prowlarr: Instanced<KeyedServiceConfig>;
+    sabnzbd: Instanced<KeyedServiceConfig>;
+    jellyfin: MultiUserServiceConfig;
+    seerr: MultiUserServiceConfig;
+    plex: MultiUserServiceConfig;
+    transmission: Instanced<CredentialServiceConfig>;
+    qbittorrent: Instanced<CredentialServiceConfig>;
+};
+
+/**
  * Refuses a list, and says which services take one.
  *
  * Without this the reader gets zod's `expected object, received array`, which
