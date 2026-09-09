@@ -290,6 +290,72 @@ const CONTRACTS: Record<string, ServiceContract> = {
             }
         ]
     },
+    whisparr: {
+        spec: 'specs/whisparr.json',
+        dependencies: [
+            { path: '/api/v3/system/status', method: 'get', fixture: 'test/fixtures/whisparr/system-status.json', fields: ['version'] },
+            { path: '/api/v3/diskspace', method: 'get', fixture: 'test/fixtures/whisparr/diskspace.json', fields: ['path', 'label', 'freeSpace', 'totalSpace'] },
+            {
+                // `unmappedFolders.name` is contracted here where Sonarr's
+                // entry has to leave it open: this instance reports 53 of them,
+                // so there is a real row to assert against.
+                path: '/api/v3/rootfolder',
+                method: 'get',
+                fixture: 'test/fixtures/whisparr/rootfolder.json',
+                fields: ['path', 'freeSpace', 'unmappedFolders', 'unmappedFolders.name']
+            },
+            { path: '/api/v3/system/task', method: 'get', fixture: 'test/fixtures/whisparr/system-task.json', fields: ['taskName', 'lastExecution'] },
+            {
+                // No `episodeNumber` and no `airDateUtc`, unlike Sonarr's
+                // otherwise identical calendar row. `releaseDate` is what dates
+                // a scene, and `readSonarrCalendar` drops every row missing the
+                // field it is told to date by — so a rename here empties the
+                // Whisparr calendar rather than erroring, which is exactly the
+                // silent failure this entry exists to catch.
+                fixture: 'test/fixtures/whisparr/calendar.json',
+                fields: ['id', 'title', 'seasonNumber', 'releaseDate', 'hasFile', 'monitored']
+            },
+            {
+                // The same argument as Sonarr's series entry, and it holds
+                // field for field because V2 is that fork. `seasonNumber` is a
+                // release year here, which changes nothing about the join it
+                // keys — only what a caller has to pass to match it.
+                fixture: 'test/fixtures/whisparr/series.json',
+                fields: [
+                    'id',
+                    'title',
+                    'monitored',
+                    'tvdbId',
+                    'ratings',
+                    'statistics',
+                    'statistics.episodeFileCount',
+                    'statistics.sizeOnDisk',
+                    'genres',
+                    'seasons.seasonNumber',
+                    'seasons.statistics.episodeFileCount',
+                    'seasons.statistics.episodeCount',
+                    'seasons.statistics.totalEpisodeCount'
+                ]
+            },
+            {
+                fixture: 'test/fixtures/whisparr/episode.json',
+                fields: ['id', 'seasonNumber', 'title', 'hasFile', 'monitored', 'episodeFileId', 'releaseDate']
+            },
+            {
+                path: '/api/v3/episodefile',
+                method: 'get',
+                fixture: 'test/fixtures/whisparr/episodefile.json',
+                fields: ['id', 'seasonNumber', 'size']
+            },
+            { fixture: 'test/fixtures/whisparr/series-lookup.json', fields: ['title', 'tvdbId'] },
+            {
+                path: '/api/v3/blocklist',
+                method: 'get',
+                fixture: 'test/fixtures/whisparr/blocklist.json',
+                fields: ['records.id', 'records.seriesId', 'records.sourceTitle', 'records.date', 'records.indexer', 'records.message']
+            }
+        ]
+    },
     prowlarr: {
         spec: 'specs/prowlarr.json',
         dependencies: [
