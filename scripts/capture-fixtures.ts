@@ -347,6 +347,44 @@ const anonymiseImages = (images: unknown): unknown =>
           }))
         : images;
 
+/**
+ * `actors` names real people.
+ *
+ * It is the only place in any fixture here that does, and it arrives nested
+ * two levels down — an episode's `actors[]`, each with its own `images[]` —
+ * which is why the first pass over these hooks missed it entirely. The
+ * performer's name, the character, the TPDB id that resolves to their profile
+ * and the poster URL that embeds their slug all go.
+ */
+const anonymiseWhisparrActors = (actors: unknown): unknown =>
+    Array.isArray(actors)
+        ? (actors as Row[]).map((actor, i) => ({
+              ...actor,
+              name: replaceIfString(actor.name, `Performer ${i + 1}`),
+              character: replaceIfString(actor.character, `Performer ${i + 1}`),
+              tpdbId:
+                  typeof actor.tpdbId === 'number'
+                      ? 5000 + i
+                      : replaceIfString(actor.tpdbId, `performer-${i + 1}`),
+              images: anonymiseImages(actor.images)
+          }))
+        : actors;
+
+/**
+ * `statistics.releaseGroups` is a list of release-group names the app parsed
+ * out of the filenames on disk — which for this service means fragments of
+ * real scene titles and performer names, not group tags.
+ *
+ * It appears twice per series, once at the top level and once inside every
+ * `seasons[]` entry, and it is the leak that survived the first review: sorted
+ * samples of it open with `1080p` and `720p`, so it reads as resolutions until
+ * the whole list is printed.
+ */
+const anonymiseStatistics = (statistics: unknown): unknown =>
+    isRow(statistics) && Array.isArray(statistics.releaseGroups)
+        ? { ...statistics, releaseGroups: (statistics.releaseGroups as unknown[]).map((_, i) => `Group ${i + 1}`) }
+        : statistics;
+
 /** A site, in Whisparr's UI; a series on its API, because it is a Sonarr fork. */
 function anonymiseWhisparrSeries(row: Row, index: number): Row {
     const n = index + 1;
@@ -366,7 +404,14 @@ function anonymiseWhisparrSeries(row: Row, index: number): Row {
         tvdbId: typeof row.tvdbId === 'number' ? 1000 + n : row.tvdbId,
         tmdbId: typeof row.tmdbId === 'number' ? 2000 + n : row.tmdbId,
         tvMazeId: typeof row.tvMazeId === 'number' ? 3000 + n : row.tvMazeId,
-        images: anonymiseImages(row.images)
+        images: anonymiseImages(row.images),
+        // Separate from `images[]`, and only present on lookup responses, so it
+        // survived the first pass: a lookup poster URL embeds the site's slug.
+        remotePoster: replaceIfString(row.remotePoster, anonymousUrl),
+        statistics: anonymiseStatistics(row.statistics),
+        seasons: Array.isArray(row.seasons)
+            ? (row.seasons as Row[]).map(season => ({ ...season, statistics: anonymiseStatistics(season.statistics) }))
+            : row.seasons
     };
 }
 
@@ -377,7 +422,9 @@ function anonymiseWhisparrEpisode(row: Row, index: number): Row {
         ...row,
         title: replaceIfString(row.title, `Scene ${n}`),
         overview: replaceIfString(row.overview, 'A scene.'),
+        tvdbId: typeof row.tvdbId === 'number' ? 4000 + n : row.tvdbId,
         images: anonymiseImages(row.images),
+        actors: anonymiseWhisparrActors(row.actors),
         series: isRow(row.series) ? anonymiseWhisparrSeries(row.series, index) : row.series
     };
 }
@@ -402,6 +449,9 @@ function anonymiseWhisparrBlocklistItem(row: Row, index: number): Row {
     return {
         ...row,
         sourceTitle: replaceIfString(row.sourceTitle, `Scene.${n}.1080p.WEB-DL.x264-GROUP`),
+        // The same class of thing `anonymiseIndexer` scrubs on Prowlarr: which
+        // trackers the operator subscribes to.
+        indexer: replaceIfString(row.indexer, `Indexer ${n}`),
         series: isRow(row.series) ? anonymiseWhisparrSeries(row.series, index) : row.series
     };
 }
@@ -528,10 +578,29 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: '/api/v3/blocklist?page=1&pageSize=10',
             anonymise: mapRecords(anonymiseWhisparrBlocklistItem)
         },
-        { name: 'calendar', path: '/api/v3/calendar', anonymise: mapRows(anonymiseWhisparrEpisode) },
+        {
+            // An explicit range, because a bare `/calendar` answers `[]` here —
+            // Whisparr's default window is anchored on air dates its scenes do
+            // not have, so the fixture it produces contracts nothing. The dates
+            // are fixed rather than relative to keep the capture reproducible;
+            // if they ever fall outside the library the contract test fails on
+            // the empty result rather than passing quietly.
+            name: 'calendar',
+            path: '/api/v3/calendar?start=2026-09-01&end=2026-12-31',
+            anonymise: mapRows(anonymiseWhisparrEpisode)
+        },
         // See the Radarr entry: `unmappedFolders` rides along on this read.
         { name: 'rootfolder', path: '/api/v3/rootfolder', anonymise: mapRows(anonymiseWhisparrRootFolder) },
-        { name: 'series', path: '/api/v3/series', anonymise: mapRows(anonymiseWhisparrSeries) },
+        {
+            name: 'series',
+            path: '/api/v3/series',
+            // The first forty rows only. A live library runs to thousands of
+            // sites, and the contract test needs the shape, not the census;
+            // the full capture was 6 MB, most of the repository. The episode
+            // and episodefile picks below read this trimmed body, so they
+            // always land inside it.
+            anonymise: body => (Array.isArray(body) ? (body as Row[]).slice(0, 40).map(anonymiseWhisparrSeries) : body)
+        },
         {
             name: 'episode',
             path: captured => {

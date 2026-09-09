@@ -1,0 +1,2423 @@
+[
+  {
+    "seriesId": 663,
+    "tvdbId": 4001,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 1",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-02T07:33:11Z",
+    "runtime": 25,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1523473
+  },
+  {
+    "seriesId": 663,
+    "tvdbId": 4002,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 2",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-02T07:33:15Z",
+    "runtime": 28,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1523474
+  },
+  {
+    "seriesId": 696,
+    "tvdbId": 4003,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 3",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-02T20:40:14Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1523532
+  },
+  {
+    "seriesId": 1591,
+    "tvdbId": 4004,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 4",
+    "releaseDate": "2026-09-02",
+    "runtime": 35,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5002,
+        "name": "Performer 3",
+        "character": "Performer 3",
+        "gender": "male",
+        "images": []
+      },
+      {
+        "tpdbId": 5003,
+        "name": "Performer 4",
+        "character": "Performer 4",
+        "gender": "male",
+        "images": []
+      },
+      {
+        "tpdbId": 5004,
+        "name": "Performer 5",
+        "character": "Performer 5",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1523535
+  },
+  {
+    "seriesId": 1003,
+    "tvdbId": 4005,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 5",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-02T21:00:04Z",
+    "runtime": 19,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1523549
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4006,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 6",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-02T21:48:59Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1523569
+  },
+  {
+    "seriesId": 824,
+    "tvdbId": 4007,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 7",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-02T21:52:28Z",
+    "runtime": 32,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1523571
+  },
+  {
+    "seriesId": 557,
+    "tvdbId": 4008,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 8",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-02T22:07:47Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1523583
+  },
+  {
+    "seriesId": 1256,
+    "tvdbId": 4009,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 9",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-02T22:27:43Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1523602
+  },
+  {
+    "seriesId": 1772,
+    "tvdbId": 4010,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 10",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-03T03:25:26Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524303
+  },
+  {
+    "seriesId": 1738,
+    "tvdbId": 4011,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 11",
+    "releaseDate": "2026-09-02",
+    "runtime": 4,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524323
+  },
+  {
+    "seriesId": 1669,
+    "tvdbId": 4012,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 12",
+    "releaseDate": "2026-09-02",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524324
+  },
+  {
+    "seriesId": 1555,
+    "tvdbId": 4013,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 13",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-03T11:36:51Z",
+    "runtime": 58,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524354
+  },
+  {
+    "seriesId": 1257,
+    "tvdbId": 4014,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 14",
+    "releaseDate": "2026-09-02",
+    "lastSearchTime": "2026-09-03T12:01:35Z",
+    "runtime": 16,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1524363
+  },
+  {
+    "seriesId": 131,
+    "tvdbId": 4015,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 15",
+    "releaseDate": "2026-09-03",
+    "runtime": 187,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [],
+    "id": 1512506
+  },
+  {
+    "seriesId": 131,
+    "tvdbId": 4016,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 16",
+    "releaseDate": "2026-09-03",
+    "runtime": 207,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [],
+    "id": 1512507
+  },
+  {
+    "seriesId": 583,
+    "tvdbId": 4017,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 17",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-03T12:13:30Z",
+    "runtime": 101,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1524372
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4018,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 18",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-03T12:18:22Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524375
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4019,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 19",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-03T12:18:26Z",
+    "runtime": 27,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1524376
+  },
+  {
+    "seriesId": 360,
+    "tvdbId": 4020,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 20",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-04T01:19:20Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524459
+  },
+  {
+    "seriesId": 592,
+    "tvdbId": 4021,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 21",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-04T01:29:07Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [],
+    "id": 1524469
+  },
+  {
+    "seriesId": 1003,
+    "tvdbId": 4022,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 22",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-04T01:45:53Z",
+    "runtime": 11,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524475
+  },
+  {
+    "seriesId": 586,
+    "tvdbId": 4023,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 23",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-04T02:48:39Z",
+    "runtime": 18,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524512
+  },
+  {
+    "seriesId": 617,
+    "tvdbId": 4024,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 24",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-04T02:48:57Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524513
+  },
+  {
+    "seriesId": 1256,
+    "tvdbId": 4025,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 25",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-04T02:55:59Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524522
+  },
+  {
+    "seriesId": 1459,
+    "tvdbId": 4026,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 26",
+    "releaseDate": "2026-09-03",
+    "runtime": 25,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524604
+  },
+  {
+    "seriesId": 541,
+    "tvdbId": 4027,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 27",
+    "releaseDate": "2026-09-03",
+    "lastSearchTime": "2026-09-09T10:42:04Z",
+    "runtime": 33,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1525917
+  },
+  {
+    "seriesId": 360,
+    "tvdbId": 4028,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 28",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-04T15:24:21Z",
+    "runtime": 21,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524553
+  },
+  {
+    "seriesId": 1560,
+    "tvdbId": 4029,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 29",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-04T15:27:13Z",
+    "runtime": 18,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "male",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1524555
+  },
+  {
+    "seriesId": 671,
+    "tvdbId": 4030,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 30",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-04T15:50:26Z",
+    "runtime": 40,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524585
+  },
+  {
+    "seriesId": 570,
+    "tvdbId": 4031,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 31",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-04T16:05:02Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524595
+  },
+  {
+    "seriesId": 1000,
+    "tvdbId": 4032,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 32",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-04T16:20:31Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [],
+    "id": 1524606
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4033,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 33",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-04T16:33:11Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524620
+  },
+  {
+    "seriesId": 1256,
+    "tvdbId": 4034,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 34",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-04T17:09:14Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524669
+  },
+  {
+    "seriesId": 1432,
+    "tvdbId": 4035,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 35",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-04T17:09:20Z",
+    "runtime": 51,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524670
+  },
+  {
+    "seriesId": 1003,
+    "tvdbId": 4036,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 36",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T06:17:47Z",
+    "runtime": 48,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "other",
+        "images": []
+      }
+    ],
+    "id": 1524719
+  },
+  {
+    "seriesId": 357,
+    "tvdbId": 4037,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 37",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T06:21:04Z",
+    "runtime": 16,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524723
+  },
+  {
+    "seriesId": 1334,
+    "tvdbId": 4038,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 38",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T06:54:05Z",
+    "runtime": 11,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524746
+  },
+  {
+    "seriesId": 557,
+    "tvdbId": 4039,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 39",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:13:47Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524776
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4040,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 40",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:26:29Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524786
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4041,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 41",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:26:33Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524787
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4042,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 42",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:26:37Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524788
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4043,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 43",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:26:41Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524789
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4044,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 44",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:26:45Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524790
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4045,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 45",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:26:49Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524791
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4046,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 46",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:26:53Z",
+    "runtime": 11,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524792
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4047,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 47",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:26:57Z",
+    "runtime": 10,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524793
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4048,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 48",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:27:01Z",
+    "runtime": 10,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524794
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4049,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 49",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:27:05Z",
+    "runtime": 10,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524795
+  },
+  {
+    "seriesId": 405,
+    "tvdbId": 4050,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 50",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-05T07:27:09Z",
+    "runtime": 10,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524796
+  },
+  {
+    "seriesId": 694,
+    "tvdbId": 4051,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 51",
+    "releaseDate": "2026-09-04",
+    "lastSearchTime": "2026-09-09T10:42:45Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1525922
+  },
+  {
+    "seriesId": 454,
+    "tvdbId": 4052,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 52",
+    "releaseDate": "2026-09-05",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1511101
+  },
+  {
+    "seriesId": 267,
+    "tvdbId": 4053,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 53",
+    "releaseDate": "2026-09-05",
+    "runtime": 47,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1522771
+  },
+  {
+    "seriesId": 696,
+    "tvdbId": 4054,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 54",
+    "releaseDate": "2026-09-05",
+    "lastSearchTime": "2026-09-05T20:35:59Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1524842
+  },
+  {
+    "seriesId": 1003,
+    "tvdbId": 4055,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 55",
+    "releaseDate": "2026-09-05",
+    "lastSearchTime": "2026-09-05T20:54:13Z",
+    "runtime": 33,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524858
+  },
+  {
+    "seriesId": 1039,
+    "tvdbId": 4056,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 56",
+    "releaseDate": "2026-09-05",
+    "lastSearchTime": "2026-09-05T21:36:54Z",
+    "runtime": 40,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1524871
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4057,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 57",
+    "releaseDate": "2026-09-05",
+    "lastSearchTime": "2026-09-05T21:39:41Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1524873
+  },
+  {
+    "seriesId": 1400,
+    "tvdbId": 4058,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 58",
+    "releaseDate": "2026-09-05",
+    "lastSearchTime": "2026-09-05T21:55:15Z",
+    "runtime": 41,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1525184
+  },
+  {
+    "seriesId": 429,
+    "tvdbId": 4059,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 59",
+    "releaseDate": "2026-09-05",
+    "lastSearchTime": "2026-09-07T16:36:28Z",
+    "runtime": 38,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5002,
+        "name": "Performer 3",
+        "character": "Performer 3",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1525378
+  },
+  {
+    "seriesId": 541,
+    "tvdbId": 4060,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 60",
+    "releaseDate": "2026-09-05",
+    "lastSearchTime": "2026-09-09T10:42:08Z",
+    "runtime": 36,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1525918
+  },
+  {
+    "seriesId": 429,
+    "tvdbId": 4061,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 61",
+    "releaseDate": "2026-09-05",
+    "lastSearchTime": "2026-09-09T11:40:16Z",
+    "runtime": 9,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1526538
+  },
+  {
+    "seriesId": 760,
+    "tvdbId": 4062,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 62",
+    "releaseDate": "2026-09-06",
+    "lastSearchTime": "2026-09-07T01:37:17Z",
+    "runtime": 41,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1525306
+  },
+  {
+    "seriesId": 1003,
+    "tvdbId": 4063,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 63",
+    "releaseDate": "2026-09-06",
+    "lastSearchTime": "2026-09-07T01:42:28Z",
+    "runtime": 66,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5002,
+        "name": "Performer 3",
+        "character": "Performer 3",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5003,
+        "name": "Performer 4",
+        "character": "Performer 4",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1525310
+  },
+  {
+    "seriesId": 1256,
+    "tvdbId": 4064,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 64",
+    "releaseDate": "2026-09-06",
+    "lastSearchTime": "2026-09-07T02:50:36Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1525338
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4065,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 65",
+    "releaseDate": "2026-09-07",
+    "lastSearchTime": "2026-09-07T16:43:36Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1525387
+  },
+  {
+    "seriesId": 592,
+    "tvdbId": 4066,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 66",
+    "releaseDate": "2026-09-07",
+    "lastSearchTime": "2026-09-08T06:04:21Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [],
+    "id": 1525484
+  },
+  {
+    "seriesId": 1003,
+    "tvdbId": 4067,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 67",
+    "releaseDate": "2026-09-07",
+    "lastSearchTime": "2026-09-08T06:24:06Z",
+    "runtime": 44,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "other",
+        "images": []
+      }
+    ],
+    "id": 1525509
+  },
+  {
+    "seriesId": 557,
+    "tvdbId": 4068,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 68",
+    "releaseDate": "2026-09-07",
+    "lastSearchTime": "2026-09-08T07:16:46Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1525537
+  },
+  {
+    "seriesId": 1334,
+    "tvdbId": 4069,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 69",
+    "releaseDate": "2026-09-07",
+    "lastSearchTime": "2026-09-08T21:22:23Z",
+    "runtime": 10,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      }
+    ],
+    "id": 1525645
+  },
+  {
+    "seriesId": 720,
+    "tvdbId": 4070,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 70",
+    "releaseDate": "2026-09-08",
+    "lastSearchTime": "2026-09-08T20:09:47Z",
+    "runtime": 45,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1525585
+  },
+  {
+    "seriesId": 696,
+    "tvdbId": 4071,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 71",
+    "releaseDate": "2026-09-08",
+    "lastSearchTime": "2026-09-08T20:23:09Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5002,
+        "name": "Performer 3",
+        "character": "Performer 3",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1525593
+  },
+  {
+    "seriesId": 507,
+    "tvdbId": 4072,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 72",
+    "releaseDate": "2026-09-08",
+    "lastSearchTime": "2026-09-08T20:36:07Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5002,
+        "name": "Performer 3",
+        "character": "Performer 3",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1525614
+  },
+  {
+    "seriesId": 1003,
+    "tvdbId": 4073,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 73",
+    "releaseDate": "2026-09-08",
+    "lastSearchTime": "2026-09-08T20:41:00Z",
+    "runtime": 11,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "other",
+        "images": []
+      }
+    ],
+    "id": 1525615
+  },
+  {
+    "seriesId": 570,
+    "tvdbId": 4074,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 74",
+    "releaseDate": "2026-09-08",
+    "lastSearchTime": "2026-09-08T20:58:15Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1525622
+  },
+  {
+    "seriesId": 1773,
+    "tvdbId": 4075,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 75",
+    "releaseDate": "2026-09-08",
+    "lastSearchTime": "2026-09-09T05:04:18Z",
+    "runtime": 18,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1525897
+  },
+  {
+    "seriesId": 541,
+    "tvdbId": 4076,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 76",
+    "releaseDate": "2026-09-08",
+    "lastSearchTime": "2026-09-09T10:42:12Z",
+    "runtime": 28,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1525919
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4077,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 77",
+    "releaseDate": "2026-09-08",
+    "lastSearchTime": "2026-09-09T11:46:58Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      }
+    ],
+    "id": 1526542
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4078,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 78",
+    "releaseDate": "2026-09-09",
+    "lastSearchTime": "2026-09-09T11:47:02Z",
+    "runtime": 27,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1526543
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4079,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 79",
+    "releaseDate": "2026-09-09",
+    "lastSearchTime": "2026-09-09T11:47:07Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "other",
+        "images": []
+      }
+    ],
+    "id": 1526544
+  },
+  {
+    "seriesId": 803,
+    "tvdbId": 4080,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 80",
+    "releaseDate": "2026-09-09",
+    "lastSearchTime": "2026-09-09T11:47:11Z",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1526545
+  },
+  {
+    "seriesId": 131,
+    "tvdbId": 4081,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 81",
+    "releaseDate": "2026-09-17",
+    "runtime": 216,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [],
+    "id": 1514257
+  },
+  {
+    "seriesId": 131,
+    "tvdbId": 4082,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 82",
+    "releaseDate": "2026-09-17",
+    "runtime": 216,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [],
+    "id": 1514258
+  },
+  {
+    "seriesId": 454,
+    "tvdbId": 4083,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 83",
+    "releaseDate": "2026-09-19",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      }
+    ],
+    "id": 1516005
+  },
+  {
+    "seriesId": 541,
+    "tvdbId": 4084,
+    "episodeFileId": 0,
+    "seasonNumber": 2026,
+    "title": "Scene 84",
+    "releaseDate": "2026-09-24",
+    "runtime": 0,
+    "overview": "A scene.",
+    "hasFile": false,
+    "monitored": true,
+    "actors": [
+      {
+        "tpdbId": 5000,
+        "name": "Performer 1",
+        "character": "Performer 1",
+        "gender": "female",
+        "images": []
+      },
+      {
+        "tpdbId": 5001,
+        "name": "Performer 2",
+        "character": "Performer 2",
+        "gender": "male",
+        "images": []
+      },
+      {
+        "tpdbId": 5002,
+        "name": "Performer 3",
+        "character": "Performer 3",
+        "gender": "male",
+        "images": []
+      },
+      {
+        "tpdbId": 5003,
+        "name": "Performer 4",
+        "character": "Performer 4",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5004,
+        "name": "Performer 5",
+        "character": "Performer 5",
+        "gender": "male",
+        "images": []
+      },
+      {
+        "tpdbId": 5005,
+        "name": "Performer 6",
+        "character": "Performer 6",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5006,
+        "name": "Performer 7",
+        "character": "Performer 7",
+        "gender": "male",
+        "images": []
+      },
+      {
+        "tpdbId": 5007,
+        "name": "Performer 8",
+        "character": "Performer 8",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      },
+      {
+        "tpdbId": 5008,
+        "name": "Performer 9",
+        "character": "Performer 9",
+        "gender": "male",
+        "images": [
+          {
+            "coverType": "unknown",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ]
+      }
+    ],
+    "id": 1522934
+  }
+]

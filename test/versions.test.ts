@@ -138,11 +138,7 @@ describe('assertVersionSupported against captured evidence', () => {
         transmission: (read('test/fixtures/transmission/session-get.json') as { arguments: { version: string } }).arguments.version,
         qbittorrent: (read('test/fixtures/qbittorrent/version.json') as { version: string }).version,
         plex: '1.0.0',
-        // Placeholder, like Plex's above: no Whisparr fixture exists yet, and
-        // a fixture that does not exist cannot be read. Replaced with the
-        // captured `system-status.json` version when the adapter's fixtures
-        // land.
-        whisparr: '2.0.0'
+        whisparr: (read('test/fixtures/whisparr/system-status.json') as { version: string }).version
     };
 
     for (const [service, version] of Object.entries(captured)) {

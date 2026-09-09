@@ -1,0 +1,102 @@
+[
+  {
+    "seriesId": 2,
+    "seasonNumber": 2011,
+    "relativePath": "Season 01/Series.Title.S01E01.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E01.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 248464078,
+    "dateAdded": "2023-12-13T17:15:49Z",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 5,
+        "name": "WEBDL-720p",
+        "source": "web",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioBitrate": 0,
+      "audioChannels": 2,
+      "audioCodec": "AAC",
+      "audioLanguages": "eng",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "x265",
+      "videoFps": 29.97,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1280x720",
+      "runTime": "46:09",
+      "scanType": "Progressive",
+      "subtitles": ""
+    },
+    "qualityCutoffNotMet": true,
+    "id": 863
+  },
+  {
+    "seriesId": 2,
+    "seasonNumber": 2019,
+    "relativePath": "Season 01/Series.Title.S01E02.1080p.WEB-DL.x264-GROUP.mkv",
+    "path": "/media/tv/Series Title/Season 01/Series.Title.S01E02.1080p.WEB-DL.x264-GROUP.mkv",
+    "size": 2871821355,
+    "dateAdded": "2024-03-25T16:18:36Z",
+    "sceneName": "Series.Title.S01E02.1080p.WEB-DL.x264-GROUP",
+    "releaseGroup": "GROUP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 5,
+        "name": "WEBDL-720p",
+        "source": "web",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioBitrate": 125665,
+      "audioChannels": 2,
+      "audioCodec": "AAC",
+      "audioLanguages": "und",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 4997496,
+      "videoCodec": "h264",
+      "videoFps": 29.97,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1280x720",
+      "runTime": "1:14:37",
+      "scanType": "Progressive",
+      "subtitles": ""
+    },
+    "qualityCutoffNotMet": true,
+    "id": 7314
+  }
+]
