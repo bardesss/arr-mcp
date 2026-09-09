@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0](https://github.com/bardesss/arr-mcp/compare/v1.24.0...v1.25.0) (2026-09-09)
+
+
+### Features
+
+* call Jellyfin's documented resume route, and raise the floor to 10.9 ([#218](https://github.com/bardesss/arr-mcp/issues/218)) ([bb2b7d5](https://github.com/bardesss/arr-mcp/commit/bb2b7d509d8e2dcc120a676663de8bfbad136555))
+
 ## [1.24.0](https://github.com/bardesss/arr-mcp/compare/v1.23.2...v1.24.0) (2026-09-09)
 
 
