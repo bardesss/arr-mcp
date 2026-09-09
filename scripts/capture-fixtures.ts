@@ -304,7 +304,10 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                 return id === undefined ? undefined : `/api/v3/movie/${id}`;
             }
         },
-        { name: 'movie-lookup', path: '/api/v3/movie/lookup?term=matrix' }
+        { name: 'movie-lookup', path: '/api/v3/movie/lookup?term=matrix' },
+        // `unmappedFolders` rides along on this response and is what
+        // `stack_health` reports about folders the instance maps to no item.
+        { name: 'rootfolder', path: '/api/v3/rootfolder' }
     ],
     sonarr: [
         { name: 'system-status', path: '/api/v3/system/status' },
@@ -314,6 +317,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'queue', path: '/api/v3/queue' },
         { name: 'blocklist', path: '/api/v3/blocklist?page=1&pageSize=10' },
         { name: 'calendar', path: '/api/v3/calendar' },
+        // See the Radarr entry: `unmappedFolders` rides along on this read.
+        { name: 'rootfolder', path: '/api/v3/rootfolder' },
         { name: 'series', path: '/api/v3/series' },
         {
             name: 'episode',
