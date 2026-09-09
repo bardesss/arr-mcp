@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.0](https://github.com/bardesss/arr-mcp/compare/v1.23.2...v1.24.0) (2026-09-09)
+
+
+### Features
+
+* report the root folders an *arr maps to nothing ([#214](https://github.com/bardesss/arr-mcp/issues/214)) ([9f22ca1](https://github.com/bardesss/arr-mcp/commit/9f22ca1afea875177830e60fef6ae58e5f9b2fbf)), closes [#213](https://github.com/bardesss/arr-mcp/issues/213)
+
 ## [1.23.2](https://github.com/bardesss/arr-mcp/compare/v1.23.1...v1.23.2) (2026-09-08)
 
 
