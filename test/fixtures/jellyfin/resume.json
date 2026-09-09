@@ -1,0 +1,37 @@
+{
+  "Items": [
+    {
+      "Name": "The Amateur",
+      "ServerId": "03b5e7fd4c8a4de8b4164d4d21b72608",
+      "Id": "5eda2796fe11d1d5a770ce7f365e35de",
+      "HasSubtitles": true,
+      "Container": "mkv",
+      "PremiereDate": "2025-04-08T22:00:00.0000000Z",
+      "CriticRating": 61,
+      "OfficialRating": "NL-12",
+      "ChannelId": null,
+      "CommunityRating": 6.915,
+      "RunTimeTicks": 73612710000,
+      "AspectRatio": "",
+      "ProductionYear": 2025,
+      "IsFolder": false,
+      "Type": "Movie",
+      "UserData": {
+        "PlayedPercentage": 25,
+        "PlaybackPositionTicks": 18000000000,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "LastPlayedDate": "2026-01-01T20:00:00.0000000Z",
+        "Played": false,
+        "Key": "1087891",
+        "ItemId": "5eda2796fe11d1d5a770ce7f365e35de"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 1,
+  "StartIndex": 0
+}

@@ -20,8 +20,11 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     prowlarr: '1.0.0',
     // `{ data: … }` envelope on /api/system/status.
     bazarr: '1.4.0',
-    // /ScheduledTasks with LastExecutionResult, and Fields=ProviderIds.
-    jellyfin: '10.8.0',
+    // 10.9.0 moved the per-user reads to their modern forms, and three calls
+    // here need them: `/Items/{itemId}`, `/UserPlayedItems/{itemId}` and
+    // `/UserItems/Resume`. 10.8 answers none of the three, so it never fully
+    // worked — this floor only stops it failing halfway through.
+    jellyfin: '10.9.0',
     // Seerr forked from Overseerr in February 2026; 1.0 is its first release.
     seerr: '1.0.0',
     // output=json on the query-parameter API.
