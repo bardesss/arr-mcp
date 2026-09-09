@@ -972,13 +972,17 @@ refuses and why. Rejected files are **excluded** from the import rather than
 forced through: this imports what the service is willing to take, and overriding
 its own matching is not something it will do on your behalf.
 
-Two outcomes that look alike and are not:
+Three outcomes that look alike and are not:
 
 - **Nothing to import** — the service sees no files for that download id. A
   no-op, with no confirmation asked for.
 - **Everything rejected** — there are files and it will take none of them. A
   refusal naming the reasons. Reporting that as "nothing to do" would read as
   "it was already imported", which is the opposite of what happened.
+- **Still downloading** — the download has not finished, so there is nothing to
+  import yet. Radarr and Sonarr answer this with an HTTP 500 from a null
+  dereference of their own rather than a clean refusal, so the message names the
+  state `get_queue` reports instead of passing that on as a service fault.
 
 The import re-reads the candidates when it runs rather than trusting the
 preview's list, so a download whose files have changed in between imports what
