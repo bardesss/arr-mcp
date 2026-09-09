@@ -1,5 +1,5 @@
 import { instanceId } from '../config/instances.ts';
-import type { ServiceId, CredentialServiceConfig, Instanced } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { transmissionRpc } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -75,7 +75,7 @@ export class TransmissionAdapter
     readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: Instanced<CredentialServiceConfig>, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['transmission'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('transmission', config.name);
         this.#http = new ServiceHttp(

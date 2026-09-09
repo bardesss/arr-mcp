@@ -1,5 +1,5 @@
 import { instanceId } from '../config/instances.ts';
-import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -165,7 +165,7 @@ export class SonarrAdapter
      *  for free: `buildAdapters` constructs a new adapter. */
     readonly #libraryCache = new TtlCache();
 
-    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['sonarr'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('sonarr', config.name);
         this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
