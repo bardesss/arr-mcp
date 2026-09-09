@@ -2,7 +2,7 @@ import type { ServiceInstance } from '../src/config/instances.ts';
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
-import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
+import type { AnyServiceConfig, ConfigByService, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
@@ -21,8 +21,8 @@ const keyed = (port: number): KeyedServiceConfig => ({
     permissions: { safe_write: false, destructive: false }
 });
 
-const tiered = (safe_write: boolean, destructive = false): AnyServiceConfig =>
-    ({ ...keyed(7878), permissions: { safe_write, destructive } }) as AnyServiceConfig;
+const tiered = (safe_write: boolean, destructive = false): ConfigByService['radarr'] =>
+    ({ ...keyed(7878), permissions: { safe_write, destructive } }) as ConfigByService['radarr'];
 
 const ONE_PROFILE = [{ id: 4, name: 'HD-1080p' }];
 const MANY_PROFILES = [

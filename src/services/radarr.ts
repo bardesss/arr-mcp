@@ -1,5 +1,5 @@
 import { instanceId } from '../config/instances.ts';
-import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -140,7 +140,7 @@ export class RadarrAdapter
      *  for free: `buildAdapters` constructs a new adapter. */
     readonly #libraryCache = new TtlCache();
 
-    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['radarr'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('radarr', config.name);
         // The instance id, not the type: an error from the 4K instance has to

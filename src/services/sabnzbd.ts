@@ -1,5 +1,5 @@
 import { instanceId } from '../config/instances.ts';
-import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { queryParamKey } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -107,7 +107,7 @@ export class SabnzbdAdapter
     readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['sabnzbd'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('sabnzbd', config.name);
         this.#http = new ServiceHttp(this.id, config, queryParamKey('apikey', config.api_key), fetchImpl);

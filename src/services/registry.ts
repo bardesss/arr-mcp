@@ -1,10 +1,5 @@
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
-import type {
-    Config,
-    Instanced,
-    KeyedServiceConfig,
-    MultiUserServiceConfig
-} from '../config/schema.ts';
+import type { Config } from '../config/schema.ts';
 import { BazarrAdapter } from './bazarr.ts';
 import { JellyfinAdapter } from './jellyfin.ts';
 import { PlexAdapter } from './plex.ts';
@@ -25,49 +20,49 @@ import type { ServiceAdapter } from './types.ts';
  * is still alphabetical by id, which keeps stack_health's output stable across
  * restarts and diffable in tests, and now keeps `radarr/4k` next to `radarr/hd`.
  *
- * The casts are narrowing a union the schema has already discriminated by key:
- * `services.jellyfin` cannot be a Transmission block. A `switch` cannot see
- * that, so each case restates the type its constructor needs.
+ * No casts, and no swap that compiles. `ServiceInstance` is discriminated on
+ * `type`, so each case narrows its own config, and every entry of
+ * `ConfigByService` carries a phantom `__service` naming the service it
+ * belongs to — so a config for one service is not assignable to an adapter
+ * for another even when the two shapes are identical.
  *
- * With two exceptions, and they are worth knowing about rather than tidying
- * away. `qbittorrent` and `transmission` carry no cast because they need none:
- * every `AnyServiceConfig` member structurally satisfies
- * `Instanced<CredentialServiceConfig>`, so the compiler accepts any of them
- * there. Adding a cast is rejected as unnecessary, which is the compiler
- * confirming the gap rather than closing it.
+ * Before this, every case restated its type with an unchecked `as`, and two
+ * needed no cast at all: every member of `AnyServiceConfig` structurally
+ * satisfies `Instanced<CredentialServiceConfig>`, so the compiler accepted
+ * anything there and a swapped case body would have shipped (#201).
  *
- * The consequence: swapping those two case bodies would hand the wrong config
- * to the wrong constructor and still compile. Closing it properly means a
- * type-level map from service id to config type, which is a change to the
- * schema rather than to this file (#201).
+ * Verified by swapping bodies and running `tsc` rather than assumed, because
+ * the first attempt at this narrowed on `type` alone and left half the swaps
+ * compiling — `MultiUserServiceConfig` is a superset of `KeyedServiceConfig`,
+ * so a Jellyfin block satisfied a Radarr adapter, and two services sharing a
+ * config shape were not separable at all. All seven swaps now fail to
+ * compile, including `seerr` for `plex` and `transmission` for `qbittorrent`.
  */
 export function buildAdapters(config: Config): ServiceAdapter[] {
     return listInstances(config).map(buildAdapter);
 }
 
 function buildAdapter(instance: ServiceInstance): ServiceAdapter {
-    const keyed = instance.config as Instanced<KeyedServiceConfig>;
-
     switch (instance.type) {
         case 'bazarr':
-            return new BazarrAdapter(keyed);
+            return new BazarrAdapter(instance.config);
         case 'jellyfin':
-            return new JellyfinAdapter(instance.config as MultiUserServiceConfig);
+            return new JellyfinAdapter(instance.config);
         case 'prowlarr':
-            return new ProwlarrAdapter(keyed);
+            return new ProwlarrAdapter(instance.config);
         case 'qbittorrent':
             return new QbittorrentAdapter(instance.config);
         case 'radarr':
-            return new RadarrAdapter(keyed);
+            return new RadarrAdapter(instance.config);
         case 'sabnzbd':
-            return new SabnzbdAdapter(keyed);
+            return new SabnzbdAdapter(instance.config);
         case 'seerr':
-            return new SeerrAdapter(instance.config as MultiUserServiceConfig);
+            return new SeerrAdapter(instance.config);
         case 'sonarr':
-            return new SonarrAdapter(keyed);
+            return new SonarrAdapter(instance.config);
         case 'transmission':
             return new TransmissionAdapter(instance.config);
         case 'plex':
-            return new PlexAdapter(instance.config as MultiUserServiceConfig);
+            return new PlexAdapter(instance.config);
     }
 }

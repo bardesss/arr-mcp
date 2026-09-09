@@ -1,4 +1,4 @@
-import { MULTI_INSTANCE, type AnyServiceConfig, type Config, type ServiceId } from './schema.ts';
+import { MULTI_INSTANCE, type ConfigByService, type Config, type ServiceId } from './schema.ts';
 
 /**
  * Flattening the config into instances, in one place.
@@ -13,15 +13,32 @@ import { MULTI_INSTANCE, type AnyServiceConfig, type Config, type ServiceId } fr
  * would pull every adapter into the permission check.
  */
 
+/**
+ * One configured instance, discriminated by `type`.
+ *
+ * A union rather than a record with a widened `config`, so that narrowing on
+ * `type` narrows the config with it. That is what lets `buildAdapter` hand a
+ * config straight to a constructor with no cast, and what makes handing a
+ * Jellyfin block to a Radarr adapter a compile error rather than a runtime
+ * surprise.
+ *
+ * Narrowing alone was not enough, because the shapes overlap:
+ * `MultiUserServiceConfig` is a superset of `KeyedServiceConfig`, and
+ * Transmission and qBittorrent are the same shape outright. The phantom
+ * `__service` on each `ConfigByService` entry is what closes that, so the
+ * discriminant now separates every pair rather than most of them.
+ */
 export type ServiceInstance = {
-    /** `radarr` when there is one, `radarr/4k` when named. */
-    readonly id: string;
-    /** What kind of service it is. Capability dispatch keys on this, never id. */
-    readonly type: ServiceId;
-    /** Absent for a single unnamed instance, which is every config today. */
-    readonly name?: string | undefined;
-    readonly config: AnyServiceConfig;
-};
+    [T in ServiceId]: {
+        /** `radarr` when there is one, `radarr/4k` when named. */
+        readonly id: string;
+        /** What kind of service it is. Capability dispatch keys on this, never id. */
+        readonly type: T;
+        /** Absent for a single unnamed instance, which is every config today. */
+        readonly name?: string | undefined;
+        readonly config: ConfigByService[T];
+    };
+}[ServiceId];
 
 /**
  * The unnamed case keeping its bare id is what makes multiple instances a
@@ -52,12 +69,21 @@ export function listInstances(config: Config): ServiceInstance[] {
 
         for (const entry of entries) {
             const name = (entry as { name?: string }).name;
+
+            // The one place the key and its config are paired by hand, and so
+            // the one cast. `ServicesSchema` has already validated that
+            // `services.radarr` holds a Radarr block, but that pairing lives in
+            // the schema rather than in this loop's types, and a `for` over
+            // `Object.entries` cannot carry it. Casting here rather than at
+            // each consumer is the point: it buys `ServiceInstance` a real
+            // discriminant, so `buildAdapter` needs no casts at all and a
+            // Jellyfin block handed to a Radarr adapter stops compiling.
             out.push({
                 id: instanceId(type, name),
                 type,
                 ...(name === undefined ? {} : { name }),
-                config: entry as AnyServiceConfig
-            });
+                config: entry
+            } as ServiceInstance);
         }
     }
 

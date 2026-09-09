@@ -1,5 +1,5 @@
 import { instanceId } from '../config/instances.ts';
-import type { CredentialServiceConfig, Instanced, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { qbittorrentSession } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
@@ -91,7 +91,7 @@ export class QbittorrentAdapter
     readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: Instanced<CredentialServiceConfig>, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['qbittorrent'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('qbittorrent', config.name);
         this.#http = new ServiceHttp(

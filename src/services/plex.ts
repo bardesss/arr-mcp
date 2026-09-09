@@ -1,4 +1,4 @@
-import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { plexToken } from '../core/auth.ts';
 import { fenceText } from '../core/fence.ts';
@@ -201,7 +201,7 @@ export class PlexAdapter
     readonly #defaultUser: string | undefined;
     #warnedUnverifiedOwner = false;
 
-    constructor(config: MultiUserServiceConfig, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['plex'], fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp('plex', config, plexToken(config.api_key), fetchImpl);
         this.#defaultUser = config.default_user;
     }

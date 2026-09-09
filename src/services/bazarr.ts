@@ -1,5 +1,5 @@
 import { instanceId } from '../config/instances.ts';
-import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -101,7 +101,7 @@ export class BazarrAdapter
     readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['bazarr'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('bazarr', config.name);
         // Bazarr spells the header X-API-KEY, not X-Api-Key. Header names are

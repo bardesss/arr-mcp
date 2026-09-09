@@ -1,4 +1,4 @@
-import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -142,7 +142,7 @@ export class SeerrAdapter
     readonly #http: ServiceHttp;
     readonly #genreCache = new TtlCache();
 
-    constructor(config: MultiUserServiceConfig, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['seerr'], fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp('seerr', config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
     }
 
