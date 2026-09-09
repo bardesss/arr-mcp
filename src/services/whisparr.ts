@@ -7,7 +7,7 @@ import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { applyLimit } from '../core/shape.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
-import { readSonarrCalendar, sonarrCalendarPath } from './arrQueue.ts';
+import { readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { readQualityProfiles } from './arrAdd.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
@@ -29,6 +29,10 @@ import {
     type LibraryScanCapable,
     type MediaDetailCapable,
     type MediaDetails,
+    type QueueCapable,
+    type QueueItem,
+    type QueueRemoveCapable,
+    type RemoveQueueOptions,
     type ScanState,
     type ScanStateCapable,
     type SearchCapable,
@@ -123,7 +127,9 @@ export class WhisparrAdapter
         SearchCapable,
         LibraryCapable,
         EpisodeFileCapable,
-        BlocklistCapable
+        BlocklistCapable,
+        QueueCapable,
+        QueueRemoveCapable
 {
     readonly type: ServiceId = 'whisparr';
     readonly instance: string | undefined = undefined;
@@ -179,6 +185,14 @@ export class WhisparrAdapter
 
     async getScanState(): Promise<ScanState> {
         return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
+    }
+
+    async getQueue(): Promise<QueueItem[]> {
+        return readArrQueue(this.#http, this.id, 'series');
+    }
+
+    async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
+        return removeArrQueueItem(this.#http, this.id, id, opts);
     }
 
     async readBlocklist(): Promise<BlocklistEntry[]> {

@@ -53,30 +53,30 @@
     "name": "Import List Sync",
     "taskName": "ImportListSync",
     "interval": 5,
-    "lastExecution": "2026-09-09T16:33:35Z",
-    "lastStartTime": "2026-09-09T16:33:35Z",
-    "nextExecution": "2026-09-09T16:38:35Z",
-    "lastDuration": "00:00:00.0346956",
+    "lastExecution": "2026-09-09T17:21:37Z",
+    "lastStartTime": "2026-09-09T17:21:37Z",
+    "nextExecution": "2026-09-09T17:26:37Z",
+    "lastDuration": "00:00:00.1117290",
     "id": 8
   },
   {
     "name": "Messaging Cleanup",
     "taskName": "MessagingCleanup",
     "interval": 5,
-    "lastExecution": "2026-09-09T16:31:05Z",
-    "lastStartTime": "2026-09-09T16:31:05Z",
-    "nextExecution": "2026-09-09T16:36:05Z",
-    "lastDuration": "00:00:00.0205496",
+    "lastExecution": "2026-09-09T17:21:07Z",
+    "lastStartTime": "2026-09-09T17:21:06Z",
+    "nextExecution": "2026-09-09T17:26:07Z",
+    "lastDuration": "00:00:00.0675289",
     "id": 2
   },
   {
     "name": "Refresh Monitored Downloads",
     "taskName": "RefreshMonitoredDownloads",
     "interval": 1,
-    "lastExecution": "2026-09-09T16:32:36Z",
-    "lastStartTime": "2026-09-09T16:32:35Z",
-    "nextExecution": "2026-09-09T16:33:36Z",
-    "lastDuration": "00:00:00.6497650",
+    "lastExecution": "2026-09-09T17:25:07Z",
+    "lastStartTime": "2026-09-09T17:25:07Z",
+    "nextExecution": "2026-09-09T17:26:07Z",
+    "lastDuration": "00:00:00.0549274",
     "id": 1
   },
   {
@@ -93,10 +93,10 @@
     "name": "Rss Sync",
     "taskName": "RssSync",
     "interval": 15,
-    "lastExecution": "2026-09-09T16:19:45Z",
-    "lastStartTime": "2026-09-09T16:19:35Z",
-    "nextExecution": "2026-09-09T16:34:45Z",
-    "lastDuration": "00:00:09.8780034",
+    "lastExecution": "2026-09-09T17:21:40Z",
+    "lastStartTime": "2026-09-09T17:21:36Z",
+    "nextExecution": "2026-09-09T17:36:40Z",
+    "lastDuration": "00:00:03.7272158",
     "id": 10
   }
 ]

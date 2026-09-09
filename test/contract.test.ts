@@ -347,6 +347,15 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fixture: 'test/fixtures/whisparr/episodefile.json',
                 fields: ['id', 'seasonNumber', 'size']
             },
+            {
+                // Flat fields only. Unlike Sonarr's, a Whisparr queue record
+                // carries no nested `series` or `episode` object — just the
+                // ids — which is all `readArrQueue` reads anyway.
+                path: '/api/v3/queue',
+                method: 'get',
+                fixture: 'test/fixtures/whisparr/queue.json',
+                fields: ['records.id', 'records.title', 'records.status', 'records.protocol', 'records.size', 'records.sizeleft', 'records.timeleft', 'records.seriesId']
+            },
             { fixture: 'test/fixtures/whisparr/series-lookup.json', fields: ['title', 'tvdbId'] },
             {
                 path: '/api/v3/blocklist',

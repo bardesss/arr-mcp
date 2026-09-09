@@ -3,6 +3,45 @@
   "pageSize": 10,
   "sortKey": "timeleft",
   "sortDirection": "descending",
-  "totalRecords": 0,
-  "records": []
+  "totalRecords": 1,
+  "records": [
+    {
+      "seriesId": 1775,
+      "episodeId": 1528792,
+      "seasonNumber": 2026,
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 3,
+          "name": "WEBDL-1080p",
+          "source": "web",
+          "resolution": 1080
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "customFormatScore": 0,
+      "size": 3413986382,
+      "title": "Scene.1.1080p.WEB-DL.x264-GROUP",
+      "sizeleft": 3413986382,
+      "timeleft": "00:10:57.7354749",
+      "estimatedCompletionTime": "2026-09-09T17:36:40Z",
+      "added": "2026-09-09T17:23:55Z",
+      "status": "downloadClientUnavailable",
+      "protocol": "usenet",
+      "downloadClientHasPostImportCategory": false,
+      "indexer": "Indexer 1",
+      "episodeHasFile": false,
+      "id": 455271235
+    }
+  ]
 }

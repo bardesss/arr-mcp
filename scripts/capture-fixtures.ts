@@ -434,6 +434,8 @@ function anonymiseWhisparrQueueItem(row: Row, index: number): Row {
     return {
         ...row,
         title: replaceIfString(row.title, `Scene.${n}.1080p.WEB-DL.x264-GROUP`),
+        // Same class as the blocklist's: which trackers the operator uses.
+        indexer: replaceIfString(row.indexer, `Indexer ${n}`),
         outputPath: replaceIfString(row.outputPath, `/downloads/scene-${n}`),
         // A download id is the client's handle on the release, and for a
         // torrent it is the info hash — which identifies the content exactly.
