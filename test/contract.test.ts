@@ -359,6 +359,29 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 ]
             },
             {
+                // getPlayback's resumable half, which went uncontracted while it
+                // called `/Users/{userId}/Items/Resume`: that route is absent
+                // from the spec (obsolete since 10.9, undocumented in 12), so
+                // no entry here could have covered it. `/UserItems/Resume` is
+                // the documented form, and this entry now fails loudly if it
+                // goes the same way.
+                //
+                // `PlaybackPositionTicks` and `LastPlayedDate` are what become
+                // `percentComplete` and `lastPlayed`; a rename to either would
+                // leave every resume row looking freshly started.
+                path: '/UserItems/Resume',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/resume.json',
+                fields: [
+                    'Items.Id',
+                    'Items.Name',
+                    'Items.Type',
+                    'Items.RunTimeTicks',
+                    'Items.UserData.PlaybackPositionTicks',
+                    'Items.UserData.LastPlayedDate'
+                ]
+            },
+            {
                 path: '/Shows/{seriesId}/Episodes',
                 method: 'get',
                 fixture: 'test/fixtures/jellyfin/show-episodes.json',

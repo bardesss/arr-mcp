@@ -145,7 +145,7 @@ Thirty-six tools, but you never name them — you ask, and the model picks:
 ## Requirements
 
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
-  Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.8+, Plex Media Server 1.32+,
+  Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server 1.32+,
   Seerr 1.0+, SABnzbd 3.0+, Transmission 3.0+, qBittorrent 4.1+
 - Docker, or Node 24+ to run from source
 - An MCP client speaking protocol revision `2026-07-28`

@@ -257,16 +257,20 @@ export class JellyfinAdapter
         const [sessions, resume] = await Promise.all([
             this.#http.get<RawSession[]>('/Sessions'),
             /**
-             * `/Users/{id}/Items/Resume` is the supported way to ask for the
-             * resumable set. `/Items?IsResumable=true` looks like the right query
-             * but is silently ignored by Jellyfin 10.11 — it returns the entire
-             * library, not just resumable items.
+             * `/UserItems/Resume` is the documented way to ask for the resumable
+             * set. `/Items?IsResumable=true` looks like the right query but is
+             * silently ignored — it returns the entire library, not just
+             * resumable items.
+             *
+             * The older `/Users/{id}/Items/Resume` still answers in Jellyfin 12,
+             * but only as `[Obsolete]`, and it is absent from the OpenAPI
+             * document — so nothing here would catch its removal.
              *
              * `Limit=500` ensures truncation is decided by `applyLimit` in the
              * contract layer, which reports it, rather than by an undocumented
              * server default page size, which does not.
              */
-            this.#http.get<RawItemsPage>(`/Users/${encodeURIComponent(user.id)}/Items/Resume?Limit=500`)
+            this.#http.get<RawItemsPage>(`/UserItems/Resume?userId=${encodeURIComponent(user.id)}&Limit=500`)
         ]);
 
         const nowPlaying: PlaybackEntry[] = sessions

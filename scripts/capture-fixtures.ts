@@ -185,6 +185,39 @@ const neutraliseWatchState = (body: unknown): unknown => {
     };
 };
 
+/**
+ * Resume rows, neutralised without contradicting the endpoint.
+ *
+ * `neutraliseWatchState` zeroes `PlaybackPositionTicks` and drops
+ * `LastPlayedDate` — on a resumable set that would produce a fixture no
+ * `/UserItems/Resume` could ever return, and drop the two fields
+ * `getPlayback` reads for `percentComplete` and `lastPlayed`. A fixed
+ * position and date keep the shape honest while carrying no real watch
+ * history.
+ */
+const neutraliseResumeState = (body: unknown): unknown => {
+    const page = body as { Items?: Row[] };
+    if (!Array.isArray(page.Items)) return body;
+    return {
+        ...page,
+        Items: page.Items.map((item, i) => ({
+            ...item,
+            UserData:
+                item.UserData === undefined
+                    ? undefined
+                    : {
+                          ...(item.UserData as Row),
+                          Played: false,
+                          PlayCount: 1,
+                          IsFavorite: false,
+                          LastPlayedDate: `2026-01-0${i + 1}T20:00:00.0000000Z`,
+                          PlaybackPositionTicks: 18_000_000_000 * (i + 1),
+                          ...('PlayedPercentage' in (item.UserData as Row) ? { PlayedPercentage: 25 * (i + 1) } : {})
+                      }
+        }))
+    };
+};
+
 function anonymiseIndexer(row: Row, index: number): Row {
     const fields = Array.isArray(row.fields)
         ? (row.fields as Row[]).map(f => ({
@@ -407,6 +440,25 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                       '&Fields=ProviderIds,Genres&EnableUserData=true&EnableImages=false&Limit=20';
             },
             anonymise: neutraliseWatchState
+        },
+        {
+            name: 'resume',
+            // getPlayback's resumable half. Per-user like items-library, and
+            // from the same users[0] — if that user happens to have nothing in
+            // progress the fixture comes back empty and the contract entry for
+            // it goes red, which is the honest outcome: there is nothing to
+            // contract against.
+            //
+            // EnableImages=false is the same capture-only trim items-library
+            // uses. A live resume row carries four blurhashes, and a blurhash
+            // is long, alphanumeric and undelimited — the exact shape the
+            // fixture secret guard flags as a possible credential.
+            path: captured => {
+                const users = captured.get('users');
+                const id = Array.isArray(users) ? (users[0] as { Id?: string } | undefined)?.Id : undefined;
+                return id === undefined ? undefined : `/UserItems/Resume?userId=${id}&Limit=500&EnableImages=false`;
+            },
+            anonymise: neutraliseResumeState
         },
         {
             name: 'show-episodes',

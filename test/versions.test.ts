@@ -79,6 +79,20 @@ describe('assertVersionSupported', () => {
         expect(err.detail).toContain('3.0.0.0');
     });
 
+    it('rejects Jellyfin 10.8, whose API lacks three routes the adapter calls', () => {
+        // `/Items/{itemId}`, `/UserPlayedItems/{itemId}` and `/UserItems/Resume`
+        // all arrived in 10.9.0, alongside the deprecation of the per-user
+        // forms. Verified against the v10.8.0 tag: its UserLibraryController
+        // and PlaystateController carry only `Users/{userId}/...` routes.
+        //
+        // With the floor at 10.8.0 a 10.8 install passed the connection test
+        // and then 404ed on mark_watched and the watch-target read — a
+        // half-working install is worse than a named refusal.
+        const err = rejection(() => assertVersionSupported('jellyfin', '10.8.13'));
+        expect(err.kind).toBe('VersionUnsupported');
+        expect(err.remedy).toContain('10.9.0');
+    });
+
     it('accepts an unparseable version rather than blocking on it', () => {
         // A service that reports something we cannot parse is not evidence of
         // an old version, and refusing to talk to it would be worse than the
