@@ -35,7 +35,7 @@ const CANDIDATES = [
     }
 ];
 
-function stack(candidates: unknown = CANDIDATES) {
+function stack(candidates: unknown = CANDIDATES, queue: unknown[] = []) {
     const sent: { path: string; search: string; method: string; body: Record<string, unknown> | undefined }[] = [];
 
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -48,13 +48,34 @@ function stack(candidates: unknown = CANDIDATES) {
             body: typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : undefined
         });
 
-        if (url.pathname === '/api/v3/manualimport') return jsonResponse(candidates);
+        if (url.pathname === '/api/v3/manualimport') {
+            // A number stands for the status the service answers with, which is
+            // how the 500 cases below are written.
+            return typeof candidates === 'number'
+                ? jsonResponse({ message: 'Object reference not set to an instance of an object.' }, candidates)
+                : jsonResponse(candidates);
+        }
+        if (url.pathname === '/api/v3/queue') return jsonResponse({ records: queue, totalRecords: queue.length });
         if (url.pathname === '/api/v3/command') return jsonResponse({ id: 91, name: 'ManualImport', status: 'queued' });
         return jsonResponse({ message: 'not found' }, 404);
     }) as unknown as typeof fetch;
 
     return { impl, sent };
 }
+
+/**
+ * Radarr and Sonarr answer HTTP 500 for a download that has not finished — see
+ * the note on `explainUnfinishedDownload`. These rows are what `/queue` says
+ * about such a download, taken from a live Radarr 6.3.0.10514.
+ */
+const RUNNING_ROW = {
+    id: 1,
+    title: 'Heat.1995.mkv',
+    downloadId: 'nzo_abc',
+    status: 'queued',
+    trackedDownloadState: 'downloading',
+    movieId: 15
+};
 
 describe('manual import candidates', () => {
     it('reports what the service matched and what it will not take', async () => {
@@ -147,5 +168,67 @@ describe('running a manual import', () => {
         await expect(new SonarrAdapter(keyed(8989), s.impl).runManualImport('nzo_x')).rejects.toThrow(
             /no episode matched/
         );
+    });
+});
+
+/**
+ * The live integration run caught this: previewing an import for a download
+ * that is still running answers HTTP 500, because both services dereference a
+ * null `ImportItem`. `UpstreamError: HTTP 500 at /api/v3/manualimport` tells a
+ * model nothing it can act on; "it has not finished downloading" does.
+ */
+describe('a download that has not finished', () => {
+    it('says so, rather than reporting a bare upstream error', async () => {
+        const s = stack(500, [RUNNING_ROW]);
+        await expect(new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_abc')).rejects.toThrow(
+            /has not finished downloading/
+        );
+    });
+
+    it('names the state get_queue reports, so the model can say what to wait for', async () => {
+        const s = stack(500, [RUNNING_ROW]);
+        await expect(new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc')).rejects.toThrow(
+            /queued\/downloading/
+        );
+        expect(s.sent.some(x => x.method === 'POST')).toBe(false);
+    });
+
+    it('explains Sonarr the same way — its copy of the method has the same hole', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, movieId: undefined, seriesId: 7 }]);
+        await expect(new SonarrAdapter(keyed(8989), s.impl).listImportCandidates('nzo_abc')).rejects.toThrow(
+            /has not finished downloading/
+        );
+    });
+
+    it('matches the queue row whatever case the download id was given in', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, downloadId: 'ABC123' }]);
+        await expect(new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('abc123')).rejects.toThrow(
+            /has not finished downloading/
+        );
+    });
+
+    /**
+     * The guard that keeps this from becoming a catch-all: a 500 on a download
+     * the client has finished is a real fault, and calling it "still
+     * downloading" would send someone looking in the wrong place.
+     */
+    it('leaves a 500 on a completed download as the upstream error it is', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'completed', trackedDownloadState: 'importBlocked' }]);
+        await expect(new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_abc')).rejects.toThrow(
+            /HTTP 500/
+        );
+    });
+
+    it('leaves a 500 the queue says nothing about alone', async () => {
+        const s = stack(500, []);
+        await expect(new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_abc')).rejects.toThrow(
+            /HTTP 500/
+        );
+    });
+
+    /** An unknown id is a 200 and an empty list upstream, not a 500. */
+    it('still refuses an unknown download id on its own terms', async () => {
+        const s = stack([], [RUNNING_ROW]);
+        await expect(new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc')).rejects.toThrow(/get_queue/);
     });
 });

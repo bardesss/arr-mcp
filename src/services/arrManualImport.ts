@@ -2,6 +2,7 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { postArrCommand } from './arrCommands.ts';
+import { readArrQueue } from './arrQueue.ts';
 import type { CommandHandle, ImportCandidate } from './types.ts';
 
 /**
@@ -64,15 +65,62 @@ function toCandidate(service: string, resource: 'movie' | 'series', raw: RawCand
     };
 }
 
+/**
+ * Both services read `trackedDownload.ImportItem.OutputPath` with no null check
+ * (`ManualImportService.GetMediaFiles`), and `ImportItem` is set only once the
+ * download client reports the item complete — so a download that is still
+ * running answers HTTP 500 where a 4xx belongs. Confirmed against a live Radarr
+ * 6.3.0.10514; Sonarr's copy of the method is identical.
+ *
+ * An id the service never tracked is not this case — that answers 200 and an
+ * empty list — so the queue is read to confirm the state, and a 500 it cannot
+ * account for is rethrown untouched rather than blamed on an unfinished
+ * download.
+ */
+async function explainUnfinishedDownload(
+    http: ServiceHttp,
+    service: string,
+    resource: 'movie' | 'series',
+    downloadId: string,
+    err: unknown
+): Promise<unknown> {
+    if (!(err instanceof ServiceError) || err.kind !== 'UpstreamError') return err;
+
+    let row;
+    try {
+        row = (await readArrQueue(http, service, resource)).find(
+            q => q.downloadId?.toLowerCase() === downloadId.toLowerCase()
+        );
+    } catch {
+        // The queue is only here to explain. Failing to read it leaves the
+        // original error, which is still the truthful one.
+        return err;
+    }
+
+    if (row === undefined || row.status.toLowerCase() === 'completed') return err;
+
+    const state = row.importState === undefined ? row.status : `${row.status}/${row.importState}`;
+    return new ServiceError('UpstreamError', service, `download ${downloadId} has not finished downloading`, {
+        remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete — ${service} answers HTTP 500 rather than a clean refusal until then. Wait for it to finish, then try again.`,
+        cause: err
+    });
+}
+
 async function readCandidates(
     http: ServiceHttp,
     service: string,
     resource: 'movie' | 'series',
     downloadId: string
 ): Promise<{ raw: RawCandidate[]; candidates: ImportCandidate[] }> {
-    const raw = await http.get<RawCandidate[]>(
-        `/api/v3/manualimport?downloadId=${encodeURIComponent(downloadId)}&filterExistingFiles=true`
-    );
+    let raw: RawCandidate[];
+    try {
+        raw = await http.get<RawCandidate[]>(
+            `/api/v3/manualimport?downloadId=${encodeURIComponent(downloadId)}&filterExistingFiles=true`
+        );
+    } catch (err) {
+        throw await explainUnfinishedDownload(http, service, resource, downloadId, err);
+    }
+
     return {
         raw,
         candidates: raw.map(r => toCandidate(service, resource, r)).filter((c): c is ImportCandidate => c !== undefined)
