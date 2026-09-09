@@ -1,4 +1,4 @@
-import type { MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { embyToken } from '../core/auth.ts';
@@ -154,7 +154,7 @@ export class JellyfinAdapter
     readonly id: string = 'jellyfin';
     readonly #http: ServiceHttp;
 
-    constructor(config: MultiUserServiceConfig, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['jellyfin'], fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp('jellyfin', config, embyToken(config.api_key), fetchImpl);
     }
 

@@ -306,8 +306,10 @@ around them.
    with colliding ids), so getting it wrong fails closed. Making it
    multi-instance is four moves:
 
-   - accept its entry from `ConfigByService` in `src/config/schema.ts`, which
-     is what `buildAdapter` narrows to and what keeps that switch cast-free,
+   - accept its entry from `ConfigByService` in `src/config/schema.ts` — that
+     entry carries a phantom `__service` tag, so taking the bare config type
+     instead silently gives up the check that stops your adapter being handed
+     another service's config,
    - set `readonly instance` from `config.name`,
    - derive `readonly id` with `instanceId()` rather than a type literal,
    - **pass `this.id` into `ServiceHttp`, not the type literal.**

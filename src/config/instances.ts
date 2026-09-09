@@ -22,11 +22,11 @@ import { MULTI_INSTANCE, type ConfigByService, type Config, type ServiceId } fro
  * Jellyfin block to a Radarr adapter a compile error rather than a runtime
  * surprise.
  *
- * It does not make *every* mix-up impossible: Transmission and qBittorrent
- * take the same config shape, so swapping those two case bodies still
- * type-checks. That is a fact about the schema — they genuinely have the same
- * fields — rather than a gap left open here, and closing it would mean
- * branding two otherwise identical types.
+ * Narrowing alone was not enough, because the shapes overlap:
+ * `MultiUserServiceConfig` is a superset of `KeyedServiceConfig`, and
+ * Transmission and qBittorrent are the same shape outright. The phantom
+ * `__service` on each `ConfigByService` entry is what closes that, so the
+ * discriminant now separates every pair rather than most of them.
  */
 export type ServiceInstance = {
     [T in ServiceId]: {

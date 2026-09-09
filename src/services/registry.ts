@@ -20,32 +20,23 @@ import type { ServiceAdapter } from './types.ts';
  * is still alphabetical by id, which keeps stack_health's output stable across
  * restarts and diffable in tests, and now keeps `radarr/4k` next to `radarr/hd`.
  *
- * No casts. `ServiceInstance` is discriminated on `type`, so each case
- * narrows its own config and hands it straight to the constructor. Before
- * that, every case restated its type with an unchecked `as`, and two needed
- * no cast at all: every member of `AnyServiceConfig` structurally satisfies
- * `Instanced<CredentialServiceConfig>`, so the compiler accepted anything in
- * those two and a swapped case body would have shipped (#201).
+ * No casts, and no swap that compiles. `ServiceInstance` is discriminated on
+ * `type`, so each case narrows its own config, and every entry of
+ * `ConfigByService` carries a phantom `__service` naming the service it
+ * belongs to — so a config for one service is not assignable to an adapter
+ * for another even when the two shapes are identical.
  *
- * **What this does and does not catch**, measured by swapping bodies and
- * running `tsc` rather than assumed:
+ * Before this, every case restated its type with an unchecked `as`, and two
+ * needed no cast at all: every member of `AnyServiceConfig` structurally
+ * satisfies `Instanced<CredentialServiceConfig>`, so the compiler accepted
+ * anything there and a swapped case body would have shipped (#201).
  *
- * - Caught: handing a config to an adapter that needs a field it lacks.
- *   `radarr` to `JellyfinAdapter` fails (no `allow_other_users`), and
- *   `qbittorrent` to `RadarrAdapter` fails (no `api_key`).
- * - Not caught: the reverse. `MultiUserServiceConfig` is a superset of
- *   `KeyedServiceConfig`, so `jellyfin` to `RadarrAdapter` compiles, as does
- *   `radarr` to `QbittorrentAdapter` — the credential fields are optional.
- * - Not caught: swapping two services whose configs are the same type at all.
- *   `seerr` and `plex` and `jellyfin` are all `MultiUserServiceConfig`;
- *   `transmission` and `qbittorrent` are both credential blocks.
- *
- * That is structural typing, not a gap in this file. Closing it needs a
- * required brand on each entry of `ConfigByService`, minted by the one cast
- * in `listInstances` — which would also mean every adapter constructor and
- * every test that builds one by hand taking the branded type. Not worth it
- * for the residue; worth writing down so nobody reads "no casts" as "no
- * mix-ups possible".
+ * Verified by swapping bodies and running `tsc` rather than assumed, because
+ * the first attempt at this narrowed on `type` alone and left half the swaps
+ * compiling — `MultiUserServiceConfig` is a superset of `KeyedServiceConfig`,
+ * so a Jellyfin block satisfied a Radarr adapter, and two services sharing a
+ * config shape were not separable at all. All seven swaps now fail to
+ * compile, including `seerr` for `plex` and `transmission` for `qbittorrent`.
  */
 export function buildAdapters(config: Config): ServiceAdapter[] {
     return listInstances(config).map(buildAdapter);

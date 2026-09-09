@@ -1,5 +1,5 @@
 import { instanceId } from '../config/instances.ts';
-import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
@@ -73,7 +73,7 @@ export class ProwlarrAdapter
     readonly id: string;
     readonly #http: ServiceHttp;
 
-    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['prowlarr'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('prowlarr', config.name);
         this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);

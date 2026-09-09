@@ -203,17 +203,33 @@ export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | Cre
  * so the compiler accepted anything there and a swapped case body would have
  * shipped.
  */
+/**
+ * A phantom field naming the service a config belongs to.
+ *
+ * Optional on purpose, and that is the whole trick. Optional does not mean
+ * ignored: with `exactOptionalPropertyTypes`, a value whose type declares
+ * `__service?: 'jellyfin'` is **not** assignable where `__service?: 'radarr'`
+ * is expected, so two configs that are structurally identical stop being
+ * interchangeable. But a plain object literal that declares no `__service` at
+ * all still satisfies either, so every test that builds a config by hand keeps
+ * working and nothing has to carry the brand around.
+ *
+ * It exists at the type level only. Nothing reads it, nothing writes it, and
+ * it never appears in a parsed config.
+ */
+type For<Id extends ServiceId, T> = T & { readonly __service?: Id };
+
 export type ConfigByService = {
-    radarr: Instanced<KeyedServiceConfig>;
-    sonarr: Instanced<KeyedServiceConfig>;
-    bazarr: Instanced<KeyedServiceConfig>;
-    prowlarr: Instanced<KeyedServiceConfig>;
-    sabnzbd: Instanced<KeyedServiceConfig>;
-    jellyfin: MultiUserServiceConfig;
-    seerr: MultiUserServiceConfig;
-    plex: MultiUserServiceConfig;
-    transmission: Instanced<CredentialServiceConfig>;
-    qbittorrent: Instanced<CredentialServiceConfig>;
+    radarr: For<'radarr', Instanced<KeyedServiceConfig>>;
+    sonarr: For<'sonarr', Instanced<KeyedServiceConfig>>;
+    bazarr: For<'bazarr', Instanced<KeyedServiceConfig>>;
+    prowlarr: For<'prowlarr', Instanced<KeyedServiceConfig>>;
+    sabnzbd: For<'sabnzbd', Instanced<KeyedServiceConfig>>;
+    jellyfin: For<'jellyfin', MultiUserServiceConfig>;
+    seerr: For<'seerr', MultiUserServiceConfig>;
+    plex: For<'plex', MultiUserServiceConfig>;
+    transmission: For<'transmission', Instanced<CredentialServiceConfig>>;
+    qbittorrent: For<'qbittorrent', Instanced<CredentialServiceConfig>>;
 };
 
 /**
