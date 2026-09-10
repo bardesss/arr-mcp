@@ -141,6 +141,17 @@ The navigation becomes a full-width row of its own under the title rather than
 wrapping into it, form fields are large enough that iOS does not zoom the page
 in when you tap one, and no table pushes the page sideways.
 
+**The logs and the dashboard's problems stack into cards.** Not pushing the page
+sideways was never the same as being readable: four columns whose last one is
+prose have no width that works on a phone, so the three narrow headings wrapped
+letter by letter and the message took what was left. Below 700px each row
+becomes a card instead — time, level and service on one line, the message and
+its fields underneath — which is the shape the write audit above already had.
+
+The tables that are three short columns, disk space and library scans and the
+IMDb status, stay tables. They read fine at that width, and cards would only
+make them taller.
+
 ## Signing in
 
 A username and password you choose the first time you open the UI. Only a scrypt

@@ -233,6 +233,34 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
      and it does not zoom back out, so one tap on a field leaves you scrolled
      sideways across a form you were only trying to type in. */
   input, select, textarea, .token input, #mcp-config { font-size: 16px; }
+
+  /* Tables whose last column is prose, which is the logs and the dashboard's
+     problems and nothing else. Four columns split about 340px on a phone, so
+     the three narrow headings wrap letter by letter — "Le/ve/l" — and the
+     message keeps what is left. The write audit reached this first and
+     answered it by leaving the table for cards; this is that answer applied
+     without a second set of markup, because the log table is rendered twice
+     (server-side here, client-side in JS) and any card built out of elements
+     would have to be built twice too.
+
+     Opt-in by class, not a rule on every table: disks, scans and the IMDb
+     status are three short columns each, already readable, worse as cards. */
+  .stacked, .stacked tbody, .stacked tr, .stacked td { display: block; }
+  .stacked thead { display: none; }
+  .stacked tr { padding: .7rem .85rem; border-bottom: 1px solid var(--line); }
+  .stacked tr:last-child { border-bottom: 0; }
+  .stacked td { border: 0; padding: 0; }
+  /* The short cells rejoined into one meta line above the message. Selected by
+     position rather than by a class, because "the prose column is the last
+     one" is true of both tables and putting it in the markup would hand the
+     two renderers another thing to disagree about.
+
+     The :where wrapper keeps this at zero specificity so tr.lvl-40 td still
+     colours a warning row. Without it the level cell of a warning renders
+     dim, and the level is the one word on that line worth colouring. */
+  .stacked td:where(:not(:last-child)) { display: inline; font-size: .8rem; color: var(--dim); }
+  .stacked td:where(:not(:last-child)) + td:where(:not(:last-child))::before { content: ' · '; }
+  .stacked td:where(:last-child) { margin-top: .35rem; }
 }
 `;
 
@@ -450,6 +478,8 @@ if (stream) {
 
   const render = (rows) => {
     const table = document.createElement('table');
+    // Must match logTable's own class — see the .stacked rules in the CSS.
+    table.className = 'stacked';
     const head = document.createElement('thead');
     const hr = document.createElement('tr');
     for (const label of ['Time', 'Level', 'Service', 'Message']) {
