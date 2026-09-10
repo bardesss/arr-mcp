@@ -428,7 +428,7 @@ function libraryRemedy(stage: 'library' | 'scan', server: string): string {
  * decide "not configured" and `'unknown'` decides "unreachable"; a service
  * gets credit for being checked only when neither applies.
  */
-function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepStatus): string {
+function fileRemedy(service: string, ev: Evidence, queueStatus: StepStatus, indexerStatus: StepStatus): string {
     const uncheckable: string[] = [];
     if (!ev.queueConfigured) uncheckable.push('no download client is configured');
     else if (queueStatus === 'unknown') uncheckable.push('the download client(s) could not be fully checked');
@@ -436,9 +436,9 @@ function fileRemedy(ev: Evidence, queueStatus: StepStatus, indexerStatus: StepSt
     else if (indexerStatus === 'unknown') uncheckable.push('Prowlarr could not be reached');
 
     if (uncheckable.length === 0) {
-        return 'Trigger a search in Radarr or Sonarr — nothing is downloading and no indexer reported a failure.';
+        return `Trigger a search in ${service} — nothing is downloading and no indexer reported a failure.`;
     }
-    return `Trigger a search in Radarr or Sonarr (${uncheckable.join(' and ')}, so that could not be ruled out).`;
+    return `Trigger a search in ${service} (${uncheckable.join(' and ')}, so that could not be ruled out).`;
 }
 
 /**
@@ -677,7 +677,14 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
         blocking.stage === 'queue'
             ? queueResult.remedy
             : blocking.stage === 'file'
-              ? fileRemedy(ev, byStage.get('queue')?.status ?? 'unknown', byStage.get('indexers')?.status ?? 'unknown')
+              // The `file` step always carries the managing service: it is only
+              // pushed on the branch where `acquisition` is defined.
+              ? fileRemedy(
+                    blocking.service as string,
+                    ev,
+                    byStage.get('queue')?.status ?? 'unknown',
+                    byStage.get('indexers')?.status ?? 'unknown'
+                )
               : blocking.stage === 'library' || blocking.stage === 'scan'
                 ? libraryRemedy(blocking.stage, ev.mediaServer as string)
                 : REMEDIES[blocking.stage];

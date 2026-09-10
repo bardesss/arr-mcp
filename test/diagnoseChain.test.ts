@@ -177,6 +177,9 @@ describe('buildChain — each stage blocking in isolation', () => {
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } })
         });
         expect(d.verdict.stage).toBe('file');
+        // The service that holds the item, not a list of the *arrs: a stack
+        // running only Whisparr must not be told to search Radarr or Sonarr.
+        expect(d.verdict.remedy).toMatch(/^Trigger a search in radarr/);
     });
 
     it('stops at library when the *arr has a file Jellyfin cannot see', () => {
