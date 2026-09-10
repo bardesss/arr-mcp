@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.2](https://github.com/bardesss/arr-mcp/compare/v1.25.1...v1.25.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* **ui:** stack the log and problem tables into cards on a phone ([#222](https://github.com/bardesss/arr-mcp/issues/222)) ([bf4158f](https://github.com/bardesss/arr-mcp/commit/bf4158f8b1deb89e12887a7368903c8ce13c8f85))
+
 ## [1.25.1](https://github.com/bardesss/arr-mcp/compare/v1.25.0...v1.25.1) (2026-09-09)
 
 
