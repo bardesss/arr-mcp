@@ -27,11 +27,18 @@ export function registerSetMonitoring(
         description:
             'Turns Sonarr monitoring on or off for a whole series, one season, or specific episodes. Safe tier — nothing is deleted and Sonarr can undo it, so `safe_write` is enough. Give `season` for one season, `episodes` for specific episode ids, or neither for the whole series; giving both is refused rather than resolved. Unmonitoring **before** deleting files is what stops Sonarr immediately re-downloading them — see delete_episode_files. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Previews by default — call again with the returned `confirm` token to apply. A season this series does not have, or an episode id that cannot be resolved, is refused rather than written: Sonarr would accept a write matching nothing and report success, and you would go on to delete files believing they were unmonitored. The refusal names the seasons that do exist, so retry with one of those rather than assuming the series is unreachable.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('sonarr.'),
+            service: ServiceIdSchema.describe('sonarr or whisparr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The series id within that service, as an integer string."),
             monitored: z.boolean().describe('true to monitor, false to stop.'),
-            season: z.number().int().min(0).optional().describe('One season. 0 is specials. Omit for the whole series.'),
+            season: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe(
+                    'One season. 0 is specials. Omit for the whole series. On Whisparr a season is a release year, e.g. 2019.'
+                ),
             episodes: z
                 .array(z.string().min(1))
                 .min(1)

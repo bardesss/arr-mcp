@@ -39,7 +39,12 @@ export function registerDeleteEpisodeFiles(
             service: ServiceIdSchema.describe('sonarr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The series id, as an integer string.'),
-            season: z.number().int().min(0).optional().describe('One season. 0 is specials.'),
+            season: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe('One season. 0 is specials. On Whisparr a season is a release year, e.g. 2019.'),
             episodes: z
                 .array(z.string().min(1))
                 .min(1)
@@ -79,6 +84,17 @@ export function registerDeleteEpisodeFiles(
             // can create.
             const details = await adapter.getMediaDetails(id, { includeEpisodes: true, episodeLimit: 500 });
             const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+            // A season the series does not have is refused, not reported as
+            // "no files on disk": that sentence claims the season was looked
+            // at, and on Whisparr — where a season is a release year — `season:
+            // 1` is the likeliest wrong input. Only when seasons were reported:
+            // no list is no evidence, and refusing on that would be a guess.
+            if (season !== undefined && details.seasons !== undefined && !details.seasons.some(s => s.season === season)) {
+                throw new ServiceError('NotFound', service, `${label} has no season ${season}.`, {
+                    remedy: `Seasons on this series: ${details.seasons.map(s => s.season).join(', ')}.`
+                });
+            }
+
             const all = await adapter.listEpisodeFiles(id);
 
             let fileIds: number[];

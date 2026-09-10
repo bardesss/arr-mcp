@@ -109,4 +109,44 @@ describe('WhisparrAdapter', () => {
     it('refuses a non-integer site id before issuing a request', async () => {
         await expect(adapter({}).listEpisodeFiles('not-an-id')).rejects.toThrow(/not a Whisparr site id/);
     });
+
+    /** Records every request body, so a write can be checked for what it sent. */
+    const recording = (routes: Record<string, unknown>) => {
+        const sent: { path: string; body: unknown }[] = [];
+        const impl = (async (input: string, init?: RequestInit) => {
+            const path = new URL(String(input)).pathname;
+            if (init?.body !== undefined) sent.push({ path, body: JSON.parse(String(init.body)) });
+            if (!(path in routes)) return json({ message: 'not found' }, 404);
+            return json(routes[path]);
+        }) as unknown as typeof fetch;
+        return { sent, adapter: new WhisparrAdapter(config, impl) };
+    };
+
+    it('searches one release year with SeasonSearch, carrying the year as seasonNumber', async () => {
+        const { sent, adapter } = recording({ '/api/v3/command': { id: 9, name: 'SeasonSearch', status: 'queued' } });
+        const handle = await adapter.triggerSearch('12', { season: 2019 });
+
+        expect(sent[0]?.body).toEqual({ name: 'SeasonSearch', seriesId: 12, seasonNumber: 2019 });
+        expect(handle).toMatchObject({ service: 'whisparr', commandId: 9, status: 'queued' });
+    });
+
+    it('unmonitors one release year and leaves the others alone', async () => {
+        const site = {
+            id: 12,
+            title: 'Site 1',
+            monitored: true,
+            seasons: [
+                { seasonNumber: 2018, monitored: true },
+                { seasonNumber: 2019, monitored: true }
+            ]
+        };
+        const { sent, adapter } = recording({ '/api/v3/series/12': site });
+        await adapter.setMonitoring('12', { monitored: false, season: 2019 });
+
+        expect(sent[0]?.path).toBe('/api/v3/series/12');
+        expect((sent[0]?.body as typeof site).seasons).toEqual([
+            { seasonNumber: 2018, monitored: true },
+            { seasonNumber: 2019, monitored: false }
+        ]);
+    });
 });

@@ -1002,11 +1002,33 @@ describe('delete_episode_files', () => {
     it('is a no-op for a season with no files on disk', async () => {
         const { call } = harness(registerDeleteEpisodeFiles, {
             permissions: { sonarr: tiered(false, true) },
-            adapters: [sonarrWith()]
+            adapters: [
+                new SonarrAdapter(
+                    keyed(8989),
+                    recordingFetch({
+                        ...routes,
+                        '/api/v3/episodefile?seriesId=7': EPISODE_FILES.filter(f => f.seasonNumber !== 1)
+                    }).impl
+                )
+            ]
         });
-        const result = await call({ service: 'sonarr', id: '7', season: 5 });
+        const result = await call({ service: 'sonarr', id: '7', season: 1 });
         expect(result.structuredContent.noop).toBe(true);
         expect(result.structuredContent).not.toHaveProperty('confirm_token');
+    });
+
+    it('refuses a season the series does not have, naming the ones it does', async () => {
+        // Not a no-op: "season 5 has no files on disk" claims a season was
+        // looked at. On Whisparr a season is a release year, so `season: 1`
+        // is the likeliest wrong input and must not read as "looked, empty".
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [sonarrWith()]
+        });
+        await expect(call({ service: 'sonarr', id: '7', season: 5 })).rejects.toThrow(/has no season 5/);
+        await expect(call({ service: 'sonarr', id: '7', season: 5 })).rejects.toMatchObject({
+            remedy: expect.stringContaining('1, 2')
+        });
     });
 
     // The token binds the *resolved fileIds*, not the season number, and

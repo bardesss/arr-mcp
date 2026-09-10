@@ -10,6 +10,7 @@ import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { readQualityProfiles } from './arrAdd.ts';
+import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
@@ -29,15 +30,22 @@ import {
     type LibraryScanCapable,
     type MediaDetailCapable,
     type MediaDetails,
+    type MonitoringCapable,
+    type MonitoringTarget,
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
+    type ReleaseCandidate,
+    type ReleaseGrabCapable,
+    type ReleaseSearchCapable,
     type RemoveQueueOptions,
     type ScanState,
     type ScanStateCapable,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
+    type SearchTarget,
+    type SearchTriggerCapable,
     type ServiceAdapter
 } from './types.ts';
 import { parseVersion } from './versions.ts';
@@ -72,6 +80,8 @@ type RawSeries = {
  * - **No `airDateUtc`.** A scene is dated by `releaseDate`, and as a bare date
  *   (`2026-09-02`) rather than a UTC timestamp.
  */
+type RawCommand = { id?: number; name?: string; status?: string };
+
 type RawEpisode = {
     id?: number;
     seasonNumber?: number;
@@ -103,8 +113,9 @@ const LIBRARY_SCAN_TASK = 'RefreshSeries';
  * scenes by year and puts that in `seasonNumber`: a live instance reports 2006
  * through 2025, two to seven per site. Everything that merges or sorts on
  * season works unchanged, because the field is a populated integer either way —
- * but a caller passing `season: 1` matches nothing, which is why this adapter
- * implements no season-scoped write yet.
+ * but a caller passing `season: 1` matches nothing. Every season-scoped tool
+ * therefore refuses a season the site does not have and lists the years it
+ * does, rather than writing a no-op and reporting success.
  *
  * **V2 only.** Whisparr ships as two incompatible applications answering on the
  * same path with the same header: V2 (this one) and V3 "Eros", a Radarr fork
@@ -129,7 +140,11 @@ export class WhisparrAdapter
         EpisodeFileCapable,
         BlocklistCapable,
         QueueCapable,
-        QueueRemoveCapable
+        QueueRemoveCapable,
+        MonitoringCapable,
+        SearchTriggerCapable,
+        ReleaseSearchCapable,
+        ReleaseGrabCapable
 {
     readonly type: ServiceId = 'whisparr';
     readonly instance: string | undefined = undefined;
@@ -239,6 +254,65 @@ export class WhisparrAdapter
     async deleteEpisodeFiles(fileIds: number[]): Promise<void> {
         if (fileIds.length === 0) return;
         await this.#http.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: fileIds });
+    }
+
+    /**
+     * Sonarr's shape exactly, and for Sonarr's reason: the PUT replaces the
+     * series wholesale, so the site is read back and returned with one field
+     * changed. `opts.season` is a release year.
+     */
+    async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
+        if (opts.episodeIds !== undefined) {
+            const episodeIds = opts.episodeIds.map(e => this.#numericId(e, 'scene'));
+            await this.#http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
+            return;
+        }
+
+        const seriesId = this.#numericId(id, 'site');
+        const series = await this.#http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
+
+        if (opts.season === undefined) {
+            await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, monitored: opts.monitored }, true);
+            return;
+        }
+
+        const seasons = (series.seasons ?? []).map(s =>
+            s.seasonNumber === opts.season ? { ...s, monitored: opts.monitored } : s
+        );
+        await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, seasons }, true);
+    }
+
+    /**
+     * Sonarr's command names and payloads, which V2 inherits unchanged. None
+     * of the three has been posted from here against a live instance, because
+     * each runs a real search on the operator's indexers; the shapes are the
+     * ones `sonarr.ts` uses, with `seasonNumber` carrying a release year.
+     */
+    async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
+        const seriesId = this.#numericId(id, 'site');
+        const payload =
+            target?.episodes !== undefined
+                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(e => this.#numericId(e, 'scene')) }
+                : target?.season !== undefined
+                  ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
+                  : { name: 'SeriesSearch', seriesId };
+
+        const command = await this.#http.post<RawCommand>('/api/v3/command', payload);
+
+        return {
+            service: this.id,
+            commandId: command.id ?? 0,
+            name: command.name ?? payload.name,
+            ...(typeof command.status === 'string' ? { status: command.status } : {})
+        };
+    }
+
+    async findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]> {
+        return findArrReleases(this.#http, this.id, 'series', opts);
+    }
+
+    async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
+        return grabArrRelease(this.#http, opts);
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {

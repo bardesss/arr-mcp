@@ -55,13 +55,13 @@ export async function buildGetReleases(
     }
 ): Promise<GetReleasesResult> {
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
-    // A valid, configured service with no release search (everything but
-    // Radarr and Sonarr) must refuse rather than answer empty — an empty
-    // list reads as "nothing is out there", a different and more misleading
-    // claim than "this service cannot answer that".
+    // A valid, configured service with no release search (everything but the
+    // *arrs) must refuse rather than answer empty — an empty list reads as
+    // "nothing is out there", a different and more misleading claim than
+    // "this service cannot answer that".
     if (!hasReleaseSearch(adapter)) {
         throw new ServiceError('NotFound', adapter.id, `${adapter.id} cannot search for releases`, {
-            remedy: 'Only radarr and sonarr can answer get_releases.'
+            remedy: 'Only radarr, sonarr and whisparr can answer get_releases.'
         });
     }
 
@@ -92,7 +92,9 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
                     .int()
                     .nonnegative()
                     .optional()
-                    .describe('Sonarr only — search one season rather than the whole series. Refused against Radarr.'),
+                    .describe(
+                        'Sonarr and Whisparr only — search one season (a release year on Whisparr) rather than the whole series. Refused against Radarr.'
+                    ),
                 detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema
