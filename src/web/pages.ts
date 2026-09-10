@@ -357,7 +357,7 @@ export function dashboardPage(opts: {
     const problems =
         opts.failures.length === 0
             ? html`<p class="note">Nothing is reporting a problem.</p>`
-            : html`<table>
+            : html`<table class="stacked">
                   <thead><tr><th>Service</th><th>Source</th><th>Type</th><th>Message</th></tr></thead>
                   <tbody>
                       ${opts.failures.map(
@@ -594,7 +594,7 @@ export function logsPage(opts: {
 export function logTable(rows: LogRow[]): SafeHtml {
     if (rows.length === 0) return html`<p class="note">Nothing logged yet for this filter.</p>`;
 
-    return html`<table>
+    return html`<table class="stacked">
         <thead>
             <tr><th>Time</th><th>Level</th><th>Service</th><th>Message</th></tr>
         </thead>
