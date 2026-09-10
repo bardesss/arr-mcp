@@ -154,7 +154,12 @@ describe('buildChain — each stage blocking in isolation', () => {
             item: item({ acquisition: undefined, presence: 'jellyfin_only' })
         });
         expect(d.verdict.stage).toBe('managed');
-        expect(d.verdict.summary).toMatch(/not managed|Radarr|Sonarr/i);
+        // Matched on the claim, not on service names. This branch is reached
+        // precisely because no service claims the item, so naming the two that
+        // usually would made the assertion wrong the moment the stack grew a
+        // third *arr — and it would have gone on passing against a sentence
+        // that had become false.
+        expect(d.verdict.summary).toMatch(/nothing configured|not managed/i);
     });
 
     it('stops at managed when it is present but unmonitored', () => {

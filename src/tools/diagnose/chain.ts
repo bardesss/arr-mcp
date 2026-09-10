@@ -537,7 +537,10 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // tell "not monitored, and also no file" apart from "not monitored, but
     // it is sitting right there".
     if (acquisition === undefined) {
-        steps.push({ stage: 'managed', status: 'blocked', detail: 'Neither Radarr nor Sonarr is managing it.' });
+        // Not a list of the two *arrs, because the stack may run a third:
+        // this is the branch where nothing configured claims the item, and
+        // naming services that were never asked reads as a claim they were.
+        steps.push({ stage: 'managed', status: 'blocked', detail: 'Nothing configured here is managing it.' });
         steps.push(SKIPPED('file', 'Not reached — nothing is managing it.'));
     } else {
         steps.push(
