@@ -25,11 +25,11 @@ off until you turn them on — see [writes](writes.md).
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
 | `trigger_scan` | Rescan a library, refresh or rename one item, or import a download that never landed |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
-| `set_monitoring` | Turn Sonarr monitoring on or off — a whole series, one season, or specific episodes |
+| `set_monitoring` | Turn Sonarr or Whisparr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `clean_queue` | Clear out completed downloads whose film or series no longer exists |
 | `delete_media` | Remove this film or series, optionally from disk |
-| `delete_episode_files` | Free disk from one Sonarr season or a handful of episodes, without touching the series |
+| `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
 | `add_media` | Add this film or series and start looking for it |
@@ -39,6 +39,14 @@ off until you turn them on — see [writes](writes.md).
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
 `false`.
+
+**Whisparr** is a Sonarr fork and answers wherever Sonarr does below, with one
+difference: a site has no seasons, so **a season is a release year**, `2019`
+rather than `1`. A year the site does not have is refused, and the refusal
+lists the years it does. It does not answer `get_history`, `get_wanted`,
+`add_media`, `update_media`, `delete_media` or `fix_metadata`. Only Whisparr V2
+is supported; `stack_health` reports a V3 (Eros) instance as an unsupported
+version.
 
 ## Every tool answers the same way
 
