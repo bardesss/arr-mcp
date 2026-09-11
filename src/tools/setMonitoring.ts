@@ -10,7 +10,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasMonitoring(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no monitoring to set`, {
-            remedy: 'Only sonarr can be monitored per season or episode. Films have no seasons.'
+            remedy: 'Only sonarr and whisparr can be monitored per season or episode. Films have no seasons.'
         });
     }
     return adapter;

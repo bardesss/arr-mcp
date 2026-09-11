@@ -19,7 +19,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasEpisodeFiles(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no episode files to delete`, {
-            remedy: 'Only sonarr has per-episode files. Use delete_media for a film.'
+            remedy: 'Only sonarr and whisparr have per-episode files. Use delete_media for a film.'
         });
     }
     return adapter;

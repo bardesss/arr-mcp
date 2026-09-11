@@ -519,10 +519,11 @@ describe('add_media on Whisparr', () => {
         const first = await h.call({ service: 'whisparr', external_id: '1001' });
         await h.call({ service: 'whisparr', external_id: '1001', confirm: first.structuredContent.confirm_token });
 
-        // No `tvdb:` prefix — probed live, Whisparr's term parser does not
-        // recognise it and answers `[]`; a bare numeric term is what matches.
+        // `tpdb:`, not `tvdb:` — Whisparr V2 renamed the exact-id prefix, and
+        // it's the only term that resolves by id rather than falling through
+        // to a ranked text search.
         const lookup = s.sent.find(x => x.path === '/api/v3/series/lookup');
-        expect(lookup?.search).toBe('?term=1001');
+        expect(lookup?.search).toBe('?term=tpdb:1001');
 
         const body = s.sent.find(x => x.method === 'POST')?.body;
         expect(body).toMatchObject({
@@ -566,21 +567,21 @@ describe('add_media across two Radarr instances', () => {
         const s = stack();
         const h = harness({ adapters: twoRadarrs(s.impl), instances: bothInstances(true, true) });
 
-        await expect(h.call({ service: 'radarr', external_id: '550' })).rejects.toThrow(/2 instances/);
+        await expect(h.call({ service: 'radarr', external_id: '603' })).rejects.toThrow(/2 instances/);
     });
 
     it('checks the permission of the instance actually named, not the service', async () => {
         const s = stack();
         const opts = { adapters: twoRadarrs(s.impl), instances: bothInstances(true, false) };
 
-        const allowed = await harness(opts).call({ service: 'radarr', instance: 'hd', external_id: '550' });
+        const allowed = await harness(opts).call({ service: 'radarr', instance: 'hd', external_id: '603' });
         expect(allowed.structuredContent.permission.allowed).toBe(true);
         expect(allowed.structuredContent.service).toBe('radarr/hd');
 
         // A denied live write throws rather than returning a verdict — the
         // refusal is the result.
         await expect(
-            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '550', confirm: 'x' })
+            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '603', confirm: 'x' })
         ).rejects.toThrow(/disabled for radarr\/4k/);
     });
 
@@ -595,7 +596,7 @@ describe('add_media across two Radarr instances', () => {
         const opts = { adapters: twoRadarrs(s.impl), instances: bothInstances(true, false) };
 
         await expect(
-            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '550', confirm: 'x' })
+            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '603', confirm: 'x' })
         ).rejects.toThrow(/`name: 4k` entry under `services.radarr`/);
     });
 
@@ -603,7 +604,7 @@ describe('add_media across two Radarr instances', () => {
         const s = stack();
         const h = harness({ adapters: twoRadarrs(s.impl), instances: bothInstances(true, true) });
 
-        await h.call({ service: 'radarr', instance: '4k', external_id: '550' });
+        await h.call({ service: 'radarr', instance: '4k', external_id: '603' });
 
         const [row] = h.audit.recent(1) as { service: string }[];
         expect(row?.service).toBe('radarr/4k');

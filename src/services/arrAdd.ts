@@ -69,23 +69,25 @@ export const SONARR_ADD: ArrAddShape = {
 /**
  * Sonarr's shape, except the lookup term: probed against a live Whisparr V2
  * instance, `term=tvdb:<id>` — Sonarr's own form — answers `[]` every time.
- * Whisparr's term parser does not recognise the `tvdb:` prefix at all; a
- * bare numeric term matches by tvdbId directly, for both a site already in
- * the library (answering its real `id`, same "already there" signal Sonarr
- * gives) and one that is not (`id` absent).
+ * Whisparr V2 renamed the prefix rather than dropping the id path —
+ * `SkyHookProxy.SearchForNewSeries` matches on `tpdb:`/`tpdbid:`, not
+ * `tvdb:`. That branch is the only one that resolves by exact id: anything
+ * else, a bare number included, falls through to a ranked text search
+ * against Whisparr's own metadata service, which is under no obligation to
+ * rank the right site first.
  */
 export const WHISPARR_ADD: ArrAddShape = {
     resource: 'series',
     idField: 'tvdbId',
     idLabel: 'tvdb',
-    lookupPath: id => `/api/v3/series/lookup?term=${id}`,
+    lookupPath: id => `/api/v3/series/lookup?term=tpdb:${id}`,
     lookupReturnsArray: true,
     searchOption: 'searchForMissingEpisodes'
 };
 
 type RawProfile = { id?: number; name?: string };
 type RawRootFolder = { path?: string; freeSpace?: number; unmappedFolders?: { name?: string }[] };
-type RawLookup = { id?: number; title?: string; year?: number };
+type RawLookup = { id?: number; title?: string; year?: number; tmdbId?: number; tvdbId?: number };
 
 export async function readQualityProfiles(http: ServiceHttp, service: string): Promise<QualityProfile[]> {
     const rows = await http.get<RawProfile[]>('/api/v3/qualityprofile');
@@ -155,7 +157,11 @@ async function lookupRaw(
 
     const payload = await http.get<RawLookup | RawLookup[]>(shape.lookupPath(numeric));
     const first = shape.lookupReturnsArray ? (payload as RawLookup[])[0] : (payload as RawLookup);
-    if (first === undefined || first.title === undefined) throw notFound;
+    // A term search ranks by title, not by id — the top hit is not
+    // guaranteed to be the id that was asked for. Trusting it anyway is how
+    // Whisparr's ranked-text fallback (see WHISPARR_ADD) could have stored a
+    // different site's title, images and folder under the requested id.
+    if (first === undefined || first.title === undefined || first[shape.idField] !== numeric) throw notFound;
 
     return {
         raw: first,

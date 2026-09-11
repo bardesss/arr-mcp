@@ -79,7 +79,7 @@ export function registerDeleteMedia(
             // legibly on a bad id rather than issuing a DELETE into the dark.
             const details = await adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 });
             const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
-            const noun = service === 'radarr' ? 'film' : 'series';
+            const noun = service === 'radarr' ? 'film' : service === 'whisparr' ? 'site' : 'series';
 
             const effects: string[] = [];
             const size = humanSize(details.sizeBytes);
