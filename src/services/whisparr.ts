@@ -7,7 +7,7 @@ import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { applyLimit } from '../core/shape.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
-import { readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
+import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { readQualityProfiles } from './arrAdd.ts';
 import { refreshArrItem, renameArrItem } from './arrCommands.ts';
@@ -21,6 +21,7 @@ import {
     type CalendarEntry,
     type CommandHandle,
     type ConnectionDiagnosis,
+    type DeleteMediaOptions,
     type DiskSpace,
     type DiskSpaceCapable,
     type EpisodeFile,
@@ -30,6 +31,7 @@ import {
     type LibraryCapable,
     type LibraryMaintenanceCapable,
     type LibraryScanCapable,
+    type MediaDeleteCapable,
     type MediaDetailCapable,
     type MediaDetails,
     type MonitoringCapable,
@@ -137,6 +139,7 @@ export class WhisparrAdapter
         LibraryScanCapable,
         ScanStateCapable,
         CalendarCapable,
+        MediaDeleteCapable,
         MediaDetailCapable,
         SearchCapable,
         LibraryCapable,
@@ -212,6 +215,11 @@ export class WhisparrAdapter
 
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
         return removeArrQueueItem(this.#http, this.id, id, opts);
+    }
+
+    /** Deletes the whole site. Sonarr's `series` resource — Whisparr keeps the noun. */
+    async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
+        return deleteArrMedia(this.#http, this.id, 'series', id, opts);
     }
 
     async readBlocklist(): Promise<BlocklistEntry[]> {

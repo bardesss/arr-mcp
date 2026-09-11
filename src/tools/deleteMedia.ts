@@ -29,7 +29,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasMediaDelete(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no media to delete`, {
-            remedy: 'Only radarr and sonarr manage media that delete_media can remove.'
+            remedy: 'Only radarr, sonarr, and whisparr manage media that delete_media can remove.'
         });
     }
     return adapter;
@@ -44,9 +44,9 @@ export function registerDeleteMedia(
         name: 'delete_media',
         title: 'Delete a film or series',
         description:
-            'Removes a film from Radarr or a whole series from Sonarr, optionally deleting its files from disk. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr deletes the entire series; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews by default — call again with the returned `confirm` token to actually delete.',
+            'Removes a film from Radarr or a whole series (or Whisparr site) from Sonarr or Whisparr, optionally deleting its files from disk. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews by default — call again with the returned `confirm` token to actually delete.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr or sonarr.'),
+            service: ServiceIdSchema.describe('radarr, sonarr, or whisparr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
             delete_files: z
@@ -79,7 +79,7 @@ export function registerDeleteMedia(
             // legibly on a bad id rather than issuing a DELETE into the dark.
             const details = await adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 });
             const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
-            const noun = service === 'sonarr' ? 'series' : 'film';
+            const noun = service === 'radarr' ? 'film' : 'series';
 
             const effects: string[] = [];
             const size = humanSize(details.sizeBytes);
@@ -92,6 +92,8 @@ export function registerDeleteMedia(
                 );
                 if (service === 'sonarr') {
                     effects.push('Deletes every episode of the series, not one season or one episode.');
+                } else if (service === 'whisparr') {
+                    effects.push('Deletes every scene of the site, not one season or one scene.');
                 }
             } else {
                 effects.push(`Leaves the files on disk — only the ${service} entry is removed.`);

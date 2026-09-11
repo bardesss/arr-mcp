@@ -44,9 +44,8 @@ not obvious, and the places where a value is deliberately absent rather than
 difference: a site has no seasons, so **a season is a release year**, `2019`
 rather than `1`. A year the site does not have is refused, and the refusal
 lists the years it does. It does not answer `get_history`, `get_wanted`,
-`add_media`, `update_media`, `delete_media` or `fix_metadata`. Only Whisparr V2
-is supported; `stack_health` reports a V3 (Eros) instance as an unsupported
-version.
+`add_media`, `update_media` or `fix_metadata`. Only Whisparr V2 is supported;
+`stack_health` reports a V3 (Eros) instance as an unsupported version.
 
 ## Every tool answers the same way
 

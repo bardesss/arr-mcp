@@ -338,8 +338,8 @@ const searchHit = searchHits[0];
  */
 const searchableHit = searchHits.find(h => h.service === 'radarr' || h.service === 'sonarr');
 // The three *arrs that search, grab and refresh one item. `searchableHit`
-// stays Radarr and Sonarr for history, update and delete, which Whisparr
-// does not implement.
+// stays Radarr and Sonarr for history and update, which Whisparr does not
+// implement; `delete_media` moved to `managedHit` once Whisparr grew one.
 const managedHit = searchHits.find(h => h.service === 'radarr' || h.service === 'sonarr' || h.service === 'whisparr');
 
 if (existingTitle !== undefined) {
@@ -471,14 +471,14 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
  * If you want to test the apply path, do it by hand against something you are
  * willing to lose.
  */
-if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+if (typeof managedHit?.service === 'string' && managedHit.id !== undefined) {
     await run(
         'delete_media',
-        { service: searchableHit.service, id: String(searchableHit.id), delete_files: true, dry_run: true },
+        { service: managedHit.service, id: String(managedHit.id), delete_files: true, dry_run: true },
         'DRY RUN ONLY — never applied from this script'
     );
 } else {
-    console.log('SKIP delete_media — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+    console.log('SKIP delete_media — search_media returned no Radarr, Sonarr or Whisparr hit to take a service+id from.');
 }
 
 /**
