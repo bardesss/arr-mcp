@@ -1,4 +1,4 @@
-import type { Instanced, KeyedServiceConfig, ServiceId } from '../config/schema.ts';
+import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -74,6 +74,8 @@ type RawSeries = {
     }[];
 };
 
+type RawCommand = { id?: number; name?: string; status?: string };
+
 /**
  * Two fields Sonarr has and Whisparr does not, both confirmed absent from every
  * row of a live capture rather than inferred from the spec:
@@ -82,8 +84,6 @@ type RawSeries = {
  * - **No `airDateUtc`.** A scene is dated by `releaseDate`, and as a bare date
  *   (`2026-09-02`) rather than a UTC timestamp.
  */
-type RawCommand = { id?: number; name?: string; status?: string };
-
 type RawEpisode = {
     id?: number;
     seasonNumber?: number;
@@ -115,9 +115,10 @@ const LIBRARY_SCAN_TASK = 'RefreshSeries';
  * scenes by year and puts that in `seasonNumber`: a live instance reports 2006
  * through 2025, two to seven per site. Everything that merges or sorts on
  * season works unchanged, because the field is a populated integer either way —
- * but a caller passing `season: 1` matches nothing. Every season-scoped tool
- * therefore refuses a season the site does not have and lists the years it
- * does, rather than writing a no-op and reporting success.
+ * but a caller passing `season: 1` matches nothing. The season-scoped writes
+ * (set_monitoring, trigger_search, delete_episode_files) therefore refuse a
+ * season the site does not have and list the years it does, rather than
+ * writing a no-op and reporting success.
  *
  * **V2 only.** Whisparr ships as two incompatible applications answering on the
  * same path with the same header: V2 (this one) and V3 "Eros", a Radarr fork
@@ -158,7 +159,7 @@ export class WhisparrAdapter
      *  the whole `/api/v3/series` list — Whisparr has no server-side filter. */
     readonly #libraryCache = new TtlCache();
 
-    constructor(config: Instanced<KeyedServiceConfig>, fetchImpl: typeof fetch = fetch) {
+    constructor(config: ConfigByService['whisparr'], fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
     }
 

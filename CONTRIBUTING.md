@@ -447,7 +447,7 @@ does both and opens a PR when either changes, so **review `specs/` in that
 diff** — the generated files are output, not source, and are not meant to be
 read by hand.
 
-Radarr, Sonarr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd,
+Radarr, Sonarr, Whisparr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd,
 Transmission and qBittorrent publish no usable spec and are hand-written against
 recorded fixtures.
 

@@ -36,9 +36,9 @@ export function registerTriggerSearch(
         name: 'trigger_search',
         title: 'Search indexers for a release',
         description:
-            'Asks Radarr or Sonarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. On Sonarr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks Radarr, Sonarr or Whisparr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. On Sonarr or Whisparr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr or sonarr.'),
+            service: ServiceIdSchema.describe('radarr, sonarr or whisparr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
             season: z
