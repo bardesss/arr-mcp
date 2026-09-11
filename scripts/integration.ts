@@ -577,9 +577,9 @@ const ADD_CANDIDATES = ['603', '13', '155', '27205', '680', '278', '238'];
 
 /** Decides on the already-present no-op, never on the refusal — that is the
  *  assertion, and it must not select its own input. */
-const alreadyHeld = async (externalId: string): Promise<boolean> => {
+const alreadyHeld = async (service: string, externalId: string): Promise<boolean> => {
     try {
-        const result = await callTool('add_media', { service: 'radarr', external_id: externalId, dry_run: true });
+        const result = await callTool('add_media', { service, external_id: externalId, dry_run: true });
         return /already in/.test(result.content?.[0]?.text ?? '');
     } catch {
         return false; // Let expectError report it through the normal path.
@@ -588,7 +588,7 @@ const alreadyHeld = async (externalId: string): Promise<boolean> => {
 
 let addCandidate: string | undefined;
 for (const candidate of ADD_CANDIDATES) {
-    if (!(await alreadyHeld(candidate))) {
+    if (!(await alreadyHeld('radarr', candidate))) {
         addCandidate = candidate;
         break;
     }
@@ -602,6 +602,50 @@ if (addCandidate === undefined) {
     await expectError(
         'add_media',
         { service: 'radarr', external_id: addCandidate, dry_run: true },
+        /several quality profiles|Name one/,
+        'DRY RUN ONLY — expects the refuse-to-guess path, with the profiles listed'
+    );
+}
+
+/**
+ * add_media on Whisparr, dry run only, same reason and shape as the Radarr
+ * case above — including the same assumption that the target stack has more
+ * than one quality profile, so the refusal is the deterministic outcome.
+ *
+ * There is no fixed candidate list here: Whisparr has no metadata-provider
+ * search by id the way TMDB gives Radarr one, so candidates are found the way
+ * a caller actually would — through the same discover search lookup_media
+ * uses — rather than invented.
+ */
+const whisparrDiscover = await run(
+    'search_media',
+    { query: 'a', source: 'discover', detail: 'full', limit: 20 },
+    'discovering add_media candidates for the Whisparr case below'
+);
+const discoverHits = ((whisparrDiscover?.structuredContent as { items?: unknown[] } | undefined)?.items ?? []) as {
+    service?: unknown;
+    ids?: { tvdb?: number };
+}[];
+const whisparrCandidates = discoverHits
+    .filter((h): h is { service: 'whisparr'; ids: { tvdb: number } } => h.service === 'whisparr' && typeof h.ids?.tvdb === 'number')
+    .map(h => String(h.ids.tvdb));
+
+let whisparrAddCandidate: string | undefined;
+for (const candidate of whisparrCandidates) {
+    if (!(await alreadyHeld('whisparr', candidate))) {
+        whisparrAddCandidate = candidate;
+        break;
+    }
+}
+
+if (whisparrAddCandidate === undefined) {
+    console.log(
+        'SKIP add_media on Whisparr — discover search returned no candidate not already in the library.'
+    );
+} else {
+    await expectError(
+        'add_media',
+        { service: 'whisparr', external_id: whisparrAddCandidate, dry_run: true },
         /several quality profiles|Name one/,
         'DRY RUN ONLY — expects the refuse-to-guess path, with the profiles listed'
     );

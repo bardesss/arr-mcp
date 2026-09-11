@@ -9,12 +9,14 @@ import { applyLimit } from '../core/shape.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
-import { readQualityProfiles } from './arrAdd.ts';
+import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, WHISPARR_ADD } from './arrAdd.ts';
 import { refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
+    type AddCandidate,
+    type AddMediaOptions,
     type BlocklistCapable,
     type BlocklistEntry,
     type CalendarCapable,
@@ -31,11 +33,13 @@ import {
     type LibraryCapable,
     type LibraryMaintenanceCapable,
     type LibraryScanCapable,
+    type MediaAddCapable,
     type MediaDeleteCapable,
     type MediaDetailCapable,
     type MediaDetails,
     type MonitoringCapable,
     type MonitoringTarget,
+    type QualityProfile,
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
@@ -43,6 +47,7 @@ import {
     type ReleaseGrabCapable,
     type ReleaseSearchCapable,
     type RemoveQueueOptions,
+    type RootFolder,
     type ScanState,
     type ScanStateCapable,
     type SearchCapable,
@@ -50,7 +55,8 @@ import {
     type SearchSource,
     type SearchTarget,
     type SearchTriggerCapable,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type Tag
 } from './types.ts';
 import { parseVersion } from './versions.ts';
 
@@ -139,6 +145,7 @@ export class WhisparrAdapter
         LibraryScanCapable,
         ScanStateCapable,
         CalendarCapable,
+        MediaAddCapable,
         MediaDeleteCapable,
         MediaDetailCapable,
         SearchCapable,
@@ -220,6 +227,28 @@ export class WhisparrAdapter
     /** Deletes the whole site. Sonarr's `series` resource — Whisparr keeps the noun. */
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
         return deleteArrMedia(this.#http, this.id, 'series', id, opts);
+    }
+
+    async listQualityProfiles(): Promise<QualityProfile[]> {
+        return readQualityProfiles(this.#http, this.id);
+    }
+
+    async listRootFolders(): Promise<RootFolder[]> {
+        return readRootFolders(this.#http, this.id);
+    }
+
+    async listTags(): Promise<Tag[]> {
+        return readTags(this.#http, this.id);
+    }
+
+    /** Sonarr resolves by TVDB id — Whisparr reuses the same field for its own
+     *  scene-database id, per WHISPARR_ADD. */
+    async lookupForAdd(externalId: string): Promise<AddCandidate> {
+        return lookupArrForAdd(this.#http, this.id, WHISPARR_ADD, externalId);
+    }
+
+    async addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }> {
+        return addArrMedia(this.#http, this.id, WHISPARR_ADD, opts);
     }
 
     async readBlocklist(): Promise<BlocklistEntry[]> {

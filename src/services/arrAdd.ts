@@ -66,6 +66,23 @@ export const SONARR_ADD: ArrAddShape = {
     searchOption: 'searchForMissingEpisodes'
 };
 
+/**
+ * Sonarr's shape, except the lookup term: probed against a live Whisparr V2
+ * instance, `term=tvdb:<id>` — Sonarr's own form — answers `[]` every time.
+ * Whisparr's term parser does not recognise the `tvdb:` prefix at all; a
+ * bare numeric term matches by tvdbId directly, for both a site already in
+ * the library (answering its real `id`, same "already there" signal Sonarr
+ * gives) and one that is not (`id` absent).
+ */
+export const WHISPARR_ADD: ArrAddShape = {
+    resource: 'series',
+    idField: 'tvdbId',
+    idLabel: 'tvdb',
+    lookupPath: id => `/api/v3/series/lookup?term=${id}`,
+    lookupReturnsArray: true,
+    searchOption: 'searchForMissingEpisodes'
+};
+
 type RawProfile = { id?: number; name?: string };
 type RawRootFolder = { path?: string; freeSpace?: number; unmappedFolders?: { name?: string }[] };
 type RawLookup = { id?: number; title?: string; year?: number };
