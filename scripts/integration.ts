@@ -337,6 +337,10 @@ const searchHit = searchHits[0];
  * otherwise recur on every stack whose search happens to rank Jellyfin first.
  */
 const searchableHit = searchHits.find(h => h.service === 'radarr' || h.service === 'sonarr');
+// The three *arrs that search, grab and refresh one item. `searchableHit`
+// stays Radarr and Sonarr for history, update and delete, which Whisparr
+// does not implement.
+const managedHit = searchHits.find(h => h.service === 'radarr' || h.service === 'sonarr' || h.service === 'whisparr');
 
 if (existingTitle !== undefined) {
     await run('diagnose', { query: existingTitle }, 'a title that exists');
@@ -366,14 +370,14 @@ if (brokenTitle !== undefined) {
  * search on a real Radarr on every run, and the failure mode of getting that
  * wrong is a stack grabbing releases nobody asked for.
  */
-if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+if (typeof managedHit?.service === 'string' && managedHit.id !== undefined) {
     await run(
         'trigger_search',
-        { service: searchableHit.service, id: String(searchableHit.id), dry_run: true },
+        { service: managedHit.service, id: String(managedHit.id), dry_run: true },
         'dry run only — never applied from this script'
     );
 } else {
-    console.log('SKIP trigger_search — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+    console.log('SKIP trigger_search — search_media returned no *arr hit to take a service+id from.');
 }
 
 /**
@@ -384,14 +388,14 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
  * since Radarr/Sonarr poll every indexer before this tool ever sees a
  * result.
  */
-if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+if (typeof managedHit?.service === 'string' && managedHit.id !== undefined) {
     releasesResult = await run(
         'get_releases',
-        { service: searchableHit.service, id: String(searchableHit.id), limit: 5, detail: 'full' },
+        { service: managedHit.service, id: String(managedHit.id), limit: 5, detail: 'full' },
         'slow — polls every configured indexer'
     );
 } else {
-    console.log('SKIP get_releases — search_media returned no Radarr or Sonarr hit to take a service+id from.');
+    console.log('SKIP get_releases — search_media returned no *arr hit to take a service+id from.');
 }
 
 /**
@@ -407,15 +411,15 @@ const candidate = (releasesResult?.structuredContent as { items?: unknown[] } | 
     | undefined;
 
 if (
-    typeof searchableHit?.service === 'string' &&
+    typeof managedHit?.service === 'string' &&
     typeof candidate?.guid === 'string' &&
     typeof candidate.indexerId === 'number'
 ) {
     await run(
         'grab_release',
         {
-            service: searchableHit.service,
-            id: String(searchableHit.id),
+            service: managedHit.service,
+            id: String(managedHit.id),
             guid: candidate.guid,
             indexer_id: candidate.indexerId,
             dry_run: true
@@ -492,21 +496,28 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
  * whether anything is still monitored, which is the warning the two-primitive
  * design leans on — and the permission verdict is reported. Neither writes.
  */
-const sonarrHit = searchHits.find(h => h.service === 'sonarr');
+const seasonedHit = searchHits.find(h => h.service === 'sonarr' || h.service === 'whisparr');
 
-if (sonarrHit?.id !== undefined) {
+if (typeof seasonedHit?.service === 'string' && seasonedHit.id !== undefined) {
+    const { service } = seasonedHit;
+    const id = String(seasonedHit.id);
     await run(
         'set_monitoring',
-        { service: 'sonarr', id: String(sonarrHit.id), monitored: false, dry_run: true },
+        { service, id, monitored: false, dry_run: true },
         'DRY RUN ONLY — never applied from this script'
     );
+    // A season the series reports, not `1`: on Whisparr a season is a release
+    // year, so `1` is exactly the input delete_episode_files now refuses.
+    const details = await callTool('get_media_details', { service, id });
+    const season =
+        (details.structuredContent as { seasons?: { season?: number }[] } | undefined)?.seasons?.[0]?.season ?? 1;
     await run(
         'delete_episode_files',
-        { service: 'sonarr', id: String(sonarrHit.id), season: 1, dry_run: true },
+        { service, id, season, dry_run: true },
         'DRY RUN ONLY — never applied from this script'
     );
 } else {
-    console.log('SKIP set_monitoring and delete_episode_files — search_media returned no Sonarr hit.');
+    console.log('SKIP set_monitoring and delete_episode_files — search_media returned no Sonarr or Whisparr hit.');
 }
 
 const queueItem = (queueResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
@@ -621,7 +632,7 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
  * trigger_scan and trigger_subtitle_search, dry run only — a real scan costs a
  * maintainer disk I/O on every run, and a real subtitle search hits providers.
  */
-const scannable = ['jellyfin', 'radarr', 'sonarr'].find(id => id in (config.services ?? {}));
+const scannable = ['jellyfin', 'radarr', 'sonarr', 'whisparr'].find(id => id in (config.services ?? {}));
 
 if (scannable === undefined) {
     console.log('SKIP trigger_scan — no service with a library to scan is configured.');
@@ -629,15 +640,15 @@ if (scannable === undefined) {
     await run('trigger_scan', { service: scannable, dry_run: true }, 'DRY RUN ONLY — never applied from this script');
 }
 
-if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined) {
+if (typeof managedHit?.service === 'string' && managedHit.id !== undefined) {
     await run(
         'trigger_scan',
-        { service: searchableHit.service, id: String(searchableHit.id), dry_run: true },
+        { service: managedHit.service, id: String(managedHit.id), dry_run: true },
         'DRY RUN ONLY — the per-item refresh'
     );
     await run(
         'trigger_scan',
-        { service: searchableHit.service, id: String(searchableHit.id), action: 'rename', dry_run: true },
+        { service: managedHit.service, id: String(managedHit.id), action: 'rename', dry_run: true },
         'DRY RUN ONLY — the per-item rename'
     );
 }

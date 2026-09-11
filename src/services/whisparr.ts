@@ -10,6 +10,7 @@ import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { readQualityProfiles } from './arrAdd.ts';
+import { refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
@@ -27,6 +28,7 @@ import {
     type HealthCheck,
     type HealthCheckCapable,
     type LibraryCapable,
+    type LibraryMaintenanceCapable,
     type LibraryScanCapable,
     type MediaDetailCapable,
     type MediaDetails,
@@ -141,6 +143,7 @@ export class WhisparrAdapter
         BlocklistCapable,
         QueueCapable,
         QueueRemoveCapable,
+        LibraryMaintenanceCapable,
         MonitoringCapable,
         SearchTriggerCapable,
         ReleaseSearchCapable,
@@ -305,6 +308,14 @@ export class WhisparrAdapter
             name: command.name ?? payload.name,
             ...(typeof command.status === 'string' ? { status: command.status } : {})
         };
+    }
+
+    async refreshItem(id: string): Promise<CommandHandle> {
+        return refreshArrItem(this.#http, this.id, 'series', id);
+    }
+
+    async renameItem(id: string): Promise<CommandHandle> {
+        return renameArrItem(this.#http, this.id, 'series', id);
     }
 
     async findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]> {
