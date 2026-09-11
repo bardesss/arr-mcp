@@ -105,6 +105,16 @@ export async function removeArrQueueItem(
     );
 }
 
+/**
+ * Radarr spells the import-list exclusion `addImportExclusion`; Sonarr spells
+ * the same flag `addImportListExclusion`, and so does Whisparr, which forked
+ * it. Both names are in the vendored specs. The difference matters because
+ * ASP.NET drops a query parameter it cannot bind rather than refusing the
+ * request, so Radarr's name sent to Sonarr deleted the series with the
+ * exclusion defaulted to false and still answered 200.
+ */
+const EXCLUSION_PARAM = { movie: 'addImportExclusion', series: 'addImportListExclusion' } as const;
+
 /** Radarr's `/movie/{id}`, Sonarr's `/series/{id}` — same flags, different noun. */
 export async function deleteArrMedia(
     http: ServiceHttp,
@@ -121,7 +131,8 @@ export async function deleteArrMedia(
     }
 
     await http.delete(
-        `/api/v3/${resource}/${numeric}?deleteFiles=${String(opts.deleteFiles)}&addImportExclusion=${String(opts.addImportExclusion)}`
+        `/api/v3/${resource}/${numeric}?deleteFiles=${String(opts.deleteFiles)}` +
+            `&${EXCLUSION_PARAM[resource]}=${String(opts.addImportExclusion)}`
     );
 }
 
