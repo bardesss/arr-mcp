@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.3](https://github.com/bardesss/arr-mcp/compare/v1.25.2...v1.25.3) (2026-09-11)
+
+
+### Bug Fixes
+
+* send Sonarr its own name for the import-list exclusion flag ([#225](https://github.com/bardesss/arr-mcp/issues/225)) ([749046a](https://github.com/bardesss/arr-mcp/commit/749046aca5c438c2dc9330400942b1ca4840b194))
+
 ## [1.25.2](https://github.com/bardesss/arr-mcp/compare/v1.25.1...v1.25.2) (2026-09-10)
 
 
