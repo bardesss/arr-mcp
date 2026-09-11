@@ -118,6 +118,20 @@ describe('deleting media', () => {
         expect(sent.find(s => s.method === 'DELETE')?.path).toBe('/api/v3/series/7');
     });
 
+    // The two services spell the exclusion flag differently, and ASP.NET drops
+    // a query parameter it cannot bind rather than refusing the request — so
+    // Radarr's name sent to Sonarr deletes the series with the exclusion
+    // silently defaulted to false, and the tool still reports success. The
+    // user then watches their import list put it straight back.
+    it("uses Sonarr's own name for the exclusion flag, which is not Radarr's", async () => {
+        const { impl, sent } = recordingFetch({});
+        await new SonarrAdapter(keyed(8989), impl).deleteMedia('7', { deleteFiles: true, addImportExclusion: true });
+
+        const del = sent.find(s => s.method === 'DELETE');
+        expect(del?.search).toContain('addImportListExclusion=true');
+        expect(del?.search).not.toContain('addImportExclusion=');
+    });
+
     // The empty-body case: routing a delete through the JSON parse would turn
     // every successful deletion into "response was not valid JSON".
     it('succeeds on the empty 200 the arrs actually return', async () => {
