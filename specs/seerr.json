@@ -318,6 +318,10 @@
             "type": "boolean",
             "example": false
           },
+          "hideRequested": {
+            "type": "boolean",
+            "example": false
+          },
           "partialRequestsEnabled": {
             "type": "boolean",
             "example": false
@@ -2194,6 +2198,9 @@
                 "type": "string"
               },
               "topic": {
+                "type": "string"
+              },
+              "tags": {
                 "type": "string"
               },
               "authMethodUsernamePassword": {
@@ -10202,6 +10209,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Only pending requests can be modified"
           }
         }
       },
@@ -10259,6 +10269,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Only failed requests can be retried"
           }
         }
       }
@@ -10305,6 +10318,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Status must be approve or decline"
+          },
+          "409": {
+            "description": "Only pending requests can be approved or declined"
           }
         }
       }
