@@ -22,6 +22,15 @@ const draw = (paths: string): string =>
 export const ICONS: Record<ServiceId, string> = {
     sonarr: draw('<rect x="2" y="7" width="20" height="14" rx="2"/><path d="m17 2.5-5 4.5-5-4.5"/>'),
     radarr: draw('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7.5 3v18M16.5 3v18M3 12h18"/>'),
+    // A clapperboard: the category is scenes, and the two rectangles already
+    // taken — Sonarr's screen and Radarr's film frame — are both whole works.
+    // The hinged bar is drawn open at the bottom so it does not double the
+    // body's top edge at this stroke weight.
+    whisparr: draw(
+        '<rect x="2.5" y="9.5" width="19" height="11" rx="2"/>' +
+            '<path d="M2.5 9.5v-4a1 1 0 0 1 1-1h17a1 1 0 0 1 1 1v4"/>' +
+            '<path d="m8 4.5-3 5M14 4.5l-3 5M20 4.5l-3 5"/>'
+    ),
     prowlarr: draw('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="m12 12 6-6"/>'),
     // A bubble rather than a captions screen: the tail is the one thing here
     // that breaks a rectangle's outline, and Sonarr and Jellyfin are already

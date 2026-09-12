@@ -1,0 +1,1167 @@
+{
+  "page": 1,
+  "pageSize": 10,
+  "sortKey": "date",
+  "sortDirection": "descending",
+  "totalRecords": 31,
+  "records": [
+    {
+      "seriesId": 475,
+      "episodeIds": [
+        832304
+      ],
+      "sourceTitle": "Scene.1.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 22,
+          "name": "VR",
+          "source": "vr",
+          "resolution": 1080
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2026-01-01T16:16:34Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 1",
+      "message": "PAR Status: FAILURE - Unpack Status: NONE - Move Status: NONE - Script Status: NONE - Delete Status: NONE - Mark Status: NONE",
+      "series": {
+        "title": "Site 1",
+        "sortTitle": "site 1",
+        "status": "continuing",
+        "ended": false,
+        "overview": "A site.",
+        "network": "Network 1",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2018,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2019,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2021,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2022,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2023,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2025,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2026,
+            "monitored": true
+          }
+        ],
+        "year": 2016,
+        "path": "/media/whisparr/Site 1",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 42,
+        "tvdbId": 1001,
+        "cleanTitle": "site1",
+        "titleSlug": "site-1",
+        "genres": [],
+        "tags": [],
+        "added": "2023-12-26T18:02:03Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 475
+      },
+      "id": 63
+    },
+    {
+      "seriesId": 1053,
+      "episodeIds": [
+        1378539
+      ],
+      "sourceTitle": "Scene.2.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 22,
+          "name": "VR",
+          "source": "vr",
+          "resolution": 1080
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-12-24T05:55:26Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 2",
+      "message": "PAR Status: FAILURE - Unpack Status: NONE - Move Status: NONE - Script Status: NONE - Delete Status: NONE - Mark Status: NONE",
+      "series": {
+        "title": "Site 2",
+        "sortTitle": "site 2",
+        "status": "continuing",
+        "ended": false,
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2018,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2019,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2021,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2022,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2023,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2025,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2026,
+            "monitored": true
+          }
+        ],
+        "year": 2015,
+        "path": "/media/whisparr/Site 2",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 25,
+        "tvdbId": 1002,
+        "cleanTitle": "site2",
+        "titleSlug": "site-2",
+        "genres": [],
+        "tags": [],
+        "added": "2024-04-21T20:59:49Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 1053
+      },
+      "id": 62
+    },
+    {
+      "seriesId": 475,
+      "episodeIds": [
+        1323476
+      ],
+      "sourceTitle": "Scene.3.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 0,
+          "name": "Unknown"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 22,
+          "name": "VR",
+          "source": "vr",
+          "resolution": 1080
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-11-21T20:04:56Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 3",
+      "message": "Pending release manually blocklisted",
+      "series": {
+        "title": "Site 3",
+        "sortTitle": "site 3",
+        "status": "continuing",
+        "ended": false,
+        "overview": "A site.",
+        "network": "Network 3",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2018,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2019,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2021,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2022,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2023,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2025,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2026,
+            "monitored": true
+          }
+        ],
+        "year": 2016,
+        "path": "/media/whisparr/Site 3",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 42,
+        "tvdbId": 1003,
+        "cleanTitle": "site3",
+        "titleSlug": "site-3",
+        "genres": [],
+        "tags": [],
+        "added": "2023-12-26T18:02:03Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 475
+      },
+      "id": 61
+    },
+    {
+      "seriesId": 1053,
+      "episodeIds": [
+        1039333
+      ],
+      "sourceTitle": "Scene.4.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 22,
+          "name": "VR",
+          "source": "vr",
+          "resolution": 1080
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-08-20T22:57:20Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 4",
+      "message": "Aborted, cannot be completed - https://sabnzbd.org/not-complete",
+      "series": {
+        "title": "Site 4",
+        "sortTitle": "site 4",
+        "status": "continuing",
+        "ended": false,
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2018,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2019,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2021,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2022,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2023,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2025,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2026,
+            "monitored": true
+          }
+        ],
+        "year": 2015,
+        "path": "/media/whisparr/Site 4",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 25,
+        "tvdbId": 1004,
+        "cleanTitle": "site4",
+        "titleSlug": "site-4",
+        "genres": [],
+        "tags": [],
+        "added": "2024-04-21T20:59:49Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 1053
+      },
+      "id": 60
+    },
+    {
+      "seriesId": 773,
+      "episodeIds": [
+        1105982
+      ],
+      "sourceTitle": "Scene.5.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 5,
+          "name": "WEBDL-720p",
+          "source": "web",
+          "resolution": 720
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-07-18T13:19:08Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 5",
+      "message": "Repair failed, not enough repair blocks (133 short)",
+      "series": {
+        "title": "Site 5",
+        "sortTitle": "site 5",
+        "status": "ended",
+        "ended": true,
+        "overview": "A site.",
+        "network": "Network 5",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2012,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2013,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2014,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": false
+          }
+        ],
+        "year": 2012,
+        "path": "/media/whisparr/Site 5",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 43,
+        "tvdbId": 1005,
+        "cleanTitle": "site5",
+        "titleSlug": "site-5",
+        "genres": [],
+        "tags": [],
+        "added": "2024-01-05T02:47:51Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 773
+      },
+      "id": 59
+    },
+    {
+      "seriesId": 773,
+      "episodeIds": [
+        1053890
+      ],
+      "sourceTitle": "Scene.6.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 5,
+          "name": "WEBDL-720p",
+          "source": "web",
+          "resolution": 720
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-07-14T00:21:32Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 6",
+      "message": "Repair failed, not enough repair blocks (27 short)",
+      "series": {
+        "title": "Site 6",
+        "sortTitle": "site 6",
+        "status": "ended",
+        "ended": true,
+        "overview": "A site.",
+        "network": "Network 6",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2012,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2013,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2014,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": false
+          }
+        ],
+        "year": 2012,
+        "path": "/media/whisparr/Site 6",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 43,
+        "tvdbId": 1006,
+        "cleanTitle": "site6",
+        "titleSlug": "site-6",
+        "genres": [],
+        "tags": [],
+        "added": "2024-01-05T02:47:51Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 773
+      },
+      "id": 58
+    },
+    {
+      "seriesId": 773,
+      "episodeIds": [
+        1053896
+      ],
+      "sourceTitle": "Scene.7.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 5,
+          "name": "WEBDL-720p",
+          "source": "web",
+          "resolution": 720
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-07-14T00:21:30Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 7",
+      "message": "Repair failed, not enough repair blocks (13 short)",
+      "series": {
+        "title": "Site 7",
+        "sortTitle": "site 7",
+        "status": "ended",
+        "ended": true,
+        "overview": "A site.",
+        "network": "Network 7",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2012,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2013,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2014,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": false
+          }
+        ],
+        "year": 2012,
+        "path": "/media/whisparr/Site 7",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 43,
+        "tvdbId": 1007,
+        "cleanTitle": "site7",
+        "titleSlug": "site-7",
+        "genres": [],
+        "tags": [],
+        "added": "2024-01-05T02:47:51Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 773
+      },
+      "id": 57
+    },
+    {
+      "seriesId": 5,
+      "episodeIds": [
+        750501
+      ],
+      "sourceTitle": "Scene.8.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 5,
+          "name": "WEBDL-720p",
+          "source": "web",
+          "resolution": 720
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-07-13T11:04:57Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 8",
+      "message": "Repair failed, not enough repair blocks (36 short)",
+      "series": {
+        "title": "Site 8",
+        "sortTitle": "site 8",
+        "status": "continuing",
+        "ended": false,
+        "overview": "A site.",
+        "network": "Network 8",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2009,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2010,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2011,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2012,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2013,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2014,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2018,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2019,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2021,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2022,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2023,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2025,
+            "monitored": false
+          }
+        ],
+        "year": 2009,
+        "path": "/media/whisparr/Site 8",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 64,
+        "tvdbId": 1008,
+        "cleanTitle": "site8",
+        "titleSlug": "site-8",
+        "genres": [],
+        "tags": [],
+        "added": "2023-11-29T23:20:13Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 5
+      },
+      "id": 56
+    },
+    {
+      "seriesId": 773,
+      "episodeIds": [
+        1105970
+      ],
+      "sourceTitle": "Scene.9.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 5,
+          "name": "WEBDL-720p",
+          "source": "web",
+          "resolution": 720
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-07-13T04:55:37Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 9",
+      "message": "Repair failed, not enough repair blocks (288 short)",
+      "series": {
+        "title": "Site 9",
+        "sortTitle": "site 9",
+        "status": "ended",
+        "ended": true,
+        "overview": "A site.",
+        "network": "Network 9",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2012,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2013,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2014,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": false
+          }
+        ],
+        "year": 2012,
+        "path": "/media/whisparr/Site 9",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 43,
+        "tvdbId": 1009,
+        "cleanTitle": "site9",
+        "titleSlug": "site-9",
+        "genres": [],
+        "tags": [],
+        "added": "2024-01-05T02:47:51Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 773
+      },
+      "id": 55
+    },
+    {
+      "seriesId": 773,
+      "episodeIds": [
+        1105970
+      ],
+      "sourceTitle": "Scene.10.1080p.WEB-DL.x264-GROUP",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 5,
+          "name": "WEBDL-720p",
+          "source": "web",
+          "resolution": 720
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "date": "2025-07-13T04:51:28Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 10",
+      "message": "Repair failed, not enough repair blocks (288 short)",
+      "series": {
+        "title": "Site 10",
+        "sortTitle": "site 10",
+        "status": "ended",
+        "ended": true,
+        "overview": "A site.",
+        "network": "Network 10",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://indexer.example.test/"
+          },
+          {
+            "coverType": "logo",
+            "remoteUrl": "https://indexer.example.test/"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 2012,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2013,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2014,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2015,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2016,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2017,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2020,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 2024,
+            "monitored": false
+          }
+        ],
+        "year": 2012,
+        "path": "/media/whisparr/Site 10",
+        "qualityProfileId": 7,
+        "monitored": false,
+        "seriesType": "standard",
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 43,
+        "tvdbId": 1010,
+        "cleanTitle": "site10",
+        "titleSlug": "site-10",
+        "genres": [],
+        "tags": [],
+        "added": "2024-01-05T02:47:51Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 773
+      },
+      "id": 54
+    }
+  ]
+}

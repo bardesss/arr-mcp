@@ -105,6 +105,16 @@ export async function removeArrQueueItem(
     );
 }
 
+/**
+ * Radarr spells the import-list exclusion `addImportExclusion`; Sonarr spells
+ * the same flag `addImportListExclusion`, and so does Whisparr, which forked
+ * it. Both names are in the vendored specs. The difference matters because
+ * ASP.NET drops a query parameter it cannot bind rather than refusing the
+ * request, so Radarr's name sent to Sonarr deleted the series with the
+ * exclusion defaulted to false and still answered 200.
+ */
+const EXCLUSION_PARAM = { movie: 'addImportExclusion', series: 'addImportListExclusion' } as const;
+
 /** Radarr's `/movie/{id}`, Sonarr's `/series/{id}` — same flags, different noun. */
 export async function deleteArrMedia(
     http: ServiceHttp,
@@ -121,7 +131,8 @@ export async function deleteArrMedia(
     }
 
     await http.delete(
-        `/api/v3/${resource}/${numeric}?deleteFiles=${String(opts.deleteFiles)}&addImportExclusion=${String(opts.addImportExclusion)}`
+        `/api/v3/${resource}/${numeric}?deleteFiles=${String(opts.deleteFiles)}` +
+            `&${EXCLUSION_PARAM[resource]}=${String(opts.addImportExclusion)}`
     );
 }
 
@@ -162,16 +173,28 @@ type RawCalendarEpisode = {
     seasonNumber?: number;
     episodeNumber?: number;
     airDateUtc?: string;
+    releaseDate?: string;
     hasFile?: boolean;
     monitored?: boolean;
     series?: { title?: string };
 };
 
-export function readSonarrCalendar(episodes: RawCalendarEpisode[], service: string): CalendarEntry[] {
+/**
+ * `dateField` exists because Whisparr V2 dates a scene with `releaseDate` and
+ * never sends `airDateUtc`, and this filter drops any row without the field it
+ * is given. Left hardcoded, a Whisparr calendar would come back empty — every
+ * row silently discarded, no error, nothing to notice. A Sonarr caller passes
+ * nothing and is unaffected.
+ */
+export function readSonarrCalendar(
+    episodes: RawCalendarEpisode[],
+    service: string,
+    dateField: 'airDateUtc' | 'releaseDate' = 'airDateUtc'
+): CalendarEntry[] {
     return episodes
         .filter(
-            (e): e is RawCalendarEpisode & { id: number; airDateUtc: string } =>
-                typeof e.id === 'number' && typeof e.airDateUtc === 'string'
+            (e): e is RawCalendarEpisode & { id: number } =>
+                typeof e.id === 'number' && typeof e[dateField] === 'string'
         )
         .map(e => ({
             service,
@@ -183,7 +206,7 @@ export function readSonarrCalendar(episodes: RawCalendarEpisode[], service: stri
                 : { seriesTitle: fenceText(e.series.title, { service, field: 'series.title' }) }),
             ...(e.seasonNumber === undefined ? {} : { season: e.seasonNumber }),
             ...(e.episodeNumber === undefined ? {} : { episode: e.episodeNumber }),
-            date: e.airDateUtc,
+            date: e[dateField] as string,
             hasFile: e.hasFile ?? false,
             monitored: e.monitored ?? false
         }));

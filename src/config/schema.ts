@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 export const ServiceIdSchema = z.enum([
     'radarr',
     'sonarr',
+    'whisparr',
     'prowlarr',
     'bazarr',
     'jellyfin',
@@ -222,6 +223,7 @@ type For<Id extends ServiceId, T> = T & { readonly __service?: Id };
 export type ConfigByService = {
     radarr: For<'radarr', Instanced<KeyedServiceConfig>>;
     sonarr: For<'sonarr', Instanced<KeyedServiceConfig>>;
+    whisparr: For<'whisparr', Instanced<KeyedServiceConfig>>;
     bazarr: For<'bazarr', Instanced<KeyedServiceConfig>>;
     prowlarr: For<'prowlarr', Instanced<KeyedServiceConfig>>;
     sabnzbd: For<'sabnzbd', Instanced<KeyedServiceConfig>>;
@@ -260,6 +262,9 @@ const ServicesSchema = z
     .strictObject({
         radarr: MultiInstanceServiceSchema.optional(),
         sonarr: MultiInstanceServiceSchema.optional(),
+        // Single only: V2 and Eros are separate service ids, so the one
+        // deployment that would want two Whisparrs is already two keys.
+        whisparr: singleOnly(KeyedServiceSchema).optional(),
         bazarr: MultiInstanceServiceSchema.optional(),
         prowlarr: MultiInstanceServiceSchema.optional(),
         sabnzbd: MultiInstanceServiceSchema.optional(),
