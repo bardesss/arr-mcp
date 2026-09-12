@@ -24,7 +24,7 @@ services:
     password: "…"
 ```
 
-All ten service ids: `radarr`, `sonarr`, `prowlarr`, `bazarr`, `jellyfin`,
+All eleven service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
 `seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
@@ -144,10 +144,12 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Three services stay single.** Jellyfin and Plex because, as explained above,
+**Four services stay single.** Jellyfin and Plex because, as explained above,
 `get_library`'s per-user join needs exactly one counterparty. Seerr because a
 request carries the identity of the person who made it, and a second Seerr makes
-"which one do I ask" a guess with an approver on the other end of it.
+"which one do I ask" a guess with an approver on the other end of it. Whisparr
+because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
+different API with no adapter.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 Transmission and qBittorrent.

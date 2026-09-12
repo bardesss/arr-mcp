@@ -1,0 +1,275 @@
+[
+  {
+    "path": "/media/whisparr",
+    "accessible": true,
+    "freeSpace": 23406029176832,
+    "unmappedFolders": [
+      {
+        "name": "Unmapped 1",
+        "path": "/media/whisparr/Unmapped 1",
+        "relativePath": "Unmapped 1"
+      },
+      {
+        "name": "Unmapped 2",
+        "path": "/media/whisparr/Unmapped 2",
+        "relativePath": "Unmapped 2"
+      },
+      {
+        "name": "Unmapped 3",
+        "path": "/media/whisparr/Unmapped 3",
+        "relativePath": "Unmapped 3"
+      },
+      {
+        "name": "Unmapped 4",
+        "path": "/media/whisparr/Unmapped 4",
+        "relativePath": "Unmapped 4"
+      },
+      {
+        "name": "Unmapped 5",
+        "path": "/media/whisparr/Unmapped 5",
+        "relativePath": "Unmapped 5"
+      },
+      {
+        "name": "Unmapped 6",
+        "path": "/media/whisparr/Unmapped 6",
+        "relativePath": "Unmapped 6"
+      },
+      {
+        "name": "Unmapped 7",
+        "path": "/media/whisparr/Unmapped 7",
+        "relativePath": "Unmapped 7"
+      },
+      {
+        "name": "Unmapped 8",
+        "path": "/media/whisparr/Unmapped 8",
+        "relativePath": "Unmapped 8"
+      },
+      {
+        "name": "Unmapped 9",
+        "path": "/media/whisparr/Unmapped 9",
+        "relativePath": "Unmapped 9"
+      },
+      {
+        "name": "Unmapped 10",
+        "path": "/media/whisparr/Unmapped 10",
+        "relativePath": "Unmapped 10"
+      },
+      {
+        "name": "Unmapped 11",
+        "path": "/media/whisparr/Unmapped 11",
+        "relativePath": "Unmapped 11"
+      },
+      {
+        "name": "Unmapped 12",
+        "path": "/media/whisparr/Unmapped 12",
+        "relativePath": "Unmapped 12"
+      },
+      {
+        "name": "Unmapped 13",
+        "path": "/media/whisparr/Unmapped 13",
+        "relativePath": "Unmapped 13"
+      },
+      {
+        "name": "Unmapped 14",
+        "path": "/media/whisparr/Unmapped 14",
+        "relativePath": "Unmapped 14"
+      },
+      {
+        "name": "Unmapped 15",
+        "path": "/media/whisparr/Unmapped 15",
+        "relativePath": "Unmapped 15"
+      },
+      {
+        "name": "Unmapped 16",
+        "path": "/media/whisparr/Unmapped 16",
+        "relativePath": "Unmapped 16"
+      },
+      {
+        "name": "Unmapped 17",
+        "path": "/media/whisparr/Unmapped 17",
+        "relativePath": "Unmapped 17"
+      },
+      {
+        "name": "Unmapped 18",
+        "path": "/media/whisparr/Unmapped 18",
+        "relativePath": "Unmapped 18"
+      },
+      {
+        "name": "Unmapped 19",
+        "path": "/media/whisparr/Unmapped 19",
+        "relativePath": "Unmapped 19"
+      },
+      {
+        "name": "Unmapped 20",
+        "path": "/media/whisparr/Unmapped 20",
+        "relativePath": "Unmapped 20"
+      },
+      {
+        "name": "Unmapped 21",
+        "path": "/media/whisparr/Unmapped 21",
+        "relativePath": "Unmapped 21"
+      },
+      {
+        "name": "Unmapped 22",
+        "path": "/media/whisparr/Unmapped 22",
+        "relativePath": "Unmapped 22"
+      },
+      {
+        "name": "Unmapped 23",
+        "path": "/media/whisparr/Unmapped 23",
+        "relativePath": "Unmapped 23"
+      },
+      {
+        "name": "Unmapped 24",
+        "path": "/media/whisparr/Unmapped 24",
+        "relativePath": "Unmapped 24"
+      },
+      {
+        "name": "Unmapped 25",
+        "path": "/media/whisparr/Unmapped 25",
+        "relativePath": "Unmapped 25"
+      },
+      {
+        "name": "Unmapped 26",
+        "path": "/media/whisparr/Unmapped 26",
+        "relativePath": "Unmapped 26"
+      },
+      {
+        "name": "Unmapped 27",
+        "path": "/media/whisparr/Unmapped 27",
+        "relativePath": "Unmapped 27"
+      },
+      {
+        "name": "Unmapped 28",
+        "path": "/media/whisparr/Unmapped 28",
+        "relativePath": "Unmapped 28"
+      },
+      {
+        "name": "Unmapped 29",
+        "path": "/media/whisparr/Unmapped 29",
+        "relativePath": "Unmapped 29"
+      },
+      {
+        "name": "Unmapped 30",
+        "path": "/media/whisparr/Unmapped 30",
+        "relativePath": "Unmapped 30"
+      },
+      {
+        "name": "Unmapped 31",
+        "path": "/media/whisparr/Unmapped 31",
+        "relativePath": "Unmapped 31"
+      },
+      {
+        "name": "Unmapped 32",
+        "path": "/media/whisparr/Unmapped 32",
+        "relativePath": "Unmapped 32"
+      },
+      {
+        "name": "Unmapped 33",
+        "path": "/media/whisparr/Unmapped 33",
+        "relativePath": "Unmapped 33"
+      },
+      {
+        "name": "Unmapped 34",
+        "path": "/media/whisparr/Unmapped 34",
+        "relativePath": "Unmapped 34"
+      },
+      {
+        "name": "Unmapped 35",
+        "path": "/media/whisparr/Unmapped 35",
+        "relativePath": "Unmapped 35"
+      },
+      {
+        "name": "Unmapped 36",
+        "path": "/media/whisparr/Unmapped 36",
+        "relativePath": "Unmapped 36"
+      },
+      {
+        "name": "Unmapped 37",
+        "path": "/media/whisparr/Unmapped 37",
+        "relativePath": "Unmapped 37"
+      },
+      {
+        "name": "Unmapped 38",
+        "path": "/media/whisparr/Unmapped 38",
+        "relativePath": "Unmapped 38"
+      },
+      {
+        "name": "Unmapped 39",
+        "path": "/media/whisparr/Unmapped 39",
+        "relativePath": "Unmapped 39"
+      },
+      {
+        "name": "Unmapped 40",
+        "path": "/media/whisparr/Unmapped 40",
+        "relativePath": "Unmapped 40"
+      },
+      {
+        "name": "Unmapped 41",
+        "path": "/media/whisparr/Unmapped 41",
+        "relativePath": "Unmapped 41"
+      },
+      {
+        "name": "Unmapped 42",
+        "path": "/media/whisparr/Unmapped 42",
+        "relativePath": "Unmapped 42"
+      },
+      {
+        "name": "Unmapped 43",
+        "path": "/media/whisparr/Unmapped 43",
+        "relativePath": "Unmapped 43"
+      },
+      {
+        "name": "Unmapped 44",
+        "path": "/media/whisparr/Unmapped 44",
+        "relativePath": "Unmapped 44"
+      },
+      {
+        "name": "Unmapped 45",
+        "path": "/media/whisparr/Unmapped 45",
+        "relativePath": "Unmapped 45"
+      },
+      {
+        "name": "Unmapped 46",
+        "path": "/media/whisparr/Unmapped 46",
+        "relativePath": "Unmapped 46"
+      },
+      {
+        "name": "Unmapped 47",
+        "path": "/media/whisparr/Unmapped 47",
+        "relativePath": "Unmapped 47"
+      },
+      {
+        "name": "Unmapped 48",
+        "path": "/media/whisparr/Unmapped 48",
+        "relativePath": "Unmapped 48"
+      },
+      {
+        "name": "Unmapped 49",
+        "path": "/media/whisparr/Unmapped 49",
+        "relativePath": "Unmapped 49"
+      },
+      {
+        "name": "Unmapped 50",
+        "path": "/media/whisparr/Unmapped 50",
+        "relativePath": "Unmapped 50"
+      },
+      {
+        "name": "Unmapped 51",
+        "path": "/media/whisparr/Unmapped 51",
+        "relativePath": "Unmapped 51"
+      },
+      {
+        "name": "Unmapped 52",
+        "path": "/media/whisparr/Unmapped 52",
+        "relativePath": "Unmapped 52"
+      },
+      {
+        "name": "Unmapped 53",
+        "path": "/media/whisparr/Unmapped 53",
+        "relativePath": "Unmapped 53"
+      }
+    ],
+    "id": 3
+  }
+]

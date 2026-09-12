@@ -6,7 +6,7 @@
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-**Radarr · Sonarr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · Transmission · qBittorrent**
+**Radarr · Sonarr · Whisparr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · Transmission · qBittorrent**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
@@ -145,7 +145,7 @@ Thirty-six tools, but you never name them — you ask, and the model picks:
 ## Requirements
 
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
-  Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server 1.32+,
+  Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server 1.32+,
   Seerr 1.0+, SABnzbd 3.0+, Transmission 3.0+, qBittorrent 4.1+
 - Docker, or Node 24+ to run from source
 - An MCP client speaking protocol revision `2026-07-28`
@@ -203,7 +203,8 @@ not solve. Found something? [SECURITY.md](SECURITY.md).
 
 arr-mcp is glue; the hard parts belong to other people. Every service it speaks
 to is free software maintained largely by volunteers — [Radarr](https://radarr.video),
-[Sonarr](https://sonarr.tv), [Prowlarr](https://prowlarr.com),
+[Sonarr](https://sonarr.tv), [Whisparr](https://github.com/Whisparr/Whisparr),
+[Prowlarr](https://prowlarr.com),
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
 [Plex](https://www.plex.tv),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),

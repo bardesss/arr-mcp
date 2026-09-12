@@ -11,6 +11,7 @@ import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
+import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { registerDeleteEpisodeFiles } from '../src/tools/deleteEpisodeFiles.ts';
 import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
@@ -130,6 +131,12 @@ describe('deleting media', () => {
         const del = sent.find(s => s.method === 'DELETE');
         expect(del?.search).toContain('addImportListExclusion=true');
         expect(del?.search).not.toContain('addImportExclusion=');
+    });
+
+    it('uses series on Whisparr too, same as Sonarr', async () => {
+        const { impl, sent } = recordingFetch({});
+        await new WhisparrAdapter(keyed(6969), impl).deleteMedia('7', { deleteFiles: true, addImportExclusion: false });
+        expect(sent.find(s => s.method === 'DELETE')?.path).toBe('/api/v3/series/7');
     });
 
     // The empty-body case: routing a delete through the JSON parse would turn
@@ -444,10 +451,12 @@ function harness(
 ) {
     const radarr = recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE });
     const sonarr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
+    const whisparr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
 
     const adapters = opts.adapters ?? [
         new RadarrAdapter(keyed(7878), radarr.impl),
-        new SonarrAdapter(keyed(8989), sonarr.impl)
+        new SonarrAdapter(keyed(8989), sonarr.impl),
+        new WhisparrAdapter(keyed(6969), whisparr.impl)
     ];
 
     let call: Call = () => Promise.reject(new Error('not registered'));
@@ -463,7 +472,13 @@ function harness(
         server as never,
         {
             permissions: permissionSourceFrom(
-                instancesOf(opts.permissions ?? { radarr: tiered(false, true), sonarr: tiered(false, true) })
+                instancesOf(
+                    opts.permissions ?? {
+                        radarr: tiered(false, true),
+                        sonarr: tiered(false, true),
+                        whisparr: tiered(false, true)
+                    }
+                )
             ),
             confirm: new ConfirmTokens(),
             audit,
@@ -472,7 +487,7 @@ function harness(
         adapters
     );
 
-    return { call: (a: Record<string, unknown>) => call(a), radarr, sonarr, audit, invalidate };
+    return { call: (a: Record<string, unknown>) => call(a), radarr, sonarr, whisparr, audit, invalidate };
 }
 
 describe('delete_media', () => {
@@ -495,6 +510,12 @@ describe('delete_media', () => {
         const h = harness(registerDeleteMedia);
         const { structuredContent } = await h.call({ service: 'sonarr', id: '7', delete_files: true, dry_run: true });
         expect(structuredContent.effects.join(' ')).toContain('every episode');
+    });
+
+    it('warns that a Whisparr delete takes the whole site, in Whisparr\'s own words', async () => {
+        const h = harness(registerDeleteMedia);
+        const { structuredContent } = await h.call({ service: 'whisparr', id: '7', delete_files: true, dry_run: true });
+        expect(structuredContent.effects.join(' ')).toContain('every scene');
     });
 
     it('deletes nothing on a dry run', async () => {
@@ -1002,11 +1023,33 @@ describe('delete_episode_files', () => {
     it('is a no-op for a season with no files on disk', async () => {
         const { call } = harness(registerDeleteEpisodeFiles, {
             permissions: { sonarr: tiered(false, true) },
-            adapters: [sonarrWith()]
+            adapters: [
+                new SonarrAdapter(
+                    keyed(8989),
+                    recordingFetch({
+                        ...routes,
+                        '/api/v3/episodefile?seriesId=7': EPISODE_FILES.filter(f => f.seasonNumber !== 1)
+                    }).impl
+                )
+            ]
         });
-        const result = await call({ service: 'sonarr', id: '7', season: 5 });
+        const result = await call({ service: 'sonarr', id: '7', season: 1 });
         expect(result.structuredContent.noop).toBe(true);
         expect(result.structuredContent).not.toHaveProperty('confirm_token');
+    });
+
+    it('refuses a season the series does not have, naming the ones it does', async () => {
+        // Not a no-op: "season 5 has no files on disk" claims a season was
+        // looked at. On Whisparr a season is a release year, so `season: 1`
+        // is the likeliest wrong input and must not read as "looked, empty".
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [sonarrWith()]
+        });
+        await expect(call({ service: 'sonarr', id: '7', season: 5 })).rejects.toThrow(/has no season 5/);
+        await expect(call({ service: 'sonarr', id: '7', season: 5 })).rejects.toMatchObject({
+            remedy: expect.stringContaining('1, 2')
+        });
     });
 
     // The token binds the *resolved fileIds*, not the season number, and

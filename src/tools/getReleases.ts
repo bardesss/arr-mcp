@@ -55,13 +55,13 @@ export async function buildGetReleases(
     }
 ): Promise<GetReleasesResult> {
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
-    // A valid, configured service with no release search (everything but
-    // Radarr and Sonarr) must refuse rather than answer empty — an empty
-    // list reads as "nothing is out there", a different and more misleading
-    // claim than "this service cannot answer that".
+    // A valid, configured service with no release search (everything but the
+    // *arrs) must refuse rather than answer empty — an empty list reads as
+    // "nothing is out there", a different and more misleading claim than
+    // "this service cannot answer that".
     if (!hasReleaseSearch(adapter)) {
         throw new ServiceError('NotFound', adapter.id, `${adapter.id} cannot search for releases`, {
-            remedy: 'Only radarr and sonarr can answer get_releases.'
+            remedy: 'Only radarr, sonarr and whisparr can answer get_releases.'
         });
     }
 
@@ -81,10 +81,12 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
             title: 'Interactive search results',
             annotations: READ_ONLY,
             description:
-                `\`trigger_search\` starts an indexer search but hands back only a queued command — it cannot show what was found, so nothing can be picked. \`get_releases\` runs the same interactive search Radarr or Sonarr's own UI does and returns every candidate, rejected ones included: a real capture found every release rejected on both a Radarr and a Sonarr search, almost always because the library already held an equal-or-better file, so filtering rejects out would have answered empty. Each row carries \`rejected\` and the upstream \`rejections\` that explain it, plus \`guid\` and \`indexerId\` together, which is what a future grab tool will bind to — both trimmed below \`detail: full\`, along with \`rejections\` below \`detail: standard\`. \`seeders\` is torrent-only and absent, not zero, on a usenet result. **This call is slow: Radarr and Sonarr poll every configured indexer synchronously, and a live capture measured a Sonarr season search at 14.3s. The timeout on this one call is set to ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s to give a real search room to finish. A long wait is not a hang — do not retry, which starts a second full indexer sweep.** \`season\` is Sonarr-only and is refused, not ignored, against Radarr.`,
+                `\`trigger_search\` starts an indexer search but hands back only a queued command — it cannot show what was found, so nothing can be picked. \`get_releases\` runs the same interactive search Radarr or Sonarr's own UI does and returns every candidate, rejected ones included: a real capture found every release rejected on both a Radarr and a Sonarr search, almost always because the library already held an equal-or-better file, so filtering rejects out would have answered empty. Each row carries \`rejected\` and the upstream \`rejections\` that explain it, plus \`guid\` and \`indexerId\` together, which is what a future grab tool will bind to — both trimmed below \`detail: full\`, along with \`rejections\` below \`detail: standard\`. \`seeders\` is torrent-only and absent, not zero, on a usenet result. **This call is slow: Radarr and Sonarr poll every configured indexer synchronously, and a live capture measured a Sonarr season search at 14.3s. The timeout on this one call is set to ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s to give a real search room to finish. A long wait is not a hang — do not retry, which starts a second full indexer sweep.** \`season\` is Sonarr and Whisparr only, and is refused, not ignored, against Radarr.`,
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
-                service: ServiceIdSchema.describe('radarr or sonarr. Required — this searches one item, never merges across services.'),
+                service: ServiceIdSchema.describe(
+                    'radarr, sonarr or whisparr. Required — this searches one item, never merges across services.'
+                ),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 id: z.string().min(1).describe('The movie or series id — `acquisition.id` on a get_library or get_media_details record.'),
                 season: z
@@ -92,7 +94,9 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
                     .int()
                     .nonnegative()
                     .optional()
-                    .describe('Sonarr only — search one season rather than the whole series. Refused against Radarr.'),
+                    .describe(
+                        'Sonarr and Whisparr only — search one season (a release year on Whisparr) rather than the whole series. Refused against Radarr.'
+                    ),
                 detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema

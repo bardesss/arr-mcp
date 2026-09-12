@@ -1,0 +1,20 @@
+[
+  {
+    "path": "/media/whisparr",
+    "label": "Volume 1",
+    "freeSpace": 602768941056,
+    "totalSpace": 957419040768
+  },
+  {
+    "path": "/media/whisparr-2",
+    "label": "Volume 2",
+    "freeSpace": 5620305920,
+    "totalSpace": 8369172480
+  },
+  {
+    "path": "/media/whisparr-3",
+    "label": "Volume 3",
+    "freeSpace": 602768941056,
+    "totalSpace": 957419040768
+  }
+]

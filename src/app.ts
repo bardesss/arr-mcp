@@ -56,10 +56,10 @@ const LIST_CACHE_TTL_MS = 60 * 60 * 1000;
  * that a list reports the whole count rather than the window, and that a write
  * happens in two calls rather than one.
  */
-const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd, Transmission and qBittorrent downloads.
+const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Whisparr scenes, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd, Transmission and qBittorrent downloads.
 
 Reading:
-- \`get_library\` is the join across Radarr, Sonarr and Jellyfin — the only tool that can say a file one service believes in is missing from the other.
+- \`get_library\` is the join across Radarr, Sonarr, Whisparr and Jellyfin — the only tool that can say a file one service believes in is missing from the other.
 - \`diagnose\` answers "why can I not play this" in one call. Prefer it over assembling that answer from several reads.
 - Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window — it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
 - \`degraded\` names services that did not answer. A short list may be an outage rather than an answer, so say which it was.

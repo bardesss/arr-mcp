@@ -154,7 +154,12 @@ describe('buildChain — each stage blocking in isolation', () => {
             item: item({ acquisition: undefined, presence: 'jellyfin_only' })
         });
         expect(d.verdict.stage).toBe('managed');
-        expect(d.verdict.summary).toMatch(/not managed|Radarr|Sonarr/i);
+        // Matched on the claim, not on service names. This branch is reached
+        // precisely because no service claims the item, so naming the two that
+        // usually would made the assertion wrong the moment the stack grew a
+        // third *arr — and it would have gone on passing against a sentence
+        // that had become false.
+        expect(d.verdict.summary).toMatch(/nothing configured|not managed/i);
     });
 
     it('stops at managed when it is present but unmonitored', () => {
@@ -172,6 +177,9 @@ describe('buildChain — each stage blocking in isolation', () => {
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } })
         });
         expect(d.verdict.stage).toBe('file');
+        // The service that holds the item, not a list of the *arrs: a stack
+        // running only Whisparr must not be told to search Radarr or Sonarr.
+        expect(d.verdict.remedy).toMatch(/^Trigger a search in radarr/);
     });
 
     it('stops at library when the *arr has a file Jellyfin cannot see', () => {

@@ -16,6 +16,12 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // v3 API and the diskspace/health/task endpoints as we read them.
     radarr: '4.0.0',
     sonarr: '4.0.0',
+    // 2.0.0 is where Whisparr V2 started, on its own `v2` update channel in
+    // February 2023, and the whole 2.x line is the Sonarr fork this adapter is
+    // written against. The floor doubles as the V2/Eros boundary: Eros is 3.x
+    // and answers on the same path with the same header, so anything below 2 or
+    // at 3 and above is a different application rather than an old one.
+    whisparr: '2.0.0',
     // v1 API; Prowlarr never had a v3.
     prowlarr: '1.0.0',
     // `{ data: … }` envelope on /api/system/status.

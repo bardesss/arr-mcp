@@ -9,6 +9,7 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import { registerAddMedia } from '../src/tools/addMedia.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -494,6 +495,52 @@ describe('add_media on Sonarr', () => {
     });
 });
 
+// Whisparr keeps Sonarr's `series` resource and TVDB id, confirmed against a
+// live-captured `series/lookup` fixture — so the shape here is Sonarr's,
+// down to `seasonFolder: true`.
+describe('add_media on Whisparr', () => {
+    const whisparrHarness = (opts: Parameters<typeof stack>[0] = {}) => {
+        const s = stack({ resource: 'series', ...opts });
+        return {
+            s,
+            h: harness({
+                adapters: [new WhisparrAdapter(keyed(6969), s.impl)],
+                permissions: { whisparr: tiered(true) }
+            })
+        };
+    };
+
+    it('looks up and posts by tvdb id, with season folders', async () => {
+        const { s, h } = whisparrHarness({
+            lookup: [{ id: 0, title: 'Site 1', year: 2020, tvdbId: 1001 }],
+            created: { id: 12, title: 'Site 1' }
+        });
+
+        const first = await h.call({ service: 'whisparr', external_id: '1001' });
+        await h.call({ service: 'whisparr', external_id: '1001', confirm: first.structuredContent.confirm_token });
+
+        // `tpdb:`, not `tvdb:` — Whisparr V2 renamed the exact-id prefix, and
+        // it's the only term that resolves by id rather than falling through
+        // to a ranked text search.
+        const lookup = s.sent.find(x => x.path === '/api/v3/series/lookup');
+        expect(lookup?.search).toBe('?term=tpdb:1001');
+
+        const body = s.sent.find(x => x.method === 'POST')?.body;
+        expect(body).toMatchObject({
+            tvdbId: 1001,
+            seasonFolder: true,
+            addOptions: { searchForMissingEpisodes: true }
+        });
+    });
+
+    it('refuses series_type, which Whisparr has no numbering scheme for', async () => {
+        const { h } = whisparrHarness({ lookup: [{ id: 0, title: 'Site 1', year: 2020, tvdbId: 1001 }] });
+        await expect(
+            h.call({ service: 'whisparr', external_id: '1001', series_type: 'anime', dry_run: true })
+        ).rejects.toThrow(/series_type/);
+    });
+});
+
 /**
  * Permissions are granted per instance, and the write gate has to look up the
  * *resolved* instance id rather than the bare service type.
@@ -520,21 +567,21 @@ describe('add_media across two Radarr instances', () => {
         const s = stack();
         const h = harness({ adapters: twoRadarrs(s.impl), instances: bothInstances(true, true) });
 
-        await expect(h.call({ service: 'radarr', external_id: '550' })).rejects.toThrow(/2 instances/);
+        await expect(h.call({ service: 'radarr', external_id: '603' })).rejects.toThrow(/2 instances/);
     });
 
     it('checks the permission of the instance actually named, not the service', async () => {
         const s = stack();
         const opts = { adapters: twoRadarrs(s.impl), instances: bothInstances(true, false) };
 
-        const allowed = await harness(opts).call({ service: 'radarr', instance: 'hd', external_id: '550' });
+        const allowed = await harness(opts).call({ service: 'radarr', instance: 'hd', external_id: '603' });
         expect(allowed.structuredContent.permission.allowed).toBe(true);
         expect(allowed.structuredContent.service).toBe('radarr/hd');
 
         // A denied live write throws rather than returning a verdict — the
         // refusal is the result.
         await expect(
-            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '550', confirm: 'x' })
+            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '603', confirm: 'x' })
         ).rejects.toThrow(/disabled for radarr\/4k/);
     });
 
@@ -549,7 +596,7 @@ describe('add_media across two Radarr instances', () => {
         const opts = { adapters: twoRadarrs(s.impl), instances: bothInstances(true, false) };
 
         await expect(
-            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '550', confirm: 'x' })
+            harness(opts).call({ service: 'radarr', instance: '4k', external_id: '603', confirm: 'x' })
         ).rejects.toThrow(/`name: 4k` entry under `services.radarr`/);
     });
 
@@ -557,7 +604,7 @@ describe('add_media across two Radarr instances', () => {
         const s = stack();
         const h = harness({ adapters: twoRadarrs(s.impl), instances: bothInstances(true, true) });
 
-        await h.call({ service: 'radarr', instance: '4k', external_id: '550' });
+        await h.call({ service: 'radarr', instance: '4k', external_id: '603' });
 
         const [row] = h.audit.recent(1) as { service: string }[];
         expect(row?.service).toBe('radarr/4k');
@@ -590,6 +637,26 @@ describe('add_media options', () => {
         return s.sent.find(x => x.method === 'POST')?.body;
     };
 
+    const confirmWhisparr = async (args: Record<string, unknown>) => {
+        const s = stack({
+            resource: 'series',
+            lookup: [{ id: 0, title: 'Site 1', year: 2020, tvdbId: 1001 }],
+            created: { id: 12, title: 'Site 1' }
+        });
+        const h = harness({
+            adapters: [new WhisparrAdapter(keyed(6969), s.impl)],
+            permissions: { whisparr: tiered(true) }
+        });
+        const first = await h.call({ service: 'whisparr', external_id: '1001', ...args });
+        await h.call({
+            service: 'whisparr',
+            external_id: '1001',
+            ...args,
+            confirm: first.structuredContent.confirm_token
+        });
+        return s.sent.find(x => x.method === 'POST')?.body;
+    };
+
     it('sends the Sonarr monitor mode in addOptions', async () => {
         expect(await confirmSonarr({ monitor: 'future' })).toMatchObject({
             addOptions: { monitor: 'future', searchForMissingEpisodes: true }
@@ -603,6 +670,36 @@ describe('add_media options', () => {
 
     it('sends the series type', async () => {
         expect(await confirmSonarr({ series_type: 'anime' })).toMatchObject({ seriesType: 'anime' });
+    });
+
+    // Whisparr's own MonitorTypes enum has no `lastSeason` — it calls the same
+    // concept `latestSeason`. The tool keeps one word across both services and
+    // renames it at the wire boundary.
+    it('renames lastSeason to Whisparr\'s own latestSeason on the wire', async () => {
+        expect(await confirmWhisparr({ monitor: 'lastSeason' })).toMatchObject({
+            addOptions: { monitor: 'latestSeason' }
+        });
+    });
+
+    it('passes other monitor modes to Whisparr unchanged', async () => {
+        expect(await confirmWhisparr({ monitor: 'future' })).toMatchObject({
+            addOptions: { monitor: 'future' }
+        });
+    });
+
+    it('refuses pilot on Whisparr — a site has no pilot scene', async () => {
+        const s = stack({
+            resource: 'series',
+            lookup: [{ id: 0, title: 'Site 1', year: 2020, tvdbId: 1001 }]
+        });
+        const h = harness({
+            adapters: [new WhisparrAdapter(keyed(6969), s.impl)],
+            permissions: { whisparr: tiered(true) }
+        });
+        await expect(
+            h.call({ service: 'whisparr', external_id: '1001', monitor: 'pilot', dry_run: true })
+        ).rejects.toThrow(/pilot/);
+        expect(s.sent.filter(x => x.method === 'POST')).toHaveLength(0);
     });
 
     it('refuses a monitor mode on Radarr rather than dropping it silently', async () => {
