@@ -11,9 +11,13 @@ mkdir -p specs
 # Seerr's location was design spec §21.3's open question: it carries Overseerr's
 # spec forward as `seerr-api.yml` on `develop`, and it is YAML rather than JSON —
 # which is why the normalisation step below is not optional.
+# Whisparr's document declares `info.version: "3.0.0"` while describing the V2,
+# series-shaped API — `/series` and `/episode`, no `/movie`. It is not Eros,
+# whose repo split off to Whisparr/Whisparr-Eros and is a separate service id.
 SERVICES="
 radarr https://raw.githubusercontent.com/Radarr/Radarr/develop/src/Radarr.Api.V3/openapi.json
 sonarr https://raw.githubusercontent.com/Sonarr/Sonarr/develop/src/Sonarr.Api.V3/openapi.json
+whisparr https://raw.githubusercontent.com/Whisparr/Whisparr/v2-develop/src/Whisparr.Api.V3/openapi.json
 prowlarr https://raw.githubusercontent.com/Prowlarr/Prowlarr/develop/src/Prowlarr.Api.V1/openapi.json
 jellyfin https://api.jellyfin.org/openapi/jellyfin-openapi-stable.json
 seerr https://raw.githubusercontent.com/seerr-team/seerr/develop/seerr-api.yml
@@ -22,11 +26,18 @@ seerr https://raw.githubusercontent.com/seerr-team/seerr/develop/seerr-api.yml
 # Trapped rather than removed at the end of the loop: `set -e` means a failed
 # curl or a spec that will not parse exits from inside the loop, and the `rm`
 # below never runs.
+#
+# `if`, not `[ -n "$tmp" ] && rm`: bash takes the EXIT trap's status as the
+# script's, and that `&&` returns 1 whenever `tmp` is empty, which is every
+# clean run. And the loop reads a here-string rather than a pipe, so the `tmp`
+# it assigns is visible out here for the trap to act on at all.
 tmp=""
-cleanup() { [ -n "$tmp" ] && rm -f "$tmp"; }
+cleanup() {
+  if [ -n "$tmp" ]; then rm -f "$tmp"; fi
+}
 trap cleanup EXIT
 
-echo "$SERVICES" | while read -r name url; do
+while read -r name url; do
   [ -z "$name" ] && continue
   echo "fetching ${name} <- ${url}"
   tmp="$(mktemp)"
@@ -43,6 +54,8 @@ echo "$SERVICES" | while read -r name url; do
     writeFileSync(process.argv[2], JSON.stringify(doc, null, 2) + "\n");
   ' "$tmp" "specs/${name}.json"
   rm -f "$tmp"
-done
+  # Cleared so the trap does not chase a path this iteration already removed.
+  tmp=""
+done <<< "$SERVICES"
 
 echo "done — review the diff in specs/ before committing"

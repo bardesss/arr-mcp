@@ -32,7 +32,7 @@ const findAdapter = (
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasMediaAdd(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot add media`, {
-            remedy: 'Only radarr (films, by TMDB id) and sonarr (series, by TVDB id) can.'
+            remedy: 'Only radarr (films, by TMDB id) and sonarr or whisparr (series or a site, by TVDB id) can.'
         });
     }
     return adapter;
@@ -43,14 +43,14 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         name: 'add_media',
         title: 'Add a film or series',
         description:
-            'Adds a film to Radarr or a series to Sonarr and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr takes a TVDB id — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes — `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. Sonarr also takes `monitor` (which seasons: `future` is "only what has not aired yet") and `series_type`; Radarr takes `minimum_availability`. An option sent to the wrong service is refused, not dropped. Previews by default — call again with the returned `confirm` token to actually add it.',
+            'Adds a film to Radarr or a series to Sonarr — or a site to Whisparr — and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr and Whisparr take a TVDB id (Whisparr reuses that field for its own scene-database id, not TheTVDB) — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes — `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. Sonarr and Whisparr also take `monitor` (which seasons: `future` is "only what has not aired yet"); `series_type` is Sonarr only, since a site has no numbering scheme. Radarr takes `minimum_availability`. An option sent to the wrong service is refused, not dropped. Previews by default — call again with the returned `confirm` token to actually add it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series.'),
+            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series, whisparr for a site.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             external_id: z
                 .string()
                 .min(1)
-                .describe('TMDB id for radarr, TVDB id for sonarr, as an integer string. From lookup_media.'),
+                .describe('TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string. From lookup_media.'),
             quality_profile: z
                 .string()
                 .optional()
@@ -64,7 +64,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'none'])
                 .optional()
                 .describe(
-                    'Sonarr only: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. Omit for Sonarr\'s own default. Radarr has no seasons — use `monitored` there.'
+                    'Sonarr or Whisparr only: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. `pilot` is Sonarr only — a site has no pilot scene. Omit for the service\'s own default. Radarr has no seasons — use `monitored` there.'
                 ),
             minimum_availability: z
                 .enum(['announced', 'inCinemas', 'released'])
@@ -112,9 +112,17 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             // Refused before any call, and named for the service that *does*
             // have the option: silently dropping one would add the series with
             // every season monitored against an explicit "future only".
-            if (monitor !== undefined && adapter.type !== 'sonarr') {
-                throw new ServiceError('NotFound', service, 'monitor mode is a Sonarr option', {
+            if (monitor !== undefined && adapter.type !== 'sonarr' && adapter.type !== 'whisparr') {
+                throw new ServiceError('NotFound', service, 'monitor mode is a Sonarr or Whisparr option', {
                     remedy: 'Films have no seasons. Use `monitored` on Radarr, and `minimum_availability` for how early it may grab.'
+                });
+            }
+            // Whisparr's own MonitorTypes enum has no `pilot` — a site has no
+            // pilot scene — and calls Sonarr's `lastSeason` `latestSeason`. The
+            // rename is handled below, invisibly; `pilot` has no equivalent.
+            if (monitor === 'pilot' && adapter.type === 'whisparr') {
+                throw new ServiceError('NotFound', service, 'pilot is a Sonarr-only monitor mode', {
+                    remedy: 'A site has no pilot scene. Use `firstSeason`, `future`, `all`, `missing`, `existing`, `lastSeason` or `none`.'
                 });
             }
             if (series_type !== undefined && adapter.type !== 'sonarr') {
@@ -187,7 +195,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 effects.push(
                     monitor === 'none'
                         ? 'Monitors no season, so nothing is grabbed until a season or episode is monitored.'
-                        : `Monitors the "${monitor}" set of seasons — Sonarr works out which those are.`
+                        : `Monitors the "${monitor}" set of seasons — ${service} works out which those are.`
                 );
             }
             if (minimum_availability !== undefined) {
@@ -204,6 +212,12 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     : 'Does not search yet. Use trigger_search when you want it to look.'
             );
 
+            // Whisparr's wire name for "lastSeason" is "latestSeason" — the rename
+            // happens here, at the boundary, so the tool keeps one vocabulary and
+            // the token still commits to the value that will actually be posted.
+            const wireMonitor =
+                monitor === 'lastSeason' && adapter.type === 'whisparr' ? 'latestSeason' : monitor;
+
             return {
                 target: `${adapter.id}:${external_id}`,
                 summary: `Add ${label} to ${service}.`,
@@ -219,7 +233,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     rootFolderPath: folder.path,
                     monitored,
                     searchNow: search_now,
-                    ...(monitor === undefined ? {} : { monitor }),
+                    ...(wireMonitor === undefined ? {} : { monitor: wireMonitor }),
                     ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
                     ...(series_type === undefined ? {} : { seriesType: series_type }),
                     ...(resolvedTags.length === 0 ? {} : { tagIds: resolvedTags.map(t => t.id) })

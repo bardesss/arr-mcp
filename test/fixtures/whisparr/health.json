@@ -1,0 +1,20 @@
+[
+  {
+    "source": "RemovedSeriesCheck",
+    "type": "error",
+    "message": "Health message 1",
+    "wikiUrl": "https://wiki.servarr.com/whisparr/system#series-removed-from-thetvdb"
+  },
+  {
+    "source": "DownloadClientCheck",
+    "type": "warning",
+    "message": "Health message 2",
+    "wikiUrl": "https://wiki.servarr.com/whisparr/system#no-download-client-is-available"
+  },
+  {
+    "source": "UpdateCheck",
+    "type": "warning",
+    "message": "Health message 3",
+    "wikiUrl": "https://wiki.servarr.com/whisparr/system#new-update-is-available"
+  }
+]

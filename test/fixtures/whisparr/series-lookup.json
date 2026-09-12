@@ -1,0 +1,1208 @@
+[
+  {
+    "title": "Site 1",
+    "sortTitle": "site 1",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 1",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 16,
+    "tvdbId": 1001,
+    "cleanTitle": "site1",
+    "titleSlug": "site-1",
+    "folder": "Site 1",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 2",
+    "sortTitle": "site 2",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 2",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 17,
+    "tvdbId": 1002,
+    "cleanTitle": "site2",
+    "titleSlug": "site-2",
+    "folder": "Site 2",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 3",
+    "sortTitle": "site 3",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 3",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 35,
+    "tvdbId": 1003,
+    "cleanTitle": "site3",
+    "titleSlug": "site-3",
+    "folder": "Site 3",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 4",
+    "sortTitle": "site 4",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 4",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 30,
+    "tvdbId": 1004,
+    "cleanTitle": "site4",
+    "titleSlug": "site-4",
+    "folder": "Site 4",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 5",
+    "sortTitle": "site 5",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 5",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 10,
+    "tvdbId": 1005,
+    "cleanTitle": "site5",
+    "titleSlug": "site-5",
+    "folder": "Site 5",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 6",
+    "sortTitle": "site 6",
+    "status": "continuing",
+    "ended": false,
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 0,
+    "tvdbId": 1006,
+    "cleanTitle": "site6",
+    "titleSlug": "site-6",
+    "folder": "Site 6",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 7",
+    "sortTitle": "site 7",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 7",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 24,
+    "tvdbId": 1007,
+    "cleanTitle": "site7",
+    "titleSlug": "site-7",
+    "folder": "Site 7",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 8",
+    "sortTitle": "site 8",
+    "status": "continuing",
+    "ended": false,
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 0,
+    "tvdbId": 1008,
+    "cleanTitle": "site8",
+    "titleSlug": "site-8",
+    "folder": "Site 8",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 9",
+    "sortTitle": "site 9",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 9",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 18,
+    "tvdbId": 1009,
+    "cleanTitle": "site9",
+    "titleSlug": "site-9",
+    "folder": "Site 9",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 10",
+    "sortTitle": "site 10",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 10",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 10,
+    "tvdbId": 1010,
+    "cleanTitle": "site10",
+    "titleSlug": "site-10",
+    "folder": "Site 10",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 11",
+    "sortTitle": "site 11",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 11",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 35,
+    "tvdbId": 1011,
+    "cleanTitle": "site11",
+    "titleSlug": "site-11",
+    "folder": "Site 11",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 12",
+    "sortTitle": "site 12",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 12",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 14,
+    "tvdbId": 1012,
+    "cleanTitle": "site12",
+    "titleSlug": "site-12",
+    "folder": "Site 12",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 13",
+    "sortTitle": "site 13",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 13",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 18,
+    "tvdbId": 1013,
+    "cleanTitle": "site13",
+    "titleSlug": "site-13",
+    "folder": "Site 13",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 14",
+    "sortTitle": "site 14",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 14",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 14,
+    "tvdbId": 1014,
+    "cleanTitle": "site14",
+    "titleSlug": "site-14",
+    "folder": "Site 14",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 15",
+    "sortTitle": "site 15",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 15",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 44,
+    "tvdbId": 1015,
+    "cleanTitle": "site15",
+    "titleSlug": "site-15",
+    "folder": "Site 15",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 16",
+    "sortTitle": "site 16",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 16",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 20,
+    "tvdbId": 1016,
+    "cleanTitle": "site16",
+    "titleSlug": "site-16",
+    "folder": "Site 16",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 17",
+    "sortTitle": "site 17",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 17",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 19,
+    "tvdbId": 1017,
+    "cleanTitle": "site17",
+    "titleSlug": "site-17",
+    "folder": "Site 17",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 18",
+    "sortTitle": "site 18",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 18",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 23,
+    "tvdbId": 1018,
+    "cleanTitle": "site18",
+    "titleSlug": "site-18",
+    "folder": "Site 18",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 19",
+    "sortTitle": "site 19",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 19",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 10,
+    "tvdbId": 1019,
+    "cleanTitle": "site19",
+    "titleSlug": "site-19",
+    "folder": "Site 19",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 20",
+    "sortTitle": "site 20",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 20",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 26,
+    "tvdbId": 1020,
+    "cleanTitle": "site20",
+    "titleSlug": "site-20",
+    "folder": "Site 20",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 21",
+    "sortTitle": "site 21",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 21",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 23,
+    "tvdbId": 1021,
+    "cleanTitle": "site21",
+    "titleSlug": "site-21",
+    "folder": "Site 21",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 22",
+    "sortTitle": "site 22",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 22",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/1/poster.jpg",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "logo",
+        "url": "/MediaCover/1/poster.jpg",
+        "remoteUrl": "https://indexer.example.test/"
+      }
+    ],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "remotePoster": "https://indexer.example.test/",
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 34,
+    "tvdbId": 1022,
+    "cleanTitle": "site22",
+    "titleSlug": "site-22",
+    "folder": "Site 22",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 23",
+    "sortTitle": "site 23",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 23",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 22,
+    "tvdbId": 1023,
+    "cleanTitle": "site23",
+    "titleSlug": "site-23",
+    "folder": "Site 23",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 24",
+    "sortTitle": "site 24",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 24",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 43,
+    "tvdbId": 1024,
+    "cleanTitle": "site24",
+    "titleSlug": "site-24",
+    "folder": "Site 24",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 25",
+    "sortTitle": "site 25",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 25",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 22,
+    "tvdbId": 1025,
+    "cleanTitle": "site25",
+    "titleSlug": "site-25",
+    "folder": "Site 25",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 26",
+    "sortTitle": "site 26",
+    "status": "continuing",
+    "ended": false,
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 0,
+    "tvdbId": 1026,
+    "cleanTitle": "site26",
+    "titleSlug": "site-26",
+    "folder": "Site 26",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 27",
+    "sortTitle": "site 27",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 27",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 39,
+    "tvdbId": 1027,
+    "cleanTitle": "site27",
+    "titleSlug": "site-27",
+    "folder": "Site 27",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 28",
+    "sortTitle": "site 28",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 28",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 20,
+    "tvdbId": 1028,
+    "cleanTitle": "site28",
+    "titleSlug": "site-28",
+    "folder": "Site 28",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 29",
+    "sortTitle": "site 29",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A site.",
+    "network": "Network 29",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 20,
+    "tvdbId": 1029,
+    "cleanTitle": "site29",
+    "titleSlug": "site-29",
+    "folder": "Site 29",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  },
+  {
+    "title": "Site 30",
+    "sortTitle": "site 30",
+    "status": "ended",
+    "ended": true,
+    "overview": "A site.",
+    "network": "Network 30",
+    "images": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "seasons": [],
+    "year": 0,
+    "qualityProfileId": 0,
+    "monitored": true,
+    "seriesType": "standard",
+    "monitorNewItems": "all",
+    "useSceneNumbering": false,
+    "runtime": 30,
+    "tvdbId": 1030,
+    "cleanTitle": "site30",
+    "titleSlug": "site-30",
+    "folder": "Site 30",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T07:53:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "statistics": {
+      "seasonCount": 0,
+      "episodeFileCount": 0,
+      "episodeCount": 0,
+      "totalEpisodeCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfEpisodes": 0
+    }
+  }
+]
