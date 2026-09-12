@@ -6952,6 +6952,13 @@ export interface paths {
                         "application/json": components["schemas"]["MediaRequest"];
                     };
                 };
+                /** @description Only pending requests can be modified */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         post?: never;
@@ -7024,6 +7031,13 @@ export interface paths {
                         "application/json": components["schemas"]["MediaRequest"];
                     };
                 };
+                /** @description Only failed requests can be retried */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -7069,6 +7083,20 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["MediaRequest"];
                     };
+                };
+                /** @description Status must be approve or decline */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Only pending requests can be approved or declined */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -9412,6 +9440,8 @@ export interface components {
             /** @example false */
             hideAvailable?: boolean;
             /** @example false */
+            hideRequested?: boolean;
+            /** @example false */
             partialRequestsEnabled?: boolean;
             /** @example true */
             localLogin?: boolean;
@@ -10112,6 +10142,7 @@ export interface components {
             options?: {
                 url?: string;
                 topic?: string;
+                tags?: string;
                 authMethodUsernamePassword?: boolean;
                 username?: string;
                 password?: string;
