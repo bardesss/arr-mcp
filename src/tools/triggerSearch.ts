@@ -36,17 +36,26 @@ export function registerTriggerSearch(
         name: 'trigger_search',
         title: 'Search indexers for a release',
         description:
-            'Asks Radarr or Sonarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. On Sonarr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks Radarr, Sonarr or Whisparr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. On Sonarr or Whisparr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr or sonarr.'),
+            service: ServiceIdSchema.describe('radarr, sonarr or whisparr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
-            season: z.number().int().min(0).optional().describe('Sonarr only. One season. 0 is specials. Omit for the whole series.'),
+            season: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe(
+                    'Sonarr and Whisparr only. One season. 0 is specials. Omit for the whole series. On Whisparr a season is a release year, e.g. 2019.'
+                ),
             episodes: z
                 .array(z.string().min(1))
                 .min(1)
                 .optional()
-                .describe('Sonarr only. Specific episode ids, as integer strings. Mutually exclusive with `season`.')
+                .describe(
+                    'Sonarr and Whisparr only. Specific episode ids, as integer strings. Mutually exclusive with `season`.'
+                )
         }),
         // The permission check follows the argument, so enabling `safe_write`
         // on Radarr does not quietly enable it on Sonarr.
@@ -63,9 +72,9 @@ export function registerTriggerSearch(
                     '`season` and `episodes` were both given. They are different targets — send one. Omit both to search the whole series.'
                 );
             }
-            if ((season !== undefined || episodes !== undefined) && service !== 'sonarr') {
+            if ((season !== undefined || episodes !== undefined) && service !== 'sonarr' && service !== 'whisparr') {
                 throw new ServiceError('NotFound', service, `${service} has no seasons`, {
-                    remedy: 'Season and episode scope apply to sonarr only. Films have no seasons — omit season and episodes for radarr.'
+                    remedy: 'Season and episode scope apply to sonarr and whisparr only. Films have no seasons — omit season and episodes for radarr.'
                 });
             }
 
@@ -120,7 +129,7 @@ export function registerTriggerSearch(
                       ? `season ${season} of ${label}`
                       : label;
             const scopeKind =
-                episodes !== undefined ? 'episode' : season !== undefined ? 'season' : service === 'sonarr' ? 'whole-series' : 'movie';
+                episodes !== undefined ? 'episode' : season !== undefined ? 'season' : service === 'radarr' ? 'movie' : 'whole-series';
 
             const effects = [
                 `Queues a ${scopeKind} search on ${service} for ${scope}.`,

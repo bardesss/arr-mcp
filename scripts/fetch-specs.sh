@@ -11,9 +11,13 @@ mkdir -p specs
 # Seerr's location was design spec §21.3's open question: it carries Overseerr's
 # spec forward as `seerr-api.yml` on `develop`, and it is YAML rather than JSON —
 # which is why the normalisation step below is not optional.
+# Whisparr's document declares `info.version: "3.0.0"` while describing the V2,
+# series-shaped API — `/series` and `/episode`, no `/movie`. It is not Eros,
+# whose repo split off to Whisparr/Whisparr-Eros and is a separate service id.
 SERVICES="
 radarr https://raw.githubusercontent.com/Radarr/Radarr/develop/src/Radarr.Api.V3/openapi.json
 sonarr https://raw.githubusercontent.com/Sonarr/Sonarr/develop/src/Sonarr.Api.V3/openapi.json
+whisparr https://raw.githubusercontent.com/Whisparr/Whisparr/v2-develop/src/Whisparr.Api.V3/openapi.json
 prowlarr https://raw.githubusercontent.com/Prowlarr/Prowlarr/develop/src/Prowlarr.Api.V1/openapi.json
 jellyfin https://api.jellyfin.org/openapi/jellyfin-openapi-stable.json
 seerr https://raw.githubusercontent.com/seerr-team/seerr/develop/seerr-api.yml

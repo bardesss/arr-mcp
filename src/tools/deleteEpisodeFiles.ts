@@ -19,7 +19,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasEpisodeFiles(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no episode files to delete`, {
-            remedy: 'Only sonarr has per-episode files. Use delete_media for a film.'
+            remedy: 'Only sonarr and whisparr have per-episode files. Use delete_media for a film.'
         });
     }
     return adapter;
@@ -36,10 +36,15 @@ export function registerDeleteEpisodeFiles(
         description:
             'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews by default — call again with the returned `confirm` token to actually delete.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('sonarr.'),
+            service: ServiceIdSchema.describe('sonarr or whisparr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The series id, as an integer string.'),
-            season: z.number().int().min(0).optional().describe('One season. 0 is specials.'),
+            season: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe('One season. 0 is specials. On Whisparr a season is a release year, e.g. 2019.'),
             episodes: z
                 .array(z.string().min(1))
                 .min(1)
@@ -79,6 +84,17 @@ export function registerDeleteEpisodeFiles(
             // can create.
             const details = await adapter.getMediaDetails(id, { includeEpisodes: true, episodeLimit: 500 });
             const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+            // A season the series does not have is refused, not reported as
+            // "no files on disk": that sentence claims the season was looked
+            // at, and on Whisparr — where a season is a release year — `season:
+            // 1` is the likeliest wrong input. Only when seasons were reported:
+            // no list is no evidence, and refusing on that would be a guess.
+            if (season !== undefined && details.seasons !== undefined && !details.seasons.some(s => s.season === season)) {
+                throw new ServiceError('NotFound', service, `${label} has no season ${season}.`, {
+                    remedy: `Seasons on this series: ${details.seasons.map(s => s.season).join(', ')}.`
+                });
+            }
+
             const all = await adapter.listEpisodeFiles(id);
 
             let fileIds: number[];

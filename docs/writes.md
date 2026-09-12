@@ -213,8 +213,8 @@ when the cost of being wrong is a wrong answer and not fine when it is an action
 against the wrong film — use `get_media_details` or `get_library` to get an id
 first.
 
-`add_media` takes an external id instead: TMDB for Radarr, TVDB for Sonarr, both
-returned by `lookup_media` under `ids`.
+`add_media` takes an external id instead: TMDB for Radarr, TVDB for Sonarr and
+Whisparr, all returned by `lookup_media` under `ids`.
 
 ### `add_media` needs a quality profile and a root folder
 
