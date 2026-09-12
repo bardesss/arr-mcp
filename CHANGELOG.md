@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.1](https://github.com/bardesss/arr-mcp/compare/v1.26.0...v1.26.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* stop fetch-specs.sh exiting 1 on a clean run ([#229](https://github.com/bardesss/arr-mcp/issues/229)) ([76f683d](https://github.com/bardesss/arr-mcp/commit/76f683d5b22dd0e15aa3c997585ad4dc790c794b))
+
 ## [1.26.0](https://github.com/bardesss/arr-mcp/compare/v1.25.3...v1.26.0) (2026-09-12)
 
 
