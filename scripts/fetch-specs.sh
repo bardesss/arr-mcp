@@ -22,11 +22,18 @@ seerr https://raw.githubusercontent.com/seerr-team/seerr/develop/seerr-api.yml
 # Trapped rather than removed at the end of the loop: `set -e` means a failed
 # curl or a spec that will not parse exits from inside the loop, and the `rm`
 # below never runs.
+#
+# `if`, not `[ -n "$tmp" ] && rm`: bash takes the EXIT trap's status as the
+# script's, and that `&&` returns 1 whenever `tmp` is empty, which is every
+# clean run. And the loop reads a here-string rather than a pipe, so the `tmp`
+# it assigns is visible out here for the trap to act on at all.
 tmp=""
-cleanup() { [ -n "$tmp" ] && rm -f "$tmp"; }
+cleanup() {
+  if [ -n "$tmp" ]; then rm -f "$tmp"; fi
+}
 trap cleanup EXIT
 
-echo "$SERVICES" | while read -r name url; do
+while read -r name url; do
   [ -z "$name" ] && continue
   echo "fetching ${name} <- ${url}"
   tmp="$(mktemp)"
@@ -43,6 +50,8 @@ echo "$SERVICES" | while read -r name url; do
     writeFileSync(process.argv[2], JSON.stringify(doc, null, 2) + "\n");
   ' "$tmp" "specs/${name}.json"
   rm -f "$tmp"
-done
+  # Cleared so the trap does not chase a path this iteration already removed.
+  tmp=""
+done <<< "$SERVICES"
 
 echo "done — review the diff in specs/ before committing"
