@@ -24,6 +24,7 @@ import {
     type AuthStrategy
 } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
+import { parseServiceFilter } from './lib/captureArgs.ts';
 import {
     anonymisePlexAccounts,
     anonymisePlexHistory,
@@ -45,6 +46,7 @@ import {
 import {
     firstPartBearingSectionAll,
     firstRatingKeyWithPart,
+    PLEX_TYPE_EPISODE,
     plexAccountsPath,
     plexHistoryPath,
     plexOnDeckPath,
@@ -891,6 +893,33 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             },
             anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
         },
+        // The episode half of a TV library, which no other Plex fixture holds:
+        // `section-all` walks movie and show sections alike and settles on
+        // whichever lists a Part-bearing row first, and `ondeck` asks the
+        // server to omit `Media` entirely. `readEpisodeMetadata` (#203) needs
+        // a row with `Media[].Part[].file` alongside `index`/`parentIndex`,
+        // and there is currently nothing to write it against.
+        //
+        // `type=4` mirrors `PlexAdapter#listUserSeasons`, which reads episodes
+        // this exact way against a live server; `test/scriptsPlexCapture.test.ts`
+        // asserts the two requests match, since nobody here can run the capture.
+        //
+        // Show sections only. A movie section holds no episodes, and the walk
+        // would skip with "needs an id" on a server full of TV.
+        {
+            name: 'section-episodes',
+            fetch: async (http, captured) => {
+                const keys = sectionKeys(captured.get('sections'), ['show']);
+                if (keys.length === 0) return undefined;
+                const picked = await firstPartBearingSectionAll(keys, key =>
+                    http.get<unknown>(plexSectionAllPath(key, 0, 5, PLEX_TYPE_EPISODE))
+                );
+                return picked === undefined
+                    ? undefined
+                    : { path: plexSectionAllPath(picked.key, 0, 5, PLEX_TYPE_EPISODE), body: picked.body };
+            },
+            anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
+        },
         {
             name: 'metadata-detail',
             // Deliberately not the *first* item: a section can list a
@@ -943,6 +972,10 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
 // own predicate above, which this script itself (top-level `loadConfig()` on
 // import) is too awkward to unit test directly.
 
+// `npm run capture -- plex` captures only Plex. No argument keeps the old
+// behaviour, every configured service, which is the maintainer refresh.
+const only = parseServiceFilter(process.argv.slice(2));
+
 const configDir = process.env.ARR_MCP_CAPTURE_CONFIG ?? './config';
 // `persist: false` — capturing fixtures reads the user's config; it must never
 // write to the file holding their credentials.
@@ -965,6 +998,8 @@ let skipped = 0;
 const capturedTypes = new Set<ServiceId>();
 
 for (const instance of listInstances(config)) {
+    if (only !== undefined && !only.includes(instance.type)) continue;
+
     if (capturedTypes.has(instance.type)) {
         console.log(`  skipping ${instance.id}: already captured ${instance.type}`);
         continue;

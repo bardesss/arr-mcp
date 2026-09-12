@@ -125,6 +125,20 @@ describe('sectionKeys', () => {
         expect(sectionKeys(body)).toEqual(['2']);
     });
 
+    /**
+     * An episode capture has to start from a show section. Walking a movie
+     * section looking for episodes finds none, and the endpoint would skip
+     * with "needs an id" on a server that has plenty of TV.
+     */
+    it('narrows to the asked-for types, so an episode walk starts at TV rather than films', () => {
+        const body = {
+            MediaContainer: {
+                Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'show' }, { key: '3', type: 'photo' }]
+            }
+        };
+        expect(sectionKeys(body, ['show'])).toEqual(['2']);
+    });
+
     it('returns an empty list when there is no Directory array', () => {
         expect(sectionKeys({ MediaContainer: {} })).toEqual([]);
         expect(sectionKeys(undefined)).toEqual([]);
@@ -246,6 +260,38 @@ describe('capture-vs-adapter request parity', () => {
         expect(captureUrl.pathname).toBe(sent.pathname);
         expect(captureUrl.searchParams.get('includeGuids')).toBe(sent.searchParams.get('includeGuids'));
         expect(captureUrl.searchParams.get('X-Plex-Container-Start')).toBe(sent.searchParams.get('X-Plex-Container-Start'));
+    });
+
+    /**
+     * The episode capture cannot be exercised here, so this is what stands in
+     * for running it: `listUserSeasons` reads episodes live and was verified
+     * against a real server, so asserting the capture sends the same request
+     * catches the endpoint being wrong without a Plex to point at.
+     */
+    it('section-episodes: sends the same pathname, type and includeGuids as PlexAdapter#listUserSeasons', async () => {
+        const fetchImpl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/library/sections') {
+                return jsonResponse({ MediaContainer: { Directory: [{ key: '1', type: 'show' }] } });
+            }
+            return jsonResponse({ MediaContainer: { Metadata: [] } });
+        }) as unknown as typeof fetch;
+
+        let sent: URL | undefined;
+        const wrapped = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.searchParams.get('type') === '4') sent = url;
+            return fetchImpl(input);
+        }) as unknown as typeof fetch;
+
+        const adapter = new PlexAdapter(config, wrapped);
+        await adapter.listUserSeasons({ id: '1', name: 'X' });
+        if (sent === undefined) throw new Error('adapter made no episode request');
+
+        const captureUrl = new URL(`http://x${plexSectionAllPath('1', 0, 5, 4)}`);
+        expect(captureUrl.pathname).toBe(sent.pathname);
+        expect(captureUrl.searchParams.get('type')).toBe(sent.searchParams.get('type'));
+        expect(captureUrl.searchParams.get('includeGuids')).toBe(sent.searchParams.get('includeGuids'));
     });
 
     it('search: sends the identical query PlexAdapter#search sends', async () => {

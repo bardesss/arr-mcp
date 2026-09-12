@@ -697,6 +697,33 @@ export function redactPlexLibraryListing(body: unknown): unknown {
  * `size` is left alone: `getMediaDetails` reads it too, and a byte count
  * carries nothing about the tester.
  */
+const syntheticMoviePath = (item: Row, i: number): string => {
+    const year = typeof item.year === 'number' ? ` (${item.year})` : '';
+    const label = `${syntheticDisplayValue('title', i)}${year}`;
+    return `/library/movies/${label}/${label}.mkv`;
+};
+
+/**
+ * Undefined for anything that is not an episode, so the movie shape stays the
+ * fallback and the three endpoints already capturing through here are
+ * untouched.
+ *
+ * Season and episode numbers are carried through real rather than synthesised:
+ * they are the fields `readEpisodeMetadata` reads, a number identifies nobody,
+ * and a path whose numbers disagreed with the row's own `parentIndex`/`index`
+ * would be a fixture contradicting itself. Everything a filename can leak —
+ * the tester's directory scheme, the show, the release group — is replaced.
+ */
+const syntheticEpisodePath = (item: Row, i: number): string | undefined => {
+    const season = item.parentIndex;
+    const episode = item.index;
+    if (item.type !== 'episode' || typeof season !== 'number' || typeof episode !== 'number') return undefined;
+
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const show = syntheticDisplayValue('show', i);
+    return `/library/tv/${show}/Season ${pad(season)}/${show} - S${pad(season)}E${pad(episode)}.mkv`;
+};
+
 export function synthesisePlexFilePaths(body: unknown): unknown {
     const container = (body as MetadataContainer).MediaContainer;
     if (!Array.isArray(container?.Metadata)) return body;
@@ -706,17 +733,14 @@ export function synthesisePlexFilePaths(body: unknown): unknown {
             ...container,
             Metadata: container.Metadata.map((item, i) => {
                 if (!Array.isArray(item.Media)) return item;
-                const year = typeof item.year === 'number' ? ` (${item.year})` : '';
-                const label = `${syntheticDisplayValue('title', i)}${year}`;
+                const synthetic = syntheticEpisodePath(item, i) ?? syntheticMoviePath(item, i);
                 return {
                     ...item,
                     Media: (item.Media as Row[]).map(m =>
                         Array.isArray(m.Part)
                             ? {
                                   ...m,
-                                  Part: (m.Part as Row[]).map(p =>
-                                      'file' in p ? { ...p, file: `/library/movies/${label}/${label}.mkv` } : p
-                                  )
+                                  Part: (m.Part as Row[]).map(p => ('file' in p ? { ...p, file: synthetic } : p))
                               }
                             : m
                     )

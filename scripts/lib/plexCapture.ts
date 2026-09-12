@@ -52,8 +52,13 @@ export const plexOnDeckPath = (): string => `/library/onDeck?${PLEX_UNWATCHED_EL
  * `X-Plex-Container-Size` is deliberately smaller than `PAGE_SIZE`, same
  * reasoning as `plexHistoryPath`.
  */
-export const plexSectionAllPath = (key: string, start: number, size: number): string =>
-    `/library/sections/${key}/all?includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
+export const plexSectionAllPath = (key: string, start: number, size: number, type?: number): string =>
+    `/library/sections/${key}/all?${type === undefined ? '' : `type=${type}&`}includeGuids=1` +
+    `&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
+
+/** Plex's own library type numbering: 1 movie, 2 show, 3 season, 4 episode.
+ *  Mirrors `PLEX_TYPE_EPISODE` in src/services/plex.ts. */
+export const PLEX_TYPE_EPISODE = 4;
 
 /** `search`'s exact query form, mirroring `PlexAdapter#search`. */
 export const plexSearchPath = (query: string): string => `/search?query=${encodeURIComponent(query)}&includeGuids=1`;
@@ -107,11 +112,11 @@ const hasPartBearingRow = (body: unknown): boolean => {
  * Part-bearing row can land on one, and the walk-only-looking-for-shape
  * fixture ends up publishing real photo titles and file paths. See I3.
  */
-export const sectionKeys = (body: unknown): string[] => {
+export const sectionKeys = (body: unknown, types: readonly string[] = ['movie', 'show']): string[] => {
     const rows = (body as { MediaContainer?: { Directory?: unknown } } | undefined)?.MediaContainer?.Directory;
     const list = (Array.isArray(rows) ? rows : []) as { key?: unknown; type?: unknown }[];
     return list
-        .filter((r): r is { key: string; type: string } => typeof r.key === 'string' && (r.type === 'movie' || r.type === 'show'))
+        .filter((r): r is { key: string; type: string } => typeof r.key === 'string' && typeof r.type === 'string' && types.includes(r.type))
         .map(r => r.key);
 };
 

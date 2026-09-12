@@ -1113,6 +1113,53 @@ describe('synthesisePlexFilePaths', () => {
         const body = { MediaContainer: { version: '1.32.0' } };
         expect(synthesisePlexFilePaths(body)).toEqual(body);
     });
+
+    /**
+     * An episode capture needs a path that looks like where an episode
+     * actually lives. The movie shape would contract `readEpisodeMetadata`
+     * against a layout Plex never produces for TV, and the season and episode
+     * numbers are the part that mapping reads.
+     */
+    it('gives an episode row a season-and-episode path rather than the movie shape', () => {
+        const body = listing([
+            {
+                ratingKey: '1',
+                type: 'episode',
+                parentIndex: 2,
+                index: 7,
+                Media: [{ Part: [{ file: '/mnt/user/tv/Real Show/Season 02/Real Show - S02E07 [RLSGRP].mkv' }] }]
+            }
+        ]);
+        const [row] = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const part = ((row?.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0];
+
+        expect(part?.file).toMatch(/^\/library\/tv\/.+\/Season 02\/.+ - S02E07\.mkv$/);
+    });
+
+    it('does not leak the real episode filename, release group and all', () => {
+        const realPath = '/mnt/user/tv/Real Show/Season 02/Real Show - S02E07 [RLSGRP].mkv';
+        const body = listing([
+            { ratingKey: '1', type: 'episode', parentIndex: 2, index: 7, Media: [{ Part: [{ file: realPath }] }] }
+        ]);
+        const serialised = JSON.stringify(synthesisePlexFilePaths(body));
+
+        expect(serialised).not.toContain('RLSGRP');
+        expect(serialised).not.toContain('/mnt/user');
+        expect(serialised).not.toContain('Real Show');
+    });
+
+    /** The movie half must not move: three endpoints already capture through
+     *  this function, and changing their output would rewrite committed
+     *  fixtures for a reason unrelated to the service. */
+    it('leaves a movie row on the movie shape', () => {
+        const body = listing([{ ratingKey: '1', type: 'movie', year: 2016, Media: [{ Part: [{ file: '/real/path.mkv' }] }] }]);
+        const [row] = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const part = ((row?.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0];
+
+        expect(part?.file).toBe('/library/movies/Fixture title 1 (2016)/Fixture title 1 (2016).mkv');
+    });
 });
 
 /**
