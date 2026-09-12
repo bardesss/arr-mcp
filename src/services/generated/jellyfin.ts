@@ -5409,9 +5409,9 @@ export interface components {
         };
         /** @description A class representing an authentication result. */
         AuthenticationResult: {
-            /** @description Gets or sets the user. */
+            /** @description Class UserDto. */
             User?: components["schemas"]["UserDto"] | null;
-            /** @description Gets or sets the session info. */
+            /** @description Session info DTO. */
             SessionInfo?: components["schemas"]["SessionInfoDto"] | null;
             /** @description Gets or sets the access token. */
             AccessToken?: string | null;
@@ -5598,7 +5598,7 @@ export interface components {
              */
             ParentId?: string | null;
             /**
-             * @description Gets or sets the type.
+             * @description The base item kind.
              * @enum {unknown}
              */
             Type?: "AggregateFolder" | "Audio" | "AudioBook" | "BasePluginFolder" | "Book" | "BoxSet" | "Channel" | "ChannelFolderItem" | "CollectionFolder" | "Episode" | "Folder" | "Genre" | "ManualPlaylistsFolder" | "Movie" | "LiveTvChannel" | "LiveTvProgram" | "MusicAlbum" | "MusicArtist" | "MusicGenre" | "MusicVideo" | "Person" | "Photo" | "PhotoAlbum" | "Playlist" | "PlaylistsFolder" | "Program" | "Recording" | "Season" | "Series" | "Studio" | "Trailer" | "TvChannel" | "TvProgram" | "UserRootFolder" | "UserView" | "Video" | "Year";
@@ -5809,7 +5809,7 @@ export interface components {
              */
             IsoType?: "Dvd" | "BluRay" | null;
             /**
-             * @description Gets or sets the type of the media.
+             * @description Media types.
              * @default Unknown
              * @enum {unknown}
              */
@@ -5979,7 +5979,7 @@ export interface components {
             /** @description Gets or sets the role. */
             Role?: string | null;
             /**
-             * @description Gets or sets the type.
+             * @description The person kind.
              * @default Unknown
              * @enum {unknown}
              */
@@ -6564,7 +6564,7 @@ export interface components {
                 [key: string]: string | null;
             };
             /**
-             * @description Gets or sets the scroll direction.
+             * @description An enum representing the axis that should be scrolled.
              * @enum {unknown}
              */
             ScrollDirection?: "Horizontal" | "Vertical";
@@ -6573,7 +6573,7 @@ export interface components {
             /** @description Gets or sets a value indicating whether [remember sorting]. */
             RememberSorting?: boolean;
             /**
-             * @description Gets or sets the sort order.
+             * @description An enum representing the sorting order.
              * @enum {unknown}
              */
             SortOrder?: "Ascending" | "Descending";
@@ -7340,7 +7340,7 @@ export interface components {
         KeepUntil: "UntilDeleted" | "UntilSpaceNeeded" | "UntilWatched" | "UntilDate";
         /** @description Library changed message. */
         LibraryChangedMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class LibraryUpdateInfo. */
             Data?: components["schemas"]["LibraryUpdateInfo"] | null;
             /**
              * Format: uuid
@@ -7698,7 +7698,7 @@ export interface components {
              */
             ItemId?: string;
             /**
-             * @description Gets or sets the type of content this segment defines.
+             * @description Defines the types of content an individual Jellyfin.Database.Implementations.Entities.MediaSegment represents.
              * @default Unknown
              * @enum {unknown}
              */
@@ -7887,13 +7887,13 @@ export interface components {
             Title?: string | null;
             Hdr10PlusPresentFlag?: boolean | null;
             /**
-             * @description Gets the video range.
+             * @description An enum representing video ranges.
              * @default Unknown
              * @enum {unknown}
              */
             readonly VideoRange: "Unknown" | "SDR" | "HDR";
             /**
-             * @description Gets the video range type.
+             * @description An enum representing types of video ranges.
              * @default Unknown
              * @enum {unknown}
              */
@@ -7901,7 +7901,7 @@ export interface components {
             /** @description Gets the video dovi title. */
             readonly VideoDoViTitle?: string | null;
             /**
-             * @description Gets the audio spatial format.
+             * @description An enum representing formats of spatial audio.
              * @default None
              * @enum {unknown}
              */
@@ -8494,7 +8494,7 @@ export interface components {
         PlayCommand: "PlayNow" | "PlayNext" | "PlayLast" | "PlayInstantMix" | "PlayShuffle";
         /** @description Play command websocket message. */
         PlayMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class PlayRequest. */
             Data?: components["schemas"]["PlayRequest"] | null;
             /**
              * Format: uuid
@@ -8912,7 +8912,7 @@ export interface components {
         PlaystateCommand: "Stop" | "Pause" | "Unpause" | "NextTrack" | "PreviousTrack" | "Seek" | "Rewind" | "FastForward" | "PlayPause";
         /** @description Playstate message. */
         PlaystateMessage: {
-            /** @description Gets or sets the data. */
+            /** @description A request to change the playstate of a session. */
             Data?: components["schemas"]["PlaystateRequest"] | null;
             /**
              * Format: uuid
@@ -8967,7 +8967,7 @@ export interface components {
         };
         /** @description Plugin installation cancelled message. */
         PluginInstallationCancelledMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class InstallationInfo. */
             Data?: components["schemas"]["InstallationInfo"] | null;
             /**
              * Format: uuid
@@ -8982,7 +8982,7 @@ export interface components {
         };
         /** @description Plugin installation completed message. */
         PluginInstallationCompletedMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class InstallationInfo. */
             Data?: components["schemas"]["InstallationInfo"] | null;
             /**
              * Format: uuid
@@ -8997,7 +8997,7 @@ export interface components {
         };
         /** @description Plugin installation failed message. */
         PluginInstallationFailedMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class InstallationInfo. */
             Data?: components["schemas"]["InstallationInfo"] | null;
             /**
              * Format: uuid
@@ -9012,7 +9012,7 @@ export interface components {
         };
         /** @description Package installing message. */
         PluginInstallingMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class InstallationInfo. */
             Data?: components["schemas"]["InstallationInfo"] | null;
             /**
              * Format: uuid
@@ -9032,7 +9032,7 @@ export interface components {
         PluginStatus: "Active" | "Restart" | "Deleted" | "Superseded" | "Superceded" | "Malfunctioned" | "NotSupported" | "Disabled";
         /** @description Plugin uninstalled message. */
         PluginUninstalledMessage: {
-            /** @description Gets or sets the data. */
+            /** @description This is a serializable stub class that is used by the api to provide information about installed plugins. */
             Data?: components["schemas"]["PluginInfo"] | null;
             /**
              * Format: uuid
@@ -9359,7 +9359,7 @@ export interface components {
         };
         /** @description Scheduled task ended message. */
         ScheduledTaskEndedMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class TaskExecutionInfo. */
             Data?: components["schemas"]["TaskResult"] | null;
             /**
              * Format: uuid
@@ -9456,7 +9456,7 @@ export interface components {
             /** @description Gets or sets the backdrop image item identifier. */
             BackdropImageItemId?: string | null;
             /**
-             * @description Gets or sets the type.
+             * @description The base item kind.
              * @enum {unknown}
              */
             Type?: "AggregateFolder" | "Audio" | "AudioBook" | "BasePluginFolder" | "Book" | "BoxSet" | "Channel" | "ChannelFolderItem" | "CollectionFolder" | "Episode" | "Folder" | "Genre" | "ManualPlaylistsFolder" | "Movie" | "LiveTvChannel" | "LiveTvProgram" | "MusicAlbum" | "MusicArtist" | "MusicGenre" | "MusicVideo" | "Person" | "Photo" | "PhotoAlbum" | "Playlist" | "PlaylistsFolder" | "Program" | "Recording" | "Season" | "Series" | "Studio" | "Trailer" | "TvChannel" | "TvProgram" | "UserRootFolder" | "UserView" | "Video" | "Year";
@@ -9468,7 +9468,7 @@ export interface components {
              */
             RunTimeTicks?: number | null;
             /**
-             * @description Gets or sets the type of the media.
+             * @description Media types.
              * @default Unknown
              * @enum {unknown}
              */
@@ -10207,7 +10207,7 @@ export interface components {
         };
         /** @description Sync play command. */
         SyncPlayCommandMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class SendCommand. */
             Data?: components["schemas"]["SendCommand"] | null;
             /**
              * Format: uuid
@@ -10879,7 +10879,8 @@ export interface components {
             /** @description Gets or sets the audio codec. */
             AudioCodec?: string;
             /**
-             * @description Gets or sets the protocol.
+             * @description Media streaming protocol.
+             *     Lowercase for backwards compatibility.
              * @enum {unknown}
              */
             Protocol?: "http" | "hls";
@@ -11225,7 +11226,7 @@ export interface components {
         };
         /** @description User data changed message. */
         UserDataChangedMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class UserDataChangeInfo. */
             Data?: components["schemas"]["UserDataChangeInfo"] | null;
             /**
              * Format: uuid
@@ -11427,14 +11428,14 @@ export interface components {
             AuthenticationProviderId: string;
             PasswordResetProviderId: string;
             /**
-             * @description Gets or sets a value indicating what SyncPlay features the user can access.
+             * @description Enum SyncPlayUserAccessType.
              * @enum {unknown}
              */
             SyncPlayAccess?: "CreateAndJoinGroups" | "JoinGroups" | "None";
         };
         /** @description User updated message. */
         UserUpdatedMessage: {
-            /** @description Gets or sets the data. */
+            /** @description Class UserDto. */
             Data?: components["schemas"]["UserDto"] | null;
             /**
              * Format: uuid
@@ -21247,6 +21248,17 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description The new name is not a valid library name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                    "application/json; profile=\"CamelCase\"": components["schemas"]["ProblemDetails"];
+                    "application/json; profile=\"PascalCase\"": components["schemas"]["ProblemDetails"];
+                };
             };
             /** @description Unauthorized */
             401: {
