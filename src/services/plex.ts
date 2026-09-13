@@ -222,9 +222,7 @@ export class PlexAdapter
      * plex.tv — see CONTRIBUTING.
      */
     async listUsers(): Promise<ServiceUser[]> {
-        const body = await this.#http.get<unknown>('/accounts');
-        const owner = unwrap<RawAccount>(body, 'Account').find(a => a.id === OWNER_ACCOUNT_ID);
-        const name = owner?.name?.trim();
+        const name = await this.#ownerName();
 
         if (name !== undefined && name !== '') {
             return [{ id: String(OWNER_ACCOUNT_ID), name }];
@@ -249,6 +247,33 @@ export class PlexAdapter
         }
 
         return [{ id: String(OWNER_ACCOUNT_ID), name: this.#defaultUser }];
+    }
+
+    /**
+     * The owner's name per `/accounts`, or undefined when the server declines
+     * to give one — including by not serving the endpoint at all.
+     *
+     * A 404 here is swallowed on purpose. `ServiceHttp` classifies it as
+     * `NotFound`, the same kind `IdentityResolver` raises for "no user by that
+     * name", and `library.ts` propagates `NotFound` rather than degrading
+     * because a misspelled `default_user` is a config error worth failing on.
+     * A server that simply does not serve `/accounts` is not that, but it
+     * arrived as the same kind and so failed the whole `get_library` read with
+     * a message about reverse-proxy prefixes, Radarr and Sonarr included
+     * (#234). "The server did not name the owner" is exactly the case the
+     * `default_user` fallback below already covers.
+     *
+     * Only 404 — every other failure (auth, timeout, 5xx) still propagates,
+     * since those are reachability problems the caller must hear about.
+     */
+    async #ownerName(): Promise<string | undefined> {
+        try {
+            const body = await this.#http.get<unknown>('/accounts');
+            return unwrap<RawAccount>(body, 'Account').find(a => a.id === OWNER_ACCOUNT_ID)?.name?.trim();
+        } catch (err) {
+            if (err instanceof ServiceError && err.kind === 'NotFound') return undefined;
+            throw err;
+        }
     }
 
     #fence(field: string, value: string): string {

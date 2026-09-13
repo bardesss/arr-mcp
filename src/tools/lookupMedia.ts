@@ -1,9 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { ServiceAdapter } from '../services/types.ts';
-import { buildSearchMedia, type GetSearchResult } from './searchMedia.ts';
+import { buildSearchMedia, searchLine, type GetSearchResult } from './searchMedia.ts';
 
 /**
  * `search_media` with `source` fixed to `discover`.
@@ -48,7 +48,7 @@ export function registerLookupMedia(
                     ? `Nothing found for "${query}".`
                     : `${result.returned} of ${result.total} match(es) for "${query}".`;
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, searchLine) }], structuredContent: result };
         }
     );
 }

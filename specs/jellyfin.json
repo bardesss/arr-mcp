@@ -21842,6 +21842,26 @@
           "204": {
             "description": "Folder renamed."
           },
+          "400": {
+            "description": "The new name is not a valid library name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json; profile=\"CamelCase\"": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json; profile=\"PascalCase\"": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized"
           },
@@ -47829,7 +47849,7 @@
                 "$ref": "#/components/schemas/UserDto"
               }
             ],
-            "description": "Gets or sets the user.",
+            "description": "Class UserDto.",
             "nullable": true
           },
           "SessionInfo": {
@@ -47838,7 +47858,7 @@
                 "$ref": "#/components/schemas/SessionInfoDto"
               }
             ],
-            "description": "Gets or sets the session info.",
+            "description": "Session info DTO.",
             "nullable": true
           },
           "AccessToken": {
@@ -48306,7 +48326,7 @@
                 "$ref": "#/components/schemas/BaseItemKind"
               }
             ],
-            "description": "Gets or sets the type."
+            "description": "The base item kind."
           },
           "People": {
             "type": "array",
@@ -48789,7 +48809,7 @@
                 "$ref": "#/components/schemas/MediaType"
               }
             ],
-            "description": "Gets or sets the type of the media.",
+            "description": "Media types.",
             "default": "Unknown"
           },
           "EndDate": {
@@ -49198,7 +49218,7 @@
                 "$ref": "#/components/schemas/PersonKind"
               }
             ],
-            "description": "Gets or sets the type.",
+            "description": "The person kind.",
             "default": "Unknown"
           },
           "PrimaryImageTag": {
@@ -50532,7 +50552,7 @@
                 "$ref": "#/components/schemas/ScrollDirection"
               }
             ],
-            "description": "Gets or sets the scroll direction."
+            "description": "An enum representing the axis that should be scrolled."
           },
           "ShowBackdrop": {
             "type": "boolean",
@@ -50552,7 +50572,7 @@
                 "$ref": "#/components/schemas/SortOrder"
               }
             ],
-            "description": "Gets or sets the sort order."
+            "description": "An enum representing the sorting order."
           },
           "ShowSidebar": {
             "type": "boolean",
@@ -52482,7 +52502,7 @@
                 "$ref": "#/components/schemas/LibraryUpdateInfo"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class LibraryUpdateInfo.",
             "nullable": true
           },
           "MessageId": {
@@ -53513,7 +53533,7 @@
                 "$ref": "#/components/schemas/MediaSegmentType"
               }
             ],
-            "description": "Gets or sets the type of content this segment defines.",
+            "description": "Defines the types of content an individual Jellyfin.Database.Implementations.Entities.MediaSegment represents.",
             "default": "Unknown"
           },
           "StartTicks": {
@@ -53976,7 +53996,7 @@
                 "$ref": "#/components/schemas/VideoRange"
               }
             ],
-            "description": "Gets the video range.",
+            "description": "An enum representing video ranges.",
             "default": "Unknown",
             "readOnly": true
           },
@@ -54001,7 +54021,7 @@
                 "$ref": "#/components/schemas/VideoRangeType"
               }
             ],
-            "description": "Gets the video range type.",
+            "description": "An enum representing types of video ranges.",
             "default": "Unknown",
             "readOnly": true
           },
@@ -54022,7 +54042,7 @@
                 "$ref": "#/components/schemas/AudioSpatialFormat"
               }
             ],
-            "description": "Gets the audio spatial format.",
+            "description": "An enum representing formats of spatial audio.",
             "default": "None",
             "readOnly": true
           },
@@ -55470,7 +55490,7 @@
                 "$ref": "#/components/schemas/PlayRequest"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class PlayRequest.",
             "nullable": true
           },
           "MessageId": {
@@ -56403,7 +56423,7 @@
                 "$ref": "#/components/schemas/PlaystateRequest"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "A request to change the playstate of a session.",
             "nullable": true
           },
           "MessageId": {
@@ -56562,7 +56582,7 @@
                 "$ref": "#/components/schemas/InstallationInfo"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class InstallationInfo.",
             "nullable": true
           },
           "MessageId": {
@@ -56629,7 +56649,7 @@
                 "$ref": "#/components/schemas/InstallationInfo"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class InstallationInfo.",
             "nullable": true
           },
           "MessageId": {
@@ -56696,7 +56716,7 @@
                 "$ref": "#/components/schemas/InstallationInfo"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class InstallationInfo.",
             "nullable": true
           },
           "MessageId": {
@@ -56763,7 +56783,7 @@
                 "$ref": "#/components/schemas/InstallationInfo"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class InstallationInfo.",
             "nullable": true
           },
           "MessageId": {
@@ -56844,7 +56864,7 @@
                 "$ref": "#/components/schemas/PluginInfo"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "This is a serializable stub class that is used by the api to provide information about installed plugins.",
             "nullable": true
           },
           "MessageId": {
@@ -57842,7 +57862,7 @@
                 "$ref": "#/components/schemas/TaskResult"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class TaskExecutionInfo.",
             "nullable": true
           },
           "MessageId": {
@@ -58196,7 +58216,7 @@
                 "$ref": "#/components/schemas/BaseItemKind"
               }
             ],
-            "description": "Gets or sets the type."
+            "description": "The base item kind."
           },
           "IsFolder": {
             "type": "boolean",
@@ -58222,7 +58242,7 @@
                 "$ref": "#/components/schemas/MediaType"
               }
             ],
-            "description": "Gets or sets the type of the media.",
+            "description": "Media types.",
             "default": "Unknown"
           },
           "StartDate": {
@@ -60007,7 +60027,7 @@
                 "$ref": "#/components/schemas/SendCommand"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class SendCommand.",
             "nullable": true
           },
           "MessageId": {
@@ -61634,7 +61654,7 @@
                 "$ref": "#/components/schemas/MediaStreamProtocol"
               }
             ],
-            "description": "Gets or sets the protocol."
+            "description": "Media streaming protocol.\nLowercase for backwards compatibility."
           },
           "EstimateContentLength": {
             "type": "boolean",
@@ -62368,7 +62388,7 @@
                 "$ref": "#/components/schemas/UserDataChangeInfo"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class UserDataChangeInfo.",
             "nullable": true
           },
           "MessageId": {
@@ -62858,7 +62878,7 @@
                 "$ref": "#/components/schemas/SyncPlayUserAccessType"
               }
             ],
-            "description": "Gets or sets a value indicating what SyncPlay features the user can access."
+            "description": "Enum SyncPlayUserAccessType."
           }
         },
         "additionalProperties": false
@@ -62872,7 +62892,7 @@
                 "$ref": "#/components/schemas/UserDto"
               }
             ],
-            "description": "Gets or sets the data.",
+            "description": "Class UserDto.",
             "nullable": true
           },
           "MessageId": {

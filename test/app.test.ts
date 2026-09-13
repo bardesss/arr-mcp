@@ -296,6 +296,25 @@ describe('DNS rebinding protection', () => {
         expect(foreign.status).toBe(403);
     });
 
+    // The gate covers `/mcp`, not just the UI: the adapter app registers only
+    // middleware, so our own `/mcp` handler sits below the allowlist. A valid
+    // token must not buy a way past an unlisted Host. (#232)
+    it('rejects /mcp from an unlisted Host, valid bearer token and all', async () => {
+        const pinned = appWith(configWith({ allowed_hosts: ['arr.example.com'] }));
+
+        const allowed = await pinned.request(
+            'http://arr.example.com:6060/mcp',
+            rpc(toolsList, { Host: 'arr.example.com:6060', Authorization: `Bearer ${TOKEN}` })
+        );
+        const foreign = await pinned.request(
+            'http://evil.example.com:6060/mcp',
+            rpc(toolsList, { Host: 'evil.example.com:6060', Authorization: `Bearer ${TOKEN}` })
+        );
+
+        expect(allowed.status).toBe(200);
+        expect(foreign.status).toBe(403);
+    });
+
     /**
      * The Dockerfile probes `localhost:${ARR_MCP_PORT}` — a name no operator
      * pinning their reverse-proxy hostname would list. Behind the allowlist

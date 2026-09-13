@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { IndexerCapable, IndexerRejection, IndexerSummary, ServiceAdapter } from '../services/types.ts';
 
 export type GetIndexersResult = {
@@ -47,6 +47,19 @@ const project = (i: IndexerSummary, detail: DetailLevel): IndexerSummary => {
  * that spans instances rather than one that asks which to look in. One failing
  * degrades by name and the others still answer.
  */
+/**
+ * One indexer as a line. `enabled` is stated either way rather than only when
+ * false: this list is read to find out which indexers are working, and silence
+ * about the healthy ones would leave the reader counting.
+ */
+export function indexerLine(indexer: IndexerSummary): string {
+    const facts = [`${indexer.service}:${indexer.id}`, indexer.enabled ? 'enabled' : 'disabled', indexer.protocol];
+    if (indexer.disabledUntil !== undefined) facts.push(`until ${indexer.disabledUntil}`);
+    if (indexer.lastFailure !== undefined) facts.push(`last failure ${indexer.lastFailure}`);
+
+    return `${indexer.name} — ${facts.join(', ')}`;
+}
+
 export async function buildGetIndexers(
     adapters: readonly (ServiceAdapter & IndexerCapable)[],
     opts: { detail: DetailLevel; limit: number; offset?: number }
@@ -160,7 +173,7 @@ export function registerGetIndexers(
             const result = await buildGetIndexers(adapters, { detail, limit, offset });
             const summary = summarizeIndexers(result, adapters.length);
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, indexerLine) }], structuredContent: result };
         }
     );
 }

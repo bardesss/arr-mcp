@@ -5,7 +5,7 @@ import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasWanted, type ServiceAdapter, type WantedCapable, type WantedItem, type WantedScope } from '../services/types.ts';
 
 export type GetWantedResult = {
@@ -45,6 +45,27 @@ const project = (w: WantedItem, detail: DetailLevel): WantedItem => {
     }
     return w;
 };
+
+/**
+ * One wanted row as a line.
+ *
+ * `id` names the **series** on Sonarr's rows, never the episode — the same
+ * contract `WantedItem` documents — so the line prints the episode numbering
+ * for a human to read and the series id for a tool to act on.
+ */
+export function wantedLine(item: WantedItem): string {
+    const numbering =
+        item.season === undefined || item.episode === undefined
+            ? ''
+            : ` S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}`;
+    const episode = item.episodeTitle === undefined ? '' : ` ${item.episodeTitle}`;
+
+    const facts = [item.kind, `${item.service}:${item.id}`];
+    if (item.airDate !== undefined && item.airDate !== '') facts.push(item.airDate);
+    if (!item.monitored) facts.push('unmonitored');
+
+    return `${item.title}${numbering}${episode} — ${facts.join(', ')}`;
+}
 
 export async function buildGetWanted(
     adapters: readonly ServiceAdapter[],
@@ -113,7 +134,7 @@ export function registerGetWanted(server: McpServer, adapters: readonly ServiceA
                 `${result.returned} of ${result.total} ${scope} item${result.returned === 1 ? '' : 's'}` +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, wantedLine) }], structuredContent: result };
         }
     );
 }

@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import type { MediaIssue, MediaRequest, RequestStatus } from '../services/types.ts';
 import { UserSchema } from './getPlayback.ts';
@@ -39,6 +39,20 @@ const project = (r: MediaRequest, detail: DetailLevel): MediaRequest =>
     detail === 'minimal'
         ? { service: r.service, id: r.id, status: r.status, mediaType: r.mediaType, requestedBy: r.requestedBy }
         : r;
+
+/**
+ * One media request as a line. `status` leads because the list is read to find
+ * what still needs answering, and `requestedBy` is named because
+ * `respond_to_request` acts on somebody's request, not on an anonymous row.
+ */
+export function requestLine(request: MediaRequest): string {
+    const facts = [request.status, request.mediaType, `${request.service}:${request.id}`];
+    if (request.tmdbId !== undefined) facts.push(`tmdb:${request.tmdbId}`);
+    if (request.tvdbId !== undefined) facts.push(`tvdb:${request.tvdbId}`);
+    facts.push(`by ${request.requestedBy}`);
+
+    return `${request.title ?? '(untitled)'} — ${facts.join(', ')}`;
+}
 
 export async function buildGetRequests(
     adapter: SeerrAdapter | undefined,
@@ -127,7 +141,7 @@ export function registerGetRequests(
                     : `${result.returned} of ${result.total} request(s)${pending > 0 ? `, ${pending} pending` : ''}.` +
                       (open > 0 ? ` ${open} open issue(s) reported.` : '');
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, requestLine) }], structuredContent: result };
         }
     );
 }

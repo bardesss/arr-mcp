@@ -1,7 +1,18 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { MergedItem } from '../core/resolver.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
+import {
+    DetailSchema,
+    LimitSchema,
+    OffsetSchema,
+    PagedOutputSchema,
+    READ_ONLY,
+    applyLimit,
+    listText,
+    preferred,
+    toolInput,
+    type DetailLevel
+} from '../core/shape.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
@@ -241,6 +252,31 @@ function imdbUnavailableNote(state: 'off' | 'ingesting' | 'ready'): string | und
     return undefined;
 }
 
+/**
+ * One library item as a line of text, for the summary block `listText` builds.
+ *
+ * The title keeps its fence. Unfencing for display would strip the "this is
+ * service data, not instruction" marker from the one half of the response a
+ * client is guaranteed to put in front of the model, which is exactly where it
+ * earns its keep — `unfenced()` exists for matching and sorting, never output.
+ *
+ * The managing service's id comes first among the ids because it is the value
+ * the write tools take as `instance`/`id`; the external ones follow so a model
+ * can cross-reference without a second call.
+ */
+export function libraryLine(item: MergedItem): string {
+    const facts: string[] = [item.kind];
+    if (item.acquisition?.id !== undefined) facts.push(`${item.acquisition.service}:${item.acquisition.id}`);
+    for (const source of ['tmdb', 'tvdb', 'imdb'] as const) {
+        const id = item.ids[source];
+        if (id !== undefined) facts.push(`${source}:${id}`);
+    }
+    if (item.acquisition?.hasFile === false) facts.push('no file');
+    if (item.playback?.watched === true) facts.push('watched');
+
+    return `${item.title}${item.year === undefined ? '' : ` (${item.year})`} — ${facts.join(', ')}`;
+}
+
 export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery): Promise<GetLibraryResult> {
     rejectImpossibleFilters(opts);
 
@@ -430,8 +466,10 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
             // reader who never opens `structuredContent` actually sees.
             const note = result.note === undefined ? '' : ` ${result.note}`;
 
+            const summary = `${result.returned} of ${result.total} item(s).${coverage}${missing}${note}`;
+
             return {
-                content: [{ type: 'text', text: `${result.returned} of ${result.total} item(s).${coverage}${missing}${note}` }],
+                content: [{ type: 'text', text: listText(summary, result.items, libraryLine) }],
                 structuredContent: result
             };
         }

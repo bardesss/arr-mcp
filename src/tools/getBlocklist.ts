@@ -4,16 +4,7 @@ import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.t
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
-import {
-    DetailSchema,
-    LimitSchema,
-    OffsetSchema,
-    PagedOutputSchema,
-    READ_ONLY,
-    applyLimit,
-    toolInput,
-    type DetailLevel
-} from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasBlocklist, type BlocklistCapable, type BlocklistEntry, type ServiceAdapter } from '../services/types.ts';
 
 export type GetBlocklistResult = {
@@ -39,6 +30,19 @@ const project = (b: BlocklistEntry, detail: DetailLevel): BlocklistEntry => {
     }
     return b;
 };
+
+/**
+ * One blocklist row as a line. `service:id` is what `remove_blocklist_item`
+ * takes, and the reason is the whole point of the row — a blocklist without
+ * reasons is a list of things that failed for no stated cause.
+ */
+export function blocklistLine(entry: BlocklistEntry): string {
+    const facts = [`${entry.service}:${entry.id}`, entry.at];
+    if (entry.indexer !== undefined && entry.indexer !== '') facts.push(entry.indexer);
+    if (entry.reason !== undefined && entry.reason !== '') facts.push(entry.reason);
+
+    return `${entry.title} — ${facts.join(', ')}`;
+}
 
 export async function buildGetBlocklist(
     adapters: readonly ServiceAdapter[],
@@ -98,7 +102,7 @@ export function registerGetBlocklist(server: McpServer, adapters: readonly Servi
                 `${result.returned} of ${result.total} blocklisted release${result.returned === 1 ? '' : 's'}` +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, blocklistLine) }], structuredContent: result };
         }
     );
 }
