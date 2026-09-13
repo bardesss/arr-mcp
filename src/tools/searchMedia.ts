@@ -1,11 +1,34 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { rankTitle, unfenced } from '../core/titleMatch.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasSearch, type SearchHit, type SearchSource, type ServiceAdapter } from '../services/types.ts';
+
+/**
+ * One search hit as a line, shared by `search_media`, `lookup_media` and
+ * `discover_media` — all three answer in `SearchHit`, and three formatters
+ * would be three chances for the same result to read differently depending on
+ * which tool asked.
+ *
+ * Titles keep their fence: an `indexers` search returns release names chosen
+ * by whoever uploaded them, which is exactly the untrusted text the fence
+ * marks. `service` names the instance that answered, so a follow-up call knows
+ * where to address itself.
+ */
+export function searchLine(hit: SearchHit): string {
+    const facts = [hit.kind, `${hit.service}:${hit.id}`];
+    for (const source of ['tmdb', 'tvdb', 'imdb'] as const) {
+        const id = hit.ids[source];
+        if (id !== undefined) facts.push(`${source}:${id}`);
+    }
+    if (hit.indexer !== undefined) facts.push(hit.indexer);
+    if (hit.hasFile === true) facts.push('in library');
+
+    return `${hit.title}${hit.year === undefined ? '' : ` (${hit.year})`} — ${facts.join(', ')}`;
+}
 
 export type GetSearchResult = {
     items: SearchHit[];
@@ -97,7 +120,7 @@ export function registerSearchMedia(
                     : `${result.returned} of ${result.total} ${source} result(s) for "${query}".` +
                       (result.degraded.length > 0 ? ` ${result.degraded.join(', ')} unreachable.` : '');
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, searchLine) }], structuredContent: result };
         }
     );
 }

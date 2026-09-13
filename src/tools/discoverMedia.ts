@@ -2,13 +2,24 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, preferred, toolInput, type DetailLevel } from '../core/shape.ts';
+import {
+    DetailSchema,
+    LimitSchema,
+    OffsetSchema,
+    PagedOutputSchema,
+    READ_ONLY,
+    applyLimit,
+    listText,
+    preferred,
+    toolInput,
+    type DetailLevel
+} from '../core/shape.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { SearchHit } from '../services/types.ts';
-import type { GetSearchResult } from './searchMedia.ts';
+import { searchLine, type GetSearchResult } from './searchMedia.ts';
 
 const project = (h: SearchHit, detail: DetailLevel): SearchHit => {
     if (detail === 'minimal') {
@@ -268,7 +279,7 @@ export function registerDiscoverMedia(
                       ? result.note
                       : `${result.returned} of ${result.total} ${resolved === 'series' ? 'series' : 'film(s)'} found.`;
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, searchLine) }], structuredContent: result };
         }
     );
 }
