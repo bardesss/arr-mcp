@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.2](https://github.com/bardesss/arr-mcp/compare/v1.26.1...v1.26.2) (2026-09-13)
+
+
+### Bug Fixes
+
+* list items in the text block, and keep get_library alive when Plex hides /accounts ([#235](https://github.com/bardesss/arr-mcp/issues/235)) ([a250de4](https://github.com/bardesss/arr-mcp/commit/a250de48466bddfebf232870e8d67b3626f86fc3))
+
 ## [1.26.1](https://github.com/bardesss/arr-mcp/compare/v1.26.0...v1.26.1) (2026-09-12)
 
 
