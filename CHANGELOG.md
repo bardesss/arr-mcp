@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.3](https://github.com/bardesss/arr-mcp/compare/v1.26.2...v1.26.3) (2026-09-13)
+
+
+### Bug Fixes
+
+* **deps:** patch four advisories, including three in hono ([#237](https://github.com/bardesss/arr-mcp/issues/237)) ([5f97782](https://github.com/bardesss/arr-mcp/commit/5f97782a9dc4e6c2de608dd1030d613b1ad5aabb))
+
 ## [1.26.2](https://github.com/bardesss/arr-mcp/compare/v1.26.1...v1.26.2) (2026-09-13)
 
 
