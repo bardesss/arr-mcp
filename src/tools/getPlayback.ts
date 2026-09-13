@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry } from '../services/types.ts';
 
 export type GetPlaybackResult = {
@@ -105,6 +105,30 @@ export const summarize = (scope: PlaybackScope, result: GetPlaybackResult): stri
     return `${playing} item(s) playing now, ${result.total - playing} to continue.`;
 };
 
+/**
+ * One playback row as a line. `kind` leads because a `now_playing` row and a
+ * `resume` row mean quite different things and the scope alone does not
+ * separate them — `scope: "active"` returns both.
+ *
+ * `user` is named on every row: `allow_other_users` lets one call span a
+ * household, and a progress figure with no name against it invites the model
+ * to attribute it to whoever asked.
+ */
+export function playbackLine(entry: PlaybackEntry): string {
+    const numbering =
+        entry.season === undefined || entry.episode === undefined
+            ? ''
+            : ` S${String(entry.season).padStart(2, '0')}E${String(entry.episode).padStart(2, '0')}`;
+    const name =
+        entry.seriesTitle === undefined ? entry.title : `${entry.seriesTitle}${numbering} ${entry.title}`;
+
+    const facts = [entry.kind, entry.user];
+    if (entry.percentComplete !== undefined) facts.push(`${Math.round(entry.percentComplete)}%`);
+    if (entry.device !== undefined && entry.device !== '') facts.push(entry.device);
+
+    return `${name} — ${facts.join(', ')}`;
+}
+
 export function registerGetPlayback(
     server: McpServer,
     adapter: MediaServerAdapter | undefined,
@@ -142,7 +166,10 @@ export function registerGetPlayback(
                 ...(user === undefined ? {} : { user })
             });
 
-            return { content: [{ type: 'text', text: summarize(scope, result) }], structuredContent: result };
+            return {
+                content: [{ type: 'text', text: listText(summarize(scope, result), result.items, playbackLine) }],
+                structuredContent: result
+            };
         }
     );
 }

@@ -86,6 +86,23 @@ describe('PlexAdapter', () => {
         await expect(adapter.listUsers()).rejects.toThrow(/default_user/);
     });
 
+    /**
+     * A 404 at `/accounts` is the endpoint declining to name the owner, which
+     * is the case `default_user` already exists to cover — not a missing user.
+     * The two arrive as the same `NotFound` kind, and `library.ts` propagates
+     * `NotFound` rather than degrading, so letting this one escape failed the
+     * whole `get_library` read on a stack whose *arr half was healthy (#234).
+     */
+    it('falls back to default_user when /accounts is not served at all', async () => {
+        const { adapter } = plex({ '/identity': IDENTITY }, { default_user: 'Bartus' });
+        expect(await adapter.listUsers()).toEqual([{ id: '1', name: 'Bartus' }]);
+    });
+
+    it('still names the config key when /accounts 404s and nothing is configured', async () => {
+        const { adapter } = plex({ '/identity': IDENTITY });
+        await expect(adapter.listUsers()).rejects.toThrow(/default_user/);
+    });
+
     it('returns a diagnosis rather than throwing when the server is unreachable', async () => {
         const { adapter } = plex({});
         const d = await adapter.testConnection();

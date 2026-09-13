@@ -4,7 +4,7 @@ import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.t
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { RELEASE_SEARCH_TIMEOUT_MS } from '../services/arrRelease.ts';
 import { hasReleaseSearch, type ReleaseCandidate, type ServiceAdapter } from '../services/types.ts';
 
@@ -41,6 +41,24 @@ const project = (r: ReleaseCandidate, detail: DetailLevel): ReleaseCandidate => 
     const { guid: _guid, indexerId: _indexerId, rejections: _rejections, ...rest } = r;
     return rest;
 };
+
+/**
+ * One candidate release as a line.
+ *
+ * The title is uploader-chosen and keeps its fence. `rejected` comes early and
+ * always: a rejected release that reads like an available one is how a model
+ * ends up telling someone to grab something the *arr has already refused.
+ */
+export function releaseLine(release: ReleaseCandidate): string {
+    const facts = [release.rejected ? 'REJECTED' : 'available', release.indexer];
+    if (release.quality !== undefined && release.quality !== '') facts.push(release.quality);
+    if (release.seeders !== undefined) facts.push(`${release.seeders} seeders`);
+    if (release.rejected && release.rejections !== undefined && release.rejections.length > 0) {
+        facts.push(release.rejections.join('; '));
+    }
+
+    return `${release.title} — ${facts.join(', ')}`;
+}
 
 export async function buildGetReleases(
     adapters: readonly ServiceAdapter[],
@@ -117,7 +135,7 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
                 `${result.returned} of ${result.total} release${result.returned === 1 ? '' : 's'} for ${service} ${id}` +
                 (rejectedCount > 0 ? `; ${rejectedCount} rejected (see each row's \`rejections\`).` : '.');
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, releaseLine) }], structuredContent: result };
         }
     );
 }

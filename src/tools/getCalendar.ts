@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasCalendar, type CalendarEntry, type ServiceAdapter } from '../services/types.ts';
 
 export type GetCalendarResult = {
@@ -46,6 +46,28 @@ const project = (c: CalendarEntry, detail: DetailLevel): CalendarEntry => {
     }
     return c;
 };
+
+/**
+ * One calendar row as a line, led by the date: this list answers "what is
+ * coming", so the thing being sorted on is the thing to read first.
+ *
+ * An episode prints its series and SxxEyy, a film just its title, because a
+ * film has no numbering to report and an empty `S00E00` would read as one.
+ */
+export function calendarLine(entry: CalendarEntry): string {
+    const numbering =
+        entry.season === undefined || entry.episode === undefined
+            ? ''
+            : ` S${String(entry.season).padStart(2, '0')}E${String(entry.episode).padStart(2, '0')}`;
+    const name =
+        entry.seriesTitle === undefined ? entry.title : `${entry.seriesTitle}${numbering} ${entry.title}`;
+
+    const facts = [`${entry.service}:${entry.id}`];
+    if (!entry.hasFile) facts.push('no file');
+    if (!entry.monitored) facts.push('unmonitored');
+
+    return `${entry.date} — ${name} — ${facts.join(', ')}`;
+}
 
 export async function buildGetCalendar(
     adapters: readonly ServiceAdapter[],
@@ -118,7 +140,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
                 (missing > 0 ? `, ${missing} without a file` : '') +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, calendarLine) }], structuredContent: result };
         }
     );
 }

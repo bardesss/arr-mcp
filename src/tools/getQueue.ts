@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 
 export type GetQueueResult = {
@@ -26,6 +26,21 @@ const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
     const { errorMessage: _e, ...rest } = q;
     return rest;
 };
+
+/**
+ * One queue row as a line. `service:id` leads the facts because it is what
+ * `remove_queue_item` and `clean_queue` take, and a stuck download is the
+ * usual reason anyone reads this list at all — so the blocking state and the
+ * error come before the size and the ETA, which say only how long to wait.
+ */
+export function queueLine(item: QueueItem): string {
+    const facts = [`${item.service}:${item.id}`, item.status];
+    if (item.importState !== undefined && item.importState !== '') facts.push(item.importState);
+    if (item.orphaned === true) facts.push('orphaned');
+    if (item.errorMessage !== undefined && item.errorMessage !== '') facts.push(item.errorMessage);
+
+    return `${item.title} — ${facts.join(', ')}`;
+}
 
 export async function buildGetQueue(
     adapters: readonly ServiceAdapter[],
@@ -63,7 +78,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
                 `${result.returned} of ${result.total} item(s) in the queue` +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, queueLine) }], structuredContent: result };
         }
     );
 }

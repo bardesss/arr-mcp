@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ServiceAdapter, SubtitleCapable, SubtitleGap, SubtitleProvider } from '../services/types.ts';
 
 export type GetSubtitlesResult = {
@@ -58,6 +58,25 @@ const project = (gap: SubtitleGap, detail: DetailLevel): SubtitleGap => {
  * A partial subtitle list that says which Bazarr is missing is useful; one that
  * silently drops half is not.
  */
+/**
+ * One subtitle gap as a line. The missing languages are the answer, so they
+ * are never trimmed out of the line even though `detail` trims other fields —
+ * a gap row without them says only that something is missing.
+ */
+export function subtitleLine(gap: SubtitleGap): string {
+    const numbering =
+        gap.season === undefined || gap.episode === undefined
+            ? ''
+            : ` S${String(gap.season).padStart(2, '0')}E${String(gap.episode).padStart(2, '0')}`;
+    const episode = gap.episodeTitle === undefined ? '' : ` ${gap.episodeTitle}`;
+    const missing = gap.missing.map(m => m.name || m.code2).filter(v => v !== '');
+
+    const facts = [gap.kind, `${gap.service}:${gap.id}`];
+    if (missing.length > 0) facts.push(`missing ${missing.join('/')}`);
+
+    return `${gap.title}${numbering}${episode} — ${facts.join(', ')}`;
+}
+
 export async function buildGetSubtitles(
     adapters: readonly (ServiceAdapter & SubtitleCapable)[],
     opts: { detail: DetailLevel; limit: number; offset?: number }
@@ -143,7 +162,7 @@ export function registerGetSubtitles(server: McpServer, adapters: readonly (Serv
                           ? ''
                           : ` Provider state is missing for ${result.providersUnavailable.join(', ')}, so that list is partial.`);
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, subtitleLine) }], structuredContent: result };
         }
     );
 }

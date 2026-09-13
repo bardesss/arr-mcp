@@ -11,16 +11,7 @@ import { fenceText } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import { unfenced } from '../core/titleMatch.ts';
-import {
-    DetailSchema,
-    LimitSchema,
-    OffsetSchema,
-    PagedOutputSchema,
-    READ_ONLY,
-    applyLimit,
-    toolInput,
-    type DetailLevel
-} from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasMetadataInspect, hasUserLibrary, type ServiceAdapter } from '../services/types.ts';
 
 /**
@@ -112,6 +103,17 @@ const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
 };
 
 const EXAMPLE_LIMIT = 3;
+
+/**
+ * One metadata issue as a line. `fix` is carried verbatim because it is the
+ * whole point of the row — it names the call that repairs this item, and a
+ * reader who only sees the text block would otherwise have the diagnosis and
+ * no remedy.
+ */
+export function metadataIssueLine(issue: MetadataIssue): string {
+    const facts = [issue.kind, `${issue.service}:${issue.itemId}`, `${issue.mismatches} mismatch(es)`, issue.remedy];
+    return `${issue.title} — ${facts.join(', ')} — ${issue.fix}`;
+}
 
 export async function buildGetMetadataIssues(
     adapters: readonly ServiceAdapter[],
@@ -278,7 +280,7 @@ export function registerGetMetadataIssues(
                           ? ''
                           : ` ${result.notComparable.length} series had no file paths to compare, so nothing is claimed about them.`);
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, metadataIssueLine) }], structuredContent: result };
         }
     );
 }

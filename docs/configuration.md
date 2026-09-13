@@ -80,7 +80,7 @@ services:
   plex:
     url: http://192.168.1.20:32400
     api_key: "…"           # your server's X-Plex-Token — see below
-    default_user: "you"    # optional, same reasoning as Jellyfin's above
+    default_user: "you"    # optional — must match the account name Plex reports
 ```
 
 The `api_key` field carries Plex's own `X-Plex-Token`. The name comes from the
@@ -97,6 +97,23 @@ every other service here follows.
 
 Read-only: there is no Plex `set_watched` and no library-scan trigger, only
 reads.
+
+`default_user` behaves differently here than on Jellyfin, and it is worth
+knowing before you set it. A local `X-Plex-Token` is scoped to one account, so
+arr-mcp asks the server for the owner's name and **matches your `default_user`
+against it** rather than taking your value as the user to query. Set it to
+anything else and the per-user tools fail, naming the one user they do know:
+
+```
+plex not found: no user named "you@example.com"
+  — Known users: YourPlexAccount. Fix default_user in config.yaml.
+```
+
+That error is the fastest way to learn what to write. The value is used
+verbatim only when the server declines to name the owner at all, which some
+setups do — a reverse proxy in front of `/accounts`, or a token without the
+scope to read it. In that case arr-mcp trusts what you configured, says so once
+in the log, and carries on.
 
 **Only one media server.** `jellyfin` and `plex` cannot both be configured —
 `get_library`'s per-user join needs exactly one counterparty, and the schema

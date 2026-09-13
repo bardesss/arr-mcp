@@ -5,7 +5,7 @@ import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { HISTORY_EVENT_TYPES, hasHistory, type HistoryCapable, type HistoryEntry, type HistoryEventType, type ServiceAdapter } from '../services/types.ts';
 
 export type GetHistoryResult = {
@@ -61,6 +61,24 @@ const project = (h: HistoryEntry, detail: DetailLevel): HistoryEntry => {
     const { rawEvent: _rawEvent, guid: _guid, indexerId: _indexerId, ...rest } = h;
     return rest;
 };
+
+/**
+ * One history row as a line, led by its timestamp for the reason the calendar
+ * is: this is a chronology, and the time is what a reader orders it by.
+ *
+ * `mediaId` rather than the row's own `id`: the row id addresses the history
+ * record, which no tool takes, while `mediaId` is what `get_media_details` and
+ * `trigger_search` want.
+ */
+export function historyLine(entry: HistoryEntry): string {
+    const facts: string[] = [entry.event];
+    if (entry.mediaId !== undefined) facts.push(`${entry.service}:${entry.mediaId}`);
+    else facts.push(entry.service);
+    if (entry.quality !== undefined && entry.quality !== '') facts.push(entry.quality);
+    if (entry.indexer !== undefined && entry.indexer !== '') facts.push(entry.indexer);
+
+    return `${entry.at} — ${entry.title} — ${facts.join(', ')}`;
+}
 
 export async function buildGetHistory(
     adapters: readonly ServiceAdapter[],
@@ -159,7 +177,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
                 `${result.returned} of ${result.total} history entr${result.returned === 1 ? 'y' : 'ies'}` +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(summary, result.items, historyLine) }], structuredContent: result };
         }
     );
 }

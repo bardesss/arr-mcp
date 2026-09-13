@@ -96,11 +96,27 @@ unreachable instance degrades by name rather than emptying the answer.
 rather than a list. With several instances of a service configured it also takes
 `instance`, worded exactly as the write tools word it.
 
-**Every answer comes twice: a sentence and a structure.** The summary line is
-for a reader; `structuredContent` is the contract, and every tool declares its
+**Every answer comes twice: a summary and a structure.** The text block is for
+a reader; `structuredContent` is the contract, and every tool declares its
 shape as an `outputSchema` so a client knows what it will get before it calls.
 Read `total` from there rather than parsing it out of "50 of 243 item(s)" —
 that sentence is prose and may be reworded.
+
+A list tool's text block is the count sentence *and then one line per item*,
+naming each item and the id a follow-up call takes:
+
+```
+2 of 1885 item(s).
+<<untrusted:radarr.title>>Inception<</untrusted>> (2010) — movie, radarr:412, tmdb:27205
+<<untrusted:sonarr.title>>Severance<</untrusted>> (2022) — series, sonarr:31, tvdb:371980
+```
+
+It was the count alone until 1.26. Not every client forwards
+`structuredContent`, and on those the items were unreachable — a call that
+worked, answering "what is in my library" with a number and nothing to name
+(#234). The lines are bounded by `limit`, exactly as the structured half is,
+and titles keep their untrusted-data fence: the text block is the half that
+goes straight to a model, which is where that marker matters most.
 
 **The tool list is cacheable for an hour.** On the 2026-07-28 protocol
 revision every list result carries a `ttlMs`, and `tools/list`,

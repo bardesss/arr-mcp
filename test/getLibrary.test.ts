@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { LibraryIndex, type IndexInput } from '../src/core/resolver.ts';
-import type { IdentityResolver } from '../src/core/identity.ts';
+import { IdentityResolver } from '../src/core/identity.ts';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { buildGetLibrary } from '../src/tools/getLibrary.ts';
+import { PlexAdapter } from '../src/services/plex.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
+import { serving } from './helpers/serve.ts';
 
 const stub = (id: 'radarr' | 'sonarr', items: IndexInput[]): ServiceAdapter =>
     ({
@@ -340,6 +342,33 @@ describe('get_library shaping', () => {
 
     it('leaves the note off when a media server did answer', async () => {
         expect((await buildGetLibrary(loaderOf([film()]), base)).note).toBeUndefined();
+    });
+
+    /**
+     * The reported symptom of #234, end to end and through a real adapter
+     * rather than a stub: a Plex that does not serve `/accounts` used to fail
+     * the entire read — Radarr's half included — with an error about
+     * reverse-proxy prefixes, because the endpoint's 404 and "no user by that
+     * name" both arrive as `NotFound` and `#resolveUser` propagates that kind.
+     */
+    it('still returns the *arr half when Plex will not serve /accounts', async () => {
+        const plexConfig = {
+            url: 'http://192.0.2.10:32400',
+            api_key: 'tok',
+            timeout_ms: 10_000,
+            allow_other_users: false,
+            default_user: 'Bartus',
+            permissions: { safe_write: false, destructive: false }
+        };
+        // No `/accounts` route, so the fake fetch 404s it — a reverse proxy or
+        // a token without the scope to read it looks exactly like this.
+        const plex = new PlexAdapter(plexConfig, serving({ '/library/sections': { MediaContainer: { Directory: [] } } }));
+        const loader = new LibraryLoader([stub('radarr', [film()]), plex], new IdentityResolver(plex, plexConfig));
+
+        const result = await buildGetLibrary(loader, base);
+
+        expect(result.total).toBe(1);
+        expect(result.degraded).toEqual([]);
     });
 
     it('stays within budget at the default detail', async () => {
