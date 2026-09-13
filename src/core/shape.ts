@@ -186,6 +186,42 @@ export function applyLimit<T>(
 }
 
 /**
+ * The text `content` block for a list tool: the summary sentence, then one
+ * line per item.
+ *
+ * `structuredContent` carries the full envelope and is unchanged. This exists
+ * because not every client forwards it. #106 added `outputSchema` so clients
+ * that *gate* on a schema could see the structured half, which fixed the
+ * clients that read it and nothing for the clients that never look — those got
+ * `10 of 1885 item(s).` and no way to name a single one of them (#234).
+ *
+ * Deliberately not the serialised envelope, which the MCP spec offers as the
+ * backwards-compatible option: at `limit: 500` that is the whole payload twice,
+ * and the half a model reads best is the half written for a reader. Each tool
+ * supplies its own `line`, because the item shapes have nothing in common and a
+ * generic field-guesser would quietly mislabel the ones it did not anticipate.
+ *
+ * No cap of its own. `items` is already the post-`applyLimit` window, so
+ * `limit` governs this exactly as it governs the structured half; a second
+ * bound here would be a truncation nothing in the response reported.
+ */
+export function listText<T>(summary: string, items: readonly T[], line: (item: T) => string): string {
+    const lines = items
+        // One item is one line, enforced here rather than trusted to each
+        // formatter. `fenceText` keeps newlines on purpose — an overview
+        // legitimately has them — so a release name carrying one would
+        // otherwise split into two lines and read as an extra item that no
+        // service ever reported. Indexer-sourced titles are exactly the
+        // attacker-controlled strings the fence exists for, and a line-oriented
+        // format is a new way to forge a row in it.
+        .map(item => line(item).replaceAll(/[\r\n]+/gu, ' '))
+        // A formatter with nothing to say about an item yields a blank, and a
+        // blank line reads as a missing item rather than an unnameable one.
+        .filter(text => text !== '');
+    return lines.length === 0 ? summary : `${summary}\n${lines.join('\n')}`;
+}
+
+/**
  * The documented name's value, honouring an older spelling that still works.
  *
  * 1.0 froze the tool surface, and two names were inconsistent when it was
