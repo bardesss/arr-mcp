@@ -12,6 +12,7 @@ import {
     toolInput,
     type DetailLevel
 } from '../../core/shape.ts';
+import type { ProfilarrArrEntry, ProfilarrArrStatus, ProfilarrDrift } from '../../services/profilarr.ts';
 import { hasProfileDiagnostics, type ProfileDiagnosticsCapable, type ServiceAdapter } from '../../services/types.ts';
 import {
     dialectFindings,
@@ -54,6 +55,14 @@ export const DRIFT_NOT_CHECKED_NOTE =
     'No `profilarr` service is configured, so drift between its saved profiles and what Radarr/Sonarr actually ' +
     'hold was not checked.';
 
+export const DRIFT_PENDING_NOTE =
+    'Profilarr has not checked for drift on at least one instance yet — that is "not checked", never "clean", ' +
+    'so its absence from the findings below is not a clean bill of health.';
+
+export const NO_MATCHING_INSTANCE_NOTE =
+    'The `service`/`instance` filter matched no configured instance, so this empty result is the filter excluding ' +
+    'everything, not a clean bill of health.';
+
 /** `remedy` is dropped at `minimal` — it is guidance, not the finding itself. */
 const project = (issue: ProfileIssue, detail: DetailLevel): ProfileIssue => {
     if (detail !== 'minimal') return issue;
@@ -69,12 +78,98 @@ export function profileIssueLine(issue: ProfileIssue): string {
 const isArrAdapter = (a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
     (a.type === 'radarr' || a.type === 'sonarr' || a.type === 'whisparr') && hasProfileDiagnostics(a);
 
+type ProfilarrStatusCapable = {
+    status(): Promise<{ arrs: ProfilarrArrStatus[] }>;
+    listArrs(): Promise<ProfilarrArrEntry[]>;
+};
+
+const hasProfilarrStatus = (a: ServiceAdapter): a is ServiceAdapter & ProfilarrStatusCapable =>
+    a.type === 'profilarr' &&
+    typeof (a as Partial<ProfilarrStatusCapable>).status === 'function' &&
+    typeof (a as Partial<ProfilarrStatusCapable>).listArrs === 'function';
+
+const safeHost = (url: string | undefined): string | undefined => {
+    if (url === undefined) return undefined;
+    try {
+        return new URL(url).host;
+    } catch {
+        return undefined;
+    }
+};
+
+/**
+ * Joins one Profilarr arr entry to the arr-mcp instance it describes: URL
+ * host+port first, then a case-insensitive name match against the instance
+ * name (or bare id) when no adapter here carries a URL. Never across service
+ * types, and undefined rather than a guess.
+ */
+export function matchArr(entry: ProfilarrArrEntry, adapters: readonly ServiceAdapter[]): ServiceAdapter | undefined {
+    const sameType = adapters.filter(a => a.type === entry.type);
+    const entryHost = safeHost(entry.url);
+    if (entryHost !== undefined) {
+        const byUrl = sameType.find(a => safeHost((a as { url?: string }).url) === entryHost);
+        if (byUrl !== undefined) return byUrl;
+    }
+    return sameType.find(a => (a.instance ?? a.id).toLowerCase() === entry.name.toLowerCase());
+}
+
+const driftCounts = (d: ProfilarrDrift['details']): string =>
+    `${d.qualityProfiles} quality profile(s), ${d.delayProfiles} delay profile(s), ${d.mediaManagement} media management setting(s)`;
+
+/**
+ * `drift: null` means Profilarr has not checked yet — never rendered as
+ * clean. Only `drifted: true` produces a finding; `drifted: false` is
+ * genuinely clean and stays quiet.
+ */
+async function collectDriftFindings(
+    profilarr: ServiceAdapter & ProfilarrStatusCapable,
+    targeted: readonly ServiceAdapter[],
+    opts: { service?: ArrServiceType; instance?: string }
+): Promise<{ items: ProfileIssue[]; note?: string }> {
+    const [status, arrEntries] = await Promise.all([profilarr.status(), profilarr.listArrs()]);
+    const entryById = new Map(arrEntries.map(e => [e.id, e]));
+
+    const items: ProfileIssue[] = [];
+    let pending = false;
+
+    for (const arrStatus of status.arrs) {
+        if (opts.service !== undefined && arrStatus.type !== opts.service) continue;
+        const entry = entryById.get(arrStatus.id);
+        const matched = entry === undefined ? undefined : matchArr(entry, targeted);
+        if (opts.instance !== undefined && matched?.instance !== opts.instance) continue;
+
+        const drift = arrStatus.drift;
+        if (drift === null) {
+            pending = true;
+            continue;
+        }
+        if (!drift.drifted) continue;
+
+        const name = entry?.name ?? arrStatus.name;
+        const counts = driftCounts(drift.details);
+        items.push({
+            service: arrStatus.type,
+            ...(matched?.instance === undefined ? {} : { instance: matched.instance }),
+            profile: name,
+            kind: 'profilarr_drift',
+            confidence: 'certain',
+            detail:
+                matched === undefined
+                    ? `Profilarr's \`${name}\` ${arrStatus.type} entry has drifted from what it last synced, but does not match any configured instance — listed as unattributed: ${counts} differ.`
+                    : `Profilarr's saved profiles have drifted from what this ${arrStatus.type} instance currently holds: ${counts} differ.`,
+            remedy: 'In Profilarr, review the drift and re-sync this arr to reconcile it.'
+        });
+    }
+
+    return { items, ...(pending ? { note: DRIFT_PENDING_NOTE } : {}) };
+}
+
 export async function buildGetProfileIssues(
     adapters: readonly ServiceAdapter[],
     opts: { detail: DetailLevel; limit: number; offset?: number; service?: ArrServiceType; instance?: string; profile?: string }
 ): Promise<GetProfileIssuesResult> {
     const arrAdapters = adapters.filter(isArrAdapter);
-    const hasProfilarr = adapters.some(a => a.type === 'profilarr');
+    const profilarr = adapters.find(hasProfilarrStatus);
 
     if (arrAdapters.length === 0) {
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [], note: NO_ARR_NOTE };
@@ -88,6 +183,9 @@ export async function buildGetProfileIssues(
 
     const items: ProfileIssue[] = [];
     const degraded: string[] = [];
+    const notes: string[] = [];
+
+    if (targeted.length === 0) notes.push(NO_MATCHING_INSTANCE_NOTE);
 
     await Promise.all(
         targeted.map(async adapter => {
@@ -125,21 +223,41 @@ export async function buildGetProfileIssues(
         })
     );
 
+    if (profilarr === undefined) {
+        notes.push(DRIFT_NOT_CHECKED_NOTE);
+    } else {
+        try {
+            const drift = await collectDriftFindings(profilarr, targeted, {
+                ...(opts.service === undefined ? {} : { service: opts.service }),
+                ...(opts.instance === undefined ? {} : { instance: opts.instance })
+            });
+            items.push(...drift.items);
+            if (drift.note !== undefined) notes.push(drift.note);
+        } catch (err) {
+            logger.warn({ service: profilarr.id, err }, 'profilarr status read failed; degrading');
+            degraded.push(profilarr.id);
+        }
+    }
+
     const shaped = applyLimit(items, opts.limit, opts.offset);
     return {
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
         degraded: degraded.sort(),
-        ...(hasProfilarr ? {} : { note: DRIFT_NOT_CHECKED_NOTE })
+        ...(notes.length > 0 ? { note: notes.join(' ') } : {})
     };
 }
 
 export const summarizeProfileIssues = (result: GetProfileIssuesResult, arrInstanceCount: number): string => {
     if (arrInstanceCount === 0) return result.note ?? '';
-    if (result.degraded.length > 0 && result.degraded.length === arrInstanceCount)
-        return `${result.degraded.join(', ')} could not be reached; no profile diagnostics available.`;
+    const withNote = (text: string): string => (result.note === undefined ? text : `${text} ${result.note}`);
+    // Profilarr can degrade alongside the arr adapters; only an all-arr outage
+    // means no profile diagnostics at all, so it is counted on its own here.
+    const arrDegraded = result.degraded.filter(id => id !== 'profilarr');
+    if (arrDegraded.length > 0 && arrDegraded.length === arrInstanceCount)
+        return withNote(`${arrDegraded.join(', ')} could not be reached; no profile diagnostics available.`);
     const counts = `${result.returned} of ${result.total} issue(s) found${result.degraded.length > 0 ? `. ${result.degraded.join(', ')} could not be reached` : ''}.`;
-    return result.note === undefined ? counts : `${counts} ${result.note}`;
+    return withNote(counts);
 };
 
 export function registerGetProfileIssues(server: McpServer, adapters: readonly ServiceAdapter[]): void {

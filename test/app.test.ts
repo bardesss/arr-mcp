@@ -8,6 +8,7 @@ import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ProfileDiagnosticsCapable, ServiceAdapter } from '../src/services/types.ts';
+import { DRIFT_PENDING_NOTE, NO_MATCHING_INSTANCE_NOTE } from '../src/tools/profileIssues/index.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { rpcPayload as parseRpcPayload } from '../scripts/lib/rpc.ts';
 
@@ -820,6 +821,38 @@ describe('get_profile_issues', () => {
         })
     });
 
+    type DriftFixture = {
+        id: number;
+        name: string;
+        type: 'radarr' | 'sonarr';
+        enabled: boolean;
+        drift: null | { lastCheckedAt: string; drifted: boolean; details: { qualityProfiles: number; delayProfiles: number; mediaManagement: number } };
+    };
+    type ArrEntryFixture = { id: number; name: string; type: 'radarr' | 'sonarr'; url: string };
+
+    const profilarr = (
+        arrs: DriftFixture[],
+        entries: ArrEntryFixture[] = []
+    ): ServiceAdapter & { status: () => Promise<{ arrs: DriftFixture[] }>; listArrs: () => Promise<ArrEntryFixture[]> } => ({
+        id: 'profilarr',
+        type: 'profilarr',
+        testConnection: async () => ({ ok: true, service: 'profilarr', latency_ms: 3 }),
+        getVersion: async () => '2.2.0',
+        status: async () => ({ arrs }),
+        listArrs: async () => entries
+    });
+
+    const throwingProfilarr = (): ServiceAdapter & { status: () => Promise<never>; listArrs: () => Promise<ArrEntryFixture[]> } => ({
+        id: 'profilarr',
+        type: 'profilarr',
+        testConnection: async () => ({ ok: true, service: 'profilarr', latency_ms: 3 }),
+        getVersion: async () => '2.2.0',
+        status: async () => {
+            throw new Error('unreachable');
+        },
+        listArrs: async () => []
+    });
+
     const callTool = async (
         name: string,
         args: Record<string, unknown>,
@@ -940,6 +973,114 @@ describe('get_profile_issues', () => {
         expect(items.length).toBeGreaterThan(0);
         expect(items.every(i => i.service === 'sonarr')).toBe(true);
         expect(items.some(i => i.kind === 'unreachable_floor')).toBe(false);
+    });
+
+    describe('profilarr drift', () => {
+        it('reports a certain drift finding attributed to the matched instance', async () => {
+            const pf = profilarr(
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 2, delayProfiles: 0, mediaManagement: 1 } } }],
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' }]
+            );
+
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const items = (result.structuredContent as {
+                items: Array<{ kind: string; service: string; instance?: string; confidence: string; detail: string }>;
+            }).items;
+            const drift = items.find(i => i.kind === 'profilarr_drift');
+
+            expect(drift).toBeDefined();
+            expect(drift?.service).toBe('sonarr');
+            expect(drift?.confidence).toBe('certain');
+            expect(drift?.detail).toContain('2 quality profile');
+        });
+
+        it('reports an unattributed drift finding when the entry matches no configured instance', async () => {
+            const pf = profilarr(
+                [{ id: 1, name: 'Radarr 4K', type: 'radarr', enabled: true, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 1, delayProfiles: 0, mediaManagement: 0 } } }],
+                [{ id: 1, name: 'Radarr 4K', type: 'radarr', url: 'http://radarr4k.example:7878' }]
+            );
+
+            // Only sonarr is configured, so the radarr entry Profilarr reports
+            // drift for cannot be matched to anything.
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const items = (result.structuredContent as {
+                items: Array<{ kind: string; instance?: string; detail: string }>;
+            }).items;
+            const drift = items.find(i => i.kind === 'profilarr_drift');
+
+            expect(drift).toBeDefined();
+            expect(drift?.instance).toBeUndefined();
+            expect(drift?.detail).toContain('unattributed');
+        });
+
+        it('never reports drift as clean when Profilarr has not checked yet', async () => {
+            const pf = profilarr(
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, drift: null }],
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' }]
+            );
+
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; note?: string };
+
+            expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
+            expect(body.note).toContain(DRIFT_PENDING_NOTE);
+        });
+
+        it('is quiet when Profilarr has checked and found no drift', async () => {
+            const pf = profilarr(
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: false, details: { qualityProfiles: 0, delayProfiles: 0, mediaManagement: 0 } } }],
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' }]
+            );
+
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; note?: string };
+
+            expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
+            expect(body.note).toBeUndefined();
+        });
+
+        it('degrades a throwing Profilarr without losing the arr findings', async () => {
+            const result = await callTool('get_profile_issues', {}, [sonarr(), throwingProfilarr()]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; degraded: string[] };
+
+            expect(body.degraded).toContain('profilarr');
+            expect(body.items.some(i => i.kind === 'knife_edge_floor')).toBe(true);
+        });
+
+        it('does not mistake a degraded Profilarr for every arr instance degrading', async () => {
+            const result = await callTool('get_profile_issues', {}, [sonarr(), throwingProfilarr()]);
+            const text = result.content?.[0]?.text ?? '';
+
+            expect(text).not.toContain('no profile diagnostics available');
+        });
+    });
+
+    describe('note composition', () => {
+        it('says the filter excluded everything, alongside the drift note, when service matches no instance', async () => {
+            const result = await callTool('get_profile_issues', { service: 'radarr' }, [sonarr()]);
+            const body = result.structuredContent as { items: unknown[]; note?: string };
+
+            expect(body.items).toEqual([]);
+            expect(body.note).toContain(NO_MATCHING_INSTANCE_NOTE);
+        });
+
+        it('keeps the drift-not-checked note in the summary text when every arr degrades', async () => {
+            const failing = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+                id: 'sonarr',
+                type: 'sonarr',
+                testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 3 }),
+                getVersion: async () => '4.0.0',
+                readProfileDiagnostics: async () => {
+                    throw new Error('unreachable');
+                }
+            });
+
+            const result = await callTool('get_profile_issues', {}, [failing()]);
+            const text = result.content?.[0]?.text ?? '';
+
+            expect(text).toContain('could not be reached');
+            expect(text).toContain('profilarr');
+        });
     });
 });
 

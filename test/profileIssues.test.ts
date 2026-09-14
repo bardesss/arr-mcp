@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { floorFindings, positiveTotal, pureLanguageSet, subsetFindings, type CustomFormatInput, type ProfileInput } from '../src/tools/profileIssues/rules.ts';
 import { dialectFindings, languagePreferenceFindings } from '../src/tools/profileIssues/rules.ts';
+import { matchArr } from '../src/tools/profileIssues/index.ts';
 
 const profile = (over: Partial<ProfileInput>): ProfileInput => ({ name: 'p', minFormatScore: 0, formatItems: [], ...over });
 
@@ -136,5 +137,29 @@ describe('likely rules', () => {
             [lang('Dutch', [7])],
             NAMES
         )).toEqual([]);
+    });
+});
+
+const fake = (id: string, type: string, url: string) => ({ id, type, url }) as never;
+
+describe('instance join', () => {
+    it('matches on normalised url host and port', () => {
+        const adapters = [fake('sonarr', 'sonarr', 'http://192.168.1.10:8989/')];
+        expect(matchArr({ id: 1, name: 'Whatever', type: 'sonarr', url: 'http://192.168.1.10:8989' }, adapters)?.id).toBe('sonarr');
+    });
+
+    it('falls back to a case-insensitive name match', () => {
+        const adapters = [fake('sonarr/4k', 'sonarr', 'http://sonarr-4k:8989')];
+        expect(matchArr({ id: 1, name: 'Sonarr/4K', type: 'sonarr', url: 'http://different:8989' }, adapters)?.id).toBe('sonarr/4k');
+    });
+
+    it('returns undefined rather than guessing', () => {
+        const adapters = [fake('sonarr', 'sonarr', 'http://192.168.1.10:8989')];
+        expect(matchArr({ id: 1, name: 'Sonarr Anime', type: 'sonarr', url: 'http://sonarr-anime:8989' }, adapters)).toBeUndefined();
+    });
+
+    it('never matches across service types', () => {
+        const adapters = [fake('radarr', 'radarr', 'http://box:8989')];
+        expect(matchArr({ id: 1, name: 'radarr', type: 'sonarr', url: 'http://box:8989' }, adapters)).toBeUndefined();
     });
 });
