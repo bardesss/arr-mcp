@@ -314,23 +314,31 @@ export function registerWriteTool<Schema extends z.ZodObject>(
 
                     const id = audit.begin(record);
                     audit.settle(id, 'unconfirmed', `confirmation ${check.failure}`);
+                    const fresh = confirm.issue(intent);
                     return respond(
                         preview({
                             audit_id: id,
                             confirm_error: check.remedy,
-                            confirm_token: confirm.issue(intent)
+                            confirm_token: fresh
                         }),
-                        `Not applied — the confirmation token was rejected (${check.failure}). ${check.remedy} A fresh token for this exact operation is in \`confirm_token\`.`
+                        `Not applied — the confirmation token was rejected (${check.failure}). ${check.remedy} ` +
+                            `A fresh token for this exact operation: \`${fresh}\`.`
                     );
                 }
             } else {
                 const id = audit.begin(record);
                 audit.settle(id, 'unconfirmed');
+                // The token goes in the text as well as in `confirm_token`. Not
+                // every client forwards structuredContent to the model (#234
+                // covered the list tools; Hermes since 2026.9.7 drops it whenever
+                // the text block is non-empty), and a preview whose text names a
+                // field the model cannot see is a handshake it can never complete.
+                const token = confirm.issue(intent);
                 return respond(
-                    preview({ audit_id: id, confirm_token: confirm.issue(intent) }),
+                    preview({ audit_id: id, confirm_token: token }),
                     `Not applied yet. ${plan.summary}\n\n` +
                         `${plan.effects.map(e => `- ${e}`).join('\n')}\n\n` +
-                        `To apply this, call ${spec.name} again with the same arguments plus \`confirm\` set to the token in \`confirm_token\`.`
+                        `To apply this, call ${spec.name} again with the same arguments plus \`confirm\` set to \`${token}\`.`
                 );
             }
 
