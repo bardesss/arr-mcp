@@ -21,6 +21,7 @@ whisparr https://raw.githubusercontent.com/Whisparr/Whisparr/v2-develop/src/Whis
 prowlarr https://raw.githubusercontent.com/Prowlarr/Prowlarr/develop/src/Prowlarr.Api.V1/openapi.json
 jellyfin https://api.jellyfin.org/openapi/jellyfin-openapi-stable.json
 seerr https://raw.githubusercontent.com/seerr-team/seerr/develop/seerr-api.yml
+profilarr https://raw.githubusercontent.com/Dictionarry-Hub/profilarr/v2.2.0/src/lib/api/v1.openapi.json
 "
 
 # Trapped rather than removed at the end of the loop: `set -e` means a failed

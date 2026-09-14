@@ -65,7 +65,8 @@ export const ICONS: Record<ServiceId, string> = {
     qbittorrent: draw(
         '<rect x="3" y="3" width="18" height="18" rx="3"/>' +
             '<path d="M9 7.5v9m0 0-2.5-2.5M9 16.5l2.5-2.5"/><path d="M15 16.5v-9m0 0-2.5 2.5M15 7.5l2.5 2.5"/>'
-    )
+    ),
+    profilarr: draw('<path d="M3 12h18M3 5h18M3 19h18"/><path d="m7 9 2 3 3-6 2 4 2-2"/>')
 };
 
 /**
