@@ -412,44 +412,55 @@ const OAuthSchema = z.strictObject({
 
 export type OAuthConfig = z.infer<typeof OAuthSchema>;
 
+/**
+ * Named, rather than inlined into `ConfigSchema`, so `load.ts`'s salvage path
+ * can parse against it directly. `ConfigSchema`'s `auth` field is this same
+ * object with the oauth/allow_token_in_url refinement chained on — but the
+ * salvage parse runs precisely when the rest of the file is already broken,
+ * and wants the *unrefined* object: a cross-field check there would only make
+ * salvage fail for a combination that has nothing to do with why the file
+ * doesn't load.
+ */
+export const AuthSchema = z.strictObject({
+    /** Generated on first run by loadConfig; 32 random bytes, hex. */
+    bearer_token: z.string().length(64),
+    /** Who logs into the config UI. Defaulted rather than generated —
+     *  a random username helps nobody and is one more thing to look up. */
+    username: z.string().min(1).default('admin'),
+    /**
+     * scrypt hash of the UI password, `scrypt$salt$hash`.
+     *
+     * Optional, unlike `bearer_token`, and that difference is the design:
+     * absent means **unclaimed**, so the config UI serves its setup page
+     * until someone chooses a password in the browser. A bearer token has
+     * no interactive path and must be generated; a password does, so one is
+     * never invented.
+     *
+     * Deleting this line is how you ask for a new password. The password
+     * itself is never stored and never logged.
+     */
+    password_hash: z.string().min(1).optional(),
+    /**
+     * Whether `/mcp` accepts the token as `?token=` when no Authorization
+     * header is sent. Off by default: it works for clients that can only be
+     * given a URL, at the cost of the token reaching proxy logs.
+     */
+    allow_token_in_url: z.boolean().default(false),
+    /**
+     * Hostnames the MCP endpoint may be reached on, for the SDK's DNS
+     * rebinding protection. Empty means "accept any Host", which is the
+     * right default for a LAN container reached by IP; pin hostnames when
+     * running behind a reverse proxy.
+     */
+    allowed_hosts: z.array(z.string()).default([]),
+    oauth: OAuthSchema.optional()
+});
+
 export const ConfigSchema = z.object({
     // Required, not optional: loadConfig always injects a generated token
     // before parsing, so the only way this is missing is a hand-edited file
     // that deleted it — which must fail loudly rather than default to ''.
-    auth: z.strictObject({
-        /** Generated on first run by loadConfig; 32 random bytes, hex. */
-        bearer_token: z.string().length(64),
-        /** Who logs into the config UI. Defaulted rather than generated —
-         *  a random username helps nobody and is one more thing to look up. */
-        username: z.string().min(1).default('admin'),
-        /**
-         * scrypt hash of the UI password, `scrypt$salt$hash`.
-         *
-         * Optional, unlike `bearer_token`, and that difference is the design:
-         * absent means **unclaimed**, so the config UI serves its setup page
-         * until someone chooses a password in the browser. A bearer token has
-         * no interactive path and must be generated; a password does, so one is
-         * never invented.
-         *
-         * Deleting this line is how you ask for a new password. The password
-         * itself is never stored and never logged.
-         */
-        password_hash: z.string().min(1).optional(),
-        /**
-         * Whether `/mcp` accepts the token as `?token=` when no Authorization
-         * header is sent. Off by default: it works for clients that can only be
-         * given a URL, at the cost of the token reaching proxy logs.
-         */
-        allow_token_in_url: z.boolean().default(false),
-        /**
-         * Hostnames the MCP endpoint may be reached on, for the SDK's DNS
-         * rebinding protection. Empty means "accept any Host", which is the
-         * right default for a LAN container reached by IP; pin hostnames when
-         * running behind a reverse proxy.
-         */
-        allowed_hosts: z.array(z.string()).default([]),
-        oauth: OAuthSchema.optional()
-    }).refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
+    auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
         message: 'auth.allow_token_in_url cannot be set while auth.oauth is configured — a JWT in the URL reaches every proxy log',
         path: ['allow_token_in_url']
     }),

@@ -80,6 +80,22 @@ describe('validateConfigText', () => {
         if (!result.ok) expect(result.auth?.username).toBe('admin');
     });
 
+    // The oauth/allow_token_in_url refinement runs on the full config, but the
+    // salvage parse must not inherit it: it runs precisely when the rest of
+    // the file is already broken, and a config with both should still let the
+    // operator log in and fix the YAML from the repair page rather than being
+    // locked out of the whole app by unreadableAuthPage.
+    it('salvages the auth block even when oauth and allow_token_in_url conflict', () => {
+        const text =
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n` +
+            `  allow_token_in_url: true\n  oauth:\n    issuer: https://auth.example.com\n` +
+            `    audience: arr-mcp\n    jwks_uri: https://auth.example.com/.well-known/jwks.json\n` +
+            `services:\n  radarr:\n    url: not-a-url\n    api_key: k\n`;
+        const result = validateConfigText(text);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.auth?.username).toBe('admin');
+    });
+
     it('reports no auth block when auth itself is unreadable', () => {
         const result = validateConfigText('auth: 12\nservices: {}\n');
         expect(result.ok).toBe(false);

@@ -5,7 +5,7 @@ import { LineCounter, parse, parseDocument, stringify } from 'yaml';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
 import { writeConfigAtomic } from './save.ts';
-import { ConfigSchema, type Config } from './schema.ts';
+import { AuthSchema, ConfigSchema, type Config } from './schema.ts';
 
 export const CONFIG_FILENAME = 'config.yaml';
 
@@ -130,7 +130,11 @@ export function validateConfigText(raw: string): ConfigTextResult {
     const result = ConfigSchema.safeParse(obj);
     if (result.success) return { ok: true, config: result.data, generatedBearerToken };
 
-    const authOnly = ConfigSchema.shape.auth.safeParse(obj.auth);
+    // Unrefined on purpose: this runs precisely when the rest of the file is
+    // already broken, and the oauth/allow_token_in_url refinement on
+    // ConfigSchema's `auth` field would only make the salvage fail for a
+    // combination that has nothing to do with why the file doesn't load.
+    const authOnly = AuthSchema.safeParse(obj.auth);
     return {
         ok: false,
         detail: z.prettifyError(result.error),
