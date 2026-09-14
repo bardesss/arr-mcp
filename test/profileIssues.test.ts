@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { floorFindings, positiveTotal, pureLanguageSet, subsetFindings, type CustomFormatInput, type ProfileInput } from '../src/tools/profileIssues/rules.ts';
+import { dialectFindings, languagePreferenceFindings } from '../src/tools/profileIssues/rules.ts';
 
 const profile = (over: Partial<ProfileInput>): ProfileInput => ({ name: 'p', minFormatScore: 0, formatItems: [], ...over });
 
@@ -80,5 +81,60 @@ describe('subset formats', () => {
     it('is quiet when the two sets are equal', () => {
         const formats = [lang('A', [7]), lang('B', [7])];
         expect(subsetFindings(profile({ formatItems: [{ name: 'A', score: 500 }, { name: 'B', score: 0 }] }), formats)).toEqual([]);
+    });
+});
+
+const NAMES = new Map([[7, 'Dutch'], [19, 'Flemish'], [1, 'English']]);
+
+describe('likely rules', () => {
+    it('flags a language scored but not required', () => {
+        const found = languagePreferenceFindings(
+            profile({ name: 'HD-2160p (NL)', minFormatScore: 0, formatItems: [{ name: 'Language: Dutch', score: 1000 }] }),
+            [lang('Language: Dutch', [7, 19])]
+        );
+        expect(found.map(f => f.kind)).toEqual(['language_preferred_not_required']);
+        expect(found[0]?.confidence).toBe('likely');
+    });
+
+    it('is quiet on a TRaSH-style preference profile with no language format', () => {
+        expect(languagePreferenceFindings(
+            profile({ name: 'WEB-2160p', minFormatScore: 0, formatItems: [{ name: 'Bluray Tier 01', score: 1000 }] }),
+            [{ name: 'Bluray Tier 01', specifications: [{ implementation: 'ReleaseTitleSpecification', negate: false, required: false, fields: [{ name: 'value', value: 'x' }] }] }]
+        )).toEqual([]);
+    });
+
+    it('is quiet when a language format is scored negatively', () => {
+        // HD-1080p blocks Dutch at -10000. That is deliberate, not a fault.
+        expect(languagePreferenceFindings(
+            profile({ name: 'HD-1080p', minFormatScore: 0, formatItems: [{ name: 'Language: Dutch', score: -10000 }] }),
+            [lang('Language: Dutch', [7, 19])]
+        )).toEqual([]);
+    });
+
+    it('flags a load-bearing language gate missing its sibling', () => {
+        const found = dialectFindings(
+            profile({ name: '2160p Balanced NL', minFormatScore: 500000, formatItems: [{ name: 'Dutch', score: 500000 }] }),
+            [lang('Dutch', [7])],
+            NAMES
+        );
+        expect(found.map(f => f.kind)).toEqual(['dialect_sibling_missing']);
+        expect(found[0]?.detail).toContain('Flemish');
+    });
+
+    it('is quiet when the sibling is present', () => {
+        expect(dialectFindings(
+            profile({ name: 'p', minFormatScore: 500000, formatItems: [{ name: 'Language: Dutch', score: 500000 }] }),
+            [lang('Language: Dutch', [7, 19])],
+            NAMES
+        )).toEqual([]);
+    });
+
+    it('is quiet when the language format is not load-bearing', () => {
+        // Floor is reachable without it, so it is a preference not a gate.
+        expect(dialectFindings(
+            profile({ name: 'p', minFormatScore: 100, formatItems: [{ name: 'Dutch', score: 100 }, { name: 'Other', score: 1000 }] }),
+            [lang('Dutch', [7])],
+            NAMES
+        )).toEqual([]);
     });
 });

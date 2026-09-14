@@ -89,3 +89,57 @@ export function subsetFindings(profile: ProfileInput, formats: readonly CustomFo
     }
     return findings;
 }
+
+export type LanguageNames = ReadonlyMap<number, string>;
+
+/** Keyed on names, resolved per instance: the id spaces of Radarr and Sonarr
+ *  are not guaranteed to align. Confirmed against a live /api/v3/language. */
+export const DIALECT_SIBLINGS: ReadonlyArray<readonly [string, string]> = [
+    ['Dutch', 'Flemish'],
+    ['Portuguese', 'Portuguese (Brazil)'],
+    ['Spanish', 'Spanish (Latino)']
+];
+
+const hasLanguageCondition = (cf: CustomFormatInput | undefined): boolean =>
+    (cf?.specifications ?? []).some(s => s.implementation === 'LanguageSpecification');
+
+export function languagePreferenceFindings(profile: ProfileInput, formats: readonly CustomFormatInput[]): Finding[] {
+    if (profile.minFormatScore !== 0) return [];
+    const byName = new Map(formats.map(f => [f.name, f]));
+    const scored = profile.formatItems.filter(f => f.score > 0 && hasLanguageCondition(byName.get(f.name)));
+    if (scored.length === 0) return [];
+    const names = scored.map(f => `\`${f.name}\``).join(', ');
+    return [{
+        kind: 'language_preferred_not_required',
+        confidence: 'likely',
+        detail: `\`${profile.name}\` scores ${names} but has no minimum custom format score, so a release in any language is still acceptable. It prefers the language rather than requiring it.`,
+        remedy: `In Profilarr, set this profile's minimum custom format score above zero if the language is meant to be a requirement.`
+    }];
+}
+
+export function dialectFindings(profile: ProfileInput, formats: readonly CustomFormatInput[], languages: LanguageNames): Finding[] {
+    if (profile.minFormatScore <= 0) return [];
+    const byName = new Map(formats.map(f => [f.name, f]));
+    const total = positiveTotal(profile);
+    const findings: Finding[] = [];
+    for (const item of profile.formatItems) {
+        if (item.score <= 0) continue;
+        // Load-bearing: without it the floor is out of reach, so it gates.
+        if (total - item.score >= profile.minFormatScore) continue;
+        const values = pureLanguageSet(byName.get(item.name) ?? { name: item.name, specifications: [] });
+        if (!values) continue;
+        const present = new Set([...values].map(v => languages.get(v)).filter((n): n is string => n !== undefined));
+        for (const [a, b] of DIALECT_SIBLINGS) {
+            for (const [have, missing] of [[a, b], [b, a]] as const) {
+                if (!present.has(have) || present.has(missing)) continue;
+                findings.push({
+                    kind: 'dialect_sibling_missing',
+                    confidence: 'likely',
+                    detail: `\`${profile.name}\` requires \`${item.name}\` to reach its minimum score, and that format matches ${have} but not ${missing}. ${missing} releases are rejected outright.`,
+                    remedy: `In Profilarr, add ${missing} to \`${item.name}\`, or score a format that covers both.`
+                });
+            }
+        }
+    }
+    return findings;
+}
