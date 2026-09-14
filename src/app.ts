@@ -11,6 +11,7 @@ import { claimJsonBody } from './mcp/jsonBody.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
 import { registerAllResources } from './mcp/resources.ts';
+import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
 import { registerAllTools } from './tools/register.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
 
@@ -211,6 +212,29 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         return c.text('forbidden: Host not allowed', 403);
     });
 
+    /**
+     * RFC 9728. Present only when `auth.oauth` is configured — a server with
+     * no issuer to name has nothing to say here, and a 404 is the honest
+     * answer. Registered after the Host allowlist so a pinned instance can
+     * only ever advertise a name that passed it.
+     *
+     * Permissive CORS because a browser-based client fetches this
+     * cross-origin before it holds any credential; the document is public by
+     * construction and names nothing an unauthenticated caller could not read
+     * off the login page.
+     */
+    for (const path of RESOURCE_METADATA_PATHS) {
+        app.get(path, (c: Context) => {
+            const { oauth } = runtime.config.auth;
+            if (oauth === undefined) return c.notFound();
+
+            const document = resourceMetadata(oauth, c.req.url, c.req.header('x-forwarded-proto'));
+            if (document === undefined) return c.notFound();
+
+            return c.json(document, 200, { 'Access-Control-Allow-Origin': '*' });
+        });
+    }
+
     registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {
@@ -237,6 +261,13 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                 },
                 'rejected unauthenticated MCP request'
             );
+            // `resource_metadata` is how a client discovers where to
+            // authenticate. Omitted entirely when no issuer is configured:
+            // pointing at a 404 is worse than saying nothing.
+            const metadataUrl =
+                auth.oauth === undefined ? undefined : resourceMetadataUrl(c.req.url, c.req.header('x-forwarded-proto'));
+            const challenge =
+                metadataUrl === undefined ? 'Bearer realm="arr-mcp"' : `Bearer realm="arr-mcp", resource_metadata="${metadataUrl}"`;
             return c.json(
                 {
                     error: 'unauthorized',
@@ -248,7 +279,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                         : {})
                 },
                 401,
-                { 'WWW-Authenticate': 'Bearer realm="arr-mcp"' }
+                { 'WWW-Authenticate': challenge }
             );
         }
 
