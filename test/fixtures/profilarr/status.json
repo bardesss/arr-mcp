@@ -1,0 +1,95 @@
+{
+  "version": "2.2.0",
+  "uptime": 41,
+  "timezone": "Europe/Amsterdam",
+  "databases": [
+    {
+      "id": 1,
+      "name": "Dictionarry",
+      "enabled": true,
+      "lastSyncedAt": "2026-09-14T18:14:39Z",
+      "syncStrategy": "auto",
+      "counts": {
+        "customFormats": 261,
+        "qualityProfiles": 11,
+        "regularExpressions": 617,
+        "delayProfiles": 2
+      }
+    },
+    {
+      "id": 2,
+      "name": "TRaSH",
+      "enabled": true,
+      "lastSyncedAt": "2026-09-14T18:30:26Z",
+      "syncStrategy": "auto",
+      "counts": {
+        "customFormats": 201,
+        "qualityProfiles": 22,
+        "regularExpressions": 986,
+        "delayProfiles": 1
+      }
+    }
+  ],
+  "arrs": [
+    {
+      "id": 1,
+      "name": "Radarr",
+      "type": "radarr",
+      "enabled": true,
+      "sync": {
+        "qualityProfiles": {
+          "count": 3,
+          "status": "idle",
+          "lastSyncedAt": "2026-09-14T17:30:44.661Z"
+        },
+        "delayProfiles": {
+          "configured": true,
+          "status": "idle",
+          "lastSyncedAt": "2026-09-14T17:30:44.698Z"
+        },
+        "mediaManagement": {
+          "configured": true,
+          "status": "idle",
+          "lastSyncedAt": "2026-09-14T17:30:45.011Z"
+        }
+      },
+      "drift": null
+    },
+    {
+      "id": 2,
+      "name": "Sonarr",
+      "type": "sonarr",
+      "enabled": true,
+      "sync": {
+        "qualityProfiles": {
+          "count": 3,
+          "status": "idle",
+          "lastSyncedAt": "2026-09-14T17:30:58.911Z"
+        },
+        "delayProfiles": {
+          "configured": true,
+          "status": "idle",
+          "lastSyncedAt": "2026-09-14T17:30:58.928Z"
+        },
+        "mediaManagement": {
+          "configured": true,
+          "status": "idle",
+          "lastSyncedAt": "2026-09-14T17:30:59.195Z"
+        }
+      },
+      "drift": null
+    }
+  ],
+  "jobs": {
+    "active": 0,
+    "queued": 8,
+    "nextRunAt": "2026-09-14T18:45:26.538Z"
+  },
+  "backups": {
+    "enabled": true,
+    "lastBackupAt": "2026-09-13T22:00:00.837Z"
+  },
+  "announcements": {
+    "unread": 1
+  }
+}
