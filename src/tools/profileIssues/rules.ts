@@ -42,3 +42,50 @@ export function floorFindings(profile: ProfileInput): Finding[] {
     }
     return [];
 }
+
+export type Specification = { implementation: string; negate: boolean; required: boolean; fields: Array<{ name: string; value: unknown }> };
+export type CustomFormatInput = { name: string; specifications: Specification[] };
+
+/**
+ * The language values of a format that is a pure OR over languages, or
+ * undefined for anything else. `required` and `negate` change what the *arr
+ * matcher does with a condition, so a format carrying either is not comparable
+ * by set inclusion and is left alone.
+ */
+export function pureLanguageSet(cf: CustomFormatInput): Set<number> | undefined {
+    if (cf.specifications.length === 0) return undefined;
+    const values = new Set<number>();
+    for (const spec of cf.specifications) {
+        if (spec.implementation !== 'LanguageSpecification') return undefined;
+        if (spec.negate || spec.required) return undefined;
+        const raw = spec.fields.find(f => f.name === 'value')?.value;
+        if (typeof raw !== 'number') return undefined;
+        values.add(raw);
+    }
+    return values;
+}
+
+const isStrictSubset = (a: Set<number>, b: Set<number>): boolean =>
+    a.size < b.size && [...a].every(v => b.has(v));
+
+export function subsetFindings(profile: ProfileInput, formats: readonly CustomFormatInput[]): Finding[] {
+    const byName = new Map(formats.map(f => [f.name, f]));
+    const scored = profile.formatItems.filter(f => f.score > 0);
+    const unscored = profile.formatItems.filter(f => f.score === 0);
+    const findings: Finding[] = [];
+    for (const narrow of scored) {
+        const narrowSet = pureLanguageSet(byName.get(narrow.name) ?? { name: narrow.name, specifications: [] });
+        if (!narrowSet) continue;
+        for (const wide of unscored) {
+            const wideSet = pureLanguageSet(byName.get(wide.name) ?? { name: wide.name, specifications: [] });
+            if (!wideSet || !isStrictSubset(narrowSet, wideSet)) continue;
+            findings.push({
+                kind: 'subset_format_scored',
+                confidence: 'certain',
+                detail: `\`${profile.name}\` scores \`${narrow.name}\`, which matches fewer languages than \`${wide.name}\`. \`${wide.name}\` is scored 0, so releases it would have matched score nothing.`,
+                remedy: `In Profilarr, score \`${wide.name}\` in this profile instead of \`${narrow.name}\`.`
+            });
+        }
+    }
+    return findings;
+}

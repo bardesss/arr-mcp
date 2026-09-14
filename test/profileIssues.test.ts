@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { floorFindings, positiveTotal, type ProfileInput } from '../src/tools/profileIssues/rules.ts';
+import { floorFindings, positiveTotal, pureLanguageSet, subsetFindings, type CustomFormatInput, type ProfileInput } from '../src/tools/profileIssues/rules.ts';
 
 const profile = (over: Partial<ProfileInput>): ProfileInput => ({ name: 'p', minFormatScore: 0, formatItems: [], ...over });
 
@@ -32,5 +32,41 @@ describe('floor rules', () => {
         // bound, so a floor below it must not be reported as knife-edge.
         const found = floorFindings(profile({ minFormatScore: 100, formatItems: [{ name: 'Bluray', score: 100 }, { name: 'WEB', score: 100 }] }));
         expect(found).toEqual([]);
+    });
+});
+
+const lang = (name: string, values: number[]): CustomFormatInput => ({
+    name,
+    specifications: values.map(v => ({ implementation: 'LanguageSpecification', negate: false, required: false, fields: [{ name: 'value', value: v }] }))
+});
+
+describe('subset formats', () => {
+    it('reads a pure language format as a value set', () => {
+        expect([...(pureLanguageSet(lang('x', [7, 19])) ?? [])]).toEqual([7, 19]);
+    });
+
+    it('refuses to read a format with a release title condition', () => {
+        expect(pureLanguageSet({ name: 'x', specifications: [{ implementation: 'ReleaseTitleSpecification', negate: false, required: false, fields: [{ name: 'value', value: 'NL' }] }] })).toBeUndefined();
+    });
+
+    it('refuses to read a negated or required language format', () => {
+        expect(pureLanguageSet({ name: 'x', specifications: [{ implementation: 'LanguageSpecification', negate: true, required: false, fields: [{ name: 'value', value: 7 }] }] })).toBeUndefined();
+    });
+
+    it('flags scoring the narrower of two language formats', () => {
+        const formats = [lang('Dutch', [7]), lang('Language: Dutch', [7, 19])];
+        const found = subsetFindings(profile({ name: '2160p Balanced NL', minFormatScore: 500000, formatItems: [{ name: 'Dutch', score: 500000 }, { name: 'Language: Dutch', score: 0 }] }), formats);
+        expect(found.map(f => f.kind)).toEqual(['subset_format_scored']);
+        expect(found[0]?.detail).toContain('Language: Dutch');
+    });
+
+    it('is quiet when the wider format is the one scored', () => {
+        const formats = [lang('Dutch', [7]), lang('Language: Dutch', [7, 19])];
+        expect(subsetFindings(profile({ formatItems: [{ name: 'Dutch', score: 0 }, { name: 'Language: Dutch', score: 500 }] }), formats)).toEqual([]);
+    });
+
+    it('is quiet when the two sets are equal', () => {
+        const formats = [lang('A', [7]), lang('B', [7])];
+        expect(subsetFindings(profile({ formatItems: [{ name: 'A', score: 500 }, { name: 'B', score: 0 }] }), formats)).toEqual([]);
     });
 });
