@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.7](https://github.com/bardesss/arr-mcp/compare/v1.26.6...v1.26.7) (2026-09-14)
+
+
+### Bug Fixes
+
+* give one next action when a confirmation token is rejected ([#253](https://github.com/bardesss/arr-mcp/issues/253)) ([c581462](https://github.com/bardesss/arr-mcp/commit/c581462ffc494fea5f1e31e348b9f45a46e7697d))
+
 ## [1.26.6](https://github.com/bardesss/arr-mcp/compare/v1.26.5...v1.26.6) (2026-09-14)
 
 
