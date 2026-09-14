@@ -49,7 +49,7 @@ describe('ProfilarrAdapter', () => {
         expect(method).toBe('POST');
     });
 
-    it('polls a job to a terminal state rather than trusting the 202', async () => {
+    it('returns the job id from the 202 trigger, and its status from a separate jobStatus call', async () => {
         const statuses = ['queued', 'running', 'success'];
         let call = 0;
         const adapter = new ProfilarrAdapter(config, (async (input: string | URL | Request) => {

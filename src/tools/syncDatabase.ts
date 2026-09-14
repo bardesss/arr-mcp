@@ -55,6 +55,10 @@ const DATABASE_MATCH = {
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
+/** What every read of a job's status says on failure — a mid-poll read that
+ *  errors is not evidence the sync failed, only that this one check did. */
+const STILL_RUNNING_REMEDY = 'The sync may still be running — check Profilarr directly.';
+
 /** The one place a 202 stops being trusted: this waits for a real outcome. */
 async function awaitJob(
     adapter: SyncCapable,
@@ -63,12 +67,23 @@ async function awaitJob(
     maxPolls: number
 ): Promise<JobStatus> {
     for (let attempt = 0; attempt < maxPolls; attempt++) {
-        const status = await adapter.jobStatus(jobId);
+        let status: JobStatus;
+        try {
+            status = await adapter.jobStatus(jobId);
+        } catch (err) {
+            throw new ServiceError(
+                'UpstreamError',
+                'profilarr',
+                `could not read sync job ${jobId}'s status: ${err instanceof Error ? err.message : String(err)}`,
+                { remedy: STILL_RUNNING_REMEDY, cause: err }
+            );
+        }
         if (TERMINAL.has(status)) return status;
-        await sleep(pollIntervalMs);
+        // Never after the last attempt — nothing is waiting on the throw below.
+        if (attempt < maxPolls - 1) await sleep(pollIntervalMs);
     }
     throw new ServiceError('UpstreamError', 'profilarr', `sync job ${jobId} did not finish after ${maxPolls} polls`, {
-        remedy: 'Check Profilarr directly — the job may still be running.'
+        remedy: STILL_RUNNING_REMEDY
     });
 }
 
@@ -79,8 +94,11 @@ export function registerSyncDatabase(
     /** Test-only knobs — production keeps the defaults. */
     opts: { pollIntervalMs?: number; maxPolls?: number } = {}
 ): void {
-    const pollIntervalMs = opts.pollIntervalMs ?? 2000;
-    const maxPolls = opts.maxPolls ?? 60;
+    // 24 polls at 1s apart, minus the skipped final sleep (see `awaitJob`):
+    // ~23s worst case, comfortably inside a 60s client timeout, with a poll
+    // frequent enough that an ordinary git-pull sync is reported promptly.
+    const pollIntervalMs = opts.pollIntervalMs ?? 1000;
+    const maxPolls = opts.maxPolls ?? 24;
 
     registerWriteTool(server, context, {
         name: 'sync_database',

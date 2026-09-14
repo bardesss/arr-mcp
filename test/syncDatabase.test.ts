@@ -140,6 +140,50 @@ describe('sync_database', () => {
         await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(/failed/);
     });
 
+    it('does not report success when the job is cancelled', async () => {
+        const { adapter } = fakeProfilarr([db(3, 'Dictionarry')], ['queued', 'cancelled']);
+        const h = harness({ adapter });
+
+        const preview = await h.call({});
+        await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(/cancelled/);
+    });
+
+    it('does not report success when the job never reaches a terminal status', async () => {
+        // Never terminates on its own — this is the exhaustion path, not one
+        // of the three real outcomes. Reporting anything but a refusal here
+        // would be the defining failure this whole tool exists to avoid.
+        const { adapter, jobCallCount } = fakeProfilarr([db(3, 'Dictionarry')], ['running']);
+        const h = harness({ adapter });
+
+        const preview = await h.call({});
+        await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(
+            /sync job 9 did not finish after 5 polls.*check profilarr/i
+        );
+        // Every budgeted poll ran — not an early bail after one or two checks.
+        expect(jobCallCount()).toBe(5);
+    });
+
+    it('says the sync may still be running when a mid-poll status read fails', async () => {
+        const { adapter: base } = fakeProfilarr([db(3, 'Dictionarry')], ['queued', 'success']);
+        let calls = 0;
+        const adapter: FakeProfilarr = {
+            ...base,
+            jobStatus: () => {
+                calls += 1;
+                // The first read is a transient upstream failure (a 502, say);
+                // it must read as "still running", not as a failed sync.
+                if (calls === 1) return Promise.reject(new Error('502 Bad Gateway'));
+                return Promise.resolve('success');
+            }
+        };
+        const h = harness({ adapter });
+
+        const preview = await h.call({});
+        await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(
+            /may still be running/i
+        );
+    });
+
     it('names the config key when safe writes are disabled', async () => {
         const { adapter } = fakeProfilarr([db(3, 'Dictionarry')], ['success']);
         const off: KeyedServiceConfig = { ...keyed, permissions: { safe_write: false, destructive: false } };
