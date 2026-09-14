@@ -162,4 +162,26 @@ describe('instance join', () => {
         const adapters = [fake('radarr', 'radarr', 'http://box:8989')];
         expect(matchArr({ id: 1, name: 'radarr', type: 'sonarr', url: 'http://box:8989' }, adapters)).toBeUndefined();
     });
+
+    it('resolves the url from the instance config when the adapter itself carries none', () => {
+        // Real ServiceAdapters carry no url — this is the path they actually
+        // take. Both names differ from Profilarr's, so only the host resolved
+        // via `instances` can pick out the right one; this fails against a
+        // name-only fallback.
+        const bareAdapter = (id: string, type: string, instance?: string) => ({ id, type, instance }) as never;
+        const instanceConfig = (id: string, type: string, url: string) => ({ id, type, config: { url } }) as never;
+
+        const adapters = [bareAdapter('sonarr', 'sonarr'), bareAdapter('sonarr/4k', 'sonarr', 'sonarr/4k')];
+        const instances = [
+            instanceConfig('sonarr', 'sonarr', 'http://10.0.0.5:8989'),
+            instanceConfig('sonarr/4k', 'sonarr', 'http://10.0.0.6:8989')
+        ];
+
+        const found = matchArr(
+            { id: 1, name: 'Some Random Name', type: 'sonarr', url: 'http://10.0.0.6:8989' },
+            adapters,
+            instances
+        );
+        expect(found?.id).toBe('sonarr/4k');
+    });
 });

@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import type { ServiceInstance } from '../../config/instances.ts';
 import { logger } from '../../core/logger.ts';
 import {
     DetailSchema,
@@ -100,14 +101,25 @@ const safeHost = (url: string | undefined): string | undefined => {
 /**
  * Joins one Profilarr arr entry to the arr-mcp instance it describes: URL
  * host+port first, then a case-insensitive name match against the instance
- * name (or bare id) when no adapter here carries a URL. Never across service
- * types, and undefined rather than a guess.
+ * name (or bare id). Never across service types, and undefined rather than a
+ * guess.
+ *
+ * `ServiceAdapter` carries no URL of its own — `instances` is the config-level
+ * source (`ServiceInstance.config.url`), keyed by the same id an adapter
+ * reports. `(a as { url?: string }).url` is a second, narrower source kept for
+ * a bare test double that carries its own `url` and no matching instance.
  */
-export function matchArr(entry: ProfilarrArrEntry, adapters: readonly ServiceAdapter[]): ServiceAdapter | undefined {
+export function matchArr(
+    entry: ProfilarrArrEntry,
+    adapters: readonly ServiceAdapter[],
+    instances: readonly ServiceInstance[] = []
+): ServiceAdapter | undefined {
     const sameType = adapters.filter(a => a.type === entry.type);
     const entryHost = safeHost(entry.url);
     if (entryHost !== undefined) {
-        const byUrl = sameType.find(a => safeHost((a as { url?: string }).url) === entryHost);
+        const urlOf = (a: ServiceAdapter): string | undefined =>
+            instances.find(i => i.id === a.id)?.config.url ?? (a as { url?: string }).url;
+        const byUrl = sameType.find(a => safeHost(urlOf(a)) === entryHost);
         if (byUrl !== undefined) return byUrl;
     }
     return sameType.find(a => (a.instance ?? a.id).toLowerCase() === entry.name.toLowerCase());
@@ -124,7 +136,8 @@ const driftCounts = (d: ProfilarrDrift['details']): string =>
 async function collectDriftFindings(
     profilarr: ServiceAdapter & ProfilarrStatusCapable,
     targeted: readonly ServiceAdapter[],
-    opts: { service?: ArrServiceType; instance?: string }
+    opts: { service?: ArrServiceType; instance?: string },
+    instances: readonly ServiceInstance[]
 ): Promise<{ items: ProfileIssue[]; note?: string }> {
     const [status, arrEntries] = await Promise.all([profilarr.status(), profilarr.listArrs()]);
     const entryById = new Map(arrEntries.map(e => [e.id, e]));
@@ -135,7 +148,7 @@ async function collectDriftFindings(
     for (const arrStatus of status.arrs) {
         if (opts.service !== undefined && arrStatus.type !== opts.service) continue;
         const entry = entryById.get(arrStatus.id);
-        const matched = entry === undefined ? undefined : matchArr(entry, targeted);
+        const matched = entry === undefined ? undefined : matchArr(entry, targeted, instances);
         if (opts.instance !== undefined && matched?.instance !== opts.instance) continue;
 
         const drift = arrStatus.drift;
@@ -166,7 +179,9 @@ async function collectDriftFindings(
 
 export async function buildGetProfileIssues(
     adapters: readonly ServiceAdapter[],
-    opts: { detail: DetailLevel; limit: number; offset?: number; service?: ArrServiceType; instance?: string; profile?: string }
+    opts: { detail: DetailLevel; limit: number; offset?: number; service?: ArrServiceType; instance?: string; profile?: string },
+    /** Optional and last, so every existing call site keeps compiling. */
+    instances: readonly ServiceInstance[] = []
 ): Promise<GetProfileIssuesResult> {
     const arrAdapters = adapters.filter(isArrAdapter);
     const profilarr = adapters.find(hasProfilarrStatus);
@@ -227,10 +242,15 @@ export async function buildGetProfileIssues(
         notes.push(DRIFT_NOT_CHECKED_NOTE);
     } else {
         try {
-            const drift = await collectDriftFindings(profilarr, targeted, {
-                ...(opts.service === undefined ? {} : { service: opts.service }),
-                ...(opts.instance === undefined ? {} : { instance: opts.instance })
-            });
+            const drift = await collectDriftFindings(
+                profilarr,
+                targeted,
+                {
+                    ...(opts.service === undefined ? {} : { service: opts.service }),
+                    ...(opts.instance === undefined ? {} : { instance: opts.instance })
+                },
+                instances
+            );
             items.push(...drift.items);
             if (drift.note !== undefined) notes.push(drift.note);
         } catch (err) {
@@ -260,7 +280,11 @@ export const summarizeProfileIssues = (result: GetProfileIssuesResult, arrInstan
     return withNote(counts);
 };
 
-export function registerGetProfileIssues(server: McpServer, adapters: readonly ServiceAdapter[]): void {
+export function registerGetProfileIssues(
+    server: McpServer,
+    adapters: readonly ServiceAdapter[],
+    instances?: readonly ServiceInstance[]
+): void {
     server.registerTool(
         'get_profile_issues',
         {
@@ -291,14 +315,18 @@ export function registerGetProfileIssues(server: McpServer, adapters: readonly S
             })
         },
         async ({ detail, limit, offset, service, instance, profile }) => {
-            const result = await buildGetProfileIssues(adapters, {
-                detail,
-                limit,
-                offset,
-                ...(service === undefined ? {} : { service }),
-                ...(instance === undefined ? {} : { instance }),
-                ...(profile === undefined ? {} : { profile })
-            });
+            const result = await buildGetProfileIssues(
+                adapters,
+                {
+                    detail,
+                    limit,
+                    offset,
+                    ...(service === undefined ? {} : { service }),
+                    ...(instance === undefined ? {} : { instance }),
+                    ...(profile === undefined ? {} : { profile })
+                },
+                instances
+            );
             const arrInstanceCount = adapters.filter(isArrAdapter).length;
             const summary = summarizeProfileIssues(result, arrInstanceCount);
 
