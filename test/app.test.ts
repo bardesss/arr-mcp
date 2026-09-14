@@ -7,7 +7,7 @@ import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
-import type { ServiceAdapter } from '../src/services/types.ts';
+import type { ProfileDiagnosticsCapable, ServiceAdapter } from '../src/services/types.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { rpcPayload as parseRpcPayload } from '../scripts/lib/rpc.ts';
 
@@ -806,23 +806,26 @@ describe('every tool declares the shape it answers in', () => {
 });
 
 describe('get_profile_issues', () => {
-    const sonarr = (): ServiceAdapter =>
-        ({
-            id: 'sonarr',
-            type: 'sonarr',
-            testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 3 }),
-            getVersion: async () => '4.0.0',
-            // `minFormatScore` equals the sum of the positive scores, which is
-            // exactly the knife-edge case `floorFindings` exists to catch.
-            readProfileDiagnostics: async () => ({
-                profiles: [{ name: 'HD-1080p', minFormatScore: 10, formatItems: [{ name: 'French', score: 10 }] }],
-                formats: [],
-                languages: []
-            })
-        }) as unknown as ServiceAdapter;
+    const sonarr = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+        id: 'sonarr',
+        type: 'sonarr',
+        testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 3 }),
+        getVersion: async () => '4.0.0',
+        // `minFormatScore` equals the sum of the positive scores, which is
+        // exactly the knife-edge case `floorFindings` exists to catch.
+        readProfileDiagnostics: async () => ({
+            profiles: [{ name: 'HD-1080p', minFormatScore: 10, formatItems: [{ name: 'French', score: 10 }] }],
+            formats: [],
+            languages: []
+        })
+    });
 
-    const callTool = async (name: string, args: Record<string, unknown>) => {
-        const res = await appWith(config, [sonarr()]).request(
+    const callTool = async (
+        name: string,
+        args: Record<string, unknown>,
+        adapters: readonly ServiceAdapter[] = [sonarr()]
+    ) => {
+        const res = await appWith(config, adapters).request(
             'http://localhost:6060/mcp',
             rpc(
                 { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
@@ -845,6 +848,98 @@ describe('get_profile_issues', () => {
     it('says drift was not checked when no profilarr is configured', async () => {
         const result = await callTool('get_profile_issues', {});
         expect((result.structuredContent as { note?: string }).note).toMatch(/profilarr/i);
+    });
+
+    /**
+     * The language map is built per instance from that instance's own
+     * `/api/v3/language` — a stub returning `languages: []` (every test above
+     * this one) never exercises it, so `dialectFindings` runs against an empty
+     * map and the wiring at `index.ts` connecting the two goes unverified. A
+     * load-bearing Dutch-only format with both Dutch and Flemish in the
+     * instance's language table is the case that catches a dropped or
+     * mis-keyed map.
+     */
+    it('resolves the language map per instance and finds a missing dialect sibling', async () => {
+        const radarr = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+            getVersion: async () => '6.0.0',
+            readProfileDiagnostics: async () => ({
+                profiles: [{ name: 'Dutch-only', minFormatScore: 5, formatItems: [{ name: 'Dutch', score: 5 }] }],
+                formats: [
+                    {
+                        name: 'Dutch',
+                        specifications: [
+                            { implementation: 'LanguageSpecification', negate: false, required: false, fields: [{ name: 'value', value: 1 }] }
+                        ]
+                    }
+                ],
+                languages: [
+                    { id: 1, name: 'Dutch' },
+                    { id: 2, name: 'Flemish' }
+                ]
+            })
+        });
+
+        const result = await callTool('get_profile_issues', {}, [radarr()]);
+        const items = (result.structuredContent as { items: Array<{ kind: string; detail: string }> }).items;
+        const dialect = items.find(i => i.kind === 'dialect_sibling_missing');
+        expect(dialect).toBeDefined();
+        expect(dialect?.detail).toContain('Flemish');
+    });
+
+    /**
+     * A naive `Promise.all` with no per-adapter try/catch would fail the whole
+     * call the moment one instance throws. The other instance's findings must
+     * still come back, and the throwing one must be named in `degraded`.
+     */
+    it('degrades a throwing adapter without losing the other instance’s findings', async () => {
+        const radarr = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+            getVersion: async () => '6.0.0',
+            readProfileDiagnostics: async () => {
+                throw new Error('unreachable');
+            }
+        });
+
+        const result = await callTool('get_profile_issues', {}, [radarr(), sonarr()]);
+        const body = result.structuredContent as { items: Array<{ kind: string; service: string }>; degraded: string[] };
+
+        expect(body.degraded).toContain('radarr');
+        expect(body.items.some(i => i.kind === 'knife_edge_floor' && i.service === 'sonarr')).toBe(true);
+    });
+
+    it('reports an explanatory note and an empty list when no arr service is configured at all', async () => {
+        const result = await callTool('get_profile_issues', {}, []);
+        const body = result.structuredContent as { items: unknown[]; total: number; note?: string };
+
+        expect(body.items).toEqual([]);
+        expect(body.total).toBe(0);
+        expect(body.note).toBeDefined();
+    });
+
+    it('filters to one service, dropping findings from the others', async () => {
+        const radarr = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+            getVersion: async () => '6.0.0',
+            readProfileDiagnostics: async () => ({
+                profiles: [{ name: 'Unreachable', minFormatScore: 100, formatItems: [{ name: 'X', score: 10 }] }],
+                formats: [],
+                languages: []
+            })
+        });
+
+        const result = await callTool('get_profile_issues', { service: 'sonarr' }, [radarr(), sonarr()]);
+        const items = (result.structuredContent as { items: Array<{ kind: string; service: string }> }).items;
+
+        expect(items.length).toBeGreaterThan(0);
+        expect(items.every(i => i.service === 'sonarr')).toBe(true);
+        expect(items.some(i => i.kind === 'unreachable_floor')).toBe(false);
     });
 });
 
