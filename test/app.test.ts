@@ -821,6 +821,18 @@ describe('get_profile_issues', () => {
         })
     });
 
+    /** A named instance, so a drift finding's `instance` field has something
+     *  to actually carry — `sonarr()` above has none, which cannot tell
+     *  attribution apart from the unattributed branch. */
+    const sonarr4k = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+        id: 'sonarr/4k',
+        type: 'sonarr',
+        instance: 'sonarr/4k',
+        testConnection: async () => ({ ok: true, service: 'sonarr/4k', latency_ms: 3 }),
+        getVersion: async () => '4.0.0',
+        readProfileDiagnostics: async () => ({ profiles: [], formats: [], languages: [] })
+    });
+
     type DriftFixture = {
         id: number;
         name: string;
@@ -977,12 +989,16 @@ describe('get_profile_issues', () => {
 
     describe('profilarr drift', () => {
         it('reports a certain drift finding attributed to the matched instance', async () => {
+            // `sonarr/4k` in both the entry name and the fixture's `instance`
+            // is the fact that distinguishes attribution from the unattributed
+            // branch — `service`/`confidence`/a detail substring alone cannot,
+            // since the unattributed branch emits the same three.
             const pf = profilarr(
-                [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 2, delayProfiles: 0, mediaManagement: 1 } } }],
-                [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' }]
+                [{ id: 1, name: 'sonarr/4k', type: 'sonarr', enabled: true, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 2, delayProfiles: 0, mediaManagement: 1 } } }],
+                [{ id: 1, name: 'sonarr/4k', type: 'sonarr', url: 'http://sonarr4k.example:8989' }]
             );
 
-            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const result = await callTool('get_profile_issues', {}, [sonarr4k(), pf]);
             const items = (result.structuredContent as {
                 items: Array<{ kind: string; service: string; instance?: string; confidence: string; detail: string }>;
             }).items;
@@ -990,8 +1006,10 @@ describe('get_profile_issues', () => {
 
             expect(drift).toBeDefined();
             expect(drift?.service).toBe('sonarr');
+            expect(drift?.instance).toBe('sonarr/4k');
             expect(drift?.confidence).toBe('certain');
             expect(drift?.detail).toContain('2 quality profile');
+            expect(drift?.detail).not.toContain('unattributed');
         });
 
         it('reports an unattributed drift finding when the entry matches no configured instance', async () => {
@@ -1024,6 +1042,49 @@ describe('get_profile_issues', () => {
 
             expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
             expect(body.note).toContain(DRIFT_PENDING_NOTE);
+        });
+
+        it('still reports drift as pending when an instance filter matches nothing', async () => {
+            // `instance: 'sonarr/4k'` matches no configured adapter at all
+            // (the default `sonarr()` fixture carries no `instance`), so the
+            // entry cannot be attributed. The pending note must survive that
+            // regardless — a null drift silently rendering as clean is the
+            // exact failure the global constraint forbids.
+            const pf = profilarr(
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, drift: null }],
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' }]
+            );
+
+            const result = await callTool('get_profile_issues', { instance: 'sonarr/4k' }, [sonarr(), pf]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; note?: string };
+
+            expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
+            expect(body.note).toContain(DRIFT_PENDING_NOTE);
+        });
+
+        it('skips a disabled arr entry entirely, neither drifted nor pending', async () => {
+            const pf = profilarr(
+                [
+                    { id: 1, name: 'Sonarr', type: 'sonarr', enabled: false, drift: null },
+                    {
+                        id: 2,
+                        name: 'Sonarr 2',
+                        type: 'sonarr',
+                        enabled: false,
+                        drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 1, delayProfiles: 0, mediaManagement: 0 } }
+                    }
+                ],
+                [
+                    { id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' },
+                    { id: 2, name: 'Sonarr 2', type: 'sonarr', url: 'http://sonarr2.example:8989' }
+                ]
+            );
+
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; note?: string };
+
+            expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
+            expect(body.note).toBeUndefined();
         });
 
         it('is quiet when Profilarr has checked and found no drift', async () => {

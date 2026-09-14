@@ -30,7 +30,9 @@ type ArrServiceType = 'radarr' | 'sonarr' | 'whisparr';
 export type ProfileIssue = {
     service: ArrServiceType;
     instance?: string;
-    profile: string;
+    /** Absent for `profilarr_drift`, which is instance-scoped rather than
+     *  about any one quality profile. */
+    profile?: string;
     kind: FindingKind;
     confidence: Confidence;
     detail: string;
@@ -73,7 +75,8 @@ const project = (issue: ProfileIssue, detail: DetailLevel): ProfileIssue => {
 
 export function profileIssueLine(issue: ProfileIssue): string {
     const where = [issue.service, issue.instance].filter((s): s is string => s !== undefined).join('/');
-    return `${where} \`${issue.profile}\` — ${issue.kind} (${issue.confidence}): ${issue.detail}`;
+    const profile = issue.profile === undefined ? '' : ` \`${issue.profile}\``;
+    return `${where}${profile} — ${issue.kind} (${issue.confidence}): ${issue.detail}`;
 }
 
 const isArrAdapter = (a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
@@ -147,15 +150,21 @@ async function collectDriftFindings(
 
     for (const arrStatus of status.arrs) {
         if (opts.service !== undefined && arrStatus.type !== opts.service) continue;
+        // Profilarr is not managing this arr, so its drift status — checked
+        // or not — describes a relationship that is switched off, not a
+        // live fact worth surfacing.
+        if (!arrStatus.enabled) continue;
         const entry = entryById.get(arrStatus.id);
         const matched = entry === undefined ? undefined : matchArr(entry, targeted, instances);
-        if (opts.instance !== undefined && matched?.instance !== opts.instance) continue;
 
+        // Set before the `instance` filter can drop this row: a pending
+        // check must never disappear just because it failed to match a
+        // requested instance, or "not checked yet" silently reads as clean.
         const drift = arrStatus.drift;
-        if (drift === null) {
-            pending = true;
-            continue;
-        }
+        if (drift === null) pending = true;
+
+        if (opts.instance !== undefined && matched?.instance !== opts.instance) continue;
+        if (drift === null) continue;
         if (!drift.drifted) continue;
 
         const name = entry?.name ?? arrStatus.name;
@@ -163,7 +172,6 @@ async function collectDriftFindings(
         items.push({
             service: arrStatus.type,
             ...(matched?.instance === undefined ? {} : { instance: matched.instance }),
-            profile: name,
             kind: 'profilarr_drift',
             confidence: 'certain',
             detail:
@@ -294,8 +302,11 @@ export function registerGetProfileIssues(
                 'Faults in Radarr, Sonarr and Whisparr quality profiles that Profilarr, not arr-mcp, can fix: a ' +
                 'minimum custom format score nothing can reach, a score set exactly on the edge, a narrower ' +
                 'language format scored while a wider one sits at zero, a language scored without a minimum to ' +
-                'enforce it, and a dialect sibling left uncovered. Read-only — every `remedy` names a change to ' +
-                'make in Profilarr, never one arr-mcp performs. `note` explains when nothing was configured to check.',
+                'enforce it, a dialect sibling left uncovered, and Profilarr-reported drift between its saved ' +
+                'profiles and what an instance actually holds. Drift findings are instance-scoped, not tied to any ' +
+                'one profile, and are unaffected by the `profile` filter. Read-only — every `remedy` names a ' +
+                'change to make in Profilarr, never one arr-mcp performs. `note` explains when nothing was ' +
+                'configured to check.',
             outputSchema: PagedOutputSchema.extend({
                 note: z
                     .string()
