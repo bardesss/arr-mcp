@@ -49,8 +49,20 @@ describe('subset formats', () => {
         expect(pureLanguageSet({ name: 'x', specifications: [{ implementation: 'ReleaseTitleSpecification', negate: false, required: false, fields: [{ name: 'value', value: 'NL' }] }] })).toBeUndefined();
     });
 
-    it('refuses to read a negated or required language format', () => {
+    it('refuses to read a negated language format', () => {
         expect(pureLanguageSet({ name: 'x', specifications: [{ implementation: 'LanguageSpecification', negate: true, required: false, fields: [{ name: 'value', value: 7 }] }] })).toBeUndefined();
+    });
+
+    it('refuses to read a required language format', () => {
+        expect(pureLanguageSet({ name: 'x', specifications: [{ implementation: 'LanguageSpecification', negate: false, required: true, fields: [{ name: 'value', value: 7 }] }] })).toBeUndefined();
+    });
+
+    it('refuses to read a language format whose value is not a number', () => {
+        expect(pureLanguageSet({ name: 'x', specifications: [{ implementation: 'LanguageSpecification', negate: false, required: false, fields: [{ name: 'value', value: 'dutch' }] }] })).toBeUndefined();
+    });
+
+    it('refuses to read a format with no conditions at all', () => {
+        expect(pureLanguageSet({ name: 'x', specifications: [] })).toBeUndefined();
     });
 
     it('flags scoring the narrower of two language formats', () => {
