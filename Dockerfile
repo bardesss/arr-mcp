@@ -2,7 +2,7 @@
 
 # Pinned by digest, not by tag. This file records an arm64 startup death
 # caused by a glibc mismatch; a silent upstream re-tag would change glibc
-# under a release build with no diff to review. Renovate keeps it current.
+# under a release build with no diff to review. Dependabot keeps it current.
 FROM node:24-trixie-slim@sha256:0711b541c1c33a8a530ac4f0d391baa9a15b3d804695b1b24a47daa5fb60e74d AS build
 WORKDIR /app
 # better-sqlite3 compiles a native addon; unused in Phase 1 but proven here so
