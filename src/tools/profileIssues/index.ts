@@ -107,10 +107,11 @@ const safeHost = (url: string | undefined): string | undefined => {
  * name (or bare id). Never across service types, and undefined rather than a
  * guess.
  *
- * `ServiceAdapter` carries no URL of its own — `instances` is the config-level
- * source (`ServiceInstance.config.url`), keyed by the same id an adapter
- * reports. `(a as { url?: string }).url` is a second, narrower source kept for
- * a bare test double that carries its own `url` and no matching instance.
+ * `ServiceAdapter` carries no URL of its own in production — `instances` is
+ * the config-level source (`ServiceInstance.config.url`), keyed by the same
+ * id an adapter reports. `(a as { url?: string }).url` is dead there; it
+ * exists only for tests that pass a bare adapter double with its own `url`
+ * and no matching instance.
  */
 export function matchArr(
     entry: ProfilarrArrEntry,
@@ -188,8 +189,7 @@ async function collectDriftFindings(
 export async function buildGetProfileIssues(
     adapters: readonly ServiceAdapter[],
     opts: { detail: DetailLevel; limit: number; offset?: number; service?: ArrServiceType; instance?: string; profile?: string },
-    /** Optional and last, so every existing call site keeps compiling. */
-    instances: readonly ServiceInstance[] = []
+    instances: readonly ServiceInstance[]
 ): Promise<GetProfileIssuesResult> {
     const arrAdapters = adapters.filter(isArrAdapter);
     const profilarr = adapters.find(hasProfilarrStatus);
@@ -291,7 +291,7 @@ export const summarizeProfileIssues = (result: GetProfileIssuesResult, arrInstan
 export function registerGetProfileIssues(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
-    instances?: readonly ServiceInstance[]
+    instances: readonly ServiceInstance[]
 ): void {
     server.registerTool(
         'get_profile_issues',

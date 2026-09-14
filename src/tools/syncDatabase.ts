@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
-import type { ProfilarrDatabase } from '../services/profilarr.ts';
+import type { JobOutcome, JobStatus, ProfilarrDatabase } from '../services/profilarr.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { chooseOne } from './chooseOne.ts';
 import { resolveInstance } from './resolveInstance.ts';
@@ -18,13 +18,12 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * sync is never reported as done.
  */
 
-type JobStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
 const TERMINAL: ReadonlySet<JobStatus> = new Set(['success', 'failed', 'cancelled']);
 
 type SyncCapable = {
     status(): Promise<{ databases: ProfilarrDatabase[] }>;
     triggerSync(databaseId: number): Promise<number>;
-    jobStatus(jobId: number): Promise<JobStatus>;
+    jobStatus(jobId: number): Promise<JobOutcome>;
 };
 
 const hasSync = (a: ServiceAdapter): a is ServiceAdapter & SyncCapable =>
@@ -65,11 +64,11 @@ async function awaitJob(
     jobId: number,
     pollIntervalMs: number,
     maxPolls: number
-): Promise<JobStatus> {
+): Promise<JobOutcome> {
     for (let attempt = 0; attempt < maxPolls; attempt++) {
-        let status: JobStatus;
+        let outcome: JobOutcome;
         try {
-            status = await adapter.jobStatus(jobId);
+            outcome = await adapter.jobStatus(jobId);
         } catch (err) {
             throw new ServiceError(
                 'UpstreamError',
@@ -78,7 +77,7 @@ async function awaitJob(
                 { remedy: STILL_RUNNING_REMEDY, cause: err }
             );
         }
-        if (TERMINAL.has(status)) return status;
+        if (TERMINAL.has(outcome.status)) return outcome;
         // Never after the last attempt — nothing is waiting on the throw below.
         if (attempt < maxPolls - 1) await sleep(pollIntervalMs);
     }
@@ -143,12 +142,15 @@ export function registerSyncDatabase(
             const { databaseId } = plan.args as { databaseId: number };
             const adapter = findAdapter(adapters);
             const jobId = await adapter.triggerSync(databaseId);
-            const status = await awaitJob(adapter, jobId, pollIntervalMs, maxPolls);
+            const { status, detail } = await awaitJob(adapter, jobId, pollIntervalMs, maxPolls);
 
             if (status !== 'success') {
-                throw new ServiceError('UpstreamError', 'profilarr', `sync job ${jobId} ended as ${status}`, {
-                    remedy: "Check Profilarr's job history for what went wrong."
-                });
+                throw new ServiceError(
+                    'UpstreamError',
+                    'profilarr',
+                    `sync job ${jobId} ended as ${status}${detail === undefined ? '' : `: ${detail}`}`,
+                    detail === undefined ? { remedy: "Check Profilarr's job history for what went wrong." } : {}
+                );
             }
             return { jobId, status };
         }

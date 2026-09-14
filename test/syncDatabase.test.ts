@@ -5,17 +5,16 @@ import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/con
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
-import type { ProfilarrDatabase } from '../src/services/profilarr.ts';
+import type { JobOutcome, JobStatus, ProfilarrDatabase } from '../src/services/profilarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerSyncDatabase } from '../src/tools/syncDatabase.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 
-type JobStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
 type FakeProfilarr = ServiceAdapter & {
     status(): Promise<{ databases: ProfilarrDatabase[] }>;
     triggerSync(databaseId: number): Promise<number>;
-    jobStatus(jobId: number): Promise<JobStatus>;
+    jobStatus(jobId: number): Promise<JobOutcome>;
 };
 
 const db = (id: number, name: string): ProfilarrDatabase => ({
@@ -43,7 +42,7 @@ function fakeProfilarr(databases: ProfilarrDatabase[], statuses: JobStatus[]) {
         jobStatus: () => {
             const status = statuses[Math.min(jobCalls, statuses.length - 1)] as JobStatus;
             jobCalls++;
-            return Promise.resolve(status);
+            return Promise.resolve({ status });
         }
     };
     return { adapter, triggerCalls, jobCallCount: () => jobCalls };
@@ -173,7 +172,7 @@ describe('sync_database', () => {
                 // The first read is a transient upstream failure (a 502, say);
                 // it must read as "still running", not as a failed sync.
                 if (calls === 1) return Promise.reject(new Error('502 Bad Gateway'));
-                return Promise.resolve('success');
+                return Promise.resolve({ status: 'success' as const });
             }
         };
         const h = harness({ adapter });
@@ -181,6 +180,31 @@ describe('sync_database', () => {
         const preview = await h.call({});
         await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(
             /may still be running/i
+        );
+    });
+
+    it('surfaces what Profilarr said went wrong when a job fails', async () => {
+        const { adapter: base } = fakeProfilarr([db(3, 'Dictionarry')], ['queued']);
+        const adapter: FakeProfilarr = {
+            ...base,
+            jobStatus: () =>
+                Promise.resolve({ status: 'failed', detail: 'custom format "HDR10+" references an unknown group' })
+        };
+        const h = harness({ adapter });
+
+        const preview = await h.call({});
+        await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(
+            /custom format "HDR10\+" references an unknown group/
+        );
+    });
+
+    it('falls back to the generic remedy when Profilarr supplies no detail', async () => {
+        const { adapter } = fakeProfilarr([db(3, 'Dictionarry')], ['queued', 'failed']);
+        const h = harness({ adapter });
+
+        const preview = await h.call({});
+        await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(
+            /check profilarr's job history/i
         );
     });
 

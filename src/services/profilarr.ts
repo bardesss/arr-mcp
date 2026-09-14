@@ -31,6 +31,12 @@ export type ProfilarrDatabase = {
     counts: { customFormats: number; qualityProfiles: number; regularExpressions: number; delayProfiles: number };
 };
 
+export type JobStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
+
+/** `detail` is Profilarr's own error (or, failing that, output) for a
+ *  finished job — absent when it supplied neither. */
+export type JobOutcome = { status: JobStatus; detail?: string };
+
 const API = '/api/v1';
 
 /**
@@ -91,8 +97,9 @@ export class ProfilarrAdapter implements ServiceAdapter {
         return result.jobId;
     }
 
-    async jobStatus(jobId: number): Promise<'queued' | 'running' | 'success' | 'failed' | 'cancelled'> {
+    async jobStatus(jobId: number): Promise<JobOutcome> {
         const job = await this.#http.get<RawJob>(`${API}/jobs/${jobId}`);
-        return job.status;
+        const detail = job.result?.error ?? job.result?.output ?? undefined;
+        return detail === undefined ? { status: job.status } : { status: job.status, detail };
     }
 }

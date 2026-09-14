@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { floorFindings, positiveTotal, pureLanguageSet, subsetFindings, type CustomFormatInput, type ProfileInput } from '../src/tools/profileIssues/rules.ts';
 import { dialectFindings, languagePreferenceFindings } from '../src/tools/profileIssues/rules.ts';
-import { matchArr } from '../src/tools/profileIssues/index.ts';
+import { buildGetProfileIssues, matchArr, registerGetProfileIssues } from '../src/tools/profileIssues/index.ts';
 
 const profile = (over: Partial<ProfileInput>): ProfileInput => ({ name: 'p', minFormatScore: 0, formatItems: [], ...over });
 
@@ -185,3 +185,16 @@ describe('instance join', () => {
         expect(found?.id).toBe('sonarr/4k');
     });
 });
+
+/**
+ * Never called — its only job is to fail `npm run typecheck` if `instances`
+ * ever becomes optional again. Omitting it silently reverts `matchArr` to
+ * name-only matching, the bug this branch already had to fix once.
+ */
+function assertInstancesIsRequiredAtCompileTime(): void {
+    // @ts-expect-error - `instances` must be required on buildGetProfileIssues
+    void buildGetProfileIssues([], { detail: 'minimal', limit: 10 });
+    // @ts-expect-error - `instances` must be required on registerGetProfileIssues
+    registerGetProfileIssues({} as never, []);
+}
+void assertInstancesIsRequiredAtCompileTime;

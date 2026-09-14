@@ -60,7 +60,7 @@ describe('ProfilarrAdapter', () => {
             return new Response('not found', { status: 404 });
         }) as typeof fetch);
         expect(await adapter.triggerSync(3)).toBe(9);
-        expect(await adapter.jobStatus(9)).toBe('queued');
+        expect(await adapter.jobStatus(9)).toEqual({ status: 'queued' });
     });
 
     it('reads job status from the `status` field', async () => {
@@ -76,7 +76,42 @@ describe('ProfilarrAdapter', () => {
                 result: null
             }
         }));
-        expect(await adapter.jobStatus(7)).toBe('running');
+        expect(await adapter.jobStatus(7)).toEqual({ status: 'running' });
+    });
+
+    it('surfaces the result error as detail on a failed job', async () => {
+        const adapter = new ProfilarrAdapter(config, stub({
+            '/api/v1/jobs/8': {
+                id: 8,
+                jobType: 'pcd.sync',
+                status: 'failed',
+                source: 'manual',
+                createdAt: '2026-09-14T00:00:00Z',
+                startedAt: '2026-09-14T00:00:01Z',
+                finishedAt: '2026-09-14T00:00:02Z',
+                result: { status: 'failure', output: null, error: 'git pull failed: authentication required', durationMs: 1000 }
+            }
+        }));
+        expect(await adapter.jobStatus(8)).toEqual({
+            status: 'failed',
+            detail: 'git pull failed: authentication required'
+        });
+    });
+
+    it('falls back to result output when there is no error', async () => {
+        const adapter = new ProfilarrAdapter(config, stub({
+            '/api/v1/jobs/8': {
+                id: 8,
+                jobType: 'pcd.sync',
+                status: 'failed',
+                source: 'manual',
+                createdAt: '2026-09-14T00:00:00Z',
+                startedAt: '2026-09-14T00:00:01Z',
+                finishedAt: '2026-09-14T00:00:02Z',
+                result: { status: 'failure', output: 'no changes to pull', error: null, durationMs: 1000 }
+            }
+        }));
+        expect(await adapter.jobStatus(8)).toEqual({ status: 'failed', detail: 'no changes to pull' });
     });
 
     it('lists configured arrs by id, name, type and url', async () => {
