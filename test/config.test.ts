@@ -154,6 +154,72 @@ describe('ConfigSchema', () => {
     });
 });
 
+const OAUTH = {
+    issuer: 'https://auth.example.com',
+    audience: 'arr-mcp',
+    jwks_uri: 'https://auth.example.com/.well-known/jwks.json'
+};
+
+describe('auth.oauth', () => {
+    it('is absent by default, exactly like a service nobody configured', () => {
+        const config = ConfigSchema.parse({ auth: AUTH, services: {} });
+        expect(config.auth.oauth).toBeUndefined();
+    });
+
+    it('defaults all three scope names when the block omits them', () => {
+        const config = ConfigSchema.parse({ auth: { ...AUTH, oauth: OAUTH }, services: {} });
+        expect(config.auth.oauth?.scopes).toEqual({
+            read: 'arr-mcp:read',
+            write: 'arr-mcp:write',
+            destructive: 'arr-mcp:destructive'
+        });
+    });
+
+    it('lets one scope name be overridden without losing the other two', () => {
+        const oauth = { ...OAUTH, scopes: { read: 'media:read' } };
+        const config = ConfigSchema.parse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(config.auth.oauth?.scopes).toEqual({
+            read: 'media:read',
+            write: 'arr-mcp:write',
+            destructive: 'arr-mcp:destructive'
+        });
+    });
+
+    // `audience` is not optional: without it, every token that issuer ever
+    // minted for any of its clients is accepted here.
+    it.each(['issuer', 'audience', 'jwks_uri'])('refuses a block missing %s', key => {
+        const oauth: Record<string, unknown> = { ...OAUTH };
+        delete oauth[key];
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(false);
+    });
+
+    // The failure this guards against: a misspelled key leaves the endpoint
+    // quietly on the old path while the operator believes OAuth is in force.
+    it('refuses a misspelled key inside the block rather than stripping it', () => {
+        const oauth = { ...OAUTH, jwks_url: 'https://auth.example.com/jwks' };
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(false);
+    });
+
+    it('refuses a misspelled block name under auth, which is the same failure one level up', () => {
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauht: OAUTH }, services: {} });
+        expect(result.success).toBe(false);
+    });
+
+    it('refuses an http issuer, because the metadata document must not advertise one', () => {
+        const oauth = { ...OAUTH, issuer: 'http://auth.example.com' };
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(false);
+    });
+
+    it('allows an http issuer on localhost, for testing against a local provider', () => {
+        const oauth = { ...OAUTH, issuer: 'http://localhost:8080' };
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(true);
+    });
+});
+
 describe('auth.allow_token_in_url', () => {
     it('defaults to false, so an existing config gains nothing by being reparsed', () => {
         const config = ConfigSchema.parse({

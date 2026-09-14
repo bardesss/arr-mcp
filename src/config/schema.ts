@@ -351,11 +351,72 @@ export type Theme = z.infer<typeof ThemeSchema>;
 
 const UiSchema = z.strictObject({ theme: ThemeSchema.default('system') });
 
+/**
+ * The three scopes, one per access level `core/permissions.ts` already
+ * distinguishes. Not a new axis beside the tiers: a read/write pair would
+ * collapse `safe` and `destructive` back together, which is the one
+ * distinction this repo has decided is worth keeping.
+ *
+ * Renameable because an operator's authorization server may already have a
+ * naming convention, and a scope string is theirs to choose. The mapping to
+ * tiers is not.
+ */
+const OAuthScopesSchema = z.strictObject({
+    read: z.string().min(1).default('arr-mcp:read'),
+    write: z.string().min(1).default('arr-mcp:write'),
+    destructive: z.string().min(1).default('arr-mcp:destructive')
+});
+
+/**
+ * Absent means off, exactly like a service nobody configured.
+ *
+ * Strict, and `auth` is strict with it: a misspelled key inside a
+ * non-strict object is silently dropped, which would leave `/mcp` quietly on
+ * the static-token path while the operator believed OAuth was in force. That
+ * is the failure this block most needs to refuse, so it refuses it at both
+ * levels.
+ *
+ * `jwks_uri` is required rather than discovered. OIDC discovery would be a
+ * second outbound request to a path derived from the issuer; one config line
+ * buys that whole class of surprise away.
+ */
+const OAuthSchema = z.strictObject({
+    /**
+     * HTTPS, or a loopback host for testing against a local provider. The
+     * MCP SDK's `buildOAuthProtectedResourceMetadata` enforces the same rule
+     * and throws when it is broken — refusing here means a bad issuer is a
+     * fatal config error at startup rather than a 500 from the metadata
+     * route.
+     */
+    issuer: z
+        .url()
+        .refine(
+            value => {
+                const url = new URL(value);
+                return url.protocol === 'https:' || url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+            },
+            { message: 'issuer must be https, or http on localhost' }
+        )
+        .refine(value => new URL(value).hash === '' && new URL(value).search === '', {
+            message: 'issuer must not carry a query string or a fragment'
+        }),
+    /**
+     * Not optional, and this is the one field most likely to be left out.
+     * Without it, every token that issuer ever minted for any of its clients
+     * is accepted here.
+     */
+    audience: z.string().min(1),
+    jwks_uri: z.url(),
+    scopes: OAuthScopesSchema.prefault({})
+});
+
+export type OAuthConfig = z.infer<typeof OAuthSchema>;
+
 export const ConfigSchema = z.object({
     // Required, not optional: loadConfig always injects a generated token
     // before parsing, so the only way this is missing is a hand-edited file
     // that deleted it — which must fail loudly rather than default to ''.
-    auth: z.object({
+    auth: z.strictObject({
         /** Generated on first run by loadConfig; 32 random bytes, hex. */
         bearer_token: z.string().length(64),
         /** Who logs into the config UI. Defaulted rather than generated —
@@ -386,7 +447,8 @@ export const ConfigSchema = z.object({
          * right default for a LAN container reached by IP; pin hostnames when
          * running behind a reverse proxy.
          */
-        allowed_hosts: z.array(z.string()).default([])
+        allowed_hosts: z.array(z.string()).default([]),
+        oauth: OAuthSchema.optional()
     }),
     services: ServicesSchema,
     /** Absent means off, exactly like a service nobody configured. */
