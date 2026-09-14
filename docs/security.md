@@ -176,9 +176,10 @@ server does without any change to its source.
 - Eight runtime dependencies. Every addition is a deliberate decision, and the
   audit database reuses the SQLite driver the log buffer already needed rather
   than adding a second one.
-- Renovate groups non-major updates into one monthly PR, because a solo
-  maintainer reviewing eight separate patch bumps is eight chances to
-  rubber-stamp one. Vulnerability alerts are exempt and run at any time.
+- Dependabot groups non-major updates into one monthly PR per ecosystem,
+  because a solo maintainer reviewing eight separate patch bumps is eight
+  chances to rubber-stamp one. Security updates are exempt from both that
+  schedule and the open-PR limit, and land as soon as the advisory does.
 - Images are built with an SBOM and `provenance: mode=max`, and the pushed
   digest is attested with `actions/attest-build-provenance`, so you can verify
   that the image you pulled came from this repository's workflow.

@@ -55,19 +55,23 @@ that *looks* finished:
 
 ## Dependencies
 
-Renovate runs monthly, plus immediate PRs for security advisories. Only one
-rule groups updates — non-major bumps land as a single PR — so a **major**
-bump of any dependency other than TypeScript or Node arrives as its own PR,
-same monthly schedule, up to `prConcurrentLimit: 3`. The cadence is monthly;
-it is the "one PR" part that stops being true once a major is involved. Two
-things Renovate deliberately will not do on its own:
+Dependabot runs monthly, plus immediate PRs for security advisories. Three
+ecosystems are watched — `npm`, `github-actions` and the Docker base image —
+and the last two are pinned by digest, which Dependabot rewrites in place
+rather than unpinning. Only one rule groups updates — non-major bumps land as
+a single PR per ecosystem — so a **major** bump of any dependency other than
+TypeScript or Node arrives as its own PR, same monthly schedule, up to three
+open at a time per ecosystem. The cadence is monthly; it is the "one PR" part
+that stops being true once a major is involved. Two things Dependabot
+deliberately will not do on its own:
 
 - **TypeScript** is pinned with `~` because `typescript-eslint` declares a peer
-  range it has to stay inside, and `renovate.json` disables Renovate for that
+  range it has to stay inside, and `.github/dependabot.yml` ignores that
   package outright — not only for majors. A TypeScript patch will never be
   proposed either; bumping it, of any kind, is a human decision.
 - **Node majors** touch the Dockerfile, the CI workflow and `engines` together,
-  so they wait for approval on the dependency dashboard.
+  so they are ignored in both the `npm` and `docker` ecosystems. Nothing will
+  remind you; bumping Node is a deliberate, hand-written change.
 
 ## Commit messages
 

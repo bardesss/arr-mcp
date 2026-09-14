@@ -22,7 +22,9 @@ export class LoginThrottle {
     #blockedUntil = 0;
     readonly #now: () => number;
 
-    constructor(now: () => number = Date.now) {
+    // Called rather than captured, so a test that installs a fake clock after
+    // the app is built still reaches this default.
+    constructor(now: () => number = () => Date.now()) {
         this.#now = now;
     }
 

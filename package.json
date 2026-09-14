@@ -1,6 +1,6 @@
 {
   "name": "arr-mcp",
-  "version": "1.26.2",
+  "version": "1.26.4",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -28,23 +28,23 @@
     "screenshots": "node scripts/screenshots.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.0",
+    "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/hono": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
-    "better-sqlite3": "^13.0.2",
+    "better-sqlite3": "^13.0.3",
     "hono": "^4.13.0",
     "pino": "^10.3.1",
     "yaml": "^2.8.1",
-    "zod": "^4.4.3"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^24.13.3",
-    "eslint": "^10.8.0",
-    "playwright": "^1.62.1",
+    "@types/node": "^24.13.4",
+    "eslint": "^10.10.0",
+    "playwright": "^1.63.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.66.0",
-    "vitest": "^4.1.10"
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
   }
 }
