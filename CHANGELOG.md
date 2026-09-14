@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.26.4](https://github.com/bardesss/arr-mcp/compare/v1.26.3...v1.26.4) (2026-09-14)
+
+
+### Bug Fixes
+
+* **deps:** bump node from `0711b54` to `6950b66` ([#240](https://github.com/bardesss/arr-mcp/issues/240)) ([3fbf96c](https://github.com/bardesss/arr-mcp/commit/3fbf96c422355ae800195f689d0cfa33f5754fd8))
+* **deps:** bump the non-major group with 7 updates ([#244](https://github.com/bardesss/arr-mcp/issues/244)) ([137193f](https://github.com/bardesss/arr-mcp/commit/137193fa8427f00faa6f7ada8463234a795ef513))
+
 ## [1.26.3](https://github.com/bardesss/arr-mcp/compare/v1.26.2...v1.26.3) (2026-09-13)
 
 
