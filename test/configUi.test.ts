@@ -186,17 +186,26 @@ describe('access control', () => {
         expect(written).not.toContain(typo);
     });
 
+    // The clock is frozen because the block only lasts a second, and each POST
+    // runs a deliberate scrypt hash: under full-suite load one has been measured
+    // at 1096ms, which expires the block before the next request arrives. Frozen,
+    // this asserts the throttle's logic rather than the machine's speed.
     it('blocks sign-in after repeated failures, and says so', async () => {
         cookie = '';
+        vi.useFakeTimers({ toFake: ['Date'] });
 
-        for (let i = 0; i < 5; i++) {
-            const res = await call('/ui/login', form({ username: 'admin', password: 'wrong' }));
-            expect(res.status).toBe(401);
+        try {
+            for (let i = 0; i < FREE_ATTEMPTS; i++) {
+                const res = await call('/ui/login', form({ username: 'admin', password: 'wrong' }));
+                expect(res.status).toBe(401);
+            }
+
+            const blocked = await call('/ui/login', form({ username: 'admin', password: 'wrong' }));
+            expect(blocked.status).toBe(429);
+            expect(blocked.headers.get('retry-after')).not.toBeNull();
+        } finally {
+            vi.useRealTimers();
         }
-
-        const blocked = await call('/ui/login', form({ username: 'admin', password: 'wrong' }));
-        expect(blocked.status).toBe(429);
-        expect(blocked.headers.get('retry-after')).not.toBeNull();
     });
 
     // Regression guard for the race the throttle exists to close: a burst of
