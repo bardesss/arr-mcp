@@ -335,11 +335,10 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             } else {
                 const id = audit.begin(record);
                 audit.settle(id, 'unconfirmed');
-                // The token goes in the text as well as in `confirm_token`. Not
-                // every client forwards structuredContent to the model (#234
-                // covered the list tools; Hermes since 2026.9.7 drops it whenever
-                // the text block is non-empty), and a preview whose text names a
-                // field the model cannot see is a handshake it can never complete.
+                // The token goes in the text as well as in `confirm_token`: not
+                // every client forwards structuredContent to the model (#234), and
+                // a preview whose text names a field the model cannot see is a
+                // handshake it can never complete.
                 const token = confirm.issue(intent);
                 return respond(
                     preview({ audit_id: id, confirm_token: token }),
