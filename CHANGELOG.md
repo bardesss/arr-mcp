@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.6](https://github.com/bardesss/arr-mcp/compare/v1.26.5...v1.26.6) (2026-09-14)
+
+
+### Bug Fixes
+
+* put the confirmation token in the preview text ([#249](https://github.com/bardesss/arr-mcp/issues/249)) ([316e1b8](https://github.com/bardesss/arr-mcp/commit/316e1b8195eb2071a8b29692be8adb9d390feffb))
+
 ## [1.26.5](https://github.com/bardesss/arr-mcp/compare/v1.26.4...v1.26.5) (2026-09-14)
 
 
