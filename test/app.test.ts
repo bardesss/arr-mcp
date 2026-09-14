@@ -805,6 +805,49 @@ describe('every tool declares the shape it answers in', () => {
     });
 });
 
+describe('get_profile_issues', () => {
+    const sonarr = (): ServiceAdapter =>
+        ({
+            id: 'sonarr',
+            type: 'sonarr',
+            testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 3 }),
+            getVersion: async () => '4.0.0',
+            // `minFormatScore` equals the sum of the positive scores, which is
+            // exactly the knife-edge case `floorFindings` exists to catch.
+            readProfileDiagnostics: async () => ({
+                profiles: [{ name: 'HD-1080p', minFormatScore: 10, formatItems: [{ name: 'French', score: 10 }] }],
+                formats: [],
+                languages: []
+            })
+        }) as unknown as ServiceAdapter;
+
+    const callTool = async (name: string, args: Record<string, unknown>) => {
+        const res = await appWith(config, [sonarr()]).request(
+            'http://localhost:6060/mcp',
+            rpc(
+                { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
+        );
+        return ((await rpcPayload(res)).result ?? {}) as {
+            isError?: boolean;
+            content?: { text: string }[];
+            structuredContent?: Record<string, unknown>;
+        };
+    };
+
+    it('reports a knife-edge floor from a configured sonarr', async () => {
+        const result = await callTool('get_profile_issues', {});
+        const kinds = (result.structuredContent as { items: Array<{ kind: string }> }).items.map(i => i.kind);
+        expect(kinds).toContain('knife_edge_floor');
+    });
+
+    it('says drift was not checked when no profilarr is configured', async () => {
+        const result = await callTool('get_profile_issues', {});
+        expect((result.structuredContent as { note?: string }).note).toMatch(/profilarr/i);
+    });
+});
+
 /**
  * The bet this whole phase rests on: client support for prompts and resources
  * is uneven, and arr-mcp has to work on all of them. So a client that surfaces

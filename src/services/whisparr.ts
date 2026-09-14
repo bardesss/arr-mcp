@@ -10,6 +10,7 @@ import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, WHISPARR_ADD } from './arrAdd.ts';
+import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
@@ -39,6 +40,8 @@ import {
     type MediaDetails,
     type MonitoringCapable,
     type MonitoringTarget,
+    type ProfileDiagnosticsCapable,
+    type ProfileDiagnosticsData,
     type QualityProfile,
     type QueueCapable,
     type QueueItem,
@@ -158,7 +161,8 @@ export class WhisparrAdapter
         MonitoringCapable,
         SearchTriggerCapable,
         ReleaseSearchCapable,
-        ReleaseGrabCapable
+        ReleaseGrabCapable,
+        ProfileDiagnosticsCapable
 {
     readonly type: ServiceId = 'whisparr';
     readonly instance: string | undefined = undefined;
@@ -239,6 +243,10 @@ export class WhisparrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
+        return readArrProfileDiagnostics(this.#http);
     }
 
     /** Sonarr resolves by TVDB id — Whisparr reuses the same field for its own

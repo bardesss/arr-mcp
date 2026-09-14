@@ -32,6 +32,7 @@ import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
 import { registerGetMetadataIssues } from './getMetadataIssues.ts';
 import { registerGetPlayback } from './getPlayback.ts';
+import { registerGetProfileIssues } from './profileIssues/index.ts';
 import { registerGetQueue } from './getQueue.ts';
 import { registerGetReleases } from './getReleases.ts';
 import { registerGetRequests } from './getRequests.ts';
@@ -227,6 +228,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetMediaDetails(server, adapters, library, dataset);
     registerGetMetadataIssues(server, adapters, mediaServerIdentity);
     registerGetLibrary(server, library);
+    registerGetProfileIssues(server, adapters);
     registerSearchMedia(server, adapters, dataset);
     registerLookupMedia(server, adapters, dataset);
     registerDiscoverMedia(server, seerr, dataset);
@@ -279,6 +281,7 @@ export const TOOL_NAMES = [
     'get_media_details',
     'get_metadata_issues',
     'get_library',
+    'get_profile_issues',
     'search_media',
     'lookup_media',
     'discover_media',
