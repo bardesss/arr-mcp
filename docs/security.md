@@ -299,14 +299,21 @@ so far.
 - `allowed_hosts` is validated per request rather than frozen at startup, for
   the same reason: a security setting that appears to have applied when it has
   not is the worst kind.
+- When `auth.oauth` is configured, `/mcp` advertises itself as an RFC 9728
+  protected resource — `/.well-known/oauth-protected-resource` serves the
+  metadata document, and the 401 challenge carries `resource_metadata=`
+  pointing at it. With no `oauth` block, both are unchanged: the route 404s
+  and the challenge names only the realm.
 
 Request bodies are capped at 4 MB, refused with `413` before authentication
 runs. The cap is deliberately not configurable — every legitimate request is
 orders of magnitude below it.
 
-**What it does not solve.** There is no OAuth, no per-client identity, and no
-scoping of one token differently from another. One operator, one token. TLS is
-the reverse proxy's job; arr-mcp speaks plain HTTP and says so.
+**What it does not solve.** The endpoint is discoverable as an OAuth 2.1
+resource server, but nothing yet verifies a token from that issuer: there is
+still no per-client identity and no scoping of one token differently from
+another. One operator, one token. TLS is the reverse proxy's job; arr-mcp
+speaks plain HTTP and says so.
 
 Note also that the container binds `0.0.0.0` by design, because it has to be
 reachable across the LAN. That drops the MCP SDK's default localhost Host and
