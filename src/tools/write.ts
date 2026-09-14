@@ -321,8 +321,15 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                             confirm_error: check.remedy,
                             confirm_token: fresh
                         }),
-                        `Not applied — the confirmation token was rejected (${check.failure}). ${check.remedy} ` +
-                            `A fresh token for this exact operation: \`${fresh}\`.`
+                        // `check.remedy` says to call again *without* `confirm`, which is
+                        // right when no token comes back and wrong here, because one does.
+                        // It stays in `confirm_error` as the diagnosis; the text gives the
+                        // single next action, worded as the plain preview words it. The
+                        // token goes last in both: a reader clipping the trailing word or
+                        // the final backticked span gets it, and prose after it would not.
+                        `Not applied — the confirmation token was rejected (${check.failure}). ` +
+                            `Do not resend the rejected one. To apply this, call ${spec.name} again with ` +
+                            `the same arguments plus \`confirm\` set to \`${fresh}\`.`
                     );
                 }
             } else {

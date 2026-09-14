@@ -163,6 +163,32 @@ describe('write tool harness — preview and confirm', () => {
         expect(content[0]?.text).toContain(structuredContent.confirm_token);
     });
 
+    // Every failure that reissues carries a remedy telling the caller to call
+    // again *without* `confirm`, which contradicts the usable token in the very
+    // next sentence. A model that follows the remedy throws away a good token
+    // and spends another preview. The diagnosis stays in `confirm_error`.
+    it('gives one next action on a rejection, not two', async () => {
+        const { content, structuredContent } = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
+        const text = content[0]?.text ?? '';
+
+        expect(text).toContain(structuredContent.confirm_token);
+        expect(text).not.toContain('without `confirm`');
+        expect(structuredContent.confirm_error).toContain('without `confirm`');
+    });
+
+    // The token is the last thing in both texts on purpose. A reader clipping
+    // it out takes the trailing word or the final backticked span, and prose
+    // after the token defeats both — `unwrap` strips punctuation, not a clause.
+    it('ends both the preview and the rejection with the token itself', async () => {
+        const ending = /`v1\.[\w.-]+`\.?$/u;
+
+        const preview = await harness.call('delete_media', { id: '5' });
+        expect(preview.content[0]?.text.trimEnd()).toMatch(ending);
+
+        const rejected = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
+        expect(rejected.content[0]?.text.trimEnd()).toMatch(ending);
+    });
+
     it('lets the fresh token from a rejection be used', async () => {
         const rejected = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
         const applied = await harness.call('delete_media', {
