@@ -395,6 +395,44 @@ describe('the URL token on the dashboard', () => {
     });
 });
 
+describe('the URL token checkbox while oauth is configured', () => {
+    /** Same fixture shape as `seed`, with an `auth.oauth` block added — the
+     *  leading closes match `seedUnclaimed`'s, since `beforeEach` has already
+     *  opened the plain fixture by the time this runs. */
+    const seedWithOAuth = async () => {
+        logs.close();
+        audit.close();
+
+        dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
+        await writeFile(
+            join(dir, 'config.yaml'),
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\n  oauth:\n    issuer: https://auth.example.com\n    audience: arr-mcp\n    jwks_uri: https://auth.example.com/.well-known/jwks.json\nservices: {}\n`,
+            'utf8'
+        );
+
+        const { config } = await loadConfig(dir);
+        audit = WriteAudit.ephemeral();
+        logs = LogStore.ephemeral();
+        runtime = Runtime.fromConfig(config, audit, { configDir: dir });
+        app = buildApp({ runtime, audit, logs });
+    };
+
+    it('refuses the URL-token checkbox in a sentence, not a schema dump', async () => {
+        await seedWithOAuth();
+        await signIn();
+
+        const body = await (
+            await call(
+                '/ui/config/mcp',
+                form({ csrf: await csrfFrom(), 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' })
+            )
+        ).text();
+
+        expect(body).toContain('OAuth is configured');
+        expect(body).not.toContain('invalid_union');
+    });
+});
+
 describe('adding an instance', () => {
     const addForm = (over: Record<string, string> = {}) => ({
         type: 'radarr',

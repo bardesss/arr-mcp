@@ -449,6 +449,9 @@ export const ConfigSchema = z.object({
          */
         allowed_hosts: z.array(z.string()).default([]),
         oauth: OAuthSchema.optional()
+    }).refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
+        message: 'auth.allow_token_in_url cannot be set while auth.oauth is configured — a JWT in the URL reaches every proxy log',
+        path: ['allow_token_in_url']
     }),
     services: ServicesSchema,
     /** Absent means off, exactly like a service nobody configured. */

@@ -218,6 +218,24 @@ describe('auth.oauth', () => {
         const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
         expect(result.success).toBe(true);
     });
+
+    // A query-parameter JWT in proxy logs is worse than the static token that
+    // flag was written for.
+    it('refuses oauth and allow_token_in_url together', () => {
+        const result = ConfigSchema.safeParse({
+            auth: { ...AUTH, oauth: OAUTH, allow_token_in_url: true },
+            services: {}
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it('allows oauth with the flag explicitly off', () => {
+        const result = ConfigSchema.safeParse({
+            auth: { ...AUTH, oauth: OAUTH, allow_token_in_url: false },
+            services: {}
+        });
+        expect(result.success).toBe(true);
+    });
 });
 
 describe('auth.allow_token_in_url', () => {
