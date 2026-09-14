@@ -24,8 +24,8 @@ services:
     password: "…"
 ```
 
-All eleven service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
-`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`. Configure only what you run —
+All twelve service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
+`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`, `profilarr`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
@@ -119,6 +119,22 @@ in the log, and carries on.
 `get_library`'s per-user join needs exactly one counterparty, and the schema
 refuses a config that sets both.
 
+## Profilarr
+
+```yaml
+services:
+  profilarr:
+    url: http://192.168.1.20:6868
+    api_key: "…"
+```
+
+Generate the key under Settings > Security in Profilarr. Single instance
+only — see [below](#several-instances-of-one-service) for why. Powers the
+drift half of `get_profile_issues` and `sync_database`, the only tool that
+needs it configured to run at all. Leaving it out is fine — `get_profile_issues`
+still reports its other five finding kinds, with a `note` saying drift was
+not checked.
+
 ## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
@@ -161,12 +177,13 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Four services stay single.** Jellyfin and Plex because, as explained above,
+**Five services stay single.** Jellyfin and Plex because, as explained above,
 `get_library`'s per-user join needs exactly one counterparty. Seerr because a
 request carries the identity of the person who made it, and a second Seerr makes
 "which one do I ask" a guess with an approver on the other end of it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
-different API with no adapter.
+different API with no adapter. Profilarr because it is the one place that owns
+profile config, so two of them would mean two sources of truth.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 Transmission and qBittorrent.

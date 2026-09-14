@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.bardesss/arr-mcp",
   "title": "arr-mcp",
-  "description": "One server, 36 tools, the whole media stack: Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr",
+  "description": "One server, 38 tools, the whole media stack: Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr",
   "version": "1.26.7",
   "websiteUrl": "https://github.com/bardesss/arr-mcp",
   "icons": [

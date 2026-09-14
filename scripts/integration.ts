@@ -82,7 +82,8 @@ const CASES: Case[] = [
     { tool: 'search_media', args: { query: 'the', source: 'library', detail: 'full', limit: 10 } },
     { tool: 'lookup_media', args: { query: 'matrix' } },
     { tool: 'discover_media', args: { media_type: 'movie', detail: 'full' } },
-    { tool: 'diagnose', args: { query: 'the' } }
+    { tool: 'diagnose', args: { query: 'the' } },
+    { tool: 'get_profile_issues', args: { detail: 'full' } }
 ];
 
 // Same env var src/index.ts uses, so this reads the config the container
@@ -146,7 +147,10 @@ const DYNAMIC_TOOLS: ToolName[] = [
     // Dry runs off a scannable service and a real get_subtitles gap.
     'trigger_scan',
     'trigger_subtitle_search',
-    'clean_queue'
+    'clean_queue',
+    // Needs profilarr configured at all, which is optional — skipped rather
+    // than invented on a stack that does not run it.
+    'sync_database'
 ];
 
 const missing = TOOL_NAMES.filter(
@@ -848,6 +852,22 @@ if (client !== undefined) {
     );
 } else {
     console.log('SKIP pause_downloads — no download client is configured.');
+}
+
+/**
+ * sync_database, dry run only — a real run pulls Profilarr's own git-tracked
+ * store, which is reversible in Profilarr but not something this script
+ * should trigger on every run. `database` is left out: it is required only
+ * when Profilarr holds more than one, and most stacks hold exactly one.
+ */
+if (config.services?.profilarr !== undefined) {
+    await run(
+        'sync_database',
+        { dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    console.log('SKIP sync_database — no profilarr is configured.');
 }
 
 /**
