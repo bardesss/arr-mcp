@@ -114,7 +114,12 @@ trigger_search { service: "radarr", id: "5" }
 > - May grab and start downloading a release, which will appear in get_queue.
 >
 > To apply this, call trigger_search again with the same arguments plus
-> `confirm` set to the token in `confirm_token`.
+> `confirm` set to `v1.mu13yno6.uFRjMdu2jyooj1_7L79V--VMf0KvQGNLD-thQjSgD8U`.
+
+The token is in the text as well as in the `confirm_token` field of
+`structuredContent`, because not every client forwards the structured half to
+the model, and a preview that only points at a field the model cannot see is a
+handshake it can never complete.
 
 Tokens are single-use, expire after five minutes, and are cryptographically
 bound to the exact operation and arguments previewed — a token issued for one

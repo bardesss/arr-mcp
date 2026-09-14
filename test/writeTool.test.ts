@@ -128,6 +128,15 @@ describe('write tool harness — preview and confirm', () => {
         expect(content[0]?.text).toContain('delete_media');
     });
 
+    // A client that forwards only `content` (Claude's remote MCP path, #234;
+    // Hermes from 2026.9.7) never shows the model `structuredContent`, so the
+    // token has to be readable in the text or the handshake cannot complete.
+    it('puts the token itself in the text, not just a pointer to confirm_token', async () => {
+        const { content, structuredContent } = await harness.call('delete_media', { id: '5' });
+        expect(structuredContent.confirm_token).toBeTypeOf('string');
+        expect(content[0]?.text).toContain(structuredContent.confirm_token);
+    });
+
     it('refuses to apply the same token twice', async () => {
         const first = await harness.call('delete_media', { id: '5' });
         const token = first.structuredContent.confirm_token;
@@ -147,6 +156,11 @@ describe('write tool harness — preview and confirm', () => {
         expect(structuredContent.confirm_error).toBeTypeOf('string');
         expect(structuredContent.confirm_token).toBeTypeOf('string');
         expect(harness.apply).not.toHaveBeenCalled();
+    });
+
+    it('puts the fresh token from a rejection in the text too', async () => {
+        const { content, structuredContent } = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
+        expect(content[0]?.text).toContain(structuredContent.confirm_token);
     });
 
     it('lets the fresh token from a rejection be used', async () => {
