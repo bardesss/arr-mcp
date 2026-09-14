@@ -117,6 +117,53 @@ describe('confirmation tokens', () => {
         expect(result.failure).toBe('mismatch');
     });
 
+    // The preview names the token inside backticks and ends the sentence with a
+    // period, so a caller lifting it out of the text often carries one or both
+    // along. Refusing those costs a round trip and reissues a token presented
+    // exactly the same way, which is a loop rather than a recovery.
+    it('accepts a token copied out of the preview prose with its punctuation', () => {
+        const clock = stoppedClock();
+        const tokens = new ConfirmTokens({ clock: clock.now });
+        const wrappings: ((token: string) => string)[] = [
+            token => `\`${token}\``,
+            token => `${token}.`,
+            token => `\`${token}\`.`,
+            token => ` ${token}`,
+            token => `${token}\n`,
+            token => `"${token}"`,
+            token => `'${token}',`
+        ];
+
+        for (const wrap of wrappings) {
+            // A fresh millisecond each time: same intent in the same
+            // millisecond signs identically, and the previous loop already
+            // spent that signature.
+            clock.advance(1);
+            const presented = wrap(tokens.issue(intent()));
+            expect(tokens.verifyAndConsume(presented, intent()).ok, presented).toBe(true);
+        }
+    });
+
+    // Stripping punctuation must not become a way to launder a token that is
+    // genuinely for something else.
+    it('still refuses a wrapped token issued for a different target', () => {
+        const tokens = new ConfirmTokens();
+        const token = tokens.issue(intent({ target: '5' }));
+        expect(tokens.verifyAndConsume(`\`${token}\`.`, intent({ target: '9' })).ok).toBe(false);
+    });
+
+    // The signature it consumed is the stripped one, so the same token cannot
+    // be replayed by presenting it with different punctuation.
+    it('counts a wrapped token as spent when the bare one is replayed', () => {
+        const tokens = new ConfirmTokens();
+        const token = tokens.issue(intent());
+
+        expect(tokens.verifyAndConsume(`\`${token}\`.`, intent()).ok).toBe(true);
+        const second = tokens.verifyAndConsume(token, intent());
+        if (second.ok) throw new Error('expected a rejection');
+        expect(second.failure).toBe('used');
+    });
+
     it('rejects malformed tokens', () => {
         const tokens = new ConfirmTokens();
         for (const bad of ['', 'nonsense', 'v2.abc.def', 'v1.abc']) {

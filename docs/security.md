@@ -249,6 +249,13 @@ plus a token, and only a second call carrying that token mutates anything.
 - Expiry is checked before the signature so an old token reports "expired"
   rather than a misleading "mismatch"; the spent-token check happens after the
   signature, so an unsigned guess cannot probe which tokens have been used.
+- Surrounding backticks, quotes and trailing punctuation are stripped before the
+  token is parsed. The preview names the token inside backticks and ends the
+  sentence with a period, so a caller that clips one character too many would
+  otherwise be refused — and the refusal reissues a token presented the same
+  way, which loops rather than recovers. Nothing about the check relaxes: none of
+  those characters can occur in a token, the HMAC still decides, and the stripped
+  form is what the single-use set records.
 - `dry_run` is a terminal preview that never issues a token and is never refused
   by the permission tier, so "what would this do, and what would I need to
   enable for it" stays answerable without granting anything.

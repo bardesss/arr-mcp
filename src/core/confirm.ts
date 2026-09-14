@@ -88,6 +88,30 @@ const intentPayload = (intent: WriteIntent): string =>
         args: intent.args ?? {}
     });
 
+/**
+ * Strips the formatting a token picks up on its way back.
+ *
+ * The preview names the token inside backticks and ends the sentence with a
+ * period, so what returns is frequently the token with one or both still
+ * attached. None of it can belong to a token — `v1.<base36>.<base64url>` holds
+ * no whitespace, quotes or punctuation — so removing it concedes nothing: the
+ * HMAC still decides, and a wrong token fails exactly as it did before.
+ * Refusing these is the expensive option, because the refusal reissues a token
+ * presented the same way, so a caller that mis-clips once mis-clips forever.
+ */
+function unwrap(presented: string): string {
+    let out = presented.trim();
+    for (let previous = ''; out !== previous; ) {
+        previous = out;
+        out = out
+            .replace(/^[`'"]+/u, '')
+            .replace(/[`'"]+$/u, '')
+            .replace(/[.,;:!?]+$/u, '')
+            .trim();
+    }
+    return out;
+}
+
 /** Timing-safe compare that tolerates unequal lengths without leaking them. */
 function signatureMatches(presented: string, expected: string): boolean {
     const a = Buffer.from(presented);
@@ -130,7 +154,7 @@ export class ConfirmTokens {
     verifyAndConsume(presented: string, intent: WriteIntent): ConfirmResult {
         this.#sweep();
 
-        const parts = presented.split('.');
+        const parts = unwrap(presented).split('.');
         if (parts.length !== 3 || parts[0] !== 'v1') return { ok: false, failure: 'malformed', remedy: REMEDY.malformed };
 
         const issuedAt = Number.parseInt(parts[1] ?? '', 36);
