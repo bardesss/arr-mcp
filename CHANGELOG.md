@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.8](https://github.com/bardesss/arr-mcp/compare/v1.26.7...v1.26.8) (2026-09-14)
+
+
+### Bug Fixes
+
+* declare an icon and the tool count in server.json ([#256](https://github.com/bardesss/arr-mcp/issues/256)) ([d490d69](https://github.com/bardesss/arr-mcp/commit/d490d6951b76218232a4087fd8b0b2ff5b9a0dbe))
+
 ## [1.26.7](https://github.com/bardesss/arr-mcp/compare/v1.26.6...v1.26.7) (2026-09-14)
 
 
