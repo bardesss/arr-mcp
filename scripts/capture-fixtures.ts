@@ -904,6 +904,11 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             },
             anonymise: body => synthesisePlexFilePaths(redactPlexLibraryListing(neutralisePlexWatchState(body)))
         }
+    ],
+    profilarr: [
+        { name: 'status', path: '/api/v1/status' },
+        { name: 'arr', path: '/api/v1/arr' },
+        { name: 'health', path: '/api/v1/health' }
     ]
 };
 

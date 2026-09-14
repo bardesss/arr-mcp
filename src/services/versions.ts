@@ -42,7 +42,10 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // Plex has not pinned a minimum; 1.0.0 is a placeholder. The one version
     // this has actually been verified against is 1.43.3.10896 (issue #180) —
     // a single data point, not enough to raise the floor from.
-    plex: '1.0.0'
+    plex: '1.0.0',
+    // 2.2.0 is the release this adapter's /api/v1 contract is written against,
+    // and the tag the vendored spec is pinned to.
+    profilarr: '2.2.0'
 };
 
 /** Digits only; a build suffix such as Transmission's "(838877323f)" is dropped. */
