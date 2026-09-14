@@ -389,6 +389,7 @@ describe('the advertised tool surface', () => {
         'respond_to_request',
         'set_monitoring',
         'set_watched',
+        'sync_database',
         'trigger_scan',
         'trigger_search',
         'trigger_subtitle_search',

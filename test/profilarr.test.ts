@@ -32,8 +32,57 @@ describe('ProfilarrAdapter', () => {
         expect(status.arrs[0]?.drift).toBeNull();
     });
 
-    it('returns the job id from a sync trigger', async () => {
-        const adapter = new ProfilarrAdapter(config, stub({ '/api/v1/databases/3/sync': { jobId: 42 } }));
+    it('returns the job id from a sync trigger, sent as a POST', async () => {
+        let method: string | undefined;
+        const adapter = new ProfilarrAdapter(
+            config,
+            (async (input: string, init?: RequestInit) => {
+                method = init?.method;
+                const path = new URL(input).pathname;
+                if (path === '/api/v1/databases/3/sync') {
+                    return new Response(JSON.stringify({ jobId: 42 }), { status: 202 });
+                }
+                return new Response('not found', { status: 404 });
+            }) as unknown as typeof fetch
+        );
         expect(await adapter.triggerSync(3)).toBe(42);
+        expect(method).toBe('POST');
+    });
+
+    it('polls a job to a terminal state rather than trusting the 202', async () => {
+        const statuses = ['queued', 'running', 'success'];
+        let call = 0;
+        const adapter = new ProfilarrAdapter(config, (async (input: string | URL | Request) => {
+            const path = new URL(String(input)).pathname;
+            if (path === '/api/v1/databases/3/sync') return new Response(JSON.stringify({ jobId: 9 }), { status: 202 });
+            if (path === '/api/v1/jobs/9')
+                return new Response(JSON.stringify({ id: 9, status: statuses[Math.min(call++, 2)] }), { status: 200 });
+            return new Response('not found', { status: 404 });
+        }) as typeof fetch);
+        expect(await adapter.triggerSync(3)).toBe(9);
+        expect(await adapter.jobStatus(9)).toBe('queued');
+    });
+
+    it('reads job status from the `status` field', async () => {
+        const adapter = new ProfilarrAdapter(config, stub({
+            '/api/v1/jobs/7': {
+                id: 7,
+                jobType: 'pcd.sync',
+                status: 'running',
+                source: 'manual',
+                createdAt: '2026-09-14T00:00:00Z',
+                startedAt: null,
+                finishedAt: null,
+                result: null
+            }
+        }));
+        expect(await adapter.jobStatus(7)).toBe('running');
+    });
+
+    it('lists configured arrs by id, name, type and url', async () => {
+        const adapter = new ProfilarrAdapter(config, stub({
+            '/api/v1/arr': [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr:8989', enabled: true }]
+        }));
+        expect(await adapter.listArrs()).toEqual([{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr:8989' }]);
     });
 });
