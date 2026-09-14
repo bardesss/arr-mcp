@@ -131,11 +131,11 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the eighteen that only
-read, and on the eighteen writes `destructiveHint`, taken from the same permission
+tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
+read, and on the nineteen writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from thirty-six similarly-shaped
+about, reads those rather than guessing from thirty-eight similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -1096,7 +1096,7 @@ no-op, and a request naming no field at all is refused rather than previewed.
 
 ## Prompts and resources
 
-Thirty-six tools do not tell you which one to reach for, and the questions
+Thirty-eight tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:
