@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.5](https://github.com/bardesss/arr-mcp/compare/v1.26.4...v1.26.5) (2026-09-14)
+
+
+### Bug Fixes
+
+* accept a confirmation token with its prose formatting attached ([#250](https://github.com/bardesss/arr-mcp/issues/250)) ([1d654a1](https://github.com/bardesss/arr-mcp/commit/1d654a12d3b30619676862e86bf6c73c2f540da3))
+
 ## [1.26.4](https://github.com/bardesss/arr-mcp/compare/v1.26.3...v1.26.4) (2026-09-14)
 
 
