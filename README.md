@@ -44,12 +44,13 @@ part it could not check rather than guessing across the hole.
 |  | |
 | --- | --- |
 | 🔍 **`diagnose` answers what no single service can** | Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the *first* thing that explains the absence. |
+| 🧮 **Quality profiles that cannot do what they say** | A minimum score nothing can reach, a language preferred but never required, a format scored where its wider twin sits at zero. The arithmetic ones are proved rather than guessed, and every fix names a change to make in Profilarr, which owns them. |
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
 | 📚 **Thirty-eight tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
 
-Nothing else in this space does the last four at all.
+Nothing else in this space does the last five at all.
 
 ## Quick start — about two minutes
 
@@ -126,6 +127,8 @@ Thirty-eight tools, but you never name them — you ask, and the model picks:
 > *"Pause SABnzbd, I need the bandwidth for an hour."*
 > *"That download finished days ago and never got imported — sort it out."*
 > *"Put this series on the 4K profile and only monitor future seasons."*
+> *"This profile says it wants Dutch but keeps grabbing English — why?"*
+> *"Has anything in Radarr drifted from what Profilarr set?"*
 > *"Which of my shows have metadata that does not match the files?"*
 > *"These episode titles are wrong for the files — fix them."*
 > *"Unmonitor season 5 and delete its files."* — previewed first, always.
