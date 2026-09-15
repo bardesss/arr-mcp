@@ -223,6 +223,14 @@ auth:
   allow_token_in_url: false  # accept ?token=… when no Authorization header is sent
 ```
 
+A misspelled or leftover key anywhere in this block — including inside
+`auth.oauth` below — **fails at startup with the offending field named**,
+rather than being silently ignored, so a config that loaded on an earlier
+release can stop loading after an upgrade. The server does not go down over
+it: it drops into repair mode, covered under [When config.yaml will not
+load](#when-configyaml-will-not-load), where the editor is reachable once you
+sign in.
+
 Sign-in is a username and password you choose the first time you open the UI.
 Only a scrypt hash is stored, so the password cannot be recovered — but it can
 be replaced: delete the `password_hash` line and restart, and the setup page
