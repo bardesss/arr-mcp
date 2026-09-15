@@ -816,7 +816,7 @@ describe('get_profile_issues', () => {
         // `minFormatScore` equals the sum of the positive scores, which is
         // exactly the knife-edge case `floorFindings` exists to catch.
         readProfileDiagnostics: async () => ({
-            profiles: [{ name: 'HD-1080p', minFormatScore: 10, formatItems: [{ name: 'French', score: 10 }] }],
+            profiles: [{ name: 'Example 1080p', minFormatScore: 10, formatItems: [{ name: 'French', score: 10 }] }],
             formats: [],
             languages: []
         })
