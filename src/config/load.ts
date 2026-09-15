@@ -130,11 +130,12 @@ export function validateConfigText(raw: string): ConfigTextResult {
     const result = ConfigSchema.safeParse(obj);
     if (result.success) return { ok: true, config: result.data, generatedBearerToken };
 
-    // Unrefined on purpose: this runs precisely when the rest of the file is
-    // already broken, and the oauth/allow_token_in_url refinement on
-    // ConfigSchema's `auth` field would only make the salvage fail for a
-    // combination that has nothing to do with why the file doesn't load.
-    const authOnly = AuthSchema.safeParse(obj.auth);
+    // Unrefined *and* unstrict on purpose: this runs precisely when the rest
+    // of the file is already broken, and neither the oauth/allow_token_in_url
+    // refinement nor an unrecognised key under auth has anything to do with
+    // whether we can authenticate whoever came to fix it. ConfigSchema's own
+    // `auth` field stays strict, so a typo there is still a startup failure.
+    const authOnly = z.object(AuthSchema.shape).safeParse(obj.auth);
     return {
         ok: false,
         detail: z.prettifyError(result.error),

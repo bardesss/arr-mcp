@@ -96,6 +96,25 @@ describe('validateConfigText', () => {
         if (!result.ok) expect(result.auth?.username).toBe('admin');
     });
 
+    // 099031e kept the oauth/allow_token_in_url refine off the salvage parse
+    // so a conflicting-but-otherwise-valid auth block still logs the operator
+    // in. A stray key under auth is the same situation one layer down: the
+    // full ConfigSchema must still refuse it (strict, loud, at startup), but
+    // the salvage parse runs precisely when the file is already broken and
+    // must not let that same key turn into unreadableAuthPage.
+    it('salvages the auth block even when it carries an unrecognised key', () => {
+        const text =
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n` +
+            `  legacy_knob: true\n` +
+            `services:\n  radarr:\n    url: not-a-url\n    api_key: k\n`;
+        const result = validateConfigText(text);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.detail).toContain('Unrecognized key');
+            expect(result.auth?.username).toBe('admin');
+        }
+    });
+
     it('reports no auth block when auth itself is unreadable', () => {
         const result = validateConfigText('auth: 12\nservices: {}\n');
         expect(result.ok).toBe(false);
