@@ -94,6 +94,7 @@ describe('ProfilarrAdapter', () => {
         }));
         expect(await adapter.jobStatus(8)).toEqual({
             status: 'failed',
+            result: 'failure',
             detail: 'git pull failed: authentication required'
         });
     });
@@ -111,7 +112,30 @@ describe('ProfilarrAdapter', () => {
                 result: { status: 'failure', output: 'no changes to pull', error: null, durationMs: 1000 }
             }
         }));
-        expect(await adapter.jobStatus(8)).toEqual({ status: 'failed', detail: 'no changes to pull' });
+        expect(await adapter.jobStatus(8)).toEqual({ status: 'failed', result: 'failure', detail: 'no changes to pull' });
+    });
+
+    it('surfaces the handler outcome separately from the queue status — a queue success can still be skipped', async () => {
+        // The exact body observed live: the queue finished the job (`status:
+        // "success"`), but the handler found nothing to pull (`result.status:
+        // "skipped"`). These are two different fields for two different things.
+        const adapter = new ProfilarrAdapter(config, stub({
+            '/api/v1/jobs/23': {
+                id: 23,
+                jobType: 'pcd.sync',
+                status: 'success',
+                source: 'manual',
+                createdAt: '2026-09-15T06:14:19Z',
+                startedAt: '2026-09-15T06:14:19Z',
+                finishedAt: '2026-09-15T06:14:20Z',
+                result: { status: 'skipped', output: 'No updates available', error: null, durationMs: 440 }
+            }
+        }));
+        expect(await adapter.jobStatus(23)).toEqual({
+            status: 'success',
+            result: 'skipped',
+            detail: 'No updates available'
+        });
     });
 
     it('lists configured arrs by id, name, type and url', async () => {

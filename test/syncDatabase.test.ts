@@ -5,7 +5,7 @@ import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/con
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
-import type { JobOutcome, JobStatus, ProfilarrDatabase } from '../src/services/profilarr.ts';
+import { ProfilarrAdapter, type JobOutcome, type JobStatus, type ProfilarrDatabase } from '../src/services/profilarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerSyncDatabase } from '../src/tools/syncDatabase.ts';
@@ -147,6 +147,20 @@ describe('sync_database', () => {
         await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(/cancelled/);
     });
 
+    it('does not report success when the queue says success but the handler failed', async () => {
+        // A queue `success` only means the job ran to completion — the handler
+        // can still say it did not do what was asked.
+        const { adapter: base } = fakeProfilarr([db(3, 'Dictionarry')], ['queued']);
+        const adapter: FakeProfilarr = {
+            ...base,
+            jobStatus: () => Promise.resolve({ status: 'success', result: 'failure', detail: 'git pull failed' })
+        };
+        const h = harness({ adapter });
+
+        const preview = await h.call({});
+        await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(/failure.*git pull failed/);
+    });
+
     it('does not report success when the job never reaches a terminal status', async () => {
         // Never terminates on its own — this is the exhaustion path, not one
         // of the three real outcomes. Reporting anything but a refusal here
@@ -206,6 +220,57 @@ describe('sync_database', () => {
         await expect(h.call({ confirm: preview.structuredContent.confirm_token })).rejects.toThrow(
             /check profilarr's job history/i
         );
+    });
+
+    it('reports a no-op, not a success, when the handler skipped the sync', async () => {
+        // The exact body observed live from a real Profilarr instance: the
+        // queue finished the job (`status: "success"`), but the handler found
+        // nothing to pull (`result.status: "skipped"`). Reporting this as a
+        // completed sync is the bug — it must come back as a no-op instead,
+        // and it must not throw: nothing went wrong.
+        const jobBody = {
+            id: 23,
+            jobType: 'pcd.sync',
+            status: 'success',
+            source: 'manual',
+            createdAt: '2026-09-15T06:14:19Z',
+            startedAt: '2026-09-15T06:14:19Z',
+            finishedAt: '2026-09-15T06:14:20Z',
+            result: { status: 'skipped', output: 'No updates available', error: null, durationMs: 440 }
+        };
+        const adapter = new ProfilarrAdapter(
+            keyed,
+            (async (input: string | URL | Request) => {
+                const path = new URL(String(input)).pathname;
+                if (path === '/api/v1/status') {
+                    return new Response(
+                        JSON.stringify({
+                            version: '2.2.0',
+                            uptime: 1,
+                            timezone: 'UTC',
+                            databases: [db(3, 'Dictionarry')],
+                            arrs: []
+                        }),
+                        { status: 200 }
+                    );
+                }
+                if (path === '/api/v1/databases/3/sync') return new Response(JSON.stringify({ jobId: 23 }), { status: 202 });
+                if (path === '/api/v1/jobs/23') return new Response(JSON.stringify(jobBody), { status: 200 });
+                return new Response('not found', { status: 404 });
+            }) as unknown as typeof fetch
+        );
+        const h = harness({ adapter });
+
+        const preview = await h.call({});
+        const applied = await h.call({ confirm: preview.structuredContent.confirm_token });
+
+        expect(applied.structuredContent.applied).toBe(true);
+        expect(applied.structuredContent.result).toEqual({
+            jobId: 23,
+            status: 'success',
+            outcome: 'skipped',
+            detail: 'No updates available'
+        });
     });
 
     it('names the config key when safe writes are disabled', async () => {

@@ -142,7 +142,7 @@ export function registerSyncDatabase(
             const { databaseId } = plan.args as { databaseId: number };
             const adapter = findAdapter(adapters);
             const jobId = await adapter.triggerSync(databaseId);
-            const { status, detail } = await awaitJob(adapter, jobId, pollIntervalMs, maxPolls);
+            const { status, result, detail } = await awaitJob(adapter, jobId, pollIntervalMs, maxPolls);
 
             if (status !== 'success') {
                 throw new ServiceError(
@@ -152,6 +152,28 @@ export function registerSyncDatabase(
                     detail === undefined ? { remedy: "Check Profilarr's job history for what went wrong." } : {}
                 );
             }
+
+            // The queue says `success` here in every branch below — it only
+            // means the job ran to completion. `result` is the handler's own
+            // outcome, and it can disagree: `failure`/`cancelled` mean the
+            // handler itself did not do what was asked, which is exactly the
+            // "reported done but wasn't" bug this tool exists to avoid, just
+            // one field over. Treat those the same as a failed/cancelled queue.
+            if (result === 'failure' || result === 'cancelled') {
+                throw new ServiceError(
+                    'UpstreamError',
+                    'profilarr',
+                    `sync job ${jobId} ended as ${result}${detail === undefined ? '' : `: ${detail}`}`,
+                    detail === undefined ? { remedy: "Check Profilarr's job history for what went wrong." } : {}
+                );
+            }
+
+            // `skipped` means Profilarr found nothing to pull — a real,
+            // non-error outcome, not a sync that happened.
+            if (result === 'skipped') {
+                return { jobId, status, outcome: 'skipped', ...(detail === undefined ? {} : { detail }) };
+            }
+
             return { jobId, status };
         }
     });

@@ -33,9 +33,16 @@ export type ProfilarrDatabase = {
 
 export type JobStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
 
+/** The handler's own outcome for the latest run — a different thing from the
+ *  queue `status` above. A queue `success` only means the job ran to
+ *  completion; `result.status` says what it actually did, and can be
+ *  `skipped` (nothing to pull) even when the queue says success. */
+type ResultStatus = components['schemas']['JobRunResult']['status'];
+
 /** `detail` is Profilarr's own error (or, failing that, output) for a
- *  finished job — absent when it supplied neither. */
-export type JobOutcome = { status: JobStatus; detail?: string };
+ *  finished job — absent when it supplied neither. `result` is undefined
+ *  while the job has not executed yet (Profilarr returns `result: null`). */
+export type JobOutcome = { status: JobStatus; result?: ResultStatus; detail?: string };
 
 const API = '/api/v1';
 
@@ -100,6 +107,10 @@ export class ProfilarrAdapter implements ServiceAdapter {
     async jobStatus(jobId: number): Promise<JobOutcome> {
         const job = await this.#http.get<RawJob>(`${API}/jobs/${jobId}`);
         const detail = job.result?.error ?? job.result?.output ?? undefined;
-        return detail === undefined ? { status: job.status } : { status: job.status, detail };
+        return {
+            status: job.status,
+            ...(job.result ? { result: job.result.status } : {}),
+            ...(detail === undefined ? {} : { detail })
+        };
     }
 }
