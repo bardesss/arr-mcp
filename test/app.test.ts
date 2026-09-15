@@ -7,7 +7,8 @@ import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
-import type { ServiceAdapter } from '../src/services/types.ts';
+import type { ProfileDiagnosticsCapable, ServiceAdapter } from '../src/services/types.ts';
+import { DRIFT_PENDING_NOTE, NO_MATCHING_INSTANCE_NOTE } from '../src/tools/profileIssues/index.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { rpcPayload as parseRpcPayload } from '../scripts/lib/rpc.ts';
 
@@ -388,6 +389,7 @@ describe('the advertised tool surface', () => {
         'respond_to_request',
         'set_monitoring',
         'set_watched',
+        'sync_database',
         'trigger_scan',
         'trigger_search',
         'trigger_subtitle_search',
@@ -802,6 +804,345 @@ describe('every tool declares the shape it answers in', () => {
         expect(result.isError).toBeFalsy();
         expect(result.structuredContent).toMatchObject({ applied: false, tool: 'trigger_scan', tier: 'safe' });
         expect(result.structuredContent?.['confirm_token']).toEqual(expect.any(String));
+    });
+});
+
+describe('get_profile_issues', () => {
+    const sonarr = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+        id: 'sonarr',
+        type: 'sonarr',
+        testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 3 }),
+        getVersion: async () => '4.0.0',
+        // `minFormatScore` equals the sum of the positive scores, which is
+        // exactly the knife-edge case `floorFindings` exists to catch.
+        readProfileDiagnostics: async () => ({
+            profiles: [{ name: 'HD-1080p', minFormatScore: 10, formatItems: [{ name: 'French', score: 10 }] }],
+            formats: [],
+            languages: []
+        })
+    });
+
+    /** A named instance, so a drift finding's `instance` field has something
+     *  to actually carry — `sonarr()` above has none, which cannot tell
+     *  attribution apart from the unattributed branch. */
+    const sonarr4k = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+        id: 'sonarr/4k',
+        type: 'sonarr',
+        instance: 'sonarr/4k',
+        testConnection: async () => ({ ok: true, service: 'sonarr/4k', latency_ms: 3 }),
+        getVersion: async () => '4.0.0',
+        readProfileDiagnostics: async () => ({ profiles: [], formats: [], languages: [] })
+    });
+
+    type DriftFixture = {
+        id: number;
+        name: string;
+        type: 'radarr' | 'sonarr';
+        enabled: boolean;
+        drift: null | { lastCheckedAt: string; drifted: boolean; details: { qualityProfiles: number; delayProfiles: number; mediaManagement: number } };
+    };
+    type ArrEntryFixture = { id: number; name: string; type: 'radarr' | 'sonarr'; url: string };
+
+    const profilarr = (
+        arrs: DriftFixture[],
+        entries: ArrEntryFixture[] = []
+    ): ServiceAdapter & { status: () => Promise<{ arrs: DriftFixture[] }>; listArrs: () => Promise<ArrEntryFixture[]> } => ({
+        id: 'profilarr',
+        type: 'profilarr',
+        testConnection: async () => ({ ok: true, service: 'profilarr', latency_ms: 3 }),
+        getVersion: async () => '2.2.0',
+        status: async () => ({ arrs }),
+        listArrs: async () => entries
+    });
+
+    const throwingProfilarr = (): ServiceAdapter & { status: () => Promise<never>; listArrs: () => Promise<ArrEntryFixture[]> } => ({
+        id: 'profilarr',
+        type: 'profilarr',
+        testConnection: async () => ({ ok: true, service: 'profilarr', latency_ms: 3 }),
+        getVersion: async () => '2.2.0',
+        status: async () => {
+            throw new Error('unreachable');
+        },
+        listArrs: async () => []
+    });
+
+    const callTool = async (
+        name: string,
+        args: Record<string, unknown>,
+        adapters: readonly ServiceAdapter[] = [sonarr()]
+    ) => {
+        const res = await appWith(config, adapters).request(
+            'http://localhost:6060/mcp',
+            rpc(
+                { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
+        );
+        return ((await rpcPayload(res)).result ?? {}) as {
+            isError?: boolean;
+            content?: { text: string }[];
+            structuredContent?: Record<string, unknown>;
+        };
+    };
+
+    it('reports a knife-edge floor from a configured sonarr', async () => {
+        const result = await callTool('get_profile_issues', {});
+        const kinds = (result.structuredContent as { items: Array<{ kind: string }> }).items.map(i => i.kind);
+        expect(kinds).toContain('knife_edge_floor');
+    });
+
+    it('says drift was not checked when no profilarr is configured', async () => {
+        const result = await callTool('get_profile_issues', {});
+        expect((result.structuredContent as { note?: string }).note).toMatch(/profilarr/i);
+    });
+
+    /**
+     * The language map is built per instance from that instance's own
+     * `/api/v3/language` — a stub returning `languages: []` (every test above
+     * this one) never exercises it, so `dialectFindings` runs against an empty
+     * map and the wiring at `index.ts` connecting the two goes unverified. A
+     * load-bearing Dutch-only format with both Dutch and Flemish in the
+     * instance's language table is the case that catches a dropped or
+     * mis-keyed map.
+     */
+    it('resolves the language map per instance and finds a missing dialect sibling', async () => {
+        const radarr = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+            getVersion: async () => '6.0.0',
+            readProfileDiagnostics: async () => ({
+                profiles: [{ name: 'Dutch-only', minFormatScore: 5, formatItems: [{ name: 'Dutch', score: 5 }] }],
+                formats: [
+                    {
+                        name: 'Dutch',
+                        specifications: [
+                            { implementation: 'LanguageSpecification', negate: false, required: false, fields: [{ name: 'value', value: 1 }] }
+                        ]
+                    }
+                ],
+                languages: [
+                    { id: 1, name: 'Dutch' },
+                    { id: 2, name: 'Flemish' }
+                ]
+            })
+        });
+
+        const result = await callTool('get_profile_issues', {}, [radarr()]);
+        const items = (result.structuredContent as { items: Array<{ kind: string; detail: string }> }).items;
+        const dialect = items.find(i => i.kind === 'dialect_sibling_missing');
+        expect(dialect).toBeDefined();
+        expect(dialect?.detail).toContain('Flemish');
+    });
+
+    /**
+     * A naive `Promise.all` with no per-adapter try/catch would fail the whole
+     * call the moment one instance throws. The other instance's findings must
+     * still come back, and the throwing one must be named in `degraded`.
+     */
+    it('degrades a throwing adapter without losing the other instance’s findings', async () => {
+        const radarr = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+            getVersion: async () => '6.0.0',
+            readProfileDiagnostics: async () => {
+                throw new Error('unreachable');
+            }
+        });
+
+        const result = await callTool('get_profile_issues', {}, [radarr(), sonarr()]);
+        const body = result.structuredContent as { items: Array<{ kind: string; service: string }>; degraded: string[] };
+
+        expect(body.degraded).toContain('radarr');
+        expect(body.items.some(i => i.kind === 'knife_edge_floor' && i.service === 'sonarr')).toBe(true);
+    });
+
+    it('reports an explanatory note and an empty list when no arr service is configured at all', async () => {
+        const result = await callTool('get_profile_issues', {}, []);
+        const body = result.structuredContent as { items: unknown[]; total: number; note?: string };
+
+        expect(body.items).toEqual([]);
+        expect(body.total).toBe(0);
+        expect(body.note).toBeDefined();
+    });
+
+    it('filters to one service, dropping findings from the others', async () => {
+        const radarr = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+            getVersion: async () => '6.0.0',
+            readProfileDiagnostics: async () => ({
+                profiles: [{ name: 'Unreachable', minFormatScore: 100, formatItems: [{ name: 'X', score: 10 }] }],
+                formats: [],
+                languages: []
+            })
+        });
+
+        const result = await callTool('get_profile_issues', { service: 'sonarr' }, [radarr(), sonarr()]);
+        const items = (result.structuredContent as { items: Array<{ kind: string; service: string }> }).items;
+
+        expect(items.length).toBeGreaterThan(0);
+        expect(items.every(i => i.service === 'sonarr')).toBe(true);
+        expect(items.some(i => i.kind === 'unreachable_floor')).toBe(false);
+    });
+
+    describe('profilarr drift', () => {
+        it('reports a certain drift finding attributed to the matched instance', async () => {
+            // `sonarr/4k` in both the entry name and the fixture's `instance`
+            // is the fact that distinguishes attribution from the unattributed
+            // branch — `service`/`confidence`/a detail substring alone cannot,
+            // since the unattributed branch emits the same three.
+            const pf = profilarr(
+                [{ id: 1, name: 'sonarr/4k', type: 'sonarr', enabled: true, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 2, delayProfiles: 0, mediaManagement: 1 } } }],
+                [{ id: 1, name: 'sonarr/4k', type: 'sonarr', url: 'http://sonarr4k.example:8989' }]
+            );
+
+            const result = await callTool('get_profile_issues', {}, [sonarr4k(), pf]);
+            const items = (result.structuredContent as {
+                items: Array<{ kind: string; service: string; instance?: string; confidence: string; detail: string }>;
+            }).items;
+            const drift = items.find(i => i.kind === 'profilarr_drift');
+
+            expect(drift).toBeDefined();
+            expect(drift?.service).toBe('sonarr');
+            expect(drift?.instance).toBe('sonarr/4k');
+            expect(drift?.confidence).toBe('certain');
+            expect(drift?.detail).toContain('2 quality profile');
+            expect(drift?.detail).not.toContain('unattributed');
+        });
+
+        it('reports an unattributed drift finding when the entry matches no configured instance', async () => {
+            const pf = profilarr(
+                [{ id: 1, name: 'Radarr 4K', type: 'radarr', enabled: true, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 1, delayProfiles: 0, mediaManagement: 0 } } }],
+                [{ id: 1, name: 'Radarr 4K', type: 'radarr', url: 'http://radarr4k.example:7878' }]
+            );
+
+            // Only sonarr is configured, so the radarr entry Profilarr reports
+            // drift for cannot be matched to anything.
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const items = (result.structuredContent as {
+                items: Array<{ kind: string; instance?: string; detail: string }>;
+            }).items;
+            const drift = items.find(i => i.kind === 'profilarr_drift');
+
+            expect(drift).toBeDefined();
+            expect(drift?.instance).toBeUndefined();
+            expect(drift?.detail).toContain('unattributed');
+        });
+
+        it('never reports drift as clean when Profilarr has not checked yet', async () => {
+            const pf = profilarr(
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, drift: null }],
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' }]
+            );
+
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; note?: string };
+
+            expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
+            expect(body.note).toContain(DRIFT_PENDING_NOTE);
+        });
+
+        it('still reports drift as pending when an instance filter matches nothing', async () => {
+            // `instance: 'sonarr/4k'` matches no configured adapter at all
+            // (the default `sonarr()` fixture carries no `instance`), so the
+            // entry cannot be attributed. The pending note must survive that
+            // regardless — a null drift silently rendering as clean is the
+            // exact failure the global constraint forbids.
+            const pf = profilarr(
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, drift: null }],
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' }]
+            );
+
+            const result = await callTool('get_profile_issues', { instance: 'sonarr/4k' }, [sonarr(), pf]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; note?: string };
+
+            expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
+            expect(body.note).toContain(DRIFT_PENDING_NOTE);
+        });
+
+        it('skips a disabled arr entry entirely, neither drifted nor pending', async () => {
+            const pf = profilarr(
+                [
+                    { id: 1, name: 'Sonarr', type: 'sonarr', enabled: false, drift: null },
+                    {
+                        id: 2,
+                        name: 'Sonarr 2',
+                        type: 'sonarr',
+                        enabled: false,
+                        drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 1, delayProfiles: 0, mediaManagement: 0 } }
+                    }
+                ],
+                [
+                    { id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' },
+                    { id: 2, name: 'Sonarr 2', type: 'sonarr', url: 'http://sonarr2.example:8989' }
+                ]
+            );
+
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; note?: string };
+
+            expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
+            expect(body.note).toBeUndefined();
+        });
+
+        it('is quiet when Profilarr has checked and found no drift', async () => {
+            const pf = profilarr(
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: false, details: { qualityProfiles: 0, delayProfiles: 0, mediaManagement: 0 } } }],
+                [{ id: 1, name: 'Sonarr', type: 'sonarr', url: 'http://sonarr.example:8989' }]
+            );
+
+            const result = await callTool('get_profile_issues', {}, [sonarr(), pf]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; note?: string };
+
+            expect(body.items.some(i => i.kind === 'profilarr_drift')).toBe(false);
+            expect(body.note).toBeUndefined();
+        });
+
+        it('degrades a throwing Profilarr without losing the arr findings', async () => {
+            const result = await callTool('get_profile_issues', {}, [sonarr(), throwingProfilarr()]);
+            const body = result.structuredContent as { items: Array<{ kind: string }>; degraded: string[] };
+
+            expect(body.degraded).toContain('profilarr');
+            expect(body.items.some(i => i.kind === 'knife_edge_floor')).toBe(true);
+        });
+
+        it('does not mistake a degraded Profilarr for every arr instance degrading', async () => {
+            const result = await callTool('get_profile_issues', {}, [sonarr(), throwingProfilarr()]);
+            const text = result.content?.[0]?.text ?? '';
+
+            expect(text).not.toContain('no profile diagnostics available');
+        });
+    });
+
+    describe('note composition', () => {
+        it('says the filter excluded everything, alongside the drift note, when service matches no instance', async () => {
+            const result = await callTool('get_profile_issues', { service: 'radarr' }, [sonarr()]);
+            const body = result.structuredContent as { items: unknown[]; note?: string };
+
+            expect(body.items).toEqual([]);
+            expect(body.note).toContain(NO_MATCHING_INSTANCE_NOTE);
+        });
+
+        it('keeps the drift-not-checked note in the summary text when every arr degrades', async () => {
+            const failing = (): ServiceAdapter & ProfileDiagnosticsCapable => ({
+                id: 'sonarr',
+                type: 'sonarr',
+                testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 3 }),
+                getVersion: async () => '4.0.0',
+                readProfileDiagnostics: async () => {
+                    throw new Error('unreachable');
+                }
+            });
+
+            const result = await callTool('get_profile_issues', {}, [failing()]);
+            const text = result.content?.[0]?.text ?? '';
+
+            expect(text).toContain('could not be reached');
+            expect(text).toContain('profilarr');
+        });
     });
 });
 

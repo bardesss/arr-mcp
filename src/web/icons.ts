@@ -65,6 +65,11 @@ export const ICONS: Record<ServiceId, string> = {
     qbittorrent: draw(
         '<rect x="3" y="3" width="18" height="18" rx="3"/>' +
             '<path d="M9 7.5v9m0 0-2.5-2.5M9 16.5l2.5-2.5"/><path d="M15 16.5v-9m0 0-2.5 2.5M15 7.5l2.5 2.5"/>'
+    ),
+    // Sliders, not a chart: Profilarr's category is config management, and the
+    // old mark (lines plus a jagged trend) read as analytics instead.
+    profilarr: draw(
+        '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="17" r="2"/>'
     )
 };
 

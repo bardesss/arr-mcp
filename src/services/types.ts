@@ -110,6 +110,35 @@ export interface IndexerCapable {
 export const hasIndexers = (a: ServiceAdapter): a is ServiceAdapter & IndexerCapable =>
     typeof (a as Partial<IndexerCapable>).getIndexers === 'function';
 
+export type ArrFormatItem = { name: string; score: number };
+export type ArrQualityProfile = { name: string; minFormatScore: number; formatItems: ArrFormatItem[] };
+export type ArrFormatSpecification = {
+    implementation: string;
+    negate: boolean;
+    required: boolean;
+    fields: Array<{ name: string; value: unknown }>;
+};
+export type ArrCustomFormat = { name: string; specifications: ArrFormatSpecification[] };
+/** One instance's own language table. Ids are not shared across instances —
+ *  a live Radarr and Sonarr disagree on them — so this must be read fresh
+ *  from each adapter, never cached across services. */
+export type ArrLanguage = { id: number; name: string };
+
+/** Everything `get_profile_issues` reads from one Radarr, Sonarr or Whisparr:
+ *  its quality profiles, its custom formats, and its own language table. */
+export type ProfileDiagnosticsData = {
+    profiles: ArrQualityProfile[];
+    formats: ArrCustomFormat[];
+    languages: ArrLanguage[];
+};
+
+export interface ProfileDiagnosticsCapable {
+    readProfileDiagnostics(): Promise<ProfileDiagnosticsData>;
+}
+
+export const hasProfileDiagnostics = (a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
+    typeof (a as Partial<ProfileDiagnosticsCapable>).readProfileDiagnostics === 'function';
+
 export type MissingLanguage = { name: string; code2: string; forced: boolean; hearingImpaired: boolean };
 
 export type SubtitleGap = {

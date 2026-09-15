@@ -6,7 +6,7 @@
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-**Radarr · Sonarr · Whisparr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · Transmission · qBittorrent**
+**Radarr · Sonarr · Whisparr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · Transmission · qBittorrent · Profilarr**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
@@ -44,12 +44,13 @@ part it could not check rather than guessing across the hole.
 |  | |
 | --- | --- |
 | 🔍 **`diagnose` answers what no single service can** | Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the *first* thing that explains the absence. |
+| 🧮 **Quality profiles that cannot do what they say** | A minimum score nothing can reach, a language preferred but never required, a format scored where its wider twin sits at zero. The arithmetic ones are proved rather than guessed, and every fix names a change to make in Profilarr, which owns them. |
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
-| 📚 **Thirty-six tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
+| 📚 **Thirty-eight tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
 
-Nothing else in this space does the last four at all.
+Nothing else in this space does the last five at all.
 
 ## Quick start — about two minutes
 
@@ -114,7 +115,7 @@ ARM NAS runs the same build as everything else.
 
 ## What you can ask it
 
-Thirty-six tools, but you never name them — you ask, and the model picks:
+Thirty-eight tools, but you never name them — you ask, and the model picks:
 
 > *"What's downloading right now, and is anything stuck?"*
 > *"What aired this week that I haven't watched?"*
@@ -126,6 +127,8 @@ Thirty-six tools, but you never name them — you ask, and the model picks:
 > *"Pause SABnzbd, I need the bandwidth for an hour."*
 > *"That download finished days ago and never got imported — sort it out."*
 > *"Put this series on the 4K profile and only monitor future seasons."*
+> *"This profile says it wants Dutch but keeps grabbing English — why?"*
+> *"Has anything in Radarr drifted from what Profilarr set?"*
 > *"Which of my shows have metadata that does not match the files?"*
 > *"These episode titles are wrong for the files — fix them."*
 > *"Unmonitor season 5 and delete its files."* — previewed first, always.
@@ -134,7 +137,7 @@ Thirty-six tools, but you never name them — you ask, and the model picks:
 
 | | |
 | --- | --- |
-| **[Tools](docs/tools.md)** | All thirty-six, what each answers, and the fields whose meaning is not obvious |
+| **[Tools](docs/tools.md)** | All thirty-eight, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, the seven services that take a list, Jellyfin's `default_user` |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
@@ -146,7 +149,7 @@ Thirty-six tools, but you never name them — you ask, and the model picks:
 
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server 1.32+,
-  Seerr 1.0+, SABnzbd 3.0+, Transmission 3.0+, qBittorrent 4.1+
+  Seerr 1.0+, SABnzbd 3.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+
 - Docker, or Node 24+ to run from source
 - An MCP client speaking protocol revision `2026-07-28`
 

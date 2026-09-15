@@ -8,6 +8,7 @@ import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, SONARR_ADD } from './arrAdd.ts';
+import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
@@ -56,6 +57,8 @@ import {
     type MediaDeleteCapable,
     type MonitoringCapable,
     type MonitoringTarget,
+    type ProfileDiagnosticsCapable,
+    type ProfileDiagnosticsData,
     type QualityProfile,
     type QueueRemoveCapable,
     type ReleaseCandidate,
@@ -153,7 +156,8 @@ export class SonarrAdapter
         EpisodeFileCapable,
         HistoryCapable,
         WantedCapable,
-        ReleaseSearchCapable
+        ReleaseSearchCapable,
+        ProfileDiagnosticsCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -241,6 +245,10 @@ export class SonarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
+        return readArrProfileDiagnostics(this.#http);
     }
 
     async listCommands(): Promise<CommandStatus[]> {

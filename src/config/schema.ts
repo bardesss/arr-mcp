@@ -11,7 +11,8 @@ export const ServiceIdSchema = z.enum([
     'sabnzbd',
     'transmission',
     'qbittorrent',
-    'plex'
+    'plex',
+    'profilarr'
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
@@ -232,6 +233,7 @@ export type ConfigByService = {
     plex: For<'plex', MultiUserServiceConfig>;
     transmission: For<'transmission', Instanced<CredentialServiceConfig>>;
     qbittorrent: For<'qbittorrent', Instanced<CredentialServiceConfig>>;
+    profilarr: For<'profilarr', KeyedServiceConfig>;
 };
 
 /**
@@ -272,7 +274,10 @@ const ServicesSchema = z
         seerr: singleOnly(MultiUserServiceSchema).optional(),
         transmission: MultiInstanceCredentialSchema.optional(),
         qbittorrent: MultiInstanceCredentialSchema.optional(),
-        plex: singleOnly(MultiUserServiceSchema).optional()
+        plex: singleOnly(MultiUserServiceSchema).optional(),
+        // Single only: Profilarr is the one place that owns profile config,
+        // so two of them would mean two sources of truth.
+        profilarr: singleOnly(KeyedServiceSchema).optional()
     })
     .superRefine((services, ctx) => {
         /**
