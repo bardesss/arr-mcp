@@ -37,6 +37,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
+import { ProfilarrAdapter } from '../src/services/profilarr.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
 
@@ -855,17 +856,27 @@ if (client !== undefined) {
 }
 
 /**
- * sync_database, dry run only — a real run pulls Profilarr's own git-tracked
- * store, which is reversible in Profilarr but not something this script
- * should trigger on every run. `database` is left out: it is required only
- * when Profilarr holds more than one, and most stacks hold exactly one.
+ * sync_database, dry run only — test against the first available database
+ * discovered at runtime. A real sync pulls Profilarr's own git-tracked store;
+ * the dry run proves the tool accepts that database without triggering it.
  */
 if (config.services?.profilarr !== undefined) {
-    await run(
-        'sync_database',
-        { dry_run: true },
-        'DRY RUN ONLY — never applied from this script'
-    );
+    try {
+        const profil = new ProfilarrAdapter(config.services.profilarr);
+        const { databases } = await profil.status();
+        const firstDb = databases[0];
+        if (firstDb === undefined) {
+            console.log('SKIP sync_database — profilarr has no databases.');
+        } else {
+            await run(
+                'sync_database',
+                { database: firstDb.name, dry_run: true },
+                'DRY RUN ONLY — never applied from this script'
+            );
+        }
+    } catch {
+        console.log('SKIP sync_database — profilarr unreachable.');
+    }
 } else {
     console.log('SKIP sync_database — no profilarr is configured.');
 }
