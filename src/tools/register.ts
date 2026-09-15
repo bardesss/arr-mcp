@@ -32,6 +32,7 @@ import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
 import { registerGetMetadataIssues } from './getMetadataIssues.ts';
 import { registerGetPlayback } from './getPlayback.ts';
+import { registerGetProfileIssues } from './profileIssues/index.ts';
 import { registerGetQueue } from './getQueue.ts';
 import { registerGetReleases } from './getReleases.ts';
 import { registerGetRequests } from './getRequests.ts';
@@ -49,6 +50,7 @@ import { registerSearchMedia } from './searchMedia.ts';
 import { registerSetMonitoring } from './setMonitoring.ts';
 import { registerSetWatched } from './setWatched.ts';
 import { registerStackHealth } from './stackHealth.ts';
+import { registerSyncDatabase } from './syncDatabase.ts';
 import { registerTriggerScan } from './triggerScan.ts';
 import { registerTriggerSubtitleSearch } from './triggerSubtitleSearch.ts';
 import { registerTriggerSearch } from './triggerSearch.ts';
@@ -227,6 +229,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetMediaDetails(server, adapters, library, dataset);
     registerGetMetadataIssues(server, adapters, mediaServerIdentity);
     registerGetLibrary(server, library);
+    registerGetProfileIssues(server, adapters, instances);
     registerSearchMedia(server, adapters, dataset);
     registerLookupMedia(server, adapters, dataset);
     registerDiscoverMedia(server, seerr, dataset);
@@ -251,6 +254,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGrabRelease(server, write, adapters);
     registerRequestMedia(server, write, adapters, seerrIdentity);
     registerPauseDownloads(server, write, adapters);
+    registerSyncDatabase(server, write, adapters);
     registerSetWatched(server, write, adapters, mediaServerIdentity);
     registerFixMetadata(server, write, adapters, library, mediaServerIdentity);
     registerRemoveBlocklistItem(server, write, adapters);
@@ -279,6 +283,7 @@ export const TOOL_NAMES = [
     'get_media_details',
     'get_metadata_issues',
     'get_library',
+    'get_profile_issues',
     'search_media',
     'lookup_media',
     'discover_media',
@@ -297,6 +302,7 @@ export const TOOL_NAMES = [
     'grab_release',
     'request_media',
     'pause_downloads',
+    'sync_database',
     'set_watched',
     'fix_metadata',
     'remove_blocklist_item'

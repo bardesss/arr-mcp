@@ -253,6 +253,25 @@ describe('plex', () => {
     });
 });
 
+describe('profilarr', () => {
+    it('accepts a single profilarr block', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { profilarr: { url: 'http://profilarr:6868', api_key: 'k' } }
+        });
+        expect(parsed.services.profilarr?.url).toBe('http://profilarr:6868');
+    });
+
+    it('refuses a list of profilarr instances', () => {
+        expect(() =>
+            ConfigSchema.parse({
+                auth: AUTH,
+                services: { profilarr: [{ url: 'http://a:6868', api_key: 'k' }] }
+            })
+        ).toThrow(/single block/);
+    });
+});
+
 describe('per-service config shapes', () => {
     it('accepts transmission with username and password and no api_key', () => {
         const parsed = ConfigSchema.parse({

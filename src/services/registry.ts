@@ -3,6 +3,7 @@ import type { Config } from '../config/schema.ts';
 import { BazarrAdapter } from './bazarr.ts';
 import { JellyfinAdapter } from './jellyfin.ts';
 import { PlexAdapter } from './plex.ts';
+import { ProfilarrAdapter } from './profilarr.ts';
 import { ProwlarrAdapter } from './prowlarr.ts';
 import { QbittorrentAdapter } from './qbittorrent.ts';
 import { RadarrAdapter } from './radarr.ts';
@@ -49,6 +50,8 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
             return new BazarrAdapter(instance.config);
         case 'jellyfin':
             return new JellyfinAdapter(instance.config);
+        case 'profilarr':
+            return new ProfilarrAdapter(instance.config);
         case 'prowlarr':
             return new ProwlarrAdapter(instance.config);
         case 'qbittorrent':
