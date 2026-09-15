@@ -69,7 +69,7 @@ describe('subset formats', () => {
 
     it('flags scoring the narrower of two language formats', () => {
         const formats = [lang('Dutch', [7]), lang('Language: Dutch', [7, 19])];
-        const found = subsetFindings(profile({ name: 'Example 2160p Dubbed', minFormatScore: 500000, formatItems: [{ name: 'Dutch', score: 500000 }, { name: 'Language: Dutch', score: 0 }] }), formats);
+        const found = subsetFindings(profile({ name: 'HD-2160p', minFormatScore: 500000, formatItems: [{ name: 'Dutch', score: 500000 }, { name: 'Language: Dutch', score: 0 }] }), formats);
         expect(found.map(f => f.kind)).toEqual(['subset_format_scored']);
         expect(found[0]?.detail).toContain('Language: Dutch');
     });
@@ -90,7 +90,7 @@ const NAMES = new Map([[7, 'Dutch'], [19, 'Flemish'], [1, 'English']]);
 describe('likely rules', () => {
     it('flags a language scored but not required', () => {
         const found = languagePreferenceFindings(
-            profile({ name: 'Example 2160p Dubbed Preferred', minFormatScore: 0, formatItems: [{ name: 'Language: Dutch', score: 1000 }] }),
+            profile({ name: 'HD-2160p', minFormatScore: 0, formatItems: [{ name: 'Language: Dutch', score: 1000 }] }),
             [lang('Language: Dutch', [7, 19])]
         );
         expect(found.map(f => f.kind)).toEqual(['language_preferred_not_required']);
@@ -107,14 +107,14 @@ describe('likely rules', () => {
     it('is quiet when a language format is scored negatively', () => {
         // A profile that blocks a language at -10000 on purpose. Deliberate, not a fault.
         expect(languagePreferenceFindings(
-            profile({ name: 'Example 1080p Original Only', minFormatScore: 0, formatItems: [{ name: 'Language: Dutch', score: -10000 }] }),
+            profile({ name: 'HD-1080p', minFormatScore: 0, formatItems: [{ name: 'Language: Dutch', score: -10000 }] }),
             [lang('Language: Dutch', [7, 19])]
         )).toEqual([]);
     });
 
     it('flags a load-bearing language gate missing its sibling', () => {
         const found = dialectFindings(
-            profile({ name: 'Example 2160p Dubbed', minFormatScore: 500000, formatItems: [{ name: 'Dutch', score: 500000 }] }),
+            profile({ name: 'HD-2160p', minFormatScore: 500000, formatItems: [{ name: 'Dutch', score: 500000 }] }),
             [lang('Dutch', [7])],
             NAMES
         );
