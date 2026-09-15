@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.0](https://github.com/bardesss/arr-mcp/compare/v1.26.8...v1.27.0) (2026-09-15)
+
+
+### Features
+
+* report quality profile faults, and add Profilarr ([#258](https://github.com/bardesss/arr-mcp/issues/258)) ([a19cba6](https://github.com/bardesss/arr-mcp/commit/a19cba617cd989b7898d1efbfc9854ffc7ede2c6))
+
 ## [1.26.8](https://github.com/bardesss/arr-mcp/compare/v1.26.7...v1.26.8) (2026-09-14)
 
 
