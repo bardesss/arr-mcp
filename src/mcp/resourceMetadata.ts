@@ -10,6 +10,17 @@ import { mcpEndpoint } from '../web/origin.ts';
  * Both forms, because clients disagree about which to fetch: RFC 9728 derives
  * the path-suffixed one from the endpoint URL, and some clients probe the bare
  * origin form instead. They serve the same document.
+ *
+ * Both also answer with `resource: <scheme>://<host>/mcp` rather than one
+ * bare-origin path answering with the bare origin — RFC 9728 §3.1 pairs the
+ * bare-origin route with a bare-origin identifier, but every MCP client
+ * derives the path-suffixed form (§3.3), so this is a deliberate compatibility
+ * shim for the bare-origin probers, not a defect to "fix" into two documents.
+ *
+ * The second entry hardcodes `/mcp`, which `mcpEndpoint` (src/web/origin.ts)
+ * also hardcodes — two places that would silently desync if the endpoint
+ * path ever moved. Not worth deriving today: `src/app.ts` hardcodes `/mcp` a
+ * third time for the route itself.
  */
 export const RESOURCE_METADATA_PATHS = [
     '/.well-known/oauth-protected-resource',
