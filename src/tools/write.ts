@@ -69,6 +69,15 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
     tier: WriteTier;
     plan(args: z.infer<Schema>): Promise<WritePlan>;
     apply(plan: WritePlan, args: z.infer<Schema>): Promise<unknown>;
+    /**
+     * Optional override for the sentence shown after a successful apply.
+     * Most tools need none — `plan.summary` describes the effect and the
+     * effect happened, so `Applied. ${plan.summary}` is always true. A tool
+     * whose apply can turn out to have done nothing (a sync that found
+     * nothing to pull) supplies this to say so; returning `undefined` falls
+     * back to the default sentence.
+     */
+    applied?(outcome: unknown, plan: WritePlan): string | undefined;
 };
 
 export type WriteContext = {
@@ -366,7 +375,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
 
             return respond(
                 { ...preview({ audit_id: id }), applied: true, ...(outcome === undefined ? {} : { result: outcome }) },
-                `Applied. ${plan.summary}`
+                spec.applied?.(outcome, plan) ?? `Applied. ${plan.summary}`
             );
         }
     );

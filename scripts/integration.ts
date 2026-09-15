@@ -874,8 +874,8 @@ if (config.services?.profilarr !== undefined) {
                 'DRY RUN ONLY — never applied from this script'
             );
         }
-    } catch {
-        console.log('SKIP sync_database — profilarr unreachable.');
+    } catch (err) {
+        console.log(`SKIP sync_database — profilarr unreachable: ${err instanceof Error ? err.message : String(err)}`);
     }
 } else {
     console.log('SKIP sync_database — no profilarr is configured.');

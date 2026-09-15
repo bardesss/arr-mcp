@@ -25,6 +25,26 @@ const db = (id: number, name: string): ProfilarrDatabase => ({
     counts: { customFormats: 0, qualityProfiles: 0, regularExpressions: 0, delayProfiles: 0 }
 });
 
+/** A real Profilarr instance stubbed at the HTTP layer, so `jobStatus` sees
+ *  exactly the body Profilarr sends rather than a shape the test invents. */
+function profilarrWithJob(jobBody: Record<string, unknown>): ServiceAdapter {
+    return new ProfilarrAdapter(
+        keyed,
+        (async (input: string | URL | Request) => {
+            const path = new URL(String(input)).pathname;
+            if (path === '/api/v1/status') {
+                return new Response(
+                    JSON.stringify({ version: '2.2.0', uptime: 1, timezone: 'UTC', databases: [db(3, 'Dictionarry')], arrs: [] }),
+                    { status: 200 }
+                );
+            }
+            if (path === '/api/v1/databases/3/sync') return new Response(JSON.stringify({ jobId: 23 }), { status: 202 });
+            if (path === '/api/v1/jobs/23') return new Response(JSON.stringify(jobBody), { status: 200 });
+            return new Response('not found', { status: 404 });
+        }) as unknown as typeof fetch
+    );
+}
+
 /** A job that answers `statuses` in order, holding the last one once exhausted. */
 function fakeProfilarr(databases: ProfilarrDatabase[], statuses: JobStatus[]) {
     const triggerCalls: number[] = [];
@@ -238,28 +258,7 @@ describe('sync_database', () => {
             finishedAt: '2026-09-15T06:14:20Z',
             result: { status: 'skipped', output: 'No updates available', error: null, durationMs: 440 }
         };
-        const adapter = new ProfilarrAdapter(
-            keyed,
-            (async (input: string | URL | Request) => {
-                const path = new URL(String(input)).pathname;
-                if (path === '/api/v1/status') {
-                    return new Response(
-                        JSON.stringify({
-                            version: '2.2.0',
-                            uptime: 1,
-                            timezone: 'UTC',
-                            databases: [db(3, 'Dictionarry')],
-                            arrs: []
-                        }),
-                        { status: 200 }
-                    );
-                }
-                if (path === '/api/v1/databases/3/sync') return new Response(JSON.stringify({ jobId: 23 }), { status: 202 });
-                if (path === '/api/v1/jobs/23') return new Response(JSON.stringify(jobBody), { status: 200 });
-                return new Response('not found', { status: 404 });
-            }) as unknown as typeof fetch
-        );
-        const h = harness({ adapter });
+        const h = harness({ adapter: profilarrWithJob(jobBody) });
 
         const preview = await h.call({});
         const applied = await h.call({ confirm: preview.structuredContent.confirm_token });
@@ -271,6 +270,43 @@ describe('sync_database', () => {
             outcome: 'skipped',
             detail: 'No updates available'
         });
+    });
+
+    it('says in the reply text — not just structuredContent — that nothing was pulled', async () => {
+        // The structured `outcome: "skipped"` is only half the fix. Most MCP
+        // clients show a person the text, and the hardcoded default
+        // (`Applied. ${plan.summary}`) reads as a completed sync regardless
+        // of what the structured half says. This is the sentence that matters.
+        const jobBody = {
+            id: 23,
+            jobType: 'pcd.sync',
+            status: 'success',
+            source: 'manual',
+            createdAt: '2026-09-15T06:14:19Z',
+            startedAt: '2026-09-15T06:14:19Z',
+            finishedAt: '2026-09-15T06:14:20Z',
+            result: { status: 'skipped', output: 'No updates available', error: null, durationMs: 440 }
+        };
+        const h = harness({ adapter: profilarrWithJob(jobBody) });
+
+        const preview = await h.call({});
+        const applied = await h.call({ confirm: preview.structuredContent.confirm_token });
+
+        expect(applied.content[0]?.text).toBe(
+            'Nothing to pull — Profilarr\'s "Dictionarry" database was already up to date with its git source, ' +
+                'so no sync happened. Profilarr said: No updates available'
+        );
+        expect(applied.content[0]?.text).not.toMatch(/^Applied\./);
+    });
+
+    it('keeps the default "Applied" sentence for a sync that actually ran', async () => {
+        const { adapter } = fakeProfilarr([db(3, 'Dictionarry')], ['success']);
+        const h = harness({ adapter });
+
+        const preview = await h.call({});
+        const applied = await h.call({ confirm: preview.structuredContent.confirm_token });
+
+        expect(applied.content[0]?.text).toBe('Applied. Sync Profilarr\'s "Dictionarry" database from its configured git source.');
     });
 
     it('names the config key when safe writes are disabled', async () => {

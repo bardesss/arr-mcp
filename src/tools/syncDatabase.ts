@@ -108,7 +108,9 @@ export function registerSyncDatabase(
             'Sonarr directly. `database` names one by name or id; required only when Profilarr has more than one. ' +
             'Profilarr answers the request with a queued job, and this tool polls it to a terminal status before ' +
             'reporting anything, so the result reflects whether the sync actually finished, not just that it was ' +
-            'accepted. Previews by default — call again with the returned `confirm` token to run it.',
+            'accepted. A sync can legitimately find nothing to pull; that reports as a completed call whose ' +
+            '`outcome` is `skipped`, not as a normal sync. Previews by default — call again with the returned ' +
+            '`confirm` token to run it.',
         inputSchema: z.object({
             database: z
                 .string()
@@ -153,12 +155,9 @@ export function registerSyncDatabase(
                 );
             }
 
-            // The queue says `success` here in every branch below — it only
-            // means the job ran to completion. `result` is the handler's own
-            // outcome, and it can disagree: `failure`/`cancelled` mean the
-            // handler itself did not do what was asked, which is exactly the
-            // "reported done but wasn't" bug this tool exists to avoid, just
-            // one field over. Treat those the same as a failed/cancelled queue.
+            // `status` is the queue outcome; `result` is the handler's own,
+            // and can disagree — `failure`/`cancelled` here mean the handler
+            // didn't do what was asked, so treat them like a failed queue.
             if (result === 'failure' || result === 'cancelled') {
                 throw new ServiceError(
                     'UpstreamError',
@@ -175,6 +174,21 @@ export function registerSyncDatabase(
             }
 
             return { jobId, status };
+        },
+
+        // Only the skipped case needs a different sentence — a real sync
+        // keeps the default `Applied. ${plan.summary}`. Without this, a
+        // sync that pulled nothing would still read as a completed sync,
+        // which is the same bug the structured `outcome` field exists to
+        // avoid, one level up in the text a client actually shows.
+        applied(outcome, plan) {
+            const o = outcome as { outcome?: string; detail?: string } | undefined;
+            if (o?.outcome !== 'skipped') return undefined;
+            const name = /"([^"]+)"/.exec(plan.summary)?.[1] ?? plan.target;
+            return (
+                `Nothing to pull — Profilarr's "${name}" database was already up to date with its git source, ` +
+                `so no sync happened.${o.detail === undefined ? '' : ` Profilarr said: ${o.detail}`}`
+            );
         }
     });
 }

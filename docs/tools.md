@@ -913,6 +913,12 @@ Profilarr answers the trigger with a 202 and a job id, not an outcome, so
 — a queued-but-not-finished sync is never reported as done. Not reversible
 through arr-mcp; revert in Profilarr or git if the pulled change is unwanted.
 
+A finished job can still have done nothing: Profilarr reports the queue
+outcome and the handler's own outcome separately, and the latter can be
+`skipped` — nothing to pull — even though the queue says `success`. That
+shows up as `outcome: "skipped"` in the structured result, and the reply text
+says plainly that nothing was pulled rather than reporting a completed sync.
+
 ## `pause_downloads`
 
 The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
