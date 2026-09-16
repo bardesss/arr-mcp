@@ -1,6 +1,8 @@
+import type { OAuthTokenVerifier } from '@modelcontextprotocol/server';
 import { loadConfig } from '../config/load.ts';
 import type { Config } from '../config/schema.ts';
 import { IMDB_FILENAME, ImdbDataset } from '../metadata/imdbDataset.ts';
+import { type KeyResolver, oauthVerifier } from '../mcp/oauthVerifier.ts';
 import { buildAdapters } from '../services/registry.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { buildToolContext, type ToolContext } from '../tools/register.ts';
@@ -23,6 +25,13 @@ export type RuntimeSnapshot = {
     config: Config;
     adapters: readonly ServiceAdapter[];
     tools: ToolContext;
+    /**
+     * Undefined when `auth.oauth` is absent. Built once per config load, not
+     * per request: it holds the JWKS cache and the shared in-flight fetch,
+     * and rebuilding it per request would throw both away and turn a burst
+     * of requests back into one fetch each.
+     */
+    oauthVerifier: OAuthTokenVerifier | undefined;
 };
 
 /**
@@ -90,6 +99,15 @@ export class Runtime {
     /** Stops the refresh belonging to `#dataset`, and only while one is open. */
     #stopRefresh: (() => void) | undefined;
 
+    /**
+     * Injects a local JWKS in place of a live fetch. `undefined` in every real
+     * deployment — `start()` never sets it, so production always builds a
+     * `createRemoteJWKSet` against the configured `jwks_uri`. Tests pass a
+     * `createLocalJWKSet` here for the same reason `adapters` is injectable:
+     * it drives the real verifier against a key it controls, with no network.
+     */
+    readonly #oauthKeys: KeyResolver | undefined;
+
     get dataset(): ImdbDataset | undefined {
         return this.#dataset;
     }
@@ -99,17 +117,19 @@ export class Runtime {
         audit: WriteAudit,
         config: Config,
         refresh: Refresher,
-        sessions: Sessions
+        sessions: Sessions,
+        oauthKeys?: KeyResolver
     ) {
         this.#configDir = configDir;
         this.#audit = audit;
         this.#refresh = refresh;
+        this.#oauthKeys = oauthKeys;
         this.confirm = new ConfirmTokens();
         this.sessions = sessions;
         // Before the snapshot, not after: the tool context closes over the
         // dataset, so it has to exist by the time it is built.
         this.#syncDataset(config);
-        this.#snapshot = buildSnapshot(config, audit, this.confirm, this.#dataset);
+        this.#snapshot = buildSnapshot(config, audit, this.confirm, this.#dataset, this.#oauthKeys);
     }
 
     /**
@@ -187,6 +207,7 @@ export class Runtime {
             adapters?: readonly ServiceAdapter[];
             refresh?: Refresher;
             sessions?: Sessions;
+            oauthKeys?: KeyResolver;
         } = {}
     ): Runtime {
         const runtime = new Runtime(
@@ -194,13 +215,15 @@ export class Runtime {
             audit,
             config,
             opts.refresh ?? NO_REFRESH,
-            opts.sessions ?? new Sessions()
+            opts.sessions ?? new Sessions(),
+            opts.oauthKeys
         );
         if (opts.adapters !== undefined) {
             runtime.#snapshot = {
                 config,
                 adapters: opts.adapters,
-                tools: buildToolContext(opts.adapters, config, audit, runtime.confirm, runtime.dataset)
+                tools: buildToolContext(opts.adapters, config, audit, runtime.confirm, runtime.dataset),
+                oauthVerifier: config.auth.oauth === undefined ? undefined : oauthVerifier(config.auth.oauth, opts.oauthKeys)
             };
         }
         return runtime;
@@ -230,7 +253,7 @@ export class Runtime {
     async reload(): Promise<void> {
         const { config } = await loadConfig(this.#configDir);
         this.#syncDataset(config);
-        this.#snapshot = buildSnapshot(config, this.#audit, this.confirm, this.#dataset);
+        this.#snapshot = buildSnapshot(config, this.#audit, this.confirm, this.#dataset, this.#oauthKeys);
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');
     }
 
@@ -240,8 +263,14 @@ function buildSnapshot(
     config: Config,
     audit: WriteAudit,
     confirm: ConfirmTokens,
-    dataset: ImdbDataset | undefined
+    dataset: ImdbDataset | undefined,
+    oauthKeys: KeyResolver | undefined
 ): RuntimeSnapshot {
     const adapters = buildAdapters(config);
-    return { config, adapters, tools: buildToolContext(adapters, config, audit, confirm, dataset) };
+    return {
+        config,
+        adapters,
+        tools: buildToolContext(adapters, config, audit, confirm, dataset),
+        oauthVerifier: config.auth.oauth === undefined ? undefined : oauthVerifier(config.auth.oauth, oauthKeys)
+    };
 }
