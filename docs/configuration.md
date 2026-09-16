@@ -264,6 +264,17 @@ transport.
 
 ### `auth.oauth`
 
+Lets an MCP client authenticate with a short-lived OAuth 2.1 access token
+instead of the one static bearer token every other client shares — useful
+once you have more than one client and want to hand out credentials that
+expire and that carry less than full access.
+
+**arr-mcp is only the resource server here.** It does not issue tokens, does
+not run an authorization server, and does not discover one — you need an
+OAuth 2.1 or OIDC provider already minting tokens before this does anything.
+There is also no config-UI form for this block: add it to `config.yaml` by
+hand and restart the container, the same as any other hand edit.
+
 ```yaml
 auth:
   oauth:
@@ -278,14 +289,16 @@ auth:
 
 Absent means off, exactly like a service nobody configured.
 
-`jwks_uri` is required rather than discovered: there is no OIDC discovery in
-this version, so there is no endpoint derived from `issuer` for the server to
-guess at.
+To turn it on: give your authorization server an audience (or resource
+identifier) for arr-mcp — any string, it just has to match `audience` below
+exactly — and point `jwks_uri` at wherever that server publishes its signing
+keys. There is no OIDC discovery in this version, so `jwks_uri` has to be
+given directly rather than derived from `issuer`.
 
 `audience` is required too. Without it, every token that issuer ever minted
 for any of its clients — not just this server's — would be accepted here.
 
-Each scope grants one access level:
+Each scope your authorization server can grant maps to one access level:
 
 | Scope | Grants |
 | --- | --- |
@@ -293,8 +306,10 @@ Each scope grants one access level:
 | `arr-mcp:write` | The `safe` tier, where `config.yaml` permits it |
 | `arr-mcp:destructive` | The `destructive` tier, where `config.yaml` permits it |
 
-`scopes` renames these three strings to whatever the authorization server
-grants; it changes the names, never the mapping to the tiers above.
+The defaults above work as-is if your authorization server can mint scopes
+with those exact names. `scopes:` renames the three strings it must grant
+instead; it changes the names, never the mapping to the tiers above — use it
+when your provider already has its own naming convention.
 
 They are independent and unioned, not a ladder: `arr-mcp:destructive` carries
 the `safe` tier with it, the same as `destructive: true` grants `safe_write`
@@ -322,6 +337,26 @@ Configuring this block also changes what a credential-less client sees on its
 first request: instead of a 401 telling it to go configure a token, it now
 runs the full OAuth discovery-and-authorize flow and still ends up 401,
 without that message.
+
+**Checking it worked.** Once the container is back up,
+`curl http://<host>:6060/.well-known/oauth-protected-resource` should return a
+JSON document naming your `issuer` under `authorization_servers`. A client
+that implements RFC 9728 discovery finds this on its own, from the
+`resource_metadata` the 401 challenge on `/mcp` points at; one that does not
+can still be handed a token directly, exactly as it would the static bearer
+token, as `Authorization: Bearer <token>`.
+
+If a client's token is refused, the status code says why:
+
+| Status | Cause | Fix |
+| --- | --- | --- |
+| `401` | Bad signature, wrong `issuer` or `audience`, missing or expired `exp` | Check the token was minted for this `audience`, by this `issuer`, and has not expired |
+| `403 insufficient_scope` | The token carries none of the three scopes | Grant it at least one of `arr-mcp:read`, `arr-mcp:write` or `arr-mcp:destructive` (or your renamed equivalents) |
+| `503` | arr-mcp could not fetch `jwks_uri` | Check the issuer is reachable from the container, not from your browser |
+
+A `503` is not a rejection of the token itself — it means arr-mcp could not
+check it. Retrying once the issuer is reachable again works with no other
+change.
 
 ### `allow_other_users`
 
