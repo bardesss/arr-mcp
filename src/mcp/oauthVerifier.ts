@@ -1,4 +1,4 @@
-import type { AuthInfo, OAuthTokenVerifier } from '@modelcontextprotocol/server';
+import { OAuthError, OAuthErrorCode, type AuthInfo, type OAuthTokenVerifier } from '@modelcontextprotocol/server';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { JWTPayload, JWTVerifyGetKey } from 'jose';
 import type { OAuthConfig } from '../config/schema.ts';
@@ -79,7 +79,13 @@ export function oauthVerifier(oauth: OAuthConfig, keys?: KeyResolver): OAuthToke
                 }));
             } catch (err) {
                 if (unreachable(err)) throw new JwksUnavailable("the issuer's key set could not be fetched", { cause: err });
-                throw err;
+                // Wrapped rather than rethrown: `verifyAccessToken`'s own
+                // contract says to throw `OAuthError(InvalidToken)` for a bad
+                // token, and `bearerAuthChallengeResponse` only recognises
+                // that type — anything else, jose's own `JOSEError` included,
+                // falls through to a bare 500 instead of the 401 the token
+                // actually earned.
+                throw new OAuthError(OAuthErrorCode.InvalidToken, err instanceof Error ? err.message : 'invalid token');
             }
 
             return {

@@ -1,3 +1,4 @@
+import { OAuthError, OAuthErrorCode } from '@modelcontextprotocol/server';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import { describe, expect, it } from 'vitest';
 import type { OAuthConfig } from '../src/config/schema.ts';
@@ -64,6 +65,21 @@ describe('oauthVerifier', () => {
     it('refuses an expired token', async () => {
         const expired = await token({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c' }, { exp: Math.floor(Date.now() / 1000) - 60 });
         await expect(verify(expired)).rejects.toThrow();
+    });
+
+    // `bearerAuthChallengeResponse` (the SDK helper `/mcp` hands this
+    // rejection to) maps only `OAuthError` to 401/403 — anything else, a raw
+    // `JOSEError` included, falls through to a bare 500. The interface's own
+    // doc on `OAuthTokenVerifier.verifyAccessToken` says as much.
+    it('rejects a bad token as an OAuthError carrying InvalidToken, not a raw jose error', async () => {
+        const bad = await token({ iss: 'https://evil.example.com', aud: 'arr-mcp', sub: 'c' });
+        await expect(verify(bad)).rejects.toBeInstanceOf(OAuthError);
+        try {
+            await verify(bad);
+            expect.unreachable('expected verify to throw');
+        } catch (err) {
+            expect((err as OAuthError).code).toBe(OAuthErrorCode.InvalidToken);
+        }
     });
 
     it('refuses a token signed with a key the issuer does not publish', async () => {
