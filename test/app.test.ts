@@ -1716,4 +1716,43 @@ describe('OAuth tokens at /mcp', () => {
         const payload = await rpcPayload(res);
         expect(JSON.stringify(payload)).toContain('destructive');
     });
+
+    // `/ui/config` guards on the session cookie alone (`guard(c)` in
+    // web/routes.ts never reads Authorization) — this pins that separation so
+    // it cannot regress into treating an OAuth credential as a session.
+    it('does not let an oauth token reach the config UI, which has its own credential', async () => {
+        const res = await oauthApp(oauthConfig()).request('http://localhost:6060/ui/config', {
+            headers: { Authorization: `Bearer ${await signed('arr-mcp:destructive')}` },
+            redirect: 'manual'
+        });
+        expect(res.status).toBe(302);
+    });
+
+    // `logger` only ever forwards to the store `attachLogStore` last set, and
+    // that pointer is process-global — so this attaches it itself and undoes
+    // it afterward, mirroring the static-token version of this test above.
+    it('logs a refused token by client id, not by its bytes', async () => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        try {
+            const app = buildApp({
+                runtime: Runtime.fromConfig(oauthConfig(), audit(), { adapters: [], oauthKeys }),
+                audit: audit(),
+                logs
+            });
+
+            const token = await signed('openid profile');
+            const res = await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${token}` }));
+            expect(res.status).toBe(403);
+
+            const entries = logs.recent();
+            const row = entries.find(r => r.msg === 'rejected a token with no arr-mcp scope');
+            expect(row === undefined ? undefined : (JSON.parse(row.fields) as { clientId?: string }).clientId).toBe('client-1');
+
+            expect(JSON.stringify(entries)).not.toContain(token);
+        } finally {
+            detachLogStore();
+            logs.close();
+        }
+    });
 });
