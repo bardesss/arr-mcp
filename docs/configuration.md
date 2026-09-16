@@ -285,9 +285,31 @@ guess at.
 `audience` is required too. Without it, every token that issuer ever minted
 for any of its clients — not just this server's — would be accepted here.
 
-`scopes` renames the three strings the authorization server must grant; it
-changes the names, never the mapping to the read/write/destructive tiers
-underneath.
+Each scope grants one access level:
+
+| Scope | Grants |
+| --- | --- |
+| `arr-mcp:read` | Read tools |
+| `arr-mcp:write` | The `safe` tier, where `config.yaml` permits it |
+| `arr-mcp:destructive` | The `destructive` tier, where `config.yaml` permits it |
+
+`scopes` renames these three strings to whatever the authorization server
+grants; it changes the names, never the mapping to the tiers above.
+
+They are independent and unioned, not a ladder: `arr-mcp:destructive` carries
+the `safe` tier with it, the same as `destructive: true` grants `safe_write`
+below — a credential that may delete a film but not re-monitor it describes
+no coherent policy. A token carrying none of the three is refused with
+`403 insufficient_scope`, never silently downgraded to read.
+
+Any of the three scopes grants the read tools; there is no separate read
+gate. Every write resolves its target by reading first, so a write-scoped
+token that could not read could not preview anything either.
+
+`config.yaml` stays the sole authority throughout — a scope only narrows what
+the file already permits, never widens it. A token carrying
+`arr-mcp:destructive` against an instance with `destructive: false` is still
+refused, by the same gate that refuses the static bearer token.
 
 Both `auth` and this block are validated strictly, so a misspelled key
 anywhere inside it fails at startup with the offending field named, rather
@@ -295,12 +317,6 @@ than being silently dropped.
 
 `allow_token_in_url` cannot be set while `oauth` is configured — refused at
 config load, and disabled in the config UI with a line explaining why.
-
-**In this version, a token from the issuer is not yet accepted.** This block
-makes `/mcp` discoverable as an OAuth 2.1 resource server — the
-`.well-known/oauth-protected-resource` document and the 401 challenge both
-point at it — but verifying the token a client brings back is a separate
-change, still to come.
 
 Configuring this block also changes what a credential-less client sees on its
 first request: instead of a 401 telling it to go configure a token, it now
