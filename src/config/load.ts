@@ -132,14 +132,22 @@ export function validateConfigText(raw: string): ConfigTextResult {
 
     // Unrefined *and* unstrict on purpose: this runs precisely when the rest
     // of the file is already broken, and neither the oauth/allow_token_in_url
-    // refinement nor an unrecognised key under auth has anything to do with
-    // whether we can authenticate whoever came to fix it. ConfigSchema's own
-    // `auth` field stays strict, so a typo there is still a startup failure.
-    const authOnly = z.object(AuthSchema.shape).safeParse(obj.auth);
+    // refinement nor an unrecognised key under auth (or under auth.oauth) has
+    // anything to do with whether we can authenticate whoever came to fix it.
+    // `oauth` is widened to `unknown` rather than left as `OAuthSchema`: repair
+    // mode never reads it, but the salvage parse otherwise still fails whole
+    // when the mistake is inside that block instead of beside it — which is
+    // the operator hand-writing it for the first time. ConfigSchema's own
+    // `auth` field stays strict, so a typo anywhere in it is still a startup
+    // failure.
+    const authOnly = z.object({ ...AuthSchema.shape, oauth: z.unknown().optional() }).safeParse(obj.auth);
     return {
         ok: false,
         detail: z.prettifyError(result.error),
-        auth: authOnly.success ? authOnly.data : undefined,
+        // Cast rather than typed through: `oauth` is `z.unknown()` above so a
+        // mistake inside it cannot fail this salvage parse, but repair mode
+        // (the only consumer of this field) never reads `auth.oauth` at all.
+        auth: authOnly.success ? (authOnly.data as Config['auth']) : undefined,
         generatedBearerToken
     };
 }

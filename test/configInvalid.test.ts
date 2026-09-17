@@ -115,6 +115,20 @@ describe('validateConfigText', () => {
         }
     });
 
+    // A mistake inside auth.oauth (as opposed to beside it) is the same
+    // situation one layer deeper still: the operator hand-writing this block
+    // for the first time is exactly who a strict, refined OAuthSchema most
+    // often catches, and that must not cost them the sign-in page too.
+    it('salvages the auth block even when auth.oauth is unparseable', () => {
+        const text =
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n` +
+            `  oauth:\n    issuer: https://auth.example.com\n    jwks_url: https://auth.example.com/jwks.json\n` +
+            `services:\n  radarr:\n    url: not-a-url\n    api_key: k\n`;
+        const result = validateConfigText(text);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.auth?.username).toBe('admin');
+    });
+
     it('reports no auth block when auth itself is unreadable', () => {
         const result = validateConfigText('auth: 12\nservices: {}\n');
         expect(result.ok).toBe(false);
