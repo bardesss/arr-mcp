@@ -361,11 +361,29 @@ const UiSchema = z.strictObject({ theme: ThemeSchema.default('system') });
  * naming convention, and a scope string is theirs to choose. The mapping to
  * tiers is not.
  */
-const OAuthScopesSchema = z.strictObject({
-    read: z.string().min(1).default('arr-mcp:read'),
-    write: z.string().min(1).default('arr-mcp:write'),
-    destructive: z.string().min(1).default('arr-mcp:destructive')
-});
+const OAuthScopesSchema = z
+    .strictObject({
+        read: z.string().min(1).default('arr-mcp:read'),
+        write: z.string().min(1).default('arr-mcp:write'),
+        destructive: z.string().min(1).default('arr-mcp:destructive')
+    })
+    // Otherwise `{read: x, write: x, destructive: x}` parses, and PR 2 reads a
+    // read-scoped token as carrying every tier — the one failure this whole
+    // block exists to refuse.
+    .refine(value => new Set([value.read, value.write, value.destructive]).size === 3, {
+        message: 'auth.oauth.scopes must name three distinct scopes'
+    });
+
+/**
+ * HTTPS, or `http:` on a loopback host for testing against a local provider.
+ * Protocol and host are checked together — checking them as two independent
+ * ORs would accept `ftp://localhost`, since a loopback hostname alone
+ * satisfied the check regardless of scheme.
+ */
+const isHttpsOrLoopback = (value: string): boolean => {
+    const url = new URL(value);
+    return url.protocol === 'https:' || (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'));
+};
 
 /**
  * Absent means off, exactly like a service nobody configured.
@@ -390,13 +408,7 @@ const OAuthSchema = z.strictObject({
      */
     issuer: z
         .url()
-        .refine(
-            value => {
-                const url = new URL(value);
-                return url.protocol === 'https:' || url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-            },
-            { message: 'issuer must be https, or http on localhost' }
-        )
+        .refine(isHttpsOrLoopback, { message: 'issuer must be https, or http on localhost' })
         .refine(value => new URL(value).hash === '' && new URL(value).search === '', {
             message: 'issuer must not carry a query string or a fragment'
         }),
@@ -406,7 +418,10 @@ const OAuthSchema = z.strictObject({
      * is accepted here.
      */
     audience: z.string().min(1),
-    jwks_uri: z.url(),
+    // Same rule as `issuer`: PR 2 fetches signing keys from here, and plaintext
+    // JWKS is exactly the traffic a proxy log or a network path could tamper
+    // with in flight.
+    jwks_uri: z.url().refine(isHttpsOrLoopback, { message: 'jwks_uri must be https, or http on localhost' }),
     scopes: OAuthScopesSchema.prefault({})
 });
 

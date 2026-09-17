@@ -219,6 +219,34 @@ describe('auth.oauth', () => {
         expect(result.success).toBe(true);
     });
 
+    // A loopback hostname does not excuse every scheme — only http on it.
+    it('refuses a non-http(s) issuer even on localhost', () => {
+        const oauth = { ...OAUTH, issuer: 'ftp://localhost/x' };
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(false);
+    });
+
+    // PR 2 fetches signing keys from here; the same rule as `issuer` applies.
+    it('refuses a plaintext jwks_uri off localhost', () => {
+        const oauth = { ...OAUTH, jwks_uri: 'http://auth.example.com/.well-known/jwks.json' };
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(false);
+    });
+
+    it('allows a plaintext jwks_uri on localhost', () => {
+        const oauth = { ...OAUTH, jwks_uri: 'http://localhost:8080/jwks' };
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(true);
+    });
+
+    // Otherwise a read-scoped token would carry every tier once PR 2 checks
+    // scopes against it.
+    it('refuses scope names that collide', () => {
+        const oauth = { ...OAUTH, scopes: { read: 'x', write: 'x', destructive: 'x' } };
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(false);
+    });
+
     // A query-parameter JWT in proxy logs is worse than the static token that
     // flag was written for.
     it('refuses oauth and allow_token_in_url together', () => {
