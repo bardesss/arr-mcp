@@ -302,6 +302,11 @@ makes `/mcp` discoverable as an OAuth 2.1 resource server — the
 point at it — but verifying the token a client brings back is a separate
 change, still to come.
 
+Configuring this block also changes what a credential-less client sees on its
+first request: instead of a 401 telling it to go configure a token, it now
+runs the full OAuth discovery-and-authorize flow and still ends up 401,
+without that message.
+
 ### `allow_other_users`
 
 On Jellyfin and Seerr, one admin-scoped API key can answer for anybody, so
