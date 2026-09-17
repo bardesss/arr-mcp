@@ -224,13 +224,41 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
      * off the login page.
      */
     for (const path of RESOURCE_METADATA_PATHS) {
-        app.get(path, (c: Context) => {
+        // `app.all`, not `app.get`: a client that sets `MCP-Protocol-Version`
+        // on the discovery fetch preflights it, and the browser client the
+        // permissive CORS header exists for never reaches the document if
+        // that preflight 404s. Mirrors the SDK's own `metadataDocumentResponse`
+        // (204 for OPTIONS, 405 with `Allow` for anything but GET/HEAD), which
+        // isn't reusable here directly: it comes bundled with
+        // `oauthMetadataResponse`, which would also serve
+        // `/.well-known/oauth-authorization-server` — the document this PR
+        // deliberately doesn't fabricate.
+        app.all(path, (c: Context) => {
+            if (c.req.method === 'OPTIONS') {
+                const requestedHeaders = c.req.header('access-control-request-headers');
+                return c.body(null, 204, {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                    ...(requestedHeaders === undefined
+                        ? {}
+                        : { 'Access-Control-Allow-Headers': requestedHeaders, Vary: 'Access-Control-Request-Headers' })
+                });
+            }
+            if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+                return c.json(
+                    { error: 'method_not_allowed', detail: `${c.req.method} is not allowed for this endpoint` },
+                    405,
+                    { Allow: 'GET, HEAD, OPTIONS', 'Access-Control-Allow-Origin': '*' }
+                );
+            }
+
             const { oauth } = runtime.config.auth;
             if (oauth === undefined) return c.notFound();
 
             const document = resourceMetadata(oauth, c.req.url, c.req.header('x-forwarded-proto'));
             if (document === undefined) return c.notFound();
 
+            if (c.req.method === 'HEAD') return c.body(null, 200, { 'Access-Control-Allow-Origin': '*' });
             return c.json(document, 200, { 'Access-Control-Allow-Origin': '*' });
         });
     }

@@ -1546,4 +1546,25 @@ describe('RFC 9728 protected resource metadata', () => {
         expect(res.status).toBe(401);
         expect(res.headers.get('www-authenticate')).toBe('Bearer realm="arr-mcp"');
     });
+
+    // A browser-based client preflights the discovery fetch because it sets
+    // MCP-Protocol-Version; a 404 on OPTIONS fails that preflight before the
+    // GET the CORS header exists for is ever sent.
+    it('answers a CORS preflight rather than 404ing it', async () => {
+        const configured = appWith(configWith({ oauth: OAUTH }));
+        const res = await configured.request('/.well-known/oauth-protected-resource/mcp', {
+            method: 'OPTIONS',
+            headers: { host: 'arr.example.com', 'access-control-request-headers': 'authorization' }
+        });
+        expect(res.status).toBe(204);
+        expect(res.headers.get('access-control-allow-methods')).toBe('GET, HEAD, OPTIONS');
+        expect(res.headers.get('access-control-allow-headers')).toBe('authorization');
+    });
+
+    it('refuses a non-GET method with 405 rather than 404', async () => {
+        const configured = appWith(configWith({ oauth: OAUTH }));
+        const res = await configured.request('/.well-known/oauth-protected-resource/mcp', { method: 'POST' });
+        expect(res.status).toBe(405);
+        expect(res.headers.get('allow')).toBe('GET, HEAD, OPTIONS');
+    });
 });
