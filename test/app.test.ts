@@ -1567,4 +1567,15 @@ describe('RFC 9728 protected resource metadata', () => {
         expect(res.status).toBe(405);
         expect(res.headers.get('allow')).toBe('GET, HEAD, OPTIONS');
     });
+
+    it('answers HEAD with the same headers as GET and no body', async () => {
+        const configured = appWith(configWith({ oauth: OAUTH }));
+        const [head, get] = await Promise.all([
+            configured.request('/.well-known/oauth-protected-resource/mcp', { method: 'HEAD', headers: { host: 'arr.example.com' } }),
+            configured.request('/.well-known/oauth-protected-resource/mcp', { headers: { host: 'arr.example.com' } })
+        ]);
+        expect(head.status).toBe(200);
+        expect(head.headers.get('content-type')).toBe(get.headers.get('content-type'));
+        expect(await head.text()).toBe('');
+    });
 });

@@ -258,8 +258,11 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
             const document = resourceMetadata(oauth, c.req.url, c.req.header('x-forwarded-proto'));
             if (document === undefined) return c.notFound();
 
-            if (c.req.method === 'HEAD') return c.body(null, 200, { 'Access-Control-Allow-Origin': '*' });
-            return c.json(document, 200, { 'Access-Control-Allow-Origin': '*' });
+            // HEAD reuses the GET response's headers (Content-Type,
+            // Content-Length) with the body dropped, rather than hand-building
+            // them, so the two can never drift apart.
+            const response = c.json(document, 200, { 'Access-Control-Allow-Origin': '*' });
+            return c.req.method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
         });
     }
 
