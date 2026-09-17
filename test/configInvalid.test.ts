@@ -118,11 +118,18 @@ describe('validateConfigText', () => {
     // A mistake inside auth.oauth (as opposed to beside it) is the same
     // situation one layer deeper still: the operator hand-writing this block
     // for the first time is exactly who a strict, refined OAuthSchema most
-    // often catches, and that must not cost them the sign-in page too.
-    it('salvages the auth block even when auth.oauth is unparseable', () => {
+    // often catches, and that must not cost them the sign-in page too. Three
+    // shapes of mistake, because each fails through a different path in
+    // OAuthSchema — an unrecognised key, a missing required field, and a
+    // custom refine — and widening `oauth` to `unknown` must swallow all
+    // three, not just whichever one happens to be tested.
+    it.each([
+        ['a misspelled key', '  oauth:\n    issuer: https://auth.example.com\n    jwks_url: https://auth.example.com/jwks.json\n'],
+        ['a missing required field', '  oauth:\n    issuer: https://auth.example.com\n    jwks_uri: https://auth.example.com/jwks.json\n'],
+        ['a refine failure', '  oauth:\n    issuer: http://auth.example.com\n    audience: arr-mcp\n    jwks_uri: https://auth.example.com/jwks.json\n']
+    ])('salvages the auth block even when auth.oauth has %s', (_name, oauthBlock) => {
         const text =
-            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n` +
-            `  oauth:\n    issuer: https://auth.example.com\n    jwks_url: https://auth.example.com/jwks.json\n` +
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n${oauthBlock}` +
             `services:\n  radarr:\n    url: not-a-url\n    api_key: k\n`;
         const result = validateConfigText(text);
         expect(result.ok).toBe(false);
