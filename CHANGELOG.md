@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.0](https://github.com/bardesss/arr-mcp/compare/v1.27.0...v1.28.0) (2026-09-18)
+
+
+### Features
+
+* advertise the endpoint as an OAuth 2.1 resource server ([#261](https://github.com/bardesss/arr-mcp/issues/261)) ([a0424df](https://github.com/bardesss/arr-mcp/commit/a0424df125a0a29791714fcb203f4dd4767bbc21))
+
 ## [1.27.0](https://github.com/bardesss/arr-mcp/compare/v1.26.8...v1.27.0) (2026-09-15)
 
 
