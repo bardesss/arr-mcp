@@ -252,6 +252,11 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                 );
             }
 
+            // Both answers above run before the `oauth` check, so an instance
+            // with no issuer configured answers a preflight it will then 404.
+            // Deliberate: a preflight refused at the CORS layer reaches the
+            // browser client as a network error, where the 404 it is standing
+            // in front of is the answer that actually says what is wrong.
             const { oauth } = runtime.config.auth;
             if (oauth === undefined) return c.notFound();
 
