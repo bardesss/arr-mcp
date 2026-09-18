@@ -80,6 +80,62 @@ describe('validateConfigText', () => {
         if (!result.ok) expect(result.auth?.username).toBe('admin');
     });
 
+    // The oauth/allow_token_in_url refinement runs on the full config, but the
+    // salvage parse must not inherit it: it runs precisely when the rest of
+    // the file is already broken, and a config with both should still let the
+    // operator log in and fix the YAML from the repair page rather than being
+    // locked out of the whole app by unreadableAuthPage.
+    it('salvages the auth block even when oauth and allow_token_in_url conflict', () => {
+        const text =
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n` +
+            `  allow_token_in_url: true\n  oauth:\n    issuer: https://auth.example.com\n` +
+            `    audience: arr-mcp\n    jwks_uri: https://auth.example.com/.well-known/jwks.json\n` +
+            `services:\n  radarr:\n    url: not-a-url\n    api_key: k\n`;
+        const result = validateConfigText(text);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.auth?.username).toBe('admin');
+    });
+
+    // 099031e kept the oauth/allow_token_in_url refine off the salvage parse
+    // so a conflicting-but-otherwise-valid auth block still logs the operator
+    // in. A stray key under auth is the same situation one layer down: the
+    // full ConfigSchema must still refuse it (strict, loud, at startup), but
+    // the salvage parse runs precisely when the file is already broken and
+    // must not let that same key turn into unreadableAuthPage.
+    it('salvages the auth block even when it carries an unrecognised key', () => {
+        const text =
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n` +
+            `  legacy_knob: true\n` +
+            `services:\n  radarr:\n    url: not-a-url\n    api_key: k\n`;
+        const result = validateConfigText(text);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.detail).toContain('Unrecognized key');
+            expect(result.auth?.username).toBe('admin');
+        }
+    });
+
+    // A mistake inside auth.oauth (as opposed to beside it) is the same
+    // situation one layer deeper still: the operator hand-writing this block
+    // for the first time is exactly who a strict, refined OAuthSchema most
+    // often catches, and that must not cost them the sign-in page too. Three
+    // shapes of mistake, because each fails through a different path in
+    // OAuthSchema — an unrecognised key, a missing required field, and a
+    // custom refine — and widening `oauth` to `unknown` must swallow all
+    // three, not just whichever one happens to be tested.
+    it.each([
+        ['a misspelled key', '  oauth:\n    issuer: https://auth.example.com\n    jwks_url: https://auth.example.com/jwks.json\n'],
+        ['a missing required field', '  oauth:\n    issuer: https://auth.example.com\n    jwks_uri: https://auth.example.com/jwks.json\n'],
+        ['a refine failure', '  oauth:\n    issuer: http://auth.example.com\n    audience: arr-mcp\n    jwks_uri: https://auth.example.com/jwks.json\n']
+    ])('salvages the auth block even when auth.oauth has %s', (_name, oauthBlock) => {
+        const text =
+            `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n${oauthBlock}` +
+            `services:\n  radarr:\n    url: not-a-url\n    api_key: k\n`;
+        const result = validateConfigText(text);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.auth?.username).toBe('admin');
+    });
+
     it('reports no auth block when auth itself is unreadable', () => {
         const result = validateConfigText('auth: 12\nservices: {}\n');
         expect(result.ok).toBe(false);

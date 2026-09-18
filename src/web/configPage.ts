@@ -115,9 +115,9 @@ const field = (opts: {
     ${opts.note === undefined ? raw('') : html`<p class="note">${opts.note}</p>`}
 </div>`;
 
-const checkbox = (id: string, name: string, label: string, checked: boolean): SafeHtml =>
+const checkbox = (id: string, name: string, label: string, checked: boolean, disabled = false): SafeHtml =>
     html`<label class="row" style="margin:.25rem 0">
-        <input type="checkbox" id="${id}" name="${name}" ${checked ? raw('checked') : raw('')}> ${label}
+        <input type="checkbox" id="${id}" name="${name}" ${checked ? raw('checked') : raw('')} ${disabled ? raw('disabled') : raw('')}> ${label}
     </label>`;
 
 /**
@@ -576,8 +576,16 @@ export function configPage(opts: {
                 'auth.allow_token_in_url',
                 'auth.allow_token_in_url',
                 'Accept the token in the URL (?token=…)',
-                opts.config.auth.allow_token_in_url
+                opts.config.auth.allow_token_in_url,
+                opts.config.auth.oauth !== undefined
             )}
+            ${opts.config.auth.oauth === undefined
+                ? raw('')
+                : html`<p class="note">
+                      Unavailable while <code>auth.oauth</code> is configured: an access token in the address
+                      would reach every proxy log, which is worse than the static token this flag was written
+                      for.
+                  </p>`}
             <p class="note">
                 For clients that can only be given a URL and no headers. The token then travels in the
                 address, so a reverse proxy's access log or the client's own logs will hold a working

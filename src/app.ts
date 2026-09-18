@@ -11,6 +11,7 @@ import { claimJsonBody } from './mcp/jsonBody.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
 import { registerAllResources } from './mcp/resources.ts';
+import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
 import { registerAllTools } from './tools/register.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
 
@@ -211,6 +212,65 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         return c.text('forbidden: Host not allowed', 403);
     });
 
+    /**
+     * RFC 9728. Present only when `auth.oauth` is configured — a server with
+     * no issuer to name has nothing to say here, and a 404 is the honest
+     * answer. Registered after the Host allowlist so a pinned instance can
+     * only ever advertise a name that passed it.
+     *
+     * Permissive CORS because a browser-based client fetches this
+     * cross-origin before it holds any credential; the document is public by
+     * construction and names nothing an unauthenticated caller could not read
+     * off the login page.
+     */
+    for (const path of RESOURCE_METADATA_PATHS) {
+        // `app.all`, not `app.get`: a client that sets `MCP-Protocol-Version`
+        // on the discovery fetch preflights it, and the browser client the
+        // permissive CORS header exists for never reaches the document if
+        // that preflight 404s. Mirrors the SDK's own `metadataDocumentResponse`
+        // (204 for OPTIONS, 405 with `Allow` for anything but GET/HEAD), which
+        // isn't reusable here directly: it comes bundled with
+        // `oauthMetadataResponse`, which would also serve
+        // `/.well-known/oauth-authorization-server` — the document this PR
+        // deliberately doesn't fabricate.
+        app.all(path, (c: Context) => {
+            if (c.req.method === 'OPTIONS') {
+                const requestedHeaders = c.req.header('access-control-request-headers');
+                return c.body(null, 204, {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                    ...(requestedHeaders === undefined
+                        ? {}
+                        : { 'Access-Control-Allow-Headers': requestedHeaders, Vary: 'Access-Control-Request-Headers' })
+                });
+            }
+            if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+                return c.json(
+                    { error: 'method_not_allowed', detail: `${c.req.method} is not allowed for this endpoint` },
+                    405,
+                    { Allow: 'GET, HEAD, OPTIONS', 'Access-Control-Allow-Origin': '*' }
+                );
+            }
+
+            // Both answers above run before the `oauth` check, so an instance
+            // with no issuer configured answers a preflight it will then 404.
+            // Deliberate: a preflight refused at the CORS layer reaches the
+            // browser client as a network error, where the 404 it is standing
+            // in front of is the answer that actually says what is wrong.
+            const { oauth } = runtime.config.auth;
+            if (oauth === undefined) return c.notFound();
+
+            const document = resourceMetadata(oauth, c.req.url, c.req.header('x-forwarded-proto'));
+            if (document === undefined) return c.notFound();
+
+            // HEAD reuses the GET response's headers (Content-Type,
+            // Content-Length) with the body dropped, rather than hand-building
+            // them, so the two can never drift apart.
+            const response = c.json(document, 200, { 'Access-Control-Allow-Origin': '*' });
+            return c.req.method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
+        });
+    }
+
     registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {
@@ -237,6 +297,13 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                 },
                 'rejected unauthenticated MCP request'
             );
+            // `resource_metadata` is how a client discovers where to
+            // authenticate. Omitted entirely when no issuer is configured:
+            // pointing at a 404 is worse than saying nothing.
+            const metadataUrl =
+                auth.oauth === undefined ? undefined : resourceMetadataUrl(c.req.url, c.req.header('x-forwarded-proto'));
+            const challenge =
+                metadataUrl === undefined ? 'Bearer realm="arr-mcp"' : `Bearer realm="arr-mcp", resource_metadata="${metadataUrl}"`;
             return c.json(
                 {
                     error: 'unauthorized',
@@ -248,7 +315,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                         : {})
                 },
                 401,
-                { 'WWW-Authenticate': 'Bearer realm="arr-mcp"' }
+                { 'WWW-Authenticate': challenge }
             );
         }
 

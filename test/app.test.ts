@@ -1507,3 +1507,75 @@ describe('what a refused /mcp request records', () => {
         expect(fields.ip).not.toBe('10.0.0.9');
     });
 });
+
+const OAUTH = {
+    issuer: 'https://auth.example.com',
+    audience: 'arr-mcp',
+    jwks_uri: 'https://auth.example.com/.well-known/jwks.json'
+};
+
+describe('RFC 9728 protected resource metadata', () => {
+    it('is absent when no oauth block is configured', async () => {
+        const res = await app().request('/.well-known/oauth-protected-resource/mcp');
+        expect(res.status).toBe(404);
+    });
+
+    it('serves the document at both well-known paths when oauth is configured', async () => {
+        const configured = appWith(configWith({ oauth: OAUTH }));
+        for (const path of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp']) {
+            const res = await configured.request(path, { headers: { host: 'arr.example.com' } });
+            expect(res.status).toBe(200);
+            expect(res.headers.get('access-control-allow-origin')).toBe('*');
+            expect(await res.json()).toMatchObject({
+                authorization_servers: ['https://auth.example.com'],
+                scopes_supported: ['arr-mcp:read', 'arr-mcp:write', 'arr-mcp:destructive']
+            });
+        }
+    });
+
+    // How a client discovers where to authenticate.
+    it('points the 401 from /mcp at the metadata document', async () => {
+        const configured = appWith(configWith({ oauth: OAUTH }));
+        const res = await configured.request('/mcp', rpc(toolsList, { Authorization: `Bearer ${WRONG}` }));
+        expect(res.status).toBe(401);
+        expect(res.headers.get('www-authenticate')).toContain('resource_metadata=');
+    });
+
+    it('leaves the 401 unchanged for a deployment with no oauth block', async () => {
+        const res = await app().request('/mcp', rpc(toolsList, { Authorization: `Bearer ${WRONG}` }));
+        expect(res.status).toBe(401);
+        expect(res.headers.get('www-authenticate')).toBe('Bearer realm="arr-mcp"');
+    });
+
+    // A browser-based client preflights the discovery fetch because it sets
+    // MCP-Protocol-Version; a 404 on OPTIONS fails that preflight before the
+    // GET the CORS header exists for is ever sent.
+    it('answers a CORS preflight rather than 404ing it', async () => {
+        const configured = appWith(configWith({ oauth: OAUTH }));
+        const res = await configured.request('/.well-known/oauth-protected-resource/mcp', {
+            method: 'OPTIONS',
+            headers: { host: 'arr.example.com', 'access-control-request-headers': 'authorization' }
+        });
+        expect(res.status).toBe(204);
+        expect(res.headers.get('access-control-allow-methods')).toBe('GET, HEAD, OPTIONS');
+        expect(res.headers.get('access-control-allow-headers')).toBe('authorization');
+    });
+
+    it('refuses a non-GET method with 405 rather than 404', async () => {
+        const configured = appWith(configWith({ oauth: OAUTH }));
+        const res = await configured.request('/.well-known/oauth-protected-resource/mcp', { method: 'POST' });
+        expect(res.status).toBe(405);
+        expect(res.headers.get('allow')).toBe('GET, HEAD, OPTIONS');
+    });
+
+    it('answers HEAD with the same headers as GET and no body', async () => {
+        const configured = appWith(configWith({ oauth: OAUTH }));
+        const [head, get] = await Promise.all([
+            configured.request('/.well-known/oauth-protected-resource/mcp', { method: 'HEAD', headers: { host: 'arr.example.com' } }),
+            configured.request('/.well-known/oauth-protected-resource/mcp', { headers: { host: 'arr.example.com' } })
+        ]);
+        expect(head.status).toBe(200);
+        expect(head.headers.get('content-type')).toBe(get.headers.get('content-type'));
+        expect(await head.text()).toBe('');
+    });
+});
