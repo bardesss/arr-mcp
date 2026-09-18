@@ -47,7 +47,10 @@ Things worth reporting:
 
 Things that are known and documented rather than vulnerabilities:
 
-- **No OAuth.** arr-mcp authenticates with a single bearer token by design. See
+- **No OAuth token verification yet.** `/mcp` advertises itself as an OAuth
+  2.1 resource server when `auth.oauth` is configured, but it does not yet
+  verify a token from that issuer — authentication is still a single bearer
+  token. See
   [MCP07](docs/security.md#mcp07-insufficient-authentication-and-authorization).
 - **Binding `0.0.0.0`, and exposure to the internet.** The container has to be
   reachable across the LAN. It is

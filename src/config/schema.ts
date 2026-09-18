@@ -351,42 +351,133 @@ export type Theme = z.infer<typeof ThemeSchema>;
 
 const UiSchema = z.strictObject({ theme: ThemeSchema.default('system') });
 
+/**
+ * The three scopes, one per access level `core/permissions.ts` already
+ * distinguishes. Not a new axis beside the tiers: a read/write pair would
+ * collapse `safe` and `destructive` back together, which is the one
+ * distinction this repo has decided is worth keeping.
+ *
+ * Renameable because an operator's authorization server may already have a
+ * naming convention, and a scope string is theirs to choose. The mapping to
+ * tiers is not.
+ */
+const OAuthScopesSchema = z
+    .strictObject({
+        read: z.string().min(1).default('arr-mcp:read'),
+        write: z.string().min(1).default('arr-mcp:write'),
+        destructive: z.string().min(1).default('arr-mcp:destructive')
+    })
+    // Otherwise `{read: x, write: x, destructive: x}` parses, and PR 2 reads a
+    // read-scoped token as carrying every tier — the one failure this whole
+    // block exists to refuse.
+    .refine(value => new Set([value.read, value.write, value.destructive]).size === 3, {
+        message: 'auth.oauth.scopes must name three distinct scopes'
+    });
+
+/**
+ * HTTPS, or `http:` on a loopback host for testing against a local provider.
+ * Protocol and host are checked together — checking them as two independent
+ * ORs would accept `ftp://localhost`, since a loopback hostname alone
+ * satisfied the check regardless of scheme.
+ */
+const isHttpsOrLoopback = (value: string): boolean => {
+    const url = new URL(value);
+    return url.protocol === 'https:' || (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'));
+};
+
+/**
+ * Absent means off, exactly like a service nobody configured.
+ *
+ * Strict, and `auth` is strict with it: a misspelled key inside a
+ * non-strict object is silently dropped, which would leave `/mcp` quietly on
+ * the static-token path while the operator believed OAuth was in force. That
+ * is the failure this block most needs to refuse, so it refuses it at both
+ * levels.
+ *
+ * `jwks_uri` is required rather than discovered. OIDC discovery would be a
+ * second outbound request to a path derived from the issuer; one config line
+ * buys that whole class of surprise away.
+ */
+const OAuthSchema = z.strictObject({
+    /**
+     * HTTPS, or a loopback host for testing against a local provider. The
+     * MCP SDK's `buildOAuthProtectedResourceMetadata` enforces the same rule
+     * and throws when it is broken — refusing here means a bad issuer is a
+     * fatal config error at startup rather than a 500 from the metadata
+     * route.
+     */
+    issuer: z
+        .url()
+        .refine(isHttpsOrLoopback, { message: 'issuer must be https, or http on localhost' })
+        .refine(value => new URL(value).hash === '' && new URL(value).search === '', {
+            message: 'issuer must not carry a query string or a fragment'
+        }),
+    /**
+     * Not optional, and this is the one field most likely to be left out.
+     * Without it, every token that issuer ever minted for any of its clients
+     * is accepted here.
+     */
+    audience: z.string().min(1),
+    // Same rule as `issuer`: PR 2 fetches signing keys from here, and plaintext
+    // JWKS is exactly the traffic a proxy log or a network path could tamper
+    // with in flight.
+    jwks_uri: z.url().refine(isHttpsOrLoopback, { message: 'jwks_uri must be https, or http on localhost' }),
+    scopes: OAuthScopesSchema.prefault({})
+});
+
+export type OAuthConfig = z.infer<typeof OAuthSchema>;
+
+/**
+ * Named, rather than inlined into `ConfigSchema`, so `load.ts`'s salvage path
+ * can parse against it directly. `ConfigSchema`'s `auth` field is this same
+ * object with the oauth/allow_token_in_url refinement chained on — but the
+ * salvage parse runs precisely when the rest of the file is already broken,
+ * and wants the *unrefined* object: a cross-field check there would only make
+ * salvage fail for a combination that has nothing to do with why the file
+ * doesn't load.
+ */
+export const AuthSchema = z.strictObject({
+    /** Generated on first run by loadConfig; 32 random bytes, hex. */
+    bearer_token: z.string().length(64),
+    /** Who logs into the config UI. Defaulted rather than generated —
+     *  a random username helps nobody and is one more thing to look up. */
+    username: z.string().min(1).default('admin'),
+    /**
+     * scrypt hash of the UI password, `scrypt$salt$hash`.
+     *
+     * Optional, unlike `bearer_token`, and that difference is the design:
+     * absent means **unclaimed**, so the config UI serves its setup page
+     * until someone chooses a password in the browser. A bearer token has
+     * no interactive path and must be generated; a password does, so one is
+     * never invented.
+     *
+     * Deleting this line is how you ask for a new password. The password
+     * itself is never stored and never logged.
+     */
+    password_hash: z.string().min(1).optional(),
+    /**
+     * Whether `/mcp` accepts the token as `?token=` when no Authorization
+     * header is sent. Off by default: it works for clients that can only be
+     * given a URL, at the cost of the token reaching proxy logs.
+     */
+    allow_token_in_url: z.boolean().default(false),
+    /**
+     * Hostnames the MCP endpoint may be reached on, for the SDK's DNS
+     * rebinding protection. Empty means "accept any Host", which is the
+     * right default for a LAN container reached by IP; pin hostnames when
+     * running behind a reverse proxy.
+     */
+    allowed_hosts: z.array(z.string()).default([]),
+    oauth: OAuthSchema.optional()
+});
+
 export const ConfigSchema = z.object({
     // Required, not optional: loadConfig always injects a generated token
     // before parsing, so the only way this is missing is a hand-edited file
     // that deleted it — which must fail loudly rather than default to ''.
-    auth: z.object({
-        /** Generated on first run by loadConfig; 32 random bytes, hex. */
-        bearer_token: z.string().length(64),
-        /** Who logs into the config UI. Defaulted rather than generated —
-         *  a random username helps nobody and is one more thing to look up. */
-        username: z.string().min(1).default('admin'),
-        /**
-         * scrypt hash of the UI password, `scrypt$salt$hash`.
-         *
-         * Optional, unlike `bearer_token`, and that difference is the design:
-         * absent means **unclaimed**, so the config UI serves its setup page
-         * until someone chooses a password in the browser. A bearer token has
-         * no interactive path and must be generated; a password does, so one is
-         * never invented.
-         *
-         * Deleting this line is how you ask for a new password. The password
-         * itself is never stored and never logged.
-         */
-        password_hash: z.string().min(1).optional(),
-        /**
-         * Whether `/mcp` accepts the token as `?token=` when no Authorization
-         * header is sent. Off by default: it works for clients that can only be
-         * given a URL, at the cost of the token reaching proxy logs.
-         */
-        allow_token_in_url: z.boolean().default(false),
-        /**
-         * Hostnames the MCP endpoint may be reached on, for the SDK's DNS
-         * rebinding protection. Empty means "accept any Host", which is the
-         * right default for a LAN container reached by IP; pin hostnames when
-         * running behind a reverse proxy.
-         */
-        allowed_hosts: z.array(z.string()).default([])
+    auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
+        message: 'auth.allow_token_in_url cannot be set while auth.oauth is configured — a JWT in the URL reaches every proxy log',
+        path: ['allow_token_in_url']
     }),
     services: ServicesSchema,
     /** Absent means off, exactly like a service nobody configured. */

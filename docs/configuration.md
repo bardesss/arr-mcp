@@ -223,6 +223,14 @@ auth:
   allow_token_in_url: false  # accept ?token=… when no Authorization header is sent
 ```
 
+A misspelled or leftover key anywhere in this block — including inside
+`auth.oauth` below — **fails at startup with the offending field named**,
+rather than being silently ignored, so a config that loaded on an earlier
+release can stop loading after an upgrade. The server does not go down over
+it: it drops into repair mode, covered under [When config.yaml will not
+load](#when-configyaml-will-not-load), where the editor is reachable once you
+sign in.
+
 Sign-in is a username and password you choose the first time you open the UI.
 Only a scrypt hash is stored, so the password cannot be recovered — but it can
 be replaced: delete the `password_hash` line and restart, and the setup page
@@ -253,6 +261,51 @@ the config UI if one leaks.
 integration also speaks only the older HTTP+SSE transport, and this server
 serves Streamable HTTP, so that setup still needs a proxy to bridge the
 transport.
+
+### `auth.oauth`
+
+```yaml
+auth:
+  oauth:
+    issuer: https://issuer.example.com               # https, or http on localhost/127.0.0.1
+    audience: arr-mcp                                 # required — see below
+    jwks_uri: https://issuer.example.com/jwks.json    # required — see below
+    scopes:                                           # renameable; defaults shown
+      read: arr-mcp:read
+      write: arr-mcp:write
+      destructive: arr-mcp:destructive
+```
+
+Absent means off, exactly like a service nobody configured.
+
+`jwks_uri` is required rather than discovered: there is no OIDC discovery in
+this version, so there is no endpoint derived from `issuer` for the server to
+guess at.
+
+`audience` is required too. Without it, every token that issuer ever minted
+for any of its clients — not just this server's — would be accepted here.
+
+`scopes` renames the three strings the authorization server must grant; it
+changes the names, never the mapping to the read/write/destructive tiers
+underneath.
+
+Both `auth` and this block are validated strictly, so a misspelled key
+anywhere inside it fails at startup with the offending field named, rather
+than being silently dropped.
+
+`allow_token_in_url` cannot be set while `oauth` is configured — refused at
+config load, and disabled in the config UI with a line explaining why.
+
+**In this version, a token from the issuer is not yet accepted.** This block
+makes `/mcp` discoverable as an OAuth 2.1 resource server — the
+`.well-known/oauth-protected-resource` document and the 401 challenge both
+point at it — but verifying the token a client brings back is a separate
+change, still to come.
+
+Configuring this block also changes what a credential-less client sees on its
+first request: instead of a 401 telling it to go configure a token, it now
+runs the full OAuth discovery-and-authorize flow and still ends up 401,
+without that message.
 
 ### `allow_other_users`
 

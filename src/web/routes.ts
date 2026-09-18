@@ -798,6 +798,16 @@ export function buildMcpConfig(current: Config, form: Record<string, unknown>): 
         .map(h => h.trim())
         .filter(h => h !== '');
 
+    // The schema refuses this combination too, but it would arrive here as a
+    // prettified union error at the MCP card. The operator asked a plain
+    // question and deserves a plain answer.
+    const urlToken = on(form['auth.allow_token_in_url']);
+    if (urlToken && current.auth.oauth !== undefined) {
+        throw new Error(
+            'OAuth is configured, so the token cannot travel in the URL — a JWT in the address reaches every proxy log. Remove the auth.oauth block from config.yaml first.'
+        );
+    }
+
     return {
         ...current,
         auth: {
@@ -805,7 +815,7 @@ export function buildMcpConfig(current: Config, form: Record<string, unknown>): 
             bearer_token: on(form['auth.rotate_token'])
                 ? generateBearerToken()
                 : current.auth.bearer_token,
-            allow_token_in_url: on(form['auth.allow_token_in_url']),
+            allow_token_in_url: urlToken,
             allowed_hosts: hosts
         }
     };
