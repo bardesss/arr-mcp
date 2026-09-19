@@ -1,3 +1,4 @@
+import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
@@ -1577,5 +1578,203 @@ describe('RFC 9728 protected resource metadata', () => {
         expect(head.status).toBe(200);
         expect(head.headers.get('content-type')).toBe(get.headers.get('content-type'));
         expect(await head.text()).toBe('');
+    });
+});
+
+// jose mints the keys and the tokens, exactly as test/oauthVerifier.test.ts
+// does — real signature verification, no network. Top-level await, since
+// key generation is async and `describe` callbacks cannot be.
+const { privateKey: oauthPrivateKey, publicKey: oauthPublicKey } = await generateKeyPair('RS256');
+const oauthJwk = { ...(await exportJWK(oauthPublicKey)), kid: 'test', alg: 'RS256' };
+const oauthKeys = createLocalJWKSet({ keys: [oauthJwk] });
+
+describe('OAuth tokens at /mcp', () => {
+    const oauthConfig = (services: Record<string, unknown> = {}): Config =>
+        ConfigSchema.parse({
+            auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH, oauth: OAUTH },
+            services
+        });
+
+    const oauthApp = (cfg: Config, adapters: readonly ServiceAdapter[] = []) =>
+        buildApp({
+            runtime: Runtime.fromConfig(cfg, audit(), { adapters, oauthKeys }),
+            audit: audit(),
+            logs: LogStore.ephemeral()
+        });
+
+    const unreachableApp = () =>
+        buildApp({
+            runtime: Runtime.fromConfig(oauthConfig(), audit(), {
+                oauthKeys: (() => Promise.reject(new TypeError('fetch failed'))) as never
+            }),
+            audit: audit(),
+            logs: LogStore.ephemeral()
+        });
+
+    const signed = (scope: string) =>
+        new SignJWT({ iss: OAUTH.issuer, aud: OAUTH.audience, sub: 'client-1', scope })
+            .setProtectedHeader({ alg: 'RS256', kid: 'test' })
+            .setIssuedAt()
+            .setExpirationTime('5m')
+            .sign(oauthPrivateKey);
+
+    // Signed with the real key, but naming an issuer this server does not
+    // trust — the same failure a stolen-and-replayed token from elsewhere
+    // would produce.
+    const foreign = () =>
+        new SignJWT({ iss: 'https://evil.example.com', aud: OAUTH.audience, sub: 'client-1', scope: 'arr-mcp:read' })
+            .setProtectedHeader({ alg: 'RS256', kid: 'test' })
+            .setIssuedAt()
+            .setExpirationTime('5m')
+            .sign(oauthPrivateKey);
+
+    const deletableRadarr = (): ServiceAdapter =>
+        ({
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+            getVersion: async () => '5.0.0',
+            getMediaDetails: async () => ({ title: 'Alien', year: 1979, sizeBytes: 4_000_000_000 }),
+            deleteMedia: async () => {}
+        }) as unknown as ServiceAdapter;
+
+    const permissiveRadarr = () =>
+        oauthConfig({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k', permissions: { safe_write: true, destructive: true } } });
+
+    const lockedRadarr = () =>
+        oauthConfig({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k', permissions: { safe_write: false, destructive: false } } });
+
+    const deleteMovieCall = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'delete_media', arguments: { service: 'radarr', id: '412' } }
+    };
+
+    it('still accepts the static bearer token with oauth configured', async () => {
+        const res = await oauthApp(oauthConfig()).request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
+        );
+        expect(res.status).toBe(200);
+    });
+
+    it('accepts a valid access token', async () => {
+        const res = await oauthApp(oauthConfig()).request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${await signed('arr-mcp:read')}` })
+        );
+        expect(res.status).toBe(200);
+    });
+
+    // A token granted nothing here should be told so, not quietly handed the
+    // library.
+    it('refuses a token carrying none of the three scopes with 403', async () => {
+        const res = await oauthApp(oauthConfig()).request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${await signed('openid profile')}` })
+        );
+        expect(res.status).toBe(403);
+        expect(res.headers.get('www-authenticate')).toContain('insufficient_scope');
+        expect(res.headers.get('www-authenticate')).toContain('resource_metadata=');
+    });
+
+    it('refuses a token from an unknown issuer with 401', async () => {
+        const res = await oauthApp(oauthConfig()).request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${await foreign()}` })
+        );
+        expect(res.status).toBe(401);
+    });
+
+    // The presented token may be perfectly good; we simply cannot check it.
+    it('answers 503 when the issuer keys cannot be fetched, never 401', async () => {
+        const res = await unreachableApp().request(
+            'http://localhost:6060/mcp',
+            rpc(toolsList, { Authorization: `Bearer ${await signed('arr-mcp:read')}` })
+        );
+        expect(res.status).toBe(503);
+    });
+
+    // The case MCP07 names: one client that reads and one that writes.
+    it('refuses a destructive write to a read-scoped token, against a config that permits it', async () => {
+        const res = await oauthApp(permissiveRadarr(), [deletableRadarr()]).request(
+            'http://localhost:6060/mcp',
+            rpc(deleteMovieCall, { Authorization: `Bearer ${await signed('arr-mcp:read')}` })
+        );
+        const payload = await rpcPayload(res);
+        expect(JSON.stringify(payload)).toContain('access token');
+    });
+
+    // stack_health's permissions list is what a model plans from, so it has
+    // to show the same ceiling the gate enforces.
+    it('reports permissions capped to the token in stack_health', async () => {
+        const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'stack_health', arguments: {} } };
+        const permissionsFor = async (bearer: string) => {
+            const res = await oauthApp(permissiveRadarr(), [deletableRadarr()]).request(
+                'http://localhost:6060/mcp',
+                rpc(stackHealth, { Authorization: `Bearer ${bearer}` })
+            );
+            return ((await rpcPayload(res)) as { result: { structuredContent: { permissions: unknown } } }).result.structuredContent
+                .permissions;
+        };
+
+        expect(await permissionsFor(await signed('arr-mcp:read'))).toEqual([
+            { instance: 'radarr', safe_write: false, destructive: false }
+        ]);
+        expect(await permissionsFor(await signed('arr-mcp:write'))).toEqual([
+            { instance: 'radarr', safe_write: true, destructive: false }
+        ]);
+        expect(await permissionsFor(TOKEN)).toEqual([{ instance: 'radarr', safe_write: true, destructive: true }]);
+    });
+
+    // A compromised or over-generous issuer cannot grant a write this server
+    // was never configured to allow.
+    it('refuses a write the config denies, even to a destructively-scoped token', async () => {
+        const res = await oauthApp(lockedRadarr(), [deletableRadarr()]).request(
+            'http://localhost:6060/mcp',
+            rpc(deleteMovieCall, { Authorization: `Bearer ${await signed('arr-mcp:destructive')}` })
+        );
+        const payload = await rpcPayload(res);
+        expect(JSON.stringify(payload)).toContain('destructive');
+    });
+
+    // `/ui/config` guards on the session cookie alone (`guard(c)` in
+    // web/routes.ts never reads Authorization) — this pins that separation so
+    // it cannot regress into treating an OAuth credential as a session.
+    it('does not let an oauth token reach the config UI, which has its own credential', async () => {
+        const res = await oauthApp(oauthConfig()).request('http://localhost:6060/ui/config', {
+            headers: { Authorization: `Bearer ${await signed('arr-mcp:destructive')}` },
+            redirect: 'manual'
+        });
+        expect(res.status).toBe(302);
+    });
+
+    // `logger` only ever forwards to the store `attachLogStore` last set, and
+    // that pointer is process-global — so this attaches it itself and undoes
+    // it afterward, mirroring the static-token version of this test above.
+    it('logs a refused token by client id, not by its bytes', async () => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        try {
+            const app = buildApp({
+                runtime: Runtime.fromConfig(oauthConfig(), audit(), { adapters: [], oauthKeys }),
+                audit: audit(),
+                logs
+            });
+
+            const token = await signed('openid profile');
+            const res = await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${token}` }));
+            expect(res.status).toBe(403);
+
+            const entries = logs.recent();
+            const row = entries.find(r => r.msg === 'rejected a token with no arr-mcp scope');
+            expect(row === undefined ? undefined : (JSON.parse(row.fields) as { clientId?: string }).clientId).toBe('client-1');
+
+            expect(JSON.stringify(entries)).not.toContain(token);
+        } finally {
+            detachLogStore();
+            logs.close();
+        }
     });
 });
