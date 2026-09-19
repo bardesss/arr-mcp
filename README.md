@@ -61,6 +61,19 @@ already set. It is not listed in CA yet, so for now drop it into
 `/boot/config/plugins/dockerMan/templates-user/` and pick it from the template
 list under **Add Container**. Steps 1 to 3 below are the same once it starts.
 
+**On Proxmox VE**, [`proxmox/`](proxmox/) builds an unprivileged Debian LXC
+from source instead — no Docker anywhere. Run it on the host, not in a guest:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/bardesss/arr-mcp/main/proxmox/ct/arr-mcp.sh)"
+```
+
+It follows the Community Scripts conventions but is not in their catalogue, and
+it has never been run on a real host. An install that worked is as useful to
+hear about as one that did not:
+[#265](https://github.com/bardesss/arr-mcp/issues/265). Steps 1 to 3 below are
+the same once it boots.
+
 ```yaml
 services:
   arr-mcp:
