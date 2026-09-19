@@ -1,6 +1,8 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { OAuthError, OAuthErrorCode } from '@modelcontextprotocol/server';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import type { OAuthConfig } from '../src/config/schema.ts';
 import { JwksUnavailable, oauthVerifier } from '../src/mcp/oauthVerifier.ts';
 
@@ -99,5 +101,51 @@ describe('oauthVerifier', () => {
         const verifier = oauthVerifier(oauth, unreachable as never);
         const good = await token({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c', scope: 'arr-mcp:read' });
         await expect(verifier.verifyAccessToken(good)).rejects.toBeInstanceOf(JwksUnavailable);
+    });
+
+    it('reports a JWKS failure jose files under a generic code as JwksUnavailable', async () => {
+        const generic = () => Promise.reject(Object.assign(new Error('Expected 200 OK'), { code: 'ERR_JOSE_GENERIC' }));
+        const good = await token({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c', scope: 'arr-mcp:read' });
+        await expect(oauthVerifier(oauth, generic as never).verifyAccessToken(good)).rejects.toBeInstanceOf(JwksUnavailable);
+    });
+
+    it('accepts an Ed25519-signed token under both alg spellings', async () => {
+        const ed = await generateKeyPair('Ed25519');
+        const edKeys = createLocalJWKSet({ keys: [{ ...(await exportJWK(ed.publicKey)), kid: 'ed' }] });
+        for (const alg of ['EdDSA', 'Ed25519']) {
+            const jwt = await new SignJWT({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c', scope: 'arr-mcp:read' })
+                .setProtectedHeader({ alg, kid: 'ed' })
+                .setExpirationTime('5m')
+                .sign(ed.privateKey);
+            await expect(oauthVerifier(oauth, edKeys).verifyAccessToken(jwt)).resolves.toMatchObject({ clientId: 'c' });
+        }
+    });
+});
+
+// Everything above injects its keys. This drives the real
+// `createRemoteJWKSet` against a loopback issuer, because the failures that
+// matter in production are HTTP ones the injected resolver cannot produce.
+describe('oauthVerifier against a live jwks_uri', async () => {
+    let mode: 'ok' | 'http500' | 'html' = 'ok';
+    const server = createServer((_req, res) => {
+        if (mode === 'http500') return void res.writeHead(500).end('{"error":"boom"}');
+        if (mode === 'html') return void res.writeHead(502, { 'content-type': 'text/html' }).end('<html>502</html>');
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ keys: [jwk] }));
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    afterAll(() => void server.close());
+
+    const live = { ...oauth, jwks_uri: `http://127.0.0.1:${(server.address() as AddressInfo).port}/jwks` };
+    const good = await token({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c', scope: 'arr-mcp:read' });
+
+    it('verifies a token against the fetched key set', async () => {
+        mode = 'ok';
+        await expect(oauthVerifier(live).verifyAccessToken(good)).resolves.toMatchObject({ clientId: 'c' });
+    });
+
+    // A fresh verifier each time, so nothing is served from a cached key set.
+    it.each(['http500', 'html'] as const)('reports a %s from the issuer as JwksUnavailable, not a bad token', async m => {
+        mode = m;
+        await expect(oauthVerifier(live).verifyAccessToken(good)).rejects.toBeInstanceOf(JwksUnavailable);
     });
 });

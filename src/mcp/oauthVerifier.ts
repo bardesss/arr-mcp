@@ -10,8 +10,11 @@ import type { OAuthConfig } from '../config/schema.ts';
  * attack: the "key" is published, so anyone can mint a token. jose refuses
  * `none` and will not use an asymmetric JWK with a symmetric alg on its own,
  * but the list is one line and this is not a property to hold by implication.
+ *
+ * Ed25519 is here under both spellings: `EdDSA` from RFC 8037 and the fully
+ * specified `Ed25519` that newer issuers emit. It carries no HMAC risk.
  */
-const ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512'];
+const ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512', 'EdDSA', 'Ed25519'];
 
 /**
  * "The token may be perfectly good; we cannot check it."
@@ -37,21 +40,28 @@ function scopesOf(claim: unknown): string[] {
 }
 
 /**
- * Whether a failure means "we could not reach the issuer's keys".
+ * The resolver, with every failure but one reported as "could not check".
  *
- * jose reports a transport problem as a timeout or an invalid JWKS document,
- * and a bare `fetch` failure propagates as a TypeError. A signature or claim
- * failure is a `JOSEError` with its own code — those are the token's fault
- * and belong on the 401 path.
+ * Anything thrown while resolving a key is the issuer's side: an HTTP 500
+ * or 502, an HTML error page, a timeout, a refused connection, a key set jose
+ * cannot import. jose reports several of those under generic codes, so
+ * listing them would leave the next unfamiliar code on the 401 path. Only
+ * `jwtVerify`'s own signature and claim checks run outside this wrapper, and
+ * those are the token's fault.
  *
- * `ERR_JWKS_NO_MATCHING_KEY` is deliberately *not* here. It means the token
- * names a key the issuer does not publish, which is a forged token far more
- * often than a rotation we could not refetch.
+ * `ERR_JWKS_NO_MATCHING_KEY` is the exception. It means the token names a key
+ * the issuer does not publish, which is a forged token far more often than a
+ * rotation we could not refetch.
  */
-function unreachable(err: unknown): boolean {
-    const code = (err as { code?: string }).code;
-    if (code === 'ERR_JWKS_TIMEOUT' || code === 'ERR_JWKS_INVALID') return true;
-    return code === undefined;
+function outageAware(resolve: JWTVerifyGetKey): JWTVerifyGetKey {
+    return async (...args) => {
+        try {
+            return await resolve(...args);
+        } catch (err) {
+            if ((err as { code?: string }).code === 'ERR_JWKS_NO_MATCHING_KEY') throw err;
+            throw new JwksUnavailable("the issuer's key set could not be fetched", { cause: err });
+        }
+    };
 }
 
 /**
@@ -62,7 +72,7 @@ function unreachable(err: unknown): boolean {
  * `Runtime` rebuilds it on reload.
  */
 export function oauthVerifier(oauth: OAuthConfig, keys?: KeyResolver): OAuthTokenVerifier {
-    const resolve: JWTVerifyGetKey = keys ?? createRemoteJWKSet(new URL(oauth.jwks_uri));
+    const resolve = outageAware(keys ?? createRemoteJWKSet(new URL(oauth.jwks_uri)));
 
     return {
         async verifyAccessToken(token: string): Promise<AuthInfo> {
@@ -78,7 +88,7 @@ export function oauthVerifier(oauth: OAuthConfig, keys?: KeyResolver): OAuthToke
                     requiredClaims: ['exp']
                 }));
             } catch (err) {
-                if (unreachable(err)) throw new JwksUnavailable("the issuer's key set could not be fetched", { cause: err });
+                if (err instanceof JwksUnavailable) throw err;
                 // Wrapped rather than rethrown: `verifyAccessToken`'s own
                 // contract says to throw `OAuthError(InvalidToken)` for a bad
                 // token, and `bearerAuthChallengeResponse` only recognises
