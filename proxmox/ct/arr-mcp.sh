@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Set before build.func is sourced, because that is where it defaults. The engine
+# fetches install/arr-mcp-install.sh, and later bakes /usr/bin/update, out of
+# this base; left unset it resolves to the Community Scripts repository, which
+# does not carry either file, and the install dies on "Could not fetch
+# install/arr-mcp-install.sh" before the container is built. proxmox/ mirrors
+# their ct/ install/ json/ layout so this points one directory up from here.
+export COMMUNITY_SCRIPTS_URL="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/bardesss/arr-mcp/main/proxmox}"
 _cs_boot="${COMMUNITY_SCRIPTS_CORE_DIR:-$(dirname "${BASH_SOURCE[0]}")/../../core}/core/build.func"
 source "$_cs_boot" 2>/dev/null || source <(curl -fsSL "${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/main}/core/build.func")
 # Copyright (c) 2021-2026 community-scripts ORG

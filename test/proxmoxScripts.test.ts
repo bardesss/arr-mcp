@@ -67,6 +67,35 @@ describe('the Proxmox LXC installer', () => {
         expect(script.split('\n').length).toBeGreaterThan(20);
     });
 
+    it('points the engine at a base that serves ct/ and install/ from this repo', () => {
+        // The most load-bearing line in the three files. The Community Scripts
+        // engine fetches install/<app>-install.sh, and bakes /usr/bin/update,
+        // out of COMMUNITY_SCRIPTS_URL, which it defaults to their own
+        // repository — and theirs does not carry either file. Left unset, the
+        // install dies on "Could not fetch install/arr-mcp-install.sh" before a
+        // container exists: a total failure on a real host that nothing else
+        // here would see.
+        const base = /^export COMMUNITY_SCRIPTS_URL="\$\{COMMUNITY_SCRIPTS_URL:-(\S+)\}"$/m.exec(ct)?.[1];
+        // Before the source line, because build.func is where that default is
+        // applied. Setting it afterwards is setting it too late.
+        expect(ct.indexOf('export COMMUNITY_SCRIPTS_URL=')).toBeLessThan(ct.indexOf('core/build.func'));
+
+        const dir = /^https:\/\/raw\.githubusercontent\.com\/bardesss\/arr-mcp\/main\/(\S+)$/.exec(base ?? '')?.[1];
+        expect(dir, `${base} is not a raw base under this repository`).toBeDefined();
+        // Whatever it points at has to hold the upstream layout, or every fetch
+        // 404s one directory away from the files.
+        for (const rel of ['ct/arr-mcp.sh', 'install/arr-mcp-install.sh', 'json/arr-mcp.json']) {
+            expect(existsSync(join(root, dir!, rel)), `the engine will fetch ${dir}/${rel}`).toBe(true);
+        }
+    });
+
+    it('gives the README a command that fetches a script that exists', () => {
+        const url = /https:\/\/raw\.githubusercontent\.com\/bardesss\/arr-mcp\/main\/(\S+?\.sh)/.exec(readme)?.[1];
+
+        expect(url).toBeDefined();
+        expect(existsSync(join(root, url!)), `the README curls ${url}, which is missing`).toBe(true);
+    });
+
     it('sends people to the port the server actually binds', () => {
         // Four copies: the unit's environment, the line the install prints on
         // the host, the field the catalogue renders, and the image's own ENV.

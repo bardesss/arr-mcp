@@ -68,11 +68,18 @@ from source instead — no Docker anywhere. Run it on the host, not in a guest:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/bardesss/arr-mcp/main/proxmox/ct/arr-mcp.sh)"
 ```
 
+It defaults to 2 cores, 2 GB and 8 GB of disk — the memory is sized for the
+optional [IMDb ingest](docs/imdb.md), not for serving. `config.yaml`, the bearer
+token and the databases live in `/config`, which an update does not touch; run
+`update` inside the container to rebuild it from the latest release. Re-running
+the command above on the host builds a second container instead. If it installs
+but never answers, `journalctl -u arr-mcp` is the log.
+
 It follows the Community Scripts conventions but is not in their catalogue, and
-it has never been run on a real host. An install that worked is as useful to
-hear about as one that did not:
-[#265](https://github.com/bardesss/arr-mcp/issues/265). Steps 1 to 3 below are
-the same once it boots.
+it has never been run on a real host — arm64 least of all, so the script asks
+rather than assuming. An install that worked is as useful to hear about as one
+that did not: [#265](https://github.com/bardesss/arr-mcp/issues/265). Steps 1 to
+3 below are the same once it boots.
 
 ```yaml
 services:
