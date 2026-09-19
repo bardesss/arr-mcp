@@ -1706,6 +1706,28 @@ describe('OAuth tokens at /mcp', () => {
         expect(JSON.stringify(payload)).toContain('access token');
     });
 
+    // stack_health's permissions list is what a model plans from, so it has
+    // to show the same ceiling the gate enforces.
+    it('reports permissions capped to the token in stack_health', async () => {
+        const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'stack_health', arguments: {} } };
+        const permissionsFor = async (bearer: string) => {
+            const res = await oauthApp(permissiveRadarr(), [deletableRadarr()]).request(
+                'http://localhost:6060/mcp',
+                rpc(stackHealth, { Authorization: `Bearer ${bearer}` })
+            );
+            return ((await rpcPayload(res)) as { result: { structuredContent: { permissions: unknown } } }).result.structuredContent
+                .permissions;
+        };
+
+        expect(await permissionsFor(await signed('arr-mcp:read'))).toEqual([
+            { instance: 'radarr', safe_write: false, destructive: false }
+        ]);
+        expect(await permissionsFor(await signed('arr-mcp:write'))).toEqual([
+            { instance: 'radarr', safe_write: true, destructive: false }
+        ]);
+        expect(await permissionsFor(TOKEN)).toEqual([{ instance: 'radarr', safe_write: true, destructive: true }]);
+    });
+
     // A compromised or over-generous issuer cannot grant a write this server
     // was never configured to allow.
     it('refuses a write the config denies, even to a destructively-scoped token', async () => {

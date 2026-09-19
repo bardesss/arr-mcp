@@ -23,6 +23,8 @@ import { registerAllPrompts } from './mcp/prompts.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
 import { cappedTo, tiersFor } from './mcp/scopes.ts';
+import type { ServiceInstance } from './config/instances.ts';
+import type { WriteTier } from './core/permissions.ts';
 import { registerAllTools, type ToolContext } from './tools/register.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
 
@@ -84,20 +86,45 @@ Writing:
 Arguments are strict: an argument a tool does not have is refused rather than ignored, and the error lists what it does accept.`;
 
 /**
- * The token's ceiling, folded into the one field that carries authority.
+ * The token's ceiling, applied to the write gate and to every place that
+ * reports what the gate permits.
  *
  * Everything else on the context is read-side and ungated — any of the three
  * scopes grants reads, because every write resolves its target by reading
  * first and a write-scoped token that could not read could not preview
  * anything.
+ *
+ * `instances` is capped as well as `write.permissions` because `stack_health`
+ * and `arr://instances` report permissions from it. Left alone, they would
+ * tell a read-only token it may delete what the gate then refuses.
+ *
+ * Fails closed. A request carrying `authInfo` got in on an OAuth token, and
+ * one of those must never run uncapped. A reload between verifying the token
+ * and building this context can drop `auth.oauth` or rename a scope, and the
+ * worst that should cost is a spurious refusal.
  */
 function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined): ToolContext {
-    if (oauth === undefined || authInfo === undefined) return tools;
-    const tiers = tiersFor(oauth, authInfo.scopes);
-    // `undefined` is refused at the HTTP layer before the handler runs; an
-    // empty set here is a read-only token.
-    if (tiers === undefined) return tools;
-    return { ...tools, write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers) } };
+    if (authInfo === undefined) return tools;
+    const tiers = (oauth && tiersFor(oauth, authInfo.scopes)) ?? new Set<WriteTier>();
+    return {
+        ...tools,
+        // Cast because spreading a discriminated union loses the pairing of
+        // `type` and `config`; only `permissions` changes, so it still holds.
+        instances: tools.instances.map(
+            i =>
+                ({
+                    ...i,
+                    config: {
+                        ...i.config,
+                        permissions: {
+                            safe_write: i.config.permissions.safe_write && tiers.has('safe'),
+                            destructive: i.config.permissions.destructive && tiers.has('destructive')
+                        }
+                    }
+                }) as ServiceInstance
+        ),
+        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers) }
+    };
 }
 
 export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore }) {
