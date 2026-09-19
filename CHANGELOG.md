@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.0](https://github.com/bardesss/arr-mcp/compare/v1.28.0...v1.29.0) (2026-09-19)
+
+
+### Features
+
+* add a Proxmox VE LXC installer ([#266](https://github.com/bardesss/arr-mcp/issues/266)) ([8d74633](https://github.com/bardesss/arr-mcp/commit/8d74633fdc03ea0a4805314a0a9def06274bb1b5))
+
 ## [1.28.0](https://github.com/bardesss/arr-mcp/compare/v1.27.0...v1.28.0) (2026-09-18)
 
 
