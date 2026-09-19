@@ -24,7 +24,7 @@ off until you turn them on — see [writes](writes.md).
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
-| `trigger_scan` | Rescan a library, refresh or rename one item, or import a download that never landed |
+| `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, or put a mislabeled Sonarr file on the right episode |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn Sonarr or Whisparr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
@@ -1029,7 +1029,7 @@ rejects the call without it.
 
 ## `trigger_scan`
 
-Three actions, one idea: make a service reconcile itself with what is on disk.
+Four actions, one idea: make a service reconcile itself with what is on disk.
 
 | Call | What it does |
 | --- | --- |
@@ -1037,6 +1037,7 @@ Three actions, one idea: make a service reconcile itself with what is on disk.
 | `service` + `id` | Rescans just that Radarr/Sonarr item — far cheaper on a large library. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
+| `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is. |
 
 Everything here queues a command and returns. `stack_health`'s `commands` list
 says whether it has finished; do not assume it has.
@@ -1071,6 +1072,48 @@ Three outcomes that look alike and are not:
 The import re-reads the candidates when it runs rather than trusting the
 preview's list, so a download whose files have changed in between imports what
 is there now or fails — never a path that no longer exists.
+
+### Putting a mislabeled file on the right episode
+
+Some files were mislabeled at the original import: the file named `S01E24` is
+really the Pilot. The filename, Sonarr's database, the media server and Sonarr's
+own matcher all agree with the wrong answer, so `get_metadata_issues` finds
+nothing. `remap` applies a correction a person has already made, usually by
+watching the file.
+
+```json
+{
+  "service": "sonarr",
+  "action": "remap",
+  "id": "5",
+  "reassignments": [
+    { "path": "Season 01/Show - S01E24.mkv", "season": 1, "episode": 1 },
+    { "path": "Season 01/Show - S01E01.mkv", "season": 1, "episode": 2 }
+  ]
+}
+```
+
+`path` is relative to the series folder, as Sonarr names it, or absolute. Only
+files Sonarr has already imported can be reassigned.
+
+The preview lists each file's current and new episode. Files already on the
+episode asked for are left out. The call is refused if it would leave a file
+attached to no episode: moving a file onto an episode that already has one
+means the list must also say where that one goes. Send the whole rotation in one
+call, because a half-applied one reads as a missing episode plus a dangling file.
+
+Nothing moves on disk. What changes, and what Sonarr does not report itself:
+
+- Each moved file gets a new episode file id, so an id read before the remap is
+  stale, including for `delete_episode_files`.
+- The moved files' date added resets to now, which reorders "recently added" in
+  Sonarr and in the media server.
+- Sonarr writes nothing to its history. The audit log here is the only record.
+
+The filenames still say the old episode. Follow up with:
+
+1. `trigger_scan` with `action: "rename"` on the same series.
+2. `trigger_scan` on the media server, so it picks up the renamed files.
 
 ## `update_media`
 

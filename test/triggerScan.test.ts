@@ -7,6 +7,7 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
+import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
@@ -408,5 +409,79 @@ describe('trigger_scan on Prowlarr', () => {
             permissions: { prowlarr: permissive(true) }
         });
         await expect(h.call({ service: 'prowlarr', id: '1', dry_run: true })).rejects.toThrow(/refresh or rename/i);
+    });
+});
+
+/** The correction a person makes by watching; see the notes on
+ *  `planArrEpisodeRemap` for why nothing automatic can make it. */
+describe('trigger_scan remapping episodes', () => {
+    const remapHarness = () => {
+        const sonarr = recordingFetch({
+            '/api/v3/manualimport': [1, 2].map(n => ({
+                path: `/tv/Show/Season 01/Show - S01E0${n}.mkv`,
+                relativePath: `Season 01/Show - S01E0${n}.mkv`,
+                episodeFileId: 10 + n,
+                episodes: [{ id: 100 + n }],
+                rejections: []
+            })),
+            '/api/v3/episode': [
+                { id: 101, seasonNumber: 1, episodeNumber: 1, episodeFileId: 11 },
+                { id: 102, seasonNumber: 1, episodeNumber: 2, episodeFileId: 12 }
+            ],
+            '/api/v3/command': { id: 6, name: 'ManualImport', status: 'queued' }
+        });
+        return {
+            ...harness({ adapters: [new SonarrAdapter(keyed(8989), sonarr.impl)], permissions: { sonarr: permissive(true) } }),
+            sonarr
+        };
+    };
+    const SWAP = {
+        service: 'sonarr',
+        action: 'remap',
+        id: '5',
+        reassignments: [
+            { path: 'Season 01/Show - S01E01.mkv', season: 1, episode: 2 },
+            { path: 'Season 01/Show - S01E02.mkv', season: 1, episode: 1 }
+        ]
+    };
+
+    it('previews each move and the side effects Sonarr will not report itself', async () => {
+        const h = remapHarness();
+        const { structuredContent } = await h.call({ ...SWAP, dry_run: true });
+
+        const effects = structuredContent.effects.join('\n');
+        expect(effects).toMatch(/S01E01\.mkv.*S01E01 → S01E02/);
+        expect(effects).toMatch(/ids change/);
+        expect(effects).toMatch(/date added/);
+        expect(effects).toMatch(/nothing in its own history/);
+        expect(h.sonarr.sent.filter(x => x.method === 'POST')).toHaveLength(0);
+    });
+
+    it('sends one command once confirmed', async () => {
+        const h = remapHarness();
+        const first = await h.call(SWAP);
+        const second = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(h.sonarr.sent.filter(x => x.method === 'POST' && x.url === '/api/v3/command')).toHaveLength(1);
+    });
+
+    it('is a no-op when every file is already where it was asked to go', async () => {
+        const h = remapHarness();
+        const { structuredContent } = await h.call({
+            ...SWAP,
+            reassignments: [{ path: 'Season 01/Show - S01E01.mkv', season: 1, episode: 1 }]
+        });
+        expect(structuredContent.noop).toBe(true);
+    });
+
+    it('needs an id and reassignments', async () => {
+        const h = remapHarness();
+        await expect(h.call({ service: 'sonarr', action: 'remap', id: '5', dry_run: true })).rejects.toThrow(/reassignments/);
+    });
+
+    it('refuses a service with no episodes', async () => {
+        const h = harness();
+        await expect(h.call({ ...SWAP, service: 'jellyfin', dry_run: true })).rejects.toThrow(/no episodes/);
     });
 });

@@ -232,3 +232,121 @@ describe('a download that has not finished', () => {
         await expect(new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc')).rejects.toThrow(/get_queue/);
     });
 });
+
+/**
+ * The mislabel every signal agrees with: the file named E03 is the Pilot, and
+ * each other file is one episode late. Sonarr's `/manualimport?seriesId=`
+ * reports the association it already has, which is what these rows are.
+ */
+const EPISODES = [
+    { id: 101, seasonNumber: 1, episodeNumber: 1, episodeFileId: 11 },
+    { id: 102, seasonNumber: 1, episodeNumber: 2, episodeFileId: 12 },
+    { id: 103, seasonNumber: 1, episodeNumber: 3, episodeFileId: 13 },
+    { id: 104, seasonNumber: 1, episodeNumber: 4, episodeFileId: 0 }
+];
+const SERIES_FILES = [1, 2, 3].map(n => ({
+    path: `/tv/Show/Season 01/Show - S01E0${n}.mkv`,
+    relativePath: `Season 01/Show - S01E0${n}.mkv`,
+    episodeFileId: 10 + n,
+    series: { id: 5, title: 'Show' },
+    seasonNumber: 1,
+    episodes: [{ id: 100 + n }],
+    quality: { quality: { id: 7, name: 'Bluray-1080p' } },
+    languages: [{ id: 1, name: 'English' }],
+    releaseGroup: 'GROUP',
+    rejections: []
+}));
+
+function seriesStack() {
+    const sent: { path: string; method: string; body: Record<string, unknown> | undefined }[] = [];
+    const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        const method = init?.method ?? 'GET';
+        sent.push({
+            path: url.pathname + url.search,
+            method,
+            body: typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : undefined
+        });
+        if (url.pathname === '/api/v3/manualimport') return jsonResponse(SERIES_FILES);
+        if (url.pathname === '/api/v3/episode') return jsonResponse(EPISODES);
+        if (url.pathname === '/api/v3/command') return jsonResponse({ id: 92, name: 'ManualImport', status: 'queued' });
+        return jsonResponse({ message: 'not found' }, 404);
+    }) as unknown as typeof fetch;
+    return { sonarr: new SonarrAdapter(keyed(8989), impl), sent };
+}
+
+const ROTATION = [
+    { path: 'Season 01/Show - S01E03.mkv', season: 1, episode: 1 },
+    { path: 'Season 01/Show - S01E01.mkv', season: 1, episode: 2 },
+    { path: '/tv/Show/Season 01/Show - S01E02.mkv', season: 1, episode: 3 }
+];
+
+describe('remapping episodes', () => {
+    it('applies the whole rotation as one command, with the episodes the caller gave', async () => {
+        const s = seriesStack();
+        await s.sonarr.runEpisodeRemap('5', ROTATION);
+
+        const posts = s.sent.filter(x => x.method === 'POST');
+        expect(posts).toHaveLength(1);
+        const command = posts[0]?.body as { name: string; importMode?: string; files: Record<string, unknown>[] };
+        expect(command.name).toBe('ManualImport');
+        expect(command.importMode).toBeUndefined();
+        expect(command.files).toEqual([
+            expect.objectContaining({ path: '/tv/Show/Season 01/Show - S01E03.mkv', seriesId: 5, episodeIds: [101] }),
+            expect.objectContaining({ path: '/tv/Show/Season 01/Show - S01E01.mkv', episodeIds: [102] }),
+            expect.objectContaining({ path: '/tv/Show/Season 01/Show - S01E02.mkv', episodeIds: [103] })
+        ]);
+        expect(command.files[0]).toMatchObject({ quality: SERIES_FILES[0]?.quality, releaseGroup: 'GROUP' });
+        expect(command.files[0]).not.toHaveProperty('downloadId');
+    });
+
+    it('reads the association Sonarr has, not a folder to parse', async () => {
+        const s = seriesStack();
+        await s.sonarr.planEpisodeRemap('5', ROTATION);
+        expect(s.sent.map(x => x.path)).toContain('/api/v3/manualimport?seriesId=5');
+    });
+
+    /** The half-applied rotation from #264: the displaced file becomes a row
+     *  no episode points at. */
+    it('refuses a move that would orphan the file already on the target, and sends nothing', async () => {
+        const s = seriesStack();
+        await expect(s.sonarr.runEpisodeRemap('5', [ROTATION[0]!])).rejects.toThrow(/S01E01.*not in reassignments/);
+        expect(s.sent.filter(x => x.method === 'POST')).toHaveLength(0);
+    });
+
+    it('leaves out files already on the episode asked for', async () => {
+        const s = seriesStack();
+        await s.sonarr.runEpisodeRemap('5', [
+            { path: 'Season 01/Show - S01E01.mkv', season: 1, episode: 2 },
+            { path: 'Season 01/Show - S01E02.mkv', season: 1, episode: 1 },
+            { path: 'Season 01/Show - S01E03.mkv', season: 1, episode: 3 }
+        ]);
+
+        const command = s.sent.find(x => x.method === 'POST')?.body as { files: { path: string }[] };
+        expect(command.files.map(f => f.path)).not.toContain('/tv/Show/Season 01/Show - S01E03.mkv');
+        expect(command.files).toHaveLength(2);
+    });
+
+    it('names the episode a move leaves without a file', async () => {
+        const s = seriesStack();
+        const plan = await s.sonarr.planEpisodeRemap('5', [{ path: 'Season 01/Show - S01E03.mkv', season: 1, episode: 4 }]);
+        expect(plan.moves[0]).toMatchObject({ from: 'S01E03', to: 'S01E04' });
+        expect(plan.emptied).toEqual(['S01E03']);
+    });
+
+    it('refuses a path Sonarr has not imported, an episode it does not have, and two files on one episode', async () => {
+        const s = seriesStack();
+        await expect(s.sonarr.planEpisodeRemap('5', [{ path: 'nope.mkv', season: 1, episode: 1 }])).rejects.toThrow(
+            /no imported file/
+        );
+        await expect(
+            s.sonarr.planEpisodeRemap('5', [{ path: 'Season 01/Show - S01E01.mkv', season: 9, episode: 1 }])
+        ).rejects.toThrow(/no episode S09E01/);
+        await expect(
+            s.sonarr.planEpisodeRemap('5', [
+                { path: 'Season 01/Show - S01E01.mkv', season: 1, episode: 4 },
+                { path: 'Season 01/Show - S01E02.mkv', season: 1, episode: 4 }
+            ])
+        ).rejects.toThrow(/one file per episode/);
+    });
+});

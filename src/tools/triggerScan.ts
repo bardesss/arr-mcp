@@ -3,10 +3,12 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
+    hasEpisodeRemap,
     hasLibraryMaintenance,
     hasLibraryScan,
     hasManualImport,
     hasMediaDetails,
+    type EpisodeRemapCapable,
     type LibraryMaintenanceCapable,
     type LibraryScanCapable,
     type ManualImportCapable,
@@ -84,6 +86,23 @@ const findImportAdapter = (
     return adapter;
 };
 
+/** Only Sonarr has episodes to put a file in. */
+const findRemapAdapter = (
+    adapters: readonly ServiceAdapter[],
+    service: ServiceId,
+    instance?: string
+): ServiceAdapter & EpisodeRemapCapable => {
+    const adapter = resolveInstance(adapters, service, instance);
+
+    if (!hasEpisodeRemap(adapter)) {
+        throw new ServiceError('NotFound', service, `${service} has no episodes to reassign a file to`, {
+            remedy: 'remap is for sonarr: it moves an already-imported file onto a different episode of the same series.'
+        });
+    }
+
+    return adapter;
+};
+
 export function registerTriggerScan(
     server: McpServer,
     context: WriteContext,
@@ -93,15 +112,15 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Scan for new files',
         description:
-            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr or Jellyfin; Jellyfin is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. Everything here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr or Jellyfin; Jellyfin is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. Everything here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr, sonarr or jellyfin — or prowlarr, to sync its indexers to the apps.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z
-                .enum(['scan', 'rename', 'import'])
+                .enum(['scan', 'rename', 'import', 'remap'])
                 .default('scan')
                 .describe(
-                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`.'
+                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`.'
                 ),
             id: z
                 .string()
@@ -116,6 +135,22 @@ export function registerTriggerScan(
                 .optional()
                 .describe(
                     'The download client\'s own id, as `downloadId` on a get_queue row. Required for action: "import", ignored otherwise.'
+                ),
+            reassignments: z
+                .array(
+                    z.object({
+                        path: z
+                            .string()
+                            .min(1)
+                            .describe('The file, relative to the series folder as Sonarr names it ("Season 01/Show - S01E01 - Pilot.mkv"), or absolute.'),
+                        season: z.number().int().min(0),
+                        episode: z.number().int().min(1).describe('The episode this file really is.')
+                    })
+                )
+                .min(1)
+                .optional()
+                .describe(
+                    'Required for action: "remap", ignored otherwise. Include every file the change touches: a file moved onto an episode that already has one must say where that one goes too, or the call is refused.'
                 )
         }),
         // Resolved from the arguments, so the permission checked, the audit row
@@ -126,7 +161,41 @@ export function registerTriggerScan(
         operation: 'trigger_scan',
         tier: 'safe',
 
-        async plan({ service, instance, action, id, download_id }): Promise<WritePlan> {
+        async plan({ service, instance, action, id, download_id, reassignments }): Promise<WritePlan> {
+            if (action === 'remap') {
+                if (id === undefined || reassignments === undefined) {
+                    throw new Error(
+                        'remap needs an `id` — the Sonarr series, from `acquisition.id` on get_library — and `reassignments`, the files and the episodes they really are.'
+                    );
+                }
+
+                const adapter = findRemapAdapter(adapters, service, instance);
+                const { moves, emptied } = await adapter.planEpisodeRemap(id, reassignments);
+                const target = `${adapter.id}:${id}`;
+
+                if (moves.length === 0) {
+                    return {
+                        target,
+                        summary: `Every file is already on the episode asked for in ${adapter.id}.`,
+                        effects: [],
+                        noop: true
+                    };
+                }
+
+                return {
+                    target,
+                    summary: `Reassign ${moves.length} file(s) to different episodes of series ${id} in ${adapter.id}.`,
+                    effects: [
+                        ...emptied.map(e => `Leaves ${e} with no file — nothing in reassignments takes its place.`),
+                        ...moves.map(m => `${m.display}: ${m.from} → ${m.to}`),
+                        'Only the association changes: nothing moves or is renamed on disk. Run action: "rename" afterwards to make the filenames match, then rescan the media server.',
+                        `${adapter.id} recreates each moved file's record, so episode file ids change — any id read before this is stale — and the file's date added resets to now.`,
+                        `${adapter.id} records nothing in its own history for this; the audit log here is the only trace.`
+                    ],
+                    args: { service, action, id, reassignments, ...(instance === undefined ? {} : { instance }) }
+                };
+            }
+
             if (action === 'import') {
                 if (download_id === undefined) {
                     throw new Error(
@@ -235,7 +304,13 @@ export function registerTriggerScan(
             };
         },
 
-        async apply(_plan, { service, instance, action, id, download_id }) {
+        async apply(_plan, { service, instance, action, id, download_id, reassignments }) {
+            if (action === 'remap' && id !== undefined && reassignments !== undefined) {
+                const remapper = findRemapAdapter(adapters, service, instance);
+                const queued = await remapper.runEpisodeRemap(id, reassignments);
+                return `${remapper.id} queued ${queued.name} to reassign the files of series ${id}. It runs in the background — check stack_health's \`commands\`, then run action: "rename" so the filenames match.`;
+            }
+
             if (action === 'import' && download_id !== undefined) {
                 const importer = findImportAdapter(adapters, service, instance);
                 const queued = await importer.runManualImport(download_id);

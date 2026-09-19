@@ -11,7 +11,12 @@ import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, rea
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
-import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
+import {
+    listArrImportCandidates,
+    planArrEpisodeRemap,
+    runArrEpisodeRemap,
+    runArrManualImport
+} from './arrManualImport.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
@@ -50,6 +55,9 @@ import {
     type MediaAddCapable,
     type ImportCandidate,
     type LibraryMaintenanceCapable,
+    type EpisodeReassignment,
+    type EpisodeRemapCapable,
+    type EpisodeRemapPlan,
     type ManualImportCapable,
     type MediaUpdateCapable,
     type MediaUpdateOptions,
@@ -152,6 +160,7 @@ export class SonarrAdapter
         LibraryMaintenanceCapable,
         CommandStatusCapable,
         ManualImportCapable,
+        EpisodeRemapCapable,
         MonitoringCapable,
         EpisodeFileCapable,
         HistoryCapable,
@@ -261,6 +270,14 @@ export class SonarrAdapter
 
     async runManualImport(downloadId: string): Promise<CommandHandle> {
         return runArrManualImport(this.#http, this.id, 'series', downloadId);
+    }
+
+    async planEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapPlan> {
+        return planArrEpisodeRemap(this.#http, this.id, seriesId, reassignments);
+    }
+
+    async runEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<CommandHandle> {
+        return runArrEpisodeRemap(this.#http, this.id, seriesId, reassignments);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {

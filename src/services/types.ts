@@ -727,6 +727,29 @@ export interface ManualImportCapable {
 export const hasManualImport = (a: ServiceAdapter): a is ServiceAdapter & ManualImportCapable =>
     typeof (a as Partial<ManualImportCapable>).runManualImport === 'function';
 
+/** One file already in the library, and the episode a person says it really is.
+ *  `path` is relative to the series folder, as Sonarr names it, or absolute. */
+export type EpisodeReassignment = { path: string; season: number; episode: number };
+
+export type EpisodeRemapPlan = {
+    /** Only the files whose episode changes. `display` is fenced. */
+    moves: { display: string; from: string; to: string }[];
+    /** Episodes a moved file leaves behind that nothing in the list takes. */
+    emptied: string[];
+};
+
+/**
+ * Rewrites which episode an already-imported file belongs to, for the mislabel
+ * every automatic signal agrees with. Sonarr only: see `planArrEpisodeRemap`.
+ */
+export interface EpisodeRemapCapable {
+    planEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapPlan>;
+    runEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<CommandHandle>;
+}
+
+export const hasEpisodeRemap = (a: ServiceAdapter): a is ServiceAdapter & EpisodeRemapCapable =>
+    typeof (a as Partial<EpisodeRemapCapable>).runEpisodeRemap === 'function';
+
 /**
  * Both flags default to the *least* destructive reading at every layer — the
  * tool schema, the adapter signature and the service call — so a caller that

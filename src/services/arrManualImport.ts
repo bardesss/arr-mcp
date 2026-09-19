@@ -3,7 +3,7 @@ import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { postArrCommand } from './arrCommands.ts';
 import { readArrQueue } from './arrQueue.ts';
-import type { CommandHandle, ImportCandidate } from './types.ts';
+import type { CommandHandle, EpisodeReassignment, EpisodeRemapPlan, ImportCandidate } from './types.ts';
 
 /**
  * The download that finished and was never imported — `get_queue` shows it
@@ -183,4 +183,170 @@ export async function runArrManualImport(
     }));
 
     return postArrCommand(http, service, { name: 'ManualImport', importMode: 'auto', files });
+}
+
+/**
+ * The mislabel made once, at the original import: the file named E24 is the
+ * Pilot, and the filename, Sonarr's database, the media server and Sonarr's
+ * own matcher all agree with the wrong answer. There is nothing to detect it
+ * against, so this applies a correction a person has already made.
+ *
+ * It is the same `ManualImport` command the download path posts, with the
+ * episode ids taken from the caller rather than the matcher. For a file inside
+ * the series folder Sonarr skips the upgrader, so nothing moves on disk; it
+ * drops the file's old row and writes a new one. Checked against a live Sonarr
+ * 4.0.20 in bardesss/arr-mcp#264, which is also where the three side effects
+ * the tool reports come from.
+ *
+ * Sonarr only. A Radarr file belongs to one movie, and a movie mislabel is a
+ * different item rather than a different slot in the same one.
+ */
+
+type RawEpisodeRow = { id?: number; seasonNumber?: number; episodeNumber?: number; episodeFileId?: number };
+type RawSeriesFile = RawCandidate & { episodeFileId?: number };
+
+const sxe = (season: number, episode: number): string =>
+    `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
+
+type ResolvedRemap = {
+    moves: { file: RawSeriesFile; episodeId: number; season: number; display: string; from: string; to: string }[];
+    emptied: string[];
+};
+
+async function resolveEpisodeRemap(
+    http: ServiceHttp,
+    service: string,
+    seriesId: number,
+    reassignments: EpisodeReassignment[]
+): Promise<ResolvedRemap> {
+    // With a series id and no folder, Sonarr maps the files it already has
+    // rather than parsing names, so `episodes` is the current association —
+    // and after a remap, the corrected one.
+    const [files, episodes] = await Promise.all([
+        http.get<RawSeriesFile[]>(`/api/v3/manualimport?seriesId=${seriesId}`),
+        http.get<RawEpisodeRow[]>(`/api/v3/episode?seriesId=${seriesId}`)
+    ]);
+
+    const label = (e: RawEpisodeRow): string => sxe(e.seasonNumber ?? 0, e.episodeNumber ?? 0);
+    const episodeById = new Map(episodes.filter(e => typeof e.id === 'number').map(e => [e.id as number, e]));
+    const fileById = new Map(files.filter(f => typeof f.episodeFileId === 'number').map(f => [f.episodeFileId as number, f]));
+
+    const seenPaths = new Set<string>();
+    const targets = new Map<number, string>();
+    const resolved = reassignments.map(r => {
+        const file = files.find(f => f.path === r.path || f.relativePath === r.path);
+        if (file === undefined || typeof file.path !== 'string') {
+            throw new ServiceError('NotFound', service, `series ${seriesId} has no imported file at "${r.path}"`, {
+                remedy: 'Give the path relative to the series folder, as Sonarr names it — "Season 01/Show - S01E01 - Pilot.mkv" — or absolute. Only files Sonarr has already imported can be reassigned; a file it never took needs action: "import" or a scan first.'
+            });
+        }
+        if (seenPaths.has(file.path)) throw new Error(`"${r.path}" appears more than once in reassignments.`);
+        seenPaths.add(file.path);
+
+        const target = episodes.find(e => e.seasonNumber === r.season && e.episodeNumber === r.episode);
+        if (target?.id === undefined) {
+            throw new ServiceError('NotFound', service, `series ${seriesId} has no episode ${sxe(r.season, r.episode)}`, {
+                remedy: 'get_media_details with include_episodes lists the season and episode numbers Sonarr knows.'
+            });
+        }
+        const clash = targets.get(target.id);
+        if (clash !== undefined) {
+            throw new Error(`"${clash}" and "${r.path}" are both reassigned to ${label(target)}; one file per episode.`);
+        }
+        targets.set(target.id, r.path);
+
+        return { file, target: { ...target, id: target.id } };
+    });
+
+    const listed = new Set(resolved.map(m => m.file.episodeFileId));
+
+    // A one-way remap leaves the file that used to hold the target as a row no
+    // episode points at. Nothing is lost on disk, but it reads as a missing
+    // episode plus a dangling file — so the whole rotation has to be in one list.
+    for (const { target } of resolved) {
+        const holder = target.episodeFileId ? fileById.get(target.episodeFileId) : undefined;
+        if (holder !== undefined && !listed.has(holder.episodeFileId)) {
+            throw new Error(
+                `${label(target)} is currently "${holder.relativePath ?? holder.path}", which is not in reassignments. Moving another file onto ${label(target)} would leave it attached to nothing — say where it goes too, so the whole rotation is applied in one call.`
+            );
+        }
+    }
+
+    const labelOf = (id: number): string => {
+        const e = episodeById.get(id);
+        return e === undefined ? `episode ${id}` : label(e);
+    };
+    const moves: ResolvedRemap['moves'] = [];
+    const emptied = new Set<string>();
+
+    for (const { file, target } of resolved) {
+        const current = (file.episodes ?? []).map(e => e.id).filter((id): id is number => typeof id === 'number');
+        if (current.length === 1 && current[0] === target.id) continue;
+
+        for (const id of current) if (!targets.has(id)) emptied.add(labelOf(id));
+        moves.push({
+            file,
+            episodeId: target.id,
+            season: target.seasonNumber ?? 0,
+            display: fenceText(file.relativePath ?? file.path as string, { service, field: 'path' }),
+            from: current.map(labelOf).join('+') || 'no episode',
+            to: label(target)
+        });
+    }
+
+    return { moves, emptied: [...emptied] };
+}
+
+const seriesIdOf = (service: string, seriesId: string): number => {
+    const id = Number(seriesId);
+    if (!Number.isInteger(id)) {
+        throw new ServiceError('NotFound', service, `"${seriesId}" is not a Sonarr series id`, {
+            remedy: 'Sonarr series ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
+        });
+    }
+    return id;
+};
+
+export async function planArrEpisodeRemap(
+    http: ServiceHttp,
+    service: string,
+    seriesId: string,
+    reassignments: EpisodeReassignment[]
+): Promise<EpisodeRemapPlan> {
+    const { moves, emptied } = await resolveEpisodeRemap(http, service, seriesIdOf(service, seriesId), reassignments);
+    return { moves: moves.map(({ display, from, to }) => ({ display, from, to })), emptied };
+}
+
+/** Re-resolves rather than trusting the preview, for the same reason the
+ *  download import does: the association may have moved on since. */
+export async function runArrEpisodeRemap(
+    http: ServiceHttp,
+    service: string,
+    seriesId: string,
+    reassignments: EpisodeReassignment[]
+): Promise<CommandHandle> {
+    const id = seriesIdOf(service, seriesId);
+    const { moves } = await resolveEpisodeRemap(http, service, id, reassignments);
+
+    if (moves.length === 0) {
+        throw new ServiceError('UpstreamError', service, 'every file is already on the episode asked for', {
+            remedy: 'Nothing was sent. If the preview said otherwise, something else changed the association in between.'
+        });
+    }
+
+    // One command for the whole set: applied file by file, a rotation would
+    // pass through the orphaned state the check above refuses. `importMode` is
+    // left out — Sonarr never reads it for a file already in the series folder.
+    const files = moves.map(({ file, episodeId, season }) => ({
+        path: file.path,
+        seriesId: id,
+        seasonNumber: season,
+        episodeIds: [episodeId],
+        ...(file.quality === undefined ? {} : { quality: file.quality }),
+        ...(file.languages === undefined ? {} : { languages: file.languages }),
+        ...(file.releaseGroup === null || file.releaseGroup === undefined ? {} : { releaseGroup: file.releaseGroup }),
+        ...(file.indexerFlags === undefined ? {} : { indexerFlags: file.indexerFlags })
+    }));
+
+    return postArrCommand(http, service, { name: 'ManualImport', files });
 }
