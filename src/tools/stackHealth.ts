@@ -330,8 +330,9 @@ export async function buildStackHealth(
     // Counts stay honest at every detail level: a model must never see
     // returned: 0 and conclude there are no disks.
     // Sorted by id like the lists above, and read from each instance's own
-    // config rather than from its adapter — the same source the write gate
-    // uses, so the two can never disagree about what is permitted.
+    // config rather than from its adapter. For an OAuth caller, `app.ts` has
+    // already capped these flags to the token's scopes, the same ceiling the
+    // write gate applies, so this never reports a write the gate would refuse.
     const permissions =
         instances === undefined
             ? undefined

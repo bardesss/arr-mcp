@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AnyServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { assertPermitted, checkPermission, permissionSourceFrom } from '../src/core/permissions.ts';
+import { cappedTo } from '../src/mcp/scopes.ts';
 
 const service = (safe_write: boolean, destructive: boolean): AnyServiceConfig =>
     ({
@@ -83,5 +84,32 @@ describe('assertPermitted', () => {
             expect(se.service).toBe('radarr');
             expect(se.message).toContain('permissions.destructive: true');
         }
+    });
+});
+
+describe('the scope ceiling', () => {
+    it('refuses a tier the token does not carry, even where config permits it', () => {
+        const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(['safe']));
+        const verdict = checkPermission(source, 'radarr', 'destructive');
+        expect(verdict.allowed).toBe(false);
+        expect(verdict.allowed === false && verdict.reason).toContain('access token');
+    });
+
+    it('still refuses a tier the config denies, even where the token carries it', () => {
+        const source = cappedTo(sourceFor({ radarr: service(false, false) }), new Set(['safe', 'destructive']));
+        const verdict = checkPermission(source, 'radarr', 'safe');
+        expect(verdict.allowed).toBe(false);
+        // The config's own message, unchanged: config.yaml is the authority.
+        expect(verdict.allowed === false && verdict.remedy).toContain('safe_write');
+    });
+
+    it('allows a write both the token and the config permit', () => {
+        const source = cappedTo(sourceFor({ radarr: service(true, false) }), new Set(['safe']));
+        expect(checkPermission(source, 'radarr', 'safe').allowed).toBe(true);
+    });
+
+    it('leaves an uncapped source behaving exactly as before', () => {
+        const source = sourceFor({ radarr: service(true, true) });
+        expect(checkPermission(source, 'radarr', 'destructive').allowed).toBe(true);
     });
 });
