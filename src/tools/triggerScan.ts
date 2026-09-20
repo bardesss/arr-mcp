@@ -170,7 +170,7 @@ export function registerTriggerScan(
                 }
 
                 const adapter = findRemapAdapter(adapters, service, instance);
-                const { moves, emptied } = await adapter.planEpisodeRemap(id, reassignments);
+                const { moves, emptied, rotation } = await adapter.planEpisodeRemap(id, reassignments);
                 const target = `${adapter.id}:${id}`;
 
                 if (moves.length === 0) {
@@ -188,7 +188,13 @@ export function registerTriggerScan(
                     effects: [
                         ...emptied.map(e => `Leaves ${e} with no file — nothing in reassignments takes its place.`),
                         ...moves.map(m => `${m.display}: ${m.from} → ${m.to}`),
-                        'Only the association changes: nothing moves or is renamed on disk. Run action: "rename" afterwards to make the filenames match, then rescan the media server.',
+                        // Scoped to the moved files, not the series: `rename`
+                        // sends RenameSeries, which would also rename files in
+                        // seasons this never touched.
+                        rotation
+                            ? `Renames only the files above afterwards — but they rotate among episodes that already hold a file, so every new name is another one's current name and none of them has a free destination. Expect the reassignment to apply and the filenames to stay as they are; ${adapter.id} plays by the reassignment rather than the name, and the response says which files are waiting.`
+                            : 'Renames only the files above afterwards, so the filenames match the episodes they have been moved to. Nothing else in the series is renamed.',
+                        'Nothing moves between folders and nothing is deleted. Rescan your media server afterwards so it reads the corrected library.',
                         `${adapter.id} recreates each moved file's record, so episode file ids change — any id read before this is stale — and the file's date added resets to now.`,
                         `${adapter.id} records nothing in its own history for this; the audit log here is the only trace.`
                     ],
@@ -307,8 +313,22 @@ export function registerTriggerScan(
         async apply(_plan, { service, instance, action, id, download_id, reassignments }) {
             if (action === 'remap' && id !== undefined && reassignments !== undefined) {
                 const remapper = findRemapAdapter(adapters, service, instance);
-                const queued = await remapper.runEpisodeRemap(id, reassignments);
-                return `${remapper.id} queued ${queued.name} to reassign the files of series ${id}. It runs in the background — check stack_health's \`commands\`, then run action: "rename" so the filenames match.`;
+                const { renamed, blocked } = await remapper.runEpisodeRemap(id, reassignments);
+
+                // Unlike everything else here, this one has already finished:
+                // the rename needs the ids the reassignment assigns, so it
+                // waits for the first command before sending the second.
+                const done = `${remapper.id} reassigned the files of series ${id} and renamed ${renamed} of them.`;
+                if (blocked.length === 0) {
+                    return `${done} The files and the episodes now agree — rescan your media server so it picks the new names up.`;
+                }
+
+                return (
+                    `${done} ${blocked.length} kept the old name, because the name each one wants is still on disk, held by another file in the same rotation: ` +
+                    `${blocked.map(b => `${b.path} wants ${b.wants}`).join('; ')}. ` +
+                    `The reassignment is correct and complete either way — only the filenames are behind, and ${remapper.id} plays by the reassignment, not the name. ` +
+                    `Breaking that deadlock needs ${remapper.id}'s episode naming format changed and two rename passes, which this does not do on your behalf.`
+                );
             }
 
             if (action === 'import' && download_id !== undefined) {

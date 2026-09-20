@@ -57,6 +57,7 @@ import {
     type LibraryMaintenanceCapable,
     type EpisodeReassignment,
     type EpisodeRemapCapable,
+    type EpisodeRemapOutcome,
     type EpisodeRemapPlan,
     type ManualImportCapable,
     type MediaUpdateCapable,
@@ -276,7 +277,7 @@ export class SonarrAdapter
         return planArrEpisodeRemap(this.#http, this.id, seriesId, reassignments);
     }
 
-    async runEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<CommandHandle> {
+    async runEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapOutcome> {
         return runArrEpisodeRemap(this.#http, this.id, seriesId, reassignments);
     }
 

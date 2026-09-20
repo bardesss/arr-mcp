@@ -1037,10 +1037,11 @@ Four actions, one idea: make a service reconcile itself with what is on disk.
 | `service` + `id` | Rescans just that Radarr/Sonarr item — far cheaper on a large library. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
-| `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is. |
+| `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
 
-Everything here queues a command and returns. `stack_health`'s `commands` list
-says whether it has finished; do not assume it has.
+Everything here queues a command and returns, except `remap` — see below.
+`stack_health`'s `commands` list says whether it has finished; do not assume it
+has.
 
 ### Importing a download that never landed
 
@@ -1110,10 +1111,24 @@ Nothing moves on disk. What changes, and what Sonarr does not report itself:
   Sonarr and in the media server.
 - Sonarr writes nothing to its history. The audit log here is the only record.
 
-The filenames still say the old episode. Follow up with:
+**The rename is part of it.** Once the reassignment lands, the moved files are
+renamed to match the episodes they are now on — only those files, not the rest
+of the series, which is what `action: "rename"` would do. That is the one call
+here that does not return while its work is still queued: the rename needs the
+file ids the reassignment assigns, so it waits.
 
-1. `trigger_scan` with `action: "rename"` on the same series.
-2. `trigger_scan` on the media server, so it picks up the renamed files.
+Rescan your media server afterwards, so it reads the corrected library.
+
+**A rotation keeps its old filenames, and that is not a failure.** When files
+are rotated among episodes that already hold one — the whole-season case above —
+every name a file wants is the name another file in the set is still using, so
+no rename has a free destination. Sonarr reports that as `completed` having
+renamed nothing, so the count is read rather than the status, and the response
+names the files still waiting. The reassignment is correct and complete either
+way: Sonarr plays a file by the episode it is attached to, not by its name.
+
+Clearing that deadlock needs Sonarr's episode naming format changed and two
+passes over the same files, which this does not do on your behalf.
 
 ## `update_media`
 

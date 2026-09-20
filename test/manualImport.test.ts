@@ -257,19 +257,76 @@ const SERIES_FILES = [1, 2, 3].map(n => ({
     rejections: []
 }));
 
-function seriesStack() {
+/**
+ * What `/api/v3/rename?seriesId=` reports after the rotation has been applied:
+ * every file's wanted name is the name another file in the same set is still
+ * using. Series-relative, the shape a live Sonarr returns (#264).
+ */
+const PENDING_RENAMES = [
+    { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E02.mkv' },
+    { episodeFileId: 12, existingPath: 'Season 01/Show - S01E02.mkv', newPath: 'Season 01/Show - S01E03.mkv' },
+    { episodeFileId: 13, existingPath: 'Season 01/Show - S01E03.mkv', newPath: 'Season 01/Show - S01E01.mkv' }
+];
+
+/**
+ * A Sonarr that applies what it is told: the `ManualImport` command moves each
+ * path onto the episode ids it was given, and `/api/v3/episode` answers with
+ * the association that results. Modelled rather than stubbed flat, because the
+ * remap now checks that what it asked for is what landed — a stub that always
+ * replays the old association would fail that check for the right reason and
+ * prove nothing (#264).
+ *
+ * `halfApplies` is the failure seen live: Sonarr reports the command
+ * `completed` and `successful` while one file never moves.
+ */
+function seriesStack(
+    opts: { renames?: unknown[]; message?: string; omitMessage?: boolean; halfApplies?: boolean } = {}
+) {
     const sent: { path: string; method: string; body: Record<string, unknown> | undefined }[] = [];
+    let lastCommand = 'ManualImport';
+    const episodes = EPISODES.map(e => ({ ...e }));
+
+    const apply = (files: { path?: string; episodeIds?: number[] }[]) => {
+        const fileIdOf = (path: string) => SERIES_FILES.find(f => f.path === path)?.episodeFileId;
+        const moves = opts.halfApplies === true ? files.slice(0, -1) : files;
+        for (const f of moves) {
+            const fileId = fileIdOf(f.path ?? '');
+            for (const id of f.episodeIds ?? []) {
+                const episode = episodes.find(e => e.id === id);
+                if (episode !== undefined && fileId !== undefined) episode.episodeFileId = fileId;
+            }
+        }
+    };
+
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
         const method = init?.method ?? 'GET';
-        sent.push({
-            path: url.pathname + url.search,
-            method,
-            body: typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : undefined
-        });
+        const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : undefined;
+        sent.push({ path: url.pathname + url.search, method, body });
+
         if (url.pathname === '/api/v3/manualimport') return jsonResponse(SERIES_FILES);
-        if (url.pathname === '/api/v3/episode') return jsonResponse(EPISODES);
-        if (url.pathname === '/api/v3/command') return jsonResponse({ id: 92, name: 'ManualImport', status: 'queued' });
+        if (url.pathname === '/api/v3/episode') return jsonResponse(episodes);
+        if (url.pathname === '/api/v3/rename') return jsonResponse(opts.renames ?? []);
+        if (url.pathname === '/api/v3/command' && method === 'POST') {
+            lastCommand = String(body?.name ?? 'ManualImport');
+            if (lastCommand === 'ManualImport') {
+                apply((body?.files ?? []) as { path?: string; episodeIds?: number[] }[]);
+            }
+            return jsonResponse({ id: 92, name: lastCommand, status: 'queued' });
+        }
+        // Settles immediately — the wait itself is covered in
+        // test/arrCommands.test.ts rather than re-asserted per caller.
+        if (url.pathname === '/api/v3/command/92') {
+            return jsonResponse({
+                id: 92,
+                name: lastCommand,
+                status: 'completed',
+                result: 'successful',
+                ...(lastCommand === 'RenameFiles' && opts.omitMessage !== true
+                    ? { message: opts.message ?? '1 selected episode files renamed for Show' }
+                    : {})
+            });
+        }
         return jsonResponse({ message: 'not found' }, 404);
     }) as unknown as typeof fetch;
     return { sonarr: new SonarrAdapter(keyed(8989), impl), sent };
@@ -287,7 +344,6 @@ describe('remapping episodes', () => {
         await s.sonarr.runEpisodeRemap('5', ROTATION);
 
         const posts = s.sent.filter(x => x.method === 'POST');
-        expect(posts).toHaveLength(1);
         const command = posts[0]?.body as { name: string; importMode?: string; files: Record<string, unknown>[] };
         expect(command.name).toBe('ManualImport');
         expect(command.importMode).toBeUndefined();
@@ -322,9 +378,105 @@ describe('remapping episodes', () => {
             { path: 'Season 01/Show - S01E03.mkv', season: 1, episode: 3 }
         ]);
 
-        const command = s.sent.find(x => x.method === 'POST')?.body as { files: { path: string }[] };
+        const command = s.sent.find(x => x.method === 'POST' && (x.body as { name?: string })?.name === 'ManualImport')
+            ?.body as { files: { path: string }[] };
         expect(command.files.map(f => f.path)).not.toContain('/tv/Show/Season 01/Show - S01E03.mkv');
         expect(command.files).toHaveLength(2);
+    });
+
+    /**
+     * The rename is part of the remap: it needs the ids Sonarr assigns while
+     * reassigning, and `RenameSeries` — what `action: "rename"` sends — would
+     * rename the whole series instead of the files that moved (#264).
+     */
+    it('renames only the files it moved, by the ids Sonarr assigned', async () => {
+        const s = seriesStack({
+            renames: [
+                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E09.mkv' }
+            ],
+            message: '1 selected episode files renamed for Show'
+        });
+        const out = await s.sonarr.runEpisodeRemap('5', ROTATION);
+
+        const rename = s.sent.find(x => x.method === 'POST' && (x.body as { name?: string })?.name === 'RenameFiles');
+        expect(rename?.body).toMatchObject({ seriesId: 5, files: [11] });
+        expect(out.renamed).toBe(1);
+        expect(out.blocked).toEqual([]);
+    });
+
+    /**
+     * The rotation from the issue: every new name is another moved file's
+     * current name, so nothing has a free destination. Sonarr would answer
+     * `completed` and rename nothing, so this does not ask it to.
+     */
+    it('sends no rename when every destination is still on disk, and says which files wait', async () => {
+        const s = seriesStack({ renames: PENDING_RENAMES });
+        const out = await s.sonarr.runEpisodeRemap('5', ROTATION);
+
+        expect(s.sent.filter(x => (x.body as { name?: string })?.name === 'RenameFiles')).toHaveLength(0);
+        expect(out.renamed).toBe(0);
+        expect(out.blocked).toHaveLength(3);
+        // Both paths come from Sonarr, so both are fenced before a model
+        // reads them — the same treatment `display` already gets.
+        expect(out.blocked[0]?.path).toContain('Season 01/Show - S01E01.mkv');
+        expect(out.blocked[0]?.wants).toContain('Season 01/Show - S01E02.mkv');
+        expect(out.blocked[0]?.path).toMatch(/untrusted/);
+    });
+
+    /**
+     * `completed` is not the signal. A blocked rename reports exactly that
+     * status with a count of zero, so the count is what decides.
+     */
+    it('refuses to report success when Sonarr renamed fewer files than it was given', async () => {
+        const s = seriesStack({
+            renames: [
+                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E09.mkv' },
+                { episodeFileId: 12, existingPath: 'Season 01/Show - S01E02.mkv', newPath: 'Season 01/Show - S01E08.mkv' }
+            ],
+            message: '0 selected episode files renamed for Show'
+        });
+
+        await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow(/renamed only 0 of 2/);
+    });
+
+    /** A build that stops sending the message is not a build that renamed
+     *  nothing — the two must not read the same. Sonarr accepted the command
+     *  and reported no fault, so the files it was given count as renamed. */
+    it('does not read a missing message as nothing renamed', async () => {
+        const s = seriesStack({
+            renames: [
+                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E09.mkv' }
+            ],
+            omitMessage: true
+        });
+        const out = await s.sonarr.runEpisodeRemap('5', ROTATION);
+        expect(out.renamed).toBe(1);
+    });
+
+    /**
+     * Found on a live Sonarr 4.0.19, not imagined: a rotation sent seconds
+     * after two earlier remaps of the same series left one episode pointing at
+     * a duplicate row for another file's path, while the file that should have
+     * moved there ended up attached to nothing. Every command in that sequence
+     * reported `completed` and `successful`.
+     */
+    it('fails when Sonarr reports success but a file did not land on its episode', async () => {
+        const s = seriesStack({ halfApplies: true });
+        await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow(/did not land on the episode asked for/);
+    });
+
+    it('does not rename anything when the reassignment did not land', async () => {
+        const s = seriesStack({ halfApplies: true });
+        await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow();
+        expect(s.sent.filter(x => (x.body as { name?: string })?.name === 'RenameFiles')).toHaveLength(0);
+    });
+
+    /** Nothing is lost when it happens, so the refusal has to say so — and
+     *  say which episode is wrong, because that is what a repair needs. */
+    it('says what is still on disk and which episode is wrong', async () => {
+        const s = seriesStack({ halfApplies: true });
+        await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow(/still on disk/);
+        await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow(/S01E03 should hold/);
     });
 
     it('names the episode a move leaves without a file', async () => {

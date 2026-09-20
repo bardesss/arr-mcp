@@ -736,6 +736,32 @@ export type EpisodeRemapPlan = {
     moves: { display: string; from: string; to: string }[];
     /** Episodes a moved file leaves behind that nothing in the list takes. */
     emptied: string[];
+    /**
+     * Whether the set rotates files among episodes that already hold one.
+     *
+     * Predicted here rather than discovered afterwards, because it decides
+     * what the preview can promise: in a rotation every new filename is the
+     * current name of another file in the same set, so no rename in it has a
+     * free destination and the filenames need a second step the confirm token
+     * should not claim to cover.
+     */
+    rotation: boolean;
+};
+
+/**
+ * What a remap did, once the rename that follows it has been tried.
+ *
+ * The rename is part of the remap rather than a separate call: it needs the
+ * file ids Sonarr assigns during the remap, which are not the ids anything
+ * held before it.
+ */
+export type EpisodeRemapOutcome = {
+    remap: CommandHandle;
+    /** Files whose name now matches the episode they were moved to. */
+    renamed: number;
+    /** Files left with their old name because the name they want is still on
+     *  disk, held by another file in the same rotation. */
+    blocked: { path: string; wants: string }[];
 };
 
 /**
@@ -744,7 +770,7 @@ export type EpisodeRemapPlan = {
  */
 export interface EpisodeRemapCapable {
     planEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapPlan>;
-    runEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<CommandHandle>;
+    runEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapOutcome>;
 }
 
 export const hasEpisodeRemap = (a: ServiceAdapter): a is ServiceAdapter & EpisodeRemapCapable =>

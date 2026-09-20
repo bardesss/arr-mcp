@@ -1,9 +1,15 @@
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import { postArrCommand } from './arrCommands.ts';
+import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
 import { readArrQueue } from './arrQueue.ts';
-import type { CommandHandle, EpisodeReassignment, EpisodeRemapPlan, ImportCandidate } from './types.ts';
+import type {
+    CommandHandle,
+    EpisodeReassignment,
+    EpisodeRemapOutcome,
+    EpisodeRemapPlan,
+    ImportCandidate
+} from './types.ts';
 
 /**
  * The download that finished and was never imported — `get_queue` shows it
@@ -211,6 +217,10 @@ const sxe = (season: number, episode: number): string =>
 type ResolvedRemap = {
     moves: { file: RawSeriesFile; episodeId: number; season: number; display: string; from: string; to: string }[];
     emptied: string[];
+    /** True when a moved file's destination episode already holds a file that
+     *  is itself being moved — the rotation whose filenames cannot be fixed in
+     *  one pass, because every new name is another moved file's current one. */
+    rotation: boolean;
 };
 
 async function resolveEpisodeRemap(
@@ -294,7 +304,12 @@ async function resolveEpisodeRemap(
         });
     }
 
-    return { moves, emptied: [...emptied] };
+    // Every target that already holds a file must hold one that is also being
+    // moved — the orphan check above refuses anything else — so an occupied
+    // target is exactly the signal that this set rotates.
+    const rotation = resolved.some(({ target }) => typeof target.episodeFileId === 'number' && target.episodeFileId > 0);
+
+    return { moves, emptied: [...emptied], rotation };
 }
 
 const seriesIdOf = (service: string, seriesId: string): number => {
@@ -313,8 +328,8 @@ export async function planArrEpisodeRemap(
     seriesId: string,
     reassignments: EpisodeReassignment[]
 ): Promise<EpisodeRemapPlan> {
-    const { moves, emptied } = await resolveEpisodeRemap(http, service, seriesIdOf(service, seriesId), reassignments);
-    return { moves: moves.map(({ display, from, to }) => ({ display, from, to })), emptied };
+    const { moves, emptied, rotation } = await resolveEpisodeRemap(http, service, seriesIdOf(service, seriesId), reassignments);
+    return { moves: moves.map(({ display, from, to }) => ({ display, from, to })), emptied, rotation };
 }
 
 /** Re-resolves rather than trusting the preview, for the same reason the
@@ -324,7 +339,7 @@ export async function runArrEpisodeRemap(
     service: string,
     seriesId: string,
     reassignments: EpisodeReassignment[]
-): Promise<CommandHandle> {
+): Promise<EpisodeRemapOutcome> {
     const id = seriesIdOf(service, seriesId);
     const { moves } = await resolveEpisodeRemap(http, service, id, reassignments);
 
@@ -348,5 +363,142 @@ export async function runArrEpisodeRemap(
         ...(file.indexerFlags === undefined ? {} : { indexerFlags: file.indexerFlags })
     }));
 
-    return postArrCommand(http, service, { name: 'ManualImport', files });
+    const remap = await postArrCommand(http, service, { name: 'ManualImport', files });
+    await awaitArrCommand(http, service, remap.commandId);
+
+    // `resolveEpisodeRemap` refuses a file without a path, so the filter drops
+    // nothing — it is how that guarantee reaches the type.
+    const movedPaths = files.map(f => f.path).filter((p): p is string => typeof p === 'string');
+    await verifyRemapLanded(http, service, id, moves);
+
+    return { remap, ...(await renameRemappedFiles(http, service, id, movedPaths)) };
+}
+
+/**
+ * Checks that the reassignment Sonarr accepted is the one it applied.
+ *
+ * Not defensive programming for its own sake — caught live. A rotation on a
+ * clean series applies exactly as asked, but the same rotation sent seconds
+ * after two earlier remaps of the same series left one episode pointing at a
+ * second, duplicate row for another file's path, and the file that should have
+ * moved there attached to nothing. Sonarr reported the command `completed`
+ * and `successful` throughout.
+ *
+ * Nothing is lost when that happens — every file is still on disk under its
+ * own name — but a half-applied rotation reads as a missing episode plus a
+ * duplicate, and reporting it as done is how it goes unnoticed. So the write
+ * fails here, after the fact, naming what actually happened.
+ */
+async function verifyRemapLanded(
+    http: ServiceHttp,
+    service: string,
+    seriesId: number,
+    moves: ResolvedRemap['moves']
+): Promise<void> {
+    const episodes = await http.get<RawEpisodeRow[]>(`/api/v3/episode?seriesId=${seriesId}`);
+    const files = await http.get<RawSeriesFile[]>(`/api/v3/manualimport?seriesId=${seriesId}`);
+    const pathOf = new Map(
+        files
+            .filter(f => typeof f.episodeFileId === 'number')
+            .map(f => [f.episodeFileId as number, f.path ?? f.relativePath ?? ''])
+    );
+
+    const wrong = moves.filter(m => {
+        const episode = episodes.find(e => e.id === m.episodeId);
+        const landed = episode?.episodeFileId;
+        return landed === undefined || landed === 0 || pathOf.get(landed) !== m.file.path;
+    });
+    if (wrong.length === 0) return;
+
+    throw new ServiceError(
+        'UpstreamError',
+        service,
+        `${service} accepted the reassignment but ${wrong.length} of ${moves.length} file(s) did not land on the episode asked for`,
+        {
+            remedy: `Every file is still on disk under its own name — nothing is lost, but the library is half-applied: ${wrong
+                .map(m => `${m.to} should hold ${m.display}`)
+                .join('; ')}. Run trigger_scan with action "scan" and \`id\` set to this series so ${service} re-reads the folder, check what it settled on, then send the remap again if it is still wrong.`
+        }
+    );
+}
+
+type RawRenameRow = { episodeFileId?: number; existingPath?: string; newPath?: string };
+
+/**
+ * Makes the filenames match the episodes the remap just moved the files onto.
+ *
+ * Part of the remap rather than a `rename` call afterwards, for two reasons
+ * found live (#264). `RenameSeries` — what `action: "rename"` sends — renames
+ * the *whole series*, which on the series this issue came from would have
+ * renamed 40 files in seasons the remap never touched. And the ids change:
+ * Sonarr recreates each moved file's record, so the ids the caller had before
+ * the remap are stale and the rename has to be scoped to the new ones.
+ *
+ * A destination that is still on disk is left alone rather than forced. In a
+ * rotation every new name is another moved file's current name, so nothing in
+ * the set has a free destination — Sonarr reports that as `completed` with
+ * "0 selected episode files renamed", which is why the count below is read
+ * rather than the status. Breaking that deadlock needs Sonarr's naming format
+ * changed and two passes; it is deliberately not done here, and the caller is
+ * told which files are waiting on it.
+ */
+async function renameRemappedFiles(
+    http: ServiceHttp,
+    service: string,
+    seriesId: number,
+    movedPaths: string[]
+): Promise<{ renamed: number; blocked: { path: string; wants: string }[] }> {
+    // Re-read for the ids Sonarr has just assigned, and ask it what it would
+    // rename rather than deriving names from the format ourselves.
+    const [after, pending] = await Promise.all([
+        http.get<RawSeriesFile[]>(`/api/v3/manualimport?seriesId=${seriesId}`),
+        http.get<RawRenameRow[]>(`/api/v3/rename?seriesId=${seriesId}`)
+    ]);
+
+    const moved = new Set(
+        after
+            .filter(f => typeof f.path === 'string' && movedPaths.includes(f.path))
+            .map(f => f.episodeFileId)
+            .filter((id): id is number => typeof id === 'number')
+    );
+
+    // Every file the series holds right now. A destination in this set is a
+    // name Sonarr cannot write to, whoever holds it.
+    const onDisk = new Set(after.map(f => f.relativePath).filter((p): p is string => typeof p === 'string'));
+
+    const mine = pending.filter(r => typeof r.episodeFileId === 'number' && moved.has(r.episodeFileId));
+    const blocked = mine
+        .filter(r => typeof r.newPath === 'string' && onDisk.has(r.newPath))
+        .map(r => ({
+            path: fenceText(r.existingPath ?? '', { service, field: 'path' }),
+            wants: fenceText(r.newPath ?? '', { service, field: 'path' })
+        }));
+
+    const free = mine.filter(r => !(typeof r.newPath === 'string' && onDisk.has(r.newPath)));
+    if (free.length === 0) return { renamed: 0, blocked };
+
+    const rename = await postArrCommand(http, service, {
+        name: 'RenameFiles',
+        seriesId,
+        files: free.map(r => r.episodeFileId)
+    });
+    const settled = await awaitArrCommand(http, service, rename.commandId);
+    const count = renamedCount(settled.message);
+
+    // `completed` is not the signal — the count is. A build that stops
+    // sending the message reports undefined, which is not zero: the files it
+    // was asked about are reported as renamed rather than silently written
+    // off, since Sonarr accepted the command and said nothing was wrong.
+    if (count !== undefined && count < free.length) {
+        throw new ServiceError(
+            'UpstreamError',
+            service,
+            `${service} reassigned the files but renamed only ${count} of ${free.length}`,
+            {
+                remedy: `The reassignment is applied and correct; only the filenames are behind. ${service} reported: "${settled.message ?? ''}". Check its log for the file it would not rename, then run action: "rename" on the series to retry.`
+            }
+        );
+    }
+
+    return { renamed: count ?? free.length, blocked };
 }

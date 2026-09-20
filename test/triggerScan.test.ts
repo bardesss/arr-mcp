@@ -415,26 +415,67 @@ describe('trigger_scan on Prowlarr', () => {
 /** The correction a person makes by watching; see the notes on
  *  `planArrEpisodeRemap` for why nothing automatic can make it. */
 describe('trigger_scan remapping episodes', () => {
-    const remapHarness = () => {
-        const sonarr = recordingFetch({
-            '/api/v3/manualimport': [1, 2].map(n => ({
-                path: `/tv/Show/Season 01/Show - S01E0${n}.mkv`,
-                relativePath: `Season 01/Show - S01E0${n}.mkv`,
-                episodeFileId: 10 + n,
-                episodes: [{ id: 100 + n }],
-                rejections: []
-            })),
-            '/api/v3/episode': [
-                { id: 101, seasonNumber: 1, episodeNumber: 1, episodeFileId: 11 },
-                { id: 102, seasonNumber: 1, episodeNumber: 2, episodeFileId: 12 }
-            ],
-            '/api/v3/command': { id: 6, name: 'ManualImport', status: 'queued' }
-        });
+    /**
+     * Models a Sonarr that applies what it is told: the remap now checks that
+     * the reassignment landed, so a stub replaying the old association would
+     * fail that check rather than exercise the tool (#264).
+     */
+    const remapHarness = (over: { renames?: unknown[] } = {}) => {
+        const FILES = [1, 2].map(n => ({
+            path: `/tv/Show/Season 01/Show - S01E0${n}.mkv`,
+            relativePath: `Season 01/Show - S01E0${n}.mkv`,
+            episodeFileId: 10 + n,
+            episodes: [{ id: 100 + n }],
+            rejections: []
+        }));
+        const episodes = [
+            { id: 101, seasonNumber: 1, episodeNumber: 1, episodeFileId: 11 },
+            { id: 102, seasonNumber: 1, episodeNumber: 2, episodeFileId: 12 }
+        ];
+
+        const sent: { url: string; method: string; body?: Record<string, unknown> }[] = [];
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            const method = init?.method ?? 'GET';
+            const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : undefined;
+            sent.push({ url: url.pathname, method, ...(body === undefined ? {} : { body }) });
+
+            if (url.pathname === '/api/v3/manualimport') return jsonResponse(FILES);
+            if (url.pathname === '/api/v3/episode') return jsonResponse(episodes);
+            if (url.pathname === '/api/v3/rename') return jsonResponse(over.renames ?? []);
+            if (url.pathname === '/api/v3/command' && method === 'POST') {
+                const name = String(body?.name ?? '');
+                if (name === 'ManualImport') {
+                    for (const f of (body?.files ?? []) as { path?: string; episodeIds?: number[] }[]) {
+                        const fileId = FILES.find(x => x.path === f.path)?.episodeFileId;
+                        for (const id of f.episodeIds ?? []) {
+                            const episode = episodes.find(e => e.id === id);
+                            if (episode !== undefined && fileId !== undefined) episode.episodeFileId = fileId;
+                        }
+                    }
+                }
+                return jsonResponse({ id: 6, name, status: 'queued' });
+            }
+            // The remap waits for its own command before it can rename, since
+            // the rename needs the ids that command assigns.
+            if (url.pathname === '/api/v3/command/6') {
+                return jsonResponse({
+                    id: 6,
+                    status: 'completed',
+                    result: 'successful',
+                    message: '1 selected episode files renamed for Show'
+                });
+            }
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch;
+
+        const sonarr = { impl, sent };
         return {
-            ...harness({ adapters: [new SonarrAdapter(keyed(8989), sonarr.impl)], permissions: { sonarr: permissive(true) } }),
+            ...harness({ adapters: [new SonarrAdapter(keyed(8989), impl)], permissions: { sonarr: permissive(true) } }),
             sonarr
         };
     };
+
     const SWAP = {
         service: 'sonarr',
         action: 'remap',
@@ -464,6 +505,49 @@ describe('trigger_scan remapping episodes', () => {
 
         expect(second.structuredContent.applied).toBe(true);
         expect(h.sonarr.sent.filter(x => x.method === 'POST' && x.url === '/api/v3/command')).toHaveLength(1);
+    });
+
+    it('reports the rename it did, not a command to follow up on', async () => {
+        const h = remapHarness({
+            renames: [
+                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E09.mkv' }
+            ]
+        });
+        const first = await h.call(SWAP);
+        const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
+
+        expect(String(done.structuredContent.result)).toContain('renamed 1');
+        // It has finished by the time it answers, so it must not send anyone
+        // to stack_health to find out whether it worked.
+        expect(String(done.structuredContent.result)).not.toMatch(/stack_health/);
+    });
+
+    /** The rotation case: the reassignment lands, the filenames cannot. The
+     *  answer has to be both halves, not one of them. */
+    it('says the reassignment applied and names the files still holding the old name', async () => {
+        const h = remapHarness({
+            renames: [
+                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E02.mkv' },
+                { episodeFileId: 12, existingPath: 'Season 01/Show - S01E02.mkv', newPath: 'Season 01/Show - S01E01.mkv' }
+            ]
+        });
+        const first = await h.call(SWAP);
+        const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
+
+        const text = String(done.structuredContent.result);
+        expect(done.structuredContent.applied).toBe(true);
+        expect(text).toContain('reassigned');
+        expect(text).toContain('renamed 0');
+        expect(text).toMatch(/S01E01\.mkv.*wants.*S01E02\.mkv/);
+        expect(text).toMatch(/naming format/);
+    });
+
+    /** A rotation is knowable before anything is sent, so the preview says so
+     *  rather than letting the confirm token promise a rename it cannot do. */
+    it('warns in the preview that a rotation cannot rename in one pass', async () => {
+        const h = remapHarness();
+        const { structuredContent } = await h.call({ ...SWAP, dry_run: true });
+        expect(structuredContent.effects.join('\n')).toMatch(/free destination/);
     });
 
     it('is a no-op when every file is already where it was asked to go', async () => {
