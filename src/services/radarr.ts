@@ -7,6 +7,7 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
+import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
@@ -50,6 +51,8 @@ import {
     type MediaUpdateOptions,
     type MediaUpdateState,
     type MediaDeleteCapable,
+    type ProfileDiagnosticsCapable,
+    type ProfileDiagnosticsData,
     type QualityProfile,
     type QueueRemoveCapable,
     type ReleaseCandidate,
@@ -128,7 +131,8 @@ export class RadarrAdapter
         ManualImportCapable,
         HistoryCapable,
         WantedCapable,
-        ReleaseSearchCapable
+        ReleaseSearchCapable,
+        ProfileDiagnosticsCapable
 {
     readonly type: ServiceId = 'radarr';
     readonly instance: string | undefined;
@@ -217,6 +221,10 @@ export class RadarrAdapter
 
     async listTags(): Promise<Tag[]> {
         return readTags(this.#http, this.id);
+    }
+
+    async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
+        return readArrProfileDiagnostics(this.#http);
     }
 
     async listCommands(): Promise<CommandStatus[]> {

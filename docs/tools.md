@@ -1,6 +1,6 @@
 # Tools
 
-Thirty-six of them. The first eighteen read; the last eighteen write, and are
+Thirty-eight of them. The first nineteen read; the last nineteen write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -11,6 +11,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_media_details` | Everything about one item |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files |
 | `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
+| `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across all four download paths |
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd and Bazarr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
@@ -130,11 +131,11 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the eighteen that only
-read, and on the eighteen writes `destructiveHint`, taken from the same permission
+tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
+read, and on the nineteen writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from thirty-six similarly-shaped
+about, reads those rather than guessing from thirty-eight similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -861,6 +862,63 @@ Jellyfin-only, like `set_watched` and for the same reason: the Plex adapter is
 read-only. A Plex stack can reach the detect half through the same reads and
 never the repair — see [#203](../../issues/203).
 
+## `get_profile_issues`
+
+Faults in Radarr, Sonarr and Whisparr quality profiles and custom formats —
+the configuration mistakes that make a profile unable to do what it looks
+like it does. Read-only, and deliberately so: Profilarr owns quality profiles
+and custom formats, re-syncing them from its own git source, so a direct
+write here would be reverted on the next sync or reported back as drift.
+Every `remedy` names a change to make **in Profilarr**, never one this tool
+performs.
+
+Six finding kinds, each carrying a `confidence`:
+
+| `kind` | `confidence` | What it catches |
+| --- | --- | --- |
+| `unreachable_floor` | certain | The profile's minimum custom format score is higher than every positive score in it adds up to. Nothing can satisfy it. |
+| `knife_edge_floor` | certain | The minimum is exactly that total. Every positive format must match, and one negative match rejects the release. |
+| `subset_format_scored` | certain | A scored format matches a strict subset of the languages an unscored one does — the wider format would have scored and does not. |
+| `language_preferred_not_required` | likely | A language format is scored but the profile has no minimum, so a release in any language still passes. |
+| `dialect_sibling_missing` | likely | A required format covers one half of a dialect pair (Dutch/Flemish, Portuguese/Brazilian, Spanish/Latino) but not the other, rejecting that half outright. |
+| `profilarr_drift` | certain | Profilarr's saved profiles have drifted from what this Radarr/Sonarr instance currently holds. |
+
+`certain` is arithmetic: the three findings above it follow from the scores
+alone, with no false positives possible. `likely` is a heuristic — a narrow
+one, checked against a live stack, but a judgement rather than a proof.
+
+`profilarr_drift` is instance-scoped rather than tied to any one profile, so
+it is unaffected by the `profile` filter and carries no `profile` field.
+`drift: null` on the Profilarr side means "not checked yet"; it is never
+folded into a finding, and its presence is instead surfaced through `note` so
+an absence of drift findings is not misread as a clean bill of health.
+
+Needs at least one of Radarr, Sonarr or Whisparr configured to find anything.
+Drift findings additionally need a `profilarr` service — without one, `note`
+says so and the rest of the findings still run.
+
+## `sync_database`
+
+The only write in this plan, and it reaches Profilarr alone — never Radarr or
+Sonarr. Asks Profilarr to pull one of its databases (custom formats, quality
+profiles, delay profiles) from its configured git source. `database` names
+one by name or id; required only when Profilarr has more than one.
+
+Safe tier: it changes only Profilarr's own store. The arrs pick up whatever
+changed only when Profilarr syncs them on its own schedule, same as any other
+Profilarr-triggered sync.
+
+Profilarr answers the trigger with a 202 and a job id, not an outcome, so
+`apply` polls `GET /jobs/{id}` to a terminal status before reporting anything
+— a queued-but-not-finished sync is never reported as done. Not reversible
+through arr-mcp; revert in Profilarr or git if the pulled change is unwanted.
+
+A finished job can still have done nothing: Profilarr reports the queue
+outcome and the handler's own outcome separately, and the latter can be
+`skipped` — nothing to pull — even though the queue says `success`. That
+shows up as `outcome: "skipped"` in the structured result, and the reply text
+says plainly that nothing was pulled rather than reporting a completed sync.
+
 ## `pause_downloads`
 
 The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
@@ -1044,7 +1102,7 @@ no-op, and a request naming no field at all is refused rather than previewed.
 
 ## Prompts and resources
 
-Thirty-six tools do not tell you which one to reach for, and the questions
+Thirty-eight tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

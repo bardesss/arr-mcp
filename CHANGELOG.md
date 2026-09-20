@@ -1,5 +1,61 @@
 # Changelog
 
+## [1.30.0](https://github.com/bardesss/arr-mcp/compare/v1.29.0...v1.30.0) (2026-09-20)
+
+
+### Features
+
+* verify OAuth access tokens, scope as a ceiling over config ([#263](https://github.com/bardesss/arr-mcp/issues/263)) ([22365f0](https://github.com/bardesss/arr-mcp/commit/22365f03b93a4916cc9df4217320026d8d4dcc50))
+
+## [1.29.0](https://github.com/bardesss/arr-mcp/compare/v1.28.0...v1.29.0) (2026-09-19)
+
+
+### Features
+
+* add a Proxmox VE LXC installer ([#266](https://github.com/bardesss/arr-mcp/issues/266)) ([8d74633](https://github.com/bardesss/arr-mcp/commit/8d74633fdc03ea0a4805314a0a9def06274bb1b5))
+
+## [1.28.0](https://github.com/bardesss/arr-mcp/compare/v1.27.0...v1.28.0) (2026-09-18)
+
+
+### Features
+
+* advertise the endpoint as an OAuth 2.1 resource server ([#261](https://github.com/bardesss/arr-mcp/issues/261)) ([a0424df](https://github.com/bardesss/arr-mcp/commit/a0424df125a0a29791714fcb203f4dd4767bbc21))
+
+## [1.27.0](https://github.com/bardesss/arr-mcp/compare/v1.26.8...v1.27.0) (2026-09-15)
+
+
+### Features
+
+* report quality profile faults, and add Profilarr ([#258](https://github.com/bardesss/arr-mcp/issues/258)) ([a19cba6](https://github.com/bardesss/arr-mcp/commit/a19cba617cd989b7898d1efbfc9854ffc7ede2c6))
+
+## [1.26.8](https://github.com/bardesss/arr-mcp/compare/v1.26.7...v1.26.8) (2026-09-14)
+
+
+### Bug Fixes
+
+* declare an icon and the tool count in server.json ([#256](https://github.com/bardesss/arr-mcp/issues/256)) ([d490d69](https://github.com/bardesss/arr-mcp/commit/d490d6951b76218232a4087fd8b0b2ff5b9a0dbe))
+
+## [1.26.7](https://github.com/bardesss/arr-mcp/compare/v1.26.6...v1.26.7) (2026-09-14)
+
+
+### Bug Fixes
+
+* give one next action when a confirmation token is rejected ([#253](https://github.com/bardesss/arr-mcp/issues/253)) ([c581462](https://github.com/bardesss/arr-mcp/commit/c581462ffc494fea5f1e31e348b9f45a46e7697d))
+
+## [1.26.6](https://github.com/bardesss/arr-mcp/compare/v1.26.5...v1.26.6) (2026-09-14)
+
+
+### Bug Fixes
+
+* put the confirmation token in the preview text ([#249](https://github.com/bardesss/arr-mcp/issues/249)) ([316e1b8](https://github.com/bardesss/arr-mcp/commit/316e1b8195eb2071a8b29692be8adb9d390feffb))
+
+## [1.26.5](https://github.com/bardesss/arr-mcp/compare/v1.26.4...v1.26.5) (2026-09-14)
+
+
+### Bug Fixes
+
+* accept a confirmation token with its prose formatting attached ([#250](https://github.com/bardesss/arr-mcp/issues/250)) ([1d654a1](https://github.com/bardesss/arr-mcp/commit/1d654a12d3b30619676862e86bf6c73c2f540da3))
+
 ## [1.26.4](https://github.com/bardesss/arr-mcp/compare/v1.26.3...v1.26.4) (2026-09-14)
 
 

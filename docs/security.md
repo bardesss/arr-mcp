@@ -249,6 +249,13 @@ plus a token, and only a second call carrying that token mutates anything.
 - Expiry is checked before the signature so an old token reports "expired"
   rather than a misleading "mismatch"; the spent-token check happens after the
   signature, so an unsigned guess cannot probe which tokens have been used.
+- Surrounding backticks, quotes and trailing punctuation are stripped before the
+  token is parsed. The preview names the token inside backticks and ends the
+  sentence with a period, so a caller that clips one character too many would
+  otherwise be refused — and the refusal reissues a token presented the same
+  way, which loops rather than recovers. Nothing about the check relaxes: none of
+  those characters can occur in a token, the HMAC still decides, and the stripped
+  form is what the single-use set records.
 - `dry_run` is a terminal preview that never issues a token and is never refused
   by the permission tier, so "what would this do, and what would I need to
   enable for it" stays answerable without granting anything.
@@ -292,14 +299,32 @@ so far.
 - `allowed_hosts` is validated per request rather than frozen at startup, for
   the same reason: a security setting that appears to have applied when it has
   not is the worst kind.
+- When `auth.oauth` is configured, `/mcp` also accepts a short-lived OAuth 2.1
+  access token in place of the static bearer token. The token's signature,
+  issuer, audience and expiry are verified against the issuer's JWKS, and its
+  scope becomes a ceiling on what `config.yaml` already permits — narrowing
+  it, never widening it, and enforced by the same gate that governs the
+  static token. `/.well-known/oauth-protected-resource` serves the RFC 9728
+  metadata document, and the 401 challenge carries `resource_metadata=`
+  pointing at it, whether or not a token verifies. With no `oauth` block,
+  both are unchanged: the route 404s and the challenge names only the realm.
+- Verifying a token means one outbound request: fetching the issuer's JWKS
+  from `jwks_uri`, which the operator configures and this server never
+  derives or discovers on its own. No credential leaves the box making it.
+  When that fetch fails, `/mcp` answers `503`, not `401` — the presented
+  token may be perfectly good, and a fetch outage is never reported as a bad
+  credential.
 
 Request bodies are capped at 4 MB, refused with `413` before authentication
 runs. The cap is deliberately not configurable — every legitimate request is
 orders of magnitude below it.
 
-**What it does not solve.** There is no OAuth, no per-client identity, and no
-scoping of one token differently from another. One operator, one token. TLS is
-the reverse proxy's job; arr-mcp speaks plain HTTP and says so.
+**What it does not solve.** The config UI's own credential is untouched by
+any of this — a scrypt-hashed password and a session cookie, not a scope, and
+OAuth mode does not extend to it. There is no revocation beyond expiry: this
+server does not introspect tokens, so one revoked at the issuer but not yet
+expired is still accepted here until it runs out. TLS is the reverse proxy's
+job; arr-mcp speaks plain HTTP and says so.
 
 Note also that the container binds `0.0.0.0` by design, because it has to be
 reachable across the LAN. That drops the MCP SDK's default localhost Host and
@@ -374,8 +399,10 @@ If you do not want a model to see a library, do not configure that instance.
 
 ## What this page does not cover
 
-- **Multi-tenancy.** One operator, one token, one permission set. If several
-  people need different access, run several instances.
+- **Multi-tenancy.** One `config.yaml`, one permission set. An OAuth token can
+  narrow what a caller reaches, but never grant a second set of permissions
+  beside it. If different people need different service access, run several
+  instances.
 - **Internet exposure.** Covered by refusing to design for it rather than by
   hardening for it.
 - **The services themselves.** If your Radarr is reachable without an API key,

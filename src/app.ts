@@ -1,17 +1,31 @@
 import { createMcpHonoApp } from '@modelcontextprotocol/hono';
-import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
+import {
+    McpServer,
+    OAuthError,
+    OAuthErrorCode,
+    bearerAuthChallengeResponse,
+    createMcpHandler,
+    verifyBearerToken,
+    type AuthInfo
+} from '@modelcontextprotocol/server';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import type { OAuthConfig } from './config/schema.ts';
 import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
 import type { Runtime } from './core/runtime.ts';
 import { presentedToken, tokenMatches } from './mcp/endpointAuth.ts';
 import { claimJsonBody } from './mcp/jsonBody.ts';
+import { JwksUnavailable } from './mcp/oauthVerifier.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
 import { registerAllResources } from './mcp/resources.ts';
-import { registerAllTools } from './tools/register.ts';
+import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
+import { cappedTo, tiersFor } from './mcp/scopes.ts';
+import type { ServiceInstance } from './config/instances.ts';
+import type { WriteTier } from './core/permissions.ts';
+import { registerAllTools, type ToolContext } from './tools/register.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
 
 const NAME = 'arr-mcp';
@@ -71,6 +85,48 @@ Writing:
 
 Arguments are strict: an argument a tool does not have is refused rather than ignored, and the error lists what it does accept.`;
 
+/**
+ * The token's ceiling, applied to the write gate and to every place that
+ * reports what the gate permits.
+ *
+ * Everything else on the context is read-side and ungated — any of the three
+ * scopes grants reads, because every write resolves its target by reading
+ * first and a write-scoped token that could not read could not preview
+ * anything.
+ *
+ * `instances` is capped as well as `write.permissions` because `stack_health`
+ * and `arr://instances` report permissions from it. Left alone, they would
+ * tell a read-only token it may delete what the gate then refuses.
+ *
+ * Fails closed. A request carrying `authInfo` got in on an OAuth token, and
+ * one of those must never run uncapped. A reload between verifying the token
+ * and building this context can drop `auth.oauth` or rename a scope, and the
+ * worst that should cost is a spurious refusal.
+ */
+function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined): ToolContext {
+    if (authInfo === undefined) return tools;
+    const tiers = (oauth && tiersFor(oauth, authInfo.scopes)) ?? new Set<WriteTier>();
+    return {
+        ...tools,
+        // Cast because spreading a discriminated union loses the pairing of
+        // `type` and `config`; only `permissions` changes, so it still holds.
+        instances: tools.instances.map(
+            i =>
+                ({
+                    ...i,
+                    config: {
+                        ...i.config,
+                        permissions: {
+                            safe_write: i.config.permissions.safe_write && tiers.has('safe'),
+                            destructive: i.config.permissions.destructive && tiers.has('destructive')
+                        }
+                    }
+                }) as ServiceInstance
+        ),
+        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers) }
+    };
+}
+
 export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore }) {
     const { runtime, audit, logs } = opts;
 
@@ -82,8 +138,14 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     // the app is built: that is what lets a config change take effect without
     // a restart. Reading it once into `snapshot` also means a call that starts
     // before a reload finishes against the configuration it began with.
-    const handler = createMcpHandler(() => {
+    const handler = createMcpHandler(ctx => {
         const snapshot = runtime.current;
+        // The ceiling is applied here rather than inside the tools because
+        // this factory already runs once per request — the same property
+        // that lets a config reload take effect without a restart. A request
+        // with no authInfo (the static bearer token) gets the tools
+        // untouched.
+        const tools = cappedTools(snapshot.tools, snapshot.config.auth.oauth, ctx.authInfo);
         const server = new McpServer(
             { name: NAME, version: VERSION },
             {
@@ -118,13 +180,13 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                 }
             }
         );
-        registerAllTools(server, snapshot.tools);
+        registerAllTools(server, tools);
         // Registered beside the tools, never instead of them. Client support
         // for prompts and resources is uneven and arr-mcp has to work on all of
         // them, so a client that surfaces neither is exactly as capable as
         // before — `test/mcp.test.ts` asserts that rather than trusting it.
         registerAllPrompts(server);
-        registerAllResources(server, snapshot.tools);
+        registerAllResources(server, tools);
         return server;
     });
 
@@ -211,45 +273,154 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         return c.text('forbidden: Host not allowed', 403);
     });
 
+    /**
+     * RFC 9728. Present only when `auth.oauth` is configured — a server with
+     * no issuer to name has nothing to say here, and a 404 is the honest
+     * answer. Registered after the Host allowlist so a pinned instance can
+     * only ever advertise a name that passed it.
+     *
+     * Permissive CORS because a browser-based client fetches this
+     * cross-origin before it holds any credential; the document is public by
+     * construction and names nothing an unauthenticated caller could not read
+     * off the login page.
+     */
+    for (const path of RESOURCE_METADATA_PATHS) {
+        // `app.all`, not `app.get`: a client that sets `MCP-Protocol-Version`
+        // on the discovery fetch preflights it, and the browser client the
+        // permissive CORS header exists for never reaches the document if
+        // that preflight 404s. Mirrors the SDK's own `metadataDocumentResponse`
+        // (204 for OPTIONS, 405 with `Allow` for anything but GET/HEAD), which
+        // isn't reusable here directly: it comes bundled with
+        // `oauthMetadataResponse`, which would also serve
+        // `/.well-known/oauth-authorization-server` — the document this PR
+        // deliberately doesn't fabricate.
+        app.all(path, (c: Context) => {
+            if (c.req.method === 'OPTIONS') {
+                const requestedHeaders = c.req.header('access-control-request-headers');
+                return c.body(null, 204, {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                    ...(requestedHeaders === undefined
+                        ? {}
+                        : { 'Access-Control-Allow-Headers': requestedHeaders, Vary: 'Access-Control-Request-Headers' })
+                });
+            }
+            if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+                return c.json(
+                    { error: 'method_not_allowed', detail: `${c.req.method} is not allowed for this endpoint` },
+                    405,
+                    { Allow: 'GET, HEAD, OPTIONS', 'Access-Control-Allow-Origin': '*' }
+                );
+            }
+
+            // Both answers above run before the `oauth` check, so an instance
+            // with no issuer configured answers a preflight it will then 404.
+            // Deliberate: a preflight refused at the CORS layer reaches the
+            // browser client as a network error, where the 404 it is standing
+            // in front of is the answer that actually says what is wrong.
+            const { oauth } = runtime.config.auth;
+            if (oauth === undefined) return c.notFound();
+
+            const document = resourceMetadata(oauth, c.req.url, c.req.header('x-forwarded-proto'));
+            if (document === undefined) return c.notFound();
+
+            // HEAD reuses the GET response's headers (Content-Type,
+            // Content-Length) with the body dropped, rather than hand-building
+            // them, so the two can never drift apart.
+            const response = c.json(document, 200, { 'Access-Control-Allow-Origin': '*' });
+            return c.req.method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
+        });
+    }
+
     registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {
         // From the runtime, not a captured value, so rotating the token or
         // flipping the flag in the config UI takes effect on the very next
         // request.
-        const { auth } = runtime.config;
+        const snapshot = runtime.current;
+        const { auth } = snapshot.config;
         const presented = presentedToken(c.req.url, c.req.header('Authorization'), auth.allow_token_in_url);
+        // `resource_metadata` is how a client discovers where to
+        // authenticate. Omitted entirely when no issuer is configured:
+        // pointing at a 404 is worse than saying nothing.
+        const metadataUrl =
+            auth.oauth === undefined ? undefined : resourceMetadataUrl(c.req.url, c.req.header('x-forwarded-proto'));
+        // `exactOptionalPropertyTypes` refuses `resourceMetadataUrl: undefined`
+        // on the SDK's own options types — the key must be absent, not present
+        // with an undefined value.
+        const metadataOpt = metadataUrl === undefined ? {} : { resourceMetadataUrl: metadataUrl };
 
+        let authInfo: AuthInfo | undefined;
+
+        // The static bearer token is checked first and always — it stays
+        // first-class, not a legacy path superseded by OAuth. `tokenMatches`
+        // is cheap and constant-time, and a JWT is never 64 bytes, so it
+        // refuses one on length alone before any OAuth work runs.
         if (presented.via === 'none' || !tokenMatches(presented.token, auth.bearer_token)) {
-            // `via` is the whole diagnosis: 'none' is a client that sent no
-            // credentials at all — which every MCP client does once, on the
-            // 401-then-retry handshake this endpoint's WWW-Authenticate invites
-            // — while 'header' or 'query' is a token that was presented and did
-            // not match. Without it the two read identically in the log, and
-            // "a client reconnected" is indistinguishable from "a stale token
-            // is still trying".
-            logger.warn(
-                {
-                    path: '/mcp',
-                    ...originOf(c),
-                    via: presented.via,
-                    ...(presented.via === 'none' ? { queryOffered: presented.queryOffered } : {})
-                },
-                'rejected unauthenticated MCP request'
-            );
-            return c.json(
-                {
-                    error: 'unauthorized',
-                    ...(presented.via === 'none' && presented.queryOffered
-                        ? {
-                              detail:
-                                  'A token in the URL is refused until auth.allow_token_in_url is enabled — turn it on in the config UI, under MCP endpoint.'
-                          }
-                        : {})
-                },
-                401,
-                { 'WWW-Authenticate': 'Bearer realm="arr-mcp"' }
-            );
+            const verifier = snapshot.oauthVerifier;
+
+            if (presented.via === 'none' || verifier === undefined) {
+                // `via` is the whole diagnosis: 'none' is a client that sent no
+                // credentials at all — which every MCP client does once, on the
+                // 401-then-retry handshake this endpoint's WWW-Authenticate invites
+                // — while 'header' or 'query' is a token that was presented and did
+                // not match. Without it the two read identically in the log, and
+                // "a client reconnected" is indistinguishable from "a stale token
+                // is still trying".
+                logger.warn(
+                    {
+                        path: '/mcp',
+                        ...originOf(c),
+                        via: presented.via,
+                        ...(presented.via === 'none' ? { queryOffered: presented.queryOffered } : {})
+                    },
+                    'rejected unauthenticated MCP request'
+                );
+                const challenge =
+                    metadataUrl === undefined ? 'Bearer realm="arr-mcp"' : `Bearer realm="arr-mcp", resource_metadata="${metadataUrl}"`;
+                return c.json(
+                    {
+                        error: 'unauthorized',
+                        ...(presented.via === 'none' && presented.queryOffered
+                            ? {
+                                  detail:
+                                      'A token in the URL is refused until auth.allow_token_in_url is enabled — turn it on in the config UI, under MCP endpoint.'
+                              }
+                            : {})
+                    },
+                    401,
+                    { 'WWW-Authenticate': challenge }
+                );
+            }
+
+            try {
+                authInfo = await verifyBearerToken(c.req.header('Authorization'), { verifier, ...metadataOpt });
+            } catch (err) {
+                if (err instanceof JwksUnavailable) {
+                    // Not a 401: the presented token may be perfectly good and
+                    // we cannot say. A 401 sends whoever is debugging after
+                    // their own credential instead of the outage.
+                    logger.error({ path: '/mcp', ...originOf(c), err }, 'could not fetch the issuer key set');
+                    return c.json(
+                        {
+                            error: 'temporarily_unavailable',
+                            detail: "The issuer's key set could not be fetched, so this token could not be checked. This is not a problem with your credential."
+                        },
+                        503
+                    );
+                }
+                logger.warn({ path: '/mcp', ...originOf(c), via: presented.via }, 'rejected an access token');
+                return bearerAuthChallengeResponse(err, metadataOpt);
+            }
+
+            // A token granted nothing here is told so, rather than quietly
+            // handed the library. `requiredScopes` cannot express this: the
+            // SDK requires every listed scope, and these are a union of three.
+            if (auth.oauth !== undefined && tiersFor(auth.oauth, authInfo.scopes) === undefined) {
+                logger.warn({ path: '/mcp', ...originOf(c), clientId: authInfo.clientId }, 'rejected a token with no arr-mcp scope');
+                return bearerAuthChallengeResponse(new OAuthError(OAuthErrorCode.InsufficientScope, 'Insufficient scope'), metadataOpt);
+            }
         }
 
         // A client that never asked for a stream gets one JSON object with a
@@ -266,6 +437,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         // down. The transport must still see "no body", or a GET would be
         // answered as a malformed request instead of as the wrong method.
         const response = await handler.fetch(acceptingBoth(c.req.raw), {
+            ...(authInfo === undefined ? {} : { authInfo }),
             parsedBody: c.get('parsedBody') ?? undefined
         });
 

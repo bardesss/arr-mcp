@@ -128,6 +128,15 @@ describe('write tool harness — preview and confirm', () => {
         expect(content[0]?.text).toContain('delete_media');
     });
 
+    // A client that forwards only `content` (Claude's remote MCP path, #234;
+    // Hermes from 2026.9.7) never shows the model `structuredContent`, so the
+    // token has to be readable in the text or the handshake cannot complete.
+    it('puts the token itself in the text, not just a pointer to confirm_token', async () => {
+        const { content, structuredContent } = await harness.call('delete_media', { id: '5' });
+        expect(structuredContent.confirm_token).toBeTypeOf('string');
+        expect(content[0]?.text).toContain(structuredContent.confirm_token);
+    });
+
     it('refuses to apply the same token twice', async () => {
         const first = await harness.call('delete_media', { id: '5' });
         const token = first.structuredContent.confirm_token;
@@ -147,6 +156,37 @@ describe('write tool harness — preview and confirm', () => {
         expect(structuredContent.confirm_error).toBeTypeOf('string');
         expect(structuredContent.confirm_token).toBeTypeOf('string');
         expect(harness.apply).not.toHaveBeenCalled();
+    });
+
+    it('puts the fresh token from a rejection in the text too', async () => {
+        const { content, structuredContent } = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
+        expect(content[0]?.text).toContain(structuredContent.confirm_token);
+    });
+
+    // Every failure that reissues carries a remedy telling the caller to call
+    // again *without* `confirm`, which contradicts the usable token in the very
+    // next sentence. A model that follows the remedy throws away a good token
+    // and spends another preview. The diagnosis stays in `confirm_error`.
+    it('gives one next action on a rejection, not two', async () => {
+        const { content, structuredContent } = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
+        const text = content[0]?.text ?? '';
+
+        expect(text).toContain(structuredContent.confirm_token);
+        expect(text).not.toContain('without `confirm`');
+        expect(structuredContent.confirm_error).toContain('without `confirm`');
+    });
+
+    // The token is the last thing in both texts on purpose. A reader clipping
+    // it out takes the trailing word or the final backticked span, and prose
+    // after the token defeats both — `unwrap` strips punctuation, not a clause.
+    it('ends both the preview and the rejection with the token itself', async () => {
+        const ending = /`v1\.[\w.-]+`\.?$/u;
+
+        const preview = await harness.call('delete_media', { id: '5' });
+        expect(preview.content[0]?.text.trimEnd()).toMatch(ending);
+
+        const rejected = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
+        expect(rejected.content[0]?.text.trimEnd()).toMatch(ending);
     });
 
     it('lets the fresh token from a rejection be used', async () => {

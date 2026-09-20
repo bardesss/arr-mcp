@@ -24,8 +24,8 @@ services:
     password: "…"
 ```
 
-All eleven service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
-`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`. Configure only what you run —
+All twelve service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
+`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`, `profilarr`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
@@ -119,6 +119,22 @@ in the log, and carries on.
 `get_library`'s per-user join needs exactly one counterparty, and the schema
 refuses a config that sets both.
 
+## Profilarr
+
+```yaml
+services:
+  profilarr:
+    url: http://192.168.1.20:6868
+    api_key: "…"
+```
+
+Generate the key under Settings > Security in Profilarr. Single instance
+only — see [below](#several-instances-of-one-service) for why. Powers the
+drift half of `get_profile_issues` and `sync_database`, the only tool that
+needs it configured to run at all. Leaving it out is fine — `get_profile_issues`
+still reports its other five finding kinds, with a `note` saying drift was
+not checked.
+
 ## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
@@ -161,12 +177,13 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Four services stay single.** Jellyfin and Plex because, as explained above,
+**Five services stay single.** Jellyfin and Plex because, as explained above,
 `get_library`'s per-user join needs exactly one counterparty. Seerr because a
 request carries the identity of the person who made it, and a second Seerr makes
 "which one do I ask" a guess with an approver on the other end of it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
-different API with no adapter.
+different API with no adapter. Profilarr because it is the one place that owns
+profile config, so two of them would mean two sources of truth.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 Transmission and qBittorrent.
@@ -206,6 +223,14 @@ auth:
   allow_token_in_url: false  # accept ?token=… when no Authorization header is sent
 ```
 
+A misspelled or leftover key anywhere in this block — including inside
+`auth.oauth` below — **fails at startup with the offending field named**,
+rather than being silently ignored, so a config that loaded on an earlier
+release can stop loading after an upgrade. The server does not go down over
+it: it drops into repair mode, covered under [When config.yaml will not
+load](#when-configyaml-will-not-load), where the editor is reachable once you
+sign in.
+
 Sign-in is a username and password you choose the first time you open the UI.
 Only a scrypt hash is stored, so the password cannot be recovered — but it can
 be replaced: delete the `password_hash` line and restart, and the setup page
@@ -236,6 +261,102 @@ the config UI if one leaks.
 integration also speaks only the older HTTP+SSE transport, and this server
 serves Streamable HTTP, so that setup still needs a proxy to bridge the
 transport.
+
+### `auth.oauth`
+
+Lets an MCP client authenticate with a short-lived OAuth 2.1 access token
+instead of the one static bearer token every other client shares — useful
+once you have more than one client and want to hand out credentials that
+expire and that carry less than full access.
+
+**arr-mcp is only the resource server here.** It does not issue tokens, does
+not run an authorization server, and does not discover one — you need an
+OAuth 2.1 or OIDC provider already minting tokens before this does anything.
+There is also no config-UI form for this block: add it to `config.yaml` by
+hand and restart the container, the same as any other hand edit.
+
+```yaml
+auth:
+  oauth:
+    issuer: https://issuer.example.com               # https, or http on localhost/127.0.0.1
+    audience: arr-mcp                                 # required — see below
+    jwks_uri: https://issuer.example.com/jwks.json    # required — see below
+    scopes:                                           # renameable; defaults shown
+      read: arr-mcp:read
+      write: arr-mcp:write
+      destructive: arr-mcp:destructive
+```
+
+Absent means off, exactly like a service nobody configured.
+
+To turn it on: give your authorization server an audience (or resource
+identifier) for arr-mcp — any string, it just has to match `audience` below
+exactly — and point `jwks_uri` at wherever that server publishes its signing
+keys. There is no OIDC discovery in this version, so `jwks_uri` has to be
+given directly rather than derived from `issuer`.
+
+`audience` is required too. Without it, every token that issuer ever minted
+for any of its clients — not just this server's — would be accepted here.
+
+Each scope your authorization server can grant maps to one access level:
+
+| Scope | Grants |
+| --- | --- |
+| `arr-mcp:read` | Read tools |
+| `arr-mcp:write` | The `safe` tier, where `config.yaml` permits it |
+| `arr-mcp:destructive` | The `destructive` tier, where `config.yaml` permits it |
+
+The defaults above work as-is if your authorization server can mint scopes
+with those exact names. `scopes:` renames the three strings it must grant
+instead; it changes the names, never the mapping to the tiers above — use it
+when your provider already has its own naming convention.
+
+They are independent and unioned, not a ladder: `arr-mcp:destructive` carries
+the `safe` tier with it, the same as `destructive: true` grants `safe_write`
+below — a credential that may delete a film but not re-monitor it describes
+no coherent policy. A token carrying none of the three is refused with
+`403 insufficient_scope`, never silently downgraded to read.
+
+Any of the three scopes grants the read tools; there is no separate read
+gate. Every write resolves its target by reading first, so a write-scoped
+token that could not read could not preview anything either.
+
+`config.yaml` stays the sole authority throughout — a scope only narrows what
+the file already permits, never widens it. A token carrying
+`arr-mcp:destructive` against an instance with `destructive: false` is still
+refused, by the same gate that refuses the static bearer token.
+
+Both `auth` and this block are validated strictly, so a misspelled key
+anywhere inside it fails at startup with the offending field named, rather
+than being silently dropped.
+
+`allow_token_in_url` cannot be set while `oauth` is configured — refused at
+config load, and disabled in the config UI with a line explaining why.
+
+Configuring this block also changes what a credential-less client sees on its
+first request: instead of a 401 telling it to go configure a token, it now
+runs the full OAuth discovery-and-authorize flow and still ends up 401,
+without that message.
+
+**Checking it worked.** Once the container is back up,
+`curl http://<host>:6060/.well-known/oauth-protected-resource` should return a
+JSON document naming your `issuer` under `authorization_servers`. A client
+that implements RFC 9728 discovery finds this on its own, from the
+`resource_metadata` the 401 challenge on `/mcp` points at; one that does not
+can still be handed a token directly, exactly as it would the static bearer
+token, as `Authorization: Bearer <token>`.
+
+If a client's token is refused, the status code says why:
+
+| Status | Cause | Fix |
+| --- | --- | --- |
+| `401` | Bad signature, wrong `issuer` or `audience`, missing or expired `exp` | Check the token was minted for this `audience`, by this `issuer`, and has not expired |
+| `403 insufficient_scope` | The token carries none of the three scopes | Grant it at least one of `arr-mcp:read`, `arr-mcp:write` or `arr-mcp:destructive` (or your renamed equivalents) |
+| `503` | arr-mcp could not fetch `jwks_uri` | Check the issuer is reachable from the container, not from your browser |
+
+A `503` is not a rejection of the token itself — it means arr-mcp could not
+check it. Retrying once the issuer is reachable again works with no other
+change.
 
 ### `allow_other_users`
 

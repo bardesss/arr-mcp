@@ -69,6 +69,15 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
     tier: WriteTier;
     plan(args: z.infer<Schema>): Promise<WritePlan>;
     apply(plan: WritePlan, args: z.infer<Schema>): Promise<unknown>;
+    /**
+     * Optional override for the sentence shown after a successful apply.
+     * Most tools need none — `plan.summary` describes the effect and the
+     * effect happened, so `Applied. ${plan.summary}` is always true. A tool
+     * whose apply can turn out to have done nothing (a sync that found
+     * nothing to pull) supplies this to say so; returning `undefined` falls
+     * back to the default sentence.
+     */
+    applied?(outcome: unknown, plan: WritePlan): string | undefined;
 };
 
 export type WriteContext = {
@@ -314,23 +323,37 @@ export function registerWriteTool<Schema extends z.ZodObject>(
 
                     const id = audit.begin(record);
                     audit.settle(id, 'unconfirmed', `confirmation ${check.failure}`);
+                    const fresh = confirm.issue(intent);
                     return respond(
                         preview({
                             audit_id: id,
                             confirm_error: check.remedy,
-                            confirm_token: confirm.issue(intent)
+                            confirm_token: fresh
                         }),
-                        `Not applied — the confirmation token was rejected (${check.failure}). ${check.remedy} A fresh token for this exact operation is in \`confirm_token\`.`
+                        // `check.remedy` says to call again *without* `confirm`, which is
+                        // right when no token comes back and wrong here, because one does.
+                        // It stays in `confirm_error` as the diagnosis; the text gives the
+                        // single next action, worded as the plain preview words it. The
+                        // token goes last in both: a reader clipping the trailing word or
+                        // the final backticked span gets it, and prose after it would not.
+                        `Not applied — the confirmation token was rejected (${check.failure}). ` +
+                            `Do not resend the rejected one. To apply this, call ${spec.name} again with ` +
+                            `the same arguments plus \`confirm\` set to \`${fresh}\`.`
                     );
                 }
             } else {
                 const id = audit.begin(record);
                 audit.settle(id, 'unconfirmed');
+                // The token goes in the text as well as in `confirm_token`: not
+                // every client forwards structuredContent to the model (#234), and
+                // a preview whose text names a field the model cannot see is a
+                // handshake it can never complete.
+                const token = confirm.issue(intent);
                 return respond(
-                    preview({ audit_id: id, confirm_token: confirm.issue(intent) }),
+                    preview({ audit_id: id, confirm_token: token }),
                     `Not applied yet. ${plan.summary}\n\n` +
                         `${plan.effects.map(e => `- ${e}`).join('\n')}\n\n` +
-                        `To apply this, call ${spec.name} again with the same arguments plus \`confirm\` set to the token in \`confirm_token\`.`
+                        `To apply this, call ${spec.name} again with the same arguments plus \`confirm\` set to \`${token}\`.`
                 );
             }
 
@@ -352,7 +375,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
 
             return respond(
                 { ...preview({ audit_id: id }), applied: true, ...(outcome === undefined ? {} : { result: outcome }) },
-                `Applied. ${plan.summary}`
+                spec.applied?.(outcome, plan) ?? `Applied. ${plan.summary}`
             );
         }
     );

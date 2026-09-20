@@ -1,0 +1,58 @@
+{
+  "name": "arr-mcp",
+  "slug": "arr-mcp",
+  "categories": [
+    14
+  ],
+  "date_created": "2026-09-19",
+  "type": "ct",
+  "updateable": true,
+  "privileged": false,
+  "interface_port": 6060,
+  "documentation": "https://github.com/bardesss/arr-mcp#readme",
+  "website": "https://github.com/bardesss/arr-mcp",
+  "repository": "https://github.com/bardesss/arr-mcp",
+  "platforms": ["pve"],
+  "logo": "https://cdn.jsdelivr.net/gh/bardesss/arr-mcp@main/assets/logo.png",
+  "description": "One MCP server for a whole self-hosted media stack. It gives an AI client a single endpoint that reaches Radarr, Sonarr, Whisparr, Prowlarr, Bazarr, Jellyfin, Plex, Seerr, SABnzbd, Transmission, qBittorrent and Profilarr at once, so a question like 'what is stuck in the queue and why' is answered across all of them rather than one service at a time. Writes are off by default and the destructive ones are previewed before they run.",
+  "install_methods": [
+    {
+      "type": "default",
+      "script": "ct/arr-mcp.sh",
+      "config_path": "/config/config.yaml",
+      "resources": {
+        "cpu": 2,
+        "ram": 2048,
+        "hdd": 8,
+        "os": "Debian",
+        "version": "13"
+      }
+    }
+  ],
+  "default_credentials": {
+    "username": null,
+    "password": null
+  },
+  "notes": [
+    {
+      "text": "The first page is a setup form, not a sign-in: nobody has claimed the instance yet and whoever loads it first does. Claim it before the port is reachable from anywhere you do not trust, because the instance then holds an API key for every service you add to it.",
+      "type": "warning"
+    },
+    {
+      "text": "This is not a replacement for Radarr, Sonarr or anything else. It talks to services you already run, so it is worth installing only if that stack exists and is reachable from this container. Add each service from the Configuration page; it applies immediately, with no restart.",
+      "type": "info"
+    },
+    {
+      "text": "MCP clients connect to http://<IP>:6060/mcp with the bearer token shown on the dashboard. That is a plain HTTP endpoint on your LAN - put a reverse proxy holding a real certificate in front of it before it leaves the LAN.",
+      "type": "info"
+    },
+    {
+      "text": "Everything that survives an update is in /config: config.yaml, the bearer token, the log and audit databases and the optional IMDb dataset. The update rebuilds /opt/arr-mcp from the new release and does not touch /config.",
+      "type": "info"
+    },
+    {
+      "text": "The IMDb dataset is optional and off by default. Switching it on downloads 224 MB each weekly refresh, keeps about 81 MB of it, and peaks around 650 MB of memory while ingesting - which is what the 2 GB of RAM above is sized for.",
+      "type": "info"
+    }
+  ]
+}

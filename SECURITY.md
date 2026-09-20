@@ -47,7 +47,11 @@ Things worth reporting:
 
 Things that are known and documented rather than vulnerabilities:
 
-- **No OAuth.** arr-mcp authenticates with a single bearer token by design. See
+- **OAuth tokens are not revocable before they expire.** `/mcp` verifies an
+  `auth.oauth` token's signature, issuer, audience, scope and expiry, but
+  does not introspect it — a token revoked at the issuer is still accepted
+  here until it runs out on its own. The config UI's own credential is
+  separate and unaffected. See
   [MCP07](docs/security.md#mcp07-insufficient-authentication-and-authorization).
 - **Binding `0.0.0.0`, and exposure to the internet.** The container has to be
   reachable across the LAN. It is
