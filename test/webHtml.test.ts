@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AuditRow } from '../src/core/audit.ts';
+import { BEARER_CALLER, type AuditRow } from '../src/core/audit.ts';
 import type { DiskSpace } from '../src/services/types.ts';
 import { JS } from '../src/web/assets.ts';
 import { esc, html, humanBytes, raw, shortTime } from '../src/web/html.ts';
@@ -212,6 +212,7 @@ describe('the write audit', () => {
         outcome: 'applied',
         detail: null,
         settled_at: null,
+        caller: BEARER_CALLER,
         ...over
     });
 
@@ -235,6 +236,38 @@ describe('the write audit', () => {
         const page = auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ args: '[1,2]' })] });
         expect(page).toContain('[1,2]');
         expect(page).toContain('delete_media');
+    });
+
+    /**
+     * Three of the values this column holds are not a client's name, and
+     * printing them as one would invent a client called "bearer".
+     */
+    it("names a client id, and says in words what the non-names mean", () => {
+        const page = (caller: string | null) =>
+            auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ caller })] });
+
+        expect(page('oauth:desktop-client')).toContain('<dd class="mono">desktop-client</dd>');
+        expect(page(BEARER_CALLER)).toContain('the static bearer token');
+        // A client whose id is literally "bearer" is stored as `oauth:bearer`,
+        // so it can never be read as the static token.
+        expect(page('oauth:bearer')).not.toContain('the static bearer token');
+        expect(page('oauth:bearer')).toContain('<dd class="mono">bearer</dd>');
+        // A token that named no client is a bare `oauth:`, so a client actually
+        // called "unknown" is a different value from it.
+        expect(page('oauth:')).toContain('named no client');
+        expect(page('oauth:unknown')).toContain('<dd class="mono">unknown</dd>');
+        // A blank cell means one thing: the row predates the column.
+        expect(page(null)).toContain('before callers were logged');
+    });
+
+    it('escapes a client id rather than trusting the token that supplied it', () => {
+        const page = auditPage({
+            csrf: 'test-csrf',
+            version: '1.4.1',
+            rows: [row({ caller: 'oauth:<script>alert(1)</script>' })]
+        });
+        expect(page).not.toContain('<script>alert(1)</script>');
+        expect(page).toContain('&lt;script&gt;');
     });
 
     it('marks the outcomes worth stopping on, and leaves a preview unmarked', () => {

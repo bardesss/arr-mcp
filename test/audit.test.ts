@@ -1,5 +1,9 @@
+import Database from 'better-sqlite3';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { WriteAudit, type AuditRecord } from '../src/core/audit.ts';
+import { AUDIT_FILENAME, BEARER_CALLER, WriteAudit, type AuditRecord } from '../src/core/audit.ts';
 
 const record = (over: Partial<AuditRecord> = {}): AuditRecord => ({
     tool: 'delete_media',
@@ -8,6 +12,7 @@ const record = (over: Partial<AuditRecord> = {}): AuditRecord => ({
     tier: 'destructive',
     target: '5',
     args: { deleteFiles: true },
+    caller: BEARER_CALLER,
     ...over
 });
 
@@ -148,7 +153,7 @@ describe('argument redaction', () => {
 describe('WriteAudit.counts', () => {
     it('agrees with counting the rows by hand', () => {
         const audit = WriteAudit.ephemeral();
-        const record = { tool: 't', service: 'radarr', operation: 'op', tier: 'safe' as const, target: 'x', args: {} };
+        const record = { tool: 't', service: 'radarr', operation: 'op', tier: 'safe' as const, target: 'x', args: {}, caller: BEARER_CALLER };
 
         audit.settle(audit.begin(record), 'applied');
         audit.settle(audit.begin(record), 'applied');
@@ -166,13 +171,73 @@ describe('WriteAudit.counts', () => {
 
     it('counts every row, not just the page recent() returns', () => {
         const audit = WriteAudit.ephemeral();
-        const record = { tool: 't', service: 'radarr', operation: 'op', tier: 'safe' as const, target: 'x', args: {} };
+        const record = { tool: 't', service: 'radarr', operation: 'op', tier: 'safe' as const, target: 'x', args: {}, caller: BEARER_CALLER };
         for (let i = 0; i < 60; i++) audit.settle(audit.begin(record), 'applied');
 
         // recent() defaults to 50. The count must not inherit that window —
         // the dashboard was reporting min(total, 500) as the total.
         expect(audit.recent().length).toBe(50);
         expect(audit.counts().total).toBe(60);
+        audit.close();
+    });
+});
+
+/**
+ * The first schema change this table has had. The case that matters is not a
+ * fresh install — it is an operator who has been running arr-mcp for months
+ * and whose `audit.db` predates the column.
+ */
+describe('the caller column', () => {
+    it('records which credential made the write', () => {
+        const audit = WriteAudit.ephemeral();
+        audit.begin(record({ caller: 'desktop-client' }));
+        expect(audit.recent()[0]?.caller).toBe('desktop-client');
+        audit.close();
+    });
+
+    it('adds the column to a database written before it existed, keeping the rows', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-audit-'));
+        const path = join(dir, AUDIT_FILENAME);
+
+        // The table exactly as a pre-#269 install has it, rows and all.
+        const old = new Database(path);
+        old.exec(`
+            CREATE TABLE write_audit (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                at        TEXT    NOT NULL,
+                tool      TEXT    NOT NULL,
+                service   TEXT    NOT NULL,
+                operation TEXT    NOT NULL,
+                tier      TEXT    NOT NULL,
+                target    TEXT    NOT NULL,
+                args      TEXT    NOT NULL,
+                outcome   TEXT    NOT NULL,
+                detail    TEXT,
+                settled_at TEXT
+            );`);
+        old.prepare(
+            `INSERT INTO write_audit (at, tool, service, operation, tier, target, args, outcome)
+             VALUES ('2026-01-01T00:00:00.000Z', 'delete_media', 'radarr', 'delete_movie', 'destructive', '5', '{}', 'applied')`
+        ).run();
+        old.close();
+
+        const audit = WriteAudit.open(dir);
+        audit.begin(record({ caller: 'desktop-client' }));
+
+        const rows = audit.recent();
+        expect(rows).toHaveLength(2);
+        expect(rows[0]?.caller).toBe('desktop-client');
+        // Null on the old row, and only there: it is the one write nobody
+        // recorded a caller for, because nothing was recording one.
+        expect(rows[1]?.caller).toBeNull();
+        expect(rows[1]?.tool).toBe('delete_media');
+        audit.close();
+    });
+
+    it('is a no-op on a database that already has it', () => {
+        const audit = WriteAudit.ephemeral();
+        audit.begin(record());
+        expect(audit.recent()[0]?.caller).toBe(BEARER_CALLER);
         audit.close();
     });
 });

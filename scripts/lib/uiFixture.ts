@@ -203,7 +203,8 @@ export const AUDIT_ROWS: AuditRow[] = [
         args: '{"series_id":114,"season":4}',
         outcome: 'applied',
         detail: null,
-        settled_at: '2026-08-13T09:40:44.552Z'
+        settled_at: '2026-08-13T09:40:44.552Z',
+        caller: 'oauth:desktop-client'
     },
     {
         id: 2,
@@ -216,7 +217,8 @@ export const AUDIT_ROWS: AuditRow[] = [
         args: '{"queue_id":88,"blocklist":true}',
         outcome: 'denied',
         detail: 'destructive writes are off for radarr/hd',
-        settled_at: '2026-08-13T09:22:10.551Z'
+        settled_at: '2026-08-13T09:22:10.551Z',
+        caller: 'bearer'
     },
     {
         id: 1,
@@ -229,6 +231,9 @@ export const AUDIT_ROWS: AuditRow[] = [
         args: '{"request_id":412,"verdict":"approve"}',
         outcome: 'applied',
         detail: null,
-        settled_at: '2026-08-13T08:57:41.402Z'
+        settled_at: '2026-08-13T08:57:41.402Z',
+        // The third shape the page has to render: a row written before the
+        // caller column existed. Null means that and nothing else.
+        caller: null
     }
 ];

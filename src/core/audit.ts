@@ -39,6 +39,30 @@ export type WriteOutcome =
     /** The service was called and said no. */
     | 'failed';
 
+/**
+ * What a write made with the static bearer token records as its caller.
+ *
+ * A real value rather than null, so a blank `caller` means one thing only: a
+ * row written before this column existed. One credential and no credential
+ * look identical in a null.
+ */
+export const BEARER_CALLER = 'bearer';
+
+/**
+ * Prefix on every OAuth caller. The client id is chosen by whoever registered
+ * the client, so stored bare it could equal `BEARER_CALLER` and pass for the
+ * static token, in the one column whose job is saying which credential asked.
+ * A prefix puts the two in different namespaces by construction.
+ */
+export const OAUTH_CALLER_PREFIX = 'oauth:';
+
+/**
+ * The client id of a token that carried neither `client_id` nor `sub`. Empty
+ * because a real client id never is, so it cannot be mistaken for one: any
+ * readable placeholder such as "unknown" could also be a client's actual name.
+ */
+export const NO_CLIENT_ID = '';
+
 export type AuditRecord = {
     tool: string;
     service: string;
@@ -46,6 +70,8 @@ export type AuditRecord = {
     tier: WriteTier;
     target: string;
     args: Record<string, unknown>;
+    /** Which credential asked: `oauth:<client id>`, or `bearer`. */
+    caller: string;
 };
 
 /**
@@ -67,6 +93,9 @@ export type AuditRow = {
     outcome: string;
     detail: string | null;
     settled_at: string | null;
+    /** Null only on a row written before this column existed — every write
+     *  since records `bearer` or the token's client id. */
+    caller: string | null;
 };
 
 const SCHEMA = `
@@ -81,11 +110,34 @@ CREATE TABLE IF NOT EXISTS write_audit (
     args      TEXT    NOT NULL,
     outcome   TEXT    NOT NULL,
     detail    TEXT,
-    settled_at TEXT
+    settled_at TEXT,
+    caller    TEXT
 );
 CREATE INDEX IF NOT EXISTS write_audit_at ON write_audit (at DESC);
 CREATE INDEX IF NOT EXISTS write_audit_service ON write_audit (service, at DESC);
 `;
+
+/**
+ * The first migration this table has needed, kept in the same spirit as the
+ * `CREATE TABLE IF NOT EXISTS` above: ask what the table has, add what it
+ * lacks. A schema version table would be the answer to a second column
+ * arriving, not to this one.
+ *
+ * Nullable by necessity — SQLite cannot add a NOT NULL column without a
+ * default, and inventing one would be claiming to know who made writes that
+ * happened before anyone was recording it.
+ */
+function migrate(db: Db): void {
+    const columns = db.prepare(`PRAGMA table_info(write_audit)`).all() as { name: string }[];
+    if (columns.some(c => c.name === 'caller')) return;
+    try {
+        db.exec(`ALTER TABLE write_audit ADD COLUMN caller TEXT`);
+    } catch (err) {
+        // Two processes first-opening an old file both see the column missing;
+        // the loser's ALTER fails, but the column is there, which is the goal.
+        if (!/duplicate column name/i.test(String(err))) throw err;
+    }
+}
 
 /** Keys whose value never belongs in a durable log, however it got there. No
  *  write tool takes one today; this is here so that stays true by construction
@@ -145,6 +197,7 @@ export class WriteAudit {
             db.pragma('journal_mode = WAL');
             db.pragma('synchronous = FULL');
             db.exec(SCHEMA);
+            migrate(db);
             return new WriteAudit(db, path);
         } catch (err) {
             throw new AuditUnavailableError(path, err);
@@ -155,6 +208,7 @@ export class WriteAudit {
     static ephemeral(): WriteAudit {
         const db = new Database(':memory:');
         db.exec(SCHEMA);
+        migrate(db);
         return new WriteAudit(db, ':memory:');
     }
 
@@ -166,8 +220,8 @@ export class WriteAudit {
         try {
             const result = this.#db
                 .prepare(
-                    `INSERT INTO write_audit (at, tool, service, operation, tier, target, args, outcome)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, 'attempted')`
+                    `INSERT INTO write_audit (at, tool, service, operation, tier, target, args, caller, outcome)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'attempted')`
                 )
                 .run(
                     new Date().toISOString(),
@@ -176,7 +230,8 @@ export class WriteAudit {
                     record.operation,
                     record.tier,
                     record.target,
-                    safeArgs(record.args)
+                    safeArgs(record.args),
+                    record.caller
                 );
             return Number(result.lastInsertRowid);
         } catch (err) {

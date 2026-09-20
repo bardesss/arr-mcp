@@ -115,8 +115,11 @@ one level so it reads as fields rather than as a blob, and its stack trace is
 left out; that one is in `docker logs`.
 
 **The write audit reads as entries, not as a spreadsheet.** Each attempt gives
-its outcome, tool, service and time on one line, and its target and recorded
-arguments underneath, each argument as its own field. The arguments are stored
+its outcome, tool, service and time on one line, and its target, the credential
+that asked, and the recorded arguments underneath, each argument as its own
+field. The caller is an OAuth client id where there is one; the static bearer
+token and a token that named no client are spelled out in words rather than
+printed as if they were a client's name. The arguments are stored
 as a single JSON blob, and a column holding that blob beside six others was
 unreadable on a desktop long before it was unreadable on a phone.
 

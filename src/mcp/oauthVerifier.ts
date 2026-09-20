@@ -2,6 +2,7 @@ import { OAuthError, OAuthErrorCode, type AuthInfo, type OAuthTokenVerifier } fr
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { JWTPayload, JWTVerifyGetKey } from 'jose';
 import type { OAuthConfig } from '../config/schema.ts';
+import { NO_CLIENT_ID } from '../core/audit.ts';
 
 /**
  * Asymmetric only, listed rather than left open.
@@ -102,7 +103,7 @@ export function oauthVerifier(oauth: OAuthConfig, keys?: KeyResolver): OAuthToke
                 token,
                 // `client_id` names the client; `sub` may name a user. Prefer
                 // the one that answers "which credential is this".
-                clientId: typeof payload.client_id === 'string' ? payload.client_id : ((payload.sub as string) ?? 'unknown'),
+                clientId: typeof payload.client_id === 'string' ? payload.client_id : ((payload.sub as string) ?? NO_CLIENT_ID),
                 scopes: scopesOf(payload.scope),
                 // `requiredClaims: ['exp']` above already refused a token
                 // without one; the assertion just tells the type of that.

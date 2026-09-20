@@ -42,6 +42,13 @@ describe('oauthVerifier', () => {
         expect(info.clientId).toBe('cli-3');
     });
 
+    /** Empty, not a readable word: a client's actual id could be "unknown", and
+     *  the audit trail must never hold one value meaning two things. */
+    it('reports a token with neither client_id nor sub as the empty client id', async () => {
+        const info = await verify(await token({ iss: oauth.issuer, aud: 'arr-mcp', scope: 'arr-mcp:read' }));
+        expect(info.clientId).toBe('');
+    });
+
     it('reads the array form of scope, which some issuers mint', async () => {
         const info = await verify(await token({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c', scope: ['arr-mcp:read'] }));
         expect(info.scopes).toEqual(['arr-mcp:read']);
