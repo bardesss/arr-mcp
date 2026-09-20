@@ -775,13 +775,19 @@ export type EpisodeRemapPlan = {
  */
 export type EpisodeRemapOutcome = {
     remap: CommandHandle;
-    /** Whether the moves formed a true cycle, as `EpisodeRemapPlan.rotation`. */
-    cycle: boolean;
     /** Files whose name now matches the episode they were moved to. */
     renamed: number;
     /** Files left with their old name because the name they want is still on
      *  disk, held by another file in the same rotation. */
     blocked: { path: string; wants: string }[];
+    /**
+     * Files imported while the temporary naming format was live, and so named
+     * by it. Only a rotation opens that window, and only the service's own
+     * per-minute import can walk into it — reported rather than prevented,
+     * because preventing it would mean waiting for a queue that is never
+     * empty.
+     */
+    caughtInWindow?: string[];
 };
 
 /**

@@ -2,6 +2,7 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
+import { renameThroughTemporaryFormat } from './arrRename.ts';
 import { readArrQueue } from './arrQueue.ts';
 import type {
     CommandHandle,
@@ -369,7 +370,7 @@ export async function runArrEpisodeRemap(
     reassignments: EpisodeReassignment[]
 ): Promise<EpisodeRemapOutcome> {
     const id = seriesIdOf(service, seriesId);
-    const { moves, rotation } = await resolveEpisodeRemap(http, service, id, reassignments);
+    const { moves } = await resolveEpisodeRemap(http, service, id, reassignments);
 
     if (moves.length === 0) {
         throw new ServiceError('UpstreamError', service, 'every file is already on the episode asked for', {
@@ -399,7 +400,7 @@ export async function runArrEpisodeRemap(
     const movedPaths = files.map(f => f.path).filter((p): p is string => typeof p === 'string');
     await verifyRemapLanded(http, service, id, moves);
 
-    return { remap, cycle: rotation, ...(await renameRemappedFiles(http, service, id, movedPaths)) };
+    return { remap, ...(await renameRemappedFiles(http, service, id, movedPaths)) };
 }
 
 /**
@@ -452,6 +453,10 @@ async function verifyRemapLanded(
 
 type RawRenameRow = { episodeFileId?: number; existingPath?: string; newPath?: string };
 
+/** Which of Sonarr's three episode naming formats this series is named by. */
+const seriesTypeOf = async (http: ServiceHttp, seriesId: number): Promise<string | undefined> =>
+    (await http.get<{ seriesType?: string }>(`/api/v3/series/${seriesId}`)).seriesType;
+
 /**
  * Makes the filenames match the episodes the remap just moved the files onto.
  *
@@ -475,7 +480,7 @@ async function renameRemappedFiles(
     service: string,
     seriesId: number,
     movedPaths: string[]
-): Promise<{ renamed: number; blocked: { path: string; wants: string }[] }> {
+): Promise<{ renamed: number; blocked: { path: string; wants: string }[]; caughtInWindow?: string[] }> {
     // Re-read for the ids Sonarr has just assigned, and ask it what it would
     // rename rather than deriving names from the format ourselves.
     const [after, pending] = await Promise.all([
@@ -495,15 +500,31 @@ async function renameRemappedFiles(
     const onDisk = new Set(after.map(f => f.relativePath).filter((p): p is string => typeof p === 'string'));
 
     const mine = pending.filter(r => typeof r.episodeFileId === 'number' && moved.has(r.episodeFileId));
-    const blocked = mine
-        .filter(r => typeof r.newPath === 'string' && onDisk.has(r.newPath))
-        .map(r => ({
-            path: fenceText(r.existingPath ?? '', { service, field: 'path' }),
-            wants: fenceText(r.newPath ?? '', { service, field: 'path' })
-        }));
+    const isBlocked = (r: RawRenameRow): boolean => typeof r.newPath === 'string' && onDisk.has(r.newPath);
+    const free = mine.filter(r => !isBlocked(r));
 
-    const free = mine.filter(r => !(typeof r.newPath === 'string' && onDisk.has(r.newPath)));
-    if (free.length === 0) return { renamed: 0, blocked };
+    // Every destination taken: the rotation. `RenameFiles` would answer
+    // `completed` having renamed nothing, so the only way through is two
+    // passes under a temporary naming format — see `arrRename.ts` for what
+    // that costs and how it is bounded.
+    if (mine.length > 0 && free.length === 0) {
+        const ids = mine.map(r => r.episodeFileId).filter((id): id is number => typeof id === 'number');
+        const { renamed, caughtInWindow } = await renameThroughTemporaryFormat(
+            http,
+            service,
+            seriesId,
+            await seriesTypeOf(http, seriesId),
+            ids
+        );
+        return { renamed, blocked: [], caughtInWindow };
+    }
+
+    if (free.length === 0) return { renamed: 0, blocked: [] };
+
+    const blocked = mine.filter(isBlocked).map(r => ({
+        path: fenceText(r.existingPath ?? '', { service, field: 'path' }),
+        wants: fenceText(r.newPath ?? '', { service, field: 'path' })
+    }));
 
     const rename = await postArrCommand(http, service, {
         name: 'RenameFiles',
