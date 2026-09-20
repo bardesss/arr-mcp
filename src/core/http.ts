@@ -92,9 +92,14 @@ export class ServiceHttp {
      * `{"status": false}` for an nzo_id that is already gone, which the
      * adapter reports as "the delete was refused". A successful deletion,
      * reported as a failure, with the item genuinely gone.
+     *
+     * `discardBody` for the same reason `post` carries it: Plex answers a
+     * section refresh with a bare 200 — no body, no `Content-Type` — and
+     * parsing that as JSON reports a scan that did start as a failure,
+     * inviting a retry.
      */
-    async getAsWrite<T>(path: string): Promise<T> {
-        return this.#request<T>('GET', path, undefined, false);
+    async getAsWrite<T>(path: string, discardBody = false): Promise<T> {
+        return this.#request<T>('GET', path, undefined, false, discardBody ? 'none' : 'json');
     }
 
     /**

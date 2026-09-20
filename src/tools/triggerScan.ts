@@ -41,7 +41,7 @@ const findAdapter = (
         // has no library to scan, and reporting success for an action that
         // could never happen is how a model concludes the scan is done.
         throw new ServiceError('NotFound', service, `${service} has no library to scan`, {
-            remedy: 'Only radarr, sonarr and jellyfin manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", jellyfin is almost always the one you want.'
+            remedy: 'Only radarr, sonarr, jellyfin and plex manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server — jellyfin or plex — is almost always the one you want.'
         });
     }
 
@@ -93,9 +93,11 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Scan for new files',
         description:
-            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr or Jellyfin; Jellyfin is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. Everything here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. Everything here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr or jellyfin — or prowlarr, to sync its indexers to the apps.'),
+            service: ServiceIdSchema.describe(
+                'radarr, sonarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps.'
+            ),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z
                 .enum(['scan', 'rename', 'import'])
@@ -227,7 +229,9 @@ export function registerTriggerScan(
                 target: adapter.id,
                 summary: `Ask ${adapter.id} to rescan its library.`,
                 effects: [
-                    `Queues a library scan on ${adapter.id}.`,
+                    adapter.type === 'plex'
+                        ? 'Queues a scan of every library section on plex, music and photos included: Plex has no single-library scan here.'
+                        : `Queues a library scan on ${adapter.id}.`,
                     'Finds media added or moved on disk since the last scan.',
                     'Can take minutes on a large library, and runs in the background.'
                 ],
@@ -253,7 +257,7 @@ export function registerTriggerScan(
 
             return `${adapter.id} is rescanning its library. It runs in the background — check get_media_details or stack_health in a few minutes rather than expecting it to be finished now.${
                 handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
-            }`;
+            }${handle.detail === undefined ? '' : ` ${handle.detail}`}`;
         }
     });
 }
