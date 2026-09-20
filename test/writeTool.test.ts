@@ -320,9 +320,9 @@ describe('write tool harness — the audit trail', () => {
     });
 
     it("records an OAuth request's client id", async () => {
-        const oauth = buildHarness({ caller: 'desktop-client' });
+        const oauth = buildHarness({ caller: 'oauth:desktop-client' });
         await oauth.call('delete_media', { id: '5', dry_run: true });
-        expect((oauth.audit.recent() as { caller: string | null }[])[0]?.caller).toBe('desktop-client');
+        expect((oauth.audit.recent() as { caller: string | null }[])[0]?.caller).toBe('oauth:desktop-client');
     });
 
     it('records the resolved target, not the argument the caller typed', async () => {

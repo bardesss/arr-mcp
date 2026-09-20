@@ -239,19 +239,19 @@ describe('the write audit', () => {
     });
 
     /**
-     * Three of the four values this column holds are not a client's name, and
-     * printing them as one would invent a client called "unknown" or "bearer".
+     * Two of the three values this column holds are not a client's name, and
+     * printing them as one would invent a client called "bearer".
      */
-    it("names a client id, and says in words what the three non-names mean", () => {
+    it("names a client id, and says in words what the two non-names mean", () => {
         const page = (caller: string | null) =>
             auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ caller })] });
 
-        expect(page('desktop-client')).toContain('<dd class="mono">desktop-client</dd>');
+        expect(page('oauth:desktop-client')).toContain('<dd class="mono">desktop-client</dd>');
         expect(page(BEARER_CALLER)).toContain('the static bearer token');
-        // `oauthVerifier` falls back to the literal 'unknown' when a token
-        // carries neither client_id nor sub.
-        expect(page('unknown')).toContain('named no client');
-        expect(page('unknown')).not.toContain('<dd class="mono">unknown</dd>');
+        // A client whose id is literally "bearer" is stored as `oauth:bearer`,
+        // so it can never be read as the static token.
+        expect(page('oauth:bearer')).not.toContain('the static bearer token');
+        expect(page('oauth:bearer')).toContain('<dd class="mono">bearer</dd>');
         // A blank cell means one thing: the row predates the column.
         expect(page(null)).toContain('before callers were logged');
     });
@@ -260,7 +260,7 @@ describe('the write audit', () => {
         const page = auditPage({
             csrf: 'test-csrf',
             version: '1.4.1',
-            rows: [row({ caller: '<script>alert(1)</script>' })]
+            rows: [row({ caller: 'oauth:<script>alert(1)</script>' })]
         });
         expect(page).not.toContain('<script>alert(1)</script>');
         expect(page).toContain('&lt;script&gt;');

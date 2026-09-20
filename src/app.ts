@@ -11,7 +11,7 @@ import {
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { OAuthConfig } from './config/schema.ts';
-import type { WriteAudit } from './core/audit.ts';
+import { OAUTH_CALLER_PREFIX, type WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
 import type { Runtime } from './core/runtime.ts';
@@ -127,7 +127,7 @@ function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInf
         // own: this is the one per-request place that holds `authInfo`, and a
         // request without one is the static bearer token, which the audit
         // records under its own fixed marker.
-        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers), caller: authInfo.clientId }
+        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers), caller: `${OAUTH_CALLER_PREFIX}${authInfo.clientId}` }
     };
 }
 

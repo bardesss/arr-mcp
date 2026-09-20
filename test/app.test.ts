@@ -1773,7 +1773,7 @@ describe('OAuth tokens at /mcp', () => {
 
         // No client_id claim on this token, so the verifier falls back to
         // `sub` — the row records what it resolved, not an empty cell.
-        expect(trail.recent()[0]?.caller).toBe('client-1');
+        expect(trail.recent()[0]?.caller).toBe('oauth:client-1');
     });
 
     it('records the static bearer token as bearer, not as a blank cell', async () => {

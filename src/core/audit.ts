@@ -48,6 +48,14 @@ export type WriteOutcome =
  */
 export const BEARER_CALLER = 'bearer';
 
+/**
+ * Prefix on every OAuth caller. The client id is chosen by whoever registered
+ * the client, so stored bare it could equal `BEARER_CALLER` and pass for the
+ * static token, in the one column whose job is saying which credential asked.
+ * A prefix puts the two in different namespaces by construction.
+ */
+export const OAUTH_CALLER_PREFIX = 'oauth:';
+
 export type AuditRecord = {
     tool: string;
     service: string;
@@ -55,7 +63,7 @@ export type AuditRecord = {
     tier: WriteTier;
     target: string;
     args: Record<string, unknown>;
-    /** Which credential asked: an OAuth token's client id, or `bearer`. */
+    /** Which credential asked: `oauth:<client id>`, or `bearer`. */
     caller: string;
 };
 
@@ -114,7 +122,14 @@ CREATE INDEX IF NOT EXISTS write_audit_service ON write_audit (service, at DESC)
  */
 function migrate(db: Db): void {
     const columns = db.prepare(`PRAGMA table_info(write_audit)`).all() as { name: string }[];
-    if (!columns.some(c => c.name === 'caller')) db.exec(`ALTER TABLE write_audit ADD COLUMN caller TEXT`);
+    if (columns.some(c => c.name === 'caller')) return;
+    try {
+        db.exec(`ALTER TABLE write_audit ADD COLUMN caller TEXT`);
+    } catch (err) {
+        // Two processes first-opening an old file both see the column missing;
+        // the loser's ALTER fails, but the column is there, which is the goal.
+        if (!/duplicate column name/i.test(String(err))) throw err;
+    }
 }
 
 /** Keys whose value never belongs in a durable log, however it got there. No

@@ -204,7 +204,7 @@ export const AUDIT_ROWS: AuditRow[] = [
         outcome: 'applied',
         detail: null,
         settled_at: '2026-08-13T09:40:44.552Z',
-        caller: 'desktop-client'
+        caller: 'oauth:desktop-client'
     },
     {
         id: 2,

@@ -118,8 +118,8 @@ left out; that one is in `docker logs`.
 its outcome, tool, service and time on one line, and its target, the credential
 that asked, and the recorded arguments underneath, each argument as its own
 field. The caller is an OAuth client id where there is one; the static bearer
-token and a token that named no client are spelled out in words rather than
-printed as if they were a client's name. The arguments are stored
+token is spelled out in words rather than printed as if it were a client's
+name. The arguments are stored
 as a single JSON blob, and a column holding that blob beside six others was
 unreadable on a desktop long before it was unreadable on a phone.
 
