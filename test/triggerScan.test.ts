@@ -534,9 +534,17 @@ describe('trigger_scan remapping episodes', () => {
 
             if (url.pathname === '/api/v3/manualimport') return jsonResponse(FILES);
             if (url.pathname === '/api/v3/episode') return jsonResponse(episodes);
-            if (url.pathname === '/api/v3/rename') return jsonResponse(over.renames ?? []);
+            if (url.pathname === '/api/v3/rename') {
+                const passes = sent.filter(x => x.body?.name === 'RenameFiles').length;
+                return jsonResponse(passes >= 2 ? [] : (over.renames ?? []));
+            }
             if (url.pathname === '/api/v3/series/5') return jsonResponse({ id: 5, seriesType: 'standard' });
-            if (url.pathname === '/api/v3/history') return jsonResponse({ records: over.history ?? [] });
+            // Import history rows appear once the first rename is in flight, so
+            // they are after the baseline read that bounds the window.
+            if (url.pathname === '/api/v3/history') {
+                const started = sent.some(x => x.body?.name === 'RenameFiles');
+                return jsonResponse({ records: started ? (over.history ?? []) : [] });
+            }
             if (url.pathname === '/api/v3/config/naming') {
                 if (method === 'PUT') return new Response(null, { status: 202 });
                 return jsonResponse({ id: 1, standardEpisodeFormat: '{Series Title} - S{season:00}E{episode:00}' });
@@ -650,12 +658,12 @@ describe('trigger_scan remapping episodes', () => {
     it('names anything imported while the temporary format was live', async () => {
         const h = remapHarness({
             renames: ROTATED,
-            history: [{ date: new Date(Date.now() + 60_000).toISOString(), data: { importedPath: '/tv/Other/new.mkv' } }]
+            history: [{ id: 8, data: { importedPath: '/tv/Other/new [arr-mcp-remap].mkv' } }]
         });
         const first = await h.call(SWAP);
         const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
 
-        expect(String(done.structuredContent.result)).toContain('/tv/Other/new.mkv');
+        expect(String(done.structuredContent.result)).toContain('/tv/Other/new [arr-mcp-remap].mkv');
         expect(String(done.structuredContent.result)).toMatch(/temporary naming format/);
     });
 

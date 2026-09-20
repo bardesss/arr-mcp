@@ -1158,11 +1158,20 @@ Four things bound it:
   copy is written anywhere to be lost.
 - **It reports what the window caught.** Sonarr's own import runs every minute
   and is not waited for, so a file that lands inside the window is named by the
-  temporary format. The response names those files.
+  temporary format. The response names those files: the imports Sonarr recorded
+  after the window opened whose name carries the marker.
 - **It checks the second pass finished.** A file left under a temporary name is
   the worst outcome here, so that is an error naming the marker, not a success.
+  Sonarr's own list of files still wanting a different name decides it, not
+  the command's count.
+- **It puts back only what it changed.** The format is restored by re-reading
+  the config and setting that one key, so anything else edited during the
+  window stays edited.
 
-A remap with no rotation never touches the naming format.
+A remap whose files each have a free destination never touches the naming
+format. The preview cannot always tell which case it is: what Sonarr will name
+a file is known only once the reassignment is applied, so it says when the
+format would change rather than promising it will not.
 
 ## `update_media`
 

@@ -306,7 +306,11 @@ function seriesStack(
 
         if (url.pathname === '/api/v3/manualimport') return jsonResponse(SERIES_FILES);
         if (url.pathname === '/api/v3/episode') return jsonResponse(episodes);
-        if (url.pathname === '/api/v3/rename') return jsonResponse(opts.renames ?? []);
+        // Sonarr lists what still wants renaming, so once the second rename has
+        // run the answer is empty — or the remap would rightly report it undone.
+        if (url.pathname === '/api/v3/rename') {
+            return jsonResponse(sent.filter(x => x.body?.name === 'RenameFiles').length >= 2 ? [] : (opts.renames ?? []));
+        }
         if (url.pathname === '/api/v3/series/5') return jsonResponse({ id: 5, seriesType: 'standard' });
         if (url.pathname === '/api/v3/config/naming') {
             if (method === 'PUT') return new Response(null, { status: 202 });

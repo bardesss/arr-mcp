@@ -112,7 +112,7 @@ async function readFormat(
     http: ServiceHttp,
     service: string,
     key: keyof RawNaming
-): Promise<{ naming: RawNaming; format: string }> {
+): Promise<{ format: string }> {
     const naming = await http.get<RawNaming>('/api/v3/config/naming');
     const live = naming[key];
     if (typeof live !== 'string' || live === '') {
@@ -121,7 +121,7 @@ async function readFormat(
         });
     }
 
-    if (!live.endsWith(RENAME_MARKER)) return { naming, format: live };
+    if (!live.endsWith(RENAME_MARKER)) return { format: live };
 
     // A previous run was killed between changing the format and putting it
     // back. Recovered from the live value rather than from anything written
@@ -132,20 +132,46 @@ async function readFormat(
         { service, key: String(key) },
         'naming format still carried the remap marker from an interrupted run; restoring it'
     );
-    await http.put(`/api/v3/config/naming`, { ...naming, [key]: restored }, true);
-    return { naming, format: restored };
+    await setFormat(http, key, restored);
+    return { format: restored };
 }
 
-const setFormat = async (http: ServiceHttp, naming: RawNaming, key: keyof RawNaming, value: string): Promise<void> => {
-    await http.put(`/api/v3/config/naming`, { ...naming, [key]: value }, true);
+/**
+ * Changes one key of the naming config and nothing else. The config is
+ * re-read for every write rather than reused from `readFormat`: the PUT takes
+ * the whole object, so a snapshot taken before the window would put back
+ * whatever else someone changed during it — `renameEpisodes`, the folder
+ * formats, the other two episode formats — with no error and no log line.
+ */
+const setFormat = async (http: ServiceHttp, key: keyof RawNaming, value: string): Promise<void> => {
+    const live = await http.get<RawNaming>('/api/v3/config/naming');
+    await http.put(`/api/v3/config/naming`, { ...live, [key]: value }, true);
 };
 
 type RawHistoryPage = {
-    records?: { date?: string; seriesId?: number; data?: { importedPath?: string } }[];
+    records?: { id?: number; data?: { importedPath?: string } }[];
 };
 
-/** Sonarr's `downloadFolderImported`. Numeric in the query, confirmed live. */
-const EVENT_DOWNLOAD_FOLDER_IMPORTED = 3;
+const IMPORT_HISTORY = `/api/v3/history?page=1&pageSize=50&sortKey=date&sortDirection=descending&eventType=3`;
+
+/**
+ * The newest import's history id, read before the window opens. Bounding the
+ * window by id rather than by timestamp keeps both clocks out of it: our host's
+ * and Sonarr's need not agree, and a Sonarr a few seconds behind would file an
+ * import from inside the window under "before it".
+ */
+async function newestImportId(http: ServiceHttp, service: string): Promise<number | undefined> {
+    try {
+        const page = await http.get<RawHistoryPage>(IMPORT_HISTORY);
+        return (page.records ?? []).reduce((max, r) => Math.max(max, r.id ?? 0), 0);
+    } catch (err) {
+        logger.warn({ service, err }, 'could not read history before the rename window; imports during it will not be checked');
+        return undefined;
+    }
+}
+
+// `eventType=3` is Sonarr's `downloadFolderImported`, numeric in the query,
+// confirmed live.
 
 /**
  * Anything imported while the temporary format was live, which would have been
@@ -157,15 +183,17 @@ const EVENT_DOWNLOAD_FOLDER_IMPORTED = 3;
  * with the marker is obvious once someone knows to look, and invisible
  * otherwise.
  */
-async function importsDuring(http: ServiceHttp, service: string, since: string): Promise<string[]> {
+async function importsDuring(http: ServiceHttp, service: string, after: number | undefined): Promise<string[]> {
+    if (after === undefined) return [];
     try {
-        const page = await http.get<RawHistoryPage>(
-            `/api/v3/history?page=1&pageSize=50&sortKey=date&sortDirection=descending&eventType=${EVENT_DOWNLOAD_FOLDER_IMPORTED}`
-        );
+        const page = await http.get<RawHistoryPage>(IMPORT_HISTORY);
+        // The marker test is what scopes this to the series type: the format
+        // changed is one of three, and an import named by another one cannot
+        // carry it.
         return (page.records ?? [])
-            .filter(r => (r.date ?? '') >= since)
+            .filter(r => (r.id ?? 0) > after)
             .map(r => r.data?.importedPath)
-            .filter((p): p is string => typeof p === 'string' && p !== '')
+            .filter((p): p is string => typeof p === 'string' && p.includes(RENAME_MARKER.trim()))
             .map(p => fenceText(p, { service, field: 'path' }));
     } catch (err) {
         // The window is closed by the time this runs and the renames are done.
@@ -173,6 +201,17 @@ async function importsDuring(http: ServiceHttp, service: string, since: string):
         // failed — it is a reason to say it could not be checked.
         logger.warn({ service, err }, 'could not read history to check what imported during the rename window');
         return [];
+    }
+}
+
+/** How many of these files Sonarr still wants to rename. Undefined when it
+ *  could not be read — the caller then falls back to the command's own count. */
+async function stillMisnamed(http: ServiceHttp, seriesId: number, fileIds: number[]): Promise<number | undefined> {
+    try {
+        const pending = await http.get<{ episodeFileId?: number }[]>(`/api/v3/rename?seriesId=${seriesId}`);
+        return pending.filter(r => r.episodeFileId !== undefined && fileIds.includes(r.episodeFileId)).length;
+    } catch {
+        return undefined;
     }
 }
 
@@ -216,11 +255,11 @@ export async function renameThroughTemporaryFormat(
     await assertQueueClear(http, service);
 
     const key = namingFormatKey(seriesType);
-    const { naming, format } = await readFormat(http, service, key);
-    const openedAt = new Date().toISOString();
+    const { format } = await readFormat(http, service, key);
+    const importedBefore = await newestImportId(http, service);
 
     try {
-        await setFormat(http, naming, key, `${format}${RENAME_MARKER}`);
+        await setFormat(http, key, `${format}${RENAME_MARKER}`);
         const first = await renamePass(http, service, seriesId, fileIds);
         if (first !== undefined && first < fileIds.length) {
             throw new ServiceError(
@@ -233,24 +272,25 @@ export async function renameThroughTemporaryFormat(
             );
         }
     } finally {
-        await setFormat(http, naming, key, format);
+        await setFormat(http, key, format);
     }
 
     // Second pass under the real format: every destination is free now,
     // because the first pass moved every one of these files off it.
     const second = await renamePass(http, service, seriesId, fileIds);
-    const renamed = second ?? fileIds.length;
 
-    if (second !== undefined && second < fileIds.length) {
-        throw new ServiceError(
-            'UpstreamError',
-            service,
-            `${service} left ${fileIds.length - second} file(s) under a temporary name`,
-            {
-                remedy: `The naming format is back to what it was, and every file is still on disk — but ${fileIds.length - second} of them is still named with "${RENAME_MARKER.trim()}". Run trigger_scan with action "rename" on this series to finish it.`
-            }
-        );
+    // The command's own count is not trusted alone: a build that stops sending
+    // the message reports undefined, and two undefineds would otherwise read as
+    // every file renamed. Sonarr's own list of what still wants a different
+    // name is the ground truth, and is read whenever it can be.
+    const short = (await stillMisnamed(http, seriesId, fileIds)) ?? (second === undefined ? 0 : fileIds.length - second);
+    const renamed = fileIds.length - short;
+
+    if (short > 0) {
+        throw new ServiceError('UpstreamError', service, `${service} left ${short} file(s) under a temporary name`, {
+            remedy: `The naming format is back to what it was, and every file is still on disk — but ${short} of them is not named as it should be, and may still carry "${RENAME_MARKER.trim()}". Run trigger_scan with action "rename" on this series to finish it.`
+        });
     }
 
-    return { renamed, caughtInWindow: await importsDuring(http, service, openedAt) };
+    return { renamed, caughtInWindow: await importsDuring(http, service, importedBefore) };
 }

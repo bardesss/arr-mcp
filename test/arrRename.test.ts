@@ -26,7 +26,14 @@ type Opts = {
     commands?: Record<string, unknown>[];
     /** The count each `RenameFiles` reports, in order. */
     counts?: (number | undefined)[];
+    /** Import history as it stands before the window opens. */
     history?: Record<string, unknown>[];
+    /** Import history rows that appear once the first rename has been sent. */
+    historyDuring?: Record<string, unknown>[];
+    /** What `/api/v3/rename` still lists at the end — files Sonarr wants named differently. */
+    pending?: Record<string, unknown>[];
+    /** Set on the naming config the moment the first rename is sent, as someone editing settings mid-window. */
+    editedMidWindow?: Record<string, unknown>;
 };
 
 function sonarr(opts: Opts = {}) {
@@ -48,6 +55,7 @@ function sonarr(opts: Opts = {}) {
             return new Response(null, { status: 202 });
         }
         if (url.pathname === '/api/v3/command' && method === 'POST') {
+            if (renames.length === 0 && opts.editedMidWindow !== undefined) Object.assign(naming, opts.editedMidWindow);
             renames.push({
                 files: (body?.files ?? []) as number[],
                 formatAtTheTime: naming.standardEpisodeFormat
@@ -65,7 +73,10 @@ function sonarr(opts: Opts = {}) {
                 ...(n === undefined ? {} : { message: `${n} selected episode files renamed for Show` })
             });
         }
-        if (url.pathname === '/api/v3/history') return jsonResponse({ records: opts.history ?? [] });
+        if (url.pathname === '/api/v3/history') {
+            return jsonResponse({ records: [...(renames.length > 0 ? (opts.historyDuring ?? []) : []), ...(opts.history ?? [])] });
+        }
+        if (url.pathname === '/api/v3/rename') return jsonResponse(opts.pending ?? []);
         return jsonResponse({ message: 'not found' }, 404);
     }) as unknown as typeof fetch;
 
@@ -155,10 +166,28 @@ describe('renameThroughTemporaryFormat', () => {
     /** Leaving a file under the temporary name is the worst outcome here, so
      *  it is reported as an error naming the marker rather than as a success. */
     it('refuses to report success when the second pass leaves a file marked', async () => {
-        const s = sonarr({ counts: [3, 1] });
+        const s = sonarr({ counts: [3, 1], pending: [{ episodeFileId: 12 }, { episodeFileId: 13 }] });
         await expect(renameThroughTemporaryFormat(s.http, 'sonarr', 5, 'standard', [11, 12, 13])).rejects.toThrow(
-            /still named with/
+            /2 file\(s\) under a temporary name/
         );
+    });
+
+    /** A build that stops sending the count reports undefined twice, which
+     *  would otherwise read as every file renamed having renamed none. */
+    it('does not take two silent commands for success when Sonarr still wants a rename', async () => {
+        const s = sonarr({ counts: [undefined, undefined], pending: [{ episodeFileId: 11 }] });
+        await expect(renameThroughTemporaryFormat(s.http, 'sonarr', 5, 'standard', [11, 12])).rejects.toThrow(
+            /1 file\(s\) under a temporary name/
+        );
+    });
+
+    /** The PUT takes the whole config, so restoring from a snapshot taken
+     *  before the window would revert anything else edited during it. */
+    it('puts back only the format it changed', async () => {
+        const s = sonarr({ editedMidWindow: { renameEpisodes: false } });
+        await renameThroughTemporaryFormat(s.http, 'sonarr', 5, 'standard', [11]);
+        expect(s.naming.renameEpisodes).toBe(false);
+        expect(s.naming.standardEpisodeFormat).toBe(FORMAT);
     });
 
     /**
@@ -168,15 +197,17 @@ describe('renameThroughTemporaryFormat', () => {
      */
     it('reports what Sonarr imported while the format was marked', async () => {
         const s = sonarr({
-            history: [
-                { date: new Date(Date.now() + 60_000).toISOString(), data: { importedPath: '/tv/Other/new.mkv' } },
-                { date: '2020-01-01T00:00:00Z', data: { importedPath: '/tv/Other/old.mkv' } }
+            history: [{ id: 7, data: { importedPath: '/tv/Other/old.mkv' } }],
+            historyDuring: [
+                { id: 8, data: { importedPath: `/tv/Other/new${RENAME_MARKER}.mkv` } },
+                // Another series type's format was live, not the one changed.
+                { id: 9, data: { importedPath: '/tv/Anime/other.mkv' } }
             ]
         });
         const out = await renameThroughTemporaryFormat(s.http, 'sonarr', 5, 'standard', [11]);
 
         expect(out.caughtInWindow).toHaveLength(1);
-        expect(out.caughtInWindow[0]).toContain('/tv/Other/new.mkv');
+        expect(out.caughtInWindow[0]).toContain('/tv/Other/new');
     });
 
     /** The renames are done by the time history is read, so failing to read it
@@ -184,7 +215,7 @@ describe('renameThroughTemporaryFormat', () => {
     it('still reports the rename when history cannot be read', async () => {
         const s = sonarr();
         const out = await renameThroughTemporaryFormat(s.http, 'sonarr', 5, 'standard', [11]);
-        expect(out.renamed).toBe(3);
+        expect(out.renamed).toBe(1);
         expect(out.caughtInWindow).toEqual([]);
     });
 });
