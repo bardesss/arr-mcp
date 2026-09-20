@@ -672,19 +672,6 @@ export class PlexAdapter
     }
 
     /**
-     * `/activities` was tried first and dropped: verified live, it carries
-     * two `provider.subscription.refresh` activities permanently, which also
-     * matched a `library|refresh` test, so `running` was true forever — see
-     * F2 in the fix report. Each `/library/sections` row's own `refreshing`
-     * flips true only for the section actually being scanned, confirmed
-     * against a real scan, and costs no extra call since `#sections()` is
-     * already fetched for every library read.
-     *
-     * `scannedAt` gives `lastCompleted` for free from the same read — the
-     * most recent one across sections, since a whole-server "last scan" is
-     * whichever section finished most recently.
-     */
-    /**
      * The first write in this adapter, and deliberately the smallest one
      * available: Plex has no scan-the-whole-server call, so a library scan is
      * one refresh per section, each of which reads the filesystem and updates
@@ -741,6 +728,19 @@ export class PlexAdapter
         };
     }
 
+    /**
+     * `/activities` was tried first and dropped: verified live, it carries
+     * two `provider.subscription.refresh` activities permanently, which also
+     * matched a `library|refresh` test, so `running` was true forever — see
+     * F2 in the fix report. Each `/library/sections` row's own `refreshing`
+     * flips true only for the section actually being scanned, confirmed
+     * against a real scan, and costs no extra call since `#sections()` is
+     * already fetched for every library read.
+     *
+     * `scannedAt` gives `lastCompleted` for free from the same read — the
+     * most recent one across sections, since a whole-server "last scan" is
+     * whichever section finished most recently.
+     */
     async getScanState(): Promise<ScanState> {
         const sections = await this.#sections();
         const running = sections.some(s => isRefreshing(s.refreshing));

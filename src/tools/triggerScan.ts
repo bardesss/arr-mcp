@@ -229,7 +229,9 @@ export function registerTriggerScan(
                 target: adapter.id,
                 summary: `Ask ${adapter.id} to rescan its library.`,
                 effects: [
-                    `Queues a library scan on ${adapter.id}.`,
+                    adapter.type === 'plex'
+                        ? 'Queues a scan of every library section on plex, music and photos included: Plex has no single-library scan here.'
+                        : `Queues a library scan on ${adapter.id}.`,
                     'Finds media added or moved on disk since the last scan.',
                     'Can take minutes on a large library, and runs in the background.'
                 ],

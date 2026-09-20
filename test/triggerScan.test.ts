@@ -277,6 +277,18 @@ describe('trigger_scan on Plex', () => {
             permissions: { plex: permissive(false) }
         });
         expect((await h.call({ service: 'plex', dry_run: true })).structuredContent.applied).toBe(false);
+        // `dry_run` reports applied:false whatever the permissions say, so the
+        // denial is pinned by an undry call throwing, and the allowed case by
+        // it handing back a confirm token.
+        await expect(h.call({ service: 'plex' })).rejects.toThrow();
+
+        const allowed = plexHarness();
+        expect((await allowed.call({ service: 'plex' })).structuredContent.confirm_token).toBeDefined();
+    });
+
+    it('says in the preview that Plex scans every section', async () => {
+        const preview = await plexHarness().call({ service: 'plex' });
+        expect(JSON.stringify(preview.structuredContent)).toMatch(/every library section/);
     });
 
     it('reports which library refused rather than a bare success', async () => {
