@@ -7,7 +7,9 @@ import { ServiceHttp } from '../core/http.ts';
 import { logger } from '../core/logger.ts';
 import {
     diagnoseConnection,
+    type CommandHandle,
     type ConnectionDiagnosis,
+    type LibraryScanCapable,
     type MediaDetailCapable,
     type MediaDetails,
     type PlaybackCapable,
@@ -145,6 +147,9 @@ type RawAccount = { id?: number; name?: string };
 type RawSection = {
     key?: string;
     type?: string;
+    /** The library's name, as the operator sees it in Plex — what a partial
+     *  scan failure names, since a section key identifies nothing to them. */
+    title?: string;
     /** Whether this section is being scanned right now. XML-derived JSON, so
      *  this comes back as a boolean, a number, or a string depending on the
      *  server — never assume just one. */
@@ -193,7 +198,8 @@ export class PlexAdapter
         UserSeasonsCapable,
         SearchCapable,
         MediaDetailCapable,
-        ScanStateCapable
+        ScanStateCapable,
+        LibraryScanCapable
 {
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
@@ -662,6 +668,63 @@ export class PlexAdapter
             ...(file?.size === undefined ? {} : { sizeBytes: file.size }),
             ...(file?.file === undefined ? {} : { path: this.#fence('file', file.file) }),
             ids: externalIds(item)
+        };
+    }
+
+    /**
+     * The first write in this adapter, and deliberately the smallest one
+     * available: Plex has no scan-the-whole-server call, so a library scan is
+     * one refresh per section, each of which reads the filesystem and updates
+     * Plex's own database. Nothing is deleted, moved or renamed, which is why
+     * this is `safe` here exactly as it is on Jellyfin.
+     *
+     * Verified live against 1.43.1.10611: a refresh answers 200 with no body
+     * and no `Content-Type` at all — hence `discardBody`, since parsing that
+     * as JSON would report a scan that did start as a failure — and carries no
+     * command id, so `commandId` is 0 for the same reason Jellyfin's is rather
+     * than inventing a number that looks pollable. The section's own
+     * `refreshing` flag flipped true within a second, which is what
+     * `getScanState` above already reads, so the follow-up needs no new call.
+     *
+     * A section that 404s is reported by name rather than thrown, because a
+     * refresh already accepted for the other sections is a scan that really is
+     * running: reporting a bare error would send someone to look for a scan
+     * they'd be told had failed. All of them failing is a plain error, since
+     * then nothing is running.
+     */
+    async startLibraryScan(): Promise<CommandHandle> {
+        const sections = await this.#sections();
+        if (sections.length === 0) {
+            throw new ServiceError('NotFound', this.id, 'Plex has no library sections to scan', {
+                remedy: 'Add a library in Plex first. A server with no sections has nothing to scan.'
+            });
+        }
+
+        const results = await Promise.allSettled(
+            sections.map(s => this.#http.getAsWrite(`/library/sections/${encodeURIComponent(s.key)}/refresh`, true))
+        );
+        const name = (s: RawSection & { key: string }): string => s.title ?? `section ${s.key}`;
+        const failed = sections.filter((_, i) => results[i]?.status === 'rejected');
+
+        if (failed.length === sections.length) {
+            throw new ServiceError(
+                'UpstreamError',
+                this.id,
+                `Plex refused to scan ${sections.length === 1 ? 'its library' : `any of its ${sections.length} libraries`}`,
+                { remedy: 'Check the libraries still exist in Plex and that the token may write to them.' }
+            );
+        }
+
+        return {
+            service: this.id,
+            commandId: 0,
+            name: 'refresh',
+            status: 'started',
+            ...(failed.length === 0
+                ? {}
+                : {
+                      detail: `${sections.length - failed.length} of ${sections.length} libraries started; Plex refused ${failed.map(name).join(', ')}.`
+                  })
         };
     }
 

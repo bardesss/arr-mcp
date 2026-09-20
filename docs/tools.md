@@ -398,7 +398,8 @@ filtered as the owner. This has not been verified against a managed-user
 token; if you run one, a config UI issue with what `/accounts` actually
 returns for it would help.
 
-`set_watched`, below, remains Jellyfin-only: the Plex adapter is read-only.
+`set_watched`, below, remains Jellyfin-only. `trigger_scan` is the only write
+the Plex adapter has.
 
 ### When no media server is configured
 
@@ -858,9 +859,10 @@ not evidence the repair failed, which is what `verified: false` says. Check
 `stack_health` for the running task, then re-run with `dry_run` to see the
 settled result.
 
-Jellyfin-only, like `set_watched` and for the same reason: the Plex adapter is
-read-only. A Plex stack can reach the detect half through the same reads and
-never the repair — see [#203](../../issues/203).
+Jellyfin-only, like `set_watched`: the Plex adapter's only write is
+`trigger_scan`, and repairing metadata is a long way past starting a scan. A
+Plex stack can reach the detect half through the same reads and never the
+repair — see [#203](../../issues/203).
 
 ## `get_profile_issues`
 
@@ -1040,6 +1042,18 @@ Three actions, one idea: make a service reconcile itself with what is on disk.
 
 Everything here queues a command and returns. `stack_health`'s `commands` list
 says whether it has finished; do not assume it has.
+
+### On Plex
+
+Plex has no scan-the-whole-server call, so a scan refreshes every library in
+turn. If one of them refuses — a library removed between the listing and the
+refresh — the rest still start and the answer names the ones that did not, so
+you know a scan is running and which shelf it missed. All of them refusing is
+an error, because then nothing is.
+
+Plex returns no command id, so there is nothing in `commands` to poll. It
+reports the scan through each library's own `refreshing` flag instead, which is
+what `stack_health` and `diagnose` already read.
 
 ### Importing a download that never landed
 
