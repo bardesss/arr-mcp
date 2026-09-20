@@ -1149,6 +1149,59 @@ describe('synthesisePlexFilePaths', () => {
         expect(serialised).not.toContain('Real Show');
     });
 
+    /**
+     * One show's episodes have to share a show directory. Keying the
+     * placeholder on the row index gave a single show an episode per
+     * directory, so a detector comparing the filename's show against the
+     * row's own `grandparentTitle` — published real — would read a mismatch
+     * per row in a fixture holding none.
+     */
+    it('puts two episodes of one show under the same show directory', () => {
+        const body = listing([
+            { ratingKey: '1', type: 'episode', grandparentRatingKey: '90', parentIndex: 1, index: 1, Media: [{ Part: [{ file: '/a.mkv' }] }] },
+            { ratingKey: '2', type: 'episode', grandparentRatingKey: '90', parentIndex: 1, index: 2, Media: [{ Part: [{ file: '/b.mkv' }] }] }
+        ]);
+        const rows = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const showDirOf = (row: Record<string, unknown>) =>
+            String(((row.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0]?.file).split('/')[3];
+
+        expect(showDirOf(rows[0]!)).toBe(showDirOf(rows[1]!));
+    });
+
+    it('still separates episodes of two different shows', () => {
+        const body = listing([
+            { ratingKey: '1', type: 'episode', grandparentRatingKey: '90', parentIndex: 1, index: 1, Media: [{ Part: [{ file: '/a.mkv' }] }] },
+            { ratingKey: '2', type: 'episode', grandparentRatingKey: '91', parentIndex: 1, index: 1, Media: [{ Part: [{ file: '/b.mkv' }] }] }
+        ]);
+        const rows = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const showDirOf = (row: Record<string, unknown>) =>
+            String(((row.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0]?.file).split('/')[3];
+
+        expect(showDirOf(rows[0]!)).not.toBe(showDirOf(rows[1]!));
+    });
+
+    /**
+     * A row carrying no `grandparentRatingKey` still needs a directory of its
+     * own, and Plex rating keys are small integers — so a keyless row falling
+     * back to its row index lands on another show's key as soon as the two
+     * numbers meet, putting two unrelated shows in one directory. That is the
+     * same self-contradiction the other way round.
+     */
+    it('does not let an episode with no grandparentRatingKey collide with a rating key of the same number', () => {
+        const body = listing([
+            { ratingKey: '1', type: 'episode', grandparentRatingKey: '1', parentIndex: 1, index: 1, Media: [{ Part: [{ file: '/a.mkv' }] }] },
+            { ratingKey: '2', type: 'episode', parentIndex: 1, index: 1, Media: [{ Part: [{ file: '/b.mkv' }] }] }
+        ]);
+        const rows = (synthesisePlexFilePaths(body) as { MediaContainer: { Metadata: Record<string, unknown>[] } })
+            .MediaContainer.Metadata;
+        const showDirOf = (row: Record<string, unknown>) =>
+            String(((row.Media as Record<string, unknown>[])[0]?.Part as Record<string, unknown>[])[0]?.file).split('/')[3];
+
+        expect(showDirOf(rows[0]!)).not.toBe(showDirOf(rows[1]!));
+    });
+
     /** The movie half must not move: three endpoints already capture through
      *  this function, and changing their output would rewrite committed
      *  fixtures for a reason unrelated to the service. */

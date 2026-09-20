@@ -713,27 +713,41 @@ const syntheticMoviePath = (item: Row, i: number): string => {
  * and a path whose numbers disagreed with the row's own `parentIndex`/`index`
  * would be a fixture contradicting itself. Everything a filename can leak —
  * the tester's directory scheme, the show, the release group — is replaced.
+ *
+ * The show placeholder is keyed on `grandparentRatingKey`, not the row index:
+ * a section's episodes are mostly one show, and a directory per row would
+ * disagree with the row's own `grandparentTitle`, which is published real.
  */
-const syntheticEpisodePath = (item: Row, i: number): string | undefined => {
+const syntheticEpisodePath = (item: Row, showIndex: number): string | undefined => {
     const season = item.parentIndex;
     const episode = item.index;
     if (item.type !== 'episode' || typeof season !== 'number' || typeof episode !== 'number') return undefined;
 
     const pad = (n: number): string => String(n).padStart(2, '0');
-    const show = syntheticDisplayValue('show', i);
+    const show = syntheticDisplayValue('show', showIndex);
     return `/library/tv/${show}/Season ${pad(season)}/${show} - S${pad(season)}E${pad(episode)}.mkv`;
 };
 
 export function synthesisePlexFilePaths(body: unknown): unknown {
     const container = (body as MetadataContainer).MediaContainer;
     if (!Array.isArray(container?.Metadata)) return body;
+    const shows = new Map<string, number>();
+    const showIndexOf = (item: Row, i: number): number => {
+        const key = typeof item.grandparentRatingKey === 'string' ? `id:${item.grandparentRatingKey}` : `row:${i}`;
+        const seen = shows.get(key);
+        if (seen !== undefined) return seen;
+        shows.set(key, shows.size);
+        return shows.size - 1;
+    };
     return {
         ...(body as Row),
         MediaContainer: {
             ...container,
             Metadata: container.Metadata.map((item, i) => {
                 if (!Array.isArray(item.Media)) return item;
-                const synthetic = syntheticEpisodePath(item, i) ?? syntheticMoviePath(item, i);
+                const synthetic =
+                    (item.type === 'episode' ? syntheticEpisodePath(item, showIndexOf(item, i)) : undefined) ??
+                    syntheticMoviePath(item, i);
                 return {
                     ...item,
                     Media: (item.Media as Row[]).map(m =>
