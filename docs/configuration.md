@@ -95,8 +95,8 @@ arr-mcp only ever talks to the server at `url`. It never contacts plex.tv, and
 the token is presented directly to that server — the same LAN-only reasoning
 every other service here follows.
 
-Read-only: there is no Plex `set_watched` and no library-scan trigger, only
-reads.
+`trigger_scan` is the one write: it refreshes every Plex library, the same
+`safe` tier as a Jellyfin scan. There is no Plex `set_watched`.
 
 `default_user` behaves differently here than on Jellyfin, and it is worth
 knowing before you set it. A local `X-Plex-Token` is scoped to one account, so

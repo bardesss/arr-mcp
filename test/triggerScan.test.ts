@@ -5,6 +5,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
+import { PlexAdapter } from '../src/services/plex.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
@@ -217,6 +218,96 @@ describe('trigger_scan', () => {
                 dry_run: true
             })
         ).rejects.toThrow(/no library/i);
+    });
+});
+
+/**
+ * The first write in the Plex adapter (issue #268). Until it landed, every
+ * repair this tool proposed on a Plex stack ended in "now go and scan it in
+ * the Plex UI" — the same gap on the media server that `trigger_scan` was
+ * written to close on Jellyfin.
+ */
+describe('trigger_scan on Plex', () => {
+    /** Plex answers a refresh with a bare 200 and no `Content-Type`, so the
+     *  routes map cannot serve it — see the adapter's own probe. */
+    const plexFetch = (refuse: string[] = []) => {
+        const refreshed: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/library/sections') {
+                return jsonResponse({
+                    MediaContainer: {
+                        Directory: [
+                            { key: '1', type: 'movie', title: 'Movies' },
+                            { key: '2', type: 'show', title: 'TV Shows' }
+                        ]
+                    }
+                });
+            }
+            const key = /^\/library\/sections\/([^/]+)\/refresh$/.exec(url.pathname)?.[1];
+            if (key === undefined) return jsonResponse({ message: 'not found' }, 404);
+            refreshed.push(key);
+            return refuse.includes(key) ? new Response('<html>404</html>', { status: 404 }) : new Response(null);
+        }) as unknown as typeof fetch;
+        return { impl, refreshed };
+    };
+
+    const plexHarness = (refuse: string[] = []) => {
+        const plex = plexFetch(refuse);
+        const h = harness({
+            adapters: [new PlexAdapter(multiUser(32400), plex.impl)],
+            permissions: { plex: permissive(true) }
+        });
+        return { ...h, refreshed: plex.refreshed };
+    };
+
+    it('previews without refreshing anything, and scans once confirmed', async () => {
+        const h = plexHarness();
+        const preview = await h.call({ service: 'plex' });
+        expect(h.refreshed).toEqual([]);
+
+        await h.call({ service: 'plex', confirm: preview.structuredContent.confirm_token });
+        expect(h.refreshed).toEqual(['1', '2']);
+    });
+
+    /** Same tier as Jellyfin's: a scan reads disk and writes Plex's database,
+     *  and nothing on the filesystem moves. */
+    it('needs safe_write, and nothing more', async () => {
+        const h = harness({
+            adapters: [new PlexAdapter(multiUser(32400), plexFetch().impl)],
+            permissions: { plex: permissive(false) }
+        });
+        expect((await h.call({ service: 'plex', dry_run: true })).structuredContent.applied).toBe(false);
+        // `dry_run` reports applied:false whatever the permissions say, so the
+        // denial is pinned by an undry call throwing, and the allowed case by
+        // it handing back a confirm token.
+        await expect(h.call({ service: 'plex' })).rejects.toThrow();
+
+        const allowed = plexHarness();
+        expect((await allowed.call({ service: 'plex' })).structuredContent.confirm_token).toBeDefined();
+    });
+
+    it('says in the preview that Plex scans every section', async () => {
+        const preview = await plexHarness().call({ service: 'plex' });
+        expect(JSON.stringify(preview.structuredContent)).toMatch(/every library section/);
+    });
+
+    it('reports which library refused rather than a bare success', async () => {
+        const h = plexHarness(['2']);
+        const preview = await h.call({ service: 'plex' });
+        const done = await h.call({ service: 'plex', confirm: preview.structuredContent.confirm_token });
+
+        expect(done.structuredContent.applied).toBe(true);
+        expect(String(done.structuredContent.result)).toContain('Plex refused TV Shows');
+    });
+
+    /** Plex hands back no command id, so the message must not offer one to
+     *  poll — the scan is followed through each section's `refreshing` flag. */
+    it('offers no command id to follow up on', async () => {
+        const h = plexHarness();
+        const preview = await h.call({ service: 'plex' });
+        const done = await h.call({ service: 'plex', confirm: preview.structuredContent.confirm_token });
+        expect(String(done.structuredContent.result)).not.toMatch(/command id/i);
     });
 });
 

@@ -618,7 +618,20 @@ export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapabl
  * reports "asked Radarr to search" rather than "found a release" — claiming the
  * latter would be a confident lie about work that has not happened yet.
  */
-export type CommandHandle = { service: string; commandId: number; name: string; status?: string };
+/**
+ * `detail` is for the write that is not one command but several, where some
+ * of them failed: Plex scans a library by refreshing each section, and six
+ * sections with one 404 is neither a success nor an error. The caller states
+ * it rather than reporting whichever half it picked. Left unset by every
+ * service whose command really is one command.
+ */
+export type CommandHandle = {
+    service: string;
+    commandId: number;
+    name: string;
+    status?: string;
+    detail?: string;
+};
 
 /**
  * `season` and `episodeIds` are mutually exclusive — the tool refuses both
@@ -672,8 +685,10 @@ export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & Searc
  *
  * The two go together deliberately: `diagnose` names a stale scan as the usual
  * reason something downloaded is still not playable, and until 1.0 nothing
- * could act on that — its best answer ended "now go and do it yourself". The
- * services that can be asked are exactly the three that can be read.
+ * could act on that — its best answer ended "now go and do it yourself". Every
+ * service whose scan state can be read can now also be asked to start one,
+ * Plex included; Prowlarr is the odd one out, syncing indexers rather than
+ * reading a library.
  */
 export interface LibraryScanCapable {
     /** Queues a rescan and returns; it does not wait for the scan to finish. */
