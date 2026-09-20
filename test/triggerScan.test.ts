@@ -511,7 +511,7 @@ describe('trigger_scan remapping episodes', () => {
      * the reassignment landed, so a stub replaying the old association would
      * fail that check rather than exercise the tool (#264).
      */
-    const remapHarness = (over: { renames?: unknown[] } = {}) => {
+    const remapHarness = (over: { renames?: unknown[]; history?: unknown[]; commands?: unknown[] } = {}) => {
         const FILES = [1, 2].map(n => ({
             path: `/tv/Show/Season 01/Show - S01E0${n}.mkv`,
             relativePath: `Season 01/Show - S01E0${n}.mkv`,
@@ -525,6 +525,7 @@ describe('trigger_scan remapping episodes', () => {
         ];
 
         const sent: { url: string; method: string; body?: Record<string, unknown> }[] = [];
+        let lastRenameCount = 0;
         const impl = (async (input: string | URL | Request, init?: RequestInit) => {
             const url = new URL(input instanceof Request ? input.url : String(input));
             const method = init?.method ?? 'GET';
@@ -534,8 +535,17 @@ describe('trigger_scan remapping episodes', () => {
             if (url.pathname === '/api/v3/manualimport') return jsonResponse(FILES);
             if (url.pathname === '/api/v3/episode') return jsonResponse(episodes);
             if (url.pathname === '/api/v3/rename') return jsonResponse(over.renames ?? []);
+            if (url.pathname === '/api/v3/series/5') return jsonResponse({ id: 5, seriesType: 'standard' });
+            if (url.pathname === '/api/v3/history') return jsonResponse({ records: over.history ?? [] });
+            if (url.pathname === '/api/v3/config/naming') {
+                if (method === 'PUT') return new Response(null, { status: 202 });
+                return jsonResponse({ id: 1, standardEpisodeFormat: '{Series Title} - S{season:00}E{episode:00}' });
+            }
+            // The two-pass rename refuses to start behind a busy queue.
+            if (url.pathname === '/api/v3/command' && method === 'GET') return jsonResponse(over.commands ?? []);
             if (url.pathname === '/api/v3/command' && method === 'POST') {
                 const name = String(body?.name ?? '');
+                if (name === 'RenameFiles') lastRenameCount = ((body?.files ?? []) as number[]).length;
                 if (name === 'ManualImport') {
                     for (const f of (body?.files ?? []) as { path?: string; episodeIds?: number[] }[]) {
                         const fileId = FILES.find(x => x.path === f.path)?.episodeFileId;
@@ -550,11 +560,14 @@ describe('trigger_scan remapping episodes', () => {
             // The remap waits for its own command before it can rename, since
             // the rename needs the ids that command assigns.
             if (url.pathname === '/api/v3/command/6') {
+                // Sonarr reports the count, and the count is what the remap
+                // reads — a stub with a fixed one would pass a rename that
+                // silently did less than it was asked.
                 return jsonResponse({
                     id: 6,
                     status: 'completed',
                     result: 'successful',
-                    message: '1 selected episode files renamed for Show'
+                    message: `${lastRenameCount} selected episode files renamed for Show`
                 });
             }
             return jsonResponse({ message: 'not found' }, 404);
@@ -613,24 +626,50 @@ describe('trigger_scan remapping episodes', () => {
         expect(String(done.structuredContent.result)).not.toMatch(/stack_health/);
     });
 
-    /** The rotation case: the reassignment lands, the filenames cannot. The
-     *  answer has to be both halves, not one of them. */
-    it('says the reassignment applied and names the files still holding the old name', async () => {
+    const ROTATED = [
+        { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E02.mkv' },
+        { episodeFileId: 12, existingPath: 'Season 01/Show - S01E02.mkv', newPath: 'Season 01/Show - S01E01.mkv' }
+    ];
+
+    /** The rotation case: both halves land, through the two passes. */
+    it('renames a rotation and says so', async () => {
+        const h = remapHarness({ renames: ROTATED });
+        const first = await h.call(SWAP);
+        const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
+
+        expect(done.structuredContent.applied).toBe(true);
+        expect(String(done.structuredContent.result)).toContain('reassigned');
+        expect(h.sonarr.sent.filter(x => x.url === '/api/v3/config/naming' && x.method === 'PUT')).toHaveLength(2);
+    });
+
+    /**
+     * The one cost of the format window that cannot be prevented: Sonarr's own
+     * per-minute import can land inside it and be named by the temporary
+     * format. Silent, unless the answer says so.
+     */
+    it('names anything imported while the temporary format was live', async () => {
         const h = remapHarness({
-            renames: [
-                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E02.mkv' },
-                { episodeFileId: 12, existingPath: 'Season 01/Show - S01E02.mkv', newPath: 'Season 01/Show - S01E01.mkv' }
-            ]
+            renames: ROTATED,
+            history: [{ date: new Date(Date.now() + 60_000).toISOString(), data: { importedPath: '/tv/Other/new.mkv' } }]
         });
         const first = await h.call(SWAP);
         const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
 
-        const text = String(done.structuredContent.result);
-        expect(done.structuredContent.applied).toBe(true);
-        expect(text).toContain('reassigned');
-        expect(text).toContain('renamed 0');
-        expect(text).toMatch(/S01E01\.mkv.*wants.*S01E02\.mkv/);
-        expect(text).toMatch(/naming format/);
+        expect(String(done.structuredContent.result)).toContain('/tv/Other/new.mkv');
+        expect(String(done.structuredContent.result)).toMatch(/temporary naming format/);
+    });
+
+    /** Behind a long command the window is not seconds but minutes, so it is
+     *  refused rather than opened — after the reassignment, which is why the
+     *  refusal has to say that the reassignment is already correct. */
+    it('refuses the format change when Sonarr is busy, and says the remap still applied', async () => {
+        const h = remapHarness({ renames: ROTATED, commands: [{ id: 1, name: 'RefreshSeries', status: 'started' }] });
+        const first = await h.call(SWAP);
+
+        await expect(h.call({ ...SWAP, confirm: first.structuredContent.confirm_token })).rejects.toThrow(
+            /already applied and correct/
+        );
+        expect(h.sonarr.sent.filter(x => x.url === '/api/v3/config/naming' && x.method === 'PUT')).toHaveLength(0);
     });
 
     /** A rotation is knowable before anything is sent, so the preview says so
@@ -638,7 +677,11 @@ describe('trigger_scan remapping episodes', () => {
     it('warns in the preview that a rotation cannot rename in one pass', async () => {
         const h = remapHarness();
         const { structuredContent } = await h.call({ ...SWAP, dry_run: true });
-        expect(structuredContent.effects.join('\n')).toMatch(/free destination/);
+        const effects = structuredContent.effects.join('\n');
+        expect(effects).toMatch(/free destination/);
+        // The token confirms what the preview described, so the preview is
+        // where a server-wide setting change has to be named.
+        expect(effects).toMatch(/naming format for this series type, server-wide/);
     });
 
     it('is a no-op when every file is already where it was asked to go', async () => {

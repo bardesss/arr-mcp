@@ -88,7 +88,10 @@ back. Its `import` action only ever imports what the service is already willing
 to take — a file the service rejects is excluded and named, never forced. Its
 `remap` action changes which episode Sonarr says a file is, and renames that
 file to match; a second remap puts both back. Nothing moves between folders and
-nothing is deleted.
+nothing is deleted. Renaming a rotated season additionally changes Sonarr's
+episode naming format for the length of two commands and puts it back — the
+preview says so, and [tools.md](tools.md#putting-a-mislabeled-file-on-the-right-episode)
+describes what bounds it.
 
 `grab_release` with a `magnet` is safe because `remove_queue_item` undoes it,
 but it is the one write where the thing being downloaded was chosen by the
