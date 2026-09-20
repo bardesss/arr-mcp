@@ -38,6 +38,13 @@ export type PermissionVerdict =
 export type PermissionSource = {
     /** Keyed by instance id — `radarr` or `radarr/4k`, never the bare type. */
     get(instance: string): AnyServiceConfig | undefined;
+    /**
+     * An upper bound on what the *credential* may do, narrowing what the file
+     * permits and never widening it. Absent means no ceiling, which is every
+     * caller that does not present an OAuth token — including the static
+     * bearer token, which carries the operator's own authority.
+     */
+    permits?(tier: WriteTier): boolean;
 };
 
 /**
@@ -81,6 +88,18 @@ function permissionPath(instance: string, tier: WriteTier): string {
 }
 
 export function checkPermission(source: PermissionSource, service: string, tier: WriteTier): PermissionVerdict {
+    // The ceiling first, and with its own message: "set safe_write: true"
+    // would be actively misleading when the file already says so and it is
+    // the token that falls short.
+    if (source.permits?.(tier) === false) {
+        return {
+            allowed: false,
+            tier,
+            reason: `the access token does not carry the ${tier} scope`,
+            remedy: `This credential is scoped below what config.yaml permits. Ask whoever issued it for the ${tier} scope, or use the static bearer token.`
+        };
+    }
+
     const config = source.get(service);
 
     if (config === undefined) {
