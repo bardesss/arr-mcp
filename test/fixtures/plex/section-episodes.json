@@ -1,0 +1,666 @@
+{
+  "MediaContainer": {
+    "size": 5,
+    "totalSize": 32446,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/show-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1775731696,
+    "nocache": true,
+    "thumb": "/:/resources/show.png",
+    "title1": "TV Shows",
+    "title2": "All Shows",
+    "viewGroup": "show",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "129856",
+        "key": "/library/metadata/129856",
+        "parentRatingKey": "129855",
+        "grandparentRatingKey": "129854",
+        "guid": "plex://episode/66de5d0c528556536083a712",
+        "parentGuid": "plex://season/66de5d0b528556536083a6fc",
+        "grandparentGuid": "plex://show/66de5d0b528556536083a6ec",
+        "grandparentSlug": "the-burbs-1",
+        "type": "episode",
+        "title": "The Goddamn Brownies",
+        "titleSort": "Goddamn Brownies",
+        "grandparentKey": "/library/metadata/129854",
+        "parentKey": "/library/metadata/129855",
+        "grandparentTitle": "The 'Burbs",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-MA",
+        "summary": "Samira and Rob's suburban life is upended when a mysterious new neighbor moves into the Victorian.",
+        "index": 1,
+        "parentIndex": 1,
+        "rating": 6.6,
+        "audienceRating": 4.2,
+        "year": 2026,
+        "thumb": "/library/metadata/129856/thumb/1787668274",
+        "art": "/library/metadata/129854/art/1788618277",
+        "parentThumb": "/library/metadata/129855/thumb/1779805527",
+        "grandparentThumb": "/library/metadata/129854/thumb/1788618277",
+        "grandparentArt": "/library/metadata/129854/art/1788618277",
+        "duration": 2501600,
+        "originallyAvailableAt": "2026-02-08",
+        "addedAt": 1770545806,
+        "updatedAt": 1787668274,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 277587,
+            "duration": 2501600,
+            "bitrate": 4676,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": true,
+            "Part": [
+              {
+                "id": 287054,
+                "key": "/library/parts/287054/1367972661/file.mkv",
+                "duration": 2501600,
+                "file": "/library/tv/Fixture show 1/Season 01/Fixture show 1 - S01E01.mkv",
+                "size": 1462111938,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "The Goddamn Brownies",
+            "type": "coverPoster",
+            "url": "/library/metadata/129854/thumb/1788618277"
+          },
+          {
+            "alt": "The Goddamn Brownies",
+            "type": "snapshot",
+            "url": "/library/metadata/129856/thumb/1787668274"
+          },
+          {
+            "alt": "The Goddamn Brownies",
+            "type": "background",
+            "url": "/library/metadata/129854/art/1788618277"
+          },
+          {
+            "alt": "The Goddamn Brownies",
+            "type": "clearLogo",
+            "url": "/library/metadata/129854/clearLogo/1788618277"
+          },
+          {
+            "alt": "The Goddamn Brownies",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/129854/squareArt/1788618277"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "44250d",
+          "topRight": "2a1704",
+          "bottomRight": "0b1403",
+          "bottomLeft": "8f1f13"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt35670500"
+          },
+          {
+            "id": "tmdb://5580253"
+          },
+          {
+            "id": "tvdb://10678775"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Nzingha Stewart"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Celeste Hughey"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Keke Palmer"
+          },
+          {
+            "tag": "Jack Whitehall"
+          },
+          {
+            "tag": "Julia Duffy"
+          }
+        ]
+      },
+      {
+        "ratingKey": "129858",
+        "key": "/library/metadata/129858",
+        "parentRatingKey": "129855",
+        "grandparentRatingKey": "129854",
+        "guid": "plex://episode/6939edc12bf03ca56e101447",
+        "parentGuid": "plex://season/66de5d0b528556536083a6fc",
+        "grandparentGuid": "plex://show/66de5d0b528556536083a6ec",
+        "grandparentSlug": "the-burbs-1",
+        "type": "episode",
+        "title": "Mind Your Own Business",
+        "grandparentKey": "/library/metadata/129854",
+        "parentKey": "/library/metadata/129855",
+        "grandparentTitle": "The 'Burbs",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-MA",
+        "summary": "Samira becomes convinced that her new neighbor is up to no good and possibly involved in a crime.",
+        "index": 2,
+        "parentIndex": 1,
+        "rating": 6.5,
+        "audienceRating": 2.4,
+        "year": 2026,
+        "thumb": "/library/metadata/129858/thumb/1787668274",
+        "art": "/library/metadata/129854/art/1788618277",
+        "parentThumb": "/library/metadata/129855/thumb/1779805527",
+        "grandparentThumb": "/library/metadata/129854/thumb/1788618277",
+        "grandparentArt": "/library/metadata/129854/art/1788618277",
+        "duration": 2435232,
+        "originallyAvailableAt": "2026-02-08",
+        "addedAt": 1770545896,
+        "updatedAt": 1787668274,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 277591,
+            "duration": 2435232,
+            "bitrate": 4566,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": true,
+            "Part": [
+              {
+                "id": 287058,
+                "key": "/library/parts/287058/1770545829/file.mkv",
+                "duration": 2435232,
+                "file": "/library/tv/Fixture show 1/Season 01/Fixture show 1 - S01E02.mkv",
+                "size": 1389892558,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Mind Your Own Business",
+            "type": "coverPoster",
+            "url": "/library/metadata/129854/thumb/1788618277"
+          },
+          {
+            "alt": "Mind Your Own Business",
+            "type": "snapshot",
+            "url": "/library/metadata/129858/thumb/1787668274"
+          },
+          {
+            "alt": "Mind Your Own Business",
+            "type": "background",
+            "url": "/library/metadata/129854/art/1788618277"
+          },
+          {
+            "alt": "Mind Your Own Business",
+            "type": "clearLogo",
+            "url": "/library/metadata/129854/clearLogo/1788618277"
+          },
+          {
+            "alt": "Mind Your Own Business",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/129854/squareArt/1788618277"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "4d1c11",
+          "topRight": "8f4437",
+          "bottomRight": "392e2b",
+          "bottomLeft": "791310"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt37499264"
+          },
+          {
+            "id": "tmdb://6739639"
+          },
+          {
+            "id": "tvdb://11218443"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Jeffrey W. Byrd"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Zora Bikangaga"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Keke Palmer"
+          },
+          {
+            "tag": "Jack Whitehall"
+          },
+          {
+            "tag": "Julia Duffy"
+          }
+        ]
+      },
+      {
+        "ratingKey": "129859",
+        "key": "/library/metadata/129859",
+        "parentRatingKey": "129855",
+        "grandparentRatingKey": "129854",
+        "guid": "plex://episode/6939edc12bf03ca56e101440",
+        "parentGuid": "plex://season/66de5d0b528556536083a6fc",
+        "grandparentGuid": "plex://show/66de5d0b528556536083a6ec",
+        "grandparentSlug": "the-burbs-1",
+        "type": "episode",
+        "title": "Sardine?",
+        "grandparentKey": "/library/metadata/129854",
+        "parentKey": "/library/metadata/129855",
+        "grandparentTitle": "The 'Burbs",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-MA",
+        "summary": "When a neighbor's dog goes missing, Samira and her new friends break into the Victorian to find it.",
+        "index": 3,
+        "parentIndex": 1,
+        "rating": 6.8,
+        "audienceRating": 2.6,
+        "year": 2026,
+        "thumb": "/library/metadata/129859/thumb/1787668274",
+        "art": "/library/metadata/129854/art/1788618277",
+        "parentThumb": "/library/metadata/129855/thumb/1779805527",
+        "grandparentThumb": "/library/metadata/129854/thumb/1788618277",
+        "grandparentArt": "/library/metadata/129854/art/1788618277",
+        "duration": 2943008,
+        "originallyAvailableAt": "2026-02-08",
+        "addedAt": 1770545896,
+        "updatedAt": 1787668274,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 277592,
+            "duration": 2943008,
+            "bitrate": 5131,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": true,
+            "Part": [
+              {
+                "id": 287059,
+                "key": "/library/parts/287059/1053642045/file.mkv",
+                "duration": 2943008,
+                "file": "/library/tv/Fixture show 1/Season 01/Fixture show 1 - S01E03.mkv",
+                "size": 1887487321,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Sardine?",
+            "type": "coverPoster",
+            "url": "/library/metadata/129854/thumb/1788618277"
+          },
+          {
+            "alt": "Sardine?",
+            "type": "snapshot",
+            "url": "/library/metadata/129859/thumb/1787668274"
+          },
+          {
+            "alt": "Sardine?",
+            "type": "background",
+            "url": "/library/metadata/129854/art/1788618277"
+          },
+          {
+            "alt": "Sardine?",
+            "type": "clearLogo",
+            "url": "/library/metadata/129854/clearLogo/1788618277"
+          },
+          {
+            "alt": "Sardine?",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/129854/squareArt/1788618277"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "31140b",
+          "topRight": "482313",
+          "bottomRight": "764926",
+          "bottomLeft": "442312"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt37499266"
+          },
+          {
+            "id": "tmdb://6739640"
+          },
+          {
+            "id": "tvdb://11218444"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Rachel Goldberg"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Madie Dhaliwal"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Keke Palmer"
+          },
+          {
+            "tag": "Jack Whitehall"
+          },
+          {
+            "tag": "Julia Duffy"
+          }
+        ]
+      },
+      {
+        "ratingKey": "129860",
+        "key": "/library/metadata/129860",
+        "parentRatingKey": "129855",
+        "grandparentRatingKey": "129854",
+        "guid": "plex://episode/6939edc02bf03ca56e101439",
+        "parentGuid": "plex://season/66de5d0b528556536083a6fc",
+        "grandparentGuid": "plex://show/66de5d0b528556536083a6ec",
+        "grandparentSlug": "the-burbs-1",
+        "type": "episode",
+        "title": "A Nine on the Tension Scale",
+        "titleSort": "Nine on the Tension Scale",
+        "grandparentKey": "/library/metadata/129854",
+        "parentKey": "/library/metadata/129855",
+        "grandparentTitle": "The 'Burbs",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-MA",
+        "summary": "A neighborhood block party brings secrets to light; Samira suspects that Rob is hiding something.",
+        "index": 4,
+        "parentIndex": 1,
+        "rating": 7.1,
+        "audienceRating": 2.5,
+        "year": 2026,
+        "thumb": "/library/metadata/129860/thumb/1787668274",
+        "art": "/library/metadata/129854/art/1788618277",
+        "parentThumb": "/library/metadata/129855/thumb/1779805527",
+        "grandparentThumb": "/library/metadata/129854/thumb/1788618277",
+        "grandparentArt": "/library/metadata/129854/art/1788618277",
+        "duration": 2470208,
+        "originallyAvailableAt": "2026-02-08",
+        "addedAt": 1770545896,
+        "updatedAt": 1787668274,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 277593,
+            "duration": 2470208,
+            "bitrate": 4687,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": true,
+            "Part": [
+              {
+                "id": 287060,
+                "key": "/library/parts/287060/1367202714/file.mkv",
+                "duration": 2470208,
+                "file": "/library/tv/Fixture show 1/Season 01/Fixture show 1 - S01E04.mkv",
+                "size": 1447170318,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "A Nine on the Tension Scale",
+            "type": "coverPoster",
+            "url": "/library/metadata/129854/thumb/1788618277"
+          },
+          {
+            "alt": "A Nine on the Tension Scale",
+            "type": "snapshot",
+            "url": "/library/metadata/129860/thumb/1787668274"
+          },
+          {
+            "alt": "A Nine on the Tension Scale",
+            "type": "background",
+            "url": "/library/metadata/129854/art/1788618277"
+          },
+          {
+            "alt": "A Nine on the Tension Scale",
+            "type": "clearLogo",
+            "url": "/library/metadata/129854/clearLogo/1788618277"
+          },
+          {
+            "alt": "A Nine on the Tension Scale",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/129854/squareArt/1788618277"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "05343b",
+          "topRight": "2c657d",
+          "bottomRight": "a0331c",
+          "bottomLeft": "665f26"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt37499268"
+          },
+          {
+            "id": "tmdb://6739641"
+          },
+          {
+            "id": "tvdb://11218445"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Thembi Banks"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Rachel Shukert"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Keke Palmer"
+          },
+          {
+            "tag": "Jack Whitehall"
+          },
+          {
+            "tag": "Julia Duffy"
+          }
+        ]
+      },
+      {
+        "ratingKey": "129861",
+        "key": "/library/metadata/129861",
+        "parentRatingKey": "129855",
+        "grandparentRatingKey": "129854",
+        "guid": "plex://episode/6939edc02bf03ca56e101432",
+        "parentGuid": "plex://season/66de5d0b528556536083a6fc",
+        "grandparentGuid": "plex://show/66de5d0b528556536083a6ec",
+        "grandparentSlug": "the-burbs-1",
+        "type": "episode",
+        "title": "The Old Face-to-Face",
+        "titleSort": "Old Face-to-Face",
+        "grandparentKey": "/library/metadata/129854",
+        "parentKey": "/library/metadata/129855",
+        "grandparentTitle": "The 'Burbs",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-MA",
+        "summary": "As glimpses of Rob and Naveen's past surface, Samira makes a discovery that changes everything.",
+        "index": 5,
+        "parentIndex": 1,
+        "rating": 7,
+        "audienceRating": 2.8,
+        "year": 2026,
+        "thumb": "/library/metadata/129861/thumb/1787668274",
+        "art": "/library/metadata/129854/art/1788618277",
+        "parentThumb": "/library/metadata/129855/thumb/1779805527",
+        "grandparentThumb": "/library/metadata/129854/thumb/1788618277",
+        "grandparentArt": "/library/metadata/129854/art/1788618277",
+        "duration": 2346272,
+        "originallyAvailableAt": "2026-02-08",
+        "addedAt": 1770545896,
+        "updatedAt": 1787668274,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 277594,
+            "duration": 2346272,
+            "bitrate": 5746,
+            "width": 1920,
+            "height": 1080,
+            "aspectRatio": 1.78,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "h264",
+            "videoResolution": "1080",
+            "container": "mkv",
+            "videoFrameRate": "24p",
+            "videoProfile": "high",
+            "hasVoiceActivity": true,
+            "Part": [
+              {
+                "id": 287061,
+                "key": "/library/parts/287061/1255496399/file.mkv",
+                "duration": 2346272,
+                "file": "/library/tv/Fixture show 1/Season 01/Fixture show 1 - S01E05.mkv",
+                "size": 1685349119,
+                "container": "mkv",
+                "indexes": "sd",
+                "videoProfile": "high"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "The Old Face-to-Face",
+            "type": "coverPoster",
+            "url": "/library/metadata/129854/thumb/1788618277"
+          },
+          {
+            "alt": "The Old Face-to-Face",
+            "type": "snapshot",
+            "url": "/library/metadata/129861/thumb/1787668274"
+          },
+          {
+            "alt": "The Old Face-to-Face",
+            "type": "background",
+            "url": "/library/metadata/129854/art/1788618277"
+          },
+          {
+            "alt": "The Old Face-to-Face",
+            "type": "clearLogo",
+            "url": "/library/metadata/129854/clearLogo/1788618277"
+          },
+          {
+            "alt": "The Old Face-to-Face",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/129854/squareArt/1788618277"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "152e4d",
+          "topRight": "151c20",
+          "bottomRight": "030310",
+          "bottomLeft": "183053"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt37499269"
+          },
+          {
+            "id": "tmdb://6739642"
+          },
+          {
+            "id": "tvdb://11218446"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Natalia Leite"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Amy Aniobi"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Keke Palmer"
+          },
+          {
+            "tag": "Jack Whitehall"
+          },
+          {
+            "tag": "Julia Duffy"
+          }
+        ]
+      }
+    ]
+  }
+}

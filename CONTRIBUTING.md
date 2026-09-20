@@ -293,7 +293,8 @@ around them.
    genuinely different, as Transmission's session handshake and qBittorrent's
    cookie login do.
 3. **Add its endpoints** to `ENDPOINTS` in `scripts/capture-fixtures.ts` and run
-   `npm run capture` against a live instance. Review the diff.
+   `npm run capture -- <your-service>` against a live instance. Name the service:
+   the bare command rewrites every fixture your config can reach. Review the diff.
 4. **Write the adapter** in `src/services/<id>.ts`, implementing `ServiceAdapter`
    plus whichever capability interfaces the service actually supports.
    `src/services/sonarr.ts` is the simplest example; `src/services/transmission.ts`
@@ -506,9 +507,26 @@ neither CI nor a contributor needs one. Maintainers refresh them with:
 
 ```bash
 npm run capture            # reads ./config/config.yaml, never prints credentials
+npm run capture -- plex    # only that service, leaving every other fixture alone
 ```
 
 Set `ARR_MCP_CAPTURE_CONFIG` to read credentials from outside the repo.
+
+**Name the service unless you mean to refresh all of them.** The bare command
+captures every service your config holds, which is right for a maintainer
+refresh and wrong for anyone capturing one service as a favour: it produces a
+diff rewriting fixtures for services nobody asked about, carrying your data,
+and leaves you to work out which files to discard. An unknown name is refused
+rather than silently capturing nothing, because the script writes no file for a
+service it never matched and a quiet empty run looks exactly like a server that
+answered nothing.
+
+**Naming it does not narrow it to one endpoint.** `-- plex` still rewrites every
+Plex fixture, so capturing one new endpoint also replaces the nine already there
+with your own server's data, and the adapter tests fail on the drift. That is the
+discard the filter cannot do for you: keep the file you were asked for and
+`git checkout` the rest. Issue #272 is what it looks like in practice, ten
+captured and nine discarded.
 
 The script scrubs two different things, and the distinction matters:
 
