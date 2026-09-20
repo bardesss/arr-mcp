@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.30.0](https://github.com/bardesss/arr-mcp/compare/v1.29.0...v1.30.0) (2026-09-20)
+
+
+### Features
+
+* verify OAuth access tokens, scope as a ceiling over config ([#263](https://github.com/bardesss/arr-mcp/issues/263)) ([22365f0](https://github.com/bardesss/arr-mcp/commit/22365f03b93a4916cc9df4217320026d8d4dcc50))
+
 ## [1.29.0](https://github.com/bardesss/arr-mcp/compare/v1.28.0...v1.29.0) (2026-09-19)
 
 
