@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.31.0](https://github.com/bardesss/arr-mcp/compare/v1.30.0...v1.31.0) (2026-09-20)
+
+
+### Features
+
+* reassign a mislabeled Sonarr file, and rename what moved ([#275](https://github.com/bardesss/arr-mcp/issues/275)) ([9f8515a](https://github.com/bardesss/arr-mcp/commit/9f8515a7afcb0fa5c3b640a2f9d1014112111e3f))
+* record which credential made each write ([#274](https://github.com/bardesss/arr-mcp/issues/274)) ([7db7a8d](https://github.com/bardesss/arr-mcp/commit/7db7a8d5aa02ad0e648223ab0272c824f81b0620))
+* rename a rotated season through a temporary naming format ([#276](https://github.com/bardesss/arr-mcp/issues/276)) ([0ab2600](https://github.com/bardesss/arr-mcp/commit/0ab2600a06d188cbf00afccf9f4bb08727ce8389))
+* scan a Plex library from trigger_scan ([#273](https://github.com/bardesss/arr-mcp/issues/273)) ([6a51f5e](https://github.com/bardesss/arr-mcp/commit/6a51f5eb46c96839873c898c6bcfff1567f61736))
+
 ## [1.30.0](https://github.com/bardesss/arr-mcp/compare/v1.29.0...v1.30.0) (2026-09-20)
 
 
