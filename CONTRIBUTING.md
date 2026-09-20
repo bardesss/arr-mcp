@@ -521,6 +521,13 @@ rather than silently capturing nothing, because the script writes no file for a
 service it never matched and a quiet empty run looks exactly like a server that
 answered nothing.
 
+**Naming it does not narrow it to one endpoint.** `-- plex` still rewrites every
+Plex fixture, so capturing one new endpoint also replaces the nine already there
+with your own server's data, and the adapter tests fail on the drift. That is the
+discard the filter cannot do for you: keep the file you were asked for and
+`git checkout` the rest. Issue #272 is what it looks like in practice, ten
+captured and nine discarded.
+
 The script scrubs two different things, and the distinction matters:
 
 - **Credentials** — every configured API key and password, plus any
