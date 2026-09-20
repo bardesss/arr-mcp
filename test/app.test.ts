@@ -2,7 +2,7 @@ import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
-import { WriteAudit } from '../src/core/audit.ts';
+import { BEARER_CALLER, WriteAudit } from '../src/core/audit.ts';
 import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
@@ -1748,6 +1748,44 @@ describe('OAuth tokens at /mcp', () => {
             redirect: 'manual'
         });
         expect(res.status).toBe(302);
+    });
+
+    /**
+     * The audit's answer to "which of the two tokens deleted it" (#269).
+     * `cappedTools` is the one per-request place holding `authInfo`, so the
+     * caller rides the same branch the ceiling does — and this pins that
+     * wiring, because a break in it is silent: every row would read `bearer`
+     * and still look like a complete trail.
+     */
+    it('records the token\'s client id against the write it made', async () => {
+        const trail = audit();
+        const app = buildApp({
+            runtime: Runtime.fromConfig(permissiveRadarr(), trail, { adapters: [deletableRadarr()], oauthKeys }),
+            audit: trail,
+            logs: LogStore.ephemeral()
+        });
+
+        const res = await app.request(
+            'http://localhost:6060/mcp',
+            rpc(deleteMovieCall, { Authorization: `Bearer ${await signed('arr-mcp:destructive')}` })
+        );
+        expect(res.status).toBe(200);
+
+        // No client_id claim on this token, so the verifier falls back to
+        // `sub` — the row records what it resolved, not an empty cell.
+        expect(trail.recent()[0]?.caller).toBe('oauth:client-1');
+    });
+
+    it('records the static bearer token as bearer, not as a blank cell', async () => {
+        const trail = audit();
+        const app = buildApp({
+            runtime: Runtime.fromConfig(permissiveRadarr(), trail, { adapters: [deletableRadarr()], oauthKeys }),
+            audit: trail,
+            logs: LogStore.ephemeral()
+        });
+
+        await app.request('http://localhost:6060/mcp', rpc(deleteMovieCall, { Authorization: `Bearer ${TOKEN}` }));
+        expect(trail.recent()[0]?.caller).toBe(BEARER_CALLER);
     });
 
     // `logger` only ever forwards to the store `attachLogStore` last set, and
