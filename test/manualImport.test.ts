@@ -339,6 +339,38 @@ const ROTATION = [
 ];
 
 describe('remapping episodes', () => {
+    /** Reported on #275: `rotation` drives what the preview promises, so it has
+     *  to describe the moves that will be sent, and only a true cycle is a
+     *  deadlock. */
+    describe('predicting which renames can go through', () => {
+        const plan = async (reassignments: { path: string; season: number; episode: number }[]) => {
+            const { rotation, chain, moves } = await seriesStack().sonarr.planEpisodeRemap('5', reassignments);
+            return { rotation, chain, moves: moves.length };
+        };
+
+        it('is not a rotation when the only held target belongs to a file already in place', async () => {
+            expect(
+                await plan([
+                    { path: 'Season 01/Show - S01E01.mkv', season: 1, episode: 1 },
+                    { path: 'Season 01/Show - S01E03.mkv', season: 1, episode: 4 }
+                ])
+            ).toEqual({ rotation: false, chain: false, moves: 1 });
+        });
+
+        it('calls a chain a chain: the tail renames and another pass finishes the head', async () => {
+            expect(
+                await plan([
+                    { path: 'Season 01/Show - S01E01.mkv', season: 1, episode: 2 },
+                    { path: 'Season 01/Show - S01E02.mkv', season: 1, episode: 4 }
+                ])
+            ).toEqual({ rotation: false, chain: true, moves: 2 });
+        });
+
+        it('calls a true cycle a rotation', async () => {
+            expect(await plan(ROTATION)).toEqual({ rotation: true, chain: false, moves: 3 });
+        });
+    });
+
     it('applies the whole rotation as one command, with the episodes the caller gave', async () => {
         const s = seriesStack();
         await s.sonarr.runEpisodeRemap('5', ROTATION);

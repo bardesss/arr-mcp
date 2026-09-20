@@ -170,7 +170,7 @@ export function registerTriggerScan(
                 }
 
                 const adapter = findRemapAdapter(adapters, service, instance);
-                const { moves, emptied, rotation } = await adapter.planEpisodeRemap(id, reassignments);
+                const { moves, emptied, rotation, chain } = await adapter.planEpisodeRemap(id, reassignments);
                 const target = `${adapter.id}:${id}`;
 
                 if (moves.length === 0) {
@@ -192,8 +192,10 @@ export function registerTriggerScan(
                         // sends RenameSeries, which would also rename files in
                         // seasons this never touched.
                         rotation
-                            ? `Renames only the files above afterwards — but they rotate among episodes that already hold a file, so every new name is another one's current name and none of them has a free destination. Expect the reassignment to apply and the filenames to stay as they are; ${adapter.id} plays by the reassignment rather than the name, and the response says which files are waiting.`
-                            : 'Renames only the files above afterwards, so the filenames match the episodes they have been moved to. Nothing else in the series is renamed.',
+                            ? `Renames only the files above afterwards — but at least two of them rotate among each other's episodes, so each new name is another one's current name and those have no free destination. Expect the reassignment to apply and those filenames to stay as they are; ${adapter.id} plays by the reassignment rather than the name, and the response says which files are waiting.`
+                            : chain
+                              ? `Renames only the files above afterwards, but some want a name another moved file still holds, so on this pass they keep their old names. Running trigger_scan with action "rename" on this series afterwards finishes them, once per link in the chain.`
+                              : 'Renames only the files above afterwards, so the filenames match the episodes they have been moved to. Nothing else in the series is renamed.',
                         'Nothing moves between folders and nothing is deleted. Rescan your media server afterwards so it reads the corrected library.',
                         `${adapter.id} recreates each moved file's record, so episode file ids change — any id read before this is stale — and the file's date added resets to now.`,
                         `${adapter.id} records nothing in its own history for this; the audit log here is the only trace.`
@@ -313,7 +315,7 @@ export function registerTriggerScan(
         async apply(_plan, { service, instance, action, id, download_id, reassignments }) {
             if (action === 'remap' && id !== undefined && reassignments !== undefined) {
                 const remapper = findRemapAdapter(adapters, service, instance);
-                const { renamed, blocked } = await remapper.runEpisodeRemap(id, reassignments);
+                const { renamed, blocked, cycle } = await remapper.runEpisodeRemap(id, reassignments);
 
                 // Unlike everything else here, this one has already finished:
                 // the rename needs the ids the reassignment assigns, so it
@@ -321,6 +323,14 @@ export function registerTriggerScan(
                 const done = `${remapper.id} reassigned the files of series ${id} and renamed ${renamed} of them.`;
                 if (blocked.length === 0) {
                     return `${done} The files and the episodes now agree — rescan your media server so it picks the new names up.`;
+                }
+
+                if (!cycle) {
+                    return (
+                        `${done} ${blocked.length} kept the old name, because the name each one wants was still held by another moved file when this ran. ` +
+                        `The reassignment is correct and complete. Nothing is deadlocked: run trigger_scan with action "rename" and id ${id} again to finish, once per link in the chain. Files waiting: ` +
+                        `${blocked.map(b => `${b.path} wants ${b.wants}`).join('; ')}.`
+                    );
                 }
 
                 return (

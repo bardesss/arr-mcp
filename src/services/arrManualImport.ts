@@ -215,12 +215,24 @@ const sxe = (season: number, episode: number): string =>
     `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
 
 type ResolvedRemap = {
-    moves: { file: RawSeriesFile; episodeId: number; season: number; display: string; from: string; to: string }[];
+    moves: {
+        file: RawSeriesFile;
+        episodeId: number;
+        season: number;
+        display: string;
+        from: string;
+        to: string;
+        /** The file currently on the destination episode, if any. */
+        holds: number | undefined;
+    }[];
     emptied: string[];
-    /** True when a moved file's destination episode already holds a file that
-     *  is itself being moved — the rotation whose filenames cannot be fixed in
-     *  one pass, because every new name is another moved file's current one. */
+    /** True when the moves contain a true cycle: every file in it wants the
+     *  name another file in it holds, so no order of renames frees one and the
+     *  filenames need a naming-format change and two passes. */
     rotation: boolean;
+    /** True when some move wants a name a moving file still holds, but there is
+     *  no cycle: the tail renames first, so running rename again peels the rest. */
+    chain: boolean;
 };
 
 async function resolveEpisodeRemap(
@@ -300,16 +312,32 @@ async function resolveEpisodeRemap(
             season: target.seasonNumber ?? 0,
             display: fenceText(file.relativePath ?? file.path as string, { service, field: 'path' }),
             from: current.map(labelOf).join('+') || 'no episode',
-            to: label(target)
+            to: label(target),
+            holds: target.episodeFileId ? target.episodeFileId : undefined
         });
     }
 
-    // Every target that already holds a file must hold one that is also being
-    // moved — the orphan check above refuses anything else — so an occupied
-    // target is exactly the signal that this set rotates.
-    const rotation = resolved.some(({ target }) => typeof target.episodeFileId === 'number' && target.episodeFileId > 0);
+    // A held target's holder is always in the list (the orphan check above
+    // refuses anything else), and a holder already on its own episode would
+    // clash with this target, so the holder of a move's target is itself a move.
+    // Following holders from a move either ends at a free target (a chain) or
+    // comes back round to it (a cycle). Computed over `moves`, not `resolved`:
+    // a file already in place is not renamed and takes no part in either.
+    const moveByFile = new Map(moves.map(m => [m.file.episodeFileId, m]));
+    const inCycle = (start: ResolvedRemap['moves'][number]): boolean => {
+        let cur = start;
+        for (let i = 0; i < moves.length; i++) {
+            const next = cur.holds === undefined ? undefined : moveByFile.get(cur.holds);
+            if (next === undefined) return false;
+            if (next === start) return true;
+            cur = next;
+        }
+        return false;
+    };
+    const rotation = moves.some(inCycle);
+    const chain = !rotation && moves.some(m => m.holds !== undefined);
 
-    return { moves, emptied: [...emptied], rotation };
+    return { moves, emptied: [...emptied], rotation, chain };
 }
 
 const seriesIdOf = (service: string, seriesId: string): number => {
@@ -328,8 +356,8 @@ export async function planArrEpisodeRemap(
     seriesId: string,
     reassignments: EpisodeReassignment[]
 ): Promise<EpisodeRemapPlan> {
-    const { moves, emptied, rotation } = await resolveEpisodeRemap(http, service, seriesIdOf(service, seriesId), reassignments);
-    return { moves: moves.map(({ display, from, to }) => ({ display, from, to })), emptied, rotation };
+    const { moves, emptied, rotation, chain } = await resolveEpisodeRemap(http, service, seriesIdOf(service, seriesId), reassignments);
+    return { moves: moves.map(({ display, from, to }) => ({ display, from, to })), emptied, rotation, chain };
 }
 
 /** Re-resolves rather than trusting the preview, for the same reason the
@@ -341,7 +369,7 @@ export async function runArrEpisodeRemap(
     reassignments: EpisodeReassignment[]
 ): Promise<EpisodeRemapOutcome> {
     const id = seriesIdOf(service, seriesId);
-    const { moves } = await resolveEpisodeRemap(http, service, id, reassignments);
+    const { moves, rotation } = await resolveEpisodeRemap(http, service, id, reassignments);
 
     if (moves.length === 0) {
         throw new ServiceError('UpstreamError', service, 'every file is already on the episode asked for', {
@@ -371,7 +399,7 @@ export async function runArrEpisodeRemap(
     const movedPaths = files.map(f => f.path).filter((p): p is string => typeof p === 'string');
     await verifyRemapLanded(http, service, id, moves);
 
-    return { remap, ...(await renameRemappedFiles(http, service, id, movedPaths)) };
+    return { remap, cycle: rotation, ...(await renameRemappedFiles(http, service, id, movedPaths)) };
 }
 
 /**

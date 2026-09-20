@@ -737,15 +737,18 @@ export type EpisodeRemapPlan = {
     /** Episodes a moved file leaves behind that nothing in the list takes. */
     emptied: string[];
     /**
-     * Whether the set rotates files among episodes that already hold one.
+     * Whether the moved files form a true cycle: each wants the name another
+     * one in the set holds, so no rename in it has a free destination and the
+     * filenames need a second step the confirm token should not claim to cover.
      *
      * Predicted here rather than discovered afterwards, because it decides
-     * what the preview can promise: in a rotation every new filename is the
-     * current name of another file in the same set, so no rename in it has a
-     * free destination and the filenames need a second step the confirm token
-     * should not claim to cover.
+     * what the preview can promise.
      */
     rotation: boolean;
+    /** Some moved file wants a name another moving file holds, but the set is
+     *  not a cycle: the ones with a free name rename first, and running rename
+     *  again finishes the rest. */
+    chain: boolean;
 };
 
 /**
@@ -757,6 +760,8 @@ export type EpisodeRemapPlan = {
  */
 export type EpisodeRemapOutcome = {
     remap: CommandHandle;
+    /** Whether the moves formed a true cycle, as `EpisodeRemapPlan.rotation`. */
+    cycle: boolean;
     /** Files whose name now matches the episode they were moved to. */
     renamed: number;
     /** Files left with their old name because the name they want is still on
