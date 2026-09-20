@@ -56,6 +56,13 @@ export const BEARER_CALLER = 'bearer';
  */
 export const OAUTH_CALLER_PREFIX = 'oauth:';
 
+/**
+ * The client id of a token that carried neither `client_id` nor `sub`. Empty
+ * because a real client id never is, so it cannot be mistaken for one: any
+ * readable placeholder such as "unknown" could also be a client's actual name.
+ */
+export const NO_CLIENT_ID = '';
+
 export type AuditRecord = {
     tool: string;
     service: string;

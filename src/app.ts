@@ -11,7 +11,7 @@ import {
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { OAuthConfig } from './config/schema.ts';
-import { OAUTH_CALLER_PREFIX, type WriteAudit } from './core/audit.ts';
+import { NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
 import type { Runtime } from './core/runtime.ts';
@@ -422,7 +422,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
             // handed the library. `requiredScopes` cannot express this: the
             // SDK requires every listed scope, and these are a union of three.
             if (auth.oauth !== undefined && tiersFor(auth.oauth, authInfo.scopes) === undefined) {
-                logger.warn({ path: '/mcp', ...originOf(c), clientId: authInfo.clientId }, 'rejected a token with no arr-mcp scope');
+                logger.warn({ path: '/mcp', ...originOf(c), clientId: authInfo.clientId === NO_CLIENT_ID ? 'unknown' : authInfo.clientId }, 'rejected a token with no arr-mcp scope');
                 return bearerAuthChallengeResponse(new OAuthError(OAuthErrorCode.InsufficientScope, 'Insufficient scope'), metadataOpt);
             }
         }

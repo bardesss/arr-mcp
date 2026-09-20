@@ -239,10 +239,10 @@ describe('the write audit', () => {
     });
 
     /**
-     * Two of the three values this column holds are not a client's name, and
+     * Three of the values this column holds are not a client's name, and
      * printing them as one would invent a client called "bearer".
      */
-    it("names a client id, and says in words what the two non-names mean", () => {
+    it("names a client id, and says in words what the non-names mean", () => {
         const page = (caller: string | null) =>
             auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ caller })] });
 
@@ -252,6 +252,10 @@ describe('the write audit', () => {
         // so it can never be read as the static token.
         expect(page('oauth:bearer')).not.toContain('the static bearer token');
         expect(page('oauth:bearer')).toContain('<dd class="mono">bearer</dd>');
+        // A token that named no client is a bare `oauth:`, so a client actually
+        // called "unknown" is a different value from it.
+        expect(page('oauth:')).toContain('named no client');
+        expect(page('oauth:unknown')).toContain('<dd class="mono">unknown</dd>');
         // A blank cell means one thing: the row predates the column.
         expect(page(null)).toContain('before callers were logged');
     });
