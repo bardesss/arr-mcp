@@ -554,8 +554,9 @@ export class PlexAdapter
      * `listUserSeasons`: independent failure is the point. Episodes come from
      * `?type=4` on the same paged endpoint, standard Plex library-type
      * filtering (1 movie, 2 show, 3 season, 4 episode), and carry
-     * `grandparentRatingKey` linking back to the series — never an external
-     * id of their own, so the join happens here rather than per-episode.
+     * `grandparentRatingKey` linking back to the series, and no id *of the
+     * series* of their own, so the join happens here rather than per-episode.
+     * They do carry provider ids, but those identify the episode (#272).
      */
     async listUserSeasons(_user: ServiceUser): Promise<IndexInput[]> {
         const sections = await this.#sections('show');
@@ -610,7 +611,9 @@ export class PlexAdapter
 
         // Without includeGuids=1, Plex returns Guid-less rows and this join
         // could never match Radarr/Sonarr — verified live: 0 Guid children
-        // without it, 55 with it, on the identical query. See F3.
+        // without it, 55 with it, on the identical query. That measures the
+        // parameter, not the rows: sent, library items carry their own ids,
+        // episodes included (#272). See F3.
         const body = await this.#http.get<unknown>(`/search?query=${encodeURIComponent(query)}&includeGuids=1`);
         return unwrap<RawPlexItem>(body, 'Metadata')
             .filter(
