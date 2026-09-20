@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { apiKeyHeader } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
-import { readArrCommands } from '../src/services/arrCommands.ts';
+import { COMMAND_WAIT_MS, awaitArrCommand, readArrCommands, renamedCount } from '../src/services/arrCommands.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -135,5 +135,81 @@ describe('what a service is running', () => {
         });
         const rows = await readArrCommands(reader(s.impl), 'radarr', now);
         expect(rows).toEqual([]);
+    });
+});
+
+/**
+ * A remap has to wait: the rename that follows it needs the file ids the
+ * reassignment assigns. Everything else in `trigger_scan` queues and returns,
+ * so this is the one place a command is followed to the end (#264).
+ */
+describe('awaitArrCommand', () => {
+    const reader = (impl: typeof fetch) =>
+        new ServiceHttp('sonarr', keyed(8989), apiKeyHeader('X-Api-Key', 'k'), impl);
+
+    /** Queued, then started, then done — the sequence a live Sonarr walks
+     *  while something else holds the queue. */
+    const sequence = (rows: Record<string, unknown>[]) => {
+        let n = 0;
+        const impl = (async () => jsonResponse(rows[Math.min(n++, rows.length - 1)])) as unknown as typeof fetch;
+        return { impl, polls: () => n };
+    };
+
+    const instantly = async (): Promise<void> => {};
+
+    it('follows a command until it settles, and hands back what it said', async () => {
+        const s = sequence([
+            { id: 9, status: 'queued' },
+            { id: 9, status: 'started' },
+            { id: 9, status: 'completed', result: 'successful', message: '6 selected episode files renamed for X' }
+        ]);
+
+        const settled = await awaitArrCommand(reader(s.impl), 'sonarr', 9, instantly);
+        expect(settled).toMatchObject({ status: 'completed', result: 'successful' });
+        expect(s.polls()).toBe(3);
+    });
+
+    it('stops on a command that failed rather than waiting out the budget', async () => {
+        const s = sequence([{ id: 9, status: 'failed', result: 'unsuccessful' }]);
+        await expect(awaitArrCommand(reader(s.impl), 'sonarr', 9, instantly)).resolves.toMatchObject({
+            status: 'failed'
+        });
+    });
+
+    /**
+     * The wait is a queue position, not the work, so a timeout is not a
+     * failure — it says where to look rather than inviting a second command
+     * that would do the same thing again.
+     */
+    it('gives up with a message about the queue, not about the write', async () => {
+        const s = sequence([{ id: 9, status: 'queued' }]);
+        const expired = async (): Promise<void> => {
+            vi.advanceTimersByTime(COMMAND_WAIT_MS + 1_000);
+        };
+
+        vi.useFakeTimers();
+        try {
+            await expect(awaitArrCommand(reader(s.impl), 'sonarr', 9, expired)).rejects.toThrow(/still queued/);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
+/**
+ * The count is the only truthful thing a blocked rename reports: it answers
+ * `completed`, `result: successful`, and "0 selected episode files renamed".
+ * Verified against a live Sonarr 4.0.19 on a series with nothing to rename.
+ */
+describe('renamedCount', () => {
+    it('reads the count out of the message', () => {
+        expect(renamedCount('6 selected episode files renamed for Drain the Oceans')).toBe(6);
+        expect(renamedCount('0 selected episode files renamed for You Me Her')).toBe(0);
+    });
+
+    it('is undefined for a message it does not recognise, which is not zero', () => {
+        expect(renamedCount(undefined)).toBeUndefined();
+        expect(renamedCount('')).toBeUndefined();
+        expect(renamedCount('Renamed some files')).toBeUndefined();
     });
 });

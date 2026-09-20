@@ -85,7 +85,10 @@ the same reason. The preview names the source and the destination, because
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them
 back. Its `import` action only ever imports what the service is already willing
-to take — a file the service rejects is excluded and named, never forced.
+to take — a file the service rejects is excluded and named, never forced. Its
+`remap` action changes which episode Sonarr says a file is, and renames that
+file to match; a second remap puts both back. Nothing moves between folders and
+nothing is deleted.
 
 `grab_release` with a `magnet` is safe because `remove_queue_item` undoes it,
 but it is the one write where the thing being downloaded was chosen by the

@@ -24,7 +24,7 @@ off until you turn them on — see [writes](writes.md).
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
-| `trigger_scan` | Rescan a library, refresh or rename one item, or import a download that never landed |
+| `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, or put a mislabeled Sonarr file on the right episode |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn Sonarr or Whisparr monitoring on or off — a whole series, one season, or specific episodes |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
@@ -1031,7 +1031,7 @@ rejects the call without it.
 
 ## `trigger_scan`
 
-Three actions, one idea: make a service reconcile itself with what is on disk.
+Four actions, one idea: make a service reconcile itself with what is on disk.
 
 | Call | What it does |
 | --- | --- |
@@ -1039,9 +1039,11 @@ Three actions, one idea: make a service reconcile itself with what is on disk.
 | `service` + `id` | Rescans just that Radarr/Sonarr item — far cheaper on a large library. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
+| `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
 
-Everything here queues a command and returns. `stack_health`'s `commands` list
-says whether it has finished; do not assume it has.
+Everything here queues a command and returns, except `remap` — see below.
+`stack_health`'s `commands` list says whether it has finished; do not assume it
+has.
 
 ### On Plex
 
@@ -1085,6 +1087,62 @@ Three outcomes that look alike and are not:
 The import re-reads the candidates when it runs rather than trusting the
 preview's list, so a download whose files have changed in between imports what
 is there now or fails — never a path that no longer exists.
+
+### Putting a mislabeled file on the right episode
+
+Some files were mislabeled at the original import: the file named `S01E24` is
+really the Pilot. The filename, Sonarr's database, the media server and Sonarr's
+own matcher all agree with the wrong answer, so `get_metadata_issues` finds
+nothing. `remap` applies a correction a person has already made, usually by
+watching the file.
+
+```json
+{
+  "service": "sonarr",
+  "action": "remap",
+  "id": "5",
+  "reassignments": [
+    { "path": "Season 01/Show - S01E24.mkv", "season": 1, "episode": 1 },
+    { "path": "Season 01/Show - S01E01.mkv", "season": 1, "episode": 2 }
+  ]
+}
+```
+
+`path` is relative to the series folder, as Sonarr names it, or absolute. Only
+files Sonarr has already imported can be reassigned.
+
+The preview lists each file's current and new episode. Files already on the
+episode asked for are left out. The call is refused if it would leave a file
+attached to no episode: moving a file onto an episode that already has one
+means the list must also say where that one goes. Send the whole rotation in one
+call, because a half-applied one reads as a missing episode plus a dangling file.
+
+Nothing moves on disk. What changes, and what Sonarr does not report itself:
+
+- Each moved file gets a new episode file id, so an id read before the remap is
+  stale, including for `delete_episode_files`.
+- The moved files' date added resets to now, which reorders "recently added" in
+  Sonarr and in the media server.
+- Sonarr writes nothing to its history. The audit log here is the only record.
+
+**The rename is part of it.** Once the reassignment lands, the moved files are
+renamed to match the episodes they are now on — only those files, not the rest
+of the series, which is what `action: "rename"` would do. That is the one call
+here that does not return while its work is still queued: the rename needs the
+file ids the reassignment assigns, so it waits.
+
+Rescan your media server afterwards, so it reads the corrected library.
+
+**A rotation keeps its old filenames, and that is not a failure.** When files
+are rotated among episodes that already hold one — the whole-season case above —
+every name a file wants is the name another file in the set is still using, so
+no rename has a free destination. Sonarr reports that as `completed` having
+renamed nothing, so the count is read rather than the status, and the response
+names the files still waiting. The reassignment is correct and complete either
+way: Sonarr plays a file by the episode it is attached to, not by its name.
+
+Clearing that deadlock needs Sonarr's episode naming format changed and two
+passes over the same files, which this does not do on your behalf.
 
 ## `update_media`
 

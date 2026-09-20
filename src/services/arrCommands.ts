@@ -158,3 +158,83 @@ export async function renameArrItem(
         resource === 'movie' ? { name: 'RenameMovie', movieIds: [numeric] } : { name: 'RenameSeries', seriesIds: [numeric] }
     );
 }
+
+/**
+ * How long to wait for a queued command to finish, and how often to ask.
+ *
+ * Everything else in `trigger_scan` queues and returns, which is right for a
+ * scan nobody is waiting on. A remap is different: the rename that follows it
+ * needs the file ids the remap assigns, so there is a second command that
+ * cannot be posted until the first is done.
+ *
+ * The budget is generous because the wait is a queue position, not the work:
+ * identical rename commands on a live Sonarr took 3.7s each purely on
+ * scheduling, and behind a `RefreshSeries` on a large library it is minutes
+ * (measured in bardesss/arr-mcp#264).
+ */
+const COMMAND_POLL_MS = 1_000;
+export const COMMAND_WAIT_MS = 180_000;
+
+/** Sonarr's terminal states. `completed` is not success on its own — see
+ *  `renamedCount` below for the command that lies about it. */
+const SETTLED = new Set(['completed', 'failed', 'aborted', 'cancelled']);
+
+type RawCommandDetail = RawCommand & { message?: string; result?: string };
+
+/**
+ * Waits for one command to reach a terminal state, and hands back the row
+ * rather than a verdict: `status` alone does not say whether the work
+ * happened, and the caller is the one that knows what success looks like.
+ */
+export async function awaitArrCommand(
+    http: ServiceHttp,
+    service: string,
+    commandId: number,
+    sleep: (ms: number) => Promise<void> = ms => new Promise(r => setTimeout(r, ms))
+): Promise<{ status: string; result?: string; message?: string }> {
+    const deadline = Date.now() + COMMAND_WAIT_MS;
+
+    for (;;) {
+        const row = await http.get<RawCommandDetail>(`/api/v3/command/${commandId}`);
+        const status = (row.status ?? 'unknown').toLowerCase();
+        if (SETTLED.has(status)) {
+            return {
+                status,
+                ...(row.result === undefined ? {} : { result: row.result }),
+                ...(row.message === undefined ? {} : { message: row.message })
+            };
+        }
+
+        if (Date.now() >= deadline) {
+            throw new ServiceError(
+                'Timeout',
+                service,
+                `${service} command ${commandId} was still ${status} after ${COMMAND_WAIT_MS / 1000}s`,
+                {
+                    remedy: `It has not failed — it is queued behind something. stack_health's \`commands\` says what ${service} is working on; check back there rather than sending this again.`
+                }
+            );
+        }
+
+        await sleep(COMMAND_POLL_MS);
+    }
+}
+
+/**
+ * How many files a `RenameFiles` command actually renamed.
+ *
+ * The count is the only truthful signal this command gives. A rename blocked
+ * because every destination is taken by another file in the same set finishes
+ * `completed` with `result: successful` and the message "0 selected episode
+ * files renamed for <series>" — verified live on Sonarr 4.0.19, and
+ * independently in #264. Anything reading the status alone reports that as a
+ * success.
+ *
+ * Undefined when the message is missing or shaped differently, which is not
+ * the same as zero: a build that stops sending it must not be read as having
+ * renamed nothing.
+ */
+export function renamedCount(message: string | undefined): number | undefined {
+    const match = /^(\d+) selected episode files renamed/.exec(message ?? '');
+    return match === undefined || match === null ? undefined : Number(match[1]);
+}
