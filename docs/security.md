@@ -346,6 +346,10 @@ only thing between the internet and every credential in your stack. Do not do th
   cannot show.
 - Outcomes are a closed set: `attempted`, `applied`, `dry_run`, `denied`,
   `unconfirmed`, `failed`. A refusal is as much a recorded event as a write.
+- Each row names the credential that made the call: an OAuth token's client id,
+  or `bearer` for the static token. With two clients holding two tokens, the
+  trail can say which one deleted something. A blank means only that the row
+  was written before the column existed.
 - The database lives in the mounted config volume, not the container filesystem.
   A trail that vanishes on `docker compose down` is not a trail.
 - Logs go to stdout unconditionally and to a SQLite ring buffer behind the

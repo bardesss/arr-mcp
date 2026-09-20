@@ -1,5 +1,5 @@
 import type { Theme } from '../config/schema.ts';
-import type { AuditRow } from '../core/audit.ts';
+import { BEARER_CALLER, type AuditRow } from '../core/audit.ts';
 import { logFields, type LogRow } from '../core/logs.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
@@ -665,6 +665,22 @@ function argFields(args: string): SafeHtml {
  * The order is the order the questions get asked: what happened, to what, with
  * which arguments, and — only when there is one — what the service said back.
  */
+/**
+ * Which credential made the write, in words rather than as a raw value.
+ *
+ * Three of the four cases are not a client's name and must not be printed as
+ * one: `bearer` is the static token, `unknown` is an OAuth token whose claims
+ * carried no `client_id` and no `sub` (see `oauthVerifier.ts`), and null is a
+ * row written before this column existed. Only the fourth is an id someone
+ * chose, so only the fourth is set in `mono`.
+ */
+function callerField(caller: string | null): SafeHtml {
+    if (caller === null) return html`<dd class="dim">not recorded — written before callers were logged</dd>`;
+    if (caller === BEARER_CALLER) return html`<dd class="dim">the static bearer token</dd>`;
+    if (caller === 'unknown') return html`<dd class="dim">an OAuth token that named no client</dd>`;
+    return html`<dd class="mono">${caller}</dd>`;
+}
+
 function auditEntry(r: AuditRow): SafeHtml {
     return html`<article class="entry">
         <div class="entry-top">
@@ -676,6 +692,8 @@ function auditEntry(r: AuditRow): SafeHtml {
         <dl>
             <dt>Target</dt>
             <dd class="mono">${r.target}</dd>
+            <dt>Caller</dt>
+            ${callerField(r.caller)}
             ${argFields(r.args)}
         </dl>
         ${r.detail === null || r.detail === '' ? raw('') : html`<div class="remedy">${r.detail}</div>`}

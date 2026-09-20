@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { instanceId, isMultiInstance, listInstances } from '../src/config/instances.ts';
 import { ConfigSchema, MULTI_INSTANCE, type Config } from '../src/config/schema.ts';
-import { WriteAudit } from '../src/core/audit.ts';
+import { BEARER_CALLER, WriteAudit } from '../src/core/audit.ts';
 import { checkPermission, permissionSourceFrom } from '../src/core/permissions.ts';
 import { buildAdapters } from '../src/services/registry.ts';
 
@@ -177,7 +177,8 @@ describe('the audit trail', () => {
                 operation: 'add',
                 tier: 'safe',
                 target: '550',
-                args: {}
+                args: {},
+                caller: BEARER_CALLER
             });
             audit.settle(id, 'applied');
 

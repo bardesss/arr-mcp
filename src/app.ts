@@ -123,7 +123,11 @@ function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInf
                     }
                 }) as ServiceInstance
         ),
-        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers) }
+        // `caller` rides the same branch as the ceiling rather than needing its
+        // own: this is the one per-request place that holds `authInfo`, and a
+        // request without one is the static bearer token, which the audit
+        // records under its own fixed marker.
+        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers), caller: authInfo.clientId }
     };
 }
 

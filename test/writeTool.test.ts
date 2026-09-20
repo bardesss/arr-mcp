@@ -2,7 +2,7 @@ import { instancesOf } from './helpers/instances.ts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, ServiceId } from '../src/config/schema.ts';
-import { WriteAudit } from '../src/core/audit.ts';
+import { BEARER_CALLER, WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
@@ -60,6 +60,7 @@ function buildHarness(
         plan?: WritePlan;
         apply?: () => Promise<unknown>;
         tier?: 'safe' | 'destructive';
+        caller?: string;
     } = {}
 ) {
     const audit = WriteAudit.ephemeral();
@@ -75,7 +76,8 @@ function buildHarness(
             permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: service(false, true) })),
             confirm,
             audit,
-            library: { invalidate } as unknown as LibraryLoader
+            library: { invalidate } as unknown as LibraryLoader,
+            ...(opts.caller === undefined ? {} : { caller: opts.caller })
         },
         {
             name: 'delete_media',
@@ -304,6 +306,23 @@ describe('write tool harness — the audit trail', () => {
         const rows = failing.audit.recent() as { outcome: string; detail: string | null }[];
         expect(rows[0]?.outcome).toBe('failed');
         expect(rows[0]?.detail).toContain('HTTP 500');
+    });
+
+    /**
+     * Which credential asked. The context is rebuilt per request, so a request
+     * that arrived on the static bearer token simply has no `caller` on it —
+     * and that has to record as `bearer`, never as a blank. A blank means one
+     * thing only: a row from before the column existed.
+     */
+    it('records the static bearer token under its own marker when no caller is set', async () => {
+        await harness.call('delete_media', { id: '5', dry_run: true });
+        expect((harness.audit.recent() as { caller: string | null }[])[0]?.caller).toBe(BEARER_CALLER);
+    });
+
+    it("records an OAuth request's client id", async () => {
+        const oauth = buildHarness({ caller: 'desktop-client' });
+        await oauth.call('delete_media', { id: '5', dry_run: true });
+        expect((oauth.audit.recent() as { caller: string | null }[])[0]?.caller).toBe('desktop-client');
     });
 
     it('records the resolved target, not the argument the caller typed', async () => {

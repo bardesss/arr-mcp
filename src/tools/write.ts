@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { WriteAudit } from '../core/audit.ts';
+import { BEARER_CALLER, type WriteAudit } from '../core/audit.ts';
 import type { ConfirmTokens, WriteIntent } from '../core/confirm.ts';
 import { ServiceError } from '../core/errors.ts';
 import { checkPermission, type PermissionSource, type WriteTier } from '../core/permissions.ts';
@@ -86,6 +86,15 @@ export type WriteContext = {
     audit: WriteAudit;
     /** Invalidated after a successful write. */
     library: LibraryLoader;
+    /**
+     * Which credential this request arrived on, for the audit row.
+     *
+     * Set per request in `cappedTools` (`app.ts`), on the same branch that
+     * narrows the tiers, and only there: a request with no `authInfo` came in
+     * on the static bearer token, falls out of that branch untouched, and is
+     * recorded as `BEARER_CALLER` here.
+     */
+    caller?: string;
 };
 
 const DryRunSchema = z
@@ -172,6 +181,9 @@ export function registerWriteTool<Schema extends z.ZodObject>(
     spec: WriteToolSpec<Schema>
 ): void {
     const { permissions, confirm, audit, library } = context;
+    // Resolved once per registration, not per call: the context is rebuilt per
+    // request, so a tool registered from it already belongs to one credential.
+    const caller = context.caller ?? BEARER_CALLER;
 
     server.registerTool(
         spec.name,
@@ -233,7 +245,8 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                 operation: spec.operation,
                 tier: spec.tier,
                 target: plan.target,
-                args: plan.args ?? {}
+                args: plan.args ?? {},
+                caller
             };
 
             const preview = (extra: Partial<WriteToolResult>): WriteToolResult => ({
