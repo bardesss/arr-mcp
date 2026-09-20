@@ -306,7 +306,19 @@ function seriesStack(
 
         if (url.pathname === '/api/v3/manualimport') return jsonResponse(SERIES_FILES);
         if (url.pathname === '/api/v3/episode') return jsonResponse(episodes);
-        if (url.pathname === '/api/v3/rename') return jsonResponse(opts.renames ?? []);
+        // Sonarr lists what still wants renaming, so once the second rename has
+        // run the answer is empty — or the remap would rightly report it undone.
+        if (url.pathname === '/api/v3/rename') {
+            return jsonResponse(sent.filter(x => x.body?.name === 'RenameFiles').length >= 2 ? [] : (opts.renames ?? []));
+        }
+        if (url.pathname === '/api/v3/series/5') return jsonResponse({ id: 5, seriesType: 'standard' });
+        if (url.pathname === '/api/v3/config/naming') {
+            if (method === 'PUT') return new Response(null, { status: 202 });
+            return jsonResponse({ id: 1, standardEpisodeFormat: '{Series Title} - S{season:00}E{episode:00}' });
+        }
+        if (url.pathname === '/api/v3/history') return jsonResponse({ records: [] });
+        // The two-pass rename refuses to start behind a busy queue.
+        if (url.pathname === '/api/v3/command' && method === 'GET') return jsonResponse([]);
         if (url.pathname === '/api/v3/command' && method === 'POST') {
             lastCommand = String(body?.name ?? 'ManualImport');
             if (lastCommand === 'ManualImport') {
@@ -438,20 +450,39 @@ describe('remapping episodes', () => {
 
     /**
      * The rotation from the issue: every new name is another moved file's
-     * current name, so nothing has a free destination. Sonarr would answer
-     * `completed` and rename nothing, so this does not ask it to.
+     * current name, so nothing has a free destination and one `RenameFiles`
+     * would answer `completed` having renamed nothing. It goes through two
+     * passes under a temporary naming format instead — arrRename.test.ts
+     * covers what that does and what bounds it.
      */
-    it('sends no rename when every destination is still on disk, and says which files wait', async () => {
-        const s = seriesStack({ renames: PENDING_RENAMES });
+    it('renames a rotation through two passes rather than leaving the names wrong', async () => {
+        const s = seriesStack({ renames: PENDING_RENAMES, message: '3 selected episode files renamed for Show' });
         const out = await s.sonarr.runEpisodeRemap('5', ROTATION);
 
-        expect(s.sent.filter(x => (x.body as { name?: string })?.name === 'RenameFiles')).toHaveLength(0);
-        expect(out.renamed).toBe(0);
-        expect(out.blocked).toHaveLength(3);
-        // Both paths come from Sonarr, so both are fenced before a model
-        // reads them — the same treatment `display` already gets.
-        expect(out.blocked[0]?.path).toContain('Season 01/Show - S01E01.mkv');
-        expect(out.blocked[0]?.wants).toContain('Season 01/Show - S01E02.mkv');
+        const passes = s.sent.filter(x => (x.body as { name?: string })?.name === 'RenameFiles');
+        expect(passes).toHaveLength(2);
+        expect(s.sent.filter(x => x.path === '/api/v3/config/naming' && x.method === 'PUT')).toHaveLength(2);
+        expect(out.renamed).toBe(3);
+        expect(out.blocked).toEqual([]);
+    });
+
+    /** The mixed case: a destination held by a file this remap did not move is
+     *  not a rotation, and no format change is warranted for it. */
+    it('renames what it can and names a destination held by a file it did not move', async () => {
+        const s = seriesStack({
+            renames: [
+                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E09.mkv' },
+                { episodeFileId: 12, existingPath: 'Season 01/Show - S01E02.mkv', newPath: 'Season 01/Show - S01E03.mkv' }
+            ],
+            message: '1 selected episode files renamed for Show'
+        });
+        const out = await s.sonarr.runEpisodeRemap('5', ROTATION);
+
+        expect(s.sent.filter(x => x.path === '/api/v3/config/naming' && x.method === 'PUT')).toHaveLength(0);
+        expect(out.renamed).toBe(1);
+        expect(out.blocked).toHaveLength(1);
+        // Fenced before a model reads it, like `display`.
+        expect(out.blocked[0]?.path).toContain('Season 01/Show - S01E02.mkv');
         expect(out.blocked[0]?.path).toMatch(/untrusted/);
     });
 

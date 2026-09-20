@@ -1133,16 +1133,45 @@ file ids the reassignment assigns, so it waits.
 
 Rescan your media server afterwards, so it reads the corrected library.
 
-**A rotation keeps its old filenames, and that is not a failure.** When files
-are rotated among episodes that already hold one — the whole-season case above —
-every name a file wants is the name another file in the set is still using, so
-no rename has a free destination. Sonarr reports that as `completed` having
-renamed nothing, so the count is read rather than the status, and the response
-names the files still waiting. The reassignment is correct and complete either
-way: Sonarr plays a file by the episode it is attached to, not by its name.
+**A rotation is renamed in two passes, and that costs a setting for a moment.**
+When files are rotated among episodes that already hold one — the whole-season
+case above — every name a file wants is the name another file in the set is
+still using, so no rename has a free destination. Sonarr reports that as
+`completed` having renamed nothing, which is why the count is read rather than
+the status.
 
-Clearing that deadlock needs Sonarr's episode naming format changed and two
-passes over the same files, which this does not do on your behalf.
+There is no "rename this file to that name" in Sonarr's API: `RenameFiles`
+renames to whatever the naming format produces. So a rotation is renamed by
+**changing the episode naming format for that series type, server-wide, for the
+length of two rename commands** — once into names nothing holds, then back, then
+into the real ones. The preview says so before you confirm.
+
+Four things bound it:
+
+- **It will not start behind a queue.** Anything running or queued beyond
+  Sonarr's own per-minute housekeeping and the remap refuses the rename,
+  because the window is one command's turn in the queue and that can be
+  minutes. The reassignment is already applied at that point, so the refusal
+  says so: run the remap again when Sonarr is quiet.
+- **It survives being killed.** The temporary format is the real one plus a
+  marker on the end, so the next run recovers the original by removing it. No
+  copy is written anywhere to be lost.
+- **It reports what the window caught.** Sonarr's own import runs every minute
+  and is not waited for, so a file that lands inside the window is named by the
+  temporary format. The response names those files: the imports Sonarr recorded
+  after the window opened whose name carries the marker.
+- **It checks the second pass finished.** A file left under a temporary name is
+  the worst outcome here, so that is an error naming the marker, not a success.
+  Sonarr's own list of files still wanting a different name decides it, not
+  the command's count.
+- **It puts back only what it changed.** The format is restored by re-reading
+  the config and setting that one key, so anything else edited during the
+  window stays edited.
+
+A remap whose files each have a free destination never touches the naming
+format. The preview cannot always tell which case it is: what Sonarr will name
+a file is known only once the reassignment is applied, so it says when the
+format would change rather than promising it will not.
 
 ## `update_media`
 

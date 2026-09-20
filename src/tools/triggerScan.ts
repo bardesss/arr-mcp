@@ -194,10 +194,10 @@ export function registerTriggerScan(
                         // sends RenameSeries, which would also rename files in
                         // seasons this never touched.
                         rotation
-                            ? `Renames only the files above afterwards — but at least two of them rotate among each other's episodes, so each new name is another one's current name and those have no free destination. Expect the reassignment to apply and those filenames to stay as they are; ${adapter.id} plays by the reassignment rather than the name, and the response says which files are waiting.`
+                            ? `Renames only the files above afterwards — but they rotate, so every new name is another one's current name and no rename has a free destination. Getting through that **changes ${adapter.id}'s episode naming format for this series type, server-wide, for the length of two rename commands**, then puts it back. It is refused rather than started if ${adapter.id} is busy, and anything ${adapter.id} imports during those two commands is named by the temporary format and reported back to you.`
                             : chain
                               ? `Renames only the files above afterwards, but some want a name another moved file still holds, so on this pass they keep their old names. Running trigger_scan with action "rename" on this series afterwards finishes them, once per link in the chain.`
-                              : 'Renames only the files above afterwards, so the filenames match the episodes they have been moved to. Nothing else in the series is renamed.',
+                              : `Renames only the files above afterwards, so the filenames match the episodes they have been moved to. Nothing else in the series is renamed. What ${adapter.id} will name each file is only known once the reassignment is applied, so this cannot promise the naming format stays put: if every name a moved file wants is already taken by some other file in the series, the series type's episode naming format is changed server-wide for two rename commands, then restored.`,
                         'Nothing moves between folders and nothing is deleted. Rescan your media server afterwards so it reads the corrected library.',
                         `${adapter.id} recreates each moved file's record, so episode file ids change — any id read before this is stale — and the file's date added resets to now.`,
                         `${adapter.id} records nothing in its own history for this; the audit log here is the only trace.`
@@ -319,29 +319,26 @@ export function registerTriggerScan(
         async apply(_plan, { service, instance, action, id, download_id, reassignments }) {
             if (action === 'remap' && id !== undefined && reassignments !== undefined) {
                 const remapper = findRemapAdapter(adapters, service, instance);
-                const { renamed, blocked, cycle } = await remapper.runEpisodeRemap(id, reassignments);
+                const { renamed, blocked, caughtInWindow } = await remapper.runEpisodeRemap(id, reassignments);
 
                 // Unlike everything else here, this one has already finished:
                 // the rename needs the ids the reassignment assigns, so it
                 // waits for the first command before sending the second.
                 const done = `${remapper.id} reassigned the files of series ${id} and renamed ${renamed} of them.`;
-                if (blocked.length === 0) {
-                    return `${done} The files and the episodes now agree — rescan your media server so it picks the new names up.`;
-                }
+                const caught =
+                    caughtInWindow === undefined || caughtInWindow.length === 0
+                        ? ''
+                        : ` ${caughtInWindow.length} file(s) were imported by ${remapper.id} while the temporary naming format was live, so they carry it in their names and need renaming back: ${caughtInWindow.join('; ')}.`;
 
-                if (!cycle) {
-                    return (
-                        `${done} ${blocked.length} kept the old name, because the name each one wants was still held by another moved file when this ran. ` +
-                        `The reassignment is correct and complete. Nothing is deadlocked: run trigger_scan with action "rename" and id ${id} again to finish, once per link in the chain. Files waiting: ` +
-                        `${blocked.map(b => `${b.path} wants ${b.wants}`).join('; ')}.`
-                    );
+                if (blocked.length === 0) {
+                    return `${done} The files and the episodes now agree — rescan your media server so it picks the new names up.${caught}`;
                 }
 
                 return (
-                    `${done} ${blocked.length} kept the old name, because the name each one wants is still on disk, held by another file in the same rotation: ` +
+                    `${done} ${blocked.length} kept the old name, because the name each one wants is still on disk, held by another file: ` +
                     `${blocked.map(b => `${b.path} wants ${b.wants}`).join('; ')}. ` +
-                    `The reassignment is correct and complete either way — only the filenames are behind, and ${remapper.id} plays by the reassignment, not the name. ` +
-                    `Breaking that deadlock needs ${remapper.id}'s episode naming format changed and two rename passes, which this does not do on your behalf.`
+                    `The reassignment is correct and complete either way — only those filenames are behind, and ${remapper.id} plays by the reassignment, not the name. ` +
+                    `If the holder is a file this remap also moved, running trigger_scan with action "rename" and id ${id} again finishes it, once per link in the chain.${caught}`
                 );
             }
 
