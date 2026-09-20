@@ -724,6 +724,71 @@ describe('PlexAdapter', () => {
         });
     });
 
+    describe('startLibraryScan', () => {
+        /** The live server answers a refresh with a bare 200: no body, and no
+         *  `Content-Type` at all. Served exactly that way here, so a reader
+         *  that tried to parse it would fail the test rather than pass on a
+         *  helper's JSON. `refuse` 404s those section keys, which is what a
+         *  library removed between the listing and the refresh returns. */
+        const probe = (sections: unknown, refuse: string[] = []) => {
+            const seen: string[] = [];
+            const impl = (async (input: string) => {
+                const url = new URL(String(input));
+                if (url.pathname === '/library/sections') return jsonResponse(sections);
+
+                const key = /^\/library\/sections\/([^/]+)\/refresh$/.exec(url.pathname)?.[1];
+                if (key === undefined) return jsonResponse({ message: 'not found' }, 404);
+                seen.push(key);
+                return refuse.includes(key) ? new Response('<html>404</html>', { status: 404 }) : new Response(null);
+            }) as unknown as typeof fetch;
+            return { adapter: new PlexAdapter(config(), impl), seen };
+        };
+
+        const three = {
+            MediaContainer: {
+                Directory: [
+                    { key: '1', type: 'movie', title: 'Movies' },
+                    { key: '2', type: 'show', title: 'TV Shows' },
+                    { key: '5', type: 'movie', title: 'Bumpers' }
+                ]
+            }
+        };
+
+        it('refreshes every section, whatever its type, and reports no command id', async () => {
+            const { adapter, seen } = probe(three);
+            const handle = await adapter.startLibraryScan();
+            expect(seen).toEqual(['1', '2', '5']);
+            // 0 for the same reason Jellyfin's is: Plex hands back no id, and a
+            // made-up number would look like something `stack_health` could poll.
+            expect(handle).toMatchObject({ service: 'plex', commandId: 0, status: 'started' });
+            expect(handle.detail).toBeUndefined();
+        });
+
+        it('names the library that refused, and still reports the scan running', async () => {
+            const { adapter } = probe(three, ['2']);
+            const handle = await adapter.startLibraryScan();
+            expect(handle.status).toBe('started');
+            expect(handle.detail).toBe('2 of 3 libraries started; Plex refused TV Shows.');
+        });
+
+        it('falls back to the section key when a refusing library has no title', async () => {
+            const untitled = { MediaContainer: { Directory: [{ key: '1' }, { key: '9' }] } };
+            const { adapter } = probe(untitled, ['9']);
+            expect((await adapter.startLibraryScan()).detail).toContain('section 9');
+        });
+
+        it('throws when every library refuses, since then nothing is scanning', async () => {
+            const { adapter } = probe(three, ['1', '2', '5']);
+            await expect(adapter.startLibraryScan()).rejects.toThrow(/any of its 3 libraries/);
+        });
+
+        it('throws when the server lists no sections at all', async () => {
+            const { adapter, seen } = probe({ MediaContainer: { Directory: [] } });
+            await expect(adapter.startLibraryScan()).rejects.toThrow(/no library sections/);
+            expect(seen).toEqual([]);
+        });
+    });
+
     // Each captured response carries the real noise a live 1.43.3.10896
     // sends alongside the fields the adapter reads — Role, Writer,
     // UltraBlurColors, Field, and the rest #toIndexItem etc. never touch.
