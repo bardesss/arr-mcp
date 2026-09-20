@@ -116,7 +116,11 @@ an editor instead.
 Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
 the dashboard. A client that can only be given a URL, not a header, can carry
 the token as `?token=` instead — see
-[`allow_token_in_url`](docs/configuration.md#allow_token_in_url). Everything
+[`allow_token_in_url`](docs/configuration.md#allow_token_in_url). If you already
+run an identity provider, `/mcp` also accepts short-lived OAuth 2.1 access
+tokens, so each client gets its own credential and a scope that caps what it may
+do — read-only for one, writes for another, never more than `config.yaml`
+already permits. See [`auth.oauth`](docs/configuration.md#authoauth). Everything
 the UI does is still just `config.yaml`, and editing that by hand remains
 supported. Clients that read the
 [MCP Registry](https://registry.modelcontextprotocol.io) find it there as
