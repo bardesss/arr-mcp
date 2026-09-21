@@ -197,9 +197,9 @@ which version.
 **One adapter remains unverified: qBittorrent.** The maintainer runs neither
 Plex nor qBittorrent — testing means running a build against your own server
 and reporting what worked. [Plex](../../issues/180) has since been verified
-against a live Plex Media Server 1.43.3.10896 by a volunteer tester;
-[qBittorrent](../../issues/147) has shipped but still waits on the same kind
-of report. [The design behind Plex, and what else is on the
+against two live Plex Media Servers by two volunteer testers, its first write
+included; [qBittorrent](../../issues/147) has shipped but still waits on the
+same kind of report. [The design behind Plex, and what else is on the
 list](CONTRIBUTING.md#what-would-be-accepted-today).
 
 **AI-assisted contributions are welcome**, held to the same bar and no other;
