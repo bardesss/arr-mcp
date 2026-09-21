@@ -8,6 +8,7 @@ import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { applyLimit } from '../core/shape.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
+import { audioLanguagesByFileId } from './arrMediaInfo.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, WHISPARR_ADD } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
@@ -406,7 +407,10 @@ export class WhisparrAdapter
 
         if (!opts.includeEpisodes) return base;
 
-        const episodes = await this.#http.get<RawEpisode[]>(`/api/v3/episode?seriesId=${encodeURIComponent(id)}`);
+        const [episodes, audio] = await Promise.all([
+            this.#http.get<RawEpisode[]>(`/api/v3/episode?seriesId=${encodeURIComponent(id)}`),
+            audioLanguagesByFileId(this.#http, this.id, id)
+        ]);
         const shaped = applyLimit(
             episodes.filter((e): e is RawEpisode & { id: number } => typeof e.id === 'number'),
             opts.episodeLimit
@@ -414,21 +418,25 @@ export class WhisparrAdapter
 
         return {
             ...base,
-            episodes: shaped.items.map(e => ({
-                id: e.id,
-                season: e.seasonNumber ?? 0,
-                // Always 0: Whisparr sends no `episodeNumber`, because scenes
-                // are not numbered within their year. Zero is what Sonarr's
-                // absent-episode case already produces, so consumers need no
-                // second shape — but it means episode number cannot identify a
-                // scene here, and only `id` can.
-                episode: 0,
-                title: fenceText(e.title ?? '', { service: this.id, field: 'episode.title' }),
-                ...(e.releaseDate === undefined ? {} : { airDate: e.releaseDate }),
-                hasFile: e.hasFile ?? false,
-                monitored: e.monitored ?? false,
-                ...(e.episodeFileId === undefined ? {} : { episodeFileId: e.episodeFileId })
-            })),
+            episodes: shaped.items.map(e => {
+                const languages = e.episodeFileId === undefined ? undefined : audio.get(e.episodeFileId);
+                return {
+                    id: e.id,
+                    season: e.seasonNumber ?? 0,
+                    // Always 0: Whisparr sends no `episodeNumber`, because scenes
+                    // are not numbered within their year. Zero is what Sonarr's
+                    // absent-episode case already produces, so consumers need no
+                    // second shape — but it means episode number cannot identify a
+                    // scene here, and only `id` can.
+                    episode: 0,
+                    title: fenceText(e.title ?? '', { service: this.id, field: 'episode.title' }),
+                    ...(e.releaseDate === undefined ? {} : { airDate: e.releaseDate }),
+                    hasFile: e.hasFile ?? false,
+                    monitored: e.monitored ?? false,
+                    ...(e.episodeFileId === undefined ? {} : { episodeFileId: e.episodeFileId }),
+                    ...(languages === undefined ? {} : { audioLanguages: languages })
+                };
+            }),
             episodeCount: shaped.total,
             episodesTruncated: shaped.truncated
         };

@@ -339,6 +339,39 @@ stack, `plex:seasons` on a Plex one. Sonarr's half of `seasons` survives intact
 `lastPlayed`) and `complete`, which needs both halves, go missing. Film watch
 state and `presence` are unaffected.
 
+### Which audio languages a file carries
+
+Anything with a file carries `audioLanguages`: the track languages the service
+read off the file itself, slash-joined the way the *arrs write them (`jpn/eng`).
+It sits on each episode row for a series and on the record itself for a film, so
+a series needs `detail: "full"` and a film does not.
+
+This is the field that answers "is the English dub here". A `MULTi` or `Dual
+Audio` in a `get_history` release name describes how the grab was labelled, not
+what landed on disk, and a later upgrade replaces the file without replacing
+that label.
+
+It is **absent, never empty**, when there is no file — and also when there is
+one the service holds no media info for, such as an import that predates a
+rescan or a file whose probe failed. Absent means "not known", not "no audio".
+
+**One entry per language, not per track.** The *arrs write one entry per audio
+stream, so a file with six English tracks reaches them as
+`eng/eng/eng/eng/eng/eng`, which reads as six languages. Repeats are collapsed
+and first-seen order kept, so the primary track stays first and `ger/eng` still
+means what it looks like. If you want the number of streams rather than the set
+of languages, that is a different field upstream and this one will not give it
+to you.
+
+Sonarr and Whisparr answer it from a second read of `/api/v3/episodefile`, since
+`/api/v3/episode` carries no media info. Radarr needs no extra call: the movie
+payload already embeds its file. A failed second read costs the field and
+nothing else — the episodes still come back.
+
+Unlike the free text beside it, the value is not fenced. It exists to be matched
+against, and a boundary marker wrapped around `jpn/eng` would make its one job
+harder; the code points `fenceText` strips are removed from it all the same.
+
 ## `get_playback`
 
 `scope` picks which of three Jellyfin reads answers the call, and defaults to

@@ -532,6 +532,10 @@ export type EpisodeSummary = {
     monitored: boolean;
     /** 0 or absent when the episode has no file — Sonarr uses zero, not absence. */
     episodeFileId?: number;
+    /** The audio languages on the file, as the service read them off it, e.g.
+     *  `jpn/eng`. Absent when there is no file, or when the service has no
+     *  media info for one. */
+    audioLanguages?: string;
 };
 
 /**
@@ -555,6 +559,9 @@ export type MediaDetails = {
     /** The service's own status word — see `MergedItem.acquisition.status`. */
     status?: string;
     hasFile?: boolean;
+    /** Movies only — a series has no one file. The series answer is per
+     *  episode, on `episodes[].audioLanguages`. */
+    audioLanguages?: string;
     sizeBytes?: number;
     quality?: string;
     path?: string;
