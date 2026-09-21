@@ -548,8 +548,10 @@ compare them and — once a grab tool exists — choose one.
 
 `service` and `id` are both required: this searches one movie or series,
 never merges across services the way `get_history` and `get_wanted` do.
-`season` is Sonarr-only, and passing it to a Radarr search is refused rather
-than silently dropped.
+`season` and `episode` are Sonarr-only, and passing either to a Radarr search
+is refused rather than silently dropped. They are mutually exclusive. `episode`
+takes one episode id, as `trigger_search`'s `episodes` does, and searches that
+episode alone.
 
 Rejected releases are returned, not filtered out. A live capture found
 *every* candidate rejected on both a Radarr and a Sonarr search — 2 of 2 and
@@ -581,6 +583,13 @@ default every other call uses, specifically so a real search has room to
 finish rather than being cut off. A long wait here is not a hang; retrying
 it starts a second full indexer sweep.
 
+Sonarr runs one indexer search per episode, so a season search scales with the
+season's episode count and a whole-series search with every episode the series
+has. To replace one bad episode, pass `episode`: a live search for one episode
+returned 339 releases in 58 seconds, where a season could not fit in the
+timeout. Retry is already off for this call, so a timeout means one sweep ran
+out of time, not two.
+
 ## `grab_release`
 
 The write half of `get_releases`. Takes `guid` and `indexer_id` from a
@@ -592,7 +601,8 @@ back off with `remove_queue_item`. Nothing on disk is lost.
 
 Previewing is slow, and deliberately so. The preview re-runs the interactive
 search before it will issue a token, which polls every indexer again and can
-take tens of seconds. It buys two things. Indexer results expire, and a bare
+take tens of seconds. Pass the same `season` or `episode` `get_releases` was
+called with, so the re-search covers that scope and not the whole series. It buys two things. Indexer results expire, and a bare
 grab of an expired guid answers a 404 that is indistinguishable from a wrong
 base path — the re-search turns that into *"that release is no longer on
 offer, call get_releases again"*. And it puts the release's real name in the
