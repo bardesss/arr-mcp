@@ -281,7 +281,11 @@ describe('get_media_details', () => {
         tmdbId: 550,
         imdbId: 'tt0137523',
         ratings: { imdb: { value: 8.8, votes: 2_000_000 }, tmdb: { value: 8.4, votes: 27_000 }, trakt: { value: 0 } },
-        movieFile: { size: 42_000_000_000, quality: { quality: { name: 'Bluray-2160p' } } }
+        movieFile: {
+            size: 42_000_000_000,
+            quality: { quality: { name: 'Bluray-2160p' } },
+            mediaInfo: { audioLanguages: 'eng/fra' }
+        }
     };
 
     const SERIES = { id: 7, title: 'Some Show', year: 2024, tvdbId: 12345, statistics: { sizeOnDisk: 900_000_000_000 } };
@@ -290,9 +294,20 @@ describe('get_media_details', () => {
         { id: 901, seasonNumber: 1, episodeNumber: 2, title: 'Second', hasFile: false, monitored: true }
     ];
 
+    // `mediaInfo` is what the service read off the file, so only the episode
+    // that has one appears here. Episode 901 has no file at all.
+    const EPISODE_FILES = [{ id: 5001, seasonNumber: 1, mediaInfo: { audioLanguages: 'jpn/eng' } }];
+
     const detailRadarr = new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie/42': MOVIE }));
     const detailSonarr = (episodes: unknown = EPISODES) =>
-        new SonarrAdapter(keyed(8989), serving({ '/api/v3/series/7': SERIES, '/api/v3/episode': episodes }));
+        new SonarrAdapter(
+            keyed(8989),
+            serving({
+                '/api/v3/series/7': SERIES,
+                '/api/v3/episode': episodes,
+                '/api/v3/episodefile': EPISODE_FILES
+            })
+        );
 
     it('describes a film, flattening the nested rating and quality shapes', async () => {
         const result = await buildGetMediaDetails([detailRadarr], {
@@ -350,6 +365,103 @@ describe('get_media_details', () => {
 
         expect(result.episodes?.[0]).toMatchObject({ episodeFileId: 5001 });
         expect(result.episodes?.[1]).not.toHaveProperty('episodeFileId');
+    });
+
+    // #283: an episode row carried `hasFile` and nothing about the file, so
+    // "is the English dub there" could only be guessed at from release names
+    // in the history, which describe the grab and not what landed on disk.
+    it('carries the audio languages of the file behind each episode', async () => {
+        const result = await buildGetMediaDetails([detailSonarr()], {
+            service: 'sonarr',
+            id: '7',
+            detail: 'full',
+            limit: 50
+        });
+
+        expect(result.episodes?.[0]).toMatchObject({ episodeFileId: 5001, audioLanguages: 'jpn/eng' });
+    });
+
+    it('omits audio languages for an episode with no file, rather than calling it silent', async () => {
+        const result = await buildGetMediaDetails([detailSonarr()], {
+            service: 'sonarr',
+            id: '7',
+            detail: 'full',
+            limit: 50
+        });
+
+        expect(result.episodes?.[1]).not.toHaveProperty('audioLanguages');
+    });
+
+    // The file read is a second call. Losing it must cost the one field, not
+    // turn a good episode list into an error a model reads as "no such series".
+    it('still lists episodes when the file read fails', async () => {
+        const noFiles = new SonarrAdapter(
+            keyed(8989),
+            serving({ '/api/v3/series/7': SERIES, '/api/v3/episode': EPISODES })
+        );
+        const result = await buildGetMediaDetails([noFiles], {
+            service: 'sonarr',
+            id: '7',
+            detail: 'full',
+            limit: 50
+        });
+
+        expect(result.episodes).toHaveLength(2);
+        expect(result.episodes?.[0]).not.toHaveProperty('audioLanguages');
+    });
+
+    it('carries the audio languages of a film from the file Radarr already sent', async () => {
+        const result = await buildGetMediaDetails([detailRadarr], {
+            service: 'radarr',
+            id: '42',
+            detail: 'full',
+            limit: 50
+        });
+
+        expect(result.audioLanguages).toBe('eng/fra');
+    });
+
+    // Not fenced, because the caller matches on it. That makes stripping the
+    // code points a fence would have removed the only protection left.
+    it('strips a bidi override from a language string without fencing it', async () => {
+        const hostile = new SonarrAdapter(
+            keyed(8989),
+            serving({
+                '/api/v3/series/7': SERIES,
+                '/api/v3/episode': EPISODES,
+                '/api/v3/episodefile': [{ id: 5001, mediaInfo: { audioLanguages: 'jpn/‮eng' } }]
+            })
+        );
+        const result = await buildGetMediaDetails([hostile], {
+            service: 'sonarr',
+            id: '7',
+            detail: 'full',
+            limit: 50
+        });
+
+        expect(result.episodes?.[0]?.audioLanguages).toBe('jpn/eng');
+    });
+
+    // Found live, not in a fixture: a real Radarr answers `eng/eng/eng` for a
+    // file with three English tracks, and three of the same language reads as
+    // three languages. The count is `audioStreamCount`, not this field.
+    it('collapses one entry per track into one entry per language', async () => {
+        const manyTracks = new SonarrAdapter(
+            keyed(8989),
+            serving({
+                '/api/v3/series/7': SERIES,
+                '/api/v3/episode': EPISODES,
+                '/api/v3/episodefile': [{ id: 5001, mediaInfo: { audioLanguages: 'eng/eng/jpn/eng' } }]
+            })
+        );
+        const result = await buildGetMediaDetails([manyTracks], {
+            service: 'sonarr',
+            id: '7',
+            detail: 'full',
+            limit: 50
+        });
+
+        expect(result.episodes?.[0]?.audioLanguages).toBe('eng/jpn');
     });
 
     it('omits episodes at detail: standard, because a 200-episode series is the response', async () => {

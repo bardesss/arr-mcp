@@ -22,6 +22,7 @@ import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, s
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
+import { audioLanguagesByFileId } from './arrMediaInfo.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import type { components } from './generated/sonarr.ts';
@@ -446,7 +447,10 @@ export class SonarrAdapter
 
         // A long-running series is hundreds of episodes; the same truncation
         // contract applies here as to any other list.
-        const episodes = await this.#http.get<RawEpisode[]>(`/api/v3/episode?seriesId=${encodeURIComponent(id)}`);
+        const [episodes, audio] = await Promise.all([
+            this.#http.get<RawEpisode[]>(`/api/v3/episode?seriesId=${encodeURIComponent(id)}`),
+            audioLanguagesByFileId(this.#http, this.id, id)
+        ]);
         const shaped = applyLimit(
             episodes.filter((e): e is RawEpisode & { id: number } => typeof e.id === 'number'),
             opts.episodeLimit
@@ -454,16 +458,20 @@ export class SonarrAdapter
 
         return {
             ...base,
-            episodes: shaped.items.map(e => ({
-                id: e.id,
-                season: e.seasonNumber ?? 0,
-                episode: e.episodeNumber ?? 0,
-                title: fenceText(e.title ?? '', { service: this.id, field: 'episode.title' }),
-                ...(e.airDateUtc === undefined ? {} : { airDate: e.airDateUtc }),
-                hasFile: e.hasFile ?? false,
-                monitored: e.monitored ?? false,
-                ...(e.episodeFileId === undefined ? {} : { episodeFileId: e.episodeFileId })
-            })),
+            episodes: shaped.items.map(e => {
+                const languages = e.episodeFileId === undefined ? undefined : audio.get(e.episodeFileId);
+                return {
+                    id: e.id,
+                    season: e.seasonNumber ?? 0,
+                    episode: e.episodeNumber ?? 0,
+                    title: fenceText(e.title ?? '', { service: this.id, field: 'episode.title' }),
+                    ...(e.airDateUtc === undefined ? {} : { airDate: e.airDateUtc }),
+                    hasFile: e.hasFile ?? false,
+                    monitored: e.monitored ?? false,
+                    ...(e.episodeFileId === undefined ? {} : { episodeFileId: e.episodeFileId }),
+                    ...(languages === undefined ? {} : { audioLanguages: languages })
+                };
+            }),
             episodeCount: shaped.total,
             episodesTruncated: shaped.truncated
         };
