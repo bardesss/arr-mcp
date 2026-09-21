@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.32.0](https://github.com/bardesss/arr-mcp/compare/v1.31.0...v1.32.0) (2026-09-21)
+
+
+### Features
+
+* report which audio languages a file carries ([#285](https://github.com/bardesss/arr-mcp/issues/285)) ([683572a](https://github.com/bardesss/arr-mcp/commit/683572aaa19c64399809f36cfb5e06ec971660a4)), closes [#283](https://github.com/bardesss/arr-mcp/issues/283)
+
 ## [1.31.0](https://github.com/bardesss/arr-mcp/compare/v1.30.0...v1.31.0) (2026-09-20)
 
 
