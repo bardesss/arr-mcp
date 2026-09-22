@@ -275,13 +275,20 @@ function anonymiseEpisodeFile(row: Row, index: number): Row {
 }
 
 /** A torrent name is a release name, and an info hash identifies the release
- *  exactly — both say what the user is downloading. */
+ *  exactly — both say what the user is downloading. `infohash_v1`/`_v2` repeat
+ *  `hash`, `root_path` repeats the name, and `comment` is whatever the uploader
+ *  wrote: on a private tracker, a URL with the account's ids in it. */
 function anonymiseTorrent(row: Row, index: number): Row {
     const n = index + 1;
+    const hash = String(n).repeat(64);
     return {
         ...row,
         name: replaceIfString(row.name, `Release.Name.${n}.1080p.WEB-DL.x264-GROUP`),
-        hash: replaceIfString(row.hash, String(n).repeat(40).slice(0, 40)),
+        hash: replaceIfString(row.hash, hash.slice(0, 40)),
+        infohash_v1: replaceIfString(row.infohash_v1, hash.slice(0, 40)),
+        infohash_v2: replaceIfString(row.infohash_v2, hash),
+        comment: replaceIfString(row.comment, ''),
+        root_path: replaceIfString(row.root_path, `/downloads/release-${n}`),
         save_path: replaceIfString(row.save_path, '/downloads'),
         content_path: replaceIfString(row.content_path, `/downloads/release-${n}`),
         download_path: replaceIfString(row.download_path, '/downloads'),
@@ -292,8 +299,15 @@ function anonymiseTorrent(row: Row, index: number): Row {
     };
 }
 
-const anonymiseTorrents = (body: unknown): unknown =>
-    Array.isArray(body) ? (body as Row[]).map(anonymiseTorrent) : body;
+/** One torrent per distinct state, at most five: a seeding server holds
+ *  hundreds and the fixture grew by 35,900 lines, but the adapter's state
+ *  mapping only needs each state seen once. */
+const anonymiseTorrents = (body: unknown): unknown => {
+    if (!Array.isArray(body)) return body;
+    const seen = new Set<unknown>();
+    const kept = (body as Row[]).filter(row => !seen.has(row.state) && seen.add(row.state));
+    return kept.slice(0, 5).map(anonymiseTorrent);
+};
 
 function anonymiseSeerrUser(row: Row, index: number): Row {
     const n = index + 1;
@@ -776,12 +790,18 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     qbittorrent: [
         { name: 'version', path: '/api/v2/app/version', text: true, anonymise: body => ({ version: body }) },
         { name: 'torrents-info', path: '/api/v2/torrents/info', anonymise: anonymiseTorrents },
-        // Trimmed to `server_state`: the rest of maindata is the same torrent
-        // list again, keyed by hash.
+        // Trimmed to the one `server_state` field the adapter reads: the rest
+        // of maindata is the torrent list again, and `server_state` carries the
+        // server's public address (`last_external_address_v4`/`_v6`).
         {
             name: 'maindata',
             path: '/api/v2/sync/maindata',
-            anonymise: body => ({ server_state: (body as { server_state?: unknown }).server_state ?? {} })
+            anonymise: body => ({
+                server_state: {
+                    free_space_on_disk: (body as { server_state?: { free_space_on_disk?: unknown } }).server_state
+                        ?.free_space_on_disk
+                }
+            })
         },
         // Trimmed to the one field the adapter reads. The full preferences
         // object carries `web_ui_password`, proxy credentials and RSS feeds,

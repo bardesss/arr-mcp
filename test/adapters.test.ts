@@ -5,7 +5,7 @@ import type { KeyedServiceConfig, MultiUserServiceConfig, CredentialServiceConfi
 import { BazarrAdapter } from '../src/services/bazarr.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
-import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
+import { QbittorrentAdapter, btihToHex } from '../src/services/qbittorrent.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
@@ -711,6 +711,29 @@ describe('QbittorrentAdapter', () => {
         const items = await adapter.getQueue();
         expect(items[0]?.etaSeconds).toBe(614);
         expect(items[1]?.etaSeconds).toBeUndefined();
+    });
+
+    it('decodes a base32 btih to the hex qBittorrent indexes on', () => {
+        const hex = '0123456789abcdef0123456789abcdef01234567';
+        expect(btihToHex('AERUKZ4JVPG66AJDIVTYTK6N54ASGRLH')).toBe(hex);
+        expect(btihToHex('aerukz4jvpg66ajdivtytk6n54asgrlh')).toBe(hex);
+        expect(btihToHex(hex.toUpperCase())).toBe(hex);
+        // 32 characters but outside the base32 alphabet: not decodable, so unchanged.
+        expect(btihToHex('0'.repeat(32))).toBe('0'.repeat(32));
+    });
+
+    it('finds an existing torrent when the magnet carries a base32 btih', async () => {
+        const hex = '0123456789abcdef0123456789abcdef01234567';
+        const held = new QbittorrentAdapter(
+            qbittorrentConfig,
+            serving({
+                '/api/v2/torrents/add': 'Ok.',
+                [`/api/v2/torrents/info?hashes=${hex}`]: [{ hash: hex, name: 'x', state: 'stoppedUP' }],
+                '/api/v2/torrents/info': []
+            })
+        );
+        const added = await held.addMagnet('magnet:?xt=urn:btih:AERUKZ4JVPG66AJDIVTYTK6N54ASGRLH&dn=x');
+        expect(added).toEqual({ id: hex, duplicate: true });
     });
 
     it('reports an unrecognised state as unknown rather than guessing', async () => {
