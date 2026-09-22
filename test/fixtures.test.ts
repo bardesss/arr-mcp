@@ -71,6 +71,28 @@ const lastWord = (key: string): string =>
 
 const isIdKey = (key: string): boolean => ID_WORDS.has(lastWord(key)) || ID_WORDS.has(key.toLowerCase());
 
+const IPV4 = /(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])/g;
+// Only the compressed form (`::`) or a full eight groups: a bare `12:34:56`
+// timestamp has neither.
+const IPV6 = /(?<![0-9a-f:])(?:(?:[0-9a-f]{1,4}:){1,7}:[0-9a-f:]*|(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4})(?![0-9a-f:])/gi;
+
+/** Private, loopback, link-local and the RFC 5737 / 3849 documentation ranges
+ *  the capture script rewrites addresses to. Anything else is a real host. */
+const ALLOWED_ADDRESS =
+    /^(?:0\.0\.0\.0|10\.|127\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|::1?$|f[cd]|fe[89ab]|2001:db8:)/i;
+
+/** Every IP-shaped token in raw text that is not an allowed address. Scans the
+ *  whole file, not named fields: the next endpoint captured will carry its own. */
+export const publicAddresses = (text: string): string[] => {
+    // A four-part version ("2.2.0.108") is shaped like an address, and a
+    // version-named key never holds one.
+    const unversioned = text.replace(/"[^"]*version[^"]*"\s*:\s*"[^"]*"/gi, '');
+    return [...unversioned.matchAll(IPV4), ...unversioned.matchAll(IPV6)]
+        .map(m => m[0])
+        .filter(a => a.includes(':') || a.split('.').every(o => Number(o) <= 255))
+        .filter(a => !ALLOWED_ADDRESS.test(a));
+};
+
 type Finding = { file: string; path: string; reason: string };
 
 export function scan(file: string, node: unknown, path = '$', out: Finding[] = []): Finding[] {
@@ -122,6 +144,13 @@ describe('committed fixtures', () => {
         expect(findings).toEqual([]);
     });
 
+    it('contain no public IP address anywhere in the file', async () => {
+        const findings = (await fixtureContents()).flatMap(({ file, text }) =>
+            publicAddresses(text).map(address => `${file}: ${address}`)
+        );
+        expect(findings).toEqual([]);
+    });
+
     it('are valid JSON objects or arrays, not accidental HTML error pages', async () => {
         for (const { text } of await fixtureContents()) {
             const parsed: unknown = JSON.parse(text);
@@ -131,6 +160,12 @@ describe('committed fixtures', () => {
 });
 
 describe('the guard itself', () => {
+    it('flags a public address in any field, and passes private, documentation and version-shaped ones', () => {
+        expect(publicAddresses('{"anything":"8.8.8.8","v6":"2606:4700::1111"}')).toEqual(['8.8.8.8', '2606:4700::1111']);
+        expect(publicAddresses('{"version":"2.2.0.108"}')).toEqual([]);
+        expect(publicAddresses('"192.168.1.5 10.0.0.1 192.0.2.10 2001:db8::a fe80::1 ::1 4.0.5.1234 09:22:10"')).toEqual([]);
+    });
+
     it('flags a session id, which the capture script also redacts', () => {
         expect(scan('t', { 'session-id': 'abc123' })).toHaveLength(1);
         expect(scan('t', { session_id: 'abc123' })).toHaveLength(1);

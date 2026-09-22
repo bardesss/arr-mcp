@@ -265,8 +265,9 @@ finding out afterwards.
 Lidarr, Plex nor qBittorrent. Lidarr has no adapter yet. Plex has an adapter
 and, as of a volunteer tester's report on [issue #180](../../issues/180), has
 been exercised against a real instance. [qBittorrent](../../issues/147) has an
-adapter too but has never been exercised against a real instance — whichever
-you take on, your testing is the only testing it gets before it ships.
+adapter too, exercised against a real 5.2.3 server in [#195](../../issues/195)
+for login and health only — whichever you take on, your testing is the only
+testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
 you tested and against which version, and capture fixtures from the real service
