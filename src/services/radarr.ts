@@ -186,7 +186,7 @@ export class RadarrAdapter
         return readArrWanted(this.#http, this.id, 'movie', scope);
     }
 
-    async findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]> {
+    async findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]> {
         return findArrReleases(this.#http, this.id, 'movie', opts);
     }
 

@@ -53,6 +53,7 @@ function harness(
     opts: { releases?: Record<string, unknown>[]; permissions?: Partial<Record<ServiceId, AnyServiceConfig>> } = {}
 ) {
     const grabbed: unknown[] = [];
+    const searched: string[] = [];
 
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
@@ -60,6 +61,7 @@ function harness(
             grabbed.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
             return new Response('', { status: 200 });
         }
+        if (url.pathname === '/api/v3/release') searched.push(url.search);
         if (url.pathname === '/api/v3/release') return jsonResponse(opts.releases ?? [release()]);
         return jsonResponse({ message: 'not found' }, 404);
     }) as unknown as typeof fetch;
@@ -85,7 +87,7 @@ function harness(
         [new RadarrAdapter(keyed(7878), impl), new SonarrAdapter(keyed(8989), impl)]
     );
 
-    return { call: (a: Record<string, unknown>) => call(a), grabbed, audit };
+    return { call: (a: Record<string, unknown>) => call(a), grabbed, searched, audit };
 }
 
 const ARGS = { service: 'radarr', id: '1', guid: 'abc', indexer_id: 3 };
@@ -107,6 +109,19 @@ describe('grab_release', () => {
 
         expect(applied.structuredContent.applied).toBe(true);
         expect(h.grabbed).toEqual([{ guid: 'abc', indexerId: 3 }]);
+    });
+
+    it('narrows the confirming re-search to the episode or season it was given', async () => {
+        const h = harness();
+        await h.call({ ...ARGS, service: 'sonarr', episode: '901' });
+        await h.call({ ...ARGS, service: 'sonarr', season: 2 });
+        await h.call({ ...ARGS, service: 'sonarr' });
+        expect(h.searched).toEqual(['?episodeId=901', '?seriesId=1&seasonNumber=2', '?seriesId=1']);
+    });
+
+    it('refuses token-free previews that pass season and episode together', async () => {
+        const h = harness();
+        await expect(h.call({ ...ARGS, service: 'sonarr', season: 1, episode: '901' })).rejects.toThrow(/both/);
     });
 
     it('refuses a token issued for a different release', async () => {
@@ -356,6 +371,17 @@ describe('grab_release with a magnet', () => {
         await expect(h.call({ service: 'transmission', magnet: 'magnet:?dn=No.Hash', dry_run: true })).rejects.toThrow(
             /not a magnet/i
         );
+    });
+
+    it('refuses a search scope alongside a magnet, which never reaches an *arr', async () => {
+        const h = clientHarness();
+        await expect(
+            h.call({ service: 'qbittorrent', magnet: MAGNET, season: 2, dry_run: true })
+        ).rejects.toThrow(/no scope|Drop them/i);
+        await expect(
+            h.call({ service: 'qbittorrent', magnet: MAGNET, episode: '901', dry_run: true })
+        ).rejects.toThrow(/Drop them/i);
+        expect(h.sent).toHaveLength(0);
     });
 
     it('refuses a magnet and a guid together rather than picking one', async () => {

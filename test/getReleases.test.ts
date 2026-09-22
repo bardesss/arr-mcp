@@ -125,6 +125,15 @@ describe('get_releases', () => {
         expect(result.items[0]).toMatchObject({ rejected: true });
     });
 
+    it('passes an episode through as a single-episode search', async () => {
+        const one = new SonarrAdapter(
+            keyed(8989),
+            serving({ '/api/v3/release?episodeId=901': SONARR_RELEASES })
+        );
+        const result = await buildGetReleases([one], { ...opts, service: 'sonarr', id: '15', episode: '901' });
+        expect(result.total).toBe(1);
+    });
+
     it('keeps guid, indexerId and rejections at detail: full', async () => {
         const result = await buildGetReleases([radarr()], { ...opts, service: 'radarr', id: '340', detail: 'full' });
         expect(result.items[0]?.guid).toBe('https://drunkenslug.com/details/1e569eaf');

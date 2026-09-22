@@ -35,20 +35,29 @@ export async function findArrReleases(
     http: ServiceHttp,
     service: string,
     kind: 'movie' | 'series',
-    opts: { id: string; season?: number }
+    opts: { id: string; season?: number; episode?: string }
 ): Promise<ReleaseCandidate[]> {
-    if (kind === 'movie' && opts.season !== undefined) {
-        throw new ServiceError('NotFound', service, `${service} has no season — season search is Sonarr-only`, {
-            remedy: 'Drop `season` for a Radarr search, or point it at a configured Sonarr instance.'
+    if (kind === 'movie' && (opts.season !== undefined || opts.episode !== undefined)) {
+        throw new ServiceError('NotFound', service, `${service} has no seasons or episodes — that scope is Sonarr-only`, {
+            remedy: 'Drop `season` and `episode` for a Radarr search, or point it at a configured Sonarr instance.'
+        });
+    }
+    if (opts.season !== undefined && opts.episode !== undefined) {
+        throw new ServiceError('NotFound', service, '`season` and `episode` were both given', {
+            remedy: 'They are different scopes — send one. `episode` searches that episode alone; `season` searches every episode in the season.'
         });
     }
 
+    // Sonarr runs one indexer search per episode, so a season or series
+    // search costs that many sweeps; `episodeId` alone is a single one.
     const query =
         kind === 'movie'
             ? `movieId=${encodeURIComponent(opts.id)}`
-            : `seriesId=${encodeURIComponent(opts.id)}${
-                  opts.season === undefined ? '' : `&seasonNumber=${opts.season}`
-              }`;
+            : opts.episode !== undefined
+              ? `episodeId=${encodeURIComponent(opts.episode)}`
+              : `seriesId=${encodeURIComponent(opts.id)}${
+                    opts.season === undefined ? '' : `&seasonNumber=${opts.season}`
+                }`;
 
     // `retry: false`: the default timeout retry re-issues the whole request,
     // which here means a second full synchronous poll of every configured

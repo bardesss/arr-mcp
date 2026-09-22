@@ -67,6 +67,7 @@ export async function buildGetReleases(
         instance?: string;
         id: string;
         season?: number;
+        episode?: string;
         detail: DetailLevel;
         limit: number;
         offset?: number;
@@ -85,7 +86,8 @@ export async function buildGetReleases(
 
     const items = await adapter.findReleases({
         id: opts.id,
-        ...(opts.season === undefined ? {} : { season: opts.season })
+        ...(opts.season === undefined ? {} : { season: opts.season }),
+        ...(opts.episode === undefined ? {} : { episode: opts.episode })
     });
 
     const shaped = applyLimit(items, opts.limit, opts.offset);
@@ -99,7 +101,7 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
             title: 'Interactive search results',
             annotations: READ_ONLY,
             description:
-                `\`trigger_search\` starts an indexer search but hands back only a queued command — it cannot show what was found, so nothing can be picked. \`get_releases\` runs the same interactive search Radarr or Sonarr's own UI does and returns every candidate, rejected ones included: a real capture found every release rejected on both a Radarr and a Sonarr search, almost always because the library already held an equal-or-better file, so filtering rejects out would have answered empty. Each row carries \`rejected\` and the upstream \`rejections\` that explain it, plus \`guid\` and \`indexerId\` together, which is what a future grab tool will bind to — both trimmed below \`detail: full\`, along with \`rejections\` below \`detail: standard\`. \`seeders\` is torrent-only and absent, not zero, on a usenet result. **This call is slow: Radarr and Sonarr poll every configured indexer synchronously, and a live capture measured a Sonarr season search at 14.3s. The timeout on this one call is set to ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s to give a real search room to finish. A long wait is not a hang — do not retry, which starts a second full indexer sweep.** \`season\` is Sonarr and Whisparr only, and is refused, not ignored, against Radarr.`,
+                `\`trigger_search\` starts an indexer search but hands back only a queued command — it cannot show what was found, so nothing can be picked. \`get_releases\` runs the same interactive search Radarr or Sonarr's own UI does and returns every candidate, rejected ones included: a real capture found every release rejected on both a Radarr and a Sonarr search, almost always because the library already held an equal-or-better file, so filtering rejects out would have answered empty. Each row carries \`rejected\` and the upstream \`rejections\` that explain it, plus \`guid\` and \`indexerId\` together, which is what a future grab tool will bind to — both trimmed below \`detail: full\`, along with \`rejections\` below \`detail: standard\`. \`seeders\` is torrent-only and absent, not zero, on a usenet result. **This call is slow: Radarr and Sonarr poll every configured indexer synchronously, and a live capture measured a Sonarr season search at 14.3s. The timeout on this one call is set to ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s to give a real search room to finish. A long wait is not a hang — do not retry, which starts a second full indexer sweep.** \`season\` is Sonarr and Whisparr only, and is refused, not ignored, against Radarr. Sonarr runs one indexer search per episode, so a season search scales with the season's episode count and a whole series with every episode it has: for one episode, pass \`episode\` instead — a single search. \`retry\` is already off for this call, so a timeout means one sweep ran out of time, not two.`,
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 service: ServiceIdSchema.describe(
@@ -115,17 +117,25 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
                     .describe(
                         'Sonarr and Whisparr only — search one season (a release year on Whisparr) rather than the whole series. Refused against Radarr.'
                     ),
+                episode: z
+                    .string()
+                    .min(1)
+                    .optional()
+                    .describe(
+                        'Sonarr only — one episode id, as an integer string (from get_media_details with episodes). Searches that episode alone, far faster than a season. Mutually exclusive with `season`; refused against Radarr.'
+                    ),
                 detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema
             })
         },
-        async ({ service, instance, id, season, detail, limit, offset }) => {
+        async ({ service, instance, id, season, episode, detail, limit, offset }) => {
             const result = await buildGetReleases(adapters, {
                 service,
                 ...(instance === undefined ? {} : { instance }),
                 id,
                 ...(season === undefined ? {} : { season }),
+                ...(episode === undefined ? {} : { episode }),
                 detail,
                 limit,
                 offset

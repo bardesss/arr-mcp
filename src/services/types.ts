@@ -341,9 +341,10 @@ export type ReleaseCandidate = {
 };
 
 export interface ReleaseSearchCapable {
-    /** `season` is Sonarr-only; a Radarr adapter refuses rather than ignoring
-     *  it. Slow upstream — see `RELEASE_SEARCH_TIMEOUT_MS`. */
-    findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]>;
+    /** `season` and `episode` (an episode id) are Sonarr-only and mutually
+     *  exclusive; a Radarr adapter refuses rather than ignoring them. Slow
+     *  upstream — see `RELEASE_SEARCH_TIMEOUT_MS`. */
+    findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]>;
 }
 
 export const hasReleaseSearch = (a: ServiceAdapter): a is ServiceAdapter & ReleaseSearchCapable =>
