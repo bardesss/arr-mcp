@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.33.0](https://github.com/bardesss/arr-mcp/compare/v1.32.0...v1.33.0) (2026-09-22)
+
+
+### Features
+
+* search one Sonarr episode in get_releases and grab_release ([#289](https://github.com/bardesss/arr-mcp/issues/289)) ([004e28e](https://github.com/bardesss/arr-mcp/commit/004e28e285fcaf08a4ff065dc33d5be0ce7de163))
+
+
+### Bug Fixes
+
+* find an existing torrent when a magnet carries a base32 btih ([#288](https://github.com/bardesss/arr-mcp/issues/288)) ([2f7f417](https://github.com/bardesss/arr-mcp/commit/2f7f4174c53b93bc005e99dad3926d679fda388f))
+* scrub and cap qBittorrent captures, and fail CI on any public IP in a fixture ([#287](https://github.com/bardesss/arr-mcp/issues/287)) ([c959688](https://github.com/bardesss/arr-mcp/commit/c959688a99bcdf33365a155dc32996b544927c06)), closes [#282](https://github.com/bardesss/arr-mcp/issues/282)
+
 ## [1.32.0](https://github.com/bardesss/arr-mcp/compare/v1.31.0...v1.32.0) (2026-09-21)
 
 
