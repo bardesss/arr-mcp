@@ -112,6 +112,11 @@ export function registerGrabRelease(
                         '`magnet` and `guid` are different ways to start a download — send one. A guid goes through Radarr or Sonarr; a magnet goes straight to the torrent client.'
                     );
                 }
+                if (season !== undefined || episode !== undefined) {
+                    throw new Error(
+                        '`season` and `episode` scope a Radarr or Sonarr search, and a magnet goes straight to the torrent client without one. Drop them, or grab by `guid` instead.'
+                    );
+                }
                 if (!MAGNET.test(magnet)) {
                     throw new Error(
                         'That is not a magnet link. A magnet starts `magnet:?` and carries `xt=urn:btih:<hash>`; anything else is refused here rather than sent to the client.'

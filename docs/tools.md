@@ -601,12 +601,16 @@ back off with `remove_queue_item`. Nothing on disk is lost.
 
 Previewing is slow, and deliberately so. The preview re-runs the interactive
 search before it will issue a token, which polls every indexer again and can
-take tens of seconds. Pass the same `season` or `episode` `get_releases` was
-called with, so the re-search covers that scope and not the whole series. It buys two things. Indexer results expire, and a bare
+take tens of seconds. It buys two things. Indexer results expire, and a bare
 grab of an expired guid answers a 404 that is indistinguishable from a wrong
 base path — the re-search turns that into *"that release is no longer on
 offer, call get_releases again"*. And it puts the release's real name in the
 preview: "grab release abc" is not something a person can approve.
+
+Pass the same `season` or `episode` `get_releases` was called with, so that
+re-search covers the scope you actually searched rather than the whole series.
+Both are refused alongside `magnet`, which never goes through Radarr or Sonarr
+and so has no scope to narrow.
 
 The confirmation token binds to **both** `guid` and `indexer_id`. That pair
 is what identifies a release, and the candidate list is written by indexers,

@@ -43,7 +43,9 @@ export async function findArrReleases(
         });
     }
     if (opts.season !== undefined && opts.episode !== undefined) {
-        throw new Error('`season` and `episode` were both given. They are different scopes — send one.');
+        throw new ServiceError('NotFound', service, '`season` and `episode` were both given', {
+            remedy: 'They are different scopes — send one. `episode` searches that episode alone; `season` searches every episode in the season.'
+        });
     }
 
     // Sonarr runs one indexer search per episode, so a season or series

@@ -358,6 +358,17 @@ describe('grab_release with a magnet', () => {
         );
     });
 
+    it('refuses a search scope alongside a magnet, which never reaches an *arr', async () => {
+        const h = clientHarness();
+        await expect(
+            h.call({ service: 'qbittorrent', magnet: MAGNET, season: 2, dry_run: true })
+        ).rejects.toThrow(/no scope|Drop them/i);
+        await expect(
+            h.call({ service: 'qbittorrent', magnet: MAGNET, episode: '901', dry_run: true })
+        ).rejects.toThrow(/Drop them/i);
+        expect(h.sent).toHaveLength(0);
+    });
+
     it('refuses a magnet and a guid together rather than picking one', async () => {
         const h = clientHarness();
         await expect(h.call({ service: 'transmission', magnet: MAGNET, guid: 'abc', dry_run: true })).rejects.toThrow(
