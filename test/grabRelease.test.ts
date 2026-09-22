@@ -328,6 +328,21 @@ describe('grab_release with a magnet', () => {
         expect(h.sent.find(s => s.path === '/api/v2/torrents/add')?.body).toContain('urls=magnet');
     });
 
+    it('reports a base32 magnet under the hex hash the client keys on', async () => {
+        const hex = 'c12fe1c06bba254a9dc9f519b335aa7c1367a88a';
+        const uri = 'magnet:?xt=urn:btih:YEX6DQDLXISUVHOJ6UM3GNNKPQJWPKEK&dn=Some.Release';
+        const h = clientHarness({ existing: [{ hash: hex, name: 'Some.Release', state: 'stoppedUP' }] });
+        const first = await h.call({ service: 'qbittorrent', magnet: uri });
+        const second = await h.call({
+            service: 'qbittorrent',
+            magnet: uri,
+            confirm: first.structuredContent.confirm_token
+        });
+        // Base32 in, hex out: `remove_queue_item` looks an id up with
+        // `torrents/info?hashes=`, which takes hex only.
+        expect(second.structuredContent.result).toEqual({ alreadyPresent: `qbittorrent:${hex}` });
+    });
+
     it('refuses anything that is not a magnet, before it reaches the client', async () => {
         const h = clientHarness();
         await expect(

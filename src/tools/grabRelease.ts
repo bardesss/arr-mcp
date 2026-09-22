@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import { btihToHex } from '../services/qbittorrent.ts';
 import {
     hasMagnetAdd,
     hasReleaseGrab,
@@ -110,8 +111,11 @@ export function registerGrabRelease(
                 const client = findClient(adapters, service, instance);
                 // The hash is the only readable part of a magnet, and it is
                 // what makes the preview approvable rather than a wall of
-                // tracker parameters.
-                const hash = /xt=urn:btih:([0-9a-zA-Z]+)/.exec(magnet)?.[1] ?? 'unknown';
+                // tracker parameters. Decoded to hex, because a base32 `btih`
+                // is not what the client keys on and the effects below promise
+                // this id back to `remove_queue_item`.
+                const btih = /xt=urn:btih:([0-9a-zA-Z]+)/.exec(magnet)?.[1];
+                const hash = btih === undefined ? 'unknown' : btihToHex(btih);
 
                 return {
                     target: `${client.id}:${hash}`,
