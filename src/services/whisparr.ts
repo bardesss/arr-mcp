@@ -365,7 +365,7 @@ export class WhisparrAdapter
         return renameArrItem(this.#http, this.id, 'series', id);
     }
 
-    async findReleases(opts: { id: string; season?: number }): Promise<ReleaseCandidate[]> {
+    async findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]> {
         return findArrReleases(this.#http, this.id, 'series', opts);
     }
 

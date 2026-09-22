@@ -72,6 +72,31 @@ describe('findArrReleases', () => {
         ).rejects.toThrow(/season/i);
     });
 
+    it('searches one episode by episodeId alone, not the series', async () => {
+        const seen: string[] = [];
+        await findArrReleases(
+            http(async (input: string) => {
+                seen.push(String(input));
+                return json([]);
+            }),
+            'sonarr',
+            'series',
+            { id: '15', episode: '901' }
+        );
+        expect(seen[0]).toContain('/api/v3/release?episodeId=901');
+        expect(seen[0]).not.toContain('seriesId');
+    });
+
+    it('refuses season and episode together, and an episode against Radarr', async () => {
+        const client = http(async () => json([]));
+        await expect(
+            findArrReleases(client, 'sonarr', 'series', { id: '15', season: 1, episode: '901' })
+        ).rejects.toThrow(/both/);
+        await expect(findArrReleases(client, 'radarr', 'movie', { id: '340', episode: '901' })).rejects.toThrow(
+            /Sonarr-only/
+        );
+    });
+
     it('sends the request with the extended release-search timeout', async () => {
         const spy = vi.spyOn(AbortSignal, 'timeout');
         try {
