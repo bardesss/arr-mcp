@@ -45,6 +45,8 @@ export type PermissionSource = {
      * bearer token, which carries the operator's own authority.
      */
     permits?(tier: WriteTier): boolean;
+    /** The scope string that grants a tier, as the issuer admin knows it. */
+    scopeFor?(tier: WriteTier): string;
 };
 
 /**
@@ -92,11 +94,13 @@ export function checkPermission(source: PermissionSource, service: string, tier:
     // would be actively misleading when the file already says so and it is
     // the token that falls short.
     if (source.permits?.(tier) === false) {
+        const scope = source.scopeFor?.(tier);
+        const named = scope === undefined ? `the scope for ${tier} writes` : `the \`${scope}\` scope`;
         return {
             allowed: false,
             tier,
-            reason: `the access token does not carry the ${tier} scope`,
-            remedy: `This credential is scoped below what config.yaml permits. Ask whoever issued it for the ${tier} scope, or use the static bearer token.`
+            reason: `the access token does not carry ${named}`,
+            remedy: `This credential is scoped below what config.yaml permits. Ask whoever issued it for ${named}, or use the static bearer token.`
         };
     }
 

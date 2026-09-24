@@ -95,6 +95,16 @@ describe('the scope ceiling', () => {
         expect(verdict.allowed === false && verdict.reason).toContain('access token');
     });
 
+    it('names the scope an issuer admin grants, not the tier', () => {
+        const scopes = { read: 'arr-mcp:read', write: 'media:write', destructive: 'media:delete' };
+        const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(), scopes);
+        const safe = checkPermission(source, 'radarr', 'safe');
+        const destructive = checkPermission(source, 'radarr', 'destructive');
+        expect(safe.allowed === false && `${safe.reason} ${safe.remedy}`).not.toContain('safe scope');
+        expect(safe.allowed === false && safe.remedy).toContain('`media:write`');
+        expect(destructive.allowed === false && destructive.remedy).toContain('`media:delete`');
+    });
+
     it('still refuses a tier the config denies, even where the token carries it', () => {
         const source = cappedTo(sourceFor({ radarr: service(false, false) }), new Set(['safe', 'destructive']));
         const verdict = checkPermission(source, 'radarr', 'safe');
