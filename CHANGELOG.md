@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.33.1](https://github.com/bardesss/arr-mcp/compare/v1.33.0...v1.33.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* name the real scope in an OAuth refusal, and add Retry-After to the JWKS 503 ([#291](https://github.com/bardesss/arr-mcp/issues/291)) ([cb18a2b](https://github.com/bardesss/arr-mcp/commit/cb18a2b8a362eb40b7da9d0be36c67150e3eb8d3)), closes [#279](https://github.com/bardesss/arr-mcp/issues/279)
+
 ## [1.33.0](https://github.com/bardesss/arr-mcp/compare/v1.32.0...v1.33.0) (2026-09-22)
 
 
