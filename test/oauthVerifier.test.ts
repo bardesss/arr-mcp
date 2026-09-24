@@ -54,6 +54,16 @@ describe('oauthVerifier', () => {
         expect(info.scopes).toEqual(['arr-mcp:read']);
     });
 
+    // Authentik mints `typ: JWT` rather than RFC 9068's `at+jwt` (#279).
+    // Requiring `at+jwt` would lock out a working issuer.
+    it.each(['JWT', 'at+jwt'])('accepts a token whose typ is %s', async typ => {
+        const jwt = await new SignJWT({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c', scope: 'arr-mcp:read' })
+            .setProtectedHeader({ alg: 'RS256', kid: 'test', typ })
+            .setExpirationTime('5m')
+            .sign(privateKey);
+        expect((await verify(jwt)).scopes).toEqual(['arr-mcp:read']);
+    });
+
     it('refuses a token from an issuer this server does not name', async () => {
         await expect(verify(await token({ iss: 'https://evil.example.com', aud: 'arr-mcp', sub: 'c' }))).rejects.toThrow();
     });
