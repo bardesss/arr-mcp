@@ -1694,6 +1694,7 @@ describe('OAuth tokens at /mcp', () => {
             rpc(toolsList, { Authorization: `Bearer ${await signed('arr-mcp:read')}` })
         );
         expect(res.status).toBe(503);
+        expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
     });
 
     // The case MCP07 names: one client that reads and one that writes.

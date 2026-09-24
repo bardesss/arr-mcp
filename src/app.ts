@@ -127,7 +127,7 @@ function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInf
         // own: this is the one per-request place that holds `authInfo`, and a
         // request without one is the static bearer token, which the audit
         // records under its own fixed marker.
-        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers), caller: `${OAUTH_CALLER_PREFIX}${authInfo.clientId}` }
+        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers, oauth?.scopes), caller: `${OAUTH_CALLER_PREFIX}${authInfo.clientId}` }
     };
 }
 
@@ -411,7 +411,9 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                             error: 'temporarily_unavailable',
                             detail: "The issuer's key set could not be fetched, so this token could not be checked. This is not a problem with your credential."
                         },
-                        503
+                        503,
+                        // A failed fetch is not cached, so any retry refetches.
+                        { 'Retry-After': '30' }
                     );
                 }
                 logger.warn({ path: '/mcp', ...originOf(c), via: presented.via }, 'rejected an access token');

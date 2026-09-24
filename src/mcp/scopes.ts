@@ -34,9 +34,10 @@ export function tiersFor(oauth: OAuthConfig, scopes: readonly string[]): Readonl
  * answers from `config.yaml` alone and a compromised or over-generous issuer
  * cannot grant a write this server was never configured to allow.
  */
-export function cappedTo(source: PermissionSource, tiers: ReadonlySet<WriteTier>): PermissionSource {
+export function cappedTo(source: PermissionSource, tiers: ReadonlySet<WriteTier>, scopes?: OAuthConfig['scopes']): PermissionSource {
     return {
         get: instance => source.get(instance),
-        permits: tier => tiers.has(tier)
+        permits: tier => tiers.has(tier),
+        ...(scopes && { scopeFor: (tier: WriteTier) => (tier === 'safe' ? scopes.write : scopes.destructive) })
     };
 }
