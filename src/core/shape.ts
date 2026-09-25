@@ -171,19 +171,28 @@ export const PagedOutputSchema = TruncationSchema.extend({
 export function applyLimit<T>(
     items: readonly T[],
     limit: number,
-    offset = 0
+    offset = 0,
+    total = items.length
 ): { items: T[]; total: number; returned: number; offset: number; truncated: boolean } {
     const effective = Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
     const start = Math.max(Math.trunc(offset), 0);
     const sliced = items.slice(start, start + effective);
     return {
         items: sliced,
-        total: items.length,
+        total,
         returned: sliced.length,
         offset: start,
-        truncated: sliced.length < items.length
+        truncated: sliced.length < total
     };
 }
+
+/**
+ * How many rows from the top a source has to hand over for `applyLimit` to cut
+ * the same window it would from the whole list. `items` can then be just those
+ * rows, with `total` passed in.
+ */
+export const windowEnd = (limit: number, offset = 0): number =>
+    Math.max(Math.trunc(offset), 0) + Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
 
 /**
  * The text `content` block for a list tool: the summary sentence, then one

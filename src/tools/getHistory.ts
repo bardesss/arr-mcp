@@ -5,7 +5,7 @@ import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
 import { HISTORY_EVENT_TYPES, hasHistory, type HistoryCapable, type HistoryEntry, type HistoryEventType, type ServiceAdapter } from '../services/types.ts';
 
 export type GetHistoryResult = {
@@ -118,27 +118,41 @@ export async function buildGetHistory(
         scoped = [adapter];
     }
 
+    // Each service hands over its newest `want` rows and says how many it has.
+    // The merged window is then the same one the whole histories would give.
+    const want = windowEnd(opts.limit, opts.offset);
+    const totals: Record<string, number> = {};
     const { items, degraded, counts } = await gather(
         scoped.map(a => ({
             id: a.id,
             fetch: async () => {
-                const rows = await a.readHistory({
+                const read = await a.readHistory({
                     ...(opts.id === undefined ? {} : { id: opts.id }),
-                    ...(opts.since === undefined ? {} : { since: opts.since })
+                    ...(opts.since === undefined ? {} : { since: opts.since }),
+                    ...(opts.eventType === undefined ? {} : { eventType: opts.eventType }),
+                    want
                 });
                 // Filtered inside the source, not after gather, so `counts`
                 // reports what each service actually contributed to this
                 // answer rather than its unfiltered total.
-                return opts.eventType === undefined ? rows : rows.filter(r => r.event === opts.eventType);
+                const rows = Array.isArray(read)
+                    ? opts.eventType === undefined
+                        ? read
+                        : read.filter(r => r.event === opts.eventType)
+                    : read.items;
+                totals[a.id] = Array.isArray(read) ? rows.length : read.total;
+                return rows;
             }
         }))
     );
+    for (const id of Object.keys(counts)) counts[id] = totals[id] ?? counts[id] ?? 0;
 
     // Newest first: "why did last night's download fail" is a question about
     // the most recent attempt, not the oldest.
     items.sort((a, b) => b.at.localeCompare(a.at));
 
-    const shaped = applyLimit(items, opts.limit, opts.offset);
+    const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    const shaped = applyLimit(items, opts.limit, opts.offset, total);
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }
 

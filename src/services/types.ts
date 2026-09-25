@@ -266,8 +266,24 @@ export type HistoryEntry = {
     indexerId?: number;
 };
 
+/** The first rows of a longer list, and how long that list is. */
+export type Window<T> = { items: T[]; total: number };
+
+export type HistoryQuery = {
+    id?: string;
+    since?: string;
+    eventType?: HistoryEventType;
+    /** How many of the newest rows the caller needs. Omitted means all. */
+    want?: number;
+};
+
 export interface HistoryCapable {
-    readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]>;
+    /**
+     * An array is the whole history, and the caller filters it by `eventType`.
+     * A window is already filtered, newest first, and holds at least the first
+     * `want` rows of `total`.
+     */
+    readHistory(opts: HistoryQuery): Promise<HistoryEntry[] | Window<HistoryEntry>>;
 }
 
 export const hasHistory = (a: ServiceAdapter): a is ServiceAdapter & HistoryCapable =>
@@ -298,7 +314,8 @@ export type WantedItem = {
 };
 
 export interface WantedCapable {
-    readWanted(scope: WantedScope): Promise<WantedItem[]>;
+    /** At least the first `want` rows of the list, or all of it when omitted. */
+    readWanted(scope: WantedScope, want?: number): Promise<Window<WantedItem>>;
 }
 
 export const hasWanted = (a: ServiceAdapter): a is ServiceAdapter & WantedCapable =>

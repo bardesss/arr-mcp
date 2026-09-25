@@ -5,7 +5,7 @@ import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
 import { hasWanted, type ServiceAdapter, type WantedCapable, type WantedItem, type WantedScope } from '../services/types.ts';
 
 export type GetWantedResult = {
@@ -95,11 +95,25 @@ export async function buildGetWanted(
         scoped = [adapter];
     }
 
+    // Each service hands over its first `want` rows and says how many it has
+    // (#293). `gather` keeps source order, so the concatenated window is the
+    // one the whole lists would give.
+    const want = windowEnd(opts.limit, opts.offset);
+    const totals: Record<string, number> = {};
     const { items, degraded, counts } = await gather(
-        scoped.map(a => ({ id: a.id, fetch: () => a.readWanted(opts.scope) }))
+        scoped.map(a => ({
+            id: a.id,
+            fetch: async () => {
+                const read = await a.readWanted(opts.scope, want);
+                totals[a.id] = read.total;
+                return read.items;
+            }
+        }))
     );
+    for (const id of Object.keys(counts)) counts[id] = totals[id] ?? counts[id] ?? 0;
 
-    const shaped = applyLimit(items, opts.limit, opts.offset);
+    const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    const shaped = applyLimit(items, opts.limit, opts.offset, total);
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }
 

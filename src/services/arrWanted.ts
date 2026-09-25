@@ -1,7 +1,7 @@
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import { pageArr } from './arrPaging.ts';
-import type { WantedItem, WantedScope } from './types.ts';
+import { pageSizeFor, readArrPages, readTotal } from './arrPaging.ts';
+import type { WantedItem, WantedScope, Window } from './types.ts';
 
 type RawWantedMovie = {
     id?: number;
@@ -37,19 +37,26 @@ type RawWantedEpisode = {
  * Sonarr's `missing` list defaults to monitored-only — an unmonitored
  * episode is not "wanted" — so no `monitored` parameter is added here; that
  * default is called out in the tool description instead.
+ *
+ * With `want`, it stops once it has that many rows and takes `total` from the
+ * service (#293). The series is embedded in every episode row, so a cutoff
+ * list read to the end ran to 100 MB.
  */
 export async function readArrWanted(
     http: ServiceHttp,
     service: string,
     kind: 'movie' | 'series',
-    scope: WantedScope
-): Promise<WantedItem[]> {
+    scope: WantedScope,
+    want?: number
+): Promise<Window<WantedItem>> {
     const path = scope === 'missing' ? '/api/v3/wanted/missing' : '/api/v3/wanted/cutoff';
     const fence = (value: string, field: string) => fenceText(value, { service, field });
+    const paging =
+        want === undefined ? {} : { pageSize: pageSizeFor(want), stopWhen: (_page: unknown[], kept: number) => kept >= want };
 
     if (kind === 'movie') {
-        const records = await pageArr<RawWantedMovie>(http, path);
-        return records
+        const read = await readArrPages<RawWantedMovie>(http, path, undefined, paging);
+        const items = read.records
             .filter((r): r is RawWantedMovie & { id: number } => typeof r.id === 'number')
             .map(r => ({
                 service,
@@ -58,10 +65,11 @@ export async function readArrWanted(
                 title: fence(r.title ?? '', 'title'),
                 monitored: r.monitored ?? false
             }));
+        return { items, total: readTotal(read, items.length) };
     }
 
-    const records = await pageArr<RawWantedEpisode>(http, path, 'includeSeries=true');
-    return records
+    const read = await readArrPages<RawWantedEpisode>(http, path, 'includeSeries=true', paging);
+    const items = read.records
         .filter((r): r is RawWantedEpisode & { seriesId: number } => typeof r.seriesId === 'number')
         .map(r => ({
             service,
@@ -74,4 +82,5 @@ export async function readArrWanted(
             ...(r.airDateUtc === undefined ? {} : { airDate: r.airDateUtc }),
             monitored: r.monitored ?? false
         }));
+    return { items, total: readTotal(read, items.length) };
 }
