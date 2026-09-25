@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.33.2](https://github.com/bardesss/arr-mcp/compare/v1.33.1...v1.33.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* read only the rows get_history and get_wanted return ([#294](https://github.com/bardesss/arr-mcp/issues/294)) ([ceca56f](https://github.com/bardesss/arr-mcp/commit/ceca56f14e621ce4d09ccf8e99d70bf805b39c96)), closes [#293](https://github.com/bardesss/arr-mcp/issues/293)
+
 ## [1.33.1](https://github.com/bardesss/arr-mcp/compare/v1.33.0...v1.33.1) (2026-09-24)
 
 
