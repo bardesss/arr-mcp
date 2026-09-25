@@ -31,6 +31,7 @@ import {
     type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
+    type HistoryQuery,
     type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
@@ -68,7 +69,8 @@ import {
     type ServiceAdapter,
     type WantedCapable,
     type WantedItem,
-    type WantedScope
+    type WantedScope,
+    type Window
 } from './types.ts';
 
 type RawMovie = {
@@ -178,12 +180,12 @@ export class RadarrAdapter
         return readArrQueue(this.#http, this.id, 'movie');
     }
 
-    async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
+    async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
         return readArrHistory(this.#http, this.id, 'movie', opts);
     }
 
-    async readWanted(scope: WantedScope): Promise<WantedItem[]> {
-        return readArrWanted(this.#http, this.id, 'movie', scope);
+    async readWanted(scope: WantedScope, want?: number): Promise<Window<WantedItem>> {
+        return readArrWanted(this.#http, this.id, 'movie', scope, want);
     }
 
     async findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]> {

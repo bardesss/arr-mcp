@@ -38,6 +38,7 @@ import {
     type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
+    type HistoryQuery,
     type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
@@ -84,7 +85,8 @@ import {
     type ServiceAdapter,
     type WantedCapable,
     type WantedItem,
-    type WantedScope
+    type WantedScope,
+    type Window
 } from './types.ts';
 
 type RawSeries = {
@@ -210,12 +212,12 @@ export class SonarrAdapter
         return readArrQueue(this.#http, this.id, 'series');
     }
 
-    async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
+    async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
         return readArrHistory(this.#http, this.id, 'series', opts);
     }
 
-    async readWanted(scope: WantedScope): Promise<WantedItem[]> {
-        return readArrWanted(this.#http, this.id, 'series', scope);
+    async readWanted(scope: WantedScope, want?: number): Promise<Window<WantedItem>> {
+        return readArrWanted(this.#http, this.id, 'series', scope, want);
     }
 
     async findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]> {

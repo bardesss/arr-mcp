@@ -1,7 +1,7 @@
 import { fenceText, sanitizeGuid } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import { pageArr } from './arrPaging.ts';
-import type { HistoryEntry, HistoryEventType } from './types.ts';
+import { pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
+import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './types.ts';
 
 /**
  * Radarr and Sonarr share one history vocabulary almost entirely — both spell
@@ -54,12 +54,50 @@ type RawHistory = {
     };
 };
 
+/**
+ * The `eventType` query value for each type, so the service filters before it
+ * pages. Integers, because that is what `/api/v3/history` binds, and the two
+ * differ from `deleted` on. Read from `EpisodeHistory.cs` (Sonarr 4.0.0 and
+ * 4.0.19) and `History.cs` (Radarr 4.0.0 and 6.4.4).
+ *
+ * One value per type, because Sonarr 4.0.0 binds a single `int? eventType`.
+ * `unknown` and `subtitle` have none and are filtered here instead.
+ */
+const EVENT_CODE: Record<'movie' | 'series', Partial<Record<HistoryEventType, number>>> = {
+    movie: { grabbed: 1, imported: 3, failed: 4, deleted: 6, renamed: 8, ignored: 9 },
+    series: { grabbed: 1, imported: 3, failed: 4, deleted: 5, renamed: 6, ignored: 7 }
+};
+
+/**
+ * The newest rows first, filtered to `eventType` and `since`. With `want`, and
+ * no `since`, it stops once it has that many and takes `total` from the
+ * service (#293) rather than reading the whole history to count it.
+ */
 export async function readArrHistory(
     http: ServiceHttp,
     service: string,
     kind: 'movie' | 'series',
-    opts: { id?: string | undefined; since?: string | undefined }
-): Promise<HistoryEntry[]> {
+    opts: HistoryQuery
+): Promise<Window<HistoryEntry>> {
+    const code = opts.eventType === undefined ? undefined : EVENT_CODE[kind][opts.eventType];
+    let pages = await readHistoryPages(http, service, kind, opts, code);
+    // Radarr 4 filters history through `filterKey`/`filterValue` and ignores a
+    // bare `eventType`, so a filter sent upstream is checked, not trusted.
+    if (code !== undefined && pages.entries.some(e => e.event !== opts.eventType)) {
+        pages = await readHistoryPages(http, service, kind, opts, undefined);
+    }
+
+    const items = opts.eventType === undefined ? pages.entries : pages.entries.filter(e => e.event === opts.eventType);
+    return { items, total: pages.windowed ? readTotal(pages.read, items.length) : items.length };
+}
+
+async function readHistoryPages(
+    http: ServiceHttp,
+    service: string,
+    kind: 'movie' | 'series',
+    opts: HistoryQuery,
+    code: number | undefined
+): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean }> {
     // Confirmed live: /api/v3/history/movie?movieId=<id> answers a bare
     // HistoryResource[], not the {records, totalRecords} envelope pageArr
     // expects, so a scoped read through it always looked empty. The paged
@@ -71,32 +109,37 @@ export async function readArrHistory(
     // is actually sorted newest first, and a live capture showing that order
     // by default is not the same as asking for it.
     const sort = 'sortKey=date&sortDirection=descending';
-    const query = opts.id === undefined ? sort : `${scoped}=${encodeURIComponent(opts.id)}&${sort}`;
+    const query = [
+        ...(opts.id === undefined ? [] : [`${scoped}=${encodeURIComponent(opts.id)}`]),
+        ...(code === undefined ? [] : [`eventType=${code}`]),
+        sort
+    ].join('&');
 
-    // Once a page's oldest record predates `since`, every later page does
-    // too — a live Sonarr capture held 12,614 records, and paging all of
-    // them to answer "history since last week" is dozens of round-trips to
-    // fetch and discard nearly everything. `since` is captured by value, not
-    // read through `opts`, so this stays a pure predicate over one page.
+    // A `since` read has to reach its boundary to count what is in range, so
+    // only a read without one can stop at `want`. Nor can one whose filter
+    // only happens here.
     const since = opts.since;
-    const stopWhen =
-        since === undefined
-            ? undefined
-            : (page: RawHistory[]): boolean => {
-                  const newest = page[0]?.date;
-                  const oldest = page[page.length - 1]?.date;
-                  // Trust the early exit only when this page is actually
-                  // newest-first, as asked — a service that silently ignored
-                  // the sort params (this project has seen that happen) must
-                  // not have paging cut short on an assumption it broke.
-                  if (newest === undefined || oldest === undefined || newest < oldest) return false;
-                  return oldest < since;
-              };
+    const want = since === undefined && (opts.eventType === undefined || code !== undefined) ? opts.want : undefined;
 
-    const records = await pageArr<RawHistory>(http, '/api/v3/history', query, stopWhen);
+    const read = await readArrPages<RawHistory>(http, '/api/v3/history', query, {
+        ...(want === undefined ? {} : { pageSize: pageSizeFor(want) }),
+        stopWhen: (page, kept) => {
+            // Trust an early exit only when this page is actually newest-first,
+            // as asked: a service that silently ignored the sort params (this
+            // project has seen that happen) must not have paging cut short on
+            // an assumption it broke.
+            const dates = page.map(r => r.date);
+            if (!dates.every((d, i) => d !== undefined && (i === 0 || (dates[i - 1] ?? '') >= d))) return false;
+            const oldest = dates[dates.length - 1] ?? '';
+            // Once a page's oldest record predates `since`, every later page
+            // does too. A live Sonarr capture held 12,614 records.
+            if (since !== undefined) return oldest < since;
+            return want !== undefined && kept >= want;
+        }
+    });
     const fence = (value: string, field: string) => fenceText(value, { service, field });
 
-    return records
+    const entries = read.records
         .filter((r): r is RawHistory & { id: number } => typeof r.id === 'number')
         .map(r => {
             const raw = r.eventType ?? '';
@@ -127,4 +170,6 @@ export async function readArrHistory(
         // early — the page holding the boundary still has older records on
         // it, and this is what drops them.
         .filter(e => opts.since === undefined || e.at >= opts.since);
+
+    return { entries, read, windowed: want !== undefined };
 }
