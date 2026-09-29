@@ -17,3 +17,6 @@ export const apiError = (c: Context, status: ContentfulStatusCode, message: stri
  */
 export const configEtag = (config: Config): string =>
     `"${createHash('sha256').update(stableJson(config)).digest('hex').slice(0, 16)}"`;
+
+export const withEtag = (c: Context, config: Config, body: unknown, status: ContentfulStatusCode = 200): Response =>
+    c.json(body, status, { etag: configEtag(config) });

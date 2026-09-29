@@ -186,3 +186,91 @@ describe('GET /log', () => {
         }
     });
 });
+
+describe('GET /app', () => {
+    it('lists apps with type-specific fields and no secrets', async () => {
+        const res = await api('/app');
+        expect(res.headers.get('etag')).toMatch(/^"[0-9a-f]{16}"$/);
+        const text = await res.text();
+        expect(text).not.toContain(RADARR_KEY);
+        expect(text).not.toContain(TX_PASSWORD);
+        expect(text).not.toContain('user:pw');
+        expect(JSON.parse(text)).toEqual([
+            {
+                id: 'radarr/hd',
+                type: 'radarr',
+                name: 'hd',
+                url: 'http://radarr:7878/',
+                timeoutMs: 10000,
+                safeWrite: false,
+                destructive: false,
+                apiKeySet: true
+            },
+            {
+                id: 'transmission',
+                type: 'transmission',
+                name: null,
+                url: 'http://transmission:9091',
+                timeoutMs: 10000,
+                safeWrite: false,
+                destructive: false,
+                username: 'tx',
+                passwordSet: true
+            }
+        ]);
+    });
+
+    it('reads one app by type and name, and 404s an unknown one', async () => {
+        expect(((await (await api('/app/radarr/hd')).json()) as { id: string }).id).toBe('radarr/hd');
+        expect(((await (await api('/app/transmission')).json()) as { id: string }).id).toBe('transmission');
+        expect((await api('/app/radarr')).status).toBe(404);
+        expect((await api('/app/sonarr/hd')).status).toBe(404);
+    });
+});
+
+describe('GET /settings and /token', () => {
+    it('reads the MCP endpoint settings', async () => {
+        expect(await (await api('/settings/mcp')).json()).toEqual({
+            allowedHosts: [],
+            allowTokenInUrl: false,
+            oauthConfigured: false
+        });
+    });
+
+    it('reads the IMDb dataset as off', async () => {
+        expect(await (await api('/settings/imdb')).json()).toEqual({
+            enabled: false,
+            ingestedAt: null,
+            titles: null,
+            ratings: null
+        });
+    });
+
+    it('lists tokens without hashes', async () => {
+        const text = await (await api('/token')).text();
+        expect(text).not.toContain(hashToken(MCP).slice(7));
+        expect(JSON.parse(text)).toEqual([
+            {
+                name: 'phone',
+                tier: 'read',
+                expires: null,
+                fingerprint: hashToken(MCP).slice(7, 15),
+                expired: false,
+                plaintextOnDisk: false
+            }
+        ]);
+    });
+
+    it('gives every config read the same ETag until the config changes', async () => {
+        const tags = await Promise.all(['/app', '/settings/mcp', '/token'].map(async p => (await api(p)).headers.get('etag')));
+        expect(new Set(tags).size).toBe(1);
+    });
+
+    it('never returns the management key or its hash', async () => {
+        for (const p of ['/app', '/settings/mcp', '/settings/imdb', '/token', '/system/status']) {
+            const text = await (await api(p)).text();
+            expect(text, p).not.toContain(KEY);
+            expect(text, p).not.toContain(hashToken(KEY).slice(7));
+        }
+    });
+});

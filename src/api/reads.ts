@@ -3,8 +3,9 @@ import { listInstances } from '../config/instances.ts';
 import { LEVELS, logFields } from '../core/logs.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { mcpEndpoint } from '../web/origin.ts';
-import { API_BASE, apiError } from './http.ts';
+import { API_BASE, apiError, withEtag } from './http.ts';
 import type { ApiDeps } from './index.ts';
+import { appResource, findInstance, imdbSettings, mcpSettings, tokenResources } from './resources.ts';
 
 const MAX_LOG_RECORDS = 300;
 const DEFAULT_LOG_RECORDS = 100;
@@ -69,5 +70,32 @@ export function registerReads(app: Hono, deps: ApiDeps): void {
                 fields: Object.fromEntries(logFields(r.fields))
             }));
         return c.json({ records });
+    });
+
+    app.get(`${API_BASE}/app`, c => {
+        const config = runtime.config;
+        return withEtag(c, config, listInstances(config).map(appResource));
+    });
+
+    app.get(`${API_BASE}/app/:type/:name?`, c => {
+        const config = runtime.config;
+        const instance = findInstance(config, c.req.param('type'), c.req.param('name'));
+        if (instance === undefined) return apiError(c, 404, 'No such app.');
+        return withEtag(c, config, appResource(instance));
+    });
+
+    app.get(`${API_BASE}/settings/mcp`, c => {
+        const config = runtime.config;
+        return withEtag(c, config, mcpSettings(config));
+    });
+
+    app.get(`${API_BASE}/settings/imdb`, c => {
+        const config = runtime.config;
+        return withEtag(c, config, imdbSettings(config, runtime.dataset));
+    });
+
+    app.get(`${API_BASE}/token`, c => {
+        const config = runtime.config;
+        return withEtag(c, config, tokenResources(config, runtime.plaintextOnDisk, new Date()));
     });
 }
