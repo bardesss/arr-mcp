@@ -382,6 +382,8 @@ const OAuthScopesSchema = z
  * satisfied the check regardless of scheme.
  */
 const isHttpsOrLoopback = (value: string): boolean => {
+    // Unparseable is `z.url()`'s to report; `new URL` would throw out of the parse.
+    if (!URL.canParse(value)) return true;
     const url = new URL(value);
     return url.protocol === 'https:' || (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'));
 };
@@ -399,7 +401,7 @@ const isHttpsOrLoopback = (value: string): boolean => {
  * second outbound request to a path derived from the issuer; one config line
  * buys that whole class of surprise away.
  */
-const OAuthSchema = z.strictObject({
+export const OAuthSchema = z.strictObject({
     /**
      * HTTPS, or a loopback host for testing against a local provider. The
      * MCP SDK's `buildOAuthProtectedResourceMetadata` enforces the same rule
@@ -410,7 +412,7 @@ const OAuthSchema = z.strictObject({
     issuer: z
         .url()
         .refine(isHttpsOrLoopback, { message: 'issuer must be https, or http on localhost' })
-        .refine(value => new URL(value).hash === '' && new URL(value).search === '', {
+        .refine(value => !URL.canParse(value) || (new URL(value).hash === '' && new URL(value).search === ''), {
             message: 'issuer must not carry a query string or a fragment'
         }),
     /**

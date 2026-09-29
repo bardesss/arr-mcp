@@ -15,7 +15,7 @@ import { NO_CLIENT_ID } from '../core/audit.ts';
  * Ed25519 is here under both spellings: `EdDSA` from RFC 8037 and the fully
  * specified `Ed25519` that newer issuers emit. It carries no HMAC risk.
  */
-const ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512', 'EdDSA', 'Ed25519'];
+export const ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512', 'EdDSA', 'Ed25519'];
 
 /**
  * "The token may be perfectly good; we cannot check it."

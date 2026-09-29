@@ -1,9 +1,17 @@
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
-import { MULTI_INSTANCE, ServiceIdSchema, type Config, type ServiceId, type Theme } from '../config/schema.ts';
+import {
+    MULTI_INSTANCE,
+    OAuthSchema,
+    ServiceIdSchema,
+    type Config,
+    type ServiceId,
+    type Theme
+} from '../config/schema.ts';
 import { fingerprint, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
 import { html, raw, type SafeHtml } from './html.ts';
 import { serviceIcon } from './icons.ts';
+import type { JwksProbe } from './jwksProbe.ts';
 import { layout } from './pages.ts';
 
 /**
@@ -518,6 +526,88 @@ function addDialog(
     </dialog>`;
 }
 
+/** What the OAuth card's fields hold, as typed. */
+export type OAuthDraft = {
+    issuer: string;
+    audience: string;
+    jwks_uri: string;
+    read: string;
+    write: string;
+    destructive: string;
+};
+
+export type OAuthCardState = {
+    draft?: OAuthDraft;
+    message?: { kind: 'ok' | 'err'; text: string };
+    tested?: JwksProbe;
+    /** One more line for a passing Test, such as a Save that would be refused. */
+    testedNote?: string;
+    confirmingRemoval?: boolean;
+};
+
+const oauthTestResult = (p: JwksProbe, note: string | undefined): SafeHtml =>
+    html`<div class="msg ${p.ok ? 'ok' : 'err'}" style="margin:.75rem 0 0">${p.summary}${p.keys.length === 0
+        ? raw('')
+        : html`<ul style="margin:.4rem 0">${p.keys.map(
+              k =>
+                  html`<li><span class="mono">${k.kid}</span> (${k.alg})${k.refused === undefined
+                      ? raw('')
+                      : html`: not accepted, ${k.refused}`}</li>`
+          )}</ul>`}${p.ok ? 'Not saved yet: this tested the fields as they are on screen.' : ''}${note === undefined
+        ? raw('')
+        : html`<br>${note}`}</div>`;
+
+/**
+ * `auth.oauth`. The actions carry `#oauth` so the page that comes back is
+ * scrolled to this card, which is also where its outcome is shown.
+ */
+function oauthCard(config: Config, csrf: string, state: OAuthCardState): SafeHtml {
+    const current = config.auth.oauth;
+    const defaults = OAuthSchema.shape.scopes.parse(undefined);
+    const d: OAuthDraft = state.draft ?? {
+        issuer: current?.issuer ?? '',
+        audience: current?.audience ?? '',
+        jwks_uri: current?.jwks_uri ?? '',
+        read: current?.scopes.read ?? defaults.read,
+        write: current?.scopes.write ?? defaults.write,
+        destructive: current?.scopes.destructive ?? defaults.destructive
+    };
+    const confirming = state.confirmingRemoval === true;
+
+    return html`<form id="oauth" method="post" action="/ui/config/oauth#oauth" class="panel" ${IGNORE_FORM}>
+        <input type="hidden" name="csrf" value="${csrf}">
+        <h3 style="margin:0 0 .75rem">OAuth</h3>
+        <p class="note">
+            arr-mcp only verifies access tokens: your identity provider issues them, and this is where to
+            tell arr-mcp which ones to trust. Named MCP tokens keep working whatever is set here.
+        </p>
+        ${field({ id: 'auth.oauth.issuer', name: 'auth.oauth.issuer', label: 'Issuer', value: d.issuer, placeholder: 'https://auth.example.com/application/o/arr-mcp/' })}
+        ${field({ id: 'auth.oauth.audience', name: 'auth.oauth.audience', label: 'Audience', value: d.audience, placeholder: 'arr-mcp' })}
+        ${field({ id: 'auth.oauth.jwks_uri', name: 'auth.oauth.jwks_uri', label: 'JWKS URI', value: d.jwks_uri, placeholder: 'https://auth.example.com/application/o/arr-mcp/jwks/' })}
+        ${field({ id: 'auth.oauth.scopes.read', name: 'auth.oauth.scopes.read', label: 'Read scope', value: d.read })}
+        ${field({ id: 'auth.oauth.scopes.write', name: 'auth.oauth.scopes.write', label: 'Write scope', value: d.write })}
+        ${field({ id: 'auth.oauth.scopes.destructive', name: 'auth.oauth.scopes.destructive', label: 'Destructive scope', value: d.destructive })}
+        <div class="row" style="margin-top:1rem">
+            <button type="submit">Save</button>
+            <button type="submit" formaction="/ui/config/oauth/test#oauth" formnovalidate class="ghost">Test</button>
+            ${current === undefined
+                ? raw('')
+                : confirming
+                  ? html`<button type="submit" formaction="/ui/config/oauth/remove#oauth" formnovalidate name="confirm" value="yes" class="ghost">Yes, remove OAuth</button>`
+                  : html`<button type="submit" formaction="/ui/config/oauth/remove#oauth" formnovalidate class="ghost">Remove</button>`}
+        </div>
+        ${confirming
+            ? html`<p class="note" style="margin-top:.5rem">
+                  OAuth clients are refused from the next request. Named MCP tokens keep working. Reload to cancel.
+              </p>`
+            : raw('')}
+        ${state.message === undefined
+            ? raw('')
+            : html`<div class="msg ${state.message.kind}" style="margin:.75rem 0 0">${state.message.text}</div>`}
+        ${state.tested === undefined ? raw('') : oauthTestResult(state.tested, state.testedNote)}
+    </form>`;
+}
+
 export function configPage(opts: {
     version: string;
     config: Config;
@@ -546,6 +636,9 @@ export function configPage(opts: {
     confirmingRevoke?: string | undefined;
     plaintextOnDisk?: readonly string[];
     now?: Date;
+    /** What the last OAuth post left for its card: a result, a pending
+     *  removal, or the fields as typed after a refusal or a Test. */
+    oauth?: OAuthCardState | undefined;
 }): string {
     const instances = listInstances(opts.config);
 
@@ -694,9 +787,9 @@ export function configPage(opts: {
             ${opts.config.auth.oauth === undefined
                 ? raw('')
                 : html`<p class="note">
-                      Unavailable while <code>auth.oauth</code> is configured: an access token in the address
-                      would reach every proxy log, which is worse than the static token this flag was written
-                      for.
+                      Unavailable while OAuth is configured: an access token in the address would reach every
+                      proxy log, which is worse than the static token this flag was written for. Remove OAuth on
+                      the <a href="#oauth">OAuth card</a> below to use it.
                   </p>`}
             <p class="note">
                 For clients that can only be given a URL and no headers. The token then travels in the
@@ -709,6 +802,8 @@ export function configPage(opts: {
                 <button type="submit">Save MCP settings</button>
             </div>
         </form>
+
+        ${oauthCard(opts.config, opts.csrf, opts.oauth ?? {})}
 
         <p class="note"><a href="/ui">Back to the dashboard</a></p>`;
 
