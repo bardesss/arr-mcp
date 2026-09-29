@@ -27,6 +27,7 @@ import { cappedTo, oauthRefusal, tiersFor, tokenRefusal } from './mcp/scopes.ts'
 import type { ServiceInstance } from './config/instances.ts';
 import type { WriteTier } from './core/permissions.ts';
 import { registerAllTools, type ToolContext } from './tools/register.ts';
+import { registerApiRoutes } from './api/index.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
 
 const NAME = 'arr-mcp';
@@ -342,6 +343,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     }
 
     registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
+    registerApiRoutes(app, { runtime, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {
         // From the runtime, not a captured value, so creating or revoking a token
