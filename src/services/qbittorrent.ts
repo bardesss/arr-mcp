@@ -6,6 +6,7 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
+    type ClientSeedLimits,
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
@@ -17,6 +18,8 @@ import {
     type MagnetAdded,
     type MagnetAddCapable,
     type RemoveQueueOptions,
+    type SeedingState,
+    type SeedLimitsCapable,
     type ServiceAdapter,
     type SpeedLimit,
     type SpeedLimitCapable
@@ -40,10 +43,38 @@ type RawTorrent = {
     size?: number;
     amount_left?: number;
     eta?: number;
+    /** -1 when infinite. */
+    ratio?: number;
+    seeding_time?: number;
+    /** -2 follows the default, -1 is no limit. */
+    ratio_limit?: number;
+    seeding_time_limit?: number;
+    /** Effective limits after torrent, category and global; -1 is none.
+     *  `max_seeding_time` is minutes. */
+    max_ratio?: number;
+    max_seeding_time?: number;
+    /** 5.x only, and null until metadata arrives. */
+    private?: boolean | null;
 };
 
 type RawMainData = { server_state?: { free_space_on_disk?: number } };
-type RawPreferences = { save_path?: string };
+type RawPreferences = {
+    save_path?: string;
+    max_ratio_enabled?: boolean;
+    max_ratio?: number;
+    max_seeding_time_enabled?: boolean;
+    /** Minutes. */
+    max_seeding_time?: number;
+    max_ratio_act?: number;
+};
+
+/** `ShareLimitAction` in 5.x, `MaxRatioAction` in 4.x: same numbers. */
+const SHARE_LIMIT_ACTION: Record<number, ClientSeedLimits['action']> = {
+    0: 'stop',
+    1: 'remove',
+    2: 'super seeding',
+    3: 'remove with content'
+};
 
 const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
@@ -91,6 +122,36 @@ const TORRENT_STATE: Record<string, string> = {
  *  estimate, so passing it through would promise a finish date it never made. */
 const ETA_UNKNOWN = 8_640_000;
 
+const DEFAULT_LIMIT = -2;
+
+/** Mirrors `SessionImpl::processTorrentShareLimits`: ratio first, then
+ *  seeding time in whole minutes. */
+function seedingOf(t: RawTorrent): { seeding?: SeedingState } {
+    if (t.amount_left !== 0) return {};
+
+    const ratio = t.ratio === -1 ? Infinity : t.ratio;
+    const ratioLimit = t.max_ratio !== undefined && t.max_ratio >= 0 ? t.max_ratio : undefined;
+    const minutesLimit = t.max_seeding_time !== undefined && t.max_seeding_time >= 0 ? t.max_seeding_time : undefined;
+    const overridden =
+        (t.ratio_limit ?? DEFAULT_LIMIT) !== DEFAULT_LIMIT || (t.seeding_time_limit ?? DEFAULT_LIMIT) !== DEFAULT_LIMIT;
+
+    const overRatio = ratioLimit !== undefined && ratio !== undefined && ratio >= ratioLimit;
+    const overTime =
+        minutesLimit !== undefined && t.seeding_time !== undefined && Math.floor(t.seeding_time / 60) >= minutesLimit;
+
+    return {
+        seeding: {
+            ...(ratio === undefined || ratio === Infinity ? {} : { ratio }),
+            ...(t.seeding_time === undefined ? {} : { seedingSeconds: t.seeding_time }),
+            ...(ratioLimit === undefined ? {} : { ratioLimit }),
+            ...(minutesLimit === undefined ? {} : { seedingLimitSeconds: minutesLimit * 60 }),
+            ...(overridden ? { ownLimit: true as const } : {}),
+            ...(overRatio || overTime ? { overLimit: true as const } : {}),
+            ...(t.state === 'forcedUP' ? { forced: true as const } : {})
+        }
+    };
+}
+
 export class QbittorrentAdapter
     implements
         ServiceAdapter,
@@ -99,7 +160,8 @@ export class QbittorrentAdapter
         QueueRemoveCapable,
         PauseCapable,
         SpeedLimitCapable,
-        MagnetAddCapable
+        MagnetAddCapable,
+        SeedLimitsCapable
 {
     readonly type: ServiceId = 'qbittorrent';
     readonly instance: string | undefined;
@@ -171,8 +233,25 @@ export class QbittorrentAdapter
                 protocol: 'torrent',
                 ...(t.size === undefined ? {} : { sizeBytes: t.size }),
                 ...(t.amount_left === undefined ? {} : { remainingBytes: t.amount_left }),
-                ...(t.eta === undefined || t.eta <= 0 || t.eta >= ETA_UNKNOWN ? {} : { etaSeconds: t.eta })
+                ...(t.eta === undefined || t.eta <= 0 || t.eta >= ETA_UNKNOWN ? {} : { etaSeconds: t.eta }),
+                ...(typeof t.private === 'boolean' ? { private: t.private } : {}),
+                ...seedingOf(t)
             }));
+    }
+
+    /** Global defaults only. Per-category limits (5.2+) show up per torrent
+     *  in `getQueue`, as its effective limit. */
+    async getSeedLimits(): Promise<ClientSeedLimits> {
+        const prefs = await this.#http.get<RawPreferences>(`${API}/app/preferences`);
+        const ratio = prefs.max_ratio_enabled === true ? prefs.max_ratio : undefined;
+        const minutes = prefs.max_seeding_time_enabled === true ? prefs.max_seeding_time : undefined;
+
+        return {
+            service: this.id,
+            ...(ratio === undefined || ratio < 0 ? {} : { ratioLimit: ratio }),
+            ...(minutes === undefined || minutes < 0 ? {} : { seedingLimitSeconds: minutes * 60 }),
+            action: SHARE_LIMIT_ACTION[prefs.max_ratio_act ?? -1] ?? 'unknown'
+        };
     }
 
     /** No blocklist of grabbed releases — that is an *arr concept. */

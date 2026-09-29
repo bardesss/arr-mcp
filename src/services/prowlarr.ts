@@ -4,6 +4,7 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { readSeedCriteria } from './arrSeedCriteria.ts';
 import type { components } from './generated/prowlarr.ts';
 import {
     diagnoseConnection,
@@ -13,11 +14,13 @@ import {
     type HealthCheckCapable,
     type IndexerCapable,
     type IndexerRejection,
+    type IndexerSeedCriteria,
     type IndexerSummary,
     type LibraryScanCapable,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
+    type SeedCriteriaCapable,
     type ServiceAdapter
 } from './types.ts';
 
@@ -66,7 +69,7 @@ type RawRelease = {
  * It is also API v1, not v3 — Prowlarr never had a v3 like its siblings.
  */
 export class ProwlarrAdapter
-    implements ServiceAdapter, HealthCheckCapable, IndexerCapable, SearchCapable, LibraryScanCapable
+    implements ServiceAdapter, HealthCheckCapable, IndexerCapable, SearchCapable, LibraryScanCapable, SeedCriteriaCapable
 {
     readonly type: ServiceId = 'prowlarr';
     readonly instance: string | undefined;
@@ -168,6 +171,10 @@ export class ProwlarrAdapter
                           })
                 };
             });
+    }
+
+    async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
+        return readSeedCriteria(this.#http, this.id, 'prowlarr');
     }
 
     /**

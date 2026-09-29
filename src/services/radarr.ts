@@ -14,6 +14,7 @@ import { listArrImportCandidates, runArrManualImport } from './arrManualImport.t
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { readAudioLanguages, type RawMediaInfo } from './arrMediaInfo.ts';
@@ -22,6 +23,8 @@ import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan,
 import {
     diagnoseConnection,
     type BlocklistEntry,
+    type IndexerSeedCriteria,
+    type SeedCriteriaCapable,
     type CalendarCapable,
     type CalendarEntry,
     type ConnectionDiagnosis,
@@ -135,7 +138,8 @@ export class RadarrAdapter
         HistoryCapable,
         WantedCapable,
         ReleaseSearchCapable,
-        ProfileDiagnosticsCapable
+        ProfileDiagnosticsCapable,
+        SeedCriteriaCapable
 {
     readonly type: ServiceId = 'radarr';
     readonly instance: string | undefined;
@@ -198,6 +202,10 @@ export class RadarrAdapter
 
     async readBlocklist(): Promise<BlocklistEntry[]> {
         return readArrBlocklist(this.#http, this.id, 'movie');
+    }
+
+    async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
+        return readSeedCriteria(this.#http, this.id, 'arr');
     }
 
     async removeBlocklistItem(id: string): Promise<void> {
