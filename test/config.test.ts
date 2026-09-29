@@ -240,6 +240,15 @@ describe('auth.oauth', () => {
         expect(result.success).toBe(true);
     });
 
+    // The config page's OAuth card sends whatever was typed; a non-URL used
+    // to throw from inside the refinement instead of failing the parse.
+    it.each(['issuer', 'jwks_uri'])('refuses a %s that is not a URL rather than throwing', key => {
+        const oauth = { ...OAUTH, [key]: 'not a url' };
+        const result = ConfigSchema.safeParse({ auth: { ...AUTH, oauth }, services: {} });
+        expect(result.success).toBe(false);
+        expect(result.error?.issues.map(i => i.path.join('.'))).toContain(`auth.oauth.${key}`);
+    });
+
     // Otherwise a read-scoped token would carry every tier once PR 2 checks
     // scopes against it.
     it('refuses scope names that collide', () => {
