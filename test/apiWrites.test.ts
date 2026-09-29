@@ -1,6 +1,7 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { logger } from '../src/core/logger.ts';
 import { api, closeApi, json, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 
 beforeEach(async () => {
@@ -34,6 +35,26 @@ describe('the write pipeline', () => {
         const res = await api('/token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{nope' });
         expect(res.status).toBe(400);
         expect(await res.json()).toEqual({ message: 'The request body is not valid JSON.' });
+    });
+
+    it('checks the key before the body: a wrong key and malformed JSON is 401', async () => {
+        const res = await api('/token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{nope', key: 'wrong' });
+        expect(res.status).toBe(401);
+    });
+
+    it('answers 404 for a malformed body while the API is off', async () => {
+        closeApi();
+        await seedApi({ keyed: false });
+        const res = await api('/token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{nope' });
+        expect(res.status).toBe(404);
+    });
+
+    it('answers a save that fails for another reason with a {message} 500', async () => {
+        const tag = await etag();
+        await rm(join(stack.dir, 'config.yaml'));
+        const res = await api('/settings/imdb', json('PUT', { enabled: true }, { 'if-match': tag }));
+        expect(res.status).toBe(500);
+        expect(typeof ((await res.json()) as { message: string }).message).toBe('string');
     });
 
     it('applies a write with a current If-Match, weak or strong', async () => {
@@ -103,6 +124,16 @@ describe('POST /app', () => {
         expect(((await res.json()) as { message: string }).message).toContain('Name the new radarr');
     });
 
+    it('names a forced rename in the log', async () => {
+        closeApi();
+        await seedApi({ extra: ["  sonarr: { url: 'http://sonarr:8989', api_key: 'sonarr-key-000' }"] });
+        const info = vi.spyOn(logger, 'info');
+        const res = await api('/app', json('POST', { type: 'sonarr', name: 'uhd', renameExistingTo: 'hd', url: 'http://sonarr-uhd:8989', apiKey: 'k' }));
+        expect(res.status).toBe(201);
+        const line = info.mock.calls.find(call => call[1] === 'configuration saved from the management API');
+        expect(line?.[0]).toMatchObject({ what: 'added sonarr/uhd (renamed sonarr to sonarr/hd)' });
+    });
+
     it('refuses an unknown type or field', async () => {
         expect((await api('/app', json('POST', { type: 'kodi', url: 'http://k:1' }))).status).toBe(400);
         expect((await api('/app', json('POST', { type: 'sonarr', url: 'http://s:1', apiKey: 'k', apikey: 'typo' }))).status).toBe(400);
@@ -146,6 +177,12 @@ describe('PUT /app/{type}/{name}', () => {
         expect(one?.password).toBe(TX_PASSWORD);
     });
 
+    it('keeps URL credentials when the GET URL comes back with stray whitespace', async () => {
+        const res = await api('/app/radarr/hd', json('PUT', { url: ' http://radarr:7878/ ' }));
+        expect(res.status).toBe(200);
+        expect(radarr()?.url).toBe('http://user:pw@radarr:7878');
+    });
+
     it('refuses to clear a secret', async () => {
         expect((await api('/app/radarr/hd', json('PUT', { apiKey: null }))).status).toBe(400);
     });
@@ -182,8 +219,18 @@ describe('POST /app/test', () => {
     it('tests a new app from type and fields', async () => {
         vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
         const res = await api('/app/test', json('POST', { type: 'sonarr', url: 'http://sonarr:8989', apiKey: 'k' }));
+        expect(res.status).toBe(400);
         expect(((await res.json()) as { app: string }).app).toBe('sonarr');
         expect(stack.runtime.config.services.sonarr).toBeUndefined();
+    });
+
+    it('logs the origin of a URL the body sends, and nothing past it', async () => {
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+        const info = vi.spyOn(logger, 'info');
+        await api('/app/test', json('POST', { id: 'radarr/hd', url: ' http://elsewhere.example:9999/x?apikey=leak ' }));
+        const line = info.mock.calls.find(call => call[1] === 'connection tested from the management API');
+        expect(line?.[0]).toMatchObject({ service: 'radarr/hd', target: 'http://elsewhere.example:9999' });
+        expect(JSON.stringify(line)).not.toContain('leak');
     });
 
     it('answers a candidate that will not build with {message}', async () => {

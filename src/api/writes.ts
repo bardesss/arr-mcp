@@ -37,6 +37,15 @@ const splitId = (id: string): [string, string | undefined] => {
     return slash === -1 ? [id, undefined] : [id.slice(0, slash), id.slice(slash + 1)];
 };
 
+/** Origin only: a query string can carry a key. */
+const originOfUrl = (url: string): string | undefined => {
+    try {
+        return new URL(url.trim()).origin;
+    } catch {
+        return undefined;
+    }
+};
+
 export function registerWrites(app: Hono, deps: ApiDeps): void {
     const { runtime } = deps;
 
@@ -117,7 +126,11 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
             const adapter = buildAdapters(candidate).find(a => a.id === target);
             if (adapter === undefined) return apiError(c, 400, `${target} is not configured.`);
             const d = await adapter.testConnection();
-            logger.info({ ...originOf(c), service: target, ok: d.ok }, 'connection tested from the management API');
+            const sentTo = body.url === undefined ? undefined : originOfUrl(body.url);
+            logger.info(
+                { ...originOf(c), service: target, ...(sentTo === undefined ? {} : { target: sentTo }), ok: d.ok },
+                'connection tested from the management API'
+            );
             return c.json(
                 {
                     ok: d.ok,
@@ -140,7 +153,12 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         if (body instanceof Response) return body;
         const name = body.name ?? undefined;
 
-        const config = await applyWrite(c, deps, `added ${body.type}${name === undefined ? '' : `/${name}`}`, current =>
+        const alone = findInstance(runtime.config, body.type, undefined);
+        const renamed =
+            alone !== undefined && body.renameExistingTo !== undefined && body.renameExistingTo !== ''
+                ? ` (renamed ${body.type} to ${body.type}/${body.renameExistingTo})`
+                : '';
+        const config = await applyWrite(c, deps, `added ${body.type}${name === undefined ? '' : `/${name}`}${renamed}`, current =>
             addCandidate(current, {
                 type: body.type,
                 name,

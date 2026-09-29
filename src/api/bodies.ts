@@ -57,7 +57,7 @@ export const TestAppBody = z.strictObject({
  */
 export function fieldsFromBody(body: AppBodyValue, current: ServiceInstance | undefined): InstanceFields {
     const stored = current?.config as { url: string; permissions: { safe_write: boolean; destructive: boolean } } | undefined;
-    const sameUrl = stored !== undefined && body.url !== undefined && body.url === withoutCredentials(stored.url);
+    const sameUrl = stored !== undefined && body.url !== undefined && body.url.trim() === withoutCredentials(stored.url);
     const permissionTouched = body.safeWrite !== undefined || body.destructive !== undefined;
 
     return {

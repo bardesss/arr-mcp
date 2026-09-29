@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { commitConfig } from '../config/commit.ts';
-import { ConfigDriftError } from '../config/save.ts';
+import { ConfigDriftError, ConfigInvalidError } from '../config/save.ts';
 import type { Config } from '../config/schema.ts';
 import { logger } from '../core/logger.ts';
 import { originOf } from '../web/routes.ts';
@@ -31,8 +31,9 @@ export async function applyWrite(
         await commitConfig(runtime, expected, next);
     } catch (err) {
         if (err instanceof ConfigDriftError) return apiError(c, 412, STALE);
+        if (err instanceof ConfigInvalidError) return apiError(c, 400, err.message);
         logger.error({ err }, 'config save from the management API failed');
-        return apiError(c, 400, (err as Error).message);
+        return apiError(c, 500, 'Saving config.yaml failed. The server log has the details.');
     }
 
     logger.info({ ...originOf(c), what }, 'configuration saved from the management API');
