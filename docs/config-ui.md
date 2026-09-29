@@ -8,7 +8,7 @@
 
 | Page | What it is for |
 | --- | --- |
-| Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and the bearer token for your MCP client |
+| Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and how many MCP tokens exist, with a warning for any that expire soon |
 | Configuration | Add, edit, test and remove service instances one at a time; change credentials |
 | Logs | Three streams — all activity, problems only, or one service |
 | Write audit | Every write attempt — applied, previewed, refused or failed |
@@ -51,8 +51,8 @@ password all render as empty fields meaning *unchanged*, so a saved page or a
 screenshot cannot carry them. That is also why an empty field can never mean
 "clear this" — clearing is expressed by removing the instance.
 
-The bearer token is the deliberate exception — handing it to your MCP client is
-the point — and it is masked until you ask.
+A new MCP token is the deliberate exception — handing it to your MCP client is
+the point. It is shown once, in the response to creating it, and never again.
 
 **Your password manager leaves the Configuration page alone.** None of its
 fields is a `password` input, because that is the one thing that makes a browser
@@ -117,8 +117,9 @@ left out; that one is in `docker logs`.
 **The write audit reads as entries, not as a spreadsheet.** Each attempt gives
 its outcome, tool, service and time on one line, and its target, the credential
 that asked, and the recorded arguments underneath, each argument as its own
-field. The caller is an OAuth client id where there is one; the static bearer
-token and a token that named no client are spelled out in words rather than
+field. The caller is an OAuth client id where there is one, or the name of an MCP token
+with a short fingerprint of its hash. The static bearer token from before named
+tokens and a token that named no client are spelled out in words rather than
 printed as if they were a client's name. The arguments are stored
 as a single JSON blob, and a column holding that blob beside six others was
 unreadable on a desktop long before it was unreadable on a phone.

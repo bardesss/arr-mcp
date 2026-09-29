@@ -14,7 +14,7 @@ To report something, see [SECURITY.md](../SECURITY.md).
 ## The threat model first
 
 arr-mcp is a **single-operator LAN appliance**. One person configures it, one
-bearer token reaches it, one set of permissions applies. It is not multi-tenant,
+set of MCP tokens reaches it, one set of permissions applies. It is not multi-tenant,
 it does not federate, and it is
 [not designed to be exposed to the internet](../README.md#security).
 
@@ -300,7 +300,7 @@ so far.
   the same reason: a security setting that appears to have applied when it has
   not is the worst kind.
 - When `auth.oauth` is configured, `/mcp` also accepts a short-lived OAuth 2.1
-  access token in place of the static bearer token. The token's signature,
+  access token in place of an MCP token. The token's signature,
   issuer, audience and expiry are verified against the issuer's JWKS, and its
   scope becomes a ceiling on what `config.yaml` already permits — narrowing
   it, never widening it, and enforced by the same gate that governs the
@@ -329,7 +329,7 @@ job; arr-mcp speaks plain HTTP and says so.
 Note also that the container binds `0.0.0.0` by design, because it has to be
 reachable across the LAN. That drops the MCP SDK's default localhost Host and
 Origin validation, which is exactly why the `allowed_hosts` check exists as a
-replacement. If you forward that port from your router, the bearer token is the
+replacement. If you forward that port from your router, an MCP token is the
 only thing between the internet and every credential in your stack. Do not do that.
 
 ## MCP08 Lack of Audit and Telemetry

@@ -69,8 +69,8 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/bardesss/arr-mcp/main/pr
 ```
 
 It defaults to 2 cores, 2 GB and 8 GB of disk — the memory is sized for the
-optional [IMDb ingest](docs/imdb.md), not for serving. `config.yaml`, the bearer
-token and the databases live in `/config`, which an update does not touch; run
+optional [IMDb ingest](docs/imdb.md), not for serving. `config.yaml`, the MCP
+tokens (hashed) and the databases live in `/config`, which an update does not touch; run
 `update` inside the container to rebuild it from the latest release. Re-running
 the command above on the host builds a second container instead. If it installs
 but never answers, `journalctl -u arr-mcp` is the log.
@@ -113,9 +113,11 @@ no restart. Configure only what you run. A config file that will not parse no
 longer takes the container down: arr-mcp serves a repair page with the error and
 an editor instead.
 
-Your MCP client goes to `http://<host>:6060/mcp` with the bearer token shown on
-the dashboard. A client that can only be given a URL, not a header, can carry
-the token as `?token=` instead — see
+Your MCP client goes to `http://<host>:6060/mcp` with an MCP token. Create one on
+the config page; it is shown once, so copy it into your client straight away.
+Each token has its own tier and expiry, see
+[MCP tokens](docs/configuration.md#mcp-tokens). A client that can only be given a
+URL, not a header, can carry the token as `?token=` instead — see
 [`allow_token_in_url`](docs/configuration.md#allow_token_in_url). If you already
 run an identity provider, `/mcp` also accepts short-lived OAuth 2.1 access
 tokens, so each client gets its own credential and a scope that caps what it may
