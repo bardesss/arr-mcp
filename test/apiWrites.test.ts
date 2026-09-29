@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, closeApi, json, seedApi, stack } from './helpers/apiStack.ts';
+import { api, closeApi, json, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 
 beforeEach(async () => {
     await seedApi();
@@ -63,5 +63,115 @@ describe('the write pipeline', () => {
     it('carries the new ETag on the write response', async () => {
         const res = await api('/settings/imdb', json('PUT', { enabled: true }));
         expect(res.headers.get('etag')).toBe(await etag());
+    });
+});
+
+const radarr = () => {
+    const list = stack.runtime.config.services.radarr;
+    return (Array.isArray(list) ? list : [list]).find(r => (r as { name?: string } | undefined)?.name === 'hd');
+};
+
+describe('POST /app', () => {
+    it('adds an app and answers 201 with the resource, no key', async () => {
+        const res = await api('/app', json('POST', { type: 'radarr', name: 'uhd', url: 'http://radarr-uhd:7878', apiKey: 'uhd-secret-000' }));
+        expect(res.status).toBe(201);
+        const text = await res.text();
+        expect(text).not.toContain('uhd-secret-000');
+        expect(JSON.parse(text)).toMatchObject({ id: 'radarr/uhd', apiKeySet: true, safeWrite: false });
+    });
+
+    it('passes the config refusal through', async () => {
+        const res = await api('/app', json('POST', { type: 'radarr', url: 'http://radarr2:7878', apiKey: 'k' }));
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { message: string }).message).toContain('Name the new radarr');
+    });
+
+    it('refuses an unknown type or field', async () => {
+        expect((await api('/app', json('POST', { type: 'kodi', url: 'http://k:1' }))).status).toBe(400);
+        expect((await api('/app', json('POST', { type: 'sonarr', url: 'http://s:1', apiKey: 'k', apikey: 'typo' }))).status).toBe(400);
+    });
+});
+
+describe('PUT /app/{type}/{name}', () => {
+    it('merges: an omitted field is unchanged, secrets and URL credentials included', async () => {
+        const res = await api('/app/radarr/hd', json('PUT', { timeoutMs: 20000 }));
+        expect(res.status).toBe(200);
+        expect(radarr()).toMatchObject({ timeout_ms: 20000, api_key: RADARR_KEY, url: 'http://user:pw@radarr:7878' });
+    });
+
+    it('accepts its own GET body back, so GET-modify-PUT works', async () => {
+        const current = (await (await api('/app/radarr/hd')).json()) as Record<string, unknown>;
+        const res = await api('/app/radarr/hd', json('PUT', { ...current, safeWrite: true }));
+        expect(res.status).toBe(200);
+        expect(radarr()).toMatchObject({
+            url: 'http://user:pw@radarr:7878',
+            api_key: RADARR_KEY,
+            permissions: { safe_write: true, destructive: false }
+        });
+    });
+
+    it('keeps the other permission when only one is sent', async () => {
+        await api('/app/radarr/hd', json('PUT', { safeWrite: true }));
+        await api('/app/radarr/hd', json('PUT', { destructive: true }));
+        expect(radarr()?.permissions).toEqual({ safe_write: true, destructive: true });
+    });
+
+    it('sets a new URL and a new key', async () => {
+        await api('/app/radarr/hd', json('PUT', { url: 'http://radarr-new:7878', apiKey: 'new-key-000' }));
+        expect(radarr()).toMatchObject({ url: 'http://radarr-new:7878', api_key: 'new-key-000' });
+    });
+
+    it('clears a username with null and leaves the password', async () => {
+        await api('/app/transmission', json('PUT', { username: null }));
+        const tx = stack.runtime.config.services.transmission;
+        const one = Array.isArray(tx) ? tx[0] : tx;
+        expect(one?.username).toBeUndefined();
+        expect(one?.password).toBe(TX_PASSWORD);
+    });
+
+    it('refuses to clear a secret', async () => {
+        expect((await api('/app/radarr/hd', json('PUT', { apiKey: null }))).status).toBe(400);
+    });
+
+    it('404s an unknown app', async () => {
+        expect((await api('/app/sonarr', json('PUT', { timeoutMs: 1000 }))).status).toBe(404);
+    });
+});
+
+describe('DELETE /app', () => {
+    it('removes the app', async () => {
+        const res = await api('/app/transmission', { method: 'DELETE' });
+        expect(res.status).toBe(200);
+        expect(stack.runtime.config.services.transmission).toBeUndefined();
+        expect((await api('/app/transmission')).status).toBe(404);
+    });
+
+    it('404s an unknown app', async () => {
+        expect((await api('/app/sonarr', { method: 'DELETE' })).status).toBe(404);
+    });
+});
+
+describe('POST /app/test', () => {
+    it('tests an existing app with overrides, saving nothing, and answers 400 on failure', async () => {
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+        const res = await api('/app/test', json('POST', { id: 'radarr/hd', url: 'http://radarr-other:7878' }));
+        expect(res.status).toBe(400);
+        const body = (await res.json()) as { ok: boolean; app: string; latencyMs: number; error?: { kind: string } };
+        expect(body).toMatchObject({ ok: false, app: 'radarr/hd' });
+        expect(body.error?.kind).toBeDefined();
+        expect(radarr()?.url).toBe('http://user:pw@radarr:7878');
+    });
+
+    it('tests a new app from type and fields', async () => {
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+        const res = await api('/app/test', json('POST', { type: 'sonarr', url: 'http://sonarr:8989', apiKey: 'k' }));
+        expect(((await res.json()) as { app: string }).app).toBe('sonarr');
+        expect(stack.runtime.config.services.sonarr).toBeUndefined();
+    });
+
+    it('answers a candidate that will not build with {message}', async () => {
+        const res = await api('/app/test', json('POST', { type: 'sonarr', url: 'not a url', apiKey: 'k' }));
+        expect(res.status).toBe(400);
+        expect(typeof ((await res.json()) as { message: string }).message).toBe('string');
     });
 });
