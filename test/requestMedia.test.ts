@@ -72,6 +72,11 @@ function harness(
         }
         if (url.pathname === '/api/v1/movie/438631') return jsonResponse({ title: 'Dune', releaseDate: '2021-10-22' });
         if (url.pathname === '/api/v1/tv/1396') return jsonResponse({ name: 'Breaking Bad', firstAirDate: '2008-01-20' });
+        if (url.pathname === '/api/v1/movie/999') return jsonResponse({ title: 'Other', releaseDate: '2020-01-01' });
+        // What a live Seerr 3.4.1 answers for an id TMDB does not have: a 500,
+        // not a 404.
+        if (url.pathname === '/api/v1/tv/31510819') return jsonResponse({ message: 'Unable to retrieve series.' }, 500);
+        if (url.pathname === '/api/v1/movie/31510819') return jsonResponse({ message: 'Unable to retrieve movie.' }, 500);
         return jsonResponse({ message: 'not found' }, 404);
     }) as unknown as typeof fetch;
 
@@ -203,6 +208,29 @@ describe('request_media', () => {
     it('names the config key when the permission is off', async () => {
         const h = harness({ config: seerrConfig({ permissions: { safe_write: false, destructive: false } }) });
         await expect(h.call(MOVIE)).rejects.toThrow(/safe_write/);
+    });
+
+    it('refuses rather than issuing a token when Seerr cannot resolve the id', async () => {
+        // An IMDb number with the `tt` stripped is a real mistake a model made.
+        // A token here gets confirmed, and the apply fails with an opaque 500.
+        const h = harness();
+        const call = h.call({ media_type: 'tv', media_id: 31510819 });
+        await expect(call).rejects.toThrow(/lookup_media/);
+        await expect(call).rejects.toThrow(/imdb:tt/);
+        expect(h.posted).toHaveLength(0);
+    });
+
+    it('refuses an unresolvable movie id too', async () => {
+        const h = harness();
+        await expect(h.call({ media_type: 'movie', media_id: 31510819 })).rejects.toMatchObject({ kind: 'NotFound' });
+    });
+
+    it('still answers already-requested when the title lookup fails', async () => {
+        // A no-op creates nothing, so there is no wrong-id request to prevent.
+        const h = harness({ existing: [requestRow({ media: { tmdbId: 31510819, mediaType: 'tv' } })] });
+        const { structuredContent } = await h.call({ media_type: 'tv', media_id: 31510819 });
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.summary).toContain('title unavailable');
     });
 
     it('names the title in the preview, not just the id', async () => {
