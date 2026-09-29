@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { BEARER_CALLER_PREFIX } from './audit.ts';
 import type { WriteTier } from './permissions.ts';
 
 export type TokenTier = 'read' | 'write' | 'destructive';
@@ -14,7 +15,7 @@ export const hashToken = (plain: string): string => `sha256:${createHash('sha256
 
 export const fingerprint = (hash: string): string => hash.slice('sha256:'.length, 'sha256:'.length + 8);
 
-export const bearerCaller = (token: StoredToken): string => `bearer:${token.name}#${fingerprint(token.hash)}`;
+export const bearerCaller = (token: StoredToken): string => `${BEARER_CALLER_PREFIX}${token.name}#${fingerprint(token.hash)}`;
 
 export function tiersOf(tier: TokenTier): ReadonlySet<WriteTier> {
     if (tier === 'destructive') return new Set<WriteTier>(['safe', 'destructive']);

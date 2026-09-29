@@ -1,5 +1,5 @@
 import type { Theme } from '../config/schema.ts';
-import { BEARER_CALLER, NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type AuditRow } from '../core/audit.ts';
+import { BEARER_CALLER, BEARER_CALLER_PREFIX, NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type AuditRow } from '../core/audit.ts';
 import { logFields, type LogRow } from '../core/logs.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
@@ -662,7 +662,8 @@ function argFields(args: string): SafeHtml {
 /**
  * Which credential made the write, in words rather than as a raw value.
  *
- * `bearer` is the static token, null is a row written before this column
+ * `bearer:<name>#<fingerprint>` is a named MCP token, shown as `name · fingerprint`.
+ * Bare `bearer` is the static token from before named tokens, null is a row written before this column
  * existed, and a bare `oauth:` is a token that named no client (`NO_CLIENT_ID`);
  * none of them is a client's name and none is printed as one. An
  * `oauth:` value is a client id someone chose, so that alone is set in `mono`,
@@ -670,7 +671,11 @@ function argFields(args: string): SafeHtml {
  */
 function callerField(caller: string | null): SafeHtml {
     if (caller === null) return html`<dd class="dim">not recorded — written before callers were logged</dd>`;
-    if (caller === BEARER_CALLER) return html`<dd class="dim">the static bearer token</dd>`;
+    if (caller === BEARER_CALLER) return html`<dd class="dim">the static bearer token (before named tokens)</dd>`;
+    if (caller.startsWith(BEARER_CALLER_PREFIX)) {
+        const [name, fp] = caller.slice(BEARER_CALLER_PREFIX.length).split('#');
+        return html`<dd class="mono">${name ?? ''} · ${fp ?? ''}</dd>`;
+    }
     const id = caller.startsWith(OAUTH_CALLER_PREFIX) ? caller.slice(OAUTH_CALLER_PREFIX.length) : caller;
     if (id === NO_CLIENT_ID) return html`<dd class="dim">an OAuth token that named no client</dd>`;
     return html`<dd class="mono">${id}</dd>`;
