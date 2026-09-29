@@ -252,6 +252,25 @@ describe('qbittorrentSession', () => {
         await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/no session cookie/i);
     });
 
+    // The login carries the password in its body, so no redirect is followed.
+    it('refuses a redirected login without following it', async () => {
+        let calls = 0;
+        let redirect: RequestInit['redirect'];
+        const impl = (async (_input: string, init?: RequestInit) => {
+            calls += 1;
+            redirect = init?.redirect;
+            return new Response(null, { status: 307, headers: { location: 'https://elsewhere.example/steal?k=1' } });
+        }) as unknown as typeof fetch;
+
+        const err = (await Promise.resolve(session({}, impl).recover?.(forbidden())).catch((e: unknown) => e)) as Error;
+        expect(calls).toBe(1);
+        expect(redirect).toBe('manual');
+        expect(err).toMatchObject({ kind: 'AuthFailed' });
+        expect(err.message).toContain('https://elsewhere.example');
+        expect(err.message).toContain('address it redirects to');
+        expect(err.message).not.toContain('steal');
+    });
+
     it('names the qualified instance id, not the bare service, in a login failure', async () => {
         const impl = (async () => new Response('', { status: 403 })) as unknown as typeof fetch;
         await expect(session({ id: 'qbittorrent/vpn' }, impl).recover?.(forbidden())).rejects.toThrow(

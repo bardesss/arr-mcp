@@ -214,7 +214,9 @@ async function qbittorrentLogin(
                 username: creds.username ?? '',
                 password: creds.password ?? ''
             }).toString(),
-            signal: AbortSignal.timeout(creds.timeoutMs)
+            signal: AbortSignal.timeout(creds.timeoutMs),
+            // The body carries the password: never follow a redirect with it.
+            redirect: 'manual'
         });
     } catch (err) {
         throw new ServiceError('AuthFailed', creds.id, 'the login request failed', { cause: err });
@@ -224,6 +226,19 @@ async function qbittorrentLogin(
     // every future login, and skipping this on that path would leak one
     // pinned connection per attempt for as long as the ban lasts.
     const body = (await response.text()).trim();
+
+    const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+    if (location !== null) {
+        let origin = 'another address';
+        try {
+            origin = new URL(location, url).origin;
+        } catch {
+            // Unparseable: name no address at all.
+        }
+        throw new ServiceError('AuthFailed', creds.id, `login redirected to ${origin}`, {
+            remedy: 'Set its url in the config to the address it redirects to.'
+        });
+    }
 
     if (response.status === 403) {
         throw new ServiceError('AuthFailed', creds.id, 'login refused', {
