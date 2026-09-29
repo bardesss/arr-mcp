@@ -43,6 +43,7 @@ this API can change them.
 | 401 | `Missing or wrong X-Api-Key.` |
 | 403 | `forbidden: Host not allowed`, as plain text. This comes from `auth.allowed_hosts`, before the API sees the request |
 | 404 | No key configured (`The management API is off. Generate a key on the config page to turn it on.`), `No such endpoint.`, `No such app.`, or `No such token.` |
+| 409 | `config.yaml was changed by hand and no longer loads. Fix the file, then retry.` Nothing was written |
 | 412 | The config changed since you read it. See [Concurrency](#concurrency) |
 | 415 | A write body that is not `application/json` |
 | 500 | A write that could not be saved for another reason, such as config.yaml not being writable. The server log has the details |
@@ -445,7 +446,8 @@ curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json
 
 ### `DELETE /token/{name}`
 
-Revokes a token. It stops working at once. Answers 200 with `{}`. An unknown
+Revokes a token. It stops working at once. Answers 200 with `{}`. The name
+matches regardless of case, as token names are unique that way. An unknown
 name is a 404.
 
 ```bash

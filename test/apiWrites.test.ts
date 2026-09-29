@@ -370,6 +370,14 @@ describe('tokens', () => {
         expect(await (await api('/token')).text()).not.toContain('phone');
     });
 
+    it('revokes regardless of case', async () => {
+        const info = vi.spyOn(logger, 'info');
+        expect((await api('/token/PHONE', { method: 'DELETE' })).status).toBe(200);
+        expect(stack.runtime.config.auth.tokens).toEqual([]);
+        const line = info.mock.calls.find(call => call[1] === 'configuration saved from the management API');
+        expect(line?.[0]).toMatchObject({ what: 'revoked token phone' });
+    });
+
     it('404s an unknown token', async () => {
         expect((await api('/token/nope', { method: 'DELETE' })).status).toBe(404);
     });

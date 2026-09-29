@@ -100,8 +100,9 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
     });
 
     app.delete(`${API_BASE}/token/:name`, async c => {
-        const name = c.req.param('name');
-        if (!runtime.config.auth.tokens.some(t => t.name === name)) return apiError(c, 404, 'No such token.');
+        const asked = c.req.param('name').toLowerCase();
+        const name = runtime.config.auth.tokens.find(t => t.name.toLowerCase() === asked)?.name;
+        if (name === undefined) return apiError(c, 404, 'No such token.');
         const config = await applyWrite(c, deps, `revoked token ${name}`, current => revokeToken(current, name));
         if (config instanceof Response) return config;
         return withEtag(c, config, {});

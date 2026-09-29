@@ -244,7 +244,9 @@ export function addToken(
     return { config: parsed.data, plaintext };
 }
 
+/** Names are unique regardless of case (see addToken), so this matches that way too. */
 export function revokeToken(config: Config, name: string): Config {
-    if (!config.auth.tokens.some(t => t.name === name)) throw new ConfigEditError(`No token named "${name}".`);
-    return { ...config, auth: { ...config.auth, tokens: config.auth.tokens.filter(t => t.name !== name) } };
+    const same = (t: { name: string }) => t.name.toLowerCase() === name.toLowerCase();
+    if (!config.auth.tokens.some(same)) throw new ConfigEditError(`No token named "${name}".`);
+    return { ...config, auth: { ...config.auth, tokens: config.auth.tokens.filter(t => !same(t)) } };
 }

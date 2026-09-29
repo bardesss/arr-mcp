@@ -236,4 +236,9 @@ describe('tokens', () => {
         expect(revokeToken(once, 'phone').auth.tokens).toEqual([]);
         expect(() => revokeToken(once, 'nope')).toThrow('No token named "nope".');
     });
+
+    it('revokes regardless of case, as names are unique regardless of case', () => {
+        const once = addToken(base, { name: 'phone', tier: 'read', expiry: '90' }, NOW).config;
+        expect(revokeToken(once, 'PHONE').auth.tokens).toEqual([]);
+    });
 });
