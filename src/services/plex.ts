@@ -1,8 +1,9 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
+import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { plexToken } from '../core/auth.ts';
 import { fenceText } from '../core/fence.ts';
-import { ServiceError } from '../core/errors.ts';
+import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { logger } from '../core/logger.ts';
 import {
@@ -12,6 +13,8 @@ import {
     type LibraryScanCapable,
     type MediaDetailCapable,
     type MediaDetails,
+    type MetadataInspectCapable,
+    type MetadataRepairCapable,
     type PlaybackCapable,
     type PlaybackEntry,
     type ScanState,
@@ -71,6 +74,8 @@ export type RawPlexItem = {
     /** Show rows only — Plex's own series-completion counters. */
     viewedLeafCount?: number;
     leafCount?: number;
+    /** `/library/metadata/{id}` rows: the library section holding the item. */
+    librarySectionID?: number | string;
 };
 
 export const unwrap = <T>(body: unknown, key: string): T[] => {
@@ -158,6 +163,8 @@ type RawSection = {
      *  same instability as `refreshing` — a string here must not silently
      *  drop out of `lastCompleted`. */
     scannedAt?: number | boolean | string;
+    agent?: string;
+    language?: string;
 };
 
 /** `refreshing` off XML-derived JSON: `true`, `1` and `"1"` all mean yes. */
@@ -172,7 +179,19 @@ const scannedAtSeconds = (value: RawSection['scannedAt']): number | undefined =>
     return undefined;
 };
 
+type RawSearchResult = { guid?: string; name?: string; year?: number; score?: number };
+
+/** Only Plex's own agents accept `tvdb-N`/`tmdb-N` as an exact id search. */
+const MODERN_AGENTS = new Set(['tv.plex.agents.series', 'tv.plex.agents.movie']);
+
+/** Same value and reasoning as Jellyfin's: a rematch can outlast the default timeout. */
+const METADATA_REPAIR_TIMEOUT_MS = 120_000;
+
+/** Kinds that say something about the connection, so they survive `#step`'s rewrap. */
+const KEPT_STEP_KINDS = new Set<ServiceErrorKind>(['Timeout', 'Unreachable', 'AuthFailed']);
+
 /** Plex library item types, for `?type=` on `/library/sections/{key}/all`. */
+const PLEX_TYPE_MOVIE = 1;
 const PLEX_TYPE_EPISODE = 4;
 
 /**
@@ -199,7 +218,9 @@ export class PlexAdapter
         SearchCapable,
         MediaDetailCapable,
         ScanStateCapable,
-        LibraryScanCapable
+        LibraryScanCapable,
+        MetadataInspectCapable,
+        MetadataRepairCapable
 {
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
@@ -207,7 +228,7 @@ export class PlexAdapter
     readonly #defaultUser: string | undefined;
     #warnedUnverifiedOwner = false;
 
-    constructor(config: ConfigByService['plex'], fetchImpl: typeof fetch = fetch) {
+    constructor(config: Omit<ConfigByService['plex'], 'allow_metadata_repair'>, fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp('plex', config, plexToken(config.api_key), fetchImpl);
         this.#defaultUser = config.default_user;
     }
@@ -528,6 +549,7 @@ export class PlexAdapter
             ids: externalIds(item),
             playback: {
                 user: user.name,
+                ...(item.ratingKey === undefined ? {} : { itemId: item.ratingKey }),
                 ...(watched === undefined ? {} : { watched }),
                 ...(item.viewCount === undefined ? {} : { playCount: item.viewCount }),
                 ...(lastPlayed === undefined ? {} : { lastPlayed })
@@ -672,6 +694,171 @@ export class PlexAdapter
             ...(file?.file === undefined ? {} : { path: this.#fence('file', file.file) }),
             ids: externalIds(item)
         };
+    }
+
+    /** Jellyfin's key names, which the detector and fix_metadata read. */
+    static #providerIds(item: RawPlexItem): Record<string, string> | undefined {
+        const ids = externalIds(item);
+        const out: Record<string, string> = {
+            ...(ids.tvdb === undefined ? {} : { Tvdb: String(ids.tvdb) }),
+            ...(ids.tmdb === undefined ? {} : { Tmdb: String(ids.tmdb) }),
+            ...(ids.imdb === undefined ? {} : { Imdb: ids.imdb })
+        };
+        return Object.keys(out).length === 0 ? undefined : out;
+    }
+
+    static #firstFile(item: RawPlexItem): string | undefined {
+        return item.Media?.flatMap(m => m.Part ?? []).find(p => typeof p.file === 'string')?.file;
+    }
+
+    async readEpisodeMetadata(_user: ServiceUser, seriesItemId: string): Promise<EpisodeRecord[]> {
+        const ratingKey = this.#ratingKey(seriesItemId);
+        const rows = await this.#paged(
+            start =>
+                `/library/metadata/${ratingKey}/allLeaves?includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`
+        );
+
+        // No providerIds: Plex episode Guids follow from the show's match, so
+        // they would mark every episode pinned, a Jellyfin-only concept.
+        return rows
+            .filter((e): e is RawPlexItem & { ratingKey: string } => typeof e.ratingKey === 'string' && e.type === 'episode')
+            .map(e => {
+                const file = PlexAdapter.#firstFile(e);
+                return {
+                    id: e.ratingKey,
+                    name: this.#fence('title', e.title ?? ''),
+                    ...(e.parentIndex === undefined ? {} : { season: e.parentIndex }),
+                    ...(e.index === undefined ? {} : { episode: e.index }),
+                    ...(file === undefined ? {} : { path: this.#fence('file', file) })
+                };
+            });
+    }
+
+    async readMovieMetadata(_user: ServiceUser, itemId?: string): Promise<MovieRecord[]> {
+        const rows: RawPlexItem[] = [];
+        if (itemId !== undefined) {
+            const body = await this.#http.get<unknown>(`/library/metadata/${this.#ratingKey(itemId)}`);
+            rows.push(...unwrap<RawPlexItem>(body, 'Metadata'));
+        } else {
+            for (const section of await this.#sections('movie')) {
+                rows.push(...(await this.#pagedSection(section.key, PLEX_TYPE_MOVIE)));
+            }
+        }
+
+        return rows
+            .filter((m): m is RawPlexItem & { ratingKey: string } => typeof m.ratingKey === 'string')
+            .map(m => {
+                const file = PlexAdapter.#firstFile(m);
+                const providerIds = PlexAdapter.#providerIds(m);
+                return {
+                    id: m.ratingKey,
+                    name: this.#fence('title', m.title ?? ''),
+                    ...(m.year === undefined ? {} : { year: m.year }),
+                    ...(file === undefined ? {} : { path: this.#fence('file', file) }),
+                    ...(providerIds === undefined ? {} : { providerIds })
+                };
+            });
+    }
+
+    async #sectionOf(ratingKey: string): Promise<RawSection & { key: string }> {
+        const body = await this.#http.get<unknown>(`/library/metadata/${ratingKey}`);
+        const item = unwrap<RawPlexItem>(body, 'Metadata')[0];
+        if (item === undefined) {
+            throw new ServiceError('NotFound', this.id, `no item with id ${ratingKey}`, {
+                remedy: 'Check the id came from a plex hit in search_media or get_metadata_issues.'
+            });
+        }
+        const section = (await this.#sections()).find(s => s.key === String(item.librarySectionID));
+        if (item.librarySectionID === undefined || section === undefined) {
+            throw new ServiceError('UpstreamError', this.id, `could not find the library holding item ${ratingKey}`);
+        }
+        return section;
+    }
+
+    async #step<T>(name: string, remedy: string, run: () => Promise<T>): Promise<T> {
+        try {
+            return await run();
+        } catch (err) {
+            const kind = err instanceof ServiceError && KEPT_STEP_KINDS.has(err.kind) ? err.kind : 'UpstreamError';
+            const detail = err instanceof ServiceError ? err.detail : String(err);
+            throw new ServiceError(kind, this.id, `the ${name} step failed: ${detail}`, { cause: err, remedy });
+        }
+    }
+
+    static #agentRefusal(agent: string): string {
+        if (agent === '') return 'this library reports no agent, so it cannot match by id';
+        const which = agent.startsWith('com.plexapp.agents.') ? 'the legacy agent' : 'the agent';
+        return `this library uses ${which} ${agent}, which cannot match by id`;
+    }
+
+    /** Fix Match as python-plexapi drives it, then a refresh Plex runs in the background. */
+    async repairMetadata(
+        itemId: string,
+        opts: { tvdbId?: number; tmdbId?: number }
+    ): Promise<{ settled: boolean; matchedTo?: { name: string; year?: string } }> {
+        const ratingKey = this.#ratingKey(itemId);
+        const base = `/library/metadata/${ratingKey}`;
+        const slow = { timeoutMs: METADATA_REPAIR_TIMEOUT_MS };
+        let matchedTo: { name: string; year?: string } | undefined;
+
+        const term =
+            opts.tvdbId !== undefined ? `tvdb-${opts.tvdbId}` : opts.tmdbId !== undefined ? `tmdb-${opts.tmdbId}` : undefined;
+
+        // A plain refresh works on any agent; only the id match needs a modern one.
+        if (term !== undefined) {
+            const section = await this.#sectionOf(ratingKey);
+            const agent = section.agent ?? '';
+            if (!MODERN_AGENTS.has(agent)) {
+                throw new ServiceError('UpstreamError', this.id, PlexAdapter.#agentRefusal(agent), {
+                    remedy: 'Switch the library to the Plex TV Series (or Plex Movie) agent in Plex first.'
+                });
+            }
+
+            const query = new URLSearchParams({
+                manual: '1',
+                title: term,
+                agent,
+                ...(section.language === undefined ? {} : { language: section.language })
+            });
+            const body = await this.#step('search', 'Nothing was changed. Check the item in Plex before trying again.', () =>
+                this.#http.get<unknown>(`${base}/matches?${query.toString()}`)
+            );
+            // Counted raw: a row missing its guid or name still makes the answer ambiguous.
+            const results = unwrap<RawSearchResult>(body, 'SearchResult');
+            const [first] = results;
+            const nothingChanged = 'Nothing was changed. Check the id in Radarr or Sonarr, or use Fix Match on the item in Plex by hand.';
+            if (first === undefined || results.length > 1) {
+                throw new ServiceError(
+                    results.length === 0 ? 'NotFound' : 'UpstreamError',
+                    this.id,
+                    `Plex found ${results.length} matches for ${term}, not exactly one`,
+                    { remedy: nothingChanged }
+                );
+            }
+            const { guid, name, year } = first;
+            if (typeof guid !== 'string' || guid === '' || typeof name !== 'string' || name === '') {
+                throw new ServiceError('UpstreamError', this.id, `Plex found 1 match for ${term}, but it has no guid or name to match with`, {
+                    remedy: nothingChanged
+                });
+            }
+            const params = new URLSearchParams({ guid, name });
+            await this.#step(
+                'match',
+                'Nothing after the match was sent. If it timed out, the match may have been applied anyway, so check the item in Plex before trying again.',
+                () => this.#http.put(`${base}/match?${params.toString()}`, undefined, true, slow)
+            );
+            matchedTo = {
+                name: this.#fence('name', name),
+                ...(typeof year === 'number' && Number.isFinite(year) ? { year: String(year) } : {})
+            };
+        }
+
+        const refreshRemedy =
+            matchedTo === undefined
+                ? 'Run Refresh Metadata on the item in Plex, or try again in a minute.'
+                : `The match to ${matchedTo.name} was applied; only the refresh failed. Run Refresh Metadata on the item in Plex, or run get_metadata_issues again in a minute.`;
+        await this.#step('refresh', refreshRemedy, () => this.#http.put(`${base}/refresh?force=1`, undefined, true, slow));
+        return { settled: false, ...(matchedTo === undefined ? {} : { matchedTo }) };
     }
 
     /**

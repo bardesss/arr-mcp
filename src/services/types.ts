@@ -419,8 +419,12 @@ export interface MetadataRepairCapable {
      */
     /** `settled` is true when the server finished the work before answering,
      *  so a caller reading straight afterwards is reading a final result rather
-     *  than a snapshot mid-refresh. */
-    repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<{ settled: boolean }>;
+     *  than a snapshot mid-refresh. `matchedTo` is what the server matched the
+     *  item to, fenced, when it reports one. */
+    repairMetadata(
+        itemId: string,
+        opts: { tvdbId?: number; tmdbId?: number }
+    ): Promise<{ settled: boolean; matchedTo?: { name: string; year?: string } }>;
 }
 
 export const hasMetadataRepair = (a: ServiceAdapter): a is ServiceAdapter & MetadataRepairCapable =>

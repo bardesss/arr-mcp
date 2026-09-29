@@ -7,11 +7,13 @@ import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
+import { PlexAdapter } from '../src/services/plex.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ProfileDiagnosticsCapable, ServiceAdapter } from '../src/services/types.ts';
 import { DRIFT_PENDING_NOTE, NO_MATCHING_INSTANCE_NOTE } from '../src/tools/profileIssues/index.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { rpcPayload as parseRpcPayload } from '../scripts/lib/rpc.ts';
+import { jsonResponse } from './helpers/serve.ts';
 
 const TOKEN = 'a'.repeat(64);
 const WRONG = 'b'.repeat(64);
@@ -1957,5 +1959,74 @@ describe('named tokens at /mcp', () => {
         )) as { result: { structuredContent: { permission: { allowed: boolean } } } };
         expect(payload.result.structuredContent.permission.allowed).toBe(true);
         expect(trail.recent()[0]?.caller).toEqual(expect.stringMatching(/^bearer:default#[0-9a-f]{8}$/));
+    });
+});
+
+// The Plex setting and a token's tier are both ceilings on the same gate:
+// neither may quietly replace the other.
+describe('fix_metadata on Plex at /mcp', () => {
+    const WRITER = 'amcp_' + 'f'.repeat(64);
+    const ADMIN = 'amcp_' + '9'.repeat(64);
+
+    const plexFetch = (async (input: string | URL | Request) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        if (url.pathname === '/library/sections') {
+            return jsonResponse({ MediaContainer: { Directory: [{ key: '2', type: 'show', agent: 'tv.plex.agents.series' }] } });
+        }
+        if (url.pathname === '/library/sections/2/all' && !url.searchParams.has('type')) {
+            return jsonResponse({ MediaContainer: { Metadata: [{ ratingKey: '900100', type: 'show', title: 'Fixture show 2' }] } });
+        }
+        if (url.pathname === '/library/metadata/900100/allLeaves') {
+            return jsonResponse({
+                MediaContainer: {
+                    Metadata: [
+                        {
+                            ratingKey: '900101',
+                            type: 'episode',
+                            title: 'Fixture show 2',
+                            parentIndex: 1,
+                            index: 1,
+                            Media: [{ Part: [{ file: '/library/tv/Fixture show 2/Season 01/Fixture show 2 - S01E02 - Some other words.mkv' }] }]
+                        }
+                    ]
+                }
+            });
+        }
+        return jsonResponse({ message: 'not found' }, 404);
+    }) as unknown as typeof fetch;
+
+    const call = async (allow: boolean, bearer: string, args: Record<string, unknown> = {}) => {
+        const plex = { url: 'http://192.0.2.20:32400', api_key: 'tok', default_user: 'Sam', allow_metadata_repair: allow, permissions: { destructive: true } };
+        const cfg = ConfigSchema.parse({
+            auth: {
+                tokens: [
+                    { name: 'laptop', tier: 'write', token: WRITER },
+                    { name: 'admin', tier: 'destructive', token: ADMIN }
+                ],
+                password_hash: PASSWORD_HASH
+            },
+            services: { plex }
+        });
+        const app = appWith(cfg, [new PlexAdapter(cfg.services.plex as never, plexFetch)]);
+        const body = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'fix_metadata', arguments: { query: 'Fixture show 2', ...args } } };
+        return JSON.stringify(await rpcPayload(await app.request('http://localhost:6060/mcp', rpc(body, { Authorization: `Bearer ${bearer}` }))));
+    };
+
+    it('lets a destructive token preview with the setting on', async () => {
+        expect(await call(true, ADMIN, { dry_run: true })).toContain('"permission":{"allowed":true}');
+    });
+
+    it('keeps the token refusal when the setting is on', async () => {
+        const text = await call(true, WRITER);
+        expect(text).toContain("token 'laptop' has the write tier");
+        expect(text).not.toContain('Plex repair is off');
+    });
+
+    it('names the setting to a destructive token when it is off', async () => {
+        expect(await call(false, ADMIN)).toContain('Plex repair is off');
+    });
+
+    it('names the setting ahead of a token that falls short as well', async () => {
+        expect(await call(false, WRITER)).toContain('Plex repair is off');
     });
 });

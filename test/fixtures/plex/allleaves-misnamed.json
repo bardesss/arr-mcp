@@ -1,0 +1,37 @@
+{
+  "MediaContainer": {
+    "size": 3,
+    "Metadata": [
+      {
+        "ratingKey": "900101",
+        "grandparentRatingKey": "900100",
+        "type": "episode",
+        "title": "Fixture episode one",
+        "parentIndex": 1,
+        "index": 1,
+        "Guid": [{ "id": "tvdb://900101" }],
+        "Media": [{ "Part": [{ "file": "/library/tv/Fixture show 2/Season 01/Fixture show 2 - S01E01 - Fixture episode one.mkv" }] }]
+      },
+      {
+        "ratingKey": "900102",
+        "grandparentRatingKey": "900100",
+        "type": "episode",
+        "title": "Fixture episode two",
+        "parentIndex": 1,
+        "index": 2,
+        "Guid": [{ "id": "tvdb://900102" }],
+        "Media": [{ "Part": [{ "file": "/library/tv/Fixture show 2/Season 01/Fixture show 2 - S01E02 - Wrong words entirely.mkv" }] }]
+      },
+      {
+        "ratingKey": "900103",
+        "grandparentRatingKey": "900100",
+        "type": "episode",
+        "title": "Fixture episode three",
+        "parentIndex": 1,
+        "index": 3,
+        "Guid": [{ "id": "tvdb://900103" }],
+        "Media": [{ "Part": [{ "file": "/library/tv/Fixture show 2/Season 01/Fixture show 2 - S02E07 - Fixture episode three.mkv" }] }]
+      }
+    ]
+  }
+}

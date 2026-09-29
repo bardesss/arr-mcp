@@ -46,7 +46,7 @@ re-monitor it.
 | `delete_media` | destructive | `destructive` |
 | `delete_episode_files` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
-| `fix_metadata` | destructive | `destructive` |
+| `fix_metadata` | destructive | `destructive`, plus `allow_metadata_repair` on Plex |
 
 ### Where the tier boundary falls
 

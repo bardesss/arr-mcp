@@ -230,8 +230,9 @@ small, shaped change, and a service in no slot at all is a different product.
 - **Plex.** An adapter exists and has been verified against a live Plex Media
   Server 1.43.3.10896 by a volunteer tester (issue #180): all nine endpoints
   it reads were captured from that server and are contracted in
-  `test/contract.test.ts`. It reads, and its one write is `trigger_scan`,
-  verified against 1.43.1.10611 (issue #268). The maintainer still does not
+  `test/contract.test.ts`. It reads, and writes with `trigger_scan`, verified
+  against 1.43.1.10611 (issue #268), and `fix_metadata`, which stays off by
+  default until someone verifies it live (issue #203). The maintainer still does not
   run Plex, so coverage is two servers' worth, not a range — further testers
   on a different version or library shape would still be useful, particularly
   for the managed-user-token case `docs/tools.md` flags as unconfirmed.

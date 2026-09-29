@@ -133,13 +133,14 @@ export class ServiceHttp {
      * JSON parse would turn a successful write into "response was not valid
      * JSON", the same trap `delete` already documents.
      */
-    async put<T>(path: string, body: unknown, discardBody = false): Promise<T> {
+    async put<T>(path: string, body: unknown, discardBody = false, opts?: { timeoutMs?: number }): Promise<T> {
         return this.#request<T>(
             'PUT',
             path,
             body === undefined ? undefined : { json: body },
             false,
-            discardBody ? 'none' : 'json'
+            discardBody ? 'none' : 'json',
+            opts?.timeoutMs
         );
     }
 
