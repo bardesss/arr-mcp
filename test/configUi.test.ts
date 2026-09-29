@@ -797,6 +797,22 @@ describe('testing a connection', () => {
             expect(page).toContain('Yes, remove');
             expect(page.match(/<details class="svc" open>/g)).toHaveLength(1);
         });
+
+        it('sends a connection test result uncached, like every other page behind a session', async () => {
+            await seed(TWO);
+            globalThis.fetch = (async () =>
+                new Response(JSON.stringify({ version: '5.1.0' }), {
+                    headers: { 'content-type': 'application/json' }
+                })) as typeof fetch;
+            await signIn();
+            const res = await call(
+                '/ui/config/test',
+                form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '' })
+            );
+
+            expect(res.status).toBe(200);
+            expect(res.headers.get('cache-control')).toBe('no-store');
+        });
     });
 
     it('reports a service that answers', async () => {
@@ -1972,15 +1988,40 @@ describe('the token reveal panel', () => {
 describe('the OAuth card', async () => {
     const ISSUER = 'https://auth.example.com';
 
-    let mode: 'ok' | 'http502' | 'html' | 'empty' | 'oct' = 'ok';
+    let mode:
+        | 'ok'
+        | 'http502'
+        | 'html'
+        | 'empty'
+        | 'oct'
+        | 'redirect'
+        | 'noContent'
+        | 'big'
+        | 'bigChunked'
+        | 'stringKey'
+        | 'enc' = 'ok';
     const { privateKey, publicKey } = await generateKeyPair('RS256');
     const jwk = { ...(await exportJWK(publicKey)), kid: 'test-key', alg: 'RS256' };
+    const MIB = 1024 * 1024;
+    const json = { 'content-type': 'application/json' };
     const jwks = createServer((_req, res) => {
         if (mode === 'http502') return void res.writeHead(502).end('{}');
         if (mode === 'html') return void res.writeHead(200, { 'content-type': 'text/html' }).end('<html>login</html>');
-        if (mode === 'empty') return void res.writeHead(200, { 'content-type': 'application/json' }).end('{"keys":[]}');
+        if (mode === 'empty') return void res.writeHead(200, json).end('{"keys":[]}');
+        if (mode === 'redirect') return void res.writeHead(301, { location: '/jwks/<b>' }).end();
+        if (mode === 'noContent') return void res.writeHead(204).end();
+        if (mode === 'big') return void res.writeHead(200, json).end(`{"keys":[],"pad":"${'x'.repeat(MIB + 10)}"}`);
+        if (mode === 'bigChunked') {
+            // No content-length, so only a running count catches it.
+            res.writeHead(200, json);
+            res.write(`{"keys":[],"pad":"`);
+            for (let i = 0; i < 20; i += 1) res.write('x'.repeat(128 * 1024));
+            return void res.end('"}');
+        }
+        if (mode === 'stringKey') return void res.writeHead(200, json).end('{"keys":["x"]}');
+        if (mode === 'enc') return void res.writeHead(200, json).end(JSON.stringify({ keys: [{ ...jwk, use: 'enc' }] }));
         const keys = mode === 'oct' ? [jwk, { kty: 'oct', kid: 'shared', k: 'c2VjcmV0' }] : [jwk];
-        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ keys }));
+        res.writeHead(200, json).end(JSON.stringify({ keys }));
     });
     await new Promise<void>(resolve => jwks.listen(0, '127.0.0.1', resolve));
     afterAll(() => void jwks.close());
@@ -2183,6 +2224,87 @@ describe('the OAuth card', async () => {
             await signIn();
             mode = 'http502';
             expect((await test()).page).toContain('HTTP 502');
+        });
+
+        const refused = (page: string) => {
+            expect(page).toContain('class="msg err"');
+            expect(page).not.toContain('class="msg ok"');
+        };
+
+        // jose fetches with `redirect: 'manual'` and wants exactly 200, so a
+        // redirect that a browser would follow is a 503 at /mcp.
+        it('reports a redirect without following it, naming the target escaped, and never logs it', async () => {
+            await signIn();
+            mode = 'redirect';
+            attachLogStore(logs);
+            let raw: string;
+            try {
+                const res = await post('/ui/config/oauth/test', fields());
+                raw = await res.text();
+            } finally {
+                detachLogStore();
+            }
+
+            expect(raw).toContain('HTTP 301');
+            expect(raw).toContain('redirects are not followed');
+            expect(raw).toContain(`/jwks/&lt;b&gt;`);
+            expect(raw).not.toContain('/jwks/<b>');
+            expect(raw).not.toContain('test-key');
+            expect(JSON.stringify(logs.recent({ limit: 50 }))).not.toContain('/jwks/');
+        });
+
+        it('refuses a 2xx that is not 200', async () => {
+            await signIn();
+            mode = 'noContent';
+            const { page } = await test();
+            expect(page).toContain('HTTP 204');
+            refused(page);
+        });
+
+        it('refuses a key set declared larger than 1 MiB', async () => {
+            await signIn();
+            mode = 'big';
+            const { page } = await test();
+            expect(page).toContain('The key set is larger than 1 MiB');
+            refused(page);
+        });
+
+        it('stops reading a streamed key set past 1 MiB', async () => {
+            await signIn();
+            mode = 'bigChunked';
+            const { page } = await test();
+            expect(page).toContain('The key set is larger than 1 MiB');
+            refused(page);
+        });
+
+        it('flags an entry that is not a key object', async () => {
+            await signIn();
+            mode = 'stringKey';
+            refused((await test()).page);
+        });
+
+        it('flags an encryption key', async () => {
+            await signIn();
+            mode = 'enc';
+            const { page } = await test();
+            expect(page).toContain('enc');
+            refused(page);
+        });
+
+        it('tests while the URL token is on, saying Save will be refused', async () => {
+            await signIn();
+            await post('/ui/config/mcp', { 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' });
+
+            const { res, page } = await test();
+            expect(res.status).toBe(200);
+            expect(page).toContain('test-key');
+            expect(page).toContain("Saving will be refused until 'Accept the token in the URL' is off.");
+        });
+
+        it('is never cached', async () => {
+            await signIn();
+            const { res } = await test();
+            expect(res.headers.get('cache-control')).toBe('no-store');
         });
 
         it('reports a body that is not JSON', async () => {

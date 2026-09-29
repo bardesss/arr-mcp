@@ -540,10 +540,12 @@ export type OAuthCardState = {
     draft?: OAuthDraft;
     message?: { kind: 'ok' | 'err'; text: string };
     tested?: JwksProbe;
+    /** One more line for a passing Test, such as a Save that would be refused. */
+    testedNote?: string;
     confirmingRemoval?: boolean;
 };
 
-const oauthTestResult = (p: JwksProbe): SafeHtml =>
+const oauthTestResult = (p: JwksProbe, note: string | undefined): SafeHtml =>
     html`<div class="msg ${p.ok ? 'ok' : 'err'}" style="margin:.75rem 0 0">${p.summary}${p.keys.length === 0
         ? raw('')
         : html`<ul style="margin:.4rem 0">${p.keys.map(
@@ -551,7 +553,9 @@ const oauthTestResult = (p: JwksProbe): SafeHtml =>
                   html`<li><span class="mono">${k.kid}</span> (${k.alg})${k.refused === undefined
                       ? raw('')
                       : html`: not accepted, ${k.refused}`}</li>`
-          )}</ul>`}${p.ok ? 'Not saved yet: this tested the fields as they are on screen.' : ''}</div>`;
+          )}</ul>`}${p.ok ? 'Not saved yet: this tested the fields as they are on screen.' : ''}${note === undefined
+        ? raw('')
+        : html`<br>${note}`}</div>`;
 
 /**
  * `auth.oauth`. The actions carry `#oauth` so the page that comes back is
@@ -600,7 +604,7 @@ function oauthCard(config: Config, csrf: string, state: OAuthCardState): SafeHtm
         ${state.message === undefined
             ? raw('')
             : html`<div class="msg ${state.message.kind}" style="margin:.75rem 0 0">${state.message.text}</div>`}
-        ${state.tested === undefined ? raw('') : oauthTestResult(state.tested)}
+        ${state.tested === undefined ? raw('') : oauthTestResult(state.tested, state.testedNote)}
     </form>`;
 }
 

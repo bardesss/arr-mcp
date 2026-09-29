@@ -1,16 +1,7 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
 import { saveConfig } from '../config/save.ts';
-import * as z from 'zod/v4';
-import {
-    ConfigSchema,
-    OAuthSchema,
-    ServiceIdSchema,
-    ThemeSchema,
-    type Config,
-    type OAuthConfig,
-    type Theme
-} from '../config/schema.ts';
+import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
@@ -623,6 +614,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.post('/ui/config/oauth/test', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
+        c.header('cache-control', 'no-store');
 
         const form = await c.req.parseBody();
         const draft = oauthDraftFrom(form);
@@ -645,19 +637,24 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return render(403, { message: { kind: 'err', text: 'That form was stale. Reload the page and try again.' } });
         }
 
+        // Not `buildOAuthConfig`: its URL-token refusal is about saving, and
+        // a test saves nothing.
         let jwksUri: string;
         try {
-            const candidate = buildOAuthConfig(runtime.config, form);
-            const parsed = ConfigSchema.safeParse(candidate);
-            if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
-            jwksUri = (candidate.auth.oauth as OAuthConfig).jwks_uri;
+            jwksUri = parseOAuthDraft(form).jwks_uri;
         } catch (err) {
             return render(400, { message: { kind: 'err', text: (err as Error).message } });
         }
 
         const probe = await probeJwks(jwksUri);
-        logger.info({ host: new URL(jwksUri).host, ok: probe.ok, outcome: probe.summary }, 'OAuth key set tested from the config UI');
-        return render(200, { tested: probe });
+        // The outcome word only: a summary can carry a redirect's Location.
+        logger.info({ host: new URL(jwksUri).host, outcome: probe.outcome }, 'OAuth key set tested from the config UI');
+        return render(200, {
+            tested: probe,
+            ...(probe.ok && runtime.config.auth.allow_token_in_url
+                ? { testedNote: "Saving will be refused until 'Accept the token in the URL' is off." }
+                : {})
+        });
     });
 
     /**
@@ -677,6 +674,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.post('/ui/config/test', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
+        c.header('cache-control', 'no-store');
 
         const form = await c.req.parseBody();
         const id = str(form.instance);
@@ -968,18 +966,12 @@ const OAUTH_LABELS: Record<string, string> = {
 };
 
 /**
- * The OAuth card. Owns `auth.oauth` and nothing else.
+ * The OAuth card's fields as an `auth.oauth` block, shared by Save and Test.
  *
- * Validated against the OAuth block's own schema so a refusal names the field
- * in a sentence, rather than arriving as `saveConfig`'s whole-config dump.
+ * Validated against the block's own schema so a refusal names the field in a
+ * sentence, rather than arriving as `saveConfig`'s whole-config dump.
  */
-export function buildOAuthConfig(current: Config, form: Record<string, unknown>): Config {
-    if (current.auth.allow_token_in_url) {
-        throw new Error(
-            "Turn off 'Accept the token in the URL' on the MCP endpoint card first. A JWT in the URL reaches every proxy log."
-        );
-    }
-
+export function parseOAuthDraft(form: Record<string, unknown>): OAuthConfig {
     const d = oauthDraftFrom(form);
     const parsed = OAuthSchema.safeParse({
         issuer: d.issuer,
@@ -994,8 +986,17 @@ export function buildOAuthConfig(current: Config, form: Record<string, unknown>)
         });
         throw new Error([...new Set(lines)].join('\n'));
     }
+    return parsed.data;
+}
 
-    return { ...current, auth: { ...current.auth, oauth: parsed.data } };
+/** The OAuth card. Owns `auth.oauth` and nothing else. */
+export function buildOAuthConfig(current: Config, form: Record<string, unknown>): Config {
+    if (current.auth.allow_token_in_url) {
+        throw new Error(
+            "Turn off 'Accept the token in the URL' on the MCP endpoint card first. A JWT in the URL reaches every proxy log."
+        );
+    }
+    return { ...current, auth: { ...current.auth, oauth: parseOAuthDraft(form) } };
 }
 
 /** The MCP endpoint. Owns `allowed_hosts` and `allow_token_in_url`. */
