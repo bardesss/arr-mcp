@@ -543,7 +543,8 @@ const CONTRACTS: Record<string, ServiceContract> = {
         ]
     },
     // Captured live from Plex Media Server 1.43.3.10896 (issue #180) with
-    // `npm run capture`. Every endpoint the adapter reads is contracted.
+    // `npm run capture`. Every endpoint the adapter reads is contracted except
+    // /matches (no capture yet) and allLeaves (covered by the section-listing capture).
     plex: {
         dependencies: [
             { fixture: 'test/fixtures/plex/identity.json', fields: ['MediaContainer.version'] },

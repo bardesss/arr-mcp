@@ -922,7 +922,7 @@ Plex repair is **off by default**, because nobody has run it against a live
 Plex server yet. Turn it on with `services.plex.allow_metadata_repair: true`,
 plus `permissions.destructive: true` as for any destructive write. The two are
 separate switches: `stack_health` and `arr://instances` report
-`permissions.destructive` exactly as `config.yaml` says, and know nothing of
+`permissions.destructive` as `config.yaml` and your token allow, and know nothing of
 `allow_metadata_repair`, which `fix_metadata` checks on top of it. While it is
 off, a `dry_run` preview still lists the real mismatches, but the write is
 refused with `Plex repair is off`, no confirmation token is issued, and the
@@ -948,7 +948,12 @@ With no provider id it skips steps 1 to 3 and only refreshes, on any agent.
   Jellyfin's identify call. If the match step times out it may have been
   applied anyway, and the error says to check the item in Plex first.
 - **Plex refreshes in the background**, so the result straight afterwards is
-  `NOT VERIFIED`. Run `get_metadata_issues` again a minute later.
+  usually `NOT VERIFIED`. Run `get_metadata_issues` again a minute later.
+- **The result names what Plex matched the item to**, with its year when Plex
+  gives one, so a wrong match shows before the refresh settles.
+- **A numbering mismatch usually needs a rename, not a rematch.** Plex takes
+  season and episode numbers from the file names, and the preview says so when
+  it finds one.
 - **Undo** is Fix Match or Unmatch on the item in Plex itself.
 - Every call goes to the server at `url`. Nothing goes near plex.tv.
 
