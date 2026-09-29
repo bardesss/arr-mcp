@@ -461,6 +461,12 @@ export function tokensNeedingRewrite(rawAuth: unknown): string[] {
     return names;
 }
 
+/** Hash only: unlike MCP tokens there is no plaintext form to hand-write. */
+const ManagementKeySchema = z.strictObject({
+    hash: z.string().regex(/^sha256:[0-9a-f]{64}$/, 'hash must be sha256:<64 hex>'),
+    created: z.iso.date()
+});
+
 /**
  * Named, rather than inlined into `ConfigSchema`, so `load.ts`'s salvage path
  * can parse against it directly. `ConfigSchema`'s `auth` field is this same
@@ -501,7 +507,9 @@ export const AuthSchema = z.strictObject({
      * running behind a reverse proxy.
      */
     allowed_hosts: z.array(z.string()).default([]),
-    oauth: OAuthSchema.optional()
+    oauth: OAuthSchema.optional(),
+    /** The management API's key. Absent means the API is off. */
+    management_key: ManagementKeySchema.optional()
 });
 
 export const ConfigSchema = z.object({

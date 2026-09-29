@@ -222,6 +222,16 @@ describe('classifyFetchError', () => {
         expect(out.toModelText()).toContain('radarr');
     });
 
+    it('keeps credentials and query strings out of the detail', () => {
+        const e = new TypeError(
+            'Request cannot be constructed from a URL that includes credentials: http://user:s3cret@host:1/api?mode=version&apikey=abc'
+        );
+        const text = classifyFetchError(e, 'sabnzbd', 'http://host:1').toModelText();
+        expect(text).not.toContain('s3cret');
+        expect(text).not.toContain('abc');
+        expect(text).toContain('includes credentials: http://host:1/api');
+    });
+
     it('does not throw when the url is unparseable', () => {
         const e = Object.assign(new Error('nope'), { code: 'ECONNREFUSED' });
         expect(() => classifyFetchError(e, 'radarr', 'not a url')).not.toThrow();

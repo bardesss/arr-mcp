@@ -103,6 +103,11 @@ and lists the keys it found, flagging any arr-mcp would refuse. Remove asks once
 first. Named MCP tokens keep working whatever this card says. See
 [`auth.oauth`](configuration.md#authoauth) for what each field means.
 
+**The Management API** has its own card under Access, for companion apps. **Generate key**
+shows the key once, with a copy button and the base URL. **Regenerate key** stops
+the old one at once, and **Turn off** asks once before it removes the key. See
+[Management API](api.md).
+
 ## Logs and the write audit
 
 <img src="../screenshots/logs-dark.png" alt="The logs page: three stream tabs above a live-refreshing table of time, level, service and message, with each line's recorded fields underneath the message" width="880">
