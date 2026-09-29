@@ -12,6 +12,7 @@ import { Runtime } from '../src/core/runtime.ts';
 import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
 import * as session from '../src/core/session.ts';
+import { hashToken } from '../src/core/mcpTokens.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
 
 /**
@@ -1162,10 +1163,11 @@ describe('each access card saves only itself', () => {
     it('saving the IMDb card leaves the pinned hosts and the token alone', async () => {
         await ready();
 
+        const tokens = runtime.config.auth.tokens;
         await post('/ui/config/imdb', { 'metadata.imdb': 'on' });
 
         expect(runtime.config.auth.allowed_hosts).toEqual([PINNED]);
-        expect(runtime.config.auth.bearer_token).toBe(BEARER);
+        expect(runtime.config.auth.tokens).toEqual(tokens);
         expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
     });
 
@@ -1180,12 +1182,13 @@ describe('each access card saves only itself', () => {
     it('saving the account card touches neither the dataset, the hosts nor the token', async () => {
         await ready();
 
+        const tokens = runtime.config.auth.tokens;
         await post('/ui/config/account', { 'auth.username': 'someone-else' });
 
         expect(runtime.config.auth.username).toBe('someone-else');
         expect(runtime.config.metadata?.imdb?.enabled).toBe(true);
         expect(runtime.config.auth.allowed_hosts).toEqual([PINNED]);
-        expect(runtime.config.auth.bearer_token).toBe(BEARER);
+        expect(runtime.config.auth.tokens).toEqual(tokens);
     });
 
     /** The dataset still has to be switchable *off*, which is the one case the
@@ -1269,32 +1272,11 @@ describe('each access card saves only itself', () => {
 });
 
 describe('access settings', () => {
-    it('rotates the bearer token only when asked', async () => {
+    it('leaves the tokens alone when the MCP card is saved', async () => {
         await signIn();
+        const tokens = runtime.config.auth.tokens;
         await call('/ui/config/mcp', form({ csrf: await csrfFrom() }));
-        expect(runtime.config.auth.bearer_token).toBe(BEARER);
-
-        await call('/ui/config/mcp', form({ csrf: await csrfFrom(), 'auth.rotate_token': 'on' }));
-        expect(runtime.config.auth.bearer_token).not.toBe(BEARER);
-        expect(runtime.config.auth.bearer_token).toMatch(/^[0-9a-f]{64}$/);
-    });
-
-    // Rotating from the UI has to take effect on the very next MCP request,
-    // or the old token keeps working until a restart.
-    it('makes a rotated token effective immediately on /mcp', async () => {
-        await signIn();
-        await call('/ui/config/mcp', form({ csrf: await csrfFrom(), 'auth.rotate_token': 'on' }));
-
-        const res = await app.request('http://localhost:6060/mcp', {
-            method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-                accept: 'application/json, text/event-stream',
-                authorization: `Bearer ${BEARER}`
-            },
-            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
-        });
-        expect(res.status).toBe(401);
+        expect(runtime.config.auth.tokens).toEqual(tokens);
     });
 
     it('does not disturb configured services', async () => {
@@ -1324,6 +1306,87 @@ describe('access settings', () => {
 
         cookie = '';
         expect((await call('/ui/login', form({ username: 'admin', password: PASSWORD }))).status).toBe(302);
+    });
+});
+
+describe('MCP tokens', () => {
+    const mcp = (token: string) =>
+        app.request('http://localhost:6060/mcp', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: `Bearer ${token}` },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+        });
+    const created = (page: string) => /value="(amcp_[0-9a-f]{64})"/.exec(page)?.[1];
+
+    it('creates a token, shows it once, and it works on the next request', async () => {
+        await signIn();
+        const res = await call('/ui/config/tokens/add', form({ csrf: await csrfFrom(), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
+        expect(res.headers.get('cache-control')).toBe('no-store');
+        const page = await res.text();
+        const token = created(page);
+        expect(token).toBeDefined();
+        expect((await mcp(token as string)).status).toBe(200);
+
+        const later = await (await call('/ui/config')).text();
+        expect(later).not.toContain(token as string);
+        expect(later).toContain('phone');
+    });
+
+    // The duplicate-name check is what refuses it: `expected` is captured at
+    // POST time, so the drift check has nothing to catch.
+    it('refuses a resubmitted create instead of making a second token', async () => {
+        await signIn();
+        const body = { csrf: await csrfFrom(), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' };
+        await call('/ui/config/tokens/add', form(body));
+        const again = await call('/ui/config/tokens/add', form(body));
+        expect(again.status).toBe(400);
+        expect(runtime.config.auth.tokens.filter(t => t.name === 'phone')).toHaveLength(1);
+    });
+
+    it('asks before revoking, then revokes, and the token stops working', async () => {
+        await signIn();
+        const token = created(await (await call('/ui/config/tokens/add', form({ csrf: await csrfFrom(), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }))).text()) as string;
+
+        const asked = await (await call('/ui/config/tokens/revoke', form({ csrf: await csrfFrom(), token: 'phone' }))).text();
+        expect(asked).toContain('Yes, revoke phone');
+        expect(runtime.config.auth.tokens.some(t => t.name === 'phone')).toBe(true);
+
+        await call('/ui/config/tokens/revoke', form({ csrf: await csrfFrom(), token: 'phone', confirm: 'yes' }));
+        expect((await mcp(token)).status).toBe(401);
+    });
+
+    it('warns harder before revoking the last token', async () => {
+        await signIn();
+        const only = runtime.config.auth.tokens[0]?.name as string;
+        const asked = await (await call('/ui/config/tokens/revoke', form({ csrf: await csrfFrom(), token: only }))).text();
+        expect(asked).toContain('every MCP client will be refused until you create a new token');
+    });
+
+    it('marks expired tokens and plaintext still on disk', async () => {
+        await seed();
+        await writeFile(
+            join(dir, 'config.yaml'),
+            `auth:\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\n  tokens:\n` +
+                `    - { name: old, tier: read, hash: '${hashToken('x'.repeat(40))}', expires: '2020-01-01' }\n` +
+                `    - { name: ci, tier: write, token: '${'y'.repeat(40)}' }\nservices: {}\n`,
+            'utf8'
+        );
+        const { config, plaintextOnDisk } = await loadConfig(dir, {
+            write: () => Promise.reject(new Error('read-only'))
+        });
+        expect(plaintextOnDisk).toEqual(['ci']);
+        logs.close();
+        audit.close();
+        audit = WriteAudit.ephemeral();
+        logs = LogStore.ephemeral();
+        runtime = Runtime.fromConfig(config, audit, { configDir: dir, plaintextOnDisk });
+        app = buildApp({ runtime, audit, logs });
+        await signIn();
+
+        const page = await (await call('/ui/config')).text();
+        expect(page).toMatch(/>old<\/td>[\s\S]*?<strong>expired<\/strong> 2020-01-01/);
+        expect(page).toContain('still plaintext in config.yaml');
+        expect(page).not.toContain('y'.repeat(40));
     });
 });
 

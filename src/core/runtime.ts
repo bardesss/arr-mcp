@@ -219,6 +219,7 @@ export class Runtime {
             refresh?: Refresher;
             sessions?: Sessions;
             oauthKeys?: KeyResolver;
+            plaintextOnDisk?: readonly string[];
         } = {}
     ): Runtime {
         const runtime = new Runtime(
@@ -227,7 +228,8 @@ export class Runtime {
             config,
             opts.refresh ?? NO_REFRESH,
             opts.sessions ?? new Sessions(),
-            opts.oauthKeys
+            opts.oauthKeys,
+            opts.plaintextOnDisk
         );
         if (opts.adapters !== undefined) {
             runtime.#snapshot = {

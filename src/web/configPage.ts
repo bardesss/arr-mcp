@@ -1,5 +1,6 @@
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import { MULTI_INSTANCE, ServiceIdSchema, type Config, type ServiceId, type Theme } from '../config/schema.ts';
+import { fingerprint, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
 import { html, raw, type SafeHtml } from './html.ts';
 import { serviceIcon } from './icons.ts';
@@ -275,6 +276,103 @@ function instanceCard(
     </form>`;
 }
 
+function tokenList(opts: {
+    tokens: readonly StoredToken[];
+    csrf: string;
+    confirming: string | undefined;
+    plaintextOnDisk: readonly string[];
+    now: Date;
+}): SafeHtml {
+    if (opts.tokens.length === 0) {
+        return html`<p class="note">No MCP tokens yet. Every MCP client is refused until you create one.</p>`;
+    }
+    const last = opts.tokens.length === 1;
+    return html`<table>
+        <thead><tr><th>Name</th><th>Tier</th><th>Expires</th><th>Fingerprint</th><th></th></tr></thead>
+        <tbody>
+            ${opts.tokens.map(
+                t => html`<tr>
+                    <td class="mono">${t.name}</td>
+                    <td>${t.tier}</td>
+                    <td>${t.expires === undefined
+                        ? 'never'
+                        : isExpired(t.expires, opts.now)
+                          ? html`<strong>expired</strong> ${t.expires}`
+                          : t.expires}</td>
+                    <td class="mono">${fingerprint(t.hash)}${opts.plaintextOnDisk.includes(t.name)
+                        ? html` <span class="dim">still plaintext in config.yaml</span>`
+                        : raw('')}</td>
+                    <td>
+                        <form method="post" action="/ui/config/tokens/revoke" ${IGNORE_FORM}>
+                            <input type="hidden" name="csrf" value="${opts.csrf}">
+                            <input type="hidden" name="token" value="${t.name}">
+                            ${opts.confirming === t.name
+                                ? html`<button type="submit" name="confirm" value="yes" class="ghost">Yes, revoke ${t.name}</button>
+                                      <p class="note">${last
+                                          ? 'This is the last token: every MCP client will be refused until you create a new token.'
+                                          : 'Clients using it are refused from the next request.'}</p>`
+                                : html`<button type="submit" class="ghost">Revoke</button>`}
+                        </form>
+                    </td>
+                </tr>`
+            )}
+        </tbody>
+    </table>`;
+}
+
+type Revealed = { name: string; token: string; mcpUrl: string | undefined; urlToken: boolean };
+
+// The ids are the ones the copy handlers in assets.ts read.
+const revealPanel = (r: Revealed): SafeHtml => html`<div class="panel">
+    <p><strong>Copy this token now.</strong> It is shown once and cannot be read back.</p>
+    <div class="token">
+        <input id="bearer" type="text" value="${r.token}" readonly ${IGNORE}>
+        <button class="ghost" type="button" data-copy="bearer">Copy</button>
+    </div>
+    ${r.mcpUrl === undefined
+        ? raw('')
+        : html`<input id="mcp-url" type="hidden" value="${r.mcpUrl}">
+              <button class="ghost" type="button" data-copy-config="mcp-config">Copy client config</button>
+              <textarea id="mcp-config" class="mono" rows="9" readonly hidden></textarea>`}
+    ${r.mcpUrl === undefined || !r.urlToken
+        ? raw('')
+        : html`<button class="ghost" type="button" data-copy-url-token="mcp-url">Copy URL with token</button>
+              <input id="mcp-url-token" type="text" readonly hidden>`}
+</div>`;
+
+const TIERS: readonly { key: string; label: string }[] = [
+    { key: 'read', label: 'read — no writes' },
+    { key: 'write', label: 'write — searches, monitoring, request verdicts' },
+    { key: 'destructive', label: 'destructive — deletes files, queue items and requests (implies write)' }
+];
+
+const EXPIRIES: readonly { key: string; label: string }[] = [
+    { key: '90', label: '90 days' },
+    { key: '30', label: '30 days' },
+    { key: 'never', label: 'Never' }
+];
+
+const tokenCreateForm = (csrf: string): SafeHtml => html`<form method="post" action="/ui/config/tokens/add" ${IGNORE_FORM}>
+    <input type="hidden" name="csrf" value="${csrf}">
+    ${field({ id: 'token.name', name: 'token.name', label: 'Name', placeholder: 'phone' })}
+    <div class="field">
+        <label for="token.tier">Tier</label>
+        <select id="token.tier" name="token.tier">
+            ${TIERS.map(t => html`<option value="${t.key}" ${t.key === 'read' ? raw('selected') : raw('')}>${t.label}</option>`)}
+        </select>
+        <p class="note">Each instance's own write switches still apply; a token never grants more than they do.</p>
+    </div>
+    <div class="field">
+        <label for="token.expiry">Expires</label>
+        <select id="token.expiry" name="token.expiry">
+            ${EXPIRIES.map(e => html`<option value="${e.key}" ${e.key === '90' ? raw('selected') : raw('')}>${e.label}</option>`)}
+        </select>
+    </div>
+    <div class="row" style="margin-top:1rem">
+        <button type="submit">Create token</button>
+    </div>
+</form>`;
+
 /**
  * The add form, in a dialog behind a button.
  *
@@ -442,6 +540,12 @@ export function configPage(opts: {
      *  with scripting the result is fetched and filled in client-side. */
     testedAdd?: ConnectionDiagnosis | undefined;
     message?: { kind: 'ok' | 'err'; text: string } | undefined;
+    /** A token just created: its plaintext, shown in this one response only. */
+    revealed?: Revealed | undefined;
+    /** The token whose Revoke button was pressed but not yet confirmed. */
+    confirmingRevoke?: string | undefined;
+    plaintextOnDisk?: readonly string[];
+    now?: Date;
 }): string {
     const instances = listInstances(opts.config);
 
@@ -557,14 +661,22 @@ export function configPage(opts: {
             </div>
         </form>
 
+        <div class="panel">
+            <h3 id="tokens" style="margin:0 0 .75rem">MCP tokens</h3>
+            ${opts.revealed === undefined ? raw('') : revealPanel(opts.revealed)}
+            ${tokenList({
+                tokens: opts.config.auth.tokens,
+                csrf: opts.csrf,
+                confirming: opts.confirmingRevoke,
+                plaintextOnDisk: opts.plaintextOnDisk ?? [],
+                now: opts.now ?? new Date()
+            })}
+            ${tokenCreateForm(opts.csrf)}
+        </div>
+
         <form method="post" action="/ui/config/mcp" class="panel" ${IGNORE_FORM}>
             <input type="hidden" name="csrf" value="${opts.csrf}">
             <h3 style="margin:0 0 .75rem">MCP endpoint</h3>
-            ${checkbox('auth.rotate_token', 'auth.rotate_token', 'Generate a new bearer token', false)}
-            <p class="note">
-                Rotating invalidates the current token immediately; every MCP client will need the new one,
-                which appears on the dashboard.
-            </p>
             ${field({
                 id: 'auth.allowed_hosts',
                 name: 'auth.allowed_hosts',
@@ -589,7 +701,7 @@ export function configPage(opts: {
             <p class="note">
                 For clients that can only be given a URL and no headers. The token then travels in the
                 address, so a reverse proxy's access log or the client's own logs will hold a working
-                credential — rotate it above if that happens. This does not make Home Assistant work on
+                credential — revoke it above and create a new one if that happens. This does not make Home Assistant work on
                 its own: its MCP client also needs the older SSE transport, which this server does not
                 serve.
             </p>
