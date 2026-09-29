@@ -1,8 +1,9 @@
 # Management API
 
 A JSON API for companion apps such as nzb360 or ArrMatey, so they can look at
-arr-mcp the way they look at Sonarr. It shows what the config page shows and
-nothing more. This release is read-only: writes arrive in the next one.
+arr-mcp the way they look at Sonarr. It shows what the config page shows, and
+it can change the same things: services, their permissions, IMDb, the MCP
+endpoint's token setting and MCP tokens.
 
 ## Turning it on
 
@@ -26,7 +27,8 @@ The key and the MCP tokens are separate. The key does not work on `/mcp`, and an
 MCP token does not work here. `allowed_hosts` applies to `/api/v1` like it does
 everywhere else.
 
-The key can never touch sign-in, OAuth, the key itself or appearance. Nothing in
+The key can write config, so treat it like an admin credential. It can never
+touch sign-in, OAuth, `allowed_hosts`, the key itself or appearance. Nothing in
 this API can change them.
 
 ## Conventions
@@ -37,10 +39,12 @@ this API can change them.
 
 | Status | Meaning |
 | --- | --- |
-| 400 | A bad parameter. The message names it |
+| 400 | A bad parameter or body. The message names it. Malformed JSON gets `The request body is not valid JSON.` |
 | 401 | `Missing or wrong X-Api-Key.` |
 | 403 | `forbidden: Host not allowed`, as plain text. This comes from `auth.allowed_hosts`, before the API sees the request |
 | 404 | No key configured (`The management API is off. Generate a key on the config page to turn it on.`), `No such endpoint.`, or `No such app.` |
+| 412 | The config changed since you read it. See [Concurrency](#concurrency) |
+| 415 | A write body that is not `application/json` |
 | 503 | `config.yaml is invalid; fix it on the web UI.` The server is in repair mode |
 
 - `/app`, `/app/...`, `/settings/*` and `/token` carry a strong `ETag`
@@ -48,9 +52,49 @@ this API can change them.
   part of it does.
 - The API's own answers have `cache-control: no-store`. The 403 above does
   not, and neither does the `413` for a body over 4 MB, which comes back in
-  JSON-RPC shape from the same guard that protects `/mcp`.
+  JSON-RPC shape from the same guard that protects `/mcp`. A malformed JSON
+  body is different: on `/api` it gets the `{message}` 400 above.
 - Secrets never come back. A service's API key or password appears only as
   `apiKeySet` or `passwordSet`, and the key hashes are not returned at all.
+
+### Concurrency
+
+Every config read returns an `ETag`. Send it back as `If-Match` on a write. If
+the config moved since, the write gets a 412 and changes nothing. Without
+`If-Match` the write is still checked: if config.yaml was edited on disk after
+the request began, that is a 412 too, so nothing is silently overwritten. On a
+412, GET again and retry.
+
+```bash
+curl -i -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/imdb
+# ETag: "9f2c41d07a6b3e58"
+
+curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
+  -H 'If-Match: "9f2c41d07a6b3e58"' -d '{"enabled": true}' \
+  http://arr-mcp:6060/api/v1/settings/imdb
+```
+
+If the ETag is stale:
+
+```json
+{ "message": "The config changed since you read it. Read it again and retry." }
+```
+
+### Updating an app
+
+GET the app, change what you want, PUT the whole object back.
+
+- An omitted field is unchanged.
+- `null` clears `username` and `defaultUser`.
+- `apiKey` and `password` can be replaced, but never read or cleared. `null` is
+  a 400, and an empty string means unchanged.
+- A `url` equal to the one GET showed keeps the stored URL, and any credentials
+  in it.
+- Send `safeWrite` or `destructive` on its own and the other keeps its value.
+- Read-only fields from GET (`id`, `apiKeySet`, `passwordSet`, `type`, `name`)
+  are accepted and ignored. Any other unknown field is a 400.
+- A field that does not apply to the app's type, such as `password` on Radarr,
+  is accepted and ignored for now.
 
 ## Endpoints
 
@@ -267,4 +311,139 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token
     "plaintextOnDisk": false
   }
 ]
+```
+
+
+### `POST /app`
+
+Adds an app. `type` is required. The other fields are the ones in the
+[update list](#updating-an-app): `url`, `apiKey`, `username`, `password`,
+`defaultUser`, `allowOtherUsers`, `timeoutMs`, `safeWrite`, `destructive` and
+`allowMetadataRepair`.
+
+A second instance of a type that allows several needs a `name`. If the first
+one has no name yet, also send `renameExistingTo` to name it, because its id
+changes. Answers 201 with the new app.
+
+```bash
+curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"type": "radarr", "name": "uhd", "renameExistingTo": "hd", "url": "http://radarr-uhd:7878", "apiKey": "abc123"}' \
+  http://arr-mcp:6060/api/v1/app
+```
+
+```json
+{
+  "id": "radarr/uhd",
+  "type": "radarr",
+  "name": "uhd",
+  "url": "http://radarr-uhd:7878",
+  "timeoutMs": 10000,
+  "safeWrite": false,
+  "destructive": false,
+  "apiKeySet": true
+}
+```
+
+### `PUT /app/{type}` and `PUT /app/{type}/{name}`
+
+Saves changes to one app, as described under
+[Updating an app](#updating-an-app). Answers 200 with the saved app. An unknown
+app is a 404.
+
+```bash
+curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"timeoutMs": 20000, "safeWrite": true}' \
+  http://arr-mcp:6060/api/v1/app/radarr/hd
+```
+
+### `DELETE /app/{type}` and `DELETE /app/{type}/{name}`
+
+Removes one app. Answers 200 with `{}`. An unknown app is a 404.
+
+```bash
+curl -X DELETE -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app/radarr/uhd
+```
+
+### `POST /app/test`
+
+Tests a connection without saving anything. Send `id` (such as `radarr/hd`) to
+test an existing app with the body's changes applied, or `type` plus fields to
+test a new one. It answers 200 with the diagnosis if the app connects, and 400
+with the same body shape if not.
+
+```bash
+curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"id": "radarr/hd", "url": "http://radarr:7878", "apiKey": "abc123"}' \
+  http://arr-mcp:6060/api/v1/app/test
+```
+
+```json
+{
+  "ok": true,
+  "app": "radarr/hd",
+  "latencyMs": 42,
+  "version": "5.1.0"
+}
+```
+
+When it fails, `ok` is `false` and `error` has `kind`, `detail` and sometimes
+`remedy`, like [`GET /health`](#get-health).
+
+### `PUT /settings/imdb`
+
+Turns the IMDb dataset on or off. Send `enabled`. The other fields from GET are
+accepted and ignored. Answers 200 with the same body as GET.
+
+```bash
+curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"enabled": true}' http://arr-mcp:6060/api/v1/settings/imdb
+```
+
+### `PUT /settings/mcp`
+
+Changes `allowTokenInUrl`. `oauthConfigured` from GET is accepted and ignored.
+
+`allowedHosts` is read-only here. It is accepted only if it equals the current
+list, so a body you got from GET can be sent back. Anything else is a 400 with
+`allowedHosts can only be changed on the config page.` The pin also gates the
+config page, so a leaked key could otherwise lock the owner out.
+
+```bash
+curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"allowTokenInUrl": true}' http://arr-mcp:6060/api/v1/settings/mcp
+```
+
+### `POST /token`
+
+Creates an MCP token. `name` is letters, digits, dashes or underscores. `tier`
+is `read`, `write` or `destructive`. `expiry` is `"30"`, `"90"` or `"never"`.
+Answers 201.
+
+The plaintext `token` is in this response only. It cannot be read again.
+
+```bash
+curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"name": "companion", "tier": "read", "expiry": "30"}' \
+  http://arr-mcp:6060/api/v1/token
+```
+
+```json
+{
+  "name": "companion",
+  "tier": "read",
+  "expires": "2026-10-29",
+  "fingerprint": "e5f6a7b8",
+  "expired": false,
+  "plaintextOnDisk": false,
+  "token": "amcp_<64 hex characters>"
+}
+```
+
+### `DELETE /token/{name}`
+
+Revokes a token. It stops working at once. Answers 200 with `{}`. An unknown
+name is a 404.
+
+```bash
+curl -X DELETE -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token/companion
 ```

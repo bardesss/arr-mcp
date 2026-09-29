@@ -322,9 +322,12 @@ so far.
 The management API at `/api/v1` is off by default and answers 404 until you
 generate a key on the config page. The key is 256 bits, stored as a SHA-256
 hash, and accepted only in the `X-Api-Key` header, never in a URL. It is never
-valid on `/mcp`, and an MCP token is never valid there. In this release the key
-can only read. It cannot change sign-in, OAuth or itself. If it leaks,
-regenerate it on the config page and the old one stops working.
+valid on `/mcp`, and an MCP token is never valid there. The key can write
+config: services, their permissions, IMDb, `allowTokenInUrl` and MCP tokens.
+Treat it like an admin credential. It cannot change `allowed_hosts` (that could
+lock the owner out of the config page), the sign-in, OAuth or itself. Tokens it
+creates outlive a key regeneration, so if it leaks, regenerate it on the config
+page and also review the token list there.
 
 Request bodies are capped at 4 MB, refused with `413` before authentication
 runs. The cap is deliberately not configurable — every legitimate request is
