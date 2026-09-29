@@ -507,8 +507,9 @@ export const ConfigSchema = z.object({
             }
             const seen = new Set<string>();
             (auth.tokens ?? []).forEach((t: RawToken, i: number) => {
-                if (seen.has(t.name)) ctx.addIssue({ code: 'custom', path: ['tokens', i, 'name'], message: `duplicate token name "${t.name}"` });
-                seen.add(t.name);
+                const key = t.name.toLowerCase();
+                if (seen.has(key)) ctx.addIssue({ code: 'custom', path: ['tokens', i, 'name'], message: `duplicate token name "${t.name}"` });
+                seen.add(key);
                 if ((t.hash === undefined) === (t.token === undefined)) {
                     ctx.addIssue({ code: 'custom', path: ['tokens', i], message: `token '${t.name}' needs exactly one of hash or token` });
                 } else if (t.token !== undefined && t.token.length < MIN_PLAINTEXT_TOKEN) {

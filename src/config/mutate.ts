@@ -220,7 +220,7 @@ export function addToken(
     opts: { name: string; tier: TokenTier; expiry: ExpiryChoice },
     now: Date
 ): { config: Config; plaintext: string } {
-    if (config.auth.tokens.some(t => t.name === opts.name)) {
+    if (config.auth.tokens.some(t => t.name.toLowerCase() === opts.name.toLowerCase())) {
         throw new ConfigEditError(`There is already a token named "${opts.name}".`);
     }
     const plaintext = generateMcpToken();

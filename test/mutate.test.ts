@@ -227,6 +227,7 @@ describe('tokens', () => {
     it('refuses a duplicate or malformed name', () => {
         const once = addToken(base, { name: 'phone', tier: 'read', expiry: '90' }, NOW).config;
         expect(() => addToken(once, { name: 'phone', tier: 'read', expiry: '90' }, NOW)).toThrow('There is already a token named "phone".');
+        expect(() => addToken(once, { name: 'Phone', tier: 'read', expiry: '90' }, NOW)).toThrow('There is already a token named "Phone".');
         expect(() => addToken(base, { name: 'my phone', tier: 'read', expiry: '90' }, NOW)).toThrow(ConfigEditError);
     });
 
