@@ -63,7 +63,9 @@ const PAGES: { name: string; html: string }[] = [
         html: configPage({
             version: fixture.VERSION,
             config: fixture.CONFIG,
-            csrf: 'fixture-csrf'
+            csrf: 'fixture-csrf',
+            plaintextOnDisk: fixture.FIXTURE_PLAINTEXT_ON_DISK,
+            now: fixture.NOW
         })
     },
     {

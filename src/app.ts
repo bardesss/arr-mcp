@@ -207,7 +207,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     // have applied when it has not.
     //
     // Validating here instead means the list is read from the runtime on every
-    // request, like the bearer token, and takes effect the moment it is saved.
+    // request, like the MCP tokens, and takes effect the moment it is saved.
     const transport = createMcpHonoApp({ host: '0.0.0.0' });
 
     /**
@@ -221,7 +221,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
      */
     const app = new Hono();
     // First, ahead of `claimJsonBody` and therefore ahead of the Host
-    // allowlist and the bearer check below: both body parsers buffer the whole
+    // allowlist and the token check below: both body parsers buffer the whole
     // request, so an unauthenticated peer could otherwise spend our memory.
     app.use(
         '*',
@@ -341,8 +341,8 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {
-        // From the runtime, not a captured value, so rotating the token or
-        // flipping the flag in the config UI takes effect on the very next
+        // From the runtime, not a captured value, so creating or revoking a token
+        // or flipping the flag in the config UI takes effect on the very next
         // request.
         const snapshot = runtime.current;
         const { auth } = snapshot.config;

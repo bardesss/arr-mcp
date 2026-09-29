@@ -21,7 +21,7 @@
  * dispatch removes that whole class of drift.
  *
  * Credential handling: this script reads a live config with real API keys
- * and sends the real bearer token as `Authorization` on every call. It never
+ * and sends an in-memory MCP token as `Authorization` on every call. It never
  * prints a header, a key, or a token. It does print each tool's own summary
  * line, which normally contains only titles, ids and counts — except that a
  * live connectivity failure's message deliberately embeds the failing

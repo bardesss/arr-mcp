@@ -369,7 +369,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     });
 
     /**
-     * The four config mutations share everything except the one line that
+     * The config mutations share everything except the one line that
      * decides what the next config is, so they share a handler.
      *
      * `render` carries the `confirmingRemoval` id through, which is what makes

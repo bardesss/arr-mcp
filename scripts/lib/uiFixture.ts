@@ -1,7 +1,7 @@
 /**
  * The stack the screenshots show. Invented, and deliberately so.
  *
- * The pages render a bearer token, an MCP endpoint host and every configured
+ * The pages render token names, an MCP endpoint host and every configured
  * service URL, and `screenshots/` is committed to a public repo — so the shots
  * are built from data that never touched `config.yaml` rather than from a live
  * instance with the secrets blanked afterwards. Nothing here is a credential,
@@ -22,15 +22,15 @@ import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../
 import type { AuditRow } from '../../src/core/audit.ts';
 import { hashToken } from '../../src/core/mcpTokens.ts';
 
-/** The one live clock here: the expiry warning is relative to now, so it always shows. */
-export const NOW = new Date();
+/** Frozen like the rest; the expiring token is dated relative to it. */
+export const NOW = new Date('2026-08-13T09:45:00Z');
 const THREE_DAYS_OUT = new Date(NOW.getTime() + 3 * 86_400_000).toISOString().slice(0, 10);
 
 /** Names of fixture tokens the dashboard reports as still plaintext on disk. */
 export const FIXTURE_PLAINTEXT_ON_DISK = ['phone-assistant'];
 
-/** 64 characters because the schema demands it, and self-describing because it
- *  is about to be photographed and put in a README. */
+/** Only its hash reaches the fixture config. Self-describing in case it is
+ *  ever photographed. */
 export const FIXTURE_TOKEN = 'screenshot-fixture-token-not-a-real-credential'.padEnd(64, '-');
 
 const HOST = 'media-host';
