@@ -37,7 +37,7 @@ export function oauthRefusal(scopes: OAuthConfig['scopes'] | undefined) {
         const named = scope === undefined ? `the scope for ${tier} writes` : `the \`${scope}\` scope`;
         return {
             reason: `the access token does not carry ${named}`,
-            remedy: `This credential is scoped below what config.yaml permits. Ask whoever issued it for ${named}, or use an MCP token from the dashboard.`
+            remedy: `This credential is scoped below what config.yaml permits. Ask whoever issued it for ${named}, or use an MCP token from the config page.`
         };
     };
 }
@@ -48,7 +48,7 @@ export function tokenRefusal(name: string, tier: TokenTier) {
         const needs = wanted === 'safe' ? 'write' : 'destructive';
         return {
             reason: tier === 'read' ? `token '${name}' is read-only` : `token '${name}' has the ${tier} tier, which does not allow destructive writes`,
-            remedy: `Use a token with the ${needs} tier, or create one on the dashboard.`
+            remedy: `Use a token with the ${needs} tier, or create one on the config page.`
         };
     };
 }

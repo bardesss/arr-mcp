@@ -103,7 +103,7 @@ describe('the scope ceiling', () => {
         expect(safe.allowed === false && `${safe.reason} ${safe.remedy}`).not.toContain('safe scope');
         expect(safe.allowed === false && safe.remedy).toContain('`media:write`');
         expect(destructive.allowed === false && destructive.remedy).toContain('`media:delete`');
-        expect(destructive.allowed === false && destructive.remedy).toContain('or use an MCP token from the dashboard');
+        expect(destructive.allowed === false && destructive.remedy).toContain('or use an MCP token from the config page');
     });
 
     it('names the token when its tier is the ceiling', () => {
@@ -111,7 +111,7 @@ describe('the scope ceiling', () => {
         expect(checkPermission(source, 'radarr', 'safe')).toMatchObject({
             allowed: false,
             reason: "token 'phone-assistant' is read-only",
-            remedy: 'Use a token with the write tier, or create one on the dashboard.'
+            remedy: 'Use a token with the write tier, or create one on the config page.'
         });
     });
 
@@ -119,7 +119,7 @@ describe('the scope ceiling', () => {
         const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(['safe']), tokenRefusal('ci', 'write'));
         expect(checkPermission(source, 'radarr', 'destructive')).toMatchObject({
             reason: "token 'ci' has the write tier, which does not allow destructive writes",
-            remedy: 'Use a token with the destructive tier, or create one on the dashboard.'
+            remedy: 'Use a token with the destructive tier, or create one on the config page.'
         });
     });
 
