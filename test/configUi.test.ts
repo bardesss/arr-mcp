@@ -2411,3 +2411,64 @@ describe('the OAuth card', async () => {
         expect((await mcp(BEARER)).status).toBe(200);
     });
 });
+
+describe('management API key', () => {
+    const shownKey = (page: string) => /value="(amk_[0-9a-f]{64})"/.exec(page)?.[1];
+
+    it('is off until generated, then shows the key once', async () => {
+        await signIn();
+        expect(await (await call('/ui/config')).text()).toContain('Generate key');
+
+        const res = await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));
+        expect(res.headers.get('cache-control')).toBe('no-store');
+        const page = await res.text();
+        const key = shownKey(page);
+        expect(key).toBeDefined();
+        expect(page).toContain('http://localhost:6060/api/v1');
+        expect(runtime.config.auth.management_key?.created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+        const later = await (await call('/ui/config')).text();
+        expect(later).not.toContain(key as string);
+        expect(later).toContain('Regenerate key');
+    });
+
+    it('regenerating replaces the stored hash', async () => {
+        await signIn();
+        await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));
+        const first = runtime.config.auth.management_key?.hash;
+        await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));
+        expect(runtime.config.auth.management_key?.hash).not.toBe(first);
+    });
+
+    it('regenerating stops the old key on /api/v1 at once', async () => {
+        const status = async (key: string) =>
+            (await app.request('http://localhost:6060/api/v1/system/status', { headers: { 'x-api-key': key } })).status;
+        await signIn();
+        const old = shownKey(await (await call('/ui/config/api-key', form({ csrf: await csrfFrom() }))).text()) as string;
+        expect(await status(old)).toBe(200);
+
+        const next = shownKey(await (await call('/ui/config/api-key', form({ csrf: await csrfFrom() }))).text()) as string;
+        expect(next).not.toBe(old);
+        expect(await status(old)).toBe(401);
+        expect(await status(next)).toBe(200);
+    });
+
+    it('asks before turning the API off, then removes the key', async () => {
+        await signIn();
+        await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));
+
+        const asked = await (await call('/ui/config/api-key/remove', form({ csrf: await csrfFrom() }))).text();
+        expect(asked).toContain('Yes, turn the API off');
+        expect(runtime.config.auth.management_key).toBeDefined();
+
+        await call('/ui/config/api-key/remove', form({ csrf: await csrfFrom(), confirm: 'yes' }));
+        expect(runtime.config.auth.management_key).toBeUndefined();
+    });
+
+    it('refuses a post without a valid CSRF token', async () => {
+        await signIn();
+        const res = await call('/ui/config/api-key', form({ csrf: 'nope' }));
+        expect(res.status).toBe(403);
+        expect(runtime.config.auth.management_key).toBeUndefined();
+    });
+});

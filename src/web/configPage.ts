@@ -394,6 +394,54 @@ const tokenCreateForm = (csrf: string): SafeHtml => html`<form method="post" act
     </div>
 </form>`;
 
+function managementKeyCard(opts: {
+    config: Config;
+    csrf: string;
+    revealed: { key: string; apiUrl: string | undefined } | undefined;
+    confirmingRemoval: boolean;
+}): SafeHtml {
+    const key = opts.config.auth.management_key;
+    return html`<div class="panel">
+        <h3 id="management-api" style="margin:0 0 .75rem">Management API</h3>
+        ${opts.revealed === undefined
+            ? raw('')
+            : html`<div class="panel">
+                  <p><strong>Copy this key now.</strong> It is shown once and cannot be read back.</p>
+                  <div class="token">
+                      <input id="management-key" type="text" value="${opts.revealed.key}" readonly ${IGNORE}>
+                      <button class="ghost" type="button" data-copy="management-key">Copy</button>
+                  </div>
+                  ${opts.revealed.apiUrl === undefined
+                      ? raw('')
+                      : html`<p class="note">Base URL: <span class="mono">${opts.revealed.apiUrl}</span></p>`}
+              </div>`}
+        <p class="note">
+            For companion apps that manage arr-mcp the way they manage Sonarr. They send the key as
+            <span class="mono">X-Api-Key</span>. It can manage services, the IMDb dataset, the MCP endpoint and
+            MCP tokens, never this sign-in, OAuth or the key itself.
+        </p>
+        <p class="note">
+            ${key === undefined
+                ? html`Off. Nothing answers under <span class="mono">/api/v1</span> until you generate a key.`
+                : html`On since ${key.created}. Regenerating stops the old key at once.`}
+        </p>
+        <div class="row" style="margin-top:1rem">
+            <form method="post" action="/ui/config/api-key" ${IGNORE_FORM}>
+                <input type="hidden" name="csrf" value="${opts.csrf}">
+                <button type="submit">${key === undefined ? 'Generate key' : 'Regenerate key'}</button>
+            </form>
+            ${key === undefined
+                ? raw('')
+                : html`<form method="post" action="/ui/config/api-key/remove" ${IGNORE_FORM}>
+                      <input type="hidden" name="csrf" value="${opts.csrf}">
+                      ${opts.confirmingRemoval
+                          ? html`<button type="submit" name="confirm" value="yes" class="ghost">Yes, turn the API off</button>`
+                          : html`<button type="submit" class="ghost">Turn off</button>`}
+                  </form>`}
+        </div>
+    </div>`;
+}
+
 /**
  * The add form, in a dialog behind a button.
  *
@@ -647,6 +695,9 @@ export function configPage(opts: {
     revealed?: Revealed | undefined;
     /** The token whose Revoke button was pressed but not yet confirmed. */
     confirmingRevoke?: string | undefined;
+    /** A key just generated: shown in this one response only. */
+    revealedKey?: { key: string; apiUrl: string | undefined } | undefined;
+    confirmingKeyRemoval?: boolean;
     plaintextOnDisk?: readonly string[];
     now?: Date;
     /** What the last OAuth post left for its card: a result, a pending
@@ -816,6 +867,12 @@ export function configPage(opts: {
             </div>
         </form>
 
+        ${managementKeyCard({
+            config: opts.config,
+            csrf: opts.csrf,
+            revealed: opts.revealedKey,
+            confirmingRemoval: opts.confirmingKeyRemoval === true
+        })}
         ${oauthCard(opts.config, opts.csrf, opts.oauth ?? {})}
 
         <p class="note"><a href="/ui">Back to the dashboard</a></p>`;

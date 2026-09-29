@@ -1,5 +1,7 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
+import { commitConfig } from '../config/commit.ts';
+import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint } from '../config/edits.ts';
 import { saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
@@ -16,14 +18,13 @@ import {
     SESSION_TTL_MS,
     verifyPassword
 } from '../core/session.ts';
-import { instanceId } from '../config/instances.ts';
 import { buildAdapters } from '../services/registry.ts';
 import { hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
 import { MARK_SVG } from './icons.ts';
 import {
-    addInstance,
+    addCandidate,
     addToken,
     ConfigEditError,
     removeInstance,
@@ -34,7 +35,7 @@ import {
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
 import { configPage, type OAuthDraft } from './configPage.ts';
 import { probeJwks } from './jwksProbe.ts';
-import { mcpEndpoint, sameOrigin } from './origin.ts';
+import { apiEndpoint, mcpEndpoint, sameOrigin } from './origin.ts';
 import {
     auditPage,
     dashboardPage,
@@ -457,13 +458,18 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
             let updated: Config;
             let reveal: { name: string; token: string } | undefined;
+            let revealKey: string | undefined;
             try {
                 const result = await next(form);
                 // Not an error: the removal is waiting for a second click.
                 if ('ask' in result) return render(undefined, 200, { confirmingRemoval: result.ask });
                 if ('askRevoke' in result) return render(undefined, 200, { confirmingRevoke: result.askRevoke });
                 if ('askOAuthRemoval' in result) return render(undefined, 200, { oauth: { confirmingRemoval: true } });
-                if ('reveal' in result) {
+                if ('askKeyRemoval' in result) return render(undefined, 200, { confirmingKeyRemoval: true });
+                if ('revealKey' in result) {
+                    updated = result.config;
+                    revealKey = result.revealKey;
+                } else if ('reveal' in result) {
                     updated = result.config;
                     reveal = { name: result.revealName, token: result.reveal };
                 } else {
@@ -477,8 +483,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // `expected` is the snapshot this page's form was built from,
                 // so a service hand-added to config.yaml since then is a
                 // refusal rather than a silent deletion under a "Saved" banner.
-                await saveConfig(runtime.configDir, updated, { expected });
-                await runtime.reload();
+                await commitConfig(runtime, expected, updated);
 
                 if (opts.endsSessions?.(form) === true) {
                     // Sessions signed with the old key must not outlive the
@@ -501,15 +506,25 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return render(
                 { kind: 'ok', text: `${what} Applied immediately; no restart needed.` },
                 200,
-                reveal === undefined
-                    ? {}
-                    : {
-                          revealed: {
-                              ...reveal,
-                              mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
-                              urlToken: runtime.config.auth.allow_token_in_url
-                          }
-                      }
+                {
+                    ...(reveal === undefined
+                        ? {}
+                        : {
+                              revealed: {
+                                  ...reveal,
+                                  mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
+                                  urlToken: runtime.config.auth.allow_token_in_url
+                              }
+                          }),
+                    ...(revealKey === undefined
+                        ? {}
+                        : {
+                              revealedKey: {
+                                  key: revealKey,
+                                  apiUrl: apiEndpoint(c.req.url, c.req.header('x-forwarded-proto'))
+                              }
+                          })
+                }
             );
         };
 
@@ -586,6 +601,22 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             const name = str(form.token);
             if (str(form.confirm) !== 'yes') return { askRevoke: name };
             return revokeToken(runtime.config, name);
+        })
+    );
+
+    app.post(
+        '/ui/config/api-key',
+        configMutation('Management API key generated.', () => {
+            const { config, plaintext } = setManagementKey(runtime.config, new Date());
+            return { config, revealKey: plaintext };
+        })
+    );
+
+    app.post(
+        '/ui/config/api-key/remove',
+        configMutation('Management API turned off.', form => {
+            if (str(form.confirm) !== 'yes') return { askKeyRemoval: true };
+            return clearManagementKey(runtime.config);
         })
     );
 
@@ -738,7 +769,9 @@ type MutationResult =
     | { ask: string }
     | { askRevoke: string }
     | { askOAuthRemoval: true }
-    | { config: Config; reveal: string; revealName: string };
+    | { config: Config; reveal: string; revealName: string }
+    | { config: Config; revealKey: string }
+    | { askKeyRemoval: true };
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
 const NO_STORE = { 'cache-control': 'no-store' };
@@ -857,15 +890,12 @@ export function addCandidateFrom(
     const name = str(form.name).trim();
     const renameExistingTo = str(form.rename_existing_to).trim();
 
-    return {
-        candidate: addInstance(config, {
-            type,
-            ...(name === '' ? {} : { name }),
-            ...(renameExistingTo === '' ? {} : { renameExistingTo }),
-            fields: instanceFieldsFrom(form)
-        }),
-        target: instanceId(type, name === '' ? undefined : name)
-    };
+    return addCandidate(config, {
+        type,
+        name: name === '' ? undefined : name,
+        renameExistingTo: renameExistingTo === '' ? undefined : renameExistingTo,
+        fields: instanceFieldsFrom(form)
+    });
 }
 
 /**
@@ -915,16 +945,10 @@ export async function buildAccountConfig(current: Config, form: Record<string, u
  *
  * Its checkbox is authoritative because an unchecked box submits nothing, and
  * this is the only form that carries it — so absent genuinely means off here,
- * where on any other card it would mean "not mine to touch". Off is expressed
- * by dropping the block entirely rather than by `enabled: false`, so a config
- * nobody touched stays exactly as clean as it started.
+ * where on any other card it would mean "not mine to touch".
  */
 export function buildImdbConfig(current: Config, form: Record<string, unknown>): Config {
-    const { metadata: _dropped, ...rest } = current;
-    return {
-        ...rest,
-        ...(on(form['metadata.imdb']) ? { metadata: { imdb: { enabled: true } } } : {})
-    };
+    return setImdb(current, on(form['metadata.imdb']));
 }
 
 /**
@@ -1002,27 +1026,8 @@ export function buildOAuthConfig(current: Config, form: Record<string, unknown>)
 
 /** The MCP endpoint. Owns `allowed_hosts` and `allow_token_in_url`. */
 export function buildMcpConfig(current: Config, form: Record<string, unknown>): Config {
-    const hosts = str(form['auth.allowed_hosts'])
-        .split(',')
-        .map(h => h.trim())
-        .filter(h => h !== '');
-
-    // The schema refuses this combination too, but it would arrive here as a
-    // prettified union error at the MCP card. The operator asked a plain
-    // question and deserves a plain answer.
-    const urlToken = on(form['auth.allow_token_in_url']);
-    if (urlToken && current.auth.oauth !== undefined) {
-        throw new Error(
-            'OAuth is configured, so the token cannot travel in the URL — a JWT in the address reaches every proxy log. Remove it on the OAuth card first.'
-        );
-    }
-
-    return {
-        ...current,
-        auth: {
-            ...current.auth,
-            allow_token_in_url: urlToken,
-            allowed_hosts: hosts
-        }
-    };
+    return setMcpEndpoint(current, {
+        allowedHosts: str(form['auth.allowed_hosts']).split(','),
+        allowTokenInUrl: on(form['auth.allow_token_in_url'])
+    });
 }

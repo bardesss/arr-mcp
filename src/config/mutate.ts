@@ -88,8 +88,8 @@ const validate = (config: Config, services: Record<string, unknown>): Config => 
     return result.data;
 };
 
-const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
-const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent']);
+export const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
+export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent']);
 
 /**
  * Applies form fields to an entry, leaving a blank credential as it was.
@@ -183,6 +183,14 @@ export function addInstance(
 
     writeBack(services, opts.type, entries);
     return validate(config, services);
+}
+
+/** What an add would produce and the id it would take; Add and Test share it. */
+export function addCandidate(
+    config: Config,
+    opts: { type: ServiceId; name?: string | undefined; renameExistingTo?: string | undefined; fields: InstanceFields }
+): { candidate: Config; target: string } {
+    return { candidate: addInstance(config, opts), target: instanceId(opts.type, opts.name) };
 }
 
 export function updateInstance(config: Config, id: string, fields: InstanceFields): Config {
