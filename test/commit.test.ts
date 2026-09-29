@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commitConfig } from '../src/config/commit.ts';
 import { loadConfig } from '../src/config/load.ts';
-import { ConfigDriftError } from '../src/config/save.ts';
+import { ConfigDriftError, ConfigUnloadableError } from '../src/config/save.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { logger } from '../src/core/logger.ts';
 import { Runtime } from '../src/core/runtime.ts';
@@ -51,7 +51,7 @@ describe('commitConfig', () => {
         await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: [broken\nservices: 5\n', 'utf8');
         await expect(
             commitConfig(runtime, expected, { ...expected, auth: { ...expected.auth, username: 'owner' } })
-        ).rejects.toBeInstanceOf(ConfigDriftError);
+        ).rejects.toBeInstanceOf(ConfigUnloadableError);
         expect(runtime.config).toBe(expected);
         expect(warn).toHaveBeenCalled();
     });

@@ -311,6 +311,15 @@ describe('a hand edit that no longer loads', () => {
         await writeFile(path, text.replace(`api_key: '${RADARR_KEY}'`, `api_key: '${RADARR_KEY}', timeout_ms: -1`), 'utf8');
     };
 
+    it('answers 409 with what to do, not a 412 that no retry can clear', async () => {
+        await breakFile();
+        for (let i = 0; i < 2; i++) {
+            const res = await api('/settings/imdb', json('PUT', { enabled: true }, { 'if-match': await etag() }));
+            expect(res.status).toBe(409);
+            expect(await res.json()).toEqual({ message: 'config.yaml was changed by hand and no longer loads. Fix the file, then retry.' });
+        }
+    });
+
     it('keeps the password and key hashes out of the log', async () => {
         const path = join(stack.dir, 'config.yaml');
         const seeded = await readFile(path, 'utf8');
