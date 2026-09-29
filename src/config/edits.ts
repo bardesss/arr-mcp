@@ -1,5 +1,7 @@
 import { ConfigEditError } from './mutate.ts';
 import type { Config } from './schema.ts';
+import { generateManagementKey } from '../core/managementKey.ts';
+import { hashToken } from '../core/mcpTokens.ts';
 
 /**
  * Settings edits shared by the config UI and the management API. Each owns its
@@ -30,4 +32,16 @@ export function setMcpEndpoint(
             : opts.allowedHosts.map(h => h.trim()).filter(h => h !== '');
 
     return { ...config, auth: { ...config.auth, allow_token_in_url: urlToken, allowed_hosts: hosts } };
+}
+
+/** Generating again replaces the old key, which stops working on the next request. */
+export function setManagementKey(config: Config, now: Date): { config: Config; plaintext: string } {
+    const plaintext = generateManagementKey();
+    const management_key = { hash: hashToken(plaintext), created: now.toISOString().slice(0, 10) };
+    return { config: { ...config, auth: { ...config.auth, management_key } }, plaintext };
+}
+
+export function clearManagementKey(config: Config): Config {
+    const { management_key: _dropped, ...auth } = config.auth;
+    return { ...config, auth };
 }
