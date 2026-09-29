@@ -1,7 +1,16 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
 import { saveConfig } from '../config/save.ts';
-import { ServiceIdSchema, ThemeSchema, type Config, type Theme } from '../config/schema.ts';
+import * as z from 'zod/v4';
+import {
+    ConfigSchema,
+    OAuthSchema,
+    ServiceIdSchema,
+    ThemeSchema,
+    type Config,
+    type OAuthConfig,
+    type Theme
+} from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
@@ -32,7 +41,8 @@ import {
     type InstanceFields
 } from '../config/mutate.ts';
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
-import { configPage } from './configPage.ts';
+import { configPage, type OAuthDraft } from './configPage.ts';
+import { probeJwks } from './jwksProbe.ts';
 import { mcpEndpoint, sameOrigin } from './origin.ts';
 import {
     auditPage,
@@ -388,6 +398,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 /** Whether this save changed the credentials, and so has to end
                  *  sessions signed with the old key. */
                 endsSessions?: (form: Record<string, unknown>) => boolean;
+                /** The outcome belongs under the OAuth card, which the post
+                 *  scrolls to, and a refusal keeps what was typed. */
+                oauthCard?: boolean;
             } = {}
         ): ((c: Context) => Promise<Response>) =>
         async (c: Context) => {
@@ -430,7 +443,16 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         plaintextOnDisk: runtime.plaintextOnDisk,
                         ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(opts.reopensAdd === true && status !== 200 ? { openAdd: true } : {}),
-                        ...(message === undefined ? {} : { message }),
+                        ...(opts.oauthCard === true
+                            ? {
+                                  oauth: {
+                                      ...(message === undefined ? {} : { message }),
+                                      ...(status === 200 ? {} : { draft: oauthDraftFrom(form) })
+                                  }
+                              }
+                            : message === undefined
+                              ? {}
+                              : { message }),
                         ...extra
                     }),
                     status
@@ -449,6 +471,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // Not an error: the removal is waiting for a second click.
                 if ('ask' in result) return render(undefined, 200, { confirmingRemoval: result.ask });
                 if ('askRevoke' in result) return render(undefined, 200, { confirmingRevoke: result.askRevoke });
+                if ('askOAuthRemoval' in result) return render(undefined, 200, { oauth: { confirmingRemoval: true } });
                 if ('reveal' in result) {
                     updated = result.config;
                     reveal = { name: result.revealName, token: result.reveal };
@@ -575,6 +598,68 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         })
     );
 
+    app.post(
+        '/ui/config/oauth',
+        configMutation('OAuth settings saved.', form => buildOAuthConfig(runtime.config, form), { oauthCard: true })
+    );
+
+    app.post(
+        '/ui/config/oauth/remove',
+        configMutation(
+            'OAuth removed.',
+            form => {
+                if (str(form.confirm) !== 'yes') return { askOAuthRemoval: true };
+                const { oauth: _dropped, ...auth } = runtime.config.auth;
+                return { ...runtime.config, auth };
+            },
+            { oauthCard: true }
+        )
+    );
+
+    /**
+     * Fetches `jwks_uri` as typed and reports what the verifier would find
+     * there. Like `/ui/config/test`, never saves.
+     */
+    app.post('/ui/config/oauth/test', async c => {
+        const session = guard(c);
+        if (session === undefined) return c.redirect(entry(), 302);
+
+        const form = await c.req.parseBody();
+        const draft = oauthDraftFrom(form);
+
+        const render = async (status: 200 | 400 | 403, oauth: NonNullable<Parameters<typeof configPage>[0]['oauth']>) =>
+            c.html(
+                configPage({
+                    version,
+                    config: runtime.config,
+                    csrf: runtime.sessions.csrfFor(session),
+                    users: await usersByInstance(),
+                    plaintextOnDisk: runtime.plaintextOnDisk,
+                    oauth: { draft, ...oauth }
+                }),
+                status
+            );
+
+        if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
+            logger.warn({ ...originOf(c) }, 'rejected an OAuth test with a bad CSRF token');
+            return render(403, { message: { kind: 'err', text: 'That form was stale. Reload the page and try again.' } });
+        }
+
+        let jwksUri: string;
+        try {
+            const candidate = buildOAuthConfig(runtime.config, form);
+            const parsed = ConfigSchema.safeParse(candidate);
+            if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
+            jwksUri = (candidate.auth.oauth as OAuthConfig).jwks_uri;
+        } catch (err) {
+            return render(400, { message: { kind: 'err', text: (err as Error).message } });
+        }
+
+        const probe = await probeJwks(jwksUri);
+        logger.info({ host: new URL(jwksUri).host, ok: probe.ok, outcome: probe.summary }, 'OAuth key set tested from the config UI');
+        return render(200, { tested: probe });
+    });
+
     /**
      * Test one instance against the fields as they stand, not as they are
      * saved — replacing "save it and see if the dashboard goes green", which
@@ -654,6 +739,7 @@ type MutationResult =
     | Config
     | { ask: string }
     | { askRevoke: string }
+    | { askOAuthRemoval: true }
     | { config: Config; reveal: string; revealName: string };
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
@@ -859,6 +945,59 @@ export function buildAppearanceConfig(current: Config, form: Record<string, unkn
     return { ...rest, ...(theme === 'system' ? {} : { ui: { theme } }) };
 }
 
+export function oauthDraftFrom(form: Record<string, unknown>): OAuthDraft {
+    const f = (name: string) => str(form[`auth.oauth.${name}`]).trim();
+    return {
+        issuer: f('issuer'),
+        audience: f('audience'),
+        jwks_uri: f('jwks_uri'),
+        read: f('scopes.read'),
+        write: f('scopes.write'),
+        destructive: f('scopes.destructive')
+    };
+}
+
+const OAUTH_LABELS: Record<string, string> = {
+    issuer: 'Issuer',
+    audience: 'Audience',
+    jwks_uri: 'JWKS URI',
+    'scopes.read': 'Read scope',
+    'scopes.write': 'Write scope',
+    'scopes.destructive': 'Destructive scope',
+    scopes: 'Scopes'
+};
+
+/**
+ * The OAuth card. Owns `auth.oauth` and nothing else.
+ *
+ * Validated against the OAuth block's own schema so a refusal names the field
+ * in a sentence, rather than arriving as `saveConfig`'s whole-config dump.
+ */
+export function buildOAuthConfig(current: Config, form: Record<string, unknown>): Config {
+    if (current.auth.allow_token_in_url) {
+        throw new Error(
+            "Turn off 'Accept the token in the URL' on the MCP endpoint card first. A JWT in the URL reaches every proxy log."
+        );
+    }
+
+    const d = oauthDraftFrom(form);
+    const parsed = OAuthSchema.safeParse({
+        issuer: d.issuer,
+        audience: d.audience,
+        jwks_uri: d.jwks_uri,
+        scopes: { read: d.read, write: d.write, destructive: d.destructive }
+    });
+    if (!parsed.success) {
+        const lines = parsed.error.issues.map(issue => {
+            const label = OAUTH_LABELS[issue.path.join('.')] ?? 'OAuth';
+            return issue.code === 'too_small' ? `${label} is required.` : `${label}: ${issue.message}.`;
+        });
+        throw new Error([...new Set(lines)].join('\n'));
+    }
+
+    return { ...current, auth: { ...current.auth, oauth: parsed.data } };
+}
+
 /** The MCP endpoint. Owns `allowed_hosts` and `allow_token_in_url`. */
 export function buildMcpConfig(current: Config, form: Record<string, unknown>): Config {
     const hosts = str(form['auth.allowed_hosts'])
@@ -872,7 +1011,7 @@ export function buildMcpConfig(current: Config, form: Record<string, unknown>): 
     const urlToken = on(form['auth.allow_token_in_url']);
     if (urlToken && current.auth.oauth !== undefined) {
         throw new Error(
-            'OAuth is configured, so the token cannot travel in the URL — a JWT in the address reaches every proxy log. Remove the auth.oauth block from config.yaml first.'
+            'OAuth is configured, so the token cannot travel in the URL — a JWT in the address reaches every proxy log. Remove it on the OAuth card first.'
         );
     }
 
