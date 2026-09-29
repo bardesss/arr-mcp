@@ -8,7 +8,7 @@ import {
     verifyBearerToken,
     type AuthInfo
 } from '@modelcontextprotocol/server';
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { OAuthConfig } from './config/schema.ts';
 import { NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type WriteAudit } from './core/audit.ts';
@@ -27,6 +27,7 @@ import { cappedTo, oauthRefusal, tiersFor, tokenRefusal } from './mcp/scopes.ts'
 import type { ServiceInstance } from './config/instances.ts';
 import type { WriteTier } from './core/permissions.ts';
 import { registerAllTools, type ToolContext } from './tools/register.ts';
+import { apiJsonBody } from './api/body.ts';
 import { registerApiRoutes } from './api/index.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
 
@@ -247,7 +248,9 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                 )
         })
     );
-    app.use('*', claimJsonBody);
+    // The API answers its own malformed bodies in its own `{message}` shape.
+    app.use('/api/*', apiJsonBody);
+    app.use('*', (c: Context, next: Next) => (c.req.path.startsWith('/api/') ? next() : claimJsonBody(c, next)));
     app.route('/', transport);
 
     // Ahead of the Host allowlist on purpose: the container probes

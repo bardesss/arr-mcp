@@ -6,6 +6,7 @@ import type { Runtime } from '../core/runtime.ts';
 import { originOf } from '../web/routes.ts';
 import { API_BASE, apiError, NO_STORE } from './http.ts';
 import { registerReads } from './reads.ts';
+import { registerWrites } from './writes.ts';
 
 export type ApiDeps = { runtime: Runtime; logs: LogStore; version: string };
 
@@ -25,6 +26,7 @@ export function registerApiRoutes(app: Hono, deps: ApiDeps): void {
     });
 
     registerReads(app, deps);
+    registerWrites(app, deps);
 
     app.all(`${API_BASE}/*`, (c: Context) => apiError(c, 404, 'No such endpoint.'));
 }

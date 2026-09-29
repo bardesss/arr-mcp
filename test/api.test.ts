@@ -1,84 +1,20 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildApp } from '../src/app.ts';
-import { loadConfig } from '../src/config/load.ts';
-import { WriteAudit } from '../src/core/audit.ts';
-import { LEVELS, LogStore } from '../src/core/logs.ts';
+import { LEVELS } from '../src/core/logs.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
-import { Runtime } from '../src/core/runtime.ts';
-
-const KEY = `amk_${'1'.repeat(64)}`;
-const MCP = `amcp_${'2'.repeat(64)}`;
-const RADARR_KEY = 'radarr-secret-key-0000';
-const TX_PASSWORD = 'tx-secret-password';
-
-let dir: string;
-let runtime: Runtime;
-let app: ReturnType<typeof buildApp>;
-let logs: LogStore;
-let audit: WriteAudit;
-
-const seed = async (opts: { keyed?: boolean; radarrUrl?: string; extra?: string[] } = {}) => {
-    dir = await mkdtemp(join(tmpdir(), 'arr-mcp-api-'));
-    await writeFile(
-        join(dir, 'config.yaml'),
-        [
-            'auth:',
-            '  username: admin',
-            '  allowed_hosts: []',
-            '  tokens:',
-            `    - { name: phone, tier: read, hash: '${hashToken(MCP)}' }`,
-            ...(opts.keyed === false ? [] : [`  management_key: { hash: '${hashToken(KEY)}', created: '2026-09-29' }`]),
-            'services:',
-            '  radarr:',
-            `    - { name: hd, url: '${opts.radarrUrl ?? 'http://user:pw@radarr:7878'}', api_key: '${RADARR_KEY}' }`,
-            `  transmission: { url: 'http://transmission:9091', username: tx, password: '${TX_PASSWORD}' }`,
-            ...(opts.extra ?? []),
-            ''
-        ].join('\n'),
-        'utf8'
-    );
-    const { config } = await loadConfig(dir);
-    audit = WriteAudit.ephemeral();
-    logs = LogStore.ephemeral();
-    runtime = Runtime.fromConfig(config, audit, { configDir: dir });
-    app = buildApp({ runtime, audit, logs });
-};
+import { api, closeApi, KEY, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 
 beforeEach(async () => {
-    await seed();
+    await seedApi();
 });
 
 afterEach(() => {
     vi.restoreAllMocks();
-    logs.close();
-    audit.close();
+    closeApi();
 });
-
-const api = (path: string, init: RequestInit & { key?: string | null } = {}) => {
-    const { key = KEY, ...rest } = init;
-    return app.request(`http://localhost:6060/api/v1${path}`, {
-        ...rest,
-        headers: { ...(rest.headers ?? {}), ...(key === null ? {} : { 'x-api-key': key }) }
-    });
-};
-
-const mcp = (token: string) =>
-    app.request('http://localhost:6060/mcp', {
-        method: 'POST',
-        headers: {
-            'content-type': 'application/json',
-            accept: 'application/json, text/event-stream',
-            authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
-    });
 
 describe('the gate', () => {
     it('answers 404 with a pointer when no key is configured', async () => {
-        await seed({ keyed: false });
+        await seedApi({ keyed: false });
         const res = await api('/system/status');
         expect(res.status).toBe(404);
         expect(((await res.json()) as { message: string }).message).toContain('Generate a key on the config page');
@@ -125,7 +61,7 @@ describe('GET /system/status', () => {
 describe('GET /health', () => {
     it('reports one entry per app, down ones included', async () => {
         vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
-        await seed();
+        await seedApi();
         const res = await api('/health');
         expect(res.status).toBe(200);
         const body = (await res.json()) as { app: string; type: string; ok: boolean; latencyMs: number; error?: { kind: string } }[];
@@ -139,7 +75,7 @@ describe('GET /health', () => {
 describe('GET /health detail', () => {
     it('keeps the remedy on a down app', async () => {
         vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(new Response('nope', { status: 401 })));
-        await seed({ radarrUrl: 'http://radarr:7878' });
+        await seedApi({ radarrUrl: 'http://radarr:7878' });
         const body = (await (await api('/health')).json()) as { app: string; error?: { kind: string; remedy?: string } }[];
         expect(body[0]?.app).toBe('radarr/hd');
         expect(body[0]?.error?.remedy).toEqual(expect.any(String));
@@ -149,7 +85,7 @@ describe('GET /health detail', () => {
         vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
             Promise.resolve(new Response(JSON.stringify({ version: '5.1.0' }), { headers: { 'content-type': 'application/json' } }))
         );
-        await seed({ radarrUrl: 'http://radarr:7878' });
+        await seedApi({ radarrUrl: 'http://radarr:7878' });
         const body = (await (await api('/health')).json()) as { app: string; ok: boolean; version?: string }[];
         expect(body[0]).toMatchObject({ app: 'radarr/hd', ok: true, version: '5.1.0' });
     });
@@ -162,7 +98,7 @@ describe('GET /health connection errors', () => {
         vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) =>
             String(input).includes('127.0.0.1') ? realFetch(input, init) : Promise.reject(new TypeError('fetch failed'))
         );
-        await seed({ radarrUrl: 'http://user:s3cretpw@127.0.0.1:1' });
+        await seedApi({ radarrUrl: 'http://user:s3cretpw@127.0.0.1:1' });
         const res = await api('/health');
         expect(res.status).toBe(200);
         const text = await res.text();
@@ -173,9 +109,9 @@ describe('GET /health connection errors', () => {
 
 describe('GET /log', () => {
     beforeEach(() => {
-        logs.write(line({ msg: 'first' }));
-        logs.write(line({ level: LEVELS.warn, service: 'radarr/hd', msg: 'slow', port: 7878 }));
-        logs.write(line({ level: LEVELS.error, msg: 'broke' }));
+        stack.logs.write(line({ msg: 'first' }));
+        stack.logs.write(line({ level: LEVELS.warn, service: 'radarr/hd', msg: 'slow', port: 7878 }));
+        stack.logs.write(line({ level: LEVELS.error, msg: 'broke' }));
     });
 
     it('returns records newest first with flattened fields', async () => {
@@ -250,7 +186,7 @@ describe('GET /app multi-user fields', () => {
     const JF_KEY = 'jellyfin-secret-key-0000';
 
     it('adds the user fields and the repair switch to plex', async () => {
-        await seed({ extra: [`  plex: { url: 'http://plex:32400', api_key: '${PLEX_KEY}', default_user: alice }`] });
+        await seedApi({ extra: [`  plex: { url: 'http://plex:32400', api_key: '${PLEX_KEY}', default_user: alice }`] });
         const text = await (await api('/app/plex')).text();
         expect(text).not.toContain(PLEX_KEY);
         expect(JSON.parse(text)).toMatchObject({
@@ -262,7 +198,7 @@ describe('GET /app multi-user fields', () => {
     });
 
     it('adds the user fields to jellyfin without the repair switch', async () => {
-        await seed({ extra: [`  jellyfin: { url: 'http://jellyfin:8096', api_key: '${JF_KEY}', allow_other_users: true }`] });
+        await seedApi({ extra: [`  jellyfin: { url: 'http://jellyfin:8096', api_key: '${JF_KEY}', allow_other_users: true }`] });
         const text = await (await api('/app')).text();
         expect(text).not.toContain(JF_KEY);
         const jf = (JSON.parse(text) as Record<string, unknown>[]).find(a => a.type === 'jellyfin');
