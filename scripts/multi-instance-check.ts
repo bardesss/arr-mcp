@@ -13,6 +13,7 @@
  * Reads only — the write tools it calls are dry runs or refusals.
  */
 import { loadConfig } from '../src/config/load.ts';
+import { withScriptToken } from './lib/scriptToken.ts';
 import { buildApp } from '../src/app.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
@@ -23,7 +24,8 @@ import { callTool, type ToolCallResult } from './lib/rpc.ts';
 
 
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? './config';
-const { config: real } = await loadConfig(CONFIG_DIR, { persist: false });
+const loaded = await loadConfig(CONFIG_DIR, { persist: false });
+const { config: real, token } = withScriptToken(loaded.config);
 const hosts = hostsOf(real);
 
 /** The same service twice, under two names. */
@@ -70,7 +72,6 @@ const fail = (label: string, detail: string) => {
 const single = appFor(real);
 const multiConfig = doubled(real);
 const multi = appFor(multiConfig);
-const token = real.auth.bearer_token;
 
 const arrTypes = (['radarr', 'sonarr'] as const).filter(t => Array.isArray(multiConfig.services[t]));
 const doubledTypes = DOUBLED_TYPES.filter(t => Array.isArray(multiConfig.services[t]));

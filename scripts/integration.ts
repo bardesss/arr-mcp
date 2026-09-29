@@ -32,6 +32,7 @@
  * line — pass or fail — is passed through `redactHosts` first.
  */
 import { loadConfig } from '../src/config/load.ts';
+import { withScriptToken } from './lib/scriptToken.ts';
 import { buildApp } from '../src/app.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
@@ -97,7 +98,8 @@ const CASES: Case[] = [
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? './config';
 // `persist: false` — a smoke run reads the user's config; it must never write
 // to the file holding their credentials.
-const { config } = await loadConfig(CONFIG_DIR, { persist: false });
+const loaded = await loadConfig(CONFIG_DIR, { persist: false });
+const { config, token: scriptToken } = withScriptToken(loaded.config);
 
 // Ephemeral on purpose: this script is a maintainer smoke run, and its dry-run
 // probes are not events the user's own audit trail — or log ring buffer —
@@ -174,7 +176,7 @@ if (missing.length > 0) {
  */
 /** Bound to this run's app and token, so call sites read as before. */
 const callTool = (name: string, args: Record<string, unknown>): Promise<ToolCallResult> =>
-    rpcCallTool(app, config.auth.bearer_token, name, args);
+    rpcCallTool(app, scriptToken, name, args);
 
 let passes = 0;
 let failures = 0;

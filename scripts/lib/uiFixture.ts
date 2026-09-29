@@ -20,6 +20,14 @@ import type { Config } from '../../src/config/schema.ts';
 import type { LogRow } from '../../src/core/logs.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../../src/services/types.ts';
 import type { AuditRow } from '../../src/core/audit.ts';
+import { hashToken } from '../../src/core/mcpTokens.ts';
+
+/** The one live clock here: the expiry warning is relative to now, so it always shows. */
+export const NOW = new Date();
+const THREE_DAYS_OUT = new Date(NOW.getTime() + 3 * 86_400_000).toISOString().slice(0, 10);
+
+/** Names of fixture tokens the dashboard reports as still plaintext on disk. */
+export const FIXTURE_PLAINTEXT_ON_DISK = ['phone-assistant'];
 
 /** 64 characters because the schema demands it, and self-describing because it
  *  is about to be photographed and put in a README. */
@@ -95,7 +103,10 @@ export const MCP_URL = `http://${HOST}:6060/mcp`;
  */
 export const CONFIG: Config = {
     auth: {
-        bearer_token: FIXTURE_TOKEN,
+        tokens: [
+            { name: 'claude-desktop', tier: 'destructive', hash: hashToken(FIXTURE_TOKEN) },
+            { name: 'phone-assistant', tier: 'read', hash: hashToken('p'.repeat(40)), expires: THREE_DAYS_OUT }
+        ],
         username: 'admin',
         password_hash: 'scrypt$fixture$fixture',
         allow_token_in_url: false,
