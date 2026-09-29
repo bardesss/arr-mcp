@@ -14,7 +14,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  */
 
 /**
- * `set_watched` is Jellyfin-only by design — Plex stays read-only in
+ * `set_watched` is Jellyfin-only by design — Plex watch state stays read-only in
  * arr-mcp — so the refusal itself is correct even for a Plex-only stack.
  * Only the remedy needs to stop assuming the reader has no media server at
  * all: a Plex user is told this is a Jellyfin-specific write, not "go add
@@ -25,7 +25,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  */
 const watchedRemedy = (adapters: readonly ServiceAdapter[]): string =>
     adapters.some(a => a.type === 'plex')
-        ? 'set_watched needs Jellyfin — Plex is read-only in arr-mcp, and jellyfin/plex cannot both be configured. Replace the services.plex block with services.jellyfin and restart.'
+        ? 'set_watched needs Jellyfin — arr-mcp cannot write Plex watch state, and jellyfin/plex cannot both be configured. Replace the services.plex block with services.jellyfin and restart.'
         : 'Watch state lives in Jellyfin. Add a services.jellyfin block to config.yaml and restart.';
 
 const jellyfinAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & WatchStateCapable => {

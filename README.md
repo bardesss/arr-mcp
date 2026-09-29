@@ -200,7 +200,8 @@ which version.
 Plex nor qBittorrent — testing means running a build against your own server
 and reporting what worked. [Plex](../../issues/180) has since been verified
 against two live Plex Media Servers by two volunteer testers, its first write
-included; [qBittorrent](../../issues/147) has shipped but still waits on the
+included, and its metadata repair ships off by default until it gets the same
+([#203](../../issues/203)); [qBittorrent](../../issues/147) has shipped but still waits on the
 same kind of report. [The design behind Plex, and what else is on the
 list](CONTRIBUTING.md#what-would-be-accepted-today).
 

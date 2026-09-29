@@ -283,6 +283,17 @@ describe('ServiceHttp per-call timeout override', () => {
         }
     });
 
+    it('passes a put override through to AbortSignal.timeout', async () => {
+        const spy = vi.spyOn(AbortSignal, 'timeout');
+        try {
+            const client = http(async () => json({ ok: true }));
+            await client.put('/x', undefined, true, { timeoutMs: 120_000 });
+            expect(spy).toHaveBeenCalledWith(120_000);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
     it('applies the override to the retry attempt too', async () => {
         const spy = vi.spyOn(AbortSignal, 'timeout');
         let calls = 0;

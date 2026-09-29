@@ -543,7 +543,8 @@ const CONTRACTS: Record<string, ServiceContract> = {
         ]
     },
     // Captured live from Plex Media Server 1.43.3.10896 (issue #180) with
-    // `npm run capture`. All nine endpoints the adapter reads are contracted.
+    // `npm run capture`. Every endpoint the adapter reads is contracted except
+    // /matches (no capture yet) and allLeaves (covered by the section-listing capture).
     plex: {
         dependencies: [
             { fixture: 'test/fixtures/plex/identity.json', fields: ['MediaContainer.version'] },
@@ -560,7 +561,9 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'MediaContainer.Directory.key',
                     'MediaContainer.Directory.type',
                     'MediaContainer.Directory.refreshing',
-                    'MediaContainer.Directory.scannedAt'
+                    'MediaContainer.Directory.scannedAt',
+                    'MediaContainer.Directory.agent',
+                    'MediaContainer.Directory.language'
                 ]
             },
             {
@@ -637,7 +640,22 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'MediaContainer.Metadata.Genre',
                     'MediaContainer.Metadata.Genre.tag',
                     'MediaContainer.Metadata.Guid',
-                    'MediaContainer.Metadata.Guid.id'
+                    'MediaContainer.Metadata.Guid.id',
+                    'MediaContainer.Metadata.Media.Part.file'
+                ]
+            },
+            {
+                // readEpisodeMetadata. Captured from a type=4 section listing;
+                // allLeaves is assumed to return the same episode rows.
+                fixture: 'test/fixtures/plex/section-episodes.json',
+                fields: [
+                    'MediaContainer.Metadata',
+                    'MediaContainer.Metadata.ratingKey',
+                    'MediaContainer.Metadata.type',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.parentIndex',
+                    'MediaContainer.Metadata.index',
+                    'MediaContainer.Metadata.Media.Part.file'
                 ]
             },
             {
@@ -653,7 +671,8 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'MediaContainer.Metadata.Guid',
                     'MediaContainer.Metadata.Guid.id',
                     'MediaContainer.Metadata.Media.Part.file',
-                    'MediaContainer.Metadata.Media.Part.size'
+                    'MediaContainer.Metadata.Media.Part.size',
+                    'MediaContainer.Metadata.librarySectionID'
                 ]
             }
         ]

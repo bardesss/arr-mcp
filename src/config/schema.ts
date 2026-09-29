@@ -162,6 +162,13 @@ const MultiUserServiceSchema = z.strictObject({
 });
 export type MultiUserServiceConfig = z.infer<typeof MultiUserServiceSchema>;
 
+/** Plex alone gets the repair switch: its repair is unverified against a live server (#203). */
+const PlexServiceSchema = z.strictObject({
+    ...MultiUserServiceSchema.shape,
+    allow_metadata_repair: z.boolean().default(false)
+});
+export type PlexServiceConfig = z.infer<typeof PlexServiceSchema>;
+
 /**
  * The two torrent clients, neither of which has an API key: Transmission takes
  * HTTP Basic, qBittorrent a login that returns a cookie. Both credential parts
@@ -189,7 +196,7 @@ const CredentialInstanceListSchema = z
 
 const MultiInstanceCredentialSchema = z.union([CredentialServiceSchema, CredentialInstanceListSchema]);
 
-export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | CredentialServiceConfig;
+export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | PlexServiceConfig | CredentialServiceConfig;
 
 /**
  * Which config shape each service id carries.
@@ -231,7 +238,7 @@ export type ConfigByService = {
     sabnzbd: For<'sabnzbd', Instanced<KeyedServiceConfig>>;
     jellyfin: For<'jellyfin', MultiUserServiceConfig>;
     seerr: For<'seerr', MultiUserServiceConfig>;
-    plex: For<'plex', MultiUserServiceConfig>;
+    plex: For<'plex', PlexServiceConfig>;
     transmission: For<'transmission', Instanced<CredentialServiceConfig>>;
     qbittorrent: For<'qbittorrent', Instanced<CredentialServiceConfig>>;
     profilarr: For<'profilarr', KeyedServiceConfig>;
@@ -275,7 +282,7 @@ const ServicesSchema = z
         seerr: singleOnly(MultiUserServiceSchema).optional(),
         transmission: MultiInstanceCredentialSchema.optional(),
         qbittorrent: MultiInstanceCredentialSchema.optional(),
-        plex: singleOnly(MultiUserServiceSchema).optional(),
+        plex: singleOnly(PlexServiceSchema).optional(),
         // Single only: Profilarr is the one place that owns profile config,
         // so two of them would mean two sources of truth.
         profilarr: singleOnly(KeyedServiceSchema).optional()

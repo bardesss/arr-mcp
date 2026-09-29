@@ -431,8 +431,9 @@ filtered as the owner. This has not been verified against a managed-user
 token; if you run one, a config UI issue with what `/accounts` actually
 returns for it would help.
 
-`set_watched`, below, remains Jellyfin-only. `trigger_scan` is the only write
-the Plex adapter has.
+`set_watched`, below, remains Jellyfin-only. The Plex adapter writes with
+`trigger_scan` and `fix_metadata`, and `fix_metadata` is off by default there,
+see [Repairing on Plex](#repairing-on-plex).
 
 ### When no media server is configured
 
@@ -742,6 +743,15 @@ they need no per-title read; series cost one each, which is why this is
 deliberately **not** folded into `get_library` where every caller would pay for
 it. A real library of 101 series and 118 films sweeps in seconds.
 
+It works on Jellyfin and Plex. The detector was tuned on Jellyfin libraries,
+101 real series of them, and has not yet been run over a real Plex library.
+Plex episodes are never treated as pinned: their provider ids follow from the
+show's match rather than identifying the episode on its own, so a title-only
+finding on Plex comes back as `refresh_metadata`. One more thing is unverified
+on Plex: the episode read assumes `allLeaves` returns the same rows a section
+listing would. If the sweep flags something on a Plex library that is actually
+fine, please open an issue with the filename and the title Plex shows.
+
 ### `remedy` is the field that matters
 
 A title mismatch says the file and the server disagree. It does not say which
@@ -751,7 +761,7 @@ server ever matched the episode:
 | `remedy` | Means | What to run |
 | --- | --- | --- |
 | `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. | `fix_metadata` |
-| `rename_files` | The server matched it, so its title is the considered one and the **filename** is the outlier. Also every `numbering` finding, and every film whose year disagrees. | `trigger_scan` rename on the managing Radarr or Sonarr, then a Jellyfin rescan |
+| `rename_files` | The server matched it, so its title is the considered one and the **filename** is the outlier. Also every `numbering` finding, and every film whose year disagrees. | `trigger_scan` rename on the managing Radarr or Sonarr, then a media server rescan |
 
 Three real series stand behind that rule, which is enough to act on and not
 enough to be certain — treat it as the likely fix rather than a verdict:
@@ -797,7 +807,7 @@ The preview lists the offending filenames themselves, up to five. A count on
 its own is not approvable for a write of this tier — the person confirming has
 to be able to see what the tool believes is wrong.
 
-### What it actually does
+### What it actually does on Jellyfin
 
 On confirm, **one** call. `/Items/RemoteSearch/Apply/{id}` with the TVDB id for
 a series or TMDB for a film is not just a pin: checked against the server
@@ -824,7 +834,7 @@ rematch.
 
 **Destructive tier, and not as a formality.** `replaceAllMetadata` overwrites
 every field the server held, including anything corrected by hand in Jellyfin.
-There is no undo.
+There is no undo on Jellyfin; for Plex see below.
 
 ### When it will not help, said before you confirm
 
@@ -855,7 +865,7 @@ work. That repair is two tools that already exist, not this one:
 1. `trigger_scan` with `action: "rename"` on the **Sonarr** series, which
    renames the files to Sonarr's own naming scheme — Sonarr holds the correct
    mapping, so the files come out with proper `SxxExx` names.
-2. `trigger_scan` on **Jellyfin**, so the renamed files are scanned in and
+2. `trigger_scan` on the **media server**, so the renamed files are scanned in and
    parsed correctly.
 
 The result of an applied repair carries `mismatchesBefore`, `mismatchesAfter`
@@ -899,17 +909,59 @@ a read that asks for it and only for a user who may see it.
 
 ### The result does not claim the repair finished
 
-Jellyfin refreshes in the background, so the re-read that follows the write is
+Both media servers can refresh in the background, so the re-read that follows the write is
 a snapshot taken while the work is very likely still running. A
 `mismatchesAfter` still equal to `mismatchesBefore` immediately afterwards is
 not evidence the repair failed, which is what `verified: false` says. Check
-`stack_health` for the running task, then re-run with `dry_run` to see the
-settled result.
+`stack_health` for the running task, then run `get_metadata_issues` again, or
+re-run with `dry_run`, to see the settled result.
 
-Jellyfin-only, like `set_watched`: the Plex adapter's only write is
-`trigger_scan`, and repairing metadata is a long way past starting a scan. A
-Plex stack can reach the detect half through the same reads and never the
-repair — see [#203](../../issues/203).
+### Repairing on Plex
+
+Plex repair is **off by default**, because nobody has run it against a live
+Plex server yet. Turn it on with `services.plex.allow_metadata_repair: true`,
+plus `permissions.destructive: true` as for any destructive write. The two are
+separate switches: `stack_health` and `arr://instances` report
+`permissions.destructive` as `config.yaml` and your token allow, and know nothing of
+`allow_metadata_repair`, which `fix_metadata` checks on top of it. While it is
+off, a `dry_run` preview still lists the real mismatches, but the write is
+refused with `Plex repair is off`, no confirmation token is issued, and the
+audit log records it as denied.
+
+The repair is Plex's own Fix Match, driven the way python-plexapi drives it:
+
+1. Read the item's library, and that library's agent and language.
+2. Search for matches with the provider id as the title: `tvdb-N` for a
+   series, `tmdb-N` for a film.
+3. Apply the single result with `PUT /library/metadata/{id}/match`.
+4. Refresh with `PUT /library/metadata/{id}/refresh?force=1`.
+
+With no provider id it skips steps 1 to 3 and only refreshes, on any agent.
+
+- **Matching by id needs Plex's current agents**, Plex TV Series or Plex
+  Movie. Only those accept an id as the search title. An id match on a legacy
+  agent is refused with a message saying so; a refresh-only repair and
+  detection still work there.
+- **Exactly one candidate, or nothing.** If the id search finds none, or more
+  than one, the repair stops before writing and says how many it found.
+- **The match and refresh calls wait up to 120s**, the same allowance as
+  Jellyfin's identify call. If the match step times out it may have been
+  applied anyway, and the error says to check the item in Plex first.
+- **Plex refreshes in the background**, so the result straight afterwards is
+  usually `NOT VERIFIED`. Run `get_metadata_issues` again a minute later.
+- **The result names what Plex matched the item to**, with its year when Plex
+  gives one, so a wrong match shows before the refresh settles.
+- **A numbering mismatch usually needs a rename, not a rematch.** Plex takes
+  season and episode numbers from the file names, and the preview says so when
+  it finds one.
+- **Undo** is Fix Match or Unmatch on the item in Plex itself.
+- Every call goes to the server at `url`. Nothing goes near plex.tv.
+
+**What is unverified.** The match flow (`/matches`, `match`, `refresh`) has
+never run against a real Plex server, only against stubbed responses, and the
+`allLeaves` assumption above is untested too. If you turn it on, a report on
+[#203](../../issues/203) or the verification issue linked from it, good or bad,
+would let the default flip to on.
 
 ## `get_profile_issues`
 

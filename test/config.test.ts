@@ -334,6 +334,28 @@ describe('plex', () => {
         expect(c.services.plex?.url).toBe('http://192.0.2.10:32400');
     });
 
+    it('defaults allow_metadata_repair to false', () => {
+        const c = ConfigSchema.parse({ auth: AUTH2, services: { plex: media('http://192.0.2.10:32400') } });
+        expect(c.services.plex?.allow_metadata_repair).toBe(false);
+    });
+
+    it('accepts allow_metadata_repair: true', () => {
+        const c = ConfigSchema.parse({
+            auth: AUTH2,
+            services: { plex: { ...media('http://192.0.2.10:32400'), allow_metadata_repair: true } }
+        });
+        expect(c.services.plex?.allow_metadata_repair).toBe(true);
+    });
+
+    it('refuses allow_metadata_repair on jellyfin, which repairs without it', () => {
+        expect(() =>
+            ConfigSchema.parse({
+                auth: AUTH2,
+                services: { jellyfin: { ...media('http://192.0.2.10:8096'), allow_metadata_repair: true } }
+            })
+        ).toThrow(/allow_metadata_repair/);
+    });
+
     it('refuses jellyfin and plex together, naming both keys', () => {
         const run = () =>
             ConfigSchema.parse({
