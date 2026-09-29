@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.37.0](https://github.com/bardesss/arr-mcp/compare/v1.36.0...v1.37.0) (2026-09-29)
+
+
+### Features
+
+* turn the Plex metadata repair on from the config page ([#313](https://github.com/bardesss/arr-mcp/issues/313)) ([8cead99](https://github.com/bardesss/arr-mcp/commit/8cead995977387d54f3d88ab769f367cad4761a2))
+
 ## [1.36.0](https://github.com/bardesss/arr-mcp/compare/v1.35.0...v1.36.0) (2026-09-29)
 
 
