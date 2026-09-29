@@ -1,4 +1,5 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
+import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { plexToken } from '../core/auth.ts';
 import { fenceText } from '../core/fence.ts';
@@ -12,6 +13,7 @@ import {
     type LibraryScanCapable,
     type MediaDetailCapable,
     type MediaDetails,
+    type MetadataInspectCapable,
     type PlaybackCapable,
     type PlaybackEntry,
     type ScanState,
@@ -173,6 +175,7 @@ const scannedAtSeconds = (value: RawSection['scannedAt']): number | undefined =>
 };
 
 /** Plex library item types, for `?type=` on `/library/sections/{key}/all`. */
+const PLEX_TYPE_MOVIE = 1;
 const PLEX_TYPE_EPISODE = 4;
 
 /**
@@ -199,7 +202,8 @@ export class PlexAdapter
         SearchCapable,
         MediaDetailCapable,
         ScanStateCapable,
-        LibraryScanCapable
+        LibraryScanCapable,
+        MetadataInspectCapable
 {
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
@@ -673,6 +677,70 @@ export class PlexAdapter
             ...(file?.file === undefined ? {} : { path: this.#fence('file', file.file) }),
             ids: externalIds(item)
         };
+    }
+
+    /** Jellyfin's key names, which the detector and fix_metadata read. */
+    static #providerIds(item: RawPlexItem): Record<string, string> | undefined {
+        const ids = externalIds(item);
+        const out: Record<string, string> = {
+            ...(ids.tvdb === undefined ? {} : { Tvdb: String(ids.tvdb) }),
+            ...(ids.tmdb === undefined ? {} : { Tmdb: String(ids.tmdb) }),
+            ...(ids.imdb === undefined ? {} : { Imdb: ids.imdb })
+        };
+        return Object.keys(out).length === 0 ? undefined : out;
+    }
+
+    static #firstFile(item: RawPlexItem): string | undefined {
+        return item.Media?.flatMap(m => m.Part ?? []).find(p => typeof p.file === 'string')?.file;
+    }
+
+    async readEpisodeMetadata(_user: ServiceUser, seriesItemId: string): Promise<EpisodeRecord[]> {
+        const ratingKey = this.#ratingKey(seriesItemId);
+        const rows = await this.#paged(
+            start =>
+                `/library/metadata/${ratingKey}/allLeaves?includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}`
+        );
+
+        // No providerIds: Plex episode Guids follow from the show's match, so
+        // they would mark every episode pinned, a Jellyfin-only concept.
+        return rows
+            .filter((e): e is RawPlexItem & { ratingKey: string } => typeof e.ratingKey === 'string' && e.type === 'episode')
+            .map(e => {
+                const file = PlexAdapter.#firstFile(e);
+                return {
+                    id: e.ratingKey,
+                    name: this.#fence('title', e.title ?? ''),
+                    ...(e.parentIndex === undefined ? {} : { season: e.parentIndex }),
+                    ...(e.index === undefined ? {} : { episode: e.index }),
+                    ...(file === undefined ? {} : { path: this.#fence('file', file) })
+                };
+            });
+    }
+
+    async readMovieMetadata(_user: ServiceUser, itemId?: string): Promise<MovieRecord[]> {
+        const rows: RawPlexItem[] = [];
+        if (itemId !== undefined) {
+            const body = await this.#http.get<unknown>(`/library/metadata/${this.#ratingKey(itemId)}`);
+            rows.push(...unwrap<RawPlexItem>(body, 'Metadata'));
+        } else {
+            for (const section of await this.#sections('movie')) {
+                rows.push(...(await this.#pagedSection(section.key, PLEX_TYPE_MOVIE)));
+            }
+        }
+
+        return rows
+            .filter((m): m is RawPlexItem & { ratingKey: string } => typeof m.ratingKey === 'string')
+            .map(m => {
+                const file = PlexAdapter.#firstFile(m);
+                const providerIds = PlexAdapter.#providerIds(m);
+                return {
+                    id: m.ratingKey,
+                    name: this.#fence('title', m.title ?? ''),
+                    ...(m.year === undefined ? {} : { year: m.year }),
+                    ...(file === undefined ? {} : { path: this.#fence('file', file) }),
+                    ...(providerIds === undefined ? {} : { providerIds })
+                };
+            });
     }
 
     /**

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MultiUserServiceConfig } from '../src/config/schema.ts';
 import { logger } from '../src/core/logger.ts';
+import { unfenced } from '../src/core/titleMatch.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { jsonResponse, serving } from './helpers/serve.ts';
 
@@ -19,6 +20,7 @@ const CAPTURED_HISTORY = read('history.json');
 const CAPTURED_SEARCH = read('search.json');
 const CAPTURED_SECTION_ALL = read('section-all.json');
 const CAPTURED_METADATA_DETAIL = read('metadata-detail.json');
+const CAPTURED_SECTION_EPISODES = read('section-episodes.json');
 
 const config = (over: Partial<MultiUserServiceConfig> = {}): MultiUserServiceConfig => ({
     url: 'http://192.0.2.10:32400',
@@ -809,6 +811,81 @@ describe('PlexAdapter', () => {
     // UltraBlurColors, Field, and the rest #toIndexItem etc. never touch.
     // The hand-built cases above prove individual branches; these prove the
     // adapter still finds its fields inside that whole real shape.
+    describe('metadata reads', () => {
+        const viewer = { id: '1', name: 'viewer' };
+        const recording = (body: unknown) => {
+            const seen: string[] = [];
+            const impl = (async (input: string) => {
+                const url = new URL(String(input));
+                seen.push(`${url.pathname}${url.search}`);
+                if (url.pathname === '/library/sections') {
+                    return jsonResponse({ MediaContainer: { Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'show' }] } });
+                }
+                return jsonResponse(body);
+            }) as unknown as typeof fetch;
+            return { adapter: new PlexAdapter(config(), impl), seen };
+        };
+
+        it('maps a real episode listing into episode records', async () => {
+            const { adapter } = plex({ '/library/metadata/129854/allLeaves': CAPTURED_SECTION_EPISODES });
+            const episodes = await adapter.readEpisodeMetadata(viewer, '129854');
+
+            expect(episodes).toHaveLength(5);
+            const first = episodes.find(e => e.id === '129856');
+            expect(first).toMatchObject({ season: 1, episode: 1 });
+            expect(first?.name.startsWith('<<untrusted:plex.title>>')).toBe(true);
+            expect(unfenced(first?.path ?? '')).toBe('/library/tv/Fixture show 1/Season 01/Fixture show 1 - S01E01.mkv');
+        });
+
+        it('asks allLeaves for Guids, paged like every other Plex listing', async () => {
+            const { adapter, seen } = recording({ MediaContainer: { Metadata: [] } });
+            await adapter.readEpisodeMetadata(viewer, '42');
+            expect(seen).toEqual(['/library/metadata/42/allLeaves?includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=500']);
+        });
+
+        it('never puts providerIds on an episode, although every captured row carries Guids', async () => {
+            const { adapter } = plex({ '/library/metadata/129854/allLeaves': CAPTURED_SECTION_EPISODES });
+            const episodes = await adapter.readEpisodeMetadata(viewer, '129854');
+
+            expect(episodes).toHaveLength(5);
+            for (const episode of episodes) expect(episode).not.toHaveProperty('providerIds');
+        });
+
+        it('leaves path off an episode Plex holds no file for', async () => {
+            const { adapter } = plex({
+                '/library/metadata/42/allLeaves': {
+                    MediaContainer: { Metadata: [{ ratingKey: '43', type: 'episode', title: 'Episode 1', parentIndex: 1, index: 1 }] }
+                }
+            });
+            const [episode] = await adapter.readEpisodeMetadata(viewer, '42');
+            expect(episode).toMatchObject({ id: '43', season: 1, episode: 1 });
+            expect(episode).not.toHaveProperty('path');
+        });
+
+        it('reads films from movie sections only, filtered to type 1', async () => {
+            const { adapter, seen } = recording(CAPTURED_SECTION_ALL);
+            const films = await adapter.readMovieMetadata(viewer);
+
+            expect(seen).toEqual([
+                '/library/sections',
+                '/library/sections/1/all?type=1&includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=500'
+            ]);
+            expect(films).toHaveLength(5);
+            expect(films.find(f => f.id === '44441')).toMatchObject({
+                year: 2016,
+                providerIds: { Imdb: 'tt1179933', Tmdb: '333371', Tvdb: '777' }
+            });
+        });
+
+        it('reads one film by id when asked for one', async () => {
+            const { adapter } = plex({ '/library/metadata/44441': CAPTURED_METADATA_DETAIL });
+            const films = await adapter.readMovieMetadata(viewer, '44441');
+
+            expect(films.map(f => f.id)).toEqual(['44441']);
+            expect(unfenced(films[0]?.path ?? '')).toBe('/library/movies/Fixture title 1 (2016)/Fixture title 1 (2016).mkv');
+        });
+    });
+
     describe('against captured fixtures', () => {
         it('reads the real /library/sections shape for scan state', async () => {
             const { adapter } = plex({ '/library/sections': CAPTURED_SECTIONS });
