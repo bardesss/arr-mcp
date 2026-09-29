@@ -1,7 +1,10 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SignJWT, exportJWK, generateKeyPair } from 'jose';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
@@ -794,6 +797,22 @@ describe('testing a connection', () => {
             expect(page).toContain('Yes, remove');
             expect(page.match(/<details class="svc" open>/g)).toHaveLength(1);
         });
+
+        it('sends a connection test result uncached, like every other page behind a session', async () => {
+            await seed(TWO);
+            globalThis.fetch = (async () =>
+                new Response(JSON.stringify({ version: '5.1.0' }), {
+                    headers: { 'content-type': 'application/json' }
+                })) as typeof fetch;
+            await signIn();
+            const res = await call(
+                '/ui/config/test',
+                form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '' })
+            );
+
+            expect(res.status).toBe(200);
+            expect(res.headers.get('cache-control')).toBe('no-store');
+        });
     });
 
     it('reports a service that answers', async () => {
@@ -875,6 +894,12 @@ describe('testing a connection', () => {
  * because it is describing one that does not exist yet.
  */
 describe('testing from the add dialog', () => {
+    const realFetch = globalThis.fetch;
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
     const reachable = () => {
         globalThis.fetch = (async () =>
             new Response(JSON.stringify({ version: '5.1.0' }), {
@@ -1957,5 +1982,392 @@ describe('the token reveal panel', () => {
         expect(page).toMatch(/<textarea id="mcp-config"[^>]*><\/textarea>/);
         expect(page.split(token).length - 1).toBe(1);
         expect(page).not.toMatch(/\?token=amcp_/);
+    });
+});
+
+describe('the OAuth card', async () => {
+    const ISSUER = 'https://auth.example.com';
+
+    let mode:
+        | 'ok'
+        | 'http502'
+        | 'html'
+        | 'empty'
+        | 'oct'
+        | 'redirect'
+        | 'noContent'
+        | 'big'
+        | 'bigChunked'
+        | 'stringKey'
+        | 'enc' = 'ok';
+    const { privateKey, publicKey } = await generateKeyPair('RS256');
+    const jwk = { ...(await exportJWK(publicKey)), kid: 'test-key', alg: 'RS256' };
+    const MIB = 1024 * 1024;
+    const json = { 'content-type': 'application/json' };
+    const jwks = createServer((_req, res) => {
+        if (mode === 'http502') return void res.writeHead(502).end('{}');
+        if (mode === 'html') return void res.writeHead(200, { 'content-type': 'text/html' }).end('<html>login</html>');
+        if (mode === 'empty') return void res.writeHead(200, json).end('{"keys":[]}');
+        if (mode === 'redirect') return void res.writeHead(301, { location: "/jwks/'x'?a=1&b=2" }).end();
+        if (mode === 'noContent') return void res.writeHead(204).end();
+        if (mode === 'big') return void res.writeHead(200, json).end(`{"keys":[],"pad":"${'x'.repeat(MIB + 10)}"}`);
+        if (mode === 'bigChunked') {
+            // No content-length, so only a running count catches it.
+            res.writeHead(200, json);
+            res.write(`{"keys":[],"pad":"`);
+            for (let i = 0; i < 20; i += 1) res.write('x'.repeat(128 * 1024));
+            return void res.end('"}');
+        }
+        if (mode === 'stringKey') return void res.writeHead(200, json).end('{"keys":["x"]}');
+        if (mode === 'enc') return void res.writeHead(200, json).end(JSON.stringify({ keys: [{ ...jwk, use: 'enc' }] }));
+        const keys = mode === 'oct' ? [jwk, { kty: 'oct', kid: 'shared', k: 'c2VjcmV0' }] : [jwk];
+        res.writeHead(200, json).end(JSON.stringify({ keys }));
+    });
+    await new Promise<void>(resolve => jwks.listen(0, '127.0.0.1', resolve));
+    afterAll(() => void jwks.close());
+    const JWKS_URI = `http://127.0.0.1:${(jwks.address() as AddressInfo).port}/jwks`;
+
+    // A port that was open a moment ago and is not now.
+    const closed = createServer();
+    await new Promise<void>(resolve => closed.listen(0, '127.0.0.1', resolve));
+    const CLOSED_URI = `http://127.0.0.1:${(closed.address() as AddressInfo).port}/jwks`;
+    await new Promise<void>(resolve => closed.close(() => resolve()));
+
+    const fields = (over: Record<string, string> = {}) => ({
+        'auth.oauth.issuer': ISSUER,
+        'auth.oauth.audience': 'arr-mcp',
+        'auth.oauth.jwks_uri': JWKS_URI,
+        'auth.oauth.scopes.read': 'arr-mcp:read',
+        'auth.oauth.scopes.write': 'arr-mcp:write',
+        'auth.oauth.scopes.destructive': 'arr-mcp:destructive',
+        ...over
+    });
+
+    const post = async (path: string, body: Record<string, string> = {}) =>
+        call(path, form({ csrf: await csrfFrom(), ...body }));
+
+    const decoded = async (res: Response) =>
+        (await res.text()).replaceAll('&#39;', "'").replaceAll('&quot;', '"').replaceAll('&amp;', '&');
+
+    const valueOf = (page: string, name: string) =>
+        new RegExp(`name="${name.replaceAll('.', '\\.')}"[^>]*value="([^"]*)"`).exec(page)?.[1];
+
+    const signed = (scope: string) =>
+        new SignJWT({ iss: ISSUER, aud: 'arr-mcp', sub: 'client-1', scope })
+            .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+            .setIssuedAt()
+            .setExpirationTime('5m')
+            .sign(privateKey);
+
+    const mcp = (token: string) =>
+        app.request('http://localhost:6060/mcp', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: `Bearer ${token}` },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+        });
+
+    beforeEach(() => {
+        mode = 'ok';
+    });
+
+    it('sits in the Access section after the MCP endpoint card, anchored as #oauth', async () => {
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        expect(page).toContain('id="oauth"');
+        expect(page.indexOf('id="oauth"')).toBeGreaterThan(page.indexOf('/ui/config/mcp'));
+        expect(page).toContain('/ui/config/oauth');
+        // Nothing to remove yet.
+        expect(page).not.toContain('/ui/config/oauth/remove');
+    });
+
+    it('pre-fills the scope fields with the defaults when OAuth is absent', async () => {
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        expect(valueOf(page, 'auth.oauth.scopes.read')).toBe('arr-mcp:read');
+        expect(valueOf(page, 'auth.oauth.scopes.write')).toBe('arr-mcp:write');
+        expect(valueOf(page, 'auth.oauth.scopes.destructive')).toBe('arr-mcp:destructive');
+        expect(valueOf(page, 'auth.oauth.issuer')).toBe('');
+    });
+
+    it('saves OAuth, trimmed, with the pre-filled scopes, and touches nothing else', async () => {
+        await signIn();
+        const before = runtime.config;
+        const page = await (await call('/ui/config')).text();
+
+        const res = await post('/ui/config/oauth', {
+            'auth.oauth.issuer': `  ${ISSUER} `,
+            'auth.oauth.audience': ' arr-mcp ',
+            'auth.oauth.jwks_uri': JWKS_URI,
+            'auth.oauth.scopes.read': valueOf(page, 'auth.oauth.scopes.read') ?? '',
+            'auth.oauth.scopes.write': valueOf(page, 'auth.oauth.scopes.write') ?? '',
+            'auth.oauth.scopes.destructive': valueOf(page, 'auth.oauth.scopes.destructive') ?? ''
+        });
+
+        expect(res.status).toBe(200);
+        expect(runtime.config.auth.oauth).toEqual({
+            issuer: ISSUER,
+            audience: 'arr-mcp',
+            jwks_uri: JWKS_URI,
+            scopes: { read: 'arr-mcp:read', write: 'arr-mcp:write', destructive: 'arr-mcp:destructive' }
+        });
+        const { oauth: _oauth, ...restAfter } = runtime.config.auth;
+        expect(restAfter).toEqual(before.auth);
+        expect(runtime.config.services).toEqual(before.services);
+    });
+
+    it('pre-fills every field with the current values once configured', async () => {
+        await signIn();
+        await post('/ui/config/oauth', fields({ 'auth.oauth.scopes.read': 'mcp.read' }));
+        const page = await (await call('/ui/config')).text();
+
+        expect(valueOf(page, 'auth.oauth.issuer')).toBe(ISSUER);
+        expect(valueOf(page, 'auth.oauth.audience')).toBe('arr-mcp');
+        expect(valueOf(page, 'auth.oauth.jwks_uri')).toBe(JWKS_URI);
+        expect(valueOf(page, 'auth.oauth.scopes.read')).toBe('mcp.read');
+        expect(page).toContain('/ui/config/oauth/remove');
+    });
+
+    it('refuses a plain-http issuer off loopback, naming the issuer, and saves nothing', async () => {
+        await signIn();
+        const res = await post('/ui/config/oauth', fields({ 'auth.oauth.issuer': 'http://auth.example.com' }));
+
+        expect(res.status).toBe(400);
+        const page = await decoded(res);
+        expect(page).toMatch(/[Ii]ssuer/);
+        expect(page).toContain('https, or http on localhost');
+        expect(page).not.toContain('✖');
+        expect(runtime.config.auth.oauth).toBeUndefined();
+    });
+
+    it('refuses duplicate scope names and saves nothing', async () => {
+        await signIn();
+        const res = await post('/ui/config/oauth', fields({ 'auth.oauth.scopes.write': 'arr-mcp:read' }));
+
+        expect(res.status).toBe(400);
+        expect(await decoded(res)).toContain('three distinct scopes');
+        expect(runtime.config.auth.oauth).toBeUndefined();
+    });
+
+    it('keeps what was typed when a save is refused', async () => {
+        await signIn();
+        const res = await post('/ui/config/oauth', fields({ 'auth.oauth.issuer': 'http://auth.example.com' }));
+
+        expect(valueOf(await res.text(), 'auth.oauth.issuer')).toBe('http://auth.example.com');
+    });
+
+    it('refuses to save while the URL token is on, in a sentence, and saves nothing', async () => {
+        await signIn();
+        await post('/ui/config/mcp', { 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' });
+        expect(runtime.config.auth.allow_token_in_url).toBe(true);
+
+        const res = await post('/ui/config/oauth', fields());
+
+        expect(res.status).toBe(400);
+        expect(await decoded(res)).toContain(
+            "Turn off 'Accept the token in the URL' on the MCP endpoint card first. A JWT in the URL reaches every proxy log."
+        );
+        expect(runtime.config.auth.oauth).toBeUndefined();
+    });
+
+    it('points the MCP endpoint card at the OAuth card rather than config.yaml', async () => {
+        await signIn();
+        await post('/ui/config/oauth', fields());
+
+        const page = await (await call('/ui/config')).text();
+        expect(page).toContain('Unavailable while OAuth is configured');
+        const refused = await decoded(
+            await post('/ui/config/mcp', { 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' })
+        );
+        expect(refused).toContain('OAuth is configured');
+        expect(refused).toContain('OAuth card');
+        expect(refused).not.toContain('auth.oauth block from config.yaml');
+    });
+
+    it('asks before removing OAuth, then removes it', async () => {
+        await signIn();
+        await post('/ui/config/oauth', fields());
+
+        const asking = await post('/ui/config/oauth/remove', fields());
+        expect(asking.status).toBe(200);
+        expect(await asking.text()).toContain('Yes, remove OAuth');
+        expect(runtime.config.auth.oauth).toBeDefined();
+
+        const removed = await post('/ui/config/oauth/remove', { confirm: 'yes' });
+        expect(removed.status).toBe(200);
+        expect(runtime.config.auth.oauth).toBeUndefined();
+    });
+
+    describe('Test', () => {
+        const test = async (over: Record<string, string> = {}) => {
+            const before = runtime.config;
+            const res = await post('/ui/config/oauth/test', fields(over));
+            const page = await decoded(res);
+            // A test never saves, whatever it finds.
+            expect(runtime.config).toBe(before);
+            return { res, page };
+        };
+
+        it('lists each key with its kid and alg, and keeps the typed values', async () => {
+            await signIn();
+            const { res, page } = await test({ 'auth.oauth.audience': 'typed-audience' });
+
+            expect(res.status).toBe(200);
+            expect(page).toContain('test-key');
+            expect(page).toContain('RS256');
+            expect(valueOf(page, 'auth.oauth.audience')).toBe('typed-audience');
+            expect(runtime.config.auth.oauth).toBeUndefined();
+        });
+
+        it('reports an HTTP error status', async () => {
+            await signIn();
+            mode = 'http502';
+            expect((await test()).page).toContain('HTTP 502');
+        });
+
+        const refused = (page: string) => {
+            expect(page).toContain('class="msg err"');
+            expect(page).not.toContain('class="msg ok"');
+        };
+
+        // jose fetches with `redirect: 'manual'` and wants exactly 200, so a
+        // redirect that a browser would follow is a 503 at /mcp.
+        it('reports a redirect without following it, naming the target escaped, and never logs it', async () => {
+            await signIn();
+            mode = 'redirect';
+            attachLogStore(logs);
+            let raw: string;
+            try {
+                const res = await post('/ui/config/oauth/test', fields());
+                raw = await res.text();
+            } finally {
+                detachLogStore();
+            }
+
+            expect(raw).toContain('HTTP 301');
+            expect(raw).toContain('redirects are not followed');
+            // Resolved against jwks_uri, so it can be pasted straight back in.
+            expect(raw).toContain(`${JWKS_URI}/&#39;x&#39;?a=1&amp;b=2`);
+            expect(raw).not.toContain("'x'?a=1&b");
+            expect(raw).not.toContain('test-key');
+            expect(JSON.stringify(logs.recent({ limit: 50 }))).not.toContain('/jwks/');
+        });
+
+        it('refuses a 2xx that is not 200', async () => {
+            await signIn();
+            mode = 'noContent';
+            const { page } = await test();
+            expect(page).toContain('HTTP 204');
+            refused(page);
+        });
+
+        it('refuses a key set declared larger than 1 MiB', async () => {
+            await signIn();
+            mode = 'big';
+            const { page } = await test();
+            expect(page).toContain('The key set is larger than 1 MiB');
+            refused(page);
+        });
+
+        it('stops reading a streamed key set past 1 MiB', async () => {
+            await signIn();
+            mode = 'bigChunked';
+            const { page } = await test();
+            expect(page).toContain('The key set is larger than 1 MiB');
+            refused(page);
+        });
+
+        it('flags an entry that is not a key object', async () => {
+            await signIn();
+            mode = 'stringKey';
+            refused((await test()).page);
+        });
+
+        it('flags an encryption key', async () => {
+            await signIn();
+            mode = 'enc';
+            const { page } = await test();
+            expect(page).toContain('enc');
+            refused(page);
+        });
+
+        it('tests while the URL token is on, saying Save will be refused', async () => {
+            await signIn();
+            await post('/ui/config/mcp', { 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' });
+
+            const { res, page } = await test();
+            expect(res.status).toBe(200);
+            expect(page).toContain('test-key');
+            expect(page).toContain("Saving will be refused until 'Accept the token in the URL' is off.");
+        });
+
+        it('is never cached', async () => {
+            await signIn();
+            const { res } = await test();
+            expect(res.headers.get('cache-control')).toBe('no-store');
+        });
+
+        it('reports a body that is not JSON', async () => {
+            await signIn();
+            mode = 'html';
+            expect((await test()).page).toContain('not JSON');
+        });
+
+        it('reports an unreachable key set', async () => {
+            await signIn();
+            expect((await test({ 'auth.oauth.jwks_uri': CLOSED_URI })).page).toContain('unreachable');
+        });
+
+        it('reports a key set with no keys', async () => {
+            await signIn();
+            mode = 'empty';
+            expect((await test()).page).toContain('no keys');
+        });
+
+        it('flags a symmetric key arr-mcp will not accept', async () => {
+            await signIn();
+            mode = 'oct';
+            const { page } = await test();
+            expect(page).toContain('shared');
+            expect(page).toContain('symmetric');
+        });
+
+        it('refuses a candidate the schema refuses, with a 400 naming the field', async () => {
+            await signIn();
+            const { res, page } = await test({ 'auth.oauth.jwks_uri': 'http://keys.example.com/jwks' });
+            expect(res.status).toBe(400);
+            expect(page).toContain('https, or http on localhost');
+        });
+
+        it('refuses a bad CSRF token with 403', async () => {
+            await signIn();
+            const before = runtime.config;
+            const res = await call('/ui/config/oauth/test', form({ csrf: 'forged', ...fields() }));
+            expect(res.status).toBe(403);
+            expect(runtime.config).toBe(before);
+        });
+
+        it('does not save even when OAuth is already configured', async () => {
+            await signIn();
+            await post('/ui/config/oauth', fields());
+            const saved = runtime.config.auth.oauth;
+
+            await test({ 'auth.oauth.audience': 'something-else' });
+            expect(runtime.config.auth.oauth).toEqual(saved);
+        });
+    });
+
+    it('end to end: a token from the saved issuer works, and stops working after Remove', async () => {
+        await signIn();
+        const token = await signed('arr-mcp:read');
+        expect((await mcp(token)).status).toBe(401);
+
+        expect((await post('/ui/config/oauth', fields())).status).toBe(200);
+        expect((await mcp(token)).status).toBe(200);
+
+        await post('/ui/config/oauth/remove', { confirm: 'yes' });
+        expect((await mcp(token)).status).toBe(401);
+        expect((await mcp(BEARER)).status).toBe(200);
     });
 });
