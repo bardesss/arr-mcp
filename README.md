@@ -151,6 +151,7 @@ Thirty-eight tools, but you never name them — you ask, and the model picks:
 > *"Not that release — grab the 1080p remux instead."*
 > *"Why does this episode keep failing and never downloading?"*
 > *"Pause SABnzbd, I need the bandwidth for an hour."*
+> *"What are my seeding rules, and is anything still seeding past them?"*
 > *"That download finished days ago and never got imported — sort it out."*
 > *"Put this series on the 4K profile and only monitor future seasons."*
 > *"This profile says it wants Dutch but keeps grabbing English — why?"*

@@ -20,6 +20,7 @@ import {
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
@@ -29,6 +30,8 @@ import type { components } from './generated/sonarr.ts';
 import {
     diagnoseConnection,
     type BlocklistEntry,
+    type IndexerSeedCriteria,
+    type SeedCriteriaCapable,
     type CalendarCapable,
     type CalendarEntry,
     type ConnectionDiagnosis,
@@ -170,7 +173,8 @@ export class SonarrAdapter
         HistoryCapable,
         WantedCapable,
         ReleaseSearchCapable,
-        ProfileDiagnosticsCapable
+        ProfileDiagnosticsCapable,
+        SeedCriteriaCapable
 {
     readonly type: ServiceId = 'sonarr';
     readonly instance: string | undefined;
@@ -230,6 +234,10 @@ export class SonarrAdapter
 
     async readBlocklist(): Promise<BlocklistEntry[]> {
         return readArrBlocklist(this.#http, this.id, 'series');
+    }
+
+    async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
+        return readSeedCriteria(this.#http, this.id, 'arr');
     }
 
     async removeBlocklistItem(id: string): Promise<void> {
