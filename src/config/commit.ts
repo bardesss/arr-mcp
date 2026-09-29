@@ -14,9 +14,13 @@ export async function commitConfig(runtime: Runtime, expected: Config, next: Con
             try {
                 await runtime.reload();
             } catch (reloadErr) {
+                // Only a file that does not validate is the user's to fix.
+                if (!(reloadErr instanceof ConfigInvalidError)) throw reloadErr;
                 // The reason only: the error object can carry the salvaged auth block.
-                const reason = reloadErr instanceof ConfigInvalidError ? reloadErr.detail : String((reloadErr as Error)?.message ?? reloadErr);
-                logger.warn({ reason }, 'config.yaml changed on disk and does not load; keeping the running config');
+                logger.warn(
+                    { reason: reloadErr.detail },
+                    'config.yaml changed on disk and does not load; keeping the running config'
+                );
                 throw new ConfigUnloadableError();
             }
         }

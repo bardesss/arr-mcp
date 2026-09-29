@@ -3,7 +3,7 @@ import type { Context, Hono } from 'hono';
 import { commitConfig } from '../config/commit.ts';
 import { configEtag } from '../config/etag.ts';
 import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint } from '../config/edits.ts';
-import { saveConfig } from '../config/save.ts';
+import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
@@ -440,7 +440,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                             ? {
                                   oauth: {
                                       ...(message === undefined ? {} : { message }),
-                                      ...(status === 200 ? {} : { draft: oauthDraftFrom(form) })
+                                      // A stale page's draft is what the 409 refused to apply.
+                                      ...(status === 200 || status === 409 ? {} : { draft: oauthDraftFrom(form) })
                                   }
                               }
                             : message === undefined
@@ -513,7 +514,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // The file is written atomically and validated first, so
                 // reaching here means the config on disk is still the working
                 // one.
-                logger.error({ err }, 'config save failed');
+                // commitConfig already warned about an unloadable hand edit.
+                if (!(err instanceof ConfigUnloadableError)) logger.error({ err }, 'config save failed');
                 return render({ kind: 'err', text: (err as Error).message }, 400);
             }
 

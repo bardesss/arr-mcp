@@ -55,4 +55,15 @@ describe('commitConfig', () => {
         expect(runtime.config).toBe(expected);
         expect(warn).toHaveBeenCalled();
     });
+
+    it('rethrows a reload that failed for another reason as itself', async () => {
+        const { dir, runtime } = await seeded();
+        const expected = runtime.config;
+        await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: someone-else\nservices: {}\n', 'utf8');
+        const denied = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+        vi.spyOn(runtime, 'reload').mockRejectedValue(denied);
+        await expect(
+            commitConfig(runtime, expected, { ...expected, auth: { ...expected.auth, username: 'owner' } })
+        ).rejects.toBe(denied);
+    });
 });

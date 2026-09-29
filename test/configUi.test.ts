@@ -12,7 +12,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { FREE_ATTEMPTS } from '../src/core/loginThrottle.ts';
 import { Runtime } from '../src/core/runtime.ts';
-import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
+import { attachLogStore, detachLogStore, logger } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
 import * as session from '../src/core/session.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
@@ -1160,6 +1160,24 @@ describe('a page left open while the config changed', () => {
         expect(runtime.config.auth.tokens.some(t => t.name === 'phone')).toBe(true);
     });
 
+    it('logs a hand edit that no longer loads once, at warn', async () => {
+        await seedKeyed();
+        await signIn();
+        const keys = keysFrom(await (await call('/ui/config')).text());
+        await writeFile(join(dir, 'config.yaml'), 'services: 5\n', 'utf8');
+        const warn = vi.spyOn(logger, 'warn');
+        const error = vi.spyOn(logger, 'error');
+        try {
+            const res = await saveCard(keys);
+            expect(await res.text()).toContain('no longer loads. Fix the file, then retry.');
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(error).not.toHaveBeenCalled();
+        } finally {
+            warn.mockRestore();
+            error.mockRestore();
+        }
+    });
+
     it('puts the etag on every form that saves', async () => {
         await seedKeyed();
         await signIn();
@@ -2303,6 +2321,17 @@ describe('the OAuth card', async () => {
         const res = await post('/ui/config/oauth', fields({ 'auth.oauth.issuer': 'http://auth.example.com' }));
 
         expect(valueOf(await res.text(), 'auth.oauth.issuer')).toBe('http://auth.example.com');
+    });
+
+    it('shows the current OAuth config, not the typed draft, when the page was stale', async () => {
+        await signIn();
+        const stale = keysFrom(await (await call('/ui/config')).text());
+        await post('/ui/config/oauth', fields());
+
+        const res = await call('/ui/config/oauth', form({ ...stale, ...fields({ 'auth.oauth.audience': 'typed' }) }));
+
+        expect(res.status).toBe(409);
+        expect(valueOf(await res.text(), 'auth.oauth.audience')).toBe('arr-mcp');
     });
 
     it('refuses to save while the URL token is on, in a sentence, and saves nothing', async () => {
