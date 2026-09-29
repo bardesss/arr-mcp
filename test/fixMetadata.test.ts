@@ -1,13 +1,14 @@
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type * as z from 'zod/v4';
-import type { AnyServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
+import type { AnyServiceConfig, MultiUserServiceConfig, PlexServiceConfig } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { MergedItem } from '../src/core/resolver.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
+import { PlexAdapter } from '../src/services/plex.ts';
 import { registerFixMetadata } from '../src/tools/fixMetadata.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -68,8 +69,8 @@ function harness(
         episodes?: Record<string, unknown>[];
         item?: MergedItem;
         films?: Record<string, unknown>[];
-        /** Stand in a Plex adapter beside (or instead of) Jellyfin. */
-        adapters?: 'plex-only';
+        /** No media-server adapter at all. */
+        adapters?: 'none';
     } = {}
 ) {
     const config = opts.config ?? jellyfinConfig();
@@ -117,7 +118,6 @@ function harness(
     }) as unknown as typeof fetch;
 
     const adapter = new JellyfinAdapter(config, impl);
-    const plexish = { id: 'plex', type: 'plex' } as never;
 
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
@@ -142,9 +142,9 @@ function harness(
             audit: WriteAudit.ephemeral(),
             library: loader
         },
-        opts.adapters === 'plex-only' ? [plexish] : [adapter],
+        opts.adapters === 'none' ? [] : [adapter],
         loader,
-        opts.adapters === 'plex-only' ? undefined : new IdentityResolver(adapter, config)
+        opts.adapters === 'none' ? undefined : new IdentityResolver(adapter, config)
     );
 
     return { call: (a: Record<string, unknown>) => call(a), wrote };
@@ -237,9 +237,9 @@ describe('fix_metadata', () => {
         });
     });
 
-    it('tells a Plex user this is a Jellyfin repair, not that they have no media server', async () => {
-        const h = harness({ adapters: 'plex-only' });
-        await expect(h.call({ query: 'Dragon Ball Kai' })).rejects.toThrow(/read-only/);
+    it('names both media servers when neither is configured', async () => {
+        const h = harness({ adapters: 'none' });
+        await expect(h.call({ query: 'Dragon Ball Kai' })).rejects.toThrow(/services\.jellyfin or services\.plex/);
     });
 
     it('says so when no TVDB id is known, because the refresh may re-match the same way', async () => {
@@ -383,5 +383,206 @@ describe('episodes pinned to their own provider ids', () => {
         const result = structuredContent.result as { verified: boolean; note: string };
         expect(result.verified).toBe(false);
         expect(result.note).toContain('NOT FIXED');
+    });
+});
+
+const PLEX_SERIES = '900100';
+
+const plexConfig = (over: { allow?: boolean; destructive?: boolean } = {}): PlexServiceConfig => ({
+    url: 'http://192.0.2.20:32400',
+    api_key: 'tok',
+    timeout_ms: 10_000,
+    default_user: 'Sam',
+    allow_other_users: false,
+    allow_metadata_repair: over.allow ?? true,
+    permissions: { safe_write: true, destructive: over.destructive ?? true }
+});
+
+/** Plex never matched these, so they carry no Guid and are not pinned. */
+const plexEpisode = (n: number) => ({
+    ratingKey: `90010${n}`,
+    type: 'episode',
+    title: 'Fixture show 2',
+    parentIndex: 1,
+    index: n,
+    Media: [{ Part: [{ file: `/library/tv/Fixture show 2/Season 01/Fixture show 2 - S01E0${n} - Some other words.mkv` }] }]
+});
+
+const plexSeries = (over: Partial<MergedItem> = {}): MergedItem =>
+    seriesItem({ title: 'Fixture show 2', ids: { tvdb: 900 }, playback: { user: 'Sam', itemId: PLEX_SERIES }, ...over });
+
+function plexHarness(
+    opts: { allow?: boolean; destructive?: boolean; item?: MergedItem; films?: Record<string, unknown>[] } = {}
+) {
+    const config = plexConfig(opts);
+    const sent: { method: string; path: string; params: Record<string, string> }[] = [];
+
+    const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        const method = init?.method ?? 'GET';
+        sent.push({ method, path: url.pathname, params: Object.fromEntries(url.searchParams) });
+
+        if (method === 'PUT') return new Response(null);
+        if (url.pathname === '/accounts') return jsonResponse({ MediaContainer: { Account: [{ id: 1, name: 'Sam' }] } });
+        if (url.pathname === '/library/sections') {
+            return jsonResponse({
+                MediaContainer: {
+                    Directory: [
+                        { key: '1', type: 'movie', agent: 'tv.plex.agents.movie', language: 'en-US' },
+                        { key: '2', type: 'show', agent: 'tv.plex.agents.series', language: 'en-US' }
+                    ]
+                }
+            });
+        }
+        if (url.pathname === `/library/metadata/${PLEX_SERIES}/allLeaves`) {
+            return jsonResponse({ MediaContainer: { Metadata: [plexEpisode(1)] } });
+        }
+        if (url.pathname.endsWith('/matches')) {
+            return jsonResponse({ MediaContainer: { SearchResult: [{ guid: 'plex://show/fixture2', name: 'Fixture show 2', score: 100 }] } });
+        }
+        const film = (opts.films ?? []).find(f => url.pathname === `/library/metadata/${String(f.ratingKey)}`);
+        if (film !== undefined) return jsonResponse({ MediaContainer: { Metadata: [film] } });
+        if (url.pathname === `/library/metadata/${PLEX_SERIES}`) {
+            return jsonResponse({ MediaContainer: { Metadata: [{ ratingKey: PLEX_SERIES, type: 'show', librarySectionID: 2 }] } });
+        }
+        return jsonResponse({ message: 'not found' }, 404);
+    }) as unknown as typeof fetch;
+
+    const adapter = new PlexAdapter(config, impl);
+    const audit = WriteAudit.ephemeral();
+
+    let call: Call = () => Promise.reject(new Error('not registered'));
+    const server = {
+        registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
+            call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+        }
+    };
+    const loader = {
+        load: async () => ({ index: { search: () => [opts.item ?? plexSeries()] }, degraded: [] }),
+        invalidate: vi.fn()
+    } as unknown as LibraryLoader;
+
+    registerFixMetadata(
+        server as never,
+        {
+            permissions: permissionSourceFrom(instancesOf({ plex: config as unknown as AnyServiceConfig })),
+            confirm: new ConfirmTokens(),
+            audit,
+            library: loader
+        },
+        [adapter],
+        loader,
+        new IdentityResolver(adapter, config)
+    );
+
+    return {
+        call: (a: Record<string, unknown>) => call(a),
+        sent,
+        audit,
+        writes: () => sent.filter(s => s.method === 'PUT')
+    };
+}
+
+const PLEX_OFF_REMEDY =
+    'Set services.plex.allow_metadata_repair: true in config.yaml to allow it. It has not been verified against a live Plex server yet, see docs/tools.md.';
+
+describe('fix_metadata on Plex', () => {
+    const confirmed = async (h: ReturnType<typeof plexHarness>, query = 'Fixture show 2') => {
+        const preview = await h.call({ query });
+        return h.call({ query, confirm: preview.structuredContent.confirm_token });
+    };
+
+    it('previews against Plex and binds the token to the Plex item', async () => {
+        const h = plexHarness();
+        const { structuredContent } = await h.call({ query: 'Fixture show 2' });
+
+        expect(structuredContent.service).toBe('plex');
+        expect(structuredContent.target).toBe(`plex:${PLEX_SERIES}`);
+        expect(structuredContent.confirm_token).toBeDefined();
+        expect(h.writes()).toHaveLength(0);
+    });
+
+    it('matches by the TVDB id and refreshes on confirm', async () => {
+        const h = plexHarness();
+        const { structuredContent } = await confirmed(h);
+
+        expect(structuredContent.applied).toBe(true);
+        expect(h.writes().map(w => w.path)).toEqual([`/library/metadata/${PLEX_SERIES}/match`, `/library/metadata/${PLEX_SERIES}/refresh`]);
+        expect(h.sent.find(s => s.path.endsWith('/matches'))?.params.title).toBe('tvdb-900');
+    });
+
+    it('does not claim the repair worked, because Plex refreshes in the background', async () => {
+        const h = plexHarness();
+        const result = (await confirmed(h)).structuredContent.result as { verified: boolean; note: string };
+
+        expect(result.verified).toBe(false);
+        expect(result.note).toContain('NOT VERIFIED');
+        expect(result.note).toContain('get_metadata_issues again in a minute');
+    });
+
+    it('matches a film by its TMDB id', async () => {
+        const film = {
+            ratingKey: '900200',
+            type: 'movie',
+            title: 'Fixture film',
+            year: 2011,
+            librarySectionID: 1,
+            Media: [{ Part: [{ file: '/library/movies/Fixture film (1982)/Fixture film (1982).mkv' }] }]
+        };
+        const h = plexHarness({
+            item: plexSeries({ kind: 'movie', title: 'Fixture film', ids: { tmdb: 901, tvdb: 902 }, playback: { user: 'Sam', itemId: '900200' } }),
+            films: [film]
+        });
+        await confirmed(h, 'Fixture film');
+
+        expect(h.sent.find(s => s.path === '/library/metadata/900200/matches')?.params).toMatchObject({
+            title: 'tmdb-901',
+            agent: 'tv.plex.agents.movie'
+        });
+        expect(h.writes().map(w => w.path)).toEqual(['/library/metadata/900200/match', '/library/metadata/900200/refresh']);
+    });
+
+    it('only refreshes when no provider id is known', async () => {
+        const h = plexHarness({ item: plexSeries({ ids: {} }) });
+        await confirmed(h);
+
+        expect(h.writes().map(w => w.path)).toEqual([`/library/metadata/${PLEX_SERIES}/refresh`]);
+        expect(h.sent.some(s => s.path.endsWith('/matches'))).toBe(false);
+    });
+
+    it('previews the real mismatches with the setting off, refused and with no token', async () => {
+        const h = plexHarness({ allow: false });
+        const { structuredContent } = await h.call({ query: 'Fixture show 2', dry_run: true });
+
+        expect(structuredContent.noop).toBe(false);
+        expect(structuredContent.effects.join('\n')).toContain('Some other words');
+        expect(structuredContent.permission).toEqual({ allowed: false, reason: 'Plex repair is off', remedy: PLEX_OFF_REMEDY });
+        expect(structuredContent.confirm_token).toBeUndefined();
+        expect(h.writes()).toHaveLength(0);
+    });
+
+    it('refuses the write with the setting off and audits it as denied', async () => {
+        const h = plexHarness({ allow: false });
+        await expect(h.call({ query: 'Fixture show 2' })).rejects.toThrow(/Plex repair is off/);
+
+        expect(h.audit.recent()[0]).toMatchObject({
+            tool: 'fix_metadata',
+            service: 'plex',
+            target: `plex:${PLEX_SERIES}`,
+            outcome: 'denied',
+            detail: 'Plex repair is off'
+        });
+        expect(h.writes()).toHaveLength(0);
+    });
+
+    it('names the setting ahead of the destructive tier when both are off', async () => {
+        const h = plexHarness({ allow: false, destructive: false });
+        await expect(h.call({ query: 'Fixture show 2' })).rejects.toThrow(/Plex repair is off/);
+    });
+
+    it('is refused when the destructive tier is off, even with the setting on', async () => {
+        const h = plexHarness({ destructive: false });
+        await expect(h.call({ query: 'Fixture show 2' })).rejects.toThrow(/destructive writes are disabled for plex/);
+        expect(h.writes()).toHaveLength(0);
     });
 });
