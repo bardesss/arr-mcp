@@ -1,5 +1,6 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
+import { commitConfig } from '../config/commit.ts';
 import { saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
@@ -477,8 +478,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // `expected` is the snapshot this page's form was built from,
                 // so a service hand-added to config.yaml since then is a
                 // refusal rather than a silent deletion under a "Saved" banner.
-                await saveConfig(runtime.configDir, updated, { expected });
-                await runtime.reload();
+                await commitConfig(runtime, expected, updated);
 
                 if (opts.endsSessions?.(form) === true) {
                     // Sessions signed with the old key must not outlive the

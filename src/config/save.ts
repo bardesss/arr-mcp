@@ -47,13 +47,15 @@ function mergeInto(doc: Document, path: string[], value: unknown): void {
 
 /** Key order is not data, so a stable ordering is what makes two configs
  *  comparable. */
-function stableJson(value: unknown): string {
+export function stableJson(value: unknown): string {
     return JSON.stringify(value, (_key, node: unknown) =>
         node !== null && typeof node === 'object' && !Array.isArray(node)
             ? Object.fromEntries(Object.entries(node as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
             : node
     );
 }
+
+export class ConfigDriftError extends Error {}
 
 /**
  * Whether the file still says what the page believed.
@@ -128,7 +130,7 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
     // Applied immediately" message. Refusing is the only honest answer: this
     // cannot tell "the user removed it" from "the user never saw it".
     if (opts.expected !== undefined && driftedFrom(doc, opts.expected)) {
-        throw new Error(
+        throw new ConfigDriftError(
             'config.yaml changed on disk since this page was loaded, so saving would overwrite that change. ' +
                 'Reload the page and make the edit again.'
         );
