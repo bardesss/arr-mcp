@@ -30,11 +30,7 @@ export function tiersFor(oauth: OAuthConfig, scopes: readonly string[]): Readonl
     return tiers;
 }
 
-/**
- * The same source, with an upper bound. `get` is untouched, so the gate still
- * answers from `config.yaml` alone and a compromised or over-generous issuer
- * cannot grant a write this server was never configured to allow.
- */
+/** Refusal wording for a tier an OAuth token's scopes do not carry. */
 export function oauthRefusal(scopes: OAuthConfig['scopes'] | undefined) {
     return (tier: WriteTier) => {
         const scope = scopes === undefined ? undefined : tier === 'safe' ? scopes.write : scopes.destructive;
@@ -46,6 +42,7 @@ export function oauthRefusal(scopes: OAuthConfig['scopes'] | undefined) {
     };
 }
 
+/** Refusal wording for a tier above a named MCP token's own. */
 export function tokenRefusal(name: string, tier: TokenTier) {
     return (wanted: WriteTier) => {
         const needs = wanted === 'safe' ? 'write' : 'destructive';
@@ -56,6 +53,11 @@ export function tokenRefusal(name: string, tier: TokenTier) {
     };
 }
 
+/**
+ * The same source, with an upper bound. `get` is untouched, so the gate still
+ * answers from `config.yaml` alone and a compromised or over-generous issuer
+ * cannot grant a write this server was never configured to allow.
+ */
 export function cappedTo(source: PermissionSource, tiers: ReadonlySet<WriteTier>, refusal: (tier: WriteTier) => { reason: string; remedy: string }): PermissionSource {
     return { get: instance => source.get(instance), permits: tier => tiers.has(tier), refusal };
 }
