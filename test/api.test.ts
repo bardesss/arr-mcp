@@ -20,7 +20,7 @@ let app: ReturnType<typeof buildApp>;
 let logs: LogStore;
 let audit: WriteAudit;
 
-const seed = async (opts: { keyed?: boolean } = {}) => {
+const seed = async (opts: { keyed?: boolean; radarrUrl?: string } = {}) => {
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-api-'));
     await writeFile(
         join(dir, 'config.yaml'),
@@ -33,7 +33,7 @@ const seed = async (opts: { keyed?: boolean } = {}) => {
             ...(opts.keyed === false ? [] : [`  management_key: { hash: '${hashToken(KEY)}', created: '2026-09-29' }`]),
             'services:',
             '  radarr:',
-            `    - { name: hd, url: 'http://user:pw@radarr:7878', api_key: '${RADARR_KEY}' }`,
+            `    - { name: hd, url: '${opts.radarrUrl ?? 'http://user:pw@radarr:7878'}', api_key: '${RADARR_KEY}' }`,
             `  transmission: { url: 'http://transmission:9091', username: tx, password: '${TX_PASSWORD}' }`,
             ''
         ].join('\n'),
@@ -124,6 +124,7 @@ describe('GET /system/status', () => {
 describe('GET /health', () => {
     it('reports one entry per app, down ones included', async () => {
         vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+        await seed();
         const res = await api('/health');
         expect(res.status).toBe(200);
         const body = (await res.json()) as { app: string; type: string; ok: boolean; latencyMs: number; error?: { kind: string } }[];
@@ -131,6 +132,25 @@ describe('GET /health', () => {
         expect(body[0]).toMatchObject({ type: 'radarr', ok: false });
         expect(typeof body[0]?.latencyMs).toBe('number');
         expect(body[0]?.error?.kind).toBeDefined();
+    });
+});
+
+describe('GET /health detail', () => {
+    it('keeps the remedy on a down app', async () => {
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(new Response('nope', { status: 401 })));
+        await seed({ radarrUrl: 'http://radarr:7878' });
+        const body = (await (await api('/health')).json()) as { app: string; error?: { kind: string; remedy?: string } }[];
+        expect(body[0]?.app).toBe('radarr/hd');
+        expect(body[0]?.error?.remedy).toEqual(expect.any(String));
+    });
+
+    it('keeps the version on a healthy app', async () => {
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+            Promise.resolve(new Response(JSON.stringify({ version: '5.1.0' }), { headers: { 'content-type': 'application/json' } }))
+        );
+        await seed({ radarrUrl: 'http://radarr:7878' });
+        const body = (await (await api('/health')).json()) as { app: string; ok: boolean; version?: string }[];
+        expect(body[0]).toMatchObject({ app: 'radarr/hd', ok: true, version: '5.1.0' });
     });
 });
 
@@ -161,7 +181,7 @@ describe('GET /log', () => {
     });
 
     it('refuses a bad level, cursor or limit', async () => {
-        for (const q of ['level=loud', 'afterId=-1', 'afterId=x', 'limit=0', 'limit=301']) {
+        for (const q of ['level=loud', 'afterId=-1', 'afterId=x', 'limit=0', 'limit=301', 'limit=x', 'level=constructor']) {
             expect((await api(`/log?${q}`)).status, q).toBe(400);
         }
     });

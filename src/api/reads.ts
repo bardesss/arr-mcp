@@ -24,7 +24,7 @@ export function registerReads(app: Hono, deps: ApiDeps): void {
     app.get(`${API_BASE}/health`, async c => {
         const snapshot = runtime.current;
         const types = new Map(listInstances(snapshot.config).map(i => [i.id, i.type]));
-        const { services } = await buildStackHealth(snapshot.adapters, { detail: 'minimal', limit: 50 });
+        const { services } = await buildStackHealth(snapshot.adapters, { detail: 'standard', limit: 50 });
         return c.json(
             services
                 .map(d => ({
