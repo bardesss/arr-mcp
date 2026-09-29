@@ -110,8 +110,9 @@ services:
 
 It is off by default because it has not been verified against a live Plex
 server yet. Jellyfin needs no such setting, and `allow_metadata_repair` on any
-other service is refused at startup. The config page does not show it; set it
-in `config.yaml`. See [Repairing on Plex](tools.md#repairing-on-plex).
+other service is refused at startup. The Plex card on the config page has a
+checkbox for it, marked experimental. See
+[Repairing on Plex](tools.md#repairing-on-plex).
 
 `default_user` behaves differently here than on Jellyfin, and it is worth
 knowing before you set it. A local `X-Plex-Token` is scoped to one account, so

@@ -258,6 +258,19 @@ function instanceCard(
             'destructive — deletes files, queue items and requests (implies safe_write)',
             service.permissions.destructive
         )}
+        ${instance.type === 'plex'
+            ? html`${checkbox(
+                  `${p}.allow_metadata_repair`,
+                  'allow_metadata_repair',
+                  'allow_metadata_repair — let fix_metadata repair Plex metadata (experimental)',
+                  (service as { allow_metadata_repair?: boolean }).allow_metadata_repair ?? false
+              )}
+              <p class="note">
+                  Experimental: this repair has not been run against a real Plex server yet, and needs destructive
+                  as well. Reports are welcome on
+                  <a href="https://github.com/bardesss/arr-mcp/issues/312">#312</a>.
+              </p>`
+            : raw('')}
 
         <div class="row" style="margin-top:1rem">
             <button type="submit">Save</button>

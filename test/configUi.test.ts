@@ -1003,6 +1003,46 @@ describe('testing from the add dialog', () => {
     });
 });
 
+describe('the Plex repair switch', () => {
+    const PLEX = '  plex:\n    url: http://192.0.2.10:32400\n    api_key: k\n';
+    const savePlex = async (extra: Record<string, string> = {}) =>
+        call('/ui/config/save', form({ csrf: await csrfFrom(), instance: 'plex', url: 'http://192.0.2.10:32400', api_key: '', ...extra }));
+
+    it('shows on the Plex card only, marked experimental', async () => {
+        await seed(`${PLEX}  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n`);
+        await signIn();
+        const page = await (await call('/ui/config')).text();
+
+        expect(page.match(/name="allow_metadata_repair"/g)).toHaveLength(1);
+        expect(page).toContain('experimental');
+        expect(page).toContain('issues/312');
+    });
+
+    it('turns the repair on and off from the card', async () => {
+        await seed(PLEX);
+        await signIn();
+
+        await savePlex({ allow_metadata_repair: 'on' });
+        expect(runtime.config.services.plex?.allow_metadata_repair).toBe(true);
+        expect(await (await call('/ui/config')).text()).toMatch(/name="allow_metadata_repair"[^>]*checked/);
+
+        await savePlex();
+        expect(runtime.config.services.plex?.allow_metadata_repair).toBe(false);
+    });
+
+    it('never writes the switch onto another service', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const res = await call(
+            '/ui/config/save',
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '', allow_metadata_repair: 'on' })
+        );
+        expect(res.status).toBe(200);
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).not.toContain('allow_metadata_repair');
+    });
+});
+
 describe('saving an instance', () => {
     it('keeps an existing key when the field is left blank', async () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: keep-me\n');
