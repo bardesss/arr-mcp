@@ -28,6 +28,15 @@ export interface AuthStrategy {
     recover?(response: Response): boolean | Promise<boolean>;
 }
 
+/** A `%` not followed by two hex digits is sent as typed. */
+function decodeOrRaw(part: string): string {
+    try {
+        return decodeURIComponent(part);
+    } catch {
+        return part;
+    }
+}
+
 /**
  * Strips `user:pass@` from `url` and returns it as a Basic header value.
  * fetch refuses a URL that carries credentials, and a reverse proxy in front
@@ -35,7 +44,7 @@ export interface AuthStrategy {
  */
 export function takeUserinfo(url: URL): string | undefined {
     if (url.username === '' && url.password === '') return undefined;
-    const pair = `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`;
+    const pair = `${decodeOrRaw(url.username)}:${decodeOrRaw(url.password)}`;
     url.username = '';
     url.password = '';
     return `Basic ${Buffer.from(pair).toString('base64')}`;

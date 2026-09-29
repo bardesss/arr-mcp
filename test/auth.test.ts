@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiKeyHeader, embyToken, plexToken, qbittorrentSession, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
+import { apiKeyHeader, embyToken, plexToken, qbittorrentSession, queryParamKey, takeUserinfo, transmissionRpc } from '../src/core/auth.ts';
 
 const ctx = (url = 'http://h:7878/api/v3/system/status', method = 'GET') => ({
     url: new URL(url),
@@ -257,5 +257,21 @@ describe('qbittorrentSession', () => {
         await expect(session({ id: 'qbittorrent/vpn' }, impl).recover?.(forbidden())).rejects.toThrow(
             /qbittorrent\/vpn/
         );
+    });
+});
+
+describe('takeUserinfo', () => {
+    const decoded = (header: string | undefined) => Buffer.from((header ?? '').replace(/^Basic /, ''), 'base64').toString();
+
+    it('decodes percent-escapes in the credentials', () => {
+        const url = new URL('http://me%40home:p%40ss@h:7878/');
+        expect(decoded(takeUserinfo(url))).toBe('me@home:p@ss');
+        expect(url.toString()).toBe('http://h:7878/');
+    });
+
+    it('sends a stray % as it is rather than throwing', () => {
+        const url = new URL('http://u:100%zz@h:7878/');
+        expect(decoded(takeUserinfo(url))).toBe('u:100%zz');
+        expect(url.toString()).toBe('http://h:7878/');
     });
 });
