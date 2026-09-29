@@ -1,11 +1,11 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { WriteAudit } from '../src/core/audit.ts';
-import { LogStore } from '../src/core/logs.ts';
+import { LEVELS, LogStore } from '../src/core/logs.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
 import { Runtime } from '../src/core/runtime.ts';
 
@@ -51,6 +51,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+    vi.restoreAllMocks();
     logs.close();
     audit.close();
 });
@@ -105,5 +106,63 @@ describe('the gate', () => {
 
     it('marks every answer no-store', async () => {
         expect((await api('/nope')).headers.get('cache-control')).toBe('no-store');
+    });
+});
+
+const line = (over: Record<string, unknown> = {}): string =>
+    JSON.stringify({ level: LEVELS.info, time: 1_786_000_000_000, app: 'arr-mcp', msg: 'hello', ...over });
+
+describe('GET /system/status', () => {
+    it('names the app, version and MCP URL', async () => {
+        const body = (await (await api('/system/status')).json()) as Record<string, unknown>;
+        expect(body.appName).toBe('arr-mcp');
+        expect(typeof body.version).toBe('string');
+        expect(body.mcpUrl).toBe('http://localhost:6060/mcp');
+    });
+});
+
+describe('GET /health', () => {
+    it('reports one entry per app, down ones included', async () => {
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+        const res = await api('/health');
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { app: string; type: string; ok: boolean; latencyMs: number; error?: { kind: string } }[];
+        expect(body.map(h => h.app)).toEqual(['radarr/hd', 'transmission']);
+        expect(body[0]).toMatchObject({ type: 'radarr', ok: false });
+        expect(typeof body[0]?.latencyMs).toBe('number');
+        expect(body[0]?.error?.kind).toBeDefined();
+    });
+});
+
+describe('GET /log', () => {
+    beforeEach(() => {
+        logs.write(line({ msg: 'first' }));
+        logs.write(line({ level: LEVELS.warn, service: 'radarr/hd', msg: 'slow', port: 7878 }));
+        logs.write(line({ level: LEVELS.error, msg: 'broke' }));
+    });
+
+    it('returns records newest first with flattened fields', async () => {
+        const { records } = (await (await api('/log')).json()) as {
+            records: { id: number; level: string; app: string | null; message: string; fields: Record<string, string> }[];
+        };
+        expect(records.map(r => r.message)).toEqual(['broke', 'slow', 'first']);
+        expect(records[1]).toMatchObject({ level: 'warn', app: 'radarr/hd', fields: { port: '7878' } });
+    });
+
+    it('filters by minimum level, app and cursor', async () => {
+        const read = async (q: string) =>
+            ((await (await api(`/log?${q}`)).json()) as { records: { id: number; message: string }[] }).records;
+        expect((await read('level=warn')).map(r => r.message)).toEqual(['broke', 'slow']);
+        expect((await read('app=radarr/hd')).map(r => r.message)).toEqual(['slow']);
+        const all = await read('');
+        const oldest = all[all.length - 1]?.id as number;
+        expect((await read(`afterId=${oldest}`)).map(r => r.message)).toEqual(['broke', 'slow']);
+        expect(await read('limit=1')).toHaveLength(1);
+    });
+
+    it('refuses a bad level, cursor or limit', async () => {
+        for (const q of ['level=loud', 'afterId=-1', 'afterId=x', 'limit=0', 'limit=301']) {
+            expect((await api(`/log?${q}`)).status, q).toBe(400);
+        }
     });
 });
