@@ -320,7 +320,7 @@ const ServicesSchema = z
             ctx.addIssue({
                 code: 'custom',
                 message:
-                    'services.plex.allow_other_users cannot be true: a Plex token is scoped to one account, so there is no second user to permit.',
+                    'must be false. A Plex token is scoped to one account, so there is no second user to permit.',
                 path: ['plex', 'allow_other_users']
             });
         }
@@ -379,7 +379,7 @@ const OAuthScopesSchema = z
     // read-scoped token as carrying every tier — the one failure this whole
     // block exists to refuse.
     .refine(value => new Set([value.read, value.write, value.destructive]).size === 3, {
-        message: 'auth.oauth.scopes must name three distinct scopes'
+        message: 'must name three distinct scopes'
     });
 
 /**
@@ -418,9 +418,9 @@ export const OAuthSchema = z.strictObject({
      */
     issuer: z
         .url()
-        .refine(isHttpsOrLoopback, { message: 'issuer must be https, or http on localhost' })
+        .refine(isHttpsOrLoopback, { message: 'must be https, or http on localhost' })
         .refine(value => !URL.canParse(value) || (new URL(value).hash === '' && new URL(value).search === ''), {
-            message: 'issuer must not carry a query string or a fragment'
+            message: 'must not carry a query string or a fragment'
         }),
     /**
      * Not optional, and this is the one field most likely to be left out.
@@ -431,7 +431,7 @@ export const OAuthSchema = z.strictObject({
     // Same rule as `issuer`: PR 2 fetches signing keys from here, and plaintext
     // JWKS is exactly the traffic a proxy log or a network path could tamper
     // with in flight.
-    jwks_uri: z.url().refine(isHttpsOrLoopback, { message: 'jwks_uri must be https, or http on localhost' }),
+    jwks_uri: z.url().refine(isHttpsOrLoopback, { message: 'must be https, or http on localhost' }),
     scopes: OAuthScopesSchema.prefault({})
 });
 
@@ -515,7 +515,7 @@ export const AuthSchema = z.strictObject({
 export const ConfigSchema = z.object({
     // Parsing normalises tokens, so two parses of one file always agree.
     auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
-        message: 'auth.allow_token_in_url cannot be set while auth.oauth is configured: a JWT in the URL reaches every proxy log',
+        message: 'must be false while auth.oauth is configured. A JWT in the URL reaches every proxy log',
         path: ['allow_token_in_url']
     })
         .superRefine((auth, ctx) => {

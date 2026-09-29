@@ -320,8 +320,8 @@ describe('PUT /app multi-user fields', () => {
         await withPlex();
         const res = await api('/app/plex', json('PUT', { allowOtherUsers: true }));
         expect(res.status).toBe(400);
-        expect(((await res.json()) as { message: string }).message).toContain(
-            'allow_other_users cannot be true: a Plex token is scoped to one account'
+        expect(((await res.json()) as { message: string }).message).toBe(
+            'services.plex.allow_other_users: must be false. A Plex token is scoped to one account, so there is no second user to permit.'
         );
         expect(one('plex')?.allow_other_users).not.toBe(true);
     });

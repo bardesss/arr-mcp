@@ -2346,7 +2346,7 @@ describe('the OAuth card', async () => {
         expect(res.status).toBe(400);
         const page = await decoded(res);
         expect(page).toMatch(/[Ii]ssuer/);
-        expect(page).toContain('https, or http on localhost');
+        expect(page).toContain('Issuer: must be https, or http on localhost.');
         expect(page).not.toContain('✖');
         expect(runtime.config.auth.oauth).toBeUndefined();
     });
@@ -2356,7 +2356,7 @@ describe('the OAuth card', async () => {
         const res = await post('/ui/config/oauth', fields({ 'auth.oauth.scopes.write': 'arr-mcp:read' }));
 
         expect(res.status).toBe(400);
-        expect(await decoded(res)).toContain('three distinct scopes');
+        expect(await decoded(res)).toContain('Scopes: must name three distinct scopes.');
         expect(runtime.config.auth.oauth).toBeUndefined();
     });
 
