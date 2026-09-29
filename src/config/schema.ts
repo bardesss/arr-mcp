@@ -40,7 +40,7 @@ const UrlSchema = z.url().refine(u => u.startsWith('http://') || u.startsWith('h
  */
 const BaseServiceShape = {
     url: UrlSchema,
-    timeout_ms: z.number().int().positive().default(10_000),
+    timeout_ms: z.number().int().positive().max(2_147_483_647).default(10_000),
     permissions: PermissionsSchema
 };
 

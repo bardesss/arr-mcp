@@ -18,7 +18,7 @@ const fields = {
     password: z.string().optional(),
     defaultUser: z.string().nullable().optional(),
     allowOtherUsers: z.boolean().optional(),
-    timeoutMs: z.number().int().positive().optional(),
+    timeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
     safeWrite: z.boolean().optional(),
     destructive: z.boolean().optional(),
     allowMetadataRepair: z.boolean().optional()

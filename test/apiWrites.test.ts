@@ -209,6 +209,13 @@ describe('PUT /app/{type}/{name}', () => {
         expect(line?.[0]).not.toHaveProperty('target');
     });
 
+    it('refuses a timeout too large for AbortSignal.timeout, before it reaches the config', async () => {
+        const res = await api('/app/radarr/hd', json('PUT', { timeoutMs: 4_294_967_296 }));
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { message: string }).message).toContain('timeoutMs');
+        expect((await api('/app/radarr/hd', json('PUT', { timeoutMs: 2_147_483_647 }))).status).toBe(200);
+    });
+
     it('refuses to clear a secret', async () => {
         expect((await api('/app/radarr/hd', json('PUT', { apiKey: null }))).status).toBe(400);
     });

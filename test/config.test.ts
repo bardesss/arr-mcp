@@ -121,6 +121,13 @@ describe('ConfigSchema', () => {
         expect(single(parsed.services.radarr)?.timeout_ms).toBe(10_000);
     });
 
+    it('caps the timeout where AbortSignal.timeout still accepts it', () => {
+        const radarr = (timeout_ms: number) => ({ auth: AUTH, services: { radarr: { url: 'http://h:7878', api_key: 'k', timeout_ms } } });
+        expect(ConfigSchema.safeParse(radarr(2_147_483_647)).success).toBe(true);
+        expect(ConfigSchema.safeParse(radarr(2_147_483_648)).success).toBe(false);
+        expect(ConfigSchema.safeParse(radarr(4_294_967_296)).success).toBe(false);
+    });
+
     it('defaults allowed_hosts to an empty list', () => {
         const parsed = ConfigSchema.parse({ auth: AUTH, services: {} });
         expect(parsed.auth.allowed_hosts).toEqual([]);
