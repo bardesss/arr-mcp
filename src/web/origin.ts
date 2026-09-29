@@ -64,6 +64,10 @@ export function mcpEndpoint(requestUrl: string, proto: string | undefined): stri
     return `${scheme}://${host}/mcp`;
 }
 
+/** The management API's base URL, on the same host as `/mcp`. */
+export const apiEndpoint = (requestUrl: string, proto: string | undefined): string | undefined =>
+    mcpEndpoint(requestUrl, proto)?.replace(/\/mcp$/, '/api/v1');
+
 /**
  * Whether this request came from the page it claims to.
  *

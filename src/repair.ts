@@ -102,6 +102,10 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         c.json({ error: 'unavailable', detail: `arr-mcp is not serving tools: ${publicReason()}` }, 503)
     );
 
+    app.all('/api/v1/*', c =>
+        c.json({ message: 'config.yaml is invalid; fix it on the web UI.' }, 503, { 'cache-control': 'no-store' })
+    );
+
     // No credential can exist, so nothing below runs.
     app.use('*', async (c, next) => {
         if (authBlock !== undefined) return next();
