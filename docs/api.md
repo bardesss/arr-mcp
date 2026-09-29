@@ -99,9 +99,9 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/health
     "ok": false,
     "latencyMs": 3,
     "error": {
-      "kind": "AuthError",
-      "detail": "HTTP 401 from radarr:7878",
-      "remedy": "Check the API key on the config page."
+      "kind": "AuthFailed",
+      "detail": "HTTP 401 at /api/v3/system/status",
+      "remedy": "The API key is wrong. Check the service’s Settings → General page."
     }
   }
 ]
@@ -131,9 +131,9 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" "http://arr-mcp:6060/api/v1/log?level=warn
       "id": 118,
       "at": "2026-09-29T08:15:02.113Z",
       "level": "warn",
-      "app": "radarr/uhd",
-      "message": "source failed; degrading rather than failing",
-      "fields": { "err": "HTTP 401", "path": "/api/v3/system/status" }
+      "app": null,
+      "message": "rejected a management API request with a missing or wrong key",
+      "fields": { "ip": "192.168.1.20", "path": "/api/v1/system/status" }
     },
     {
       "id": 97,
@@ -164,7 +164,7 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app
     "id": "radarr/hd",
     "type": "radarr",
     "name": "hd",
-    "url": "http://radarr:7878/",
+    "url": "http://radarr:7878",
     "timeoutMs": 10000,
     "safeWrite": false,
     "destructive": false,
@@ -203,7 +203,7 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app/radarr/hd
   "id": "radarr/hd",
   "type": "radarr",
   "name": "hd",
-  "url": "http://radarr:7878/",
+  "url": "http://radarr:7878",
   "timeoutMs": 10000,
   "safeWrite": false,
   "destructive": false,
