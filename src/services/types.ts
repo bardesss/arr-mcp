@@ -1104,9 +1104,13 @@ export interface RequestManageCapable {
      * approve.
      *
      * Resolves undefined rather than throwing: a failed title lookup must not
-     * block someone deleting a request.
+     * block someone deleting a request. `strict` throws instead, for creating
+     * one, where a failed lookup almost always means the id is wrong.
      */
-    describeRequestMedia(request: MediaRequest): Promise<{ title: string; year?: number } | undefined>;
+    describeRequestMedia(
+        request: MediaRequest,
+        opts?: { strict?: boolean }
+    ): Promise<{ title: string; year?: number } | undefined>;
 }
 
 export const hasRequestManage = (a: ServiceAdapter): a is ServiceAdapter & RequestManageCapable =>
