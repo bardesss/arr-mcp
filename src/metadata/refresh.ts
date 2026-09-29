@@ -110,6 +110,8 @@ export function sweepStaging(root: string, opts: { now?: number } = {}): number 
             rmSync(path, { recursive: true, force: true });
             removed += 1;
         } catch (err) {
+            // Already gone, e.g. removed by its own ingest mid-scan: nothing left to do.
+            if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue;
             logger.warn({ path, err }, 'could not remove an abandoned IMDb staging directory');
         }
     }
