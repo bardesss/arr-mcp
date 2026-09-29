@@ -315,7 +315,9 @@ so far.
   derives or discovers on its own. No credential leaves the box making it.
   When that fetch fails, `/mcp` answers `503`, not `401` — the presented
   token may be perfectly good, and a fetch outage is never reported as a bad
-  credential.
+  credential. The one exception is a token whose unverified `exp` has
+  passed: it is refused either way, so it gets the `401` that points at the
+  real problem. The unverified claim only picks which refusal is sent.
 
 Request bodies are capped at 4 MB, refused with `413` before authentication
 runs. The cap is deliberately not configurable — every legitimate request is

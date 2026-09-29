@@ -1697,6 +1697,18 @@ describe('OAuth tokens at /mcp', () => {
         expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
     });
 
+    // A 503 there would tell the user their credential is fine when it isn't.
+    it('answers 401 for an expired token even when the issuer keys cannot be fetched', async () => {
+        const expired = await new SignJWT({ iss: OAUTH.issuer, aud: OAUTH.audience, sub: 'client-1', scope: 'arr-mcp:read' })
+            .setProtectedHeader({ alg: 'RS256', kid: 'test' })
+            .setIssuedAt(Math.floor(Date.now() / 1000) - 3600)
+            .setExpirationTime(Math.floor(Date.now() / 1000) - 120)
+            .sign(oauthPrivateKey);
+        const res = await unreachableApp().request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${expired}` }));
+        expect(res.status).toBe(401);
+        expect(res.headers.get('www-authenticate')).toContain('error="invalid_token"');
+    });
+
     // The case MCP07 names: one client that reads and one that writes.
     it('refuses a destructive write to a read-scoped token, against a config that permits it', async () => {
         const res = await oauthApp(permissiveRadarr(), [deletableRadarr()]).request(
