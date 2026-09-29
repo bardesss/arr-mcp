@@ -250,7 +250,7 @@ brackets — `"[fd00::1]"` — and matches with or without a port.
 ### MCP tokens
 
 Every client that connects to `/mcp` presents a named token. Tokens are created
-on the config page, under MCP endpoint: pick a name, a tier and an expiry, and
+on the config page, under MCP tokens: pick a name, a tier and an expiry, and
 the token is shown once, with a copy button. Only its SHA-256 hash is stored, so
 it cannot be read back, only revoked. A fresh install has none, so every MCP
 request is refused until you create the first one.

@@ -55,10 +55,11 @@ MCP tokens, so it is a concentrated target.
 - Audit arguments pass through a key-name redactor before they are written, even
   though no write tool accepts a credential today (`src/core/audit.ts`). That
   keeps it true by construction rather than by everyone remembering.
-- The config UI password is stored as a scrypt hash and nothing else. MCP tokens are
-  32 random bytes, stored only as SHA-256 hashes, and revoking or creating one
-  from the UI takes effect on the very next request rather than at the next
-  restart.
+- The config UI password is stored as a scrypt hash and nothing else. MCP tokens
+  created in the UI are 32 random bytes; one written into `config.yaml` by hand
+  must be at least 32 characters. Either is stored only as a SHA-256 hash, and
+  revoking or creating one from the UI takes effect on the very next request
+  rather than at the next restart.
 - The maintenance scripts redact configured hostnames from their output, with a
   test that says so (`test/scriptsRedact.test.ts`).
 
