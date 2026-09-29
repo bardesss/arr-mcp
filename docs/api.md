@@ -33,19 +33,22 @@ this API can change them.
 
 - Base URL: `http://<host>:6060/api/v1`.
 - Field names are camelCase.
-- Errors are `{"message": "..."}` with one of these statuses:
+- The API's own errors are `{"message": "..."}` with one of these statuses:
 
 | Status | Meaning |
 | --- | --- |
 | 400 | A bad parameter. The message names it |
 | 401 | `Missing or wrong X-Api-Key.` |
+| 403 | `forbidden: Host not allowed`, as plain text. This comes from `auth.allowed_hosts`, before the API sees the request |
 | 404 | No key configured (`The management API is off. Generate a key on the config page to turn it on.`), `No such endpoint.`, or `No such app.` |
 | 503 | `config.yaml is invalid; fix it on the web UI.` The server is in repair mode |
 
 - `/app`, `/app/...`, `/settings/*` and `/token` carry a strong `ETag`
   (`"<16 hex>"`). It is one tag for the whole config, so it changes when any
   part of it does.
-- Every response has `cache-control: no-store`.
+- The API's own answers have `cache-control: no-store`. The 403 above does
+  not, and neither does the `413` for a body over 4 MB, which comes back in
+  JSON-RPC shape from the same guard that protects `/mcp`.
 - Secrets never come back. A service's API key or password appears only as
   `apiKeySet` or `passwordSet`, and the key hashes are not returned at all.
 
@@ -74,7 +77,8 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/system/status
 
 A live connection test of every configured app, sorted by id. Same diagnosis the
 dashboard and `stack_health` give: `version` when the app is up, and
-`error` with `kind`, `detail` and `remedy` when it is not.
+`error` with `kind` and `detail` when it is not, and `remedy` when there is
+one.
 
 ```bash
 curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/health
@@ -181,8 +185,8 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app
 ```
 
 Fields depend on the type. Transmission and qBittorrent have `username` and
-`passwordSet`. Everything else has `apiKeySet`. Jellyfin and Seerr add
-`defaultUser` and `allowOtherUsers`, and Plex adds `allowMetadataRepair`. Any
+`passwordSet`. Everything else has `apiKeySet`. Jellyfin, Plex and Seerr add
+`defaultUser` and `allowOtherUsers`, and Plex alone adds `allowMetadataRepair`. Any
 credentials in the URL are stripped.
 
 ### `GET /app/{type}` and `GET /app/{type}/{name}`
@@ -245,7 +249,8 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/mcp
 ### `GET /token`
 
 The named MCP tokens. Never the tokens themselves: `fingerprint` is the first
-eight characters of the hash, so you can tell them apart.
+eight hex characters after `sha256:` in the stored hash, so you can tell them
+apart.
 
 ```bash
 curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token

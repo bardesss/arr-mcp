@@ -2440,6 +2440,19 @@ describe('management API key', () => {
         expect(runtime.config.auth.management_key?.hash).not.toBe(first);
     });
 
+    it('regenerating stops the old key on /api/v1 at once', async () => {
+        const status = async (key: string) =>
+            (await app.request('http://localhost:6060/api/v1/system/status', { headers: { 'x-api-key': key } })).status;
+        await signIn();
+        const old = shownKey(await (await call('/ui/config/api-key', form({ csrf: await csrfFrom() }))).text()) as string;
+        expect(await status(old)).toBe(200);
+
+        const next = shownKey(await (await call('/ui/config/api-key', form({ csrf: await csrfFrom() }))).text()) as string;
+        expect(next).not.toBe(old);
+        expect(await status(old)).toBe(401);
+        expect(await status(next)).toBe(200);
+    });
+
     it('asks before turning the API off, then removes the key', async () => {
         await signIn();
         await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));

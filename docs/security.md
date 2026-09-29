@@ -322,10 +322,9 @@ so far.
 The management API at `/api/v1` is off by default and answers 404 until you
 generate a key on the config page. The key is 256 bits, stored as a SHA-256
 hash, and accepted only in the `X-Api-Key` header, never in a URL. It is never
-valid on `/mcp`, and an MCP token is never valid there. It cannot change
-sign-in, OAuth or itself, so a leaked key cannot lock the owner out or make
-itself permanent: the owner regenerates it or turns the API off from the config
-page.
+valid on `/mcp`, and an MCP token is never valid there. In this release the key
+can only read. It cannot change sign-in, OAuth or itself. If it leaks,
+regenerate it on the config page and the old one stops working.
 
 Request bodies are capped at 4 MB, refused with `413` before authentication
 runs. The cap is deliberately not configurable — every legitimate request is

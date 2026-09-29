@@ -20,7 +20,7 @@ let app: ReturnType<typeof buildApp>;
 let logs: LogStore;
 let audit: WriteAudit;
 
-const seed = async (opts: { keyed?: boolean; radarrUrl?: string } = {}) => {
+const seed = async (opts: { keyed?: boolean; radarrUrl?: string; extra?: string[] } = {}) => {
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-api-'));
     await writeFile(
         join(dir, 'config.yaml'),
@@ -35,6 +35,7 @@ const seed = async (opts: { keyed?: boolean; radarrUrl?: string } = {}) => {
             '  radarr:',
             `    - { name: hd, url: '${opts.radarrUrl ?? 'http://user:pw@radarr:7878'}', api_key: '${RADARR_KEY}' }`,
             `  transmission: { url: 'http://transmission:9091', username: tx, password: '${TX_PASSWORD}' }`,
+            ...(opts.extra ?? []),
             ''
         ].join('\n'),
         'utf8'
@@ -241,6 +242,32 @@ describe('GET /app', () => {
         expect(((await (await api('/app/transmission')).json()) as { id: string }).id).toBe('transmission');
         expect((await api('/app/radarr')).status).toBe(404);
         expect((await api('/app/sonarr/hd')).status).toBe(404);
+    });
+});
+
+describe('GET /app multi-user fields', () => {
+    const PLEX_KEY = 'plex-secret-token-0000';
+    const JF_KEY = 'jellyfin-secret-key-0000';
+
+    it('adds the user fields and the repair switch to plex', async () => {
+        await seed({ extra: [`  plex: { url: 'http://plex:32400', api_key: '${PLEX_KEY}', default_user: alice }`] });
+        const text = await (await api('/app/plex')).text();
+        expect(text).not.toContain(PLEX_KEY);
+        expect(JSON.parse(text)).toMatchObject({
+            defaultUser: 'alice',
+            allowOtherUsers: false,
+            allowMetadataRepair: false,
+            apiKeySet: true
+        });
+    });
+
+    it('adds the user fields to jellyfin without the repair switch', async () => {
+        await seed({ extra: [`  jellyfin: { url: 'http://jellyfin:8096', api_key: '${JF_KEY}', allow_other_users: true }`] });
+        const text = await (await api('/app')).text();
+        expect(text).not.toContain(JF_KEY);
+        const jf = (JSON.parse(text) as Record<string, unknown>[]).find(a => a.type === 'jellyfin');
+        expect(jf).toMatchObject({ defaultUser: null, allowOtherUsers: true, apiKeySet: true });
+        expect(jf).not.toHaveProperty('allowMetadataRepair');
     });
 });
 
