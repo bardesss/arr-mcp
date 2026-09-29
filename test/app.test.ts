@@ -1859,7 +1859,9 @@ describe('named tokens at /mcp', () => {
         const app = appWith(withTokens([{ name: 'phone', tier: 'read', token: PHONE, expires: '2020-01-01' }]));
         const res = await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${PHONE}` }));
         expect(res.status).toBe(401);
-        expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="arr-mcp"');
+        expect(res.headers.get('WWW-Authenticate')).toBe(
+            `Bearer realm="arr-mcp", error="invalid_token", error_description="token 'phone' expired on 2020-01-01"`
+        );
         expect(await res.json()).toMatchObject({ error: 'unauthorized', detail: "token 'phone' expired on 2020-01-01" });
     });
 
@@ -1871,7 +1873,9 @@ describe('named tokens at /mcp', () => {
         });
         const res = await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${PHONE}` }));
         expect(res.status).toBe(401);
-        expect(res.headers.get('WWW-Authenticate')).toContain('resource_metadata=');
+        expect(res.headers.get('WWW-Authenticate')).toMatch(
+            /^Bearer realm="arr-mcp", resource_metadata="[^"]+", error="invalid_token", error_description="token 'phone' expired on 2020-01-01"$/
+        );
         expect(await res.json()).toMatchObject({ detail: "token 'phone' expired on 2020-01-01" });
     });
 

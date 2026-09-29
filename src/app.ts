@@ -367,11 +367,10 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
 
         if (matched.kind === 'expired') {
             logger.warn({ path: '/mcp', ...originOf(c), via: presented.via, token: matched.token.name }, 'rejected an expired MCP token');
-            return c.json(
-                { error: 'unauthorized', detail: `token '${matched.token.name}' expired on ${matched.token.expires}` },
-                401,
-                { 'WWW-Authenticate': challenge }
-            );
+            const detail = `token '${matched.token.name}' expired on ${matched.token.expires}`;
+            return c.json({ error: 'unauthorized', detail }, 401, {
+                'WWW-Authenticate': `${challenge}, error="invalid_token", error_description="${detail}"`
+            });
         }
 
         if (matched.kind === 'match') {
