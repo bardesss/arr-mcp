@@ -1,7 +1,7 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
 import { commitConfig } from '../config/commit.ts';
-import { setImdb, setMcpEndpoint } from '../config/edits.ts';
+import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint } from '../config/edits.ts';
 import { saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
@@ -35,7 +35,7 @@ import {
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
 import { configPage, type OAuthDraft } from './configPage.ts';
 import { probeJwks } from './jwksProbe.ts';
-import { mcpEndpoint, sameOrigin } from './origin.ts';
+import { apiEndpoint, mcpEndpoint, sameOrigin } from './origin.ts';
 import {
     auditPage,
     dashboardPage,
@@ -458,13 +458,18 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
             let updated: Config;
             let reveal: { name: string; token: string } | undefined;
+            let revealKey: string | undefined;
             try {
                 const result = await next(form);
                 // Not an error: the removal is waiting for a second click.
                 if ('ask' in result) return render(undefined, 200, { confirmingRemoval: result.ask });
                 if ('askRevoke' in result) return render(undefined, 200, { confirmingRevoke: result.askRevoke });
                 if ('askOAuthRemoval' in result) return render(undefined, 200, { oauth: { confirmingRemoval: true } });
-                if ('reveal' in result) {
+                if ('askKeyRemoval' in result) return render(undefined, 200, { confirmingKeyRemoval: true });
+                if ('revealKey' in result) {
+                    updated = result.config;
+                    revealKey = result.revealKey;
+                } else if ('reveal' in result) {
                     updated = result.config;
                     reveal = { name: result.revealName, token: result.reveal };
                 } else {
@@ -501,15 +506,25 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return render(
                 { kind: 'ok', text: `${what} Applied immediately; no restart needed.` },
                 200,
-                reveal === undefined
-                    ? {}
-                    : {
-                          revealed: {
-                              ...reveal,
-                              mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
-                              urlToken: runtime.config.auth.allow_token_in_url
-                          }
-                      }
+                {
+                    ...(reveal === undefined
+                        ? {}
+                        : {
+                              revealed: {
+                                  ...reveal,
+                                  mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
+                                  urlToken: runtime.config.auth.allow_token_in_url
+                              }
+                          }),
+                    ...(revealKey === undefined
+                        ? {}
+                        : {
+                              revealedKey: {
+                                  key: revealKey,
+                                  apiUrl: apiEndpoint(c.req.url, c.req.header('x-forwarded-proto'))
+                              }
+                          })
+                }
             );
         };
 
@@ -586,6 +601,22 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             const name = str(form.token);
             if (str(form.confirm) !== 'yes') return { askRevoke: name };
             return revokeToken(runtime.config, name);
+        })
+    );
+
+    app.post(
+        '/ui/config/api-key',
+        configMutation('Management API key generated.', () => {
+            const { config, plaintext } = setManagementKey(runtime.config, new Date());
+            return { config, revealKey: plaintext };
+        })
+    );
+
+    app.post(
+        '/ui/config/api-key/remove',
+        configMutation('Management API turned off.', form => {
+            if (str(form.confirm) !== 'yes') return { askKeyRemoval: true };
+            return clearManagementKey(runtime.config);
         })
     );
 
@@ -738,7 +769,9 @@ type MutationResult =
     | { ask: string }
     | { askRevoke: string }
     | { askOAuthRemoval: true }
-    | { config: Config; reveal: string; revealName: string };
+    | { config: Config; reveal: string; revealName: string }
+    | { config: Config; revealKey: string }
+    | { askKeyRemoval: true };
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
 const NO_STORE = { 'cache-control': 'no-store' };
