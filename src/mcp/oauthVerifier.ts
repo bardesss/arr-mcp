@@ -1,5 +1,5 @@
 import { OAuthError, OAuthErrorCode, type AuthInfo, type OAuthTokenVerifier } from '@modelcontextprotocol/server';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet, decodeJwt, jwtVerify } from 'jose';
 import type { JWTPayload, JWTVerifyGetKey } from 'jose';
 import type { OAuthConfig } from '../config/schema.ts';
 import { NO_CLIENT_ID } from '../core/audit.ts';
@@ -38,6 +38,16 @@ function scopesOf(claim: unknown): string[] {
     if (Array.isArray(claim)) return claim.filter((s): s is string => typeof s === 'string');
     if (typeof claim !== 'string') return [];
     return claim.split(' ').filter(s => s !== '');
+}
+
+/** Whether the token claims an `exp` that has passed. Never trusted beyond choosing a refusal. */
+function expiredClaim(token: string): boolean {
+    try {
+        const { exp } = decodeJwt(token);
+        return typeof exp === 'number' && exp <= Math.floor(Date.now() / 1000);
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -89,7 +99,12 @@ export function oauthVerifier(oauth: OAuthConfig, keys?: KeyResolver): OAuthToke
                     requiredClaims: ['exp']
                 }));
             } catch (err) {
-                if (err instanceof JwksUnavailable) throw err;
+                if (err instanceof JwksUnavailable) {
+                    // Unverified, but safe: the token is refused either way,
+                    // and an expired one is the caller's problem, not the outage.
+                    if (expiredClaim(token)) throw new OAuthError(OAuthErrorCode.InvalidToken, '"exp" claim timestamp check failed');
+                    throw err;
+                }
                 // Wrapped rather than rethrown: `verifyAccessToken`'s own
                 // contract says to throw `OAuthError(InvalidToken)` for a bad
                 // token, and `bearerAuthChallengeResponse` only recognises

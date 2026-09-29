@@ -165,4 +165,20 @@ describe('oauthVerifier against a live jwks_uri', async () => {
         mode = m;
         await expect(oauthVerifier(live).verifyAccessToken(good)).rejects.toBeInstanceOf(JwksUnavailable);
     });
+
+    // The signature can't be checked, but the refusal is certain either way,
+    // so the token's own claim is enough to say which refusal it is.
+    it('reports an expired token as invalid even while the issuer is down', async () => {
+        mode = 'html';
+        const expired = await token({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c' }, { exp: Math.floor(Date.now() / 1000) - 120 });
+        const err = await oauthVerifier(live).verifyAccessToken(expired).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(OAuthError);
+        expect((err as OAuthError).code).toBe(OAuthErrorCode.InvalidToken);
+    });
+
+    it('still reports an outage for a token with no readable exp', async () => {
+        mode = 'html';
+        const noExp = await token({ iss: oauth.issuer, aud: 'arr-mcp', sub: 'c' }, { exp: null });
+        await expect(oauthVerifier(live).verifyAccessToken(noExp)).rejects.toBeInstanceOf(JwksUnavailable);
+    });
 });

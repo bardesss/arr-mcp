@@ -416,7 +416,8 @@ If a client's token is refused, the status code says why:
 
 A `503` is not a rejection of the token itself — it means arr-mcp could not
 check it. Retrying once the issuer is reachable again works with no other
-change.
+change. The exception is a token whose own `exp` has already passed: that
+still gets a `401` during an outage, because no retry would help it.
 
 ### `allow_other_users`
 
