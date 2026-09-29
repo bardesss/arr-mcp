@@ -33,6 +33,7 @@ export type InstanceFields = {
     timeout_ms?: number;
     safe_write?: boolean;
     destructive?: boolean;
+    allow_metadata_repair?: boolean;
 };
 
 export class ConfigEditError extends Error {}
@@ -125,6 +126,8 @@ function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entr
         }
         if (fields.allow_other_users !== undefined) next.allow_other_users = fields.allow_other_users;
     }
+
+    if (type === 'plex' && fields.allow_metadata_repair !== undefined) next.allow_metadata_repair = fields.allow_metadata_repair;
 
     if (fields.safe_write !== undefined || fields.destructive !== undefined) {
         next.permissions = {

@@ -836,7 +836,8 @@ export function instanceFieldsFrom(form: Record<string, unknown>): InstanceField
         allow_other_users: on(form.allow_other_users),
         ...(Number.isFinite(timeout) && timeout > 0 ? { timeout_ms: Math.trunc(timeout) } : {}),
         safe_write: on(form.safe_write),
-        destructive: on(form.destructive)
+        destructive: on(form.destructive),
+        allow_metadata_repair: on(form.allow_metadata_repair)
     };
 }
 

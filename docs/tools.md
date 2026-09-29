@@ -919,8 +919,9 @@ re-run with `dry_run`, to see the settled result.
 ### Repairing on Plex
 
 Plex repair is **off by default**, because nobody has run it against a live
-Plex server yet. Turn it on with `services.plex.allow_metadata_repair: true`,
-plus `permissions.destructive: true` as for any destructive write. The two are
+Plex server yet. Turn it on with `services.plex.allow_metadata_repair: true`
+(the experimental checkbox on the Plex card in the config UI), plus
+`permissions.destructive: true` as for any destructive write. The two are
 separate switches: `stack_health` and `arr://instances` report
 `permissions.destructive` as `config.yaml` and your token allow, and know nothing of
 `allow_metadata_repair`, which `fix_metadata` checks on top of it. While it is
