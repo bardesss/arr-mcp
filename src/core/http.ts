@@ -1,5 +1,5 @@
 import type { BaseServiceConfig } from '../config/schema.ts';
-import type { AuthStrategy } from './auth.ts';
+import { takeUserinfo, type AuthStrategy } from './auth.ts';
 import { ServiceError, classifyFetchError, classifyHttpStatus } from './errors.ts';
 import { logger } from './logger.ts';
 
@@ -244,6 +244,9 @@ export class ServiceHttp {
         const encoded = body === undefined ? undefined : encodeBody(body);
         if (encoded !== undefined) headers.set('content-type', encoded.contentType);
 
+        // Before the strategy, so a service's own Authorization header wins.
+        const basic = takeUserinfo(url);
+        if (basic !== undefined) headers.set('Authorization', basic);
         this.#auth.apply({ url, headers, method });
 
         // Origin and path only, never the full URL: a query-parameter auth
