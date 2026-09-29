@@ -267,8 +267,17 @@ describe('qbittorrentSession', () => {
         expect(redirect).toBe('manual');
         expect(err).toMatchObject({ kind: 'AuthFailed' });
         expect(err.message).toContain('https://elsewhere.example');
-        expect(err.message).toContain('address it redirects to');
+        expect(err.message).toContain('the address qBittorrent redirects the login to');
         expect(err.message).not.toContain('steal');
+    });
+
+    it('does not name its own origin when the login redirects within it', async () => {
+        const redirect = new Response(null, { status: 302, headers: { location: '/qbit/api/v2/auth/login' } });
+        const impl = (async () => redirect) as unknown as typeof fetch;
+        const err = (await Promise.resolve(session({}, impl).recover?.(forbidden())).catch((e: unknown) => e)) as Error;
+        expect(err).toMatchObject({ kind: 'AuthFailed' });
+        expect(err.message).not.toContain(BASE);
+        expect(err.message).toContain('the address qBittorrent redirects the login to');
     });
 
     it('names the qualified instance id, not the bare service, in a login failure', async () => {

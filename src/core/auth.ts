@@ -229,14 +229,17 @@ async function qbittorrentLogin(
 
     const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
     if (location !== null) {
-        let origin = 'another address';
+        let origin: string | undefined;
         try {
             origin = new URL(location, url).origin;
         } catch {
             // Unparseable: name no address at all.
         }
-        throw new ServiceError('AuthFailed', creds.id, `login redirected to ${origin}`, {
-            remedy: 'Set its url in the config to the address it redirects to.'
+        // Naming our own origin back as the fix would send the user in a circle.
+        const elsewhere = origin !== undefined && origin !== url.origin;
+        const detail = elsewhere ? `login redirected to ${origin}` : 'login was redirected';
+        throw new ServiceError('AuthFailed', creds.id, detail, {
+            remedy: 'Set its url in the config to the address qBittorrent redirects the login to.'
         });
     }
 
