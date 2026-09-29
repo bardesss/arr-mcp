@@ -1,4 +1,5 @@
 import type { OAuthConfig } from '../config/schema.ts';
+import type { TokenTier } from '../core/mcpTokens.ts';
 import type { PermissionSource, WriteTier } from '../core/permissions.ts';
 
 /**
@@ -34,10 +35,27 @@ export function tiersFor(oauth: OAuthConfig, scopes: readonly string[]): Readonl
  * answers from `config.yaml` alone and a compromised or over-generous issuer
  * cannot grant a write this server was never configured to allow.
  */
-export function cappedTo(source: PermissionSource, tiers: ReadonlySet<WriteTier>, scopes?: OAuthConfig['scopes']): PermissionSource {
-    return {
-        get: instance => source.get(instance),
-        permits: tier => tiers.has(tier),
-        ...(scopes && { scopeFor: (tier: WriteTier) => (tier === 'safe' ? scopes.write : scopes.destructive) })
+export function oauthRefusal(scopes: OAuthConfig['scopes'] | undefined) {
+    return (tier: WriteTier) => {
+        const scope = scopes === undefined ? undefined : tier === 'safe' ? scopes.write : scopes.destructive;
+        const named = scope === undefined ? `the scope for ${tier} writes` : `the \`${scope}\` scope`;
+        return {
+            reason: `the access token does not carry ${named}`,
+            remedy: `This credential is scoped below what config.yaml permits. Ask whoever issued it for ${named}, or use an MCP token from the dashboard.`
+        };
     };
+}
+
+export function tokenRefusal(name: string, tier: TokenTier) {
+    return (wanted: WriteTier) => {
+        const needs = wanted === 'safe' ? 'write' : 'destructive';
+        return {
+            reason: tier === 'read' ? `token '${name}' is read-only` : `token '${name}' has the ${tier} tier, which does not allow destructive writes`,
+            remedy: `Use a token with the ${needs} tier, or create one on the dashboard.`
+        };
+    };
+}
+
+export function cappedTo(source: PermissionSource, tiers: ReadonlySet<WriteTier>, refusal: (tier: WriteTier) => { reason: string; remedy: string }): PermissionSource {
+    return { get: instance => source.get(instance), permits: tier => tiers.has(tier), refusal };
 }
