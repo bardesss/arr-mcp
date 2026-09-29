@@ -577,8 +577,8 @@ export function configPage(opts: {
 
         <h2>Access</h2>
         <p class="note" style="margin:-.5rem 0 1rem">
-            Three separate settings, saved separately — like the service cards above. Each Save writes only
-            its own card.
+            Each card below is saved on its own, like the service cards above. A Save writes only its own
+            card.
         </p>
 
         <form method="post" action="/ui/config/account" class="panel" ${IGNORE_FORM}>
