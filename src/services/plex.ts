@@ -211,7 +211,7 @@ export class PlexAdapter
     readonly #defaultUser: string | undefined;
     #warnedUnverifiedOwner = false;
 
-    constructor(config: ConfigByService['plex'], fetchImpl: typeof fetch = fetch) {
+    constructor(config: Omit<ConfigByService['plex'], 'allow_metadata_repair'>, fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp('plex', config, plexToken(config.api_key), fetchImpl);
         this.#defaultUser = config.default_user;
     }
