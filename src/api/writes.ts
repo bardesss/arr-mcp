@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import * as z from 'zod/v4';
 import { setImdb, setMcpEndpoint } from '../config/edits.ts';
-import { addCandidate, addToken, ConfigEditError, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
+import { addCandidate, addToken, ConfigEditError, NO_API_KEY, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
 import { logger } from '../core/logger.ts';
 import { buildAdapters } from '../services/registry.ts';
 import { originOf } from '../web/routes.ts';
@@ -158,6 +158,9 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         const body = parseWith(c, NewAppBody, raw);
         if (body instanceof Response) return body;
         const name = body.name ?? undefined;
+        if (!NO_API_KEY.has(body.type) && (body.apiKey === undefined || body.apiKey.trim() === '')) {
+            return apiError(c, 400, `apiKey is required for ${body.type}.`);
+        }
 
         const alone = findInstance(runtime.config, body.type, undefined);
         const renamed =

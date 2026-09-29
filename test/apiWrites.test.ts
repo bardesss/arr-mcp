@@ -144,6 +144,21 @@ describe('POST /app', () => {
         expect(JSON.stringify(line)).not.toContain('leak');
     });
 
+    it('says which field is missing', async () => {
+        const noUrl = await api('/app', json('POST', { type: 'sonarr', apiKey: 'k' }));
+        expect(noUrl.status).toBe(400);
+        expect(await noUrl.json()).toEqual({ message: 'url: required' });
+        const emptyUrl = await api('/app', json('POST', { type: 'sonarr', url: '', apiKey: 'k' }));
+        expect(await emptyUrl.json()).toEqual({ message: 'url: required' });
+        const noKey = await api('/app', json('POST', { type: 'bazarr', url: 'http://bazarr:6767' }));
+        expect(noKey.status).toBe(400);
+        expect(await noKey.json()).toEqual({ message: 'apiKey is required for bazarr.' });
+    });
+
+    it('needs no apiKey for a download client that signs in', async () => {
+        expect((await api('/app', json('POST', { type: 'qbittorrent', url: 'http://qbit:8080' }))).status).toBe(201);
+    });
+
     it('refuses an unknown type or field', async () => {
         expect((await api('/app', json('POST', { type: 'kodi', url: 'http://k:1' }))).status).toBe(400);
         expect((await api('/app', json('POST', { type: 'sonarr', url: 'http://s:1', apiKey: 'k', apikey: 'typo' }))).status).toBe(400);

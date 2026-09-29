@@ -316,8 +316,9 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token
 
 ### `POST /app`
 
-Adds an app. `type` is required. The other fields are the ones in the
-[update list](#updating-an-app): `url`, `apiKey`, `username`, `password`,
+Adds an app. `type` and `url` are required, and so is `apiKey` for every type
+except Transmission and qBittorrent. The other fields are the ones in the
+[update list](#updating-an-app): `username`, `password`,
 `defaultUser`, `allowOtherUsers`, `timeoutMs`, `safeWrite`, `destructive` and
 `allowMetadataRepair`.
 

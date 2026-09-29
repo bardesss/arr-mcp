@@ -35,6 +35,7 @@ export type AppBodyValue = z.infer<typeof AppBody>;
 export const NewAppBody = z.strictObject({
     ...readOnly,
     ...fields,
+    url: z.string({ error: 'required' }).trim().min(1, 'required'),
     type: ServiceIdSchema,
     name: z.string().min(1).nullable().optional(),
     renameExistingTo: z.string().min(1).optional()
