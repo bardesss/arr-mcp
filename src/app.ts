@@ -14,15 +14,16 @@ import type { OAuthConfig } from './config/schema.ts';
 import { NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
+import { bearerCaller, matchToken, tiersOf, type StoredToken } from './core/mcpTokens.ts';
 import type { Runtime } from './core/runtime.ts';
-import { presentedToken, tokenMatches } from './mcp/endpointAuth.ts';
+import { presentedToken } from './mcp/endpointAuth.ts';
 import { claimJsonBody } from './mcp/jsonBody.ts';
 import { JwksUnavailable } from './mcp/oauthVerifier.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
-import { cappedTo, tiersFor } from './mcp/scopes.ts';
+import { cappedTo, oauthRefusal, tiersFor, tokenRefusal } from './mcp/scopes.ts';
 import type { ServiceInstance } from './config/instances.ts';
 import type { WriteTier } from './core/permissions.ts';
 import { registerAllTools, type ToolContext } from './tools/register.ts';
@@ -98,14 +99,18 @@ Arguments are strict: an argument a tool does not have is refused rather than ig
  * and `arr://instances` report permissions from it. Left alone, they would
  * tell a read-only token it may delete what the gate then refuses.
  *
- * Fails closed. A request carrying `authInfo` got in on an OAuth token, and
- * one of those must never run uncapped. A reload between verifying the token
- * and building this context can drop `auth.oauth` or rename a scope, and the
- * worst that should cost is a spurious refusal.
+ * Every request is capped: a named token to its tier, an OAuth token to its
+ * scopes. Fails closed. A request with no `authInfo` gets no writes, and a
+ * reload that drops `auth.oauth` or renames a scope between verifying a token
+ * and building this context costs a spurious refusal, nothing more.
  */
 function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined): ToolContext {
-    if (authInfo === undefined) return tools;
-    const tiers = (oauth && tiersFor(oauth, authInfo.scopes)) ?? new Set<WriteTier>();
+    const token = authInfo?.extra?.mcpToken as StoredToken | undefined;
+    const tiers =
+        token !== undefined ? tiersOf(token.tier) : ((authInfo && oauth && tiersFor(oauth, authInfo.scopes)) ?? new Set<WriteTier>());
+    const refusal = token !== undefined ? tokenRefusal(token.name, token.tier) : oauthRefusal(oauth?.scopes);
+    const caller =
+        token !== undefined ? bearerCaller(token) : authInfo !== undefined ? `${OAUTH_CALLER_PREFIX}${authInfo.clientId}` : 'unknown';
     return {
         ...tools,
         // Cast because spreading a discriminated union loses the pairing of
@@ -123,11 +128,9 @@ function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInf
                     }
                 }) as ServiceInstance
         ),
-        // `caller` rides the same branch as the ceiling rather than needing its
-        // own: this is the one per-request place that holds `authInfo`, and a
-        // request without one is the static bearer token, which the audit
-        // records under its own fixed marker.
-        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers, oauth?.scopes), caller: `${OAUTH_CALLER_PREFIX}${authInfo.clientId}` }
+        // `caller` is set here because this is the one per-request place that
+        // holds `authInfo`.
+        write: { ...tools.write, permissions: cappedTo(tools.write.permissions, tiers, refusal), caller }
     };
 }
 
@@ -146,9 +149,8 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         const snapshot = runtime.current;
         // The ceiling is applied here rather than inside the tools because
         // this factory already runs once per request — the same property
-        // that lets a config reload take effect without a restart. A request
-        // with no authInfo (the static bearer token) gets the tools
-        // untouched.
+        // that lets a config reload take effect without a restart. Every
+        // request arrives with authInfo; one without is capped to reads.
         const tools = cappedTools(snapshot.tools, snapshot.config.auth.oauth, ctx.authInfo);
         const server = new McpServer(
             { name: NAME, version: VERSION },
@@ -355,13 +357,26 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         // with an undefined value.
         const metadataOpt = metadataUrl === undefined ? {} : { resourceMetadataUrl: metadataUrl };
 
+        const challenge = metadataUrl === undefined ? 'Bearer realm="arr-mcp"' : `Bearer realm="arr-mcp", resource_metadata="${metadataUrl}"`;
+
         let authInfo: AuthInfo | undefined;
 
-        // The static bearer token is checked first and always — it stays
-        // first-class, not a legacy path superseded by OAuth. `tokenMatches`
-        // is cheap and constant-time, and a JWT is never 64 bytes, so it
-        // refuses one on length alone before any OAuth work runs.
-        if (presented.via === 'none' || !tokenMatches(presented.token, auth.bearer_token)) {
+        // Named tokens are checked first and always. A JWT never matches a
+        // stored hash, so it falls through to OAuth.
+        const matched = presented.via === 'none' ? ({ kind: 'none' } as const) : matchToken(presented.token, auth.tokens, new Date());
+
+        if (matched.kind === 'expired') {
+            logger.warn({ path: '/mcp', ...originOf(c), via: presented.via, token: matched.token.name }, 'rejected an expired MCP token');
+            return c.json(
+                { error: 'unauthorized', detail: `token '${matched.token.name}' expired on ${matched.token.expires}` },
+                401,
+                { 'WWW-Authenticate': challenge }
+            );
+        }
+
+        if (matched.kind === 'match') {
+            authInfo = { token: '', clientId: bearerCaller(matched.token), scopes: [], extra: { mcpToken: matched.token } };
+        } else {
             const verifier = snapshot.oauthVerifier;
 
             if (presented.via === 'none' || verifier === undefined) {
@@ -381,8 +396,6 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                     },
                     'rejected unauthenticated MCP request'
                 );
-                const challenge =
-                    metadataUrl === undefined ? 'Bearer realm="arr-mcp"' : `Bearer realm="arr-mcp", resource_metadata="${metadataUrl}"`;
                 return c.json(
                     {
                         error: 'unauthorized',

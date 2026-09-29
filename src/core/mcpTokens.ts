@@ -3,7 +3,7 @@ import type { WriteTier } from './permissions.ts';
 
 export type TokenTier = 'read' | 'write' | 'destructive';
 export type ExpiryChoice = '30' | '90' | 'never';
-export type StoredToken = { name: string; tier: TokenTier; hash: string; expires?: string };
+export type StoredToken = { name: string; tier: TokenTier; hash: string; expires?: string | undefined };
 
 const DAY_MS = 86_400_000;
 const SOON_DAYS = 7;

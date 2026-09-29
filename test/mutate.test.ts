@@ -205,6 +205,6 @@ describe('editing an instance leaves the rest of the config alone', () => {
 
     it('leaves auth untouched', () => {
         const next = updateInstance(withDataset(), 'radarr', { timeout_ms: 12_000 });
-        expect(next.auth).toEqual(AUTH);
+        expect(next.auth).toEqual(withDataset().auth);
     });
 });
