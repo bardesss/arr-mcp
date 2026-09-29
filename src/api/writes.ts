@@ -46,6 +46,12 @@ const originOfUrl = (url: string): string | undefined => {
     }
 };
 
+/** The log field for a URL a write points an app at. */
+const targetOf = (url: string | undefined): Record<string, string> => {
+    const target = url === undefined ? undefined : originOfUrl(url);
+    return target === undefined ? {} : { target };
+};
+
 export function registerWrites(app: Hono, deps: ApiDeps): void {
     const { runtime } = deps;
 
@@ -158,13 +164,13 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
             alone !== undefined && body.renameExistingTo !== undefined && body.renameExistingTo !== ''
                 ? ` (renamed ${body.type} to ${body.type}/${body.renameExistingTo})`
                 : '';
-        const config = await applyWrite(c, deps, `added ${body.type}${name === undefined ? '' : `/${name}`}${renamed}`, current =>
-            addCandidate(current, {
-                type: body.type,
-                name,
-                renameExistingTo: body.renameExistingTo,
-                fields: fieldsFromBody(body, undefined)
-            }).candidate
+        const fields = fieldsFromBody(body, undefined);
+        const config = await applyWrite(
+            c,
+            deps,
+            `added ${body.type}${name === undefined ? '' : `/${name}`}${renamed}`,
+            current => addCandidate(current, { type: body.type, name, renameExistingTo: body.renameExistingTo, fields }).candidate,
+            () => targetOf(fields.url)
         );
         if (config instanceof Response) return config;
         const created = findInstance(config, body.type, name);
@@ -179,11 +185,20 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         const body = parseWith(c, AppBody, raw);
         if (body instanceof Response) return body;
 
-        const config = await applyWrite(c, deps, `saved ${instance.id}`, current => {
-            const fresh = findInstance(current, instance.type, instance.name);
-            if (fresh === undefined) throw new Error(`${instance.id} is not configured.`);
-            return updateInstance(current, fresh.id, fieldsFromBody(body, fresh));
-        });
+        let newUrl: string | undefined;
+        const config = await applyWrite(
+            c,
+            deps,
+            `saved ${instance.id}`,
+            current => {
+                const fresh = findInstance(current, instance.type, instance.name);
+                if (fresh === undefined) throw new Error(`${instance.id} is not configured.`);
+                const fields = fieldsFromBody(body, fresh);
+                newUrl = fields.url;
+                return updateInstance(current, fresh.id, fields);
+            },
+            () => targetOf(newUrl)
+        );
         if (config instanceof Response) return config;
         const saved = findInstance(config, instance.type, instance.name);
         return withEtag(c, config, saved === undefined ? {} : appResource(saved));

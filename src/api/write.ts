@@ -9,12 +9,13 @@ import type { ApiDeps } from './index.ts';
 
 const STALE = 'The config changed since you read it. Read it again and retry.';
 
-/** Returns the config now in force, or the refusal to send. */
+/** Returns the config now in force, or the refusal to send. `logged` adds fields to the save's log line. */
 export async function applyWrite(
     c: Context,
     deps: ApiDeps,
     what: string,
-    build: (config: Config) => Config
+    build: (config: Config) => Config,
+    logged: () => Record<string, unknown> = () => ({})
 ): Promise<Config | Response> {
     const { runtime } = deps;
     const expected = runtime.config;
@@ -37,6 +38,6 @@ export async function applyWrite(
         return apiError(c, 500, 'Saving config.yaml failed. The server log has the details.');
     }
 
-    logger.info({ ...originOf(c), what }, 'configuration saved from the management API');
+    logger.info({ ...originOf(c), what, ...logged() }, 'configuration saved from the management API');
     return runtime.config;
 }

@@ -136,6 +136,14 @@ describe('POST /app', () => {
         expect(line?.[0]).toMatchObject({ what: 'added sonarr/uhd (renamed sonarr to sonarr/hd)' });
     });
 
+    it('logs the origin the new app points at, and nothing past it', async () => {
+        const info = vi.spyOn(logger, 'info');
+        await api('/app', json('POST', { type: 'sonarr', url: 'http://u:leakpw@sonarr.example:8989/x?apikey=leak', apiKey: 'k' }));
+        const line = info.mock.calls.find(call => call[1] === 'configuration saved from the management API');
+        expect(line?.[0]).toMatchObject({ what: 'added sonarr', target: 'http://sonarr.example:8989' });
+        expect(JSON.stringify(line)).not.toContain('leak');
+    });
+
     it('refuses an unknown type or field', async () => {
         expect((await api('/app', json('POST', { type: 'kodi', url: 'http://k:1' }))).status).toBe(400);
         expect((await api('/app', json('POST', { type: 'sonarr', url: 'http://s:1', apiKey: 'k', apikey: 'typo' }))).status).toBe(400);
@@ -183,6 +191,22 @@ describe('PUT /app/{type}/{name}', () => {
         const res = await api('/app/radarr/hd', json('PUT', { url: ' http://radarr:7878/ ' }));
         expect(res.status).toBe(200);
         expect(radarr()?.url).toBe('http://user:pw@radarr:7878');
+    });
+
+    it('logs the origin of a changed URL, and nothing past it', async () => {
+        const info = vi.spyOn(logger, 'info');
+        await api('/app/radarr/hd', json('PUT', { url: 'http://u:leakpw@elsewhere.example:9999/x?apikey=leak' }));
+        const line = info.mock.calls.find(call => call[1] === 'configuration saved from the management API');
+        expect(line?.[0]).toMatchObject({ what: 'saved radarr/hd', target: 'http://elsewhere.example:9999' });
+        expect(JSON.stringify(line)).not.toContain('leak');
+    });
+
+    it('logs no target when the URL is unchanged', async () => {
+        const info = vi.spyOn(logger, 'info');
+        await api('/app/radarr/hd', json('PUT', { url: 'http://radarr:7878/', timeoutMs: 20000 }));
+        const line = info.mock.calls.find(call => call[1] === 'configuration saved from the management API');
+        expect(line?.[0]).toMatchObject({ what: 'saved radarr/hd' });
+        expect(line?.[0]).not.toHaveProperty('target');
     });
 
     it('refuses to clear a secret', async () => {
