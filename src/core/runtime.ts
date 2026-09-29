@@ -58,6 +58,7 @@ export class Runtime {
     #snapshot: RuntimeSnapshot;
     readonly #configDir: string;
     #plaintextOnDisk: readonly string[] = [];
+    #reloads: Promise<unknown> = Promise.resolve();
     readonly #audit: WriteAudit;
     readonly #refresh: Refresher;
 
@@ -267,8 +268,17 @@ export class Runtime {
      * Throws rather than half-applying: `loadConfig` validates, so a config
      * that would not start the process does not replace one that is working.
      * The caller reports the error to whoever tried to save it.
+     *
+     * Queued like saveConfig's writes: overlapping reloads would otherwise
+     * apply in completion order, and an older file could win.
      */
-    async reload(): Promise<void> {
+    reload(): Promise<void> {
+        const run = this.#reloads.then(() => this.#reloadNow());
+        this.#reloads = run.catch(() => undefined);
+        return run;
+    }
+
+    async #reloadNow(): Promise<void> {
         const { config, plaintextOnDisk } = await loadConfig(this.#configDir);
         this.#plaintextOnDisk = plaintextOnDisk;
         this.#syncDataset(config);
