@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -41,13 +41,11 @@ let audit: WriteAudit;
  * The same fixture as `seed`, minus `password_hash` — an *unclaimed* instance,
  * which is what a fresh install looks like before anyone visits it.
  *
- * The two `close()` calls come first because `beforeEach` has already opened a
- * claimed fixture by the time this runs, and `afterEach` only closes the latest
- * pair; without them every unclaimed test leaks a log and an audit handle.
+ * `release` comes first because `beforeEach` has already opened a claimed
+ * fixture by the time this runs.
  */
 const seedUnclaimed = async () => {
-    logs.close();
-    audit.close();
+    await release();
 
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
     await writeFile(
@@ -61,9 +59,23 @@ const seedUnclaimed = async () => {
     logs = LogStore.ephemeral();
     runtime = Runtime.fromConfig(config, audit, { configDir: dir });
     app = buildApp({ runtime, audit, logs });
+    seeded = true;
+};
+
+let seeded = false;
+
+/** Closes the stores and removes the temp dir. Safe to call twice. */
+const release = async () => {
+    if (!seeded) return;
+    seeded = false;
+    runtime.dataset?.close();
+    logs.close();
+    audit.close();
+    await rm(dir, { recursive: true, force: true });
 };
 
 const seed = async (extra = '', authExtra = '') => {
+    await release();
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
     await writeFile(
         join(dir, 'config.yaml'),
@@ -76,15 +88,15 @@ const seed = async (extra = '', authExtra = '') => {
     logs = LogStore.ephemeral();
     runtime = Runtime.fromConfig(config, audit, { configDir: dir });
     app = buildApp({ runtime, audit, logs });
+    seeded = true;
 };
 
 beforeEach(async () => {
     await seed();
 });
 
-afterEach(() => {
-    logs.close();
-    audit.close();
+afterEach(async () => {
+    await release();
 });
 
 let cookie = '';
@@ -375,12 +387,9 @@ describe('the MCP endpoint form', () => {
 });
 
 describe('the URL token checkbox while oauth is configured', () => {
-    /** Same fixture shape as `seed`, with an `auth.oauth` block added — the
-     *  leading closes match `seedUnclaimed`'s, since `beforeEach` has already
-     *  opened the plain fixture by the time this runs. */
+    /** Same fixture shape as `seed`, with an `auth.oauth` block added. */
     const seedWithOAuth = async () => {
-        logs.close();
-        audit.close();
+        await release();
 
         dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
         await writeFile(
@@ -394,6 +403,7 @@ describe('the URL token checkbox while oauth is configured', () => {
         logs = LogStore.ephemeral();
         runtime = Runtime.fromConfig(config, audit, { configDir: dir });
         app = buildApp({ runtime, audit, logs });
+        seeded = true;
     };
 
     it('refuses the URL-token checkbox in a sentence, not a schema dump', async () => {
@@ -1157,7 +1167,41 @@ describe('a page left open while the config changed', () => {
         const res = await call('/ui/config/tokens/revoke', form({ ...asked, token: 'phone', confirm: 'yes' }));
 
         expect(res.status).toBe(409);
+        expect(await res.text()).toContain(STALE);
         expect(runtime.config.auth.tokens.some(t => t.name === 'phone')).toBe(true);
+    });
+
+    // Ask, then confirm from the asking page, as a browser would.
+    const confirmFlow = async (path: string, fields: Record<string, string> = {}) => {
+        const asked = await call(path, form({ ...keysFrom(await (await call('/ui/config')).text()), ...fields }));
+        expect(asked.status).toBe(200);
+        const keys = keysFrom(await asked.text());
+        expect(keys.etag).not.toBe('');
+        return call(path, form({ ...keys, ...fields, confirm: 'yes' }));
+    };
+
+    it('carries the etag through a two-step app removal', async () => {
+        await seedKeyed();
+        await signIn();
+        expect((await confirmFlow('/ui/config/remove', { instance: 'radarr' })).status).toBe(200);
+        expect(runtime.config.services.radarr).toBeUndefined();
+    });
+
+    it('carries the etag through turning the management API off', async () => {
+        await seedKeyed();
+        await signIn();
+        expect((await confirmFlow('/ui/config/api-key/remove')).status).toBe(200);
+        expect(runtime.config.auth.management_key).toBeUndefined();
+    });
+
+    it('carries the etag through removing OAuth', async () => {
+        await seed(
+            '',
+            '  oauth:\n    issuer: https://auth.example.com\n    audience: arr-mcp\n    jwks_uri: https://auth.example.com/.well-known/jwks.json\n'
+        );
+        await signIn();
+        expect((await confirmFlow('/ui/config/oauth/remove')).status).toBe(200);
+        expect(runtime.config.auth.oauth).toBeUndefined();
     });
 
     it('logs a hand edit that no longer loads once, at warn', async () => {
