@@ -289,7 +289,8 @@ export function registerFixMetadata(
                         ? [
                               'Plex takes season and episode numbers from the file names, so a numbering mismatch usually needs the files renamed (trigger_scan with action "rename" on Sonarr, then trigger_scan on Plex) rather than a rematch.'
                           ]
-                        : []),                    `${titleOnly} where only the title text disagrees — the weaker signal, and legitimate for a romanised or alternate-language filename.`,
+                        : []),
+                    `${titleOnly} where only the title text disagrees — the weaker signal, and legitimate for a romanised or alternate-language filename.`,
                     ...mismatches.slice(0, EXAMPLE_LIMIT).map(m => describe(m, adapter.id)),
                     ...(mismatches.length > EXAMPLE_LIMIT ? [`…and ${mismatches.length - EXAMPLE_LIMIT} more.`] : [])
                 ],
