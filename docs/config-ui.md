@@ -96,6 +96,13 @@ is the permission key, the audit column, and what your agent passes. Removing an
 instance asks once before it goes, because its API key is not recovered by
 re-adding it.
 
+**OAuth** has its own card under Access, for when an identity provider issues
+your clients' tokens. Fill in the issuer, audience, JWKS URI and the three scope
+names (pre-filled with the defaults), and **Test** fetches the key set as typed
+and lists the keys it found, flagging any arr-mcp would refuse. Remove asks once
+first. Named MCP tokens keep working whatever this card says. See
+[`auth.oauth`](configuration.md#authoauth) for what each field means.
+
 ## Logs and the write audit
 
 <img src="../screenshots/logs-dark.png" alt="The logs page: three stream tabs above a live-refreshing table of time, level, service and message, with each line's recorded fields underneath the message" width="880">
