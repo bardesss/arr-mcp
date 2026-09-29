@@ -176,7 +176,15 @@ describe('POST /app/test', () => {
     });
 });
 
-describe('PUT /settings/mcp', () => {
+describe('PUT /settings', () => {
+    it('turns the IMDb dataset on and off', async () => {
+        const on = await api('/settings/imdb', json('PUT', { enabled: true }));
+        expect(((await on.json()) as { enabled: boolean }).enabled).toBe(true);
+        expect(stack.runtime.config.metadata?.imdb?.enabled).toBe(true);
+        await api('/settings/imdb', json('PUT', { enabled: false }));
+        expect(stack.runtime.config.metadata).toBeUndefined();
+    });
+
     it('sets allowTokenInUrl', async () => {
         const res = await api('/settings/mcp', json('PUT', { allowTokenInUrl: true }));
         expect(await res.json()).toEqual({ allowedHosts: [], allowTokenInUrl: true, oauthConfigured: false });
@@ -216,11 +224,13 @@ describe('tokens', () => {
         expect((await api('/token', json('POST', { name: 'phone', tier: 'read', expiry: '30' }))).status).toBe(400);
         expect((await api('/token', json('POST', { name: 'x', tier: 'admin', expiry: '30' }))).status).toBe(400);
         expect((await api('/token', json('POST', { name: 'x', tier: 'read', expiry: '365' }))).status).toBe(400);
+        expect((await api('/token', json('POST', { name: 'bad name!', tier: 'read', expiry: '30' }))).status).toBe(400);
     });
 
     it('revokes a token, which stops working at once', async () => {
         expect((await api('/token/phone', { method: 'DELETE' })).status).toBe(200);
         expect((await mcp(MCP)).status).toBe(401);
+        expect(await (await api('/token')).text()).not.toContain('phone');
     });
 
     it('404s an unknown token', async () => {
