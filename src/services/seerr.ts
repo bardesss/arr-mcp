@@ -347,7 +347,10 @@ export class SeerrAdapter
      * fields — `title`/`releaseDate` against `name`/`firstAirDate` — which is
      * why this cannot be one generic fetch.
      */
-    async describeRequestMedia(request: MediaRequest): Promise<{ title: string; year?: number } | undefined> {
+    async describeRequestMedia(
+        request: MediaRequest,
+        opts: { strict?: boolean } = {}
+    ): Promise<{ title: string; year?: number } | undefined> {
         if (request.tmdbId === undefined || request.mediaType === 'unknown') return undefined;
 
         const path = request.mediaType === 'movie' ? `/api/v1/movie/${request.tmdbId}` : `/api/v1/tv/${request.tmdbId}`;
@@ -355,7 +358,10 @@ export class SeerrAdapter
         try {
             const raw = await this.#http.get<RawMediaDetails>(path);
             const title = raw.title ?? raw.name;
-            if (title === undefined || title === '') return undefined;
+            if (title === undefined || title === '') {
+                if (opts.strict === true) throw new ServiceError('NotFound', this.id, `${path} has no title`);
+                return undefined;
+            }
 
             const year = yearOf(raw.releaseDate ?? raw.firstAirDate);
 
@@ -364,6 +370,7 @@ export class SeerrAdapter
                 ...(year === undefined ? {} : { year })
             };
         } catch (err) {
+            if (opts.strict === true) throw err;
             // Degrades rather than propagating: a lookup failure must not stop
             // someone deleting a request. The preview says the title is
             // unavailable instead of inventing one.

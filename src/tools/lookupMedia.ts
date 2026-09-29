@@ -32,7 +32,7 @@ export function registerLookupMedia(
             title: 'Look up a title externally',
             annotations: READ_ONLY,
             description:
-                'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr and Seerr. Reads only — nothing is added, requested or monitored.',
+                'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr and Seerr. Query imdb:tt… to turn an IMDb id into a TMDB id; a bare tt… misses Seerr. Reads only — nothing is added, requested or monitored.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 query: z.string().min(1).describe('What to look up.'),

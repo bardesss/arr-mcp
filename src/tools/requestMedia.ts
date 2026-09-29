@@ -6,6 +6,7 @@ import {
     hasRequestCreate,
     hasRequestManage,
     hasRequests,
+    type MediaRequest,
     type RequestCreateCapable,
     type ServiceAdapter
 } from '../services/types.ts';
@@ -46,6 +47,26 @@ const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Req
     return adapter;
 };
 
+/** Seerr answers HTTP 500, not 404, for a TMDB id it cannot resolve, so both
+ *  mean "wrong id" here. An unreachable Seerr or a bad key passes through. */
+const describe = async (
+    adapter: ServiceAdapter,
+    request: MediaRequest,
+    strict: boolean
+): Promise<{ title: string; year?: number } | undefined> => {
+    if (!hasRequestManage(adapter)) return undefined;
+    try {
+        return await adapter.describeRequestMedia(request, { strict });
+    } catch (err) {
+        if (!(err instanceof ServiceError) || (err.kind !== 'NotFound' && err.kind !== 'UpstreamError')) throw err;
+        const kind = request.mediaType === 'movie' ? 'movie' : 'tv';
+        throw new ServiceError('NotFound', 'seerr', `no TMDB ${kind} with id ${request.tmdbId} (${err.detail})`, {
+            remedy: 'media_id must be a TMDB id. Resolve it with lookup_media first. An IMDb tt… id is not a TMDB id, but lookup_media finds its TMDB id when queried as imdb:tt….',
+            cause: err
+        });
+    }
+};
+
 export function registerRequestMedia(
     server: McpServer,
     context: WriteContext,
@@ -56,7 +77,7 @@ export function registerRequestMedia(
         name: 'request_media',
         title: 'Request a film or series',
         description:
-            'Asks Seerr for a film or series, the way a household member would through its web UI — it enters the approval queue and counts against that user\'s quota. This is the tool for "request X". It is not add_media: add_media writes straight into Radarr or Sonarr, skipping approval and quota entirely, and needs that service\'s own write permission. `media_id` is a TMDB id — take one from search_media, lookup_media or discover_media; Seerr resolves the TVDB id itself. For a series, `seasons` defaults to every season. `user` names whose quota and approval trail it lands in, and requesting as anyone but the configured default user needs services.seerr.allow_other_users. Previews by default — call again with the returned `confirm` token to create the request.',
+            'Asks Seerr for a film or series, the way a household member would through its web UI — it enters the approval queue and counts against that user\'s quota. This is the tool for "request X". It is not add_media: add_media writes straight into Radarr or Sonarr, skipping approval and quota entirely, and needs that service\'s own write permission. `media_id` is a TMDB id — take one from search_media, lookup_media or discover_media (an IMDb tt… id is not one: look it up as imdb:tt… to get its TMDB id); Seerr resolves the TVDB id itself. For a series, `seasons` defaults to every season. `user` names whose quota and approval trail it lands in, and requesting as anyone but the configured default user needs services.seerr.allow_other_users. Previews by default — call again with the returned `confirm` token to create the request.',
         inputSchema: z.object({
             media_type: z.enum(['movie', 'tv']).describe('movie or tv.'),
             media_id: z.number().int().describe('The TMDB id. Not a Radarr, Sonarr or Jellyfin id — those will not resolve.'),
@@ -106,17 +127,20 @@ export function registerRequestMedia(
             // Seerr's request payload carries no title, so naming the media
             // takes a second lookup — the same one the other request previews
             // pay for, and for the same reason: "request 438631" is not
-            // something anyone can approve.
-            const media = hasRequestManage(adapter)
-                ? await adapter.describeRequestMedia({
-                      service: adapter.id,
-                      id: 0,
-                      status: 'unknown',
-                      mediaType: media_type,
-                      tmdbId: media_id,
-                      requestedBy: requester.name
-                  })
-                : undefined;
+            // something anyone can approve. Strict only when creating: there a
+            // failed lookup means a wrong id, and a token for it applies as a 500.
+            const media = await describe(
+                adapter,
+                {
+                    service: adapter.id,
+                    id: 0,
+                    status: 'unknown',
+                    mediaType: media_type,
+                    tmdbId: media_id,
+                    requestedBy: requester.name
+                },
+                existing === undefined
+            );
             const label =
                 media === undefined
                     ? `${media_type === 'movie' ? 'movie' : 'series'} ${media_id} (title unavailable)`
