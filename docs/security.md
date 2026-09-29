@@ -39,8 +39,8 @@ acting on text it read somewhere else.
 ## MCP01 Token Mismanagement and Secret Exposure
 
 **The risk.** Credentials in logs, in model context, in debug traces, in the
-transcript. This server holds every service credential you configure plus its own bearer
-token, so it is a concentrated target.
+transcript. This server holds every service credential you configure plus the hashes of its own
+MCP tokens, so it is a concentrated target.
 
 **What arr-mcp does.**
 
@@ -55,16 +55,17 @@ token, so it is a concentrated target.
 - Audit arguments pass through a key-name redactor before they are written, even
   though no write tool accepts a credential today (`src/core/audit.ts`). That
   keeps it true by construction rather than by everyone remembering.
-- The config UI password is stored as a scrypt hash and nothing else. The bearer
-  token is 32 random bytes, and rotating it from the UI takes effect on the very
-  next request rather than at the next restart.
+- The config UI password is stored as a scrypt hash and nothing else. MCP tokens are
+  32 random bytes, stored only as SHA-256 hashes, and revoking or creating one
+  from the UI takes effect on the very next request rather than at the next
+  restart.
 - The maintenance scripts redact configured hostnames from their output, with a
   test that says so (`test/scriptsRedact.test.ts`).
 
 **What it does not solve.** `config.yaml` is plaintext on disk. There is no
 secret manager integration and no encryption at rest, so filesystem permissions
 on the config volume are the real boundary. And
-[`allow_token_in_url`](configuration.md#allow_token_in_url) puts the bearer
+[`allow_token_in_url`](configuration.md#allow_token_in_url) puts an MCP
 token in the address when you turn it on, which a reverse proxy access log will
 happily record — it is off by default, and the cost is documented where it is
 enabled.
@@ -277,8 +278,8 @@ so far.
   "trusted network" bypass, because "LAN-only" is a network assumption rather
   than a security control, and a home network contains guest phones and IoT
   devices.
-- The token is read from the runtime on **every request**, so rotating it takes
-  effect immediately rather than at the next restart.
+- The tokens are read from the runtime on **every request**, so revoking or
+  creating one takes effect immediately rather than at the next restart.
 - The config UI has its own scrypt-hashed password with a 12 character minimum
   and a signed, expiring session cookie (12 hours). It is a bigger target than
   the MCP endpoint, because it displays every service's API key and can change
@@ -303,8 +304,8 @@ so far.
   access token in place of an MCP token. The token's signature,
   issuer, audience and expiry are verified against the issuer's JWKS, and its
   scope becomes a ceiling on what `config.yaml` already permits — narrowing
-  it, never widening it, and enforced by the same gate that governs the
-  static token. `/.well-known/oauth-protected-resource` serves the RFC 9728
+  it, never widening it, and enforced by the same gate that governs an
+  MCP token's tier. `/.well-known/oauth-protected-resource` serves the RFC 9728
   metadata document, and the 401 challenge carries `resource_metadata=`
   pointing at it, whether or not a token verifies. With no `oauth` block,
   both are unchanged: the route 404s and the challenge names only the realm.
@@ -347,8 +348,10 @@ only thing between the internet and every credential in your stack. Do not do th
 - Outcomes are a closed set: `attempted`, `applied`, `dry_run`, `denied`,
   `unconfirmed`, `failed`. A refusal is as much a recorded event as a write.
 - Each row names the credential that made the call: `oauth:<client id>` for an OAuth
-  token, or `bearer` for the static token. With two clients holding two tokens, the
-  trail can say which one deleted something. A blank means only that the row
+  token, or `bearer:<name>#<fingerprint>` for a named MCP token (the fingerprint is the
+  first 8 hex characters of its stored hash). Bare `bearer` appears only on rows
+  from before named tokens. With two clients holding two tokens, the trail can
+  say which one deleted something. A blank means only that the row
   was written before the column existed.
 - The database lives in the mounted config volume, not the container filesystem.
   A trail that vanishes on `docker compose down` is not a trail.
