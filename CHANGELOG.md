@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.33.3](https://github.com/bardesss/arr-mcp/compare/v1.33.2...v1.33.3) (2026-09-29)
+
+
+### Bug Fixes
+
+* refuse a request_media preview for a TMDB id Seerr cannot resolve ([#297](https://github.com/bardesss/arr-mcp/issues/297)) ([f9e37fe](https://github.com/bardesss/arr-mcp/commit/f9e37feaa1772e177c85ce271983daf50024820c))
+
 ## [1.33.2](https://github.com/bardesss/arr-mcp/compare/v1.33.1...v1.33.2) (2026-09-25)
 
 
