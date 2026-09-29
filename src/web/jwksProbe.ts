@@ -26,6 +26,16 @@ function reason(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
+/** Absolute, so a relative Location can be pasted straight into the field. */
+function resolved(location: string | null, base: string): string | null {
+    if (location === null) return null;
+    try {
+        return new URL(location, base).href;
+    } catch {
+        return location;
+    }
+}
+
 async function readCapped(res: Response): Promise<string> {
     if (Number(res.headers.get('content-length') ?? 0) > MAX_BYTES) {
         await res.body?.cancel();
@@ -90,7 +100,7 @@ export async function probeJwks(uri: string): Promise<JwksProbe> {
 
     if (res.status >= 300 && res.status < 400) {
         await res.body?.cancel();
-        const location = res.headers.get('location');
+        const location = resolved(res.headers.get('location'), uri);
         return fail(
             'redirect',
             `The key set answered HTTP ${res.status} (redirects are not followed${location === null ? '' : `; use ${location}`}).`

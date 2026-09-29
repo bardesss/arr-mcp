@@ -2008,7 +2008,7 @@ describe('the OAuth card', async () => {
         if (mode === 'http502') return void res.writeHead(502).end('{}');
         if (mode === 'html') return void res.writeHead(200, { 'content-type': 'text/html' }).end('<html>login</html>');
         if (mode === 'empty') return void res.writeHead(200, json).end('{"keys":[]}');
-        if (mode === 'redirect') return void res.writeHead(301, { location: '/jwks/<b>' }).end();
+        if (mode === 'redirect') return void res.writeHead(301, { location: "/jwks/'x'?a=1&b=2" }).end();
         if (mode === 'noContent') return void res.writeHead(204).end();
         if (mode === 'big') return void res.writeHead(200, json).end(`{"keys":[],"pad":"${'x'.repeat(MIB + 10)}"}`);
         if (mode === 'bigChunked') {
@@ -2247,8 +2247,9 @@ describe('the OAuth card', async () => {
 
             expect(raw).toContain('HTTP 301');
             expect(raw).toContain('redirects are not followed');
-            expect(raw).toContain(`/jwks/&lt;b&gt;`);
-            expect(raw).not.toContain('/jwks/<b>');
+            // Resolved against jwks_uri, so it can be pasted straight back in.
+            expect(raw).toContain(`${JWKS_URI}/&#39;x&#39;?a=1&amp;b=2`);
+            expect(raw).not.toContain("'x'?a=1&b");
             expect(raw).not.toContain('test-key');
             expect(JSON.stringify(logs.recent({ limit: 50 }))).not.toContain('/jwks/');
         });
