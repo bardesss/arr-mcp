@@ -1309,6 +1309,7 @@ describe('MCP tokens', () => {
         await call('/ui/config/tokens/add', form(body));
         const again = await call('/ui/config/tokens/add', form(body));
         expect(again.status).toBe(400);
+        expect(await again.text()).not.toContain('amcp_');
         expect(runtime.config.auth.tokens.filter(t => t.name === 'phone')).toHaveLength(1);
     });
 
