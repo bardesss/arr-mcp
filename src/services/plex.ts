@@ -528,6 +528,7 @@ export class PlexAdapter
             ids: externalIds(item),
             playback: {
                 user: user.name,
+                ...(item.ratingKey === undefined ? {} : { itemId: item.ratingKey }),
                 ...(watched === undefined ? {} : { watched }),
                 ...(item.viewCount === undefined ? {} : { playCount: item.viewCount }),
                 ...(lastPlayed === undefined ? {} : { lastPlayed })

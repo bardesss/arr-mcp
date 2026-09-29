@@ -428,6 +428,21 @@ describe('PlexAdapter', () => {
             expect(items.map(i => i.kind).sort()).toEqual(['movie', 'series']);
         });
 
+        it('carries the ratingKey as playback.itemId, the id metadata tools act on', async () => {
+            const { adapter } = plex({
+                '/library/sections': SECTIONS,
+                [`/library/sections/1/all${withPaging(0)}`]: page([{ ratingKey: '11', title: 'A Movie', type: 'movie' }]),
+                [`/library/sections/2/all${withPaging(0)}`]: page([
+                    { ratingKey: '22', title: 'A Show', type: 'show' },
+                    { title: 'No Key', type: 'show' }
+                ])
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items.find(i => i.kind === 'movie')?.playback?.itemId).toBe('11');
+            expect(items.find(i => i.title.includes('A Show'))?.playback?.itemId).toBe('22');
+            expect(items.find(i => i.title.includes('No Key'))?.playback).not.toHaveProperty('itemId');
+        });
+
         it('maps a positive viewCount to watched, and no viewCount to unwatched', async () => {
             const { adapter } = plex({
                 '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } },
