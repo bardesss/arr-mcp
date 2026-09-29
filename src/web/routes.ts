@@ -1,6 +1,7 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
 import { commitConfig } from '../config/commit.ts';
+import { setImdb, setMcpEndpoint } from '../config/edits.ts';
 import { saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
@@ -17,14 +18,13 @@ import {
     SESSION_TTL_MS,
     verifyPassword
 } from '../core/session.ts';
-import { instanceId } from '../config/instances.ts';
 import { buildAdapters } from '../services/registry.ts';
 import { hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
 import { MARK_SVG } from './icons.ts';
 import {
-    addInstance,
+    addCandidate,
     addToken,
     ConfigEditError,
     removeInstance,
@@ -857,15 +857,12 @@ export function addCandidateFrom(
     const name = str(form.name).trim();
     const renameExistingTo = str(form.rename_existing_to).trim();
 
-    return {
-        candidate: addInstance(config, {
-            type,
-            ...(name === '' ? {} : { name }),
-            ...(renameExistingTo === '' ? {} : { renameExistingTo }),
-            fields: instanceFieldsFrom(form)
-        }),
-        target: instanceId(type, name === '' ? undefined : name)
-    };
+    return addCandidate(config, {
+        type,
+        name: name === '' ? undefined : name,
+        renameExistingTo: renameExistingTo === '' ? undefined : renameExistingTo,
+        fields: instanceFieldsFrom(form)
+    });
 }
 
 /**
@@ -915,16 +912,10 @@ export async function buildAccountConfig(current: Config, form: Record<string, u
  *
  * Its checkbox is authoritative because an unchecked box submits nothing, and
  * this is the only form that carries it — so absent genuinely means off here,
- * where on any other card it would mean "not mine to touch". Off is expressed
- * by dropping the block entirely rather than by `enabled: false`, so a config
- * nobody touched stays exactly as clean as it started.
+ * where on any other card it would mean "not mine to touch".
  */
 export function buildImdbConfig(current: Config, form: Record<string, unknown>): Config {
-    const { metadata: _dropped, ...rest } = current;
-    return {
-        ...rest,
-        ...(on(form['metadata.imdb']) ? { metadata: { imdb: { enabled: true } } } : {})
-    };
+    return setImdb(current, on(form['metadata.imdb']));
 }
 
 /**
@@ -1002,27 +993,8 @@ export function buildOAuthConfig(current: Config, form: Record<string, unknown>)
 
 /** The MCP endpoint. Owns `allowed_hosts` and `allow_token_in_url`. */
 export function buildMcpConfig(current: Config, form: Record<string, unknown>): Config {
-    const hosts = str(form['auth.allowed_hosts'])
-        .split(',')
-        .map(h => h.trim())
-        .filter(h => h !== '');
-
-    // The schema refuses this combination too, but it would arrive here as a
-    // prettified union error at the MCP card. The operator asked a plain
-    // question and deserves a plain answer.
-    const urlToken = on(form['auth.allow_token_in_url']);
-    if (urlToken && current.auth.oauth !== undefined) {
-        throw new Error(
-            'OAuth is configured, so the token cannot travel in the URL — a JWT in the address reaches every proxy log. Remove it on the OAuth card first.'
-        );
-    }
-
-    return {
-        ...current,
-        auth: {
-            ...current.auth,
-            allow_token_in_url: urlToken,
-            allowed_hosts: hosts
-        }
-    };
+    return setMcpEndpoint(current, {
+        allowedHosts: str(form['auth.allowed_hosts']).split(','),
+        allowTokenInUrl: on(form['auth.allow_token_in_url'])
+    });
 }
