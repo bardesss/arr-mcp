@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.38.0](https://github.com/bardesss/arr-mcp/compare/v1.37.0...v1.38.0) (2026-09-29)
+
+
+### Features
+
+* show seeding limits and what is seeding past them ([#309](https://github.com/bardesss/arr-mcp/issues/309)) ([#315](https://github.com/bardesss/arr-mcp/issues/315)) ([1e13892](https://github.com/bardesss/arr-mcp/commit/1e138925671efa9a4017367c9f005ced7455e52c))
+
 ## [1.37.0](https://github.com/bardesss/arr-mcp/compare/v1.36.0...v1.37.0) (2026-09-29)
 
 
