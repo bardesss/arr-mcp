@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MultiUserServiceConfig } from '../src/config/schema.ts';
+import { ServiceError } from '../src/core/errors.ts';
 import { logger } from '../src/core/logger.ts';
 import { unfenced } from '../src/core/titleMatch.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
@@ -803,6 +804,132 @@ describe('PlexAdapter', () => {
             const { adapter, seen } = probe({ MediaContainer: { Directory: [] } });
             await expect(adapter.startLibraryScan()).rejects.toThrow(/no library sections/);
             expect(seen).toEqual([]);
+        });
+    });
+
+    describe('repairMetadata', () => {
+        type Seen = { method: string; path: string; params: Record<string, string> };
+
+        const SECTIONS_WITH_AGENTS = {
+            MediaContainer: {
+                Directory: [
+                    { key: '1', type: 'movie', title: 'Movies', agent: 'tv.plex.agents.movie', language: 'en-US' },
+                    { key: '2', type: 'show', title: 'TV Shows', agent: 'tv.plex.agents.series', language: 'en-US' },
+                    { key: '5', type: 'movie', title: 'Old Movies', agent: 'com.plexapp.agents.imdb', language: 'en' }
+                ]
+            }
+        };
+        const candidate = (guid: string, name: string) => ({ guid, name, year: 2001, score: 100 });
+
+        const probe = (opts: { section?: number; results?: unknown[]; failMatch?: boolean } = {}) => {
+            const seen: Seen[] = [];
+            const impl = (async (input: string, init?: RequestInit) => {
+                const url = new URL(String(input));
+                const method = init?.method ?? 'GET';
+                seen.push({ method, path: url.pathname, params: Object.fromEntries(url.searchParams) });
+
+                if (method === 'PUT') {
+                    if (opts.failMatch === true && url.pathname.endsWith('/match')) return new Response('<html>500</html>', { status: 500 });
+                    // Plex answers writes with no body and no Content-Type.
+                    return new Response(null);
+                }
+                if (url.pathname === '/library/sections') return jsonResponse(SECTIONS_WITH_AGENTS);
+                if (url.pathname.endsWith('/matches')) {
+                    return jsonResponse({
+                        MediaContainer: { SearchResult: opts.results ?? [candidate('plex://show/fixture2', 'Fixture show 2')] }
+                    });
+                }
+                const key = /^\/library\/metadata\/(\d+)$/.exec(url.pathname)?.[1];
+                if (key !== undefined) {
+                    return jsonResponse({ MediaContainer: { Metadata: [{ ratingKey: key, librarySectionID: opts.section ?? 2 }] } });
+                }
+                return jsonResponse({ message: 'not found' }, 404);
+            }) as unknown as typeof fetch;
+            return { adapter: new PlexAdapter(config(), impl), seen };
+        };
+
+        const calls = (seen: Seen[]) => seen.map(s => `${s.method} ${s.path}`);
+        const failure = (p: Promise<unknown>) => p.then(() => undefined, (err: unknown) => err);
+
+        it('matches a series by its TVDB id, then refreshes', async () => {
+            const { adapter, seen } = probe();
+            expect(await adapter.repairMetadata('900100', { tvdbId: 900 })).toEqual({ settled: false });
+
+            expect(calls(seen)).toEqual([
+                'GET /library/metadata/900100',
+                'GET /library/sections',
+                'GET /library/metadata/900100/matches',
+                'PUT /library/metadata/900100/match',
+                'PUT /library/metadata/900100/refresh'
+            ]);
+            expect(seen[2]?.params).toEqual({ manual: '1', title: 'tvdb-900', agent: 'tv.plex.agents.series', language: 'en-US' });
+            expect(seen[3]?.params).toEqual({ guid: 'plex://show/fixture2', name: 'Fixture show 2' });
+            expect(seen[4]?.params).toEqual({ force: '1' });
+        });
+
+        it('matches a film by its TMDB id with the movie agent', async () => {
+            const { adapter, seen } = probe({ section: 1, results: [candidate('plex://movie/fixture1', 'Fixture film')] });
+            await adapter.repairMetadata('900200', { tmdbId: 901 });
+
+            expect(calls(seen)).toEqual([
+                'GET /library/metadata/900200',
+                'GET /library/sections',
+                'GET /library/metadata/900200/matches',
+                'PUT /library/metadata/900200/match',
+                'PUT /library/metadata/900200/refresh'
+            ]);
+            expect(seen[2]?.params).toEqual({ manual: '1', title: 'tmdb-901', agent: 'tv.plex.agents.movie', language: 'en-US' });
+            expect(seen[3]?.params).toEqual({ guid: 'plex://movie/fixture1', name: 'Fixture film' });
+        });
+
+        it('only refreshes when there is no id to match by', async () => {
+            const { adapter, seen } = probe();
+            expect(await adapter.repairMetadata('900100', {})).toEqual({ settled: false });
+            expect(calls(seen)).toEqual(['PUT /library/metadata/900100/refresh']);
+        });
+
+        it('refreshes an item on a legacy agent when there is no id to match by', async () => {
+            const { adapter, seen } = probe({ section: 5 });
+            expect(await adapter.repairMetadata('900300', {})).toEqual({ settled: false });
+            expect(calls(seen)).toEqual(['PUT /library/metadata/900300/refresh']);
+        });
+
+        it('refuses an id match on a legacy agent before writing anything', async () => {
+            const { adapter, seen } = probe({ section: 5 });
+            const err = await failure(adapter.repairMetadata('900300', { tmdbId: 901 }));
+
+            expect(err).toBeInstanceOf(ServiceError);
+            expect((err as ServiceError).detail).toContain('legacy agent com.plexapp.agents.imdb');
+            expect((err as ServiceError).remedy).toContain('Plex TV Series (or Plex Movie)');
+            expect(seen.some(s => s.method === 'PUT')).toBe(false);
+        });
+
+        it('refuses when the id search finds nothing', async () => {
+            const { adapter, seen } = probe({ results: [] });
+            const err = await failure(adapter.repairMetadata('900100', { tvdbId: 900 }));
+
+            expect((err as ServiceError).kind).toBe('NotFound');
+            expect((err as ServiceError).detail).toContain('Plex found 0 matches for tvdb-900');
+            expect(seen.some(s => s.method === 'PUT')).toBe(false);
+        });
+
+        it('refuses when the id search is ambiguous', async () => {
+            const { adapter, seen } = probe({
+                results: [candidate('plex://show/a', 'Fixture show 2'), candidate('plex://show/b', 'Fixture show 3')]
+            });
+            const err = await failure(adapter.repairMetadata('900100', { tvdbId: 900 }));
+
+            expect((err as ServiceError).detail).toContain('Plex found 2 matches for tvdb-900');
+            expect(seen.some(s => s.method === 'PUT')).toBe(false);
+        });
+
+        it('names the failed step and sends no refresh after a failed match', async () => {
+            const { adapter, seen } = probe({ failMatch: true });
+            const err = await failure(adapter.repairMetadata('900100', { tvdbId: 900 }));
+
+            expect((err as ServiceError).kind).toBe('UpstreamError');
+            expect((err as ServiceError).detail).toContain('the match step failed');
+            expect(calls(seen)).not.toContain('PUT /library/metadata/900100/refresh');
         });
     });
 

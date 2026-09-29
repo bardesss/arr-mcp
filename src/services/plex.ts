@@ -14,6 +14,7 @@ import {
     type MediaDetailCapable,
     type MediaDetails,
     type MetadataInspectCapable,
+    type MetadataRepairCapable,
     type PlaybackCapable,
     type PlaybackEntry,
     type ScanState,
@@ -73,6 +74,8 @@ export type RawPlexItem = {
     /** Show rows only — Plex's own series-completion counters. */
     viewedLeafCount?: number;
     leafCount?: number;
+    /** `/library/metadata/{id}` rows: the library section holding the item. */
+    librarySectionID?: number | string;
 };
 
 export const unwrap = <T>(body: unknown, key: string): T[] => {
@@ -160,6 +163,8 @@ type RawSection = {
      *  same instability as `refreshing` — a string here must not silently
      *  drop out of `lastCompleted`. */
     scannedAt?: number | boolean | string;
+    agent?: string;
+    language?: string;
 };
 
 /** `refreshing` off XML-derived JSON: `true`, `1` and `"1"` all mean yes. */
@@ -173,6 +178,11 @@ const scannedAtSeconds = (value: RawSection['scannedAt']): number | undefined =>
     if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
     return undefined;
 };
+
+type RawSearchResult = { guid?: string; name?: string; year?: number; score?: number };
+
+/** Only Plex's own agents accept `tvdb-N`/`tmdb-N` as an exact id search. */
+const MODERN_AGENTS = new Set(['tv.plex.agents.series', 'tv.plex.agents.movie']);
 
 /** Plex library item types, for `?type=` on `/library/sections/{key}/all`. */
 const PLEX_TYPE_MOVIE = 1;
@@ -203,7 +213,8 @@ export class PlexAdapter
         MediaDetailCapable,
         ScanStateCapable,
         LibraryScanCapable,
-        MetadataInspectCapable
+        MetadataInspectCapable,
+        MetadataRepairCapable
 {
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
@@ -741,6 +752,78 @@ export class PlexAdapter
                     ...(providerIds === undefined ? {} : { providerIds })
                 };
             });
+    }
+
+    async #sectionOf(ratingKey: string): Promise<RawSection & { key: string }> {
+        const body = await this.#http.get<unknown>(`/library/metadata/${ratingKey}`);
+        const item = unwrap<RawPlexItem>(body, 'Metadata')[0];
+        if (item === undefined) {
+            throw new ServiceError('NotFound', this.id, `no item with id ${ratingKey}`, {
+                remedy: 'Check the id came from a plex hit in search_media or get_metadata_issues.'
+            });
+        }
+        const section = (await this.#sections()).find(s => s.key === String(item.librarySectionID));
+        if (item.librarySectionID === undefined || section === undefined) {
+            throw new ServiceError('UpstreamError', this.id, `could not find the library holding item ${ratingKey}`);
+        }
+        return section;
+    }
+
+    async #step<T>(name: string, run: () => Promise<T>): Promise<T> {
+        try {
+            return await run();
+        } catch (err) {
+            const detail = err instanceof ServiceError ? err.detail : String(err);
+            throw new ServiceError('UpstreamError', this.id, `the ${name} step failed: ${detail}`, {
+                cause: err,
+                remedy: 'Nothing after this step was sent. Check the item in Plex before trying again.'
+            });
+        }
+    }
+
+    /** Fix Match as python-plexapi drives it, then a refresh Plex runs in the background. */
+    async repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<{ settled: boolean }> {
+        const ratingKey = this.#ratingKey(itemId);
+        const base = `/library/metadata/${ratingKey}`;
+
+        const term =
+            opts.tvdbId !== undefined ? `tvdb-${opts.tvdbId}` : opts.tmdbId !== undefined ? `tmdb-${opts.tmdbId}` : undefined;
+
+        // A plain refresh works on any agent; only the id match needs a modern one.
+        if (term !== undefined) {
+            const section = await this.#sectionOf(ratingKey);
+            const agent = section.agent ?? '';
+            if (!MODERN_AGENTS.has(agent)) {
+                throw new ServiceError('UpstreamError', this.id, `this library uses the legacy agent ${agent === '' ? '(none reported)' : agent}, which cannot match by id`, {
+                    remedy: 'Switch the library to the Plex TV Series (or Plex Movie) agent in Plex first.'
+                });
+            }
+
+            const query = new URLSearchParams({
+                manual: '1',
+                title: term,
+                agent,
+                ...(section.language === undefined ? {} : { language: section.language })
+            });
+            const body = await this.#step('search', () => this.#http.get<unknown>(`${base}/matches?${query.toString()}`));
+            const results = unwrap<RawSearchResult>(body, 'SearchResult').filter(
+                (r): r is RawSearchResult & { guid: string } => typeof r.guid === 'string'
+            );
+            const [match] = results;
+            if (match === undefined || results.length > 1) {
+                throw new ServiceError(
+                    results.length === 0 ? 'NotFound' : 'UpstreamError',
+                    this.id,
+                    `Plex found ${results.length} matches for ${term}, not exactly one`,
+                    { remedy: 'Nothing was changed. Check the id in Radarr or Sonarr, or use Fix Match on the item in Plex by hand.' }
+                );
+            }
+            const params = new URLSearchParams({ guid: match.guid, name: match.name ?? '' });
+            await this.#step('match', () => this.#http.put(`${base}/match?${params.toString()}`, undefined, true));
+        }
+
+        await this.#step('refresh', () => this.#http.put(`${base}/refresh?force=1`, undefined, true));
+        return { settled: false };
     }
 
     /**

@@ -560,7 +560,9 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'MediaContainer.Directory.key',
                     'MediaContainer.Directory.type',
                     'MediaContainer.Directory.refreshing',
-                    'MediaContainer.Directory.scannedAt'
+                    'MediaContainer.Directory.scannedAt',
+                    'MediaContainer.Directory.agent',
+                    'MediaContainer.Directory.language'
                 ]
             },
             {
@@ -668,7 +670,8 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'MediaContainer.Metadata.Guid',
                     'MediaContainer.Metadata.Guid.id',
                     'MediaContainer.Metadata.Media.Part.file',
-                    'MediaContainer.Metadata.Media.Part.size'
+                    'MediaContainer.Metadata.Media.Part.size',
+                    'MediaContainer.Metadata.librarySectionID'
                 ]
             }
         ]
