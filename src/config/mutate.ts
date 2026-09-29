@@ -154,7 +154,7 @@ export function addInstance(
     }
 
     if (entries.length > 0 && opts.name === undefined) {
-        throw new ConfigEditError(`Name the new ${opts.type} instance — several cannot share one name.`);
+        throw new ConfigEditError(`Name the new ${opts.type} instance: several cannot share one name.`);
     }
 
     // The rename this can force, made explicit. The existing instance's id is
@@ -164,7 +164,7 @@ export function addInstance(
     if (entries.length === 1 && existing !== undefined && existing.name === undefined) {
         if (opts.renameExistingTo === undefined || opts.renameExistingTo === '') {
             throw new ConfigEditError(
-                `Adding a second ${opts.type} means naming the one you already have — it is currently "${opts.type}".`
+                `Adding a second ${opts.type} means naming the one you already have. It is currently "${opts.type}".`
             );
         }
         entries[0] = { ...existing, name: opts.renameExistingTo };

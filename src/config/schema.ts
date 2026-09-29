@@ -106,7 +106,7 @@ const uniqueNames = (list: readonly { name: string }[], ctx: z.RefinementCtx): v
         if (first !== undefined) {
             ctx.addIssue({
                 code: 'custom',
-                message: `duplicate instance name "${entry.name}" — already used by entry ${first + 1}`,
+                message: `duplicate instance name "${entry.name}", already used by entry ${first + 1}`,
                 path: [index, 'name']
             });
             return;
@@ -258,7 +258,7 @@ const singleOnly = <T extends z.ZodType>(schema: T) =>
             if (!Array.isArray(value)) return;
             ctx.addIssue({
                 code: 'custom',
-                message: `only ${MULTI_INSTANCE.join(', ')} can be a list of instances — give this service a single block`
+                message: `only ${MULTI_INSTANCE.join(', ')} can be a list of instances. Give this service a single block`
             });
         })
         .pipe(schema);
@@ -303,7 +303,7 @@ const ServicesSchema = z
             ctx.addIssue({
                 code: 'custom',
                 message:
-                    'jellyfin and plex cannot both be configured — arr-mcp joins Radarr and Sonarr against exactly one media server. Remove whichever you are not using.',
+                    'jellyfin and plex cannot both be configured: arr-mcp joins Radarr and Sonarr against exactly one media server. Remove whichever you are not using.',
                 path: ['plex']
             });
         }
@@ -320,7 +320,7 @@ const ServicesSchema = z
             ctx.addIssue({
                 code: 'custom',
                 message:
-                    'services.plex.allow_other_users cannot be true — a Plex token is scoped to one account, so there is no second user to permit.',
+                    'services.plex.allow_other_users cannot be true: a Plex token is scoped to one account, so there is no second user to permit.',
                 path: ['plex', 'allow_other_users']
             });
         }
@@ -515,7 +515,7 @@ export const AuthSchema = z.strictObject({
 export const ConfigSchema = z.object({
     // Parsing normalises tokens, so two parses of one file always agree.
     auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
-        message: 'auth.allow_token_in_url cannot be set while auth.oauth is configured — a JWT in the URL reaches every proxy log',
+        message: 'auth.allow_token_in_url cannot be set while auth.oauth is configured: a JWT in the URL reaches every proxy log',
         path: ['allow_token_in_url']
     })
         .superRefine((auth, ctx) => {

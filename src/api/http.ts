@@ -10,7 +10,6 @@ export const NO_STORE = { 'cache-control': 'no-store' };
 export const apiError = (c: Context, status: ContentfulStatusCode, message: string): Response =>
     c.json({ message }, status, NO_STORE);
 
-
 export const withEtag = (c: Context, config: Config, body: unknown, status: ContentfulStatusCode = 200): Response =>
     c.json(body, status, { etag: configEtag(config) });
 
