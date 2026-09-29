@@ -302,9 +302,8 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Assembled in the browser, never rendered by the server. The token is masked
-// three lines above on the page, so putting it into the HTML as readable JSON
-// would undo that and make a screenshot carry a working credential.
+// Assembled in the browser from the one-time reveal panel on the config page,
+// so the token is never rendered into the HTML as readable JSON.
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-copy-config]');
   if (!btn) return;
@@ -328,16 +327,14 @@ document.addEventListener('click', async (e) => {
     flash(btn, 'Copied');
   } catch {
     // No clipboard on http, and nothing on screen to select — so fill the
-    // textarea and reveal it. That puts the token on screen, acceptable only
-    // because it took a click on a button that says it copies credentials.
+    // textarea and reveal it. The token is already on screen in the reveal panel.
     box.value = config;
     selectIn(box);
     flash(btn, 'Selected — copy it');
   }
 });
 
-// Assembled here for the same reason the client config is: the token is masked
-// on the page, and rendering it into a readable field would undo that.
+// Assembled here for the same reason as the client config: from the reveal panel.
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-copy-url-token]');
   if (!btn) return;

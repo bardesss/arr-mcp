@@ -6,9 +6,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { parseDocument } from 'yaml';
 import { MAX_BODY_BYTES } from './app.ts';
 import { CONFIG_FILENAME, validateConfigText } from './config/load.ts';
-import type { ConfigInvalidError } from './config/load.ts';
+import type { ConfigInvalidError, SalvagedAuth } from './config/load.ts';
 import { writeConfigAtomic } from './config/save.ts';
-import type { Config } from './config/schema.ts';
 import { logger } from './core/logger.ts';
 import { LoginThrottle } from './core/loginThrottle.ts';
 import {
@@ -116,7 +115,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
 
     const { configDir, sessions } = deps;
     let raw = deps.failure.raw;
-    let auth: Config['auth'] = authBlock;
+    let auth: SalvagedAuth = authBlock;
     let claiming = false;
     /** Orders the save handler's write-and-promote turns. See `POST /ui/repair`. */
     let saves: Promise<unknown> = Promise.resolve();

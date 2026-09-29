@@ -43,11 +43,11 @@
       "type": "info"
     },
     {
-      "text": "MCP clients connect to http://<IP>:6060/mcp with the bearer token shown on the dashboard. That is a plain HTTP endpoint on your LAN - put a reverse proxy holding a real certificate in front of it before it leaves the LAN.",
+      "text": "MCP clients connect to http://<IP>:6060/mcp with an MCP token. Create one on the config page; it is shown once, so copy it straight away. That is a plain HTTP endpoint on your LAN - put a reverse proxy holding a real certificate in front of it before it leaves the LAN.",
       "type": "info"
     },
     {
-      "text": "Everything that survives an update is in /config: config.yaml, the bearer token, the log and audit databases and the optional IMDb dataset. The update rebuilds /opt/arr-mcp from the new release and does not touch /config.",
+      "text": "Everything that survives an update is in /config: config.yaml, the MCP tokens (hashed), the log and audit databases and the optional IMDb dataset. The update rebuilds /opt/arr-mcp from the new release and does not touch /config.",
       "type": "info"
     },
     {

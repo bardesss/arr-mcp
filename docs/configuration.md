@@ -220,6 +220,10 @@ auth:
   username: admin
   password_hash: "…"         # scrypt; written by the setup page, never by you
   allowed_hosts: []          # empty accepts any Host — right for a LAN container
+  tokens:                    # named MCP tokens; see MCP tokens below
+    - name: claude-desktop
+      tier: destructive
+      hash: sha256:9f2c…
   allow_token_in_url: false  # accept ?token=… when no Authorization header is sent
 ```
 
@@ -243,10 +247,66 @@ locks you out of the page you would fix it from.** Recover by editing
 `config.yaml` by hand and restarting. A literal IPv6 address is written with its
 brackets — `"[fd00::1]"` — and matches with or without a port.
 
+### MCP tokens
+
+Every client that connects to `/mcp` presents a named token. Tokens are created
+on the config page, under MCP tokens: pick a name, a tier and an expiry, and
+the token is shown once, with a copy button. Only its SHA-256 hash is stored, so
+it cannot be read back, only revoked. A fresh install has none, so every MCP
+request is refused until you create the first one.
+
+```yaml
+auth:
+  tokens:
+    - name: claude-desktop
+      tier: destructive
+      hash: sha256:9f2c…
+    - name: phone-assistant
+      tier: read
+      hash: sha256:41ab…
+      expires: 2026-12-28
+    - name: ci
+      tier: read
+      token: <plaintext, at least 32 characters, written by hand>
+```
+
+Each entry has a unique `name`, a `tier`, and exactly one of `hash` or `token`.
+
+**Tiers** cap what a token's client may do. `read` allows no writes, `write`
+allows the safe writes, and `destructive` allows those and the destructive ones.
+The tier sits on top of each instance's `permissions`, so it narrows what the
+file allows and never widens it. A refused write names the token and the tier it
+would need. A tier cannot be edited: create a new token and revoke the old one.
+
+**Expiry** is optional. The create form offers 30 days, 90 days (the default) or
+never; by hand, write `expires: YYYY-MM-DD`. The token stops working at the
+start of that day, UTC, and requests with it get a 401 saying which token
+expired and when. The dashboard warns while less than 7 days remain and switches
+to "expired" on the expiry date, and an expired token stays listed, marked
+expired, until you revoke it. A token cannot be extended: renew by creating a
+new one, then revoking the old one.
+
+**Hand-written tokens.** A `token:` entry needs at least 32 characters; a shorter
+one fails config load. On the next start arr-mcp replaces it with its hash. If
+the file is read-only, the token keeps working from memory, but a warning is
+logged at every start and shown on the dashboard until the plaintext is gone. If
+`config.yaml` lives in git, the plaintext stays in its history.
+
+**Upgrading from `bearer_token`.** Your existing token becomes a token named
+`default` with the `destructive` tier, so clients keep working, and the file is
+rewritten to hold its hash. The dashboard no longer shows it. Backups made before
+the upgrade still hold the plaintext; if that matters, create a new token, move
+your clients to it, and revoke `default`.
+
+**Downgrading.** Older versions do not know `tokens:` and open the repair page
+instead of starting. The old token value cannot be recovered, since only its
+hash remains, so remove `tokens:` and write a new `bearer_token` of 64 hex
+characters.
+
 ### `allow_token_in_url`
 
 Some MCP clients can only be given a URL — no headers, no token field. With this
-on, `/mcp?token=<bearer token>` authenticates the same as the header does.
+on, `/mcp?token=<MCP token>` authenticates the same as the header does.
 
 An `Authorization: Bearer` header still wins whenever one is sent, right or
 wrong, so turning this on cannot rescue a client that is sending the wrong
@@ -254,8 +314,8 @@ token — it fails, which is what you want.
 
 The cost is that the token travels in the address, so a reverse proxy's access
 log, a browser history or a shell history will hold a working credential. Nothing
-in arr-mcp logs a URL, but everything in front of it might. Rotate the token from
-the config UI if one leaks.
+in arr-mcp logs a URL, but everything in front of it might. If one leaks, revoke that
+token and create a new one.
 
 **This does not make Home Assistant work on its own.** Its MCP client
 integration also speaks only the older HTTP+SSE transport, and this server
@@ -265,7 +325,7 @@ transport.
 ### `auth.oauth`
 
 Lets an MCP client authenticate with a short-lived OAuth 2.1 access token
-instead of the one static bearer token every other client shares — useful
+instead of an MCP token — useful
 once you have more than one client and want to hand out credentials that
 expire and that carry less than full access.
 
@@ -324,7 +384,7 @@ token that could not read could not preview anything either.
 `config.yaml` stays the sole authority throughout — a scope only narrows what
 the file already permits, never widens it. A token carrying
 `arr-mcp:destructive` against an instance with `destructive: false` is still
-refused, by the same gate that refuses the static bearer token.
+refused, by the same gate that refuses an MCP token.
 
 Both `auth` and this block are validated strictly, so a misspelled key
 anywhere inside it fails at startup with the offending field named, rather
@@ -343,7 +403,7 @@ without that message.
 JSON document naming your `issuer` under `authorization_servers`. A client
 that implements RFC 9728 discovery finds this on its own, from the
 `resource_metadata` the 401 challenge on `/mcp` points at; one that does not
-can still be handed a token directly, exactly as it would the static bearer
+can still be handed a token directly, exactly as it would an MCP
 token, as `Authorization: Bearer <token>`.
 
 If a client's token is refused, the status code says why:
@@ -394,12 +454,15 @@ that would fix it.
 Sign-in works as usual. If nobody has claimed the instance yet, you claim it
 first, exactly as on a fresh install.
 
-**The one case this cannot fix** is an `auth` block that is itself unreadable —
-a mangled `bearer_token`, or `auth:` set to something that is not a mapping.
-There is then no password to check, and offering the setup page instead would
-let anyone who can reach the port take the instance over by corrupting its
-config. The page shows the error and nothing else, and accepts no POST on any
-path. Edit `config.yaml` directly and restart.
+**The one case this cannot fix** is a file whose sign-in fields cannot be read:
+YAML that does not parse, a top level or an `auth:` that is not a mapping, or a
+`username`, `password_hash`, `allowed_hosts` or `allow_token_in_url` of the
+wrong type (an empty `username` or `password_hash` counts). There is then no
+password to check, and offering the setup page instead would let anyone who can
+reach the port take the instance over by corrupting its config. The page shows
+the error and nothing else, and accepts no POST on any path. Edit `config.yaml`
+directly and restart. A mistake in `tokens`, `bearer_token` or `oauth` does not
+count: those go to the repair page like any other invalid config.
 
 This page shows the file exactly as it is on disk, including every API key. See
 [Security](security.md#the-repair-page-renders-the-config-file-verbatim).

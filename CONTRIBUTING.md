@@ -494,7 +494,7 @@ npm run screenshots
 
 Every page in `docs/` and the README comes from `scripts/lib/uiFixture.ts` —
 invented services, frozen timestamps, no config read and no service contacted.
-That is deliberate rather than convenient: these pages render the bearer token,
+That is deliberate rather than convenient: these pages render token names,
 the MCP endpoint host and every service URL, and `screenshots/` is public.
 Frozen timestamps also mean a re-run only changes a PNG when the UI changed.
 

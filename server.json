@@ -68,13 +68,13 @@
         "headers": [
           {
             "name": "Authorization",
-            "description": "Bearer token shown on the arr-mcp dashboard once the instance is claimed",
+            "description": "An MCP token, created on the arr-mcp config page (shown once)",
             "value": "Bearer {token}",
             "isRequired": true,
             "isSecret": true,
             "variables": {
               "token": {
-                "description": "The bearer token from http://<host>:6060",
+                "description": "An MCP token, created on the arr-mcp config page at http://<host>:6060 (shown once)",
                 "isRequired": true,
                 "isSecret": true
               }

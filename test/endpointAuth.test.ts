@@ -1,22 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { presentedToken, tokenMatches } from '../src/mcp/endpointAuth.ts';
+import { presentedToken } from '../src/mcp/endpointAuth.ts';
 
 const URL_BASE = 'http://localhost:6060/mcp';
-
-describe('tokenMatches', () => {
-    it('accepts an exact match and rejects anything else', () => {
-        expect(tokenMatches('a'.repeat(64), 'a'.repeat(64))).toBe(true);
-        expect(tokenMatches('b'.repeat(64), 'a'.repeat(64))).toBe(false);
-    });
-
-    it('rejects a token of the wrong length without throwing', () => {
-        expect(tokenMatches('short', 'a'.repeat(64))).toBe(false);
-    });
-
-    it('refuses an empty presented token, even against an empty expected one', () => {
-        expect(tokenMatches('', '')).toBe(false);
-    });
-});
 
 describe('presentedToken', () => {
     it('reads a bearer header', () => {

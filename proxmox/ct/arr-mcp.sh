@@ -54,7 +54,7 @@ function update_script() {
     msg_ok "Stopped Service"
 
     # No create_backup: /opt/arr-mcp holds nothing but code. config.yaml, the
-    # bearer token, the log and audit databases and the IMDb dataset are all in
+    # MCP tokens, the log and audit databases and the IMDb dataset are all in
     # /config, which the clean re-deploy below does not reach.
     CLEAN_INSTALL=1 fetch_and_deploy_gh_release "arr-mcp" "bardesss/arr-mcp" "tarball"
 

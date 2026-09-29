@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { listInstances } from '../src/config/instances.ts';
-import { ConfigEditError, addInstance, removeInstance, updateInstance } from '../src/config/mutate.ts';
+import { ConfigEditError, addInstance, addToken, removeInstance, revokeToken, updateInstance } from '../src/config/mutate.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
+import { hashToken } from '../src/core/mcpTokens.ts';
 
 /**
  * The config algebra behind the Configuration page, tested without a browser.
@@ -205,6 +206,34 @@ describe('editing an instance leaves the rest of the config alone', () => {
 
     it('leaves auth untouched', () => {
         const next = updateInstance(withDataset(), 'radarr', { timeout_ms: 12_000 });
-        expect(next.auth).toEqual(AUTH);
+        expect(next.auth).toEqual(withDataset().auth);
+    });
+});
+
+describe('tokens', () => {
+    const NOW = new Date('2026-09-29T12:00:00Z');
+    const base = ConfigSchema.parse({ auth: { tokens: [] }, services: {} });
+
+    it('adds a hashed token and returns the plaintext once', () => {
+        const { config, plaintext } = addToken(base, { name: 'phone', tier: 'read', expiry: '90' }, NOW);
+        expect(plaintext).toMatch(/^amcp_[0-9a-f]{64}$/);
+        expect(config.auth.tokens).toEqual([{ name: 'phone', tier: 'read', hash: hashToken(plaintext), expires: '2026-12-28' }]);
+    });
+
+    it('omits expires for never', () => {
+        expect(addToken(base, { name: 'ci', tier: 'write', expiry: 'never' }, NOW).config.auth.tokens[0]).not.toHaveProperty('expires');
+    });
+
+    it('refuses a duplicate or malformed name', () => {
+        const once = addToken(base, { name: 'phone', tier: 'read', expiry: '90' }, NOW).config;
+        expect(() => addToken(once, { name: 'phone', tier: 'read', expiry: '90' }, NOW)).toThrow('There is already a token named "phone".');
+        expect(() => addToken(once, { name: 'Phone', tier: 'read', expiry: '90' }, NOW)).toThrow('There is already a token named "Phone".');
+        expect(() => addToken(base, { name: 'my phone', tier: 'read', expiry: '90' }, NOW)).toThrow(ConfigEditError);
+    });
+
+    it('revokes by name', () => {
+        const once = addToken(base, { name: 'phone', tier: 'read', expiry: '90' }, NOW).config;
+        expect(revokeToken(once, 'phone').auth.tokens).toEqual([]);
+        expect(() => revokeToken(once, 'nope')).toThrow('No token named "nope".');
     });
 });

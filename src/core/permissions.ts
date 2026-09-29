@@ -40,13 +40,12 @@ export type PermissionSource = {
     get(instance: string): AnyServiceConfig | undefined;
     /**
      * An upper bound on what the *credential* may do, narrowing what the file
-     * permits and never widening it. Absent means no ceiling, which is every
-     * caller that does not present an OAuth token — including the static
-     * bearer token, which carries the operator's own authority.
+     * permits and never widening it. Absent means no ceiling, which now only
+     * applies to sources built outside `/mcp` (tests, scripts).
      */
     permits?(tier: WriteTier): boolean;
-    /** The scope string that grants a tier, as the issuer admin knows it. */
-    scopeFor?(tier: WriteTier): string;
+    /** Why the credential's ceiling refuses a tier, in its own terms. */
+    refusal?(tier: WriteTier): { reason: string; remedy: string };
 };
 
 /**
@@ -94,14 +93,8 @@ export function checkPermission(source: PermissionSource, service: string, tier:
     // would be actively misleading when the file already says so and it is
     // the token that falls short.
     if (source.permits?.(tier) === false) {
-        const scope = source.scopeFor?.(tier);
-        const named = scope === undefined ? `the scope for ${tier} writes` : `the \`${scope}\` scope`;
-        return {
-            allowed: false,
-            tier,
-            reason: `the access token does not carry ${named}`,
-            remedy: `This credential is scoped below what config.yaml permits. Ask whoever issued it for ${named}, or use the static bearer token.`
-        };
+        const said = source.refusal?.(tier) ?? { reason: `this credential does not allow ${tier} writes`, remedy: 'Use a credential with a higher tier.' };
+        return { allowed: false, tier, ...said };
     }
 
     const config = source.get(service);
