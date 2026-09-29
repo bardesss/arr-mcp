@@ -104,8 +104,11 @@ Arguments are strict: an argument a tool does not have is refused rather than ig
  * reload that drops `auth.oauth` or renames a scope between verifying a token
  * and building this context costs a spurious refusal, nothing more.
  */
+// A symbol key, so no JWT claim copied into `extra` can pose as a named token.
+const MCP_TOKEN = Symbol('mcpToken');
+
 function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined): ToolContext {
-    const token = authInfo?.extra?.mcpToken as StoredToken | undefined;
+    const token = (authInfo?.extra as { [MCP_TOKEN]?: StoredToken } | undefined)?.[MCP_TOKEN];
     const tiers =
         token !== undefined ? tiersOf(token.tier) : ((authInfo && oauth && tiersFor(oauth, authInfo.scopes)) ?? new Set<WriteTier>());
     const refusal = token !== undefined ? tokenRefusal(token.name, token.tier) : oauthRefusal(oauth?.scopes);
@@ -374,7 +377,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         }
 
         if (matched.kind === 'match') {
-            authInfo = { token: '', clientId: bearerCaller(matched.token), scopes: [], extra: { mcpToken: matched.token } };
+            authInfo = { token: '', clientId: bearerCaller(matched.token), scopes: [], extra: { [MCP_TOKEN]: matched.token } };
         } else {
             const verifier = snapshot.oauthVerifier;
 
