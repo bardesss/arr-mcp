@@ -134,6 +134,19 @@ describe('validateConfigText', () => {
         if (!result.ok) expect(result.auth?.username).toBe('admin');
     });
 
+    // A typo in one token entry, or a short bearer_token, must still reach
+    // the repair editor rather than the unreadable-auth page.
+    it.each([
+        ['an unknown tier', `  tokens:\n    - name: phone\n      tier: reed\n      hash: sha256:${'a'.repeat(64)}\n`],
+        ['an unknown key', `  tokens:\n    - name: phone\n      tier: read\n      hash: sha256:${'a'.repeat(64)}\n      expiry: 2027-01-01\n`],
+        ['a numeric token', '  tokens:\n    - name: phone\n      tier: read\n      token: 12345\n'],
+        ['a short bearer_token', '  bearer_token: short\n']
+    ])('salvages the auth block even when it has %s', (_name, tokenBlock) => {
+        const result = validateConfigText(`auth:\n  username: admin\n  allowed_hosts: []\n${tokenBlock}services: {}\n`);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.auth?.username).toBe('admin');
+    });
+
     it('reports no auth block when auth itself is unreadable', () => {
         const result = validateConfigText('auth: 12\nservices: {}\n');
         expect(result.ok).toBe(false);

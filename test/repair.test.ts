@@ -82,7 +82,6 @@ describe('repair pages', () => {
 });
 
 const AUTH_OK: SalvagedAuth = {
-    bearer_token: BEARER,
     username: 'admin',
     allow_token_in_url: false,
     allowed_hosts: []

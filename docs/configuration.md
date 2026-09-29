@@ -454,15 +454,15 @@ that would fix it.
 Sign-in works as usual. If nobody has claimed the instance yet, you claim it
 first, exactly as on a fresh install.
 
-**The one case this cannot fix** is an `auth` block that is itself unreadable —
-a token entry that does not match the schema (an unknown tier or key, a
-malformed hash, name or date, or a hash or token that is not a string), a
-`bearer_token` that is not 64 characters, or `auth:` set to something that is
-not a mapping. (A short plaintext token or a duplicate name is an ordinary
-invalid config and goes to the repair page.) There is then no password to check,
-and offering the setup page instead would let anyone who can reach the port take
-the instance over by corrupting its config. The page shows the error and nothing
-else, and accepts no POST on any path. Edit `config.yaml` directly and restart.
+**The one case this cannot fix** is a file whose sign-in fields cannot be read:
+YAML that does not parse, a top level or an `auth:` that is not a mapping, or a
+`username`, `password_hash`, `allowed_hosts` or `allow_token_in_url` of the
+wrong type (an empty `username` or `password_hash` counts). There is then no
+password to check, and offering the setup page instead would let anyone who can
+reach the port take the instance over by corrupting its config. The page shows
+the error and nothing else, and accepts no POST on any path. Edit `config.yaml`
+directly and restart. A mistake in `tokens`, `bearer_token` or `oauth` does not
+count: those go to the repair page like any other invalid config.
 
 This page shows the file exactly as it is on disk, including every API key. See
 [Security](security.md#the-repair-page-renders-the-config-file-verbatim).

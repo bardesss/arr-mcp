@@ -88,7 +88,7 @@ different exposures, chosen by the flavour of the operator's mistake.
 
 The file's contents go no further than that editor, which is behind the same
 session as the rest of the UI, sends `cache-control: no-store`, and is only
-reachable while the configuration is invalid. When the `auth` block itself
+reachable while the configuration is invalid. When the sign-in fields in `auth`
 cannot be read, no editor is served at all — see
 [When config.yaml will not load](configuration.md#when-configyaml-will-not-load).
 

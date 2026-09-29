@@ -9,7 +9,7 @@ import { AuthSchema, ConfigSchema, tokensNeedingRewrite, type Config } from './s
 export const CONFIG_FILENAME = 'config.yaml';
 
 /** What repair mode reads of an `auth` block that did not fully validate. */
-export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth'>;
+export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth' | 'tokens' | 'bearer_token'>;
 
 /**
  * A config.yaml that was read but could not be understood — as opposed to one
@@ -105,21 +105,18 @@ export function validateConfigText(raw: string): ConfigTextResult {
     if (result.success) return { ok: true, config: result.data };
 
     // Unrefined *and* unstrict on purpose: this runs precisely when the rest
-    // of the file is already broken, and neither the oauth/allow_token_in_url
-    // refinement nor an unrecognised key under auth (or under auth.oauth) has
-    // anything to do with whether we can authenticate whoever came to fix it.
-    // `oauth` is dropped from the shape rather than widened, because a plain
-    // `z.object` ignores keys it has no field for: whatever is in that block
-    // never has to parse, so the salvage no longer fails whole when the
-    // mistake is inside it instead of beside it — which is the operator
-    // hand-writing it for the first time. Dropping also keeps the result
-    // honestly typed, where widening to `unknown` would need a cast here and
-    // hand repair mode arbitrary YAML labelled `OAuthConfig`. Nothing is lost:
-    // repair mode reads `allowed_hosts`, `password_hash` and `username`, and
-    // writes credentials back through a re-read YAML document rather than
-    // through this object. ConfigSchema's own `auth` field stays strict, so a
-    // typo anywhere in it is still a startup failure.
-    const authOnly = z.object(AuthSchema.shape).omit({ oauth: true }).safeParse(obj.auth);
+    // of the file is already broken, and neither the auth refinements nor an
+    // unrecognised key under auth has anything to do with whether we can
+    // authenticate whoever came to fix it. `oauth`, `tokens` and
+    // `bearer_token` are dropped from the shape, because a plain `z.object`
+    // ignores keys it has no field for: a mistake inside those blocks (a
+    // typo in one token entry, say) no longer fails the salvage whole and
+    // costs the operator the repair editor. Repair mode reads only
+    // `allowed_hosts`, `password_hash` and `username`, and writes credentials
+    // back through a re-read YAML document rather than through this object.
+    // ConfigSchema's own `auth` field stays strict, so a typo anywhere in it
+    // is still a startup failure.
+    const authOnly = z.object(AuthSchema.shape).omit({ oauth: true, tokens: true, bearer_token: true }).safeParse(obj.auth);
     return {
         ok: false,
         detail: z.prettifyError(result.error),
