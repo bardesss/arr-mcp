@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as z from 'zod/v4';
 import { DEFAULT_LIMIT, DetailSchema, LimitSchema, MAX_LIMIT, applyLimit, listText, preferred } from '../src/core/shape.ts';
 
 describe('applyLimit', () => {
@@ -157,6 +158,14 @@ describe('schemas', () => {
 
     it('rejects a fractional limit', () => {
         expect(LimitSchema.safeParse(1.5).success).toBe(false);
+    });
+
+    // #316: some bridges re-serialise `exclusiveMinimum: 0` as draft-4's boolean
+    // form, which a 2020-12 validator then rejects. An inclusive bound survives.
+    it('advertises the lower bound on limit as an inclusive minimum', () => {
+        const schema = z.toJSONSchema(LimitSchema, { io: 'input' });
+        expect(schema).not.toHaveProperty('exclusiveMinimum');
+        expect(schema).toMatchObject({ minimum: 1 });
     });
 });
 
