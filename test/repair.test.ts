@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../src/bootstrap.ts';
 import { loadConfig, validateConfigText } from '../src/config/load.ts';
+import { hashToken } from '../src/core/mcpTokens.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
@@ -539,18 +540,19 @@ describe('repair server save', () => {
         expect(await readFile(join(ctx.dir, 'config.yaml'), 'utf8')).toBe('auth: {}\n');
     });
 
-    it('writes the file and promotes on valid text', async () => {
+    it('writes the text exactly as typed and promotes on valid text', async () => {
         let promoted = 0;
         const ctx = await signedIn(async () => {
             promoted += 1;
             return { ok: true };
         });
         const hash = await hashPassword(PASSWORD);
-        const res = await save(ctx, VALID.replace('PLACEHOLDER', hash));
+        const typed = VALID.replace('PLACEHOLDER', hash);
+        const res = await save(ctx, typed);
         expect(res.status).toBe(302);
         expect(res.headers.get('location')).toBe('/ui');
         expect(promoted).toBe(1);
-        expect(await readFile(join(ctx.dir, 'config.yaml'), 'utf8')).toContain('bearer_token');
+        expect(await readFile(join(ctx.dir, 'config.yaml'), 'utf8')).toBe(typed);
     });
 
     // The validator gives a good message; loadConfig is the authority. If they
@@ -614,7 +616,7 @@ describe('promotion', () => {
     it('hands over an app that serves /ui to the session issued before the save', async () => {
         const hash = await hashPassword(PASSWORD);
         const valid = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hash}\n  allowed_hosts: []\nservices: {}\n`;
-        const { call, close } = await booted(valid.replace('services: {}\n', 'services:\n  radarr:\n    url: bad\n'));
+        const { call, dir, close } = await booted(valid.replace('services: {}\n', 'services:\n  radarr:\n    url: bad\n'));
 
         // Degraded, so the repair server is what answered.
         expect(((await (await call('/healthz')).json()) as { status: string }).status).toBe('degraded');
@@ -640,6 +642,39 @@ describe('promotion', () => {
         const dashboard = await call('/ui', { headers: { cookie } });
         expect(dashboard.status).toBe(200);
 
+        // Promotion goes through the real loader, which hashes the typed token.
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(onDisk).not.toContain(BEARER);
+        expect(onDisk).toContain(hashToken(BEARER));
+
+        close();
+    });
+
+    it('leaves the file unchanged when a save is still invalid', async () => {
+        const hash = await hashPassword(PASSWORD);
+        const valid = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${hash}\n  allowed_hosts: []\nservices: {}\n`;
+        const broken = valid.replace('services: {}\n', 'services:\n  radarr:\n    url: bad\n');
+        const { call, dir, close } = await booted(broken);
+
+        const login = await call('/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
+        });
+        const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+        const page = await (await call('/ui/repair', { headers: { cookie } })).text();
+        const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+
+        const stillBroken = broken.replace('url: bad', 'url: worse');
+        await call('/ui/repair', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+            body: new URLSearchParams({ csrf, config: stillBroken }).toString()
+        });
+
+        // The validator stops it before anything is written, so this is the
+        // repair page's refusal, not the loader's.
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toBe(broken);
         close();
     });
 

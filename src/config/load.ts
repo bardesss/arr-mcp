@@ -119,7 +119,7 @@ export function validateConfigText(raw: string): ConfigTextResult {
     // writes credentials back through a re-read YAML document rather than
     // through this object. ConfigSchema's own `auth` field stays strict, so a
     // typo anywhere in it is still a startup failure.
-    const authOnly = z.object(AuthSchema.shape).omit({ oauth: true }).safeParse(obj.auth ?? {});
+    const authOnly = z.object(AuthSchema.shape).omit({ oauth: true }).safeParse(obj.auth);
     return {
         ok: false,
         detail: z.prettifyError(result.error),
