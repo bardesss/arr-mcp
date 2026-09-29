@@ -279,11 +279,12 @@ file allows and never widens it. A refused write names the token and the tier it
 would need. A tier cannot be edited: create a new token and revoke the old one.
 
 **Expiry** is optional. The create form offers 30 days, 90 days (the default) or
-never; by hand, write `expires: YYYY-MM-DD`. The token stops working at the start
-of that day, UTC, and requests with it get a 401 saying which token expired and
-when. The dashboard warns while less than 7 days remain and switches to "expired" on the expiry date, and an expired token stays listed,
-marked expired, until you revoke it. A token cannot be extended: renew by
-creating a new one, then revoking the old one.
+never; by hand, write `expires: YYYY-MM-DD`. The token stops working at the
+start of that day, UTC, and requests with it get a 401 saying which token
+expired and when. The dashboard warns while less than 7 days remain and switches
+to "expired" on the expiry date, and an expired token stays listed, marked
+expired, until you revoke it. A token cannot be extended: renew by creating a
+new one, then revoking the old one.
 
 **Hand-written tokens.** A `token:` entry needs at least 32 characters; a shorter
 one fails config load. On the next start arr-mcp replaces it with its hash. If
@@ -298,8 +299,9 @@ the upgrade still hold the plaintext; if that matters, create a new token, move
 your clients to it, and revoke `default`.
 
 **Downgrading.** Older versions do not know `tokens:` and open the repair page
-instead of starting. The old token value cannot be recovered, since only its hash remains, so
-remove `tokens:` and write a new `bearer_token` of 64 hex characters.
+instead of starting. The old token value cannot be recovered, since only its
+hash remains, so remove `tokens:` and write a new `bearer_token` of 64 hex
+characters.
 
 ### `allow_token_in_url`
 
@@ -454,13 +456,13 @@ first, exactly as on a fresh install.
 
 **The one case this cannot fix** is an `auth` block that is itself unreadable —
 a token entry that does not match the schema (an unknown tier or key, a
-malformed hash, name or date), a `bearer_token` that is not 64 characters, or
-`auth:` set to something that is not a mapping. (A short plaintext token or a duplicate name
-is an ordinary invalid config and goes to the repair page.)
-There is then no password to check, and offering the setup page instead would
-let anyone who can reach the port take the instance over by corrupting its
-config. The page shows the error and nothing else, and accepts no POST on any
-path. Edit `config.yaml` directly and restart.
+malformed hash, name or date, or a hash or token that is not a string), a
+`bearer_token` that is not 64 characters, or `auth:` set to something that is
+not a mapping. (A short plaintext token or a duplicate name is an ordinary
+invalid config and goes to the repair page.) There is then no password to check,
+and offering the setup page instead would let anyone who can reach the port take
+the instance over by corrupting its config. The page shows the error and nothing
+else, and accepts no POST on any path. Edit `config.yaml` directly and restart.
 
 This page shows the file exactly as it is on disk, including every API key. See
 [Security](security.md#the-repair-page-renders-the-config-file-verbatim).
