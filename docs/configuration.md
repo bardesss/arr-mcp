@@ -319,6 +319,21 @@ instead of starting. The old token value cannot be recovered, since only its
 hash remains, so remove `tokens:` and write a new `bearer_token` of 64 hex
 characters.
 
+### `auth.management_key`
+
+The key for the [management API](api.md). Without it, `/api/v1` answers 404.
+
+```yaml
+auth:
+  management_key:
+    hash: sha256:9f2c…
+    created: 2026-09-29
+```
+
+Only the hash is stored, and there is no plaintext form to write by hand. Create
+the key on the config page, where it is shown once. Deleting the block turns the
+API off.
+
 ### `allow_token_in_url`
 
 Some MCP clients can only be given a URL — no headers, no token field. With this

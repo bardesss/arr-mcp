@@ -319,6 +319,14 @@ so far.
   passed: it is refused either way, so it gets the `401` that points at the
   real problem. The unverified claim only picks which refusal is sent.
 
+The management API at `/api/v1` is off by default and answers 404 until you
+generate a key on the config page. The key is 256 bits, stored as a SHA-256
+hash, and accepted only in the `X-Api-Key` header, never in a URL. It is never
+valid on `/mcp`, and an MCP token is never valid there. It cannot change
+sign-in, OAuth or itself, so a leaked key cannot lock the owner out or make
+itself permanent: the owner regenerates it or turns the API off from the config
+page.
+
 Request bodies are capped at 4 MB, refused with `413` before authentication
 runs. The cap is deliberately not configurable — every legitimate request is
 orders of magnitude below it.
