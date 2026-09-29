@@ -95,8 +95,23 @@ arr-mcp only ever talks to the server at `url`. It never contacts plex.tv, and
 the token is presented directly to that server — the same LAN-only reasoning
 every other service here follows.
 
-`trigger_scan` is the one write: it refreshes every Plex library, the same
-`safe` tier as a Jellyfin scan. There is no Plex `set_watched`.
+`trigger_scan` refreshes every Plex library, the same `safe` tier as a
+Jellyfin scan. There is no Plex `set_watched`.
+
+`fix_metadata` can repair Plex metadata, but only once you opt in:
+
+```yaml
+services:
+  plex:
+    allow_metadata_repair: true   # default false
+    permissions:
+      destructive: true
+```
+
+It is off by default because it has not been verified against a live Plex
+server yet. Jellyfin needs no such setting, and `allow_metadata_repair` on any
+other service is refused at startup. The config page does not show it; set it
+in `config.yaml`. See [Repairing on Plex](tools.md#repairing-on-plex).
 
 `default_user` behaves differently here than on Jellyfin, and it is worth
 knowing before you set it. A local `X-Plex-Token` is scoped to one account, so
