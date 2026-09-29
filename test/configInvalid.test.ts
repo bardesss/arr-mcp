@@ -212,3 +212,15 @@ describe('yaml error detail', () => {
         }
     });
 });
+
+describe('ConfigInvalidError', () => {
+    it('keeps the file text and the salvaged auth out of JSON', () => {
+        const err = new ConfigInvalidError('bad', 'api_key: secret-raw', { username: 'admin', password_hash: 'secret-hash', allowed_hosts: [] });
+        const text = JSON.stringify(err);
+        expect(text).not.toContain('secret-raw');
+        expect(text).not.toContain('secret-hash');
+        expect(Object.keys(err)).not.toContain('raw');
+        expect(err.raw).toBe('api_key: secret-raw');
+        expect(err.auth?.password_hash).toBe('secret-hash');
+    });
+});

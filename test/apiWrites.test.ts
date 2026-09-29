@@ -1,8 +1,10 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { logger } from '../src/core/logger.ts';
-import { api, closeApi, json, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
+import { attachLogStore, detachLogStore, logger } from '../src/core/logger.ts';
+import { hashToken } from '../src/core/mcpTokens.ts';
+import { hashPassword } from '../src/core/session.ts';
+import { api, closeApi, json, KEY, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 
 beforeEach(async () => {
     await seedApi();
@@ -299,5 +301,33 @@ describe('tokens', () => {
 
     it('404s an unknown token', async () => {
         expect((await api('/token/nope', { method: 'DELETE' })).status).toBe(404);
+    });
+});
+
+describe('a hand edit that no longer loads', () => {
+    const breakFile = async () => {
+        const path = join(stack.dir, 'config.yaml');
+        const text = await readFile(path, 'utf8');
+        await writeFile(path, text.replace(`api_key: '${RADARR_KEY}'`, `api_key: '${RADARR_KEY}', timeout_ms: -1`), 'utf8');
+    };
+
+    it('keeps the password and key hashes out of the log', async () => {
+        const path = join(stack.dir, 'config.yaml');
+        const seeded = await readFile(path, 'utf8');
+        const passwordHash = await hashPassword('unused-here');
+        await writeFile(path, seeded.replace('  username: admin', `  username: admin\n  password_hash: '${passwordHash}'`), 'utf8');
+        await stack.runtime.reload();
+        attachLogStore(stack.logs);
+        try {
+            await breakFile();
+            await api('/settings/imdb', json('PUT', { enabled: true }));
+            const text = await (await api('/log?limit=300')).text();
+            expect(text).toContain('does not load');
+            expect(text).not.toContain(passwordHash);
+            expect(text).not.toContain(hashToken(KEY));
+            expect(text).not.toContain(hashToken(MCP));
+        } finally {
+            detachLogStore();
+        }
     });
 });

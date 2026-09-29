@@ -20,15 +20,16 @@ export class ConfigInvalidError extends Error {
     // Written out rather than as constructor parameter properties: Node runs
     // this project's TypeScript in strip-only mode, which rejects those.
     readonly detail: string;
-    readonly raw: string;
-    readonly auth: SalvagedAuth | undefined;
+    declare readonly raw: string;
+    declare readonly auth: SalvagedAuth | undefined;
 
     constructor(detail: string, raw: string, auth: SalvagedAuth | undefined) {
         super(`config.yaml is invalid:\n${detail}`);
         this.name = 'ConfigInvalidError';
         this.detail = detail;
-        this.raw = raw;
-        this.auth = auth;
+        // Non-enumerable, so a logged or serialised error carries neither the file nor the hashes.
+        Object.defineProperty(this, 'raw', { value: raw, enumerable: false });
+        Object.defineProperty(this, 'auth', { value: auth, enumerable: false });
     }
 }
 
