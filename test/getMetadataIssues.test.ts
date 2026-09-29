@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { EpisodeRecord, MovieRecord } from '../src/core/episodeMismatch.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
 import { buildGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import { PlexAdapter } from '../src/services/plex.ts';
+import { serving } from './helpers/serve.ts';
 
 /**
  * The discovery half is only worth having if a sweep of a library that is
@@ -269,5 +273,92 @@ describe('a series with no file paths is not a clean one', () => {
     it('stays absent when every series had something to compare', async () => {
         const result = await sweep(adapterWith({ Fine: [healthy(1)] }));
         expect(result.notComparable).toBeUndefined();
+    });
+});
+
+describe('on Plex', () => {
+    const fixture = (name: string): unknown =>
+        JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/plex', name), 'utf8'));
+
+    const plexAdapter = () =>
+        new PlexAdapter(
+            {
+                url: 'http://192.0.2.10:32400',
+                api_key: 'tok',
+                timeout_ms: 10_000,
+                allow_other_users: false,
+                permissions: { safe_write: false, destructive: false }
+            },
+            serving({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'show' }] } },
+                '/library/sections/1/all': {
+                    MediaContainer: {
+                        Metadata: [
+                            {
+                                ratingKey: '900200',
+                                type: 'movie',
+                                title: 'Fixture film',
+                                year: 2001,
+                                Guid: [{ id: 'tmdb://900200' }],
+                                Media: [{ Part: [{ file: '/library/movies/Fixture film (2001)/Fixture film (2001).mkv' }] }]
+                            }
+                        ]
+                    }
+                },
+                '/library/sections/2/all': {
+                    MediaContainer: {
+                        Metadata: [
+                            { ratingKey: '900100', type: 'show', title: 'Fixture show 2', Guid: [{ id: 'tvdb://900100' }] },
+                            { ratingKey: '900300', type: 'show', title: 'Fixture show 3', Guid: [{ id: 'tvdb://900300' }] }
+                        ]
+                    }
+                },
+                '/library/metadata/900100/allLeaves': fixture('allleaves-misnamed.json'),
+                // One title-only mismatch, Guid and all, and nothing else.
+                '/library/metadata/900300/allLeaves': {
+                    MediaContainer: {
+                        Metadata: [
+                            {
+                                ratingKey: '900301',
+                                type: 'episode',
+                                title: 'Fixture episode one',
+                                parentIndex: 1,
+                                index: 1,
+                                Guid: [{ id: 'tvdb://900301' }],
+                                Media: [{ Part: [{ file: '/library/tv/Fixture show 3/Season 01/Fixture show 3 - S01E01 - Wrong words entirely.mkv' }] }]
+                            }
+                        ]
+                    }
+                }
+            })
+        );
+
+    it('sweeps a Plex library and finds the misnamed episodes', async () => {
+        const result = await sweep(plexAdapter());
+
+        expect(result.degraded).toEqual([]);
+        // One film and two series, all read.
+        expect(result.itemsScanned).toBe(3);
+        expect(result.items).toHaveLength(2);
+        expect(result.items.find(i => i.itemId === '900100')).toMatchObject({
+            service: 'plex',
+            kind: 'series',
+            mismatches: 2,
+            numbering: 1,
+            titleOnly: 1,
+            pinned: 0,
+            remedy: 'rename_files'
+        });
+    });
+
+    it('sends a misnamed Plex episode to a metadata refresh, because Plex episodes are never pinned', async () => {
+        const issue = (await sweep(plexAdapter())).items.find(i => i.itemId === '900300');
+        expect(issue).toMatchObject({ kind: 'series', mismatches: 1, titleOnly: 1, pinned: 0, remedy: 'refresh_metadata' });
+    });
+
+    it('names the media server, not Jellyfin, in the rename fix', async () => {
+        const issue = (await sweep(plexAdapter())).items.find(i => i.remedy === 'rename_files');
+        expect(issue?.fix).toContain('then trigger_scan on the media server');
+        expect(issue?.fix).not.toContain('Jellyfin');
     });
 });

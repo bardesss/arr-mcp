@@ -81,7 +81,7 @@ export type GetMetadataIssuesResult = {
 const FIX: Record<Remedy, string> = {
     refresh_metadata: 'fix_metadata — the server holds nothing of its own here, or matched the wrong thing, and re-identifying re-derives it.',
     rename_files:
-        'trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on Jellyfin. An episode\'s season and number are stored at scan time, so only the file can change.',
+        'trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on the media server. An episode\'s season and number are stored at scan time, so only the file can change.',
     // Deliberately not an instruction. A title-only disagreement on an item the
     // server already matched could be a wrong match or a correct title in
     // another language, and nothing in the comparison separates those. Naming a
