@@ -231,6 +231,31 @@ describe('PUT /app/{type}/{name}', () => {
         expect((await api('/app/radarr/hd', json('PUT', { timeoutMs: 2_147_483_647 }))).status).toBe(200);
     });
 
+    it('keeps URL credentials when the GET URL comes back without its trailing slash', async () => {
+        expect((await api('/app/radarr/hd', json('PUT', { url: 'http://radarr:7878' }))).status).toBe(200);
+        expect(radarr()?.url).toBe('http://user:pw@radarr:7878');
+        expect((await api('/app/radarr/hd', json('PUT', { url: 'HTTP://Radarr:7878/' }))).status).toBe(200);
+        expect(radarr()?.url).toBe('http://user:pw@radarr:7878');
+    });
+
+    it('treats another path, port or query as a new URL', async () => {
+        for (const url of ['http://radarr:7878/radarr', 'http://radarr:7879', 'http://radarr:7878/?x=1']) {
+            closeApi();
+            await seedApi();
+            await api('/app/radarr/hd', json('PUT', { url }));
+            expect(radarr()?.url, url).toBe(url);
+        }
+    });
+
+    it('keeps URL credentials under a base path echoed with or without a slash', async () => {
+        closeApi();
+        await seedApi({ radarrUrl: 'http://user:pw@proxy:443/radarr' });
+        for (const url of ['http://proxy:443/radarr', 'http://proxy:443/radarr/']) {
+            await api('/app/radarr/hd', json('PUT', { url }));
+            expect(radarr()?.url, url).toBe('http://user:pw@proxy:443/radarr');
+        }
+    });
+
     it('refuses to clear a secret', async () => {
         expect((await api('/app/radarr/hd', json('PUT', { apiKey: null }))).status).toBe(400);
     });
