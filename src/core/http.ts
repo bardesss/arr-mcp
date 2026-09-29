@@ -36,6 +36,14 @@ const MAX_REDIRECTS = 5;
 // inside an error message.
 const safeUrl = (url: URL): string => `${url.origin}${url.pathname}`;
 
+/** Same origin, or a proxy upgrading the same host to https on 443 or the same port. */
+const followable = (from: URL, to: URL): boolean =>
+    to.origin === from.origin ||
+    (from.protocol === 'http:' &&
+        to.protocol === 'https:' &&
+        to.hostname === from.hostname &&
+        (to.port === '' || to.port === from.port));
+
 const encodeBody = (body: RequestBody): { contentType: string; payload: string } =>
     'form' in body
         ? { contentType: 'application/x-www-form-urlencoded', payload: new URLSearchParams(body.form).toString() }
@@ -287,7 +295,10 @@ export class ServiceHttp {
             } catch {
                 throw new ServiceError('UpstreamError', this.#id, 'redirected to an invalid address');
             }
-            if (next.origin !== target.origin) throw redirectedElsewhere(this.#id, next.origin);
+            // The configured credentials stay; a Location's own are dropped.
+            next.username = '';
+            next.password = '';
+            if (!followable(target, next)) throw redirectedElsewhere(this.#id, next.origin);
             if (hop >= MAX_REDIRECTS) {
                 throw new ServiceError('UpstreamError', this.#id, `too many redirects from ${url.pathname}`);
             }

@@ -710,6 +710,50 @@ describe('ServiceHttp redirects', () => {
         expect(calls).toBe(1);
     });
 
+    const follow = (base: string, location: string) => {
+        const calls: { url: string; key: string | null; auth: string | null }[] = [];
+        const client = new ServiceHttp('radarr', { ...config, url: base }, apiKeyHeader('X-Api-Key', 'secret'), (async (
+            input: string,
+            init?: RequestInit
+        ) => {
+            const headers = new Headers(init?.headers);
+            calls.push({ url: String(input), key: headers.get('X-Api-Key'), auth: headers.get('Authorization') });
+            return calls.length === 1 ? redirect(location) : json({ ok: true });
+        }) as unknown as typeof fetch);
+        return { client, calls };
+    };
+
+    it('follows an upgrade to https on the same host, default or same port', async () => {
+        for (const location of ['https://192.168.1.20/api/v3/system/status', 'https://192.168.1.20:7878/api']) {
+            const { client, calls } = follow('http://192.168.1.20:7878', location);
+            expect(await client.get('/api/v3/system/status'), location).toEqual({ ok: true });
+            expect(calls[1], location).toEqual({ url: location, key: 'secret', auth: null });
+        }
+    });
+
+    it('refuses a downgrade to http, an upgrade to another host, or to another port', async () => {
+        const cases = [
+            ['https://192.168.1.20', 'http://192.168.1.20/api'],
+            ['http://192.168.1.20:7878', 'https://192.168.1.21/api'],
+            ['http://192.168.1.20:7878', 'https://192.168.1.20:8443/api']
+        ] as const;
+        for (const [base, location] of cases) {
+            const { client, calls } = follow(base, location);
+            await expect(client.get('/api/v3/system/status'), location).rejects.toThrow('redirected to another host');
+            expect(calls, location).toHaveLength(1);
+        }
+    });
+
+    it('drops userinfo from a same-origin Location and keeps the configured credentials', async () => {
+        const { client, calls } = follow('http://proxy:pw@192.168.1.20:7878', 'http://evil:x@192.168.1.20:7878/api');
+        expect(await client.get('/api/v3/system/status')).toEqual({ ok: true });
+        expect(calls[1]).toEqual({
+            url: 'http://192.168.1.20:7878/api',
+            key: 'secret',
+            auth: `Basic ${Buffer.from('proxy:pw').toString('base64')}`
+        });
+    });
+
     it('gives up after five hops', async () => {
         let calls = 0;
         const client = http(async () => {
