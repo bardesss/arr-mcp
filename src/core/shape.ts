@@ -14,7 +14,7 @@ export const DetailSchema = z
 export const LimitSchema = z
     .number()
     .int()
-    .positive()
+    .min(1)
     .max(MAX_LIMIT)
     .default(DEFAULT_LIMIT)
     .describe(`Maximum items to return. Defaults to ${DEFAULT_LIMIT}, hard maximum ${MAX_LIMIT}.`);
