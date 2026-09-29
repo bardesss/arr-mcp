@@ -42,9 +42,10 @@ this API can change them.
 | 400 | A bad parameter or body. The message names it. Malformed JSON gets `The request body is not valid JSON.` |
 | 401 | `Missing or wrong X-Api-Key.` |
 | 403 | `forbidden: Host not allowed`, as plain text. This comes from `auth.allowed_hosts`, before the API sees the request |
-| 404 | No key configured (`The management API is off. Generate a key on the config page to turn it on.`), `No such endpoint.`, or `No such app.` |
+| 404 | No key configured (`The management API is off. Generate a key on the config page to turn it on.`), `No such endpoint.`, `No such app.`, or `No such token.` |
 | 412 | The config changed since you read it. See [Concurrency](#concurrency) |
 | 415 | A write body that is not `application/json` |
+| 500 | A write that could not be saved for another reason, such as config.yaml not being writable. The server log has the details |
 | 503 | `config.yaml is invalid; fix it on the web UI.` The server is in repair mode |
 
 - `/app`, `/app/...`, `/settings/*` and `/token` carry a strong `ETag`
@@ -89,7 +90,7 @@ GET the app, change what you want, PUT the whole object back.
 - `apiKey` and `password` can be replaced, but never read or cleared. `null` is
   a 400, and an empty string means unchanged.
 - A `url` equal to the one GET showed keeps the stored URL, and any credentials
-  in it.
+  in it. A different `url` replaces the stored one, credentials included.
 - Send `safeWrite` or `destructive` on its own and the other keeps its value.
 - Read-only fields from GET (`id`, `apiKeySet`, `passwordSet`, `type`, `name`)
   are accepted and ignored. Any other unknown field is a 400.
@@ -313,7 +314,6 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token
 ]
 ```
 
-
 ### `POST /app`
 
 Adds an app. `type` is required. The other fields are the ones in the
@@ -369,7 +369,9 @@ curl -X DELETE -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app/r
 Tests a connection without saving anything. Send `id` (such as `radarr/hd`) to
 test an existing app with the body's changes applied, or `type` plus fields to
 test a new one. It answers 200 with the diagnosis if the app connects, and 400
-with the same body shape if not.
+with the same body shape if not. An unknown `id` is a 404 with `No such app.`,
+and a body with neither `id` nor `type` is a 400 with
+`Send the id of an app, or a type.`
 
 ```bash
 curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
@@ -415,8 +417,9 @@ curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json'
 
 ### `POST /token`
 
-Creates an MCP token. `name` is letters, digits, dashes or underscores. `tier`
-is `read`, `write` or `destructive`. `expiry` is `"30"`, `"90"` or `"never"`.
+Creates an MCP token. `name` starts with a letter or digit, then may use
+letters, digits, dashes or underscores. Names are unique regardless of case,
+so `Phone` clashes with `phone`. `tier` is `read`, `write` or `destructive`. `expiry` is `"30"`, `"90"` or `"never"`.
 Answers 201.
 
 The plaintext `token` is in this response only. It cannot be read again.

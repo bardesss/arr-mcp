@@ -325,7 +325,9 @@ hash, and accepted only in the `X-Api-Key` header, never in a URL. It is never
 valid on `/mcp`, and an MCP token is never valid there. The key can write
 config: services, their permissions, IMDb, `allowTokenInUrl` and MCP tokens.
 Treat it like an admin credential. It cannot change `allowed_hosts` (that could
-lock the owner out of the config page), the sign-in, OAuth or itself. Tokens it
+lock the owner out of the config page), the sign-in, OAuth or itself. Through a
+connection test it can send the stored credential of any configured service to
+a host of its choosing, and that test is logged with the target's origin. Tokens it
 creates outlive a key regeneration, so if it leaks, regenerate it on the config
 page and also review the token list there.
 
