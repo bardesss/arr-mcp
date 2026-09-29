@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, closeApi, json, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
+import { api, closeApi, json, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 
 beforeEach(async () => {
     await seedApi();
@@ -173,5 +173,57 @@ describe('POST /app/test', () => {
         const res = await api('/app/test', json('POST', { type: 'sonarr', url: 'not a url', apiKey: 'k' }));
         expect(res.status).toBe(400);
         expect(typeof ((await res.json()) as { message: string }).message).toBe('string');
+    });
+});
+
+describe('PUT /settings/mcp', () => {
+    it('sets allowTokenInUrl', async () => {
+        const res = await api('/settings/mcp', json('PUT', { allowTokenInUrl: true }));
+        expect(await res.json()).toEqual({ allowedHosts: [], allowTokenInUrl: true, oauthConfigured: false });
+    });
+
+    it('refuses to change allowedHosts, which would let a leaked key lock the owner out', async () => {
+        const res = await api('/settings/mcp', json('PUT', { allowedHosts: ['evil.example.com'] }));
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { message: string }).message).toBe('allowedHosts can only be changed on the config page.');
+        expect(stack.runtime.config.auth.allowed_hosts).toEqual([]);
+    });
+
+    it('accepts its own GET body back', async () => {
+        const current = await (await api('/settings/mcp')).json();
+        expect((await api('/settings/mcp', json('PUT', current))).status).toBe(200);
+    });
+
+    it('cannot reach anything outside its card', async () => {
+        for (const body of [{ oauth: {} }, { managementKey: 'x' }, { username: 'root' }]) {
+            expect((await api('/settings/mcp', json('PUT', body))).status, JSON.stringify(body)).toBe(400);
+        }
+    });
+});
+
+describe('tokens', () => {
+    it('creates a token, returns it once, and it works on /mcp', async () => {
+        const res = await api('/token', json('POST', { name: 'companion', tier: 'read', expiry: '30' }));
+        expect(res.status).toBe(201);
+        const created = (await res.json()) as { name: string; token: string; expires: string };
+        expect(created.token).toMatch(/^amcp_[0-9a-f]{64}$/);
+        expect(created.expires).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect((await mcp(created.token)).status).toBe(200);
+        expect(await (await api('/token')).text()).not.toContain(created.token);
+    });
+
+    it('refuses a duplicate name or a bad tier or expiry', async () => {
+        expect((await api('/token', json('POST', { name: 'phone', tier: 'read', expiry: '30' }))).status).toBe(400);
+        expect((await api('/token', json('POST', { name: 'x', tier: 'admin', expiry: '30' }))).status).toBe(400);
+        expect((await api('/token', json('POST', { name: 'x', tier: 'read', expiry: '365' }))).status).toBe(400);
+    });
+
+    it('revokes a token, which stops working at once', async () => {
+        expect((await api('/token/phone', { method: 'DELETE' })).status).toBe(200);
+        expect((await mcp(MCP)).status).toBe(401);
+    });
+
+    it('404s an unknown token', async () => {
+        expect((await api('/token/nope', { method: 'DELETE' })).status).toBe(404);
     });
 });

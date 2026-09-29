@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import * as z from 'zod/v4';
-import { setImdb } from '../config/edits.ts';
-import { addCandidate, removeInstance, updateInstance } from '../config/mutate.ts';
+import { setImdb, setMcpEndpoint } from '../config/edits.ts';
+import { addCandidate, addToken, ConfigEditError, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
 import { logger } from '../core/logger.ts';
 import { buildAdapters } from '../services/registry.ts';
 import { originOf } from '../web/routes.ts';
@@ -9,7 +9,7 @@ import { AppBody, fieldsFromBody, NewAppBody, TestAppBody } from './bodies.ts';
 import { parseWith, readObject } from './body.ts';
 import { API_BASE, apiError, withEtag } from './http.ts';
 import type { ApiDeps } from './index.ts';
-import { appResource, findInstance, imdbSettings } from './resources.ts';
+import { appResource, findInstance, imdbSettings, mcpSettings, tokenResources } from './resources.ts';
 import { applyWrite } from './write.ts';
 
 const ImdbBody = z.strictObject({
@@ -17,6 +17,18 @@ const ImdbBody = z.strictObject({
     ingestedAt: z.unknown().optional(),
     titles: z.unknown().optional(),
     ratings: z.unknown().optional()
+});
+
+const McpBody = z.strictObject({
+    allowedHosts: z.array(z.string()).optional(),
+    allowTokenInUrl: z.boolean().optional(),
+    oauthConfigured: z.unknown().optional()
+});
+
+const TokenBody = z.strictObject({
+    name: z.string().trim().min(1),
+    tier: z.enum(['read', 'write', 'destructive']),
+    expiry: z.enum(['30', '90', 'never'])
 });
 
 /** `radarr/4k` into the two path segments `findInstance` takes. */
@@ -36,6 +48,48 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         const config = await applyWrite(c, deps, 'IMDb dataset settings', current => setImdb(current, body.enabled));
         if (config instanceof Response) return config;
         return withEtag(c, config, imdbSettings(config, runtime.dataset));
+    });
+
+    app.put(`${API_BASE}/settings/mcp`, async c => {
+        const raw = await readObject(c);
+        if (raw instanceof Response) return raw;
+        const body = parseWith(c, McpBody, raw);
+        if (body instanceof Response) return body;
+        const config = await applyWrite(c, deps, 'MCP endpoint settings', current => {
+            // Read-only here: the pin also gates the config UI, so a leaked key could lock the owner out.
+            const hosts = current.auth.allowed_hosts;
+            if (body.allowedHosts !== undefined && (body.allowedHosts.length !== hosts.length || body.allowedHosts.some((h, i) => h !== hosts[i]))) {
+                throw new ConfigEditError('allowedHosts can only be changed on the config page.');
+            }
+            return setMcpEndpoint(current, body.allowTokenInUrl === undefined ? {} : { allowTokenInUrl: body.allowTokenInUrl });
+        });
+        if (config instanceof Response) return config;
+        return withEtag(c, config, mcpSettings(config));
+    });
+
+    app.post(`${API_BASE}/token`, async c => {
+        const raw = await readObject(c);
+        if (raw instanceof Response) return raw;
+        const body = parseWith(c, TokenBody, raw);
+        if (body instanceof Response) return body;
+
+        let plaintext = '';
+        const config = await applyWrite(c, deps, `created token ${body.name}`, current => {
+            const made = addToken(current, body, new Date());
+            plaintext = made.plaintext;
+            return made.config;
+        });
+        if (config instanceof Response) return config;
+        const entry = tokenResources(config, runtime.plaintextOnDisk, new Date()).find(t => t.name === body.name);
+        return withEtag(c, config, { ...entry, token: plaintext }, 201);
+    });
+
+    app.delete(`${API_BASE}/token/:name`, async c => {
+        const name = c.req.param('name');
+        if (!runtime.config.auth.tokens.some(t => t.name === name)) return apiError(c, 404, 'No such token.');
+        const config = await applyWrite(c, deps, `revoked token ${name}`, current => revokeToken(current, name));
+        if (config instanceof Response) return config;
+        return withEtag(c, config, {});
     });
 
     app.post(`${API_BASE}/app/test`, async c => {
