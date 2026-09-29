@@ -60,6 +60,23 @@ describe('the write pipeline', () => {
         expect(res.status).toBe(412);
     });
 
+    it('picks up a hand edit after the 412, so reading again and retrying works', async () => {
+        const before = await etag();
+        const path = join(stack.dir, 'config.yaml');
+        const text = await readFile(path, 'utf8');
+        await writeFile(path, text.replace('allowed_hosts: []', 'allowed_hosts: []\n  allow_token_in_url: true'), 'utf8');
+
+        expect((await api('/settings/imdb', json('PUT', { enabled: true }, { 'if-match': before }))).status).toBe(412);
+
+        const fresh = await api('/settings/mcp');
+        const tag = fresh.headers.get('etag') as string;
+        expect(tag).not.toBe(before);
+        expect(((await fresh.json()) as { allowTokenInUrl: boolean }).allowTokenInUrl).toBe(true);
+
+        expect((await api('/settings/imdb', json('PUT', { enabled: true }, { 'if-match': tag }))).status).toBe(200);
+        expect(await readFile(path, 'utf8')).toContain('allow_token_in_url: true');
+    });
+
     it('carries the new ETag on the write response', async () => {
         const res = await api('/settings/imdb', json('PUT', { enabled: true }));
         expect(res.headers.get('etag')).toBe(await etag());
