@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.0](https://github.com/bardesss/arr-mcp/compare/v1.35.0...v1.36.0) (2026-09-29)
+
+
+### Features
+
+* detect and repair Plex metadata, repair off by default ([#310](https://github.com/bardesss/arr-mcp/issues/310)) ([8e9a58d](https://github.com/bardesss/arr-mcp/commit/8e9a58d70b8e4c5f2b426f297552eabc6ab76b47))
+
 ## [1.35.0](https://github.com/bardesss/arr-mcp/compare/v1.34.1...v1.35.0) (2026-09-29)
 
 
