@@ -167,6 +167,7 @@ describe('fix_metadata', () => {
 
         expect(text).toContain("1 episode where the path's own season/episode number disagrees");
         expect(text).toContain('0 where only the title text disagrees');
+        expect(text).not.toContain('Plex takes season and episode numbers');
     });
 
     it('previews without writing anything', async () => {
@@ -539,6 +540,18 @@ describe('fix_metadata on Plex', () => {
 
         expect(note).toContain('Repaired');
         expect(note).toMatch(/Matched to .*Fixture show 2.* \(2001\)\./);
+    });
+
+    it('says a numbering mismatch on Plex usually needs a rename, not a rematch', async () => {
+        const h = plexHarness({ episodes: [{ ...plexEpisode(1), index: 7 }] });
+        const effects = (await h.call({ query: 'Fixture show 2' })).structuredContent.effects.join('\n');
+        expect(effects).toContain('Plex takes season and episode numbers from the file names');
+    });
+
+    it('leaves the rename line out on Plex when only titles disagree', async () => {
+        const h = plexHarness();
+        const effects = (await h.call({ query: 'Fixture show 2' })).structuredContent.effects.join('\n');
+        expect(effects).not.toContain('Plex takes season and episode numbers');
     });
 
     it('names no match on a plain refresh', async () => {
