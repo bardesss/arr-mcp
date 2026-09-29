@@ -58,7 +58,7 @@ export function stableJson(value: unknown): string {
 export class ConfigDriftError extends Error {}
 
 /** `next` failed the schema, so nothing was written. */
-export class ConfigInvalidError extends Error {}
+export class ConfigRejectedError extends Error {}
 
 /**
  * Whether the file still says what the page believed.
@@ -120,7 +120,7 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
     // typo there must fail before anything touches the file.
     const parsed = ConfigSchema.safeParse(next);
     if (!parsed.success) {
-        throw new ConfigInvalidError(`that configuration is not valid:\n${z.prettifyError(parsed.error)}`);
+        throw new ConfigRejectedError(`that configuration is not valid:\n${z.prettifyError(parsed.error)}`);
     }
     const value = parsed.data;
 
