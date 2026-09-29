@@ -314,6 +314,7 @@ describe('fix_metadata', () => {
 
             expect(text).toContain('final answer');
             expect(text).not.toContain('too early');
+            expect(text).not.toContain('Matched to');
         });
 
         it('is refused outright when the destructive tier is off', async () => {
@@ -412,7 +413,11 @@ const plexSeries = (over: Partial<MergedItem> = {}): MergedItem =>
     seriesItem({ title: 'Fixture show 2', ids: { tvdb: 900 }, playback: { user: 'Sam', itemId: PLEX_SERIES }, ...over });
 
 function plexHarness(
-    opts: { allow?: boolean; destructive?: boolean; item?: MergedItem; films?: Record<string, unknown>[] } = {}
+    opts: { allow?: boolean; destructive?: boolean; item?: MergedItem; films?: Record<string, unknown>[];
+        episodes?: Record<string, unknown>[];
+        /** Served once a write has gone out. */
+        repaired?: Record<string, unknown>[];
+    } = {}
 ) {
     const config = plexConfig(opts);
     const sent: { method: string; path: string; params: Record<string, string> }[] = [];
@@ -435,10 +440,10 @@ function plexHarness(
             });
         }
         if (url.pathname === `/library/metadata/${PLEX_SERIES}/allLeaves`) {
-            return jsonResponse({ MediaContainer: { Metadata: [plexEpisode(1)] } });
+            return jsonResponse({ MediaContainer: { Metadata: (sent.some(s => s.method === 'PUT') ? opts.repaired : undefined) ?? opts.episodes ?? [plexEpisode(1)] } });
         }
         if (url.pathname.endsWith('/matches')) {
-            return jsonResponse({ MediaContainer: { SearchResult: [{ guid: 'plex://show/fixture2', name: 'Fixture show 2', score: 100 }] } });
+            return jsonResponse({ MediaContainer: { SearchResult: [{ guid: 'plex://show/fixture2', name: 'Fixture show 2', year: 2001, score: 100 }] } });
         }
         const film = (opts.films ?? []).find(f => url.pathname === `/library/metadata/${String(f.ratingKey)}`);
         if (film !== undefined) return jsonResponse({ MediaContainer: { Metadata: [film] } });
@@ -518,6 +523,28 @@ describe('fix_metadata on Plex', () => {
         expect(result.verified).toBe(false);
         expect(result.note).toContain('NOT VERIFIED');
         expect(result.note).toContain('get_metadata_issues again in a minute');
+    });
+
+    it('says what Plex matched the item to', async () => {
+        const h = plexHarness();
+        const { note } = (await confirmed(h)).structuredContent.result as { note: string };
+
+        expect(note).toMatch(/Matched to <<untrusted:[^>]*>>Fixture show 2<<\/untrusted>> \(2001\)\./);
+    });
+
+    it('says what Plex matched to when the repair already shows', async () => {
+        const fixed = { ...plexEpisode(1), title: 'Some other words' };
+        const h = plexHarness({ repaired: [fixed] });
+        const { note } = (await confirmed(h)).structuredContent.result as { note: string };
+
+        expect(note).toContain('Repaired');
+        expect(note).toMatch(/Matched to .*Fixture show 2.* \(2001\)\./);
+    });
+
+    it('names no match on a plain refresh', async () => {
+        const h = plexHarness({ item: plexSeries({ ids: {} }) });
+        const { note } = (await confirmed(h)).structuredContent.result as { note: string };
+        expect(note).not.toContain('Matched to');
     });
 
     it('matches a film by its TMDB id', async () => {

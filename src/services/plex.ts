@@ -792,11 +792,14 @@ export class PlexAdapter
     }
 
     /** Fix Match as python-plexapi drives it, then a refresh Plex runs in the background. */
-    async repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<{ settled: boolean }> {
+    async repairMetadata(
+        itemId: string,
+        opts: { tvdbId?: number; tmdbId?: number }
+    ): Promise<{ settled: boolean; matchedTo?: { name: string; year?: string } }> {
         const ratingKey = this.#ratingKey(itemId);
         const base = `/library/metadata/${ratingKey}`;
         const slow = { timeoutMs: METADATA_REPAIR_TIMEOUT_MS };
-        let matchedTo: string | undefined;
+        let matchedTo: { name: string; year?: string } | undefined;
 
         const term =
             opts.tvdbId !== undefined ? `tvdb-${opts.tvdbId}` : opts.tmdbId !== undefined ? `tmdb-${opts.tmdbId}` : undefined;
@@ -832,7 +835,7 @@ export class PlexAdapter
                     { remedy: nothingChanged }
                 );
             }
-            const { guid, name } = first;
+            const { guid, name, year } = first;
             if (typeof guid !== 'string' || guid === '' || typeof name !== 'string' || name === '') {
                 throw new ServiceError('UpstreamError', this.id, `Plex found 1 match for ${term}, but it has no guid or name to match with`, {
                     remedy: nothingChanged
@@ -844,15 +847,18 @@ export class PlexAdapter
                 'Nothing after the match was sent. If it timed out, the match may have been applied anyway, so check the item in Plex before trying again.',
                 () => this.#http.put(`${base}/match?${params.toString()}`, undefined, true, slow)
             );
-            matchedTo = this.#fence('name', name);
+            matchedTo = {
+                name: this.#fence('name', name),
+                ...(typeof year === 'number' && Number.isFinite(year) ? { year: String(year) } : {})
+            };
         }
 
         const refreshRemedy =
             matchedTo === undefined
                 ? 'Run Refresh Metadata on the item in Plex, or try again in a minute.'
-                : `The match to ${matchedTo} was applied; only the refresh failed. Run Refresh Metadata on the item in Plex, or run get_metadata_issues again in a minute.`;
+                : `The match to ${matchedTo.name} was applied; only the refresh failed. Run Refresh Metadata on the item in Plex, or run get_metadata_issues again in a minute.`;
         await this.#step('refresh', refreshRemedy, () => this.#http.put(`${base}/refresh?force=1`, undefined, true, slow));
-        return { settled: false };
+        return { settled: false, ...(matchedTo === undefined ? {} : { matchedTo }) };
     }
 
     /**

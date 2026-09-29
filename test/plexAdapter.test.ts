@@ -859,9 +859,25 @@ describe('PlexAdapter', () => {
         const calls = (seen: Seen[]) => seen.map(s => `${s.method} ${s.path}`);
         const failure = (p: Promise<unknown>) => p.then(() => undefined, (err: unknown) => err);
 
+        it('says what it matched to, with the name fenced', async () => {
+            const { adapter } = probe();
+            const result = await adapter.repairMetadata('900100', { tvdbId: 900 });
+            expect(result.settled).toBe(false);
+            expect(result.matchedTo?.name).toContain('<<untrusted:');
+            expect(unfenced(result.matchedTo?.name ?? '')).toBe('Fixture show 2');
+            expect(result.matchedTo?.year).toBe('2001');
+        });
+
+        it('leaves the year out when the match has none', async () => {
+            const { adapter } = probe({ results: [{ guid: 'plex://show/fixture2', name: 'Fixture show 2' }] });
+            const result = await adapter.repairMetadata('900100', { tvdbId: 900 });
+            expect(result.matchedTo).toBeDefined();
+            expect(result.matchedTo).not.toHaveProperty('year');
+        });
+
         it('matches a series by its TVDB id, then refreshes', async () => {
             const { adapter, seen } = probe();
-            expect(await adapter.repairMetadata('900100', { tvdbId: 900 })).toEqual({ settled: false });
+            expect((await adapter.repairMetadata('900100', { tvdbId: 900 })).settled).toBe(false);
 
             expect(calls(seen)).toEqual([
                 'GET /library/metadata/900100',

@@ -185,11 +185,6 @@ export function registerFixMetadata(
             const viewer = await requireIdentity(adapters, identity).resolve(user);
             const series = await resolve(loader, query, adapter);
 
-            /**
-             * A film is read out of the whole-library film list rather than by
-             * id: the media server has no per-title episode endpoint to stand
-             * in for one, and this read is a single request either way.
-             */
             let parts: readonly (EpisodeRecord | MovieRecord)[];
             let mismatches: Mismatch[];
 
@@ -289,8 +284,7 @@ export function registerFixMetadata(
                               `${provider.label} is the media server's own id for this title, and no Radarr or Sonarr manages it — so re-identifying may pin exactly the id that is already wrong.`
                           ]
                         : []),
-                    `${numbering} episode${numbering === 1 ? '' : 's'} where the path's own season/episode number disagrees with the server.`,
-                    `${titleOnly} where only the title text disagrees — the weaker signal, and legitimate for a romanised or alternate-language filename.`,
+                    `${numbering} episode${numbering === 1 ? '' : 's'} where the path's own season/episode number disagrees with the server.`,                    `${titleOnly} where only the title text disagrees — the weaker signal, and legitimate for a romanised or alternate-language filename.`,
                     ...mismatches.slice(0, EXAMPLE_LIMIT).map(m => describe(m, adapter.id)),
                     ...(mismatches.length > EXAMPLE_LIMIT ? [`…and ${mismatches.length - EXAMPLE_LIMIT} more.`] : [])
                 ],
@@ -338,7 +332,9 @@ export function registerFixMetadata(
             const before = await read();
 
             // Exactly the id the preview named and the token bound.
-            const { settled } = await adapter.repairMetadata(series.itemId, bound.providerId ?? {});
+            const { settled, matchedTo } = await adapter.repairMetadata(series.itemId, bound.providerId ?? {});
+            const matched =
+                matchedTo === undefined ? '' : ` Matched to ${matchedTo.name}${matchedTo.year === undefined ? '' : ` (${matchedTo.year})`}.`;
 
             // Plex, and Jellyfin's plain refresh, finish in the background: this is a snapshot.
             const after = await read();
@@ -351,11 +347,11 @@ export function registerFixMetadata(
              * avoid — so the outcome is stated in its own words here.
              *
              * Whether an unchanged count is a failure depends on which call ran.
-             * The identify path finishes the refresh before it answers, so its
-             * result is final and an unchanged count means it genuinely did
-             * nothing. The plain refresh is queued, so an unchanged count there
-             * may only be too early. `settled` carries that distinction instead
-             * of hedging over both.
+             * On Jellyfin the identify path finishes the refresh before it
+             * answers, so its result is final and an unchanged count means it
+             * genuinely did nothing. A queued refresh (Jellyfin's plain one, and
+             * Plex's always) may only be too early. `settled` carries that
+             * distinction instead of hedging over both.
              */
             return {
                 mismatchesBefore: before.length,
@@ -363,11 +359,11 @@ export function registerFixMetadata(
                 verified: after.length < before.length,
                 note:
                     after.length < before.length
-                        ? `Repaired: ${before.length - after.length} of ${before.length} mismatches are gone.` +
+                        ? `Repaired: ${before.length - after.length} of ${before.length} mismatches are gone.${matched}` +
                           (settled ? '' : ' The refresh is queued, so the final count can improve further.')
                         : settled
                           ? `NOT FIXED: the re-identify completed and ${after.length} mismatches remain, the same as before. This is a final answer rather than an early one, because the server finished the work before replying. An episode's season and number are stored on the item from the original scan and no refresh re-derives them, so the repair that works is trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on the media server.`
-                          : `NOT VERIFIED: the refresh was accepted but ${after.length} mismatches remain, the same as before. ` +
+                          : `NOT VERIFIED: the refresh was accepted but ${after.length} mismatches remain, the same as before.${matched} ` +
                             (bound.providerId === undefined
                                 ? 'No provider id could be pinned, so this was a plain refresh, which the server queues. '
                                 : 'The server queues the refresh and finishes it in the background. ') +
