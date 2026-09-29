@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.38.1](https://github.com/bardesss/arr-mcp/compare/v1.38.0...v1.38.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* advertise limit's lower bound as an inclusive minimum ([#318](https://github.com/bardesss/arr-mcp/issues/318)) ([6e2d6df](https://github.com/bardesss/arr-mcp/commit/6e2d6dfa88f0e5182a9ae1ed2a39a948886ba9c6)), closes [#316](https://github.com/bardesss/arr-mcp/issues/316)
+
 ## [1.38.0](https://github.com/bardesss/arr-mcp/compare/v1.37.0...v1.38.0) (2026-09-29)
 
 
