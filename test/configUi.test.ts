@@ -1921,3 +1921,40 @@ services: {}
         expect(page).not.toContain('y'.repeat(40));
     });
 });
+
+describe('the token reveal panel', () => {
+    let n = 0;
+    const create = async () =>
+        (
+            await call(
+                '/ui/config/tokens/add',
+                form({ csrf: await csrfFrom(), 'token.name': `phone${n++}`, 'token.tier': 'read', 'token.expiry': '90' })
+            )
+        ).text();
+
+    it('offers "Copy URL with token" only while allow_token_in_url is on', async () => {
+        await signIn();
+        expect(await create()).not.toContain('data-copy-url-token');
+
+        await call(
+            '/ui/config/mcp',
+            form({ csrf: await csrfFrom(), 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' })
+        );
+        expect(await create()).toContain('data-copy-url-token');
+    });
+
+    it('ships the client config textarea empty and the token exactly once', async () => {
+        await signIn();
+        await call(
+            '/ui/config/mcp',
+            form({ csrf: await csrfFrom(), 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' })
+        );
+        const page = await create();
+        const token = /value="(amcp_[0-9a-f]{64})"/.exec(page)?.[1] as string;
+
+        expect(page).toContain('data-copy-config="mcp-config"');
+        expect(page).toMatch(/<textarea id="mcp-config"[^>]*><\/textarea>/);
+        expect(page.split(token).length - 1).toBe(1);
+        expect(page).not.toMatch(/\?token=amcp_/);
+    });
+});
