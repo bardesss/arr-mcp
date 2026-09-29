@@ -279,7 +279,8 @@ export class Runtime {
     }
 
     async #reloadNow(): Promise<void> {
-        const { config, plaintextOnDisk } = await loadConfig(this.#configDir);
+        // Never seeds: a file deleted under a running server must not turn it unclaimed.
+        const { config, plaintextOnDisk } = await loadConfig(this.#configDir, { create: false });
         this.#plaintextOnDisk = plaintextOnDisk;
         this.#syncDataset(config);
         this.#snapshot = buildSnapshot(config, this.#audit, this.confirm, this.#dataset, this.#oauthKeys);

@@ -145,7 +145,8 @@ const seedConfig = () => ({
  * are hashed in place and the file rewritten. If it cannot be rewritten the
  * tokens still work, and their names come back in `plaintextOnDisk`.
  *
- * `persist: false` reads without ever writing.
+ * `persist: false` reads without ever writing. `create: false` still rewrites
+ * tokens but never seeds a missing file: only startup may create one.
  *
  * The maintainer scripts load this file only to reach the services it names,
  * and a read must not have side effects on the user's credentials. Before this
@@ -155,12 +156,13 @@ const seedConfig = () => ({
  */
 export async function loadConfig(
     configDir: string,
-    opts: { persist?: boolean; write?: (path: string, text: string) => Promise<void> } = {}
+    opts: { persist?: boolean; create?: boolean; write?: (path: string, text: string) => Promise<void> } = {}
 ): Promise<{ config: Config; created: boolean; plaintextOnDisk: string[] }> {
     const persist = opts.persist ?? true;
+    const create = persist && (opts.create ?? true);
     const write = opts.write ?? writeConfigAtomic;
     const path = join(configDir, CONFIG_FILENAME);
-    if (persist) await mkdir(configDir, { recursive: true });
+    if (create) await mkdir(configDir, { recursive: true });
 
     let raw: string | undefined;
     try {
@@ -170,6 +172,7 @@ export async function loadConfig(
     }
 
     if (raw === undefined) {
+        if (persist && !create) throw new Error(`config.yaml is missing from ${configDir}; keeping the running config.`);
         if (!persist) {
             throw new Error(
                 `no config.yaml in ${configDir} — start arr-mcp once to create one, or point ARR_MCP_CONFIG_DIR at an existing config directory.`

@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,12 +12,12 @@ vi.mock('../src/config/load.ts', async importOriginal => {
     const real = await importOriginal<typeof import('../src/config/load.ts')>();
     return {
         ...real,
-        loadConfig: async (dir: string) => {
+        loadConfig: async (dir: string, opts?: Parameters<typeof real.loadConfig>[1]) => {
             gate.calls += 1;
             const { hold, read } = gate;
             gate.hold = undefined;
             gate.read = undefined;
-            const loaded = await real.loadConfig(dir);
+            const loaded = await real.loadConfig(dir, opts);
             read?.();
             if (hold !== undefined) await hold;
             return loaded;
@@ -28,9 +28,11 @@ vi.mock('../src/config/load.ts', async importOriginal => {
 const { loadConfig } = await import('../src/config/load.ts');
 
 let audit: WriteAudit;
+const dirs: string[] = [];
 
 const seeded = async () => {
     const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-reload-'));
+    dirs.push(dir);
     await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: first\nservices: {}\n', 'utf8');
     const { config } = await loadConfig(dir);
     audit = WriteAudit.ephemeral();
@@ -40,8 +42,9 @@ const seeded = async () => {
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-afterEach(() => {
+afterEach(async () => {
     audit.close();
+    await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
 
 describe('Runtime.reload', () => {
