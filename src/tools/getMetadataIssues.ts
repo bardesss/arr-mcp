@@ -90,6 +90,11 @@ const FIX: Record<Remedy, string> = {
         'Look before acting: the file and the server disagree on wording only, and this cannot tell which is right. A title in a different language from the filename is a legitimate disagreement. Compare against the managing Radarr or Sonarr.'
 };
 
+const fixFor = (remedy: Remedy, adapter: ServiceAdapter): string =>
+    remedy === 'refresh_metadata' && adapter.type === 'plex'
+        ? `${FIX[remedy]} The repair is off by default on Plex (services.plex.allow_metadata_repair).`
+        : FIX[remedy];
+
 const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
     if (detail === 'full') return issue;
     if (detail === 'standard') {
@@ -160,7 +165,7 @@ export async function buildGetMetadataIssues(
                 titleOnly: mismatch.reasons.includes('year') ? 0 : 1,
                 pinned,
                 remedy,
-                fix: FIX[remedy],
+                fix: fixFor(remedy, adapter),
                 examples: [
                     fenceText(
                         `${unfenced(mismatch.path).split(/[/\\]/).at(-1) ?? ''} → ${unfenced(mismatch.serverTitle)}${mismatch.serverYear === undefined ? '' : ` (${mismatch.serverYear})`}`,
@@ -212,7 +217,7 @@ export async function buildGetMetadataIssues(
                 titleOnly: verdict.titleOnly,
                 pinned: verdict.pinned,
                 remedy: verdict.remedy,
-                fix: FIX[verdict.remedy],
+                fix: fixFor(verdict.remedy, adapter),
                 // Re-fenced after the basename split, for the reason
                 // fixMetadata's own formatter documents: the closing marker
                 // contains a slash, so splitting a fenced path on separators

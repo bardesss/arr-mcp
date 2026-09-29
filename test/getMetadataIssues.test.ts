@@ -98,6 +98,7 @@ describe('get_metadata_issues', () => {
 
         expect(result.items[0]).toMatchObject({ remedy: 'refresh_metadata', mismatches: 1, pinned: 0 });
         expect(result.items[0]?.fix).toContain('fix_metadata');
+        expect(result.items[0]?.fix).not.toContain('allow_metadata_repair');
     });
 
     /**
@@ -354,6 +355,7 @@ describe('on Plex', () => {
     it('sends a misnamed Plex episode to a metadata refresh, because Plex episodes are never pinned', async () => {
         const issue = (await sweep(plexAdapter())).items.find(i => i.itemId === '900300');
         expect(issue).toMatchObject({ kind: 'series', mismatches: 1, titleOnly: 1, pinned: 0, remedy: 'refresh_metadata' });
+        expect(issue?.fix).toContain('off by default on Plex (services.plex.allow_metadata_repair)');
     });
 
     it('names the media server, not Jellyfin, in the rename fix', async () => {
