@@ -57,6 +57,12 @@ services:
 Requests are sent to `…/bazarr/api/…`. Give the URL exactly as you would type it
 in a browser; a trailing slash makes no difference.
 
+If the proxy asks for a username and password, put them in the URL:
+`http://user:pass@192.168.1.20:6767/bazarr`. They go out as a Basic
+`Authorization` header, not in the address. Services that send their own
+`Authorization` header (Jellyfin, and Transmission with a username set) keep
+theirs, so this can't stack with those. Percent-encode `@` or `:` in either part.
+
 ## Jellyfin and `default_user`
 
 `get_library`, `get_media_details` (its title-query form) and `diagnose` all

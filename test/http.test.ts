@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BaseServiceConfig } from '../src/config/schema.ts';
-import { apiKeyHeader, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
+import { apiKeyHeader, embyToken, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 
 const config: BaseServiceConfig = {
@@ -129,6 +129,41 @@ describe('ServiceHttp with a url base', () => {
  * turning into "response was not valid JSON" — would reach production green.
  * These are the tests that can tell the two apart.
  */
+describe('ServiceHttp with credentials in the url', () => {
+    const withUserinfo =
+        (auth = queryParamKey('apikey', 'secret'), url = 'http://proxy%20user:p%40ss@192.168.1.20:8080/sab') =>
+        (fetchImpl: unknown) =>
+            new ServiceHttp('sabnzbd', { ...config, url }, auth, fetchImpl as typeof fetch);
+
+    it('fetches without the userinfo and sends it as Basic auth', async () => {
+        let seenUrl = '';
+        let seenAuth: string | null = null;
+        await withUserinfo()(async (input: string, init?: RequestInit) => {
+            seenUrl = String(input);
+            seenAuth = new Headers(init?.headers).get('Authorization');
+            return json({});
+        }).get('/api?mode=version');
+        expect(seenUrl).toBe('http://192.168.1.20:8080/sab/api?mode=version&apikey=secret');
+        expect(seenAuth).toBe(`Basic ${Buffer.from('proxy user:p@ss').toString('base64')}`);
+    });
+
+    it("lets the service's own Authorization header win", async () => {
+        let seenAuth: string | null = null;
+        await withUserinfo(embyToken('k'))(async (_input: string, init?: RequestInit) => {
+            seenAuth = new Headers(init?.headers).get('Authorization');
+            return json({});
+        }).get('/System/Info');
+        expect(seenAuth).toBe('MediaBrowser Token="k"');
+    });
+
+    it('works against the real fetch rather than throwing on the url', async () => {
+        // A closed local port: refused at once, never a real host.
+        const client = withUserinfo(undefined, 'http://u:p@127.0.0.1:1')(fetch);
+        const failure = await client.get('/api?mode=version').catch((err: unknown) => err as Error);
+        expect(String(failure)).not.toContain('includes credentials');
+    });
+});
+
 describe('ServiceHttp put and deleteWithBody', () => {
     const emptyOk = () => new Response('', { status: 200 });
 
