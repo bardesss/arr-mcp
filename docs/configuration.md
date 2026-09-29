@@ -335,9 +335,12 @@ OAuth 2.1 or OIDC provider already minting tokens before this does anything.
 Set it on the **OAuth** card of the config page, which applies without a
 restart. Its **Test** button fetches `jwks_uri` as typed, without saving, and
 lists each key's `kid` and algorithm, flagging any key arr-mcp will not verify
-with (a symmetric `oct` key, or an algorithm outside the asymmetric ones it
-accepts); a failure says whether the address was unreachable, answered an HTTP
-error, or returned something other than a key set. Adding the block to
+with (a symmetric `oct` key, an encryption key, or an algorithm outside the
+asymmetric ones it accepts). It fetches the way the verifier does: a redirect is
+not followed, so the result names where it points for you to use instead, and
+anything but a `200` is a failure. A failure says whether the address was
+unreachable, answered an HTTP error, sent more than 1 MiB, or returned something
+other than a key set. Adding the block to
 `config.yaml` by hand still works, followed by a restart like any other hand
 edit.
 
