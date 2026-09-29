@@ -154,6 +154,22 @@ describe('GET /health detail', () => {
     });
 });
 
+describe('GET /health connection errors', () => {
+    it('keeps userinfo credentials out of the error detail', async () => {
+        // Radarr goes to the real fetch; transmission's DNS lookup is too slow to wait on.
+        const realFetch = globalThis.fetch;
+        vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) =>
+            String(input).includes('127.0.0.1') ? realFetch(input, init) : Promise.reject(new TypeError('fetch failed'))
+        );
+        await seed({ radarrUrl: 'http://user:s3cretpw@127.0.0.1:1' });
+        const res = await api('/health');
+        expect(res.status).toBe(200);
+        const text = await res.text();
+        expect(text).toContain('radarr/hd');
+        expect(text).not.toContain('s3cretpw');
+    });
+});
+
 describe('GET /log', () => {
     beforeEach(() => {
         logs.write(line({ msg: 'first' }));
