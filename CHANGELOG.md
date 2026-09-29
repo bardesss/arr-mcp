@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.1](https://github.com/bardesss/arr-mcp/compare/v1.34.0...v1.34.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* answer 401, not 503, for an expired OAuth token while the issuer is down ([#304](https://github.com/bardesss/arr-mcp/issues/304)) ([c06e740](https://github.com/bardesss/arr-mcp/commit/c06e740382793b0ec5b6ac529855212890ab2508))
+
 ## [1.34.0](https://github.com/bardesss/arr-mcp/compare/v1.33.3...v1.34.0) (2026-09-29)
 
 
