@@ -56,7 +56,7 @@ export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; ver
  * editing that applies without a restart.
  *
  * Server rendered, no build step. The only client JavaScript polls the log
- * stream and copies the bearer token.
+ * stream and copies a freshly created token.
  */
 export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const { runtime, audit, logs, version } = deps;
@@ -222,8 +222,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const guard = (c: Context): string | undefined => (unclaimed() ? undefined : sessionOf(c, runtime));
 
     // Every page behind `guard` sends `cache-control: no-store`. The dashboard
-    // renders the MCP bearer token into its own HTML, and signing out does not
-    // invalidate a cached copy of it.
+    // renders no token, but the config page reveals a new one once, and a
+    // cached copy would outlive that.
 
     app.get('/', c => c.redirect(guard(c) === undefined ? entry() : '/ui', 302));
 
@@ -249,8 +249,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 version,
                 diagnoses: health.services,
                 configured: snapshot.adapters.map(a => a.id),
-                bearerToken: '', // Task 8 replaces the dashboard token field
-                urlToken: snapshot.config.auth.allow_token_in_url,
+                tokens: snapshot.config.auth.tokens,
+                plaintextOnDisk: runtime.plaintextOnDisk,
+                now: new Date(),
                 mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
                 ...(runtime.dataset === undefined ? {} : { imdb: runtime.dataset.status() }),
                 disks: health.disks.items,

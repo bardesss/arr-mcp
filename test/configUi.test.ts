@@ -268,13 +268,11 @@ describe('secrets', () => {
         expect(await (await call('/ui/config')).text()).not.toContain('scrypt$');
     });
 
-    // It is the one secret the UI exists to hand out, so it is shown — but
-    // masked until asked for.
-    it('shows the bearer token on the dashboard, in a masked field', async () => {
+    it('never renders an MCP token on the dashboard', async () => {
         await signIn();
         const page = await (await call('/ui')).text();
-        expect(page).toContain(BEARER);
-        expect(page).toContain('type="password"');
+        expect(page).not.toContain(BEARER);
+        expect(page).not.toContain('id="bearer"');
     });
 });
 
@@ -346,23 +344,13 @@ describe('MCP endpoint', () => {
         expect(page).not.toContain('http://localhost:6060/mcp');
     });
 
-    /**
-     * The regression guard for the whole design. The client config is assembled
-     * in the browser precisely so the token is in the HTML exactly once, inside
-     * the masked field — a future change that server-renders the JSON would put
-     * a live credential into readable text and into any screenshot of the page,
-     * and this is what would catch it.
-     */
-    it('ships the config textarea empty, leaving the token in the masked field alone', async () => {
+    it('has no client config or token buttons on the dashboard', async () => {
         await signIn();
         const page = await (await call('/ui')).text();
-
-        expect(page).toContain('data-copy-config="mcp-config"');
-        expect(page).toContain('<textarea id="mcp-config"');
-        expect(page).toContain('></textarea>');
-        expect(page.split(BEARER).length - 1).toBe(1);
+        expect(page).not.toContain('data-copy-config');
+        expect(page).not.toContain('id="mcp-config"');
+        expect(page).not.toContain('data-copy-url-token');
     });
-
 });
 
 describe('the MCP endpoint form', () => {
@@ -374,25 +362,6 @@ describe('the MCP endpoint form', () => {
 
         const off = buildMcpConfig(on, { 'auth.allowed_hosts': '' });
         expect(off.auth.allow_token_in_url).toBe(false);
-    });
-});
-
-describe('the URL token on the dashboard', () => {
-    it('offers a copy button once enabled, without putting the token in the page', async () => {
-        await signIn();
-        expect(await (await call('/ui')).text()).not.toContain('data-copy-url-token');
-
-        await call(
-            '/ui/config/mcp',
-            form({ csrf: await csrfFrom(), 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' })
-        );
-
-        const page = await (await call('/ui')).text();
-        expect(page).toContain('data-copy-url-token');
-        expect(page).not.toContain('?token=');
-        // The masked-field occurrence only — a regression that embedded the
-        // token some other way would not necessarily contain '?token=' either.
-        expect(page.split(BEARER).length - 1).toBe(1);
     });
 });
 
@@ -1710,18 +1679,10 @@ describe('the IMDb dataset in the config UI', () => {
 });
 
 /**
- * The dashboard renders the MCP bearer token into its own HTML. /ui/logs.json
- * already sends no-store; the pages carrying the credential sent nothing, so
- * they persisted in disk cache and bfcache after a sign-out.
+ * /ui/logs.json already sends no-store; the pages that can carry a credential
+ * sent nothing, so they persisted in disk cache and bfcache after a sign-out.
  */
 describe('authenticated page caching', () => {
-    it('sends no-store on the dashboard, which renders the bearer token', async () => {
-        await signIn();
-        const res = await call('/ui');
-        expect(await res.text()).toContain(BEARER); // the premise: the token really is in the page
-        expect(res.headers.get('cache-control')).toBe('no-store');
-    });
-
     it('sends no-store on every authenticated page', async () => {
         await signIn();
         for (const path of ['/ui', '/ui/logs', '/ui/audit', '/ui/config']) {
@@ -1896,5 +1857,67 @@ describe('the diagnostic fields on a log row', () => {
         const page = await (await call('/ui/logs?stream=problems')).text();
         expect(page).toContain('class="fields"');
         expect(page).toContain('192.168.178.82');
+    });
+});
+
+describe('dashboard MCP card', () => {
+    const seedTokens = async (tokens: string) => {
+        await seed();
+        await writeFile(
+            join(dir, 'config.yaml'),
+            `auth:
+  username: admin
+  password_hash: ${PASSWORD_HASH}
+  allowed_hosts: []
+  tokens:${tokens}
+services: {}
+`,
+            'utf8'
+        );
+        const { config, plaintextOnDisk } = await loadConfig(dir, {
+            write: () => Promise.reject(new Error('read-only'))
+        });
+        logs.close();
+        audit.close();
+        audit = WriteAudit.ephemeral();
+        logs = LogStore.ephemeral();
+        runtime = Runtime.fromConfig(config, audit, { configDir: dir, plaintextOnDisk });
+        app = buildApp({ runtime, audit, logs });
+        await signIn();
+    };
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
+    it('never renders a token, and links to manage them', async () => {
+        await signIn();
+        const page = await (await call('/ui')).text();
+        expect(page).not.toContain('id="bearer"');
+        expect(page).toMatch(/1 token · <a href="\/ui\/config#tokens">Manage<\/a>/);
+    });
+
+    it('prompts for a first token when there are none', async () => {
+        await seedTokens(' []');
+        const page = await (await call('/ui')).text();
+        expect(page).toContain('No MCP tokens yet. Create one to connect a client.');
+    });
+
+    it('warns about tokens expiring within 7 days or expired', async () => {
+        const soon = day(3);
+        await seedTokens(
+            `
+    - { name: soon, tier: read, hash: '${hashToken('a'.repeat(40))}', expires: '${soon}' }` +
+                `
+    - { name: old, tier: read, hash: '${hashToken('b'.repeat(40))}', expires: '2020-01-01' }`
+        );
+        const page = await (await call('/ui')).text();
+        expect(page).toContain(`token &#39;soon&#39; expires on ${soon}`);
+        expect(page).toContain('token &#39;old&#39; expired on 2020-01-01');
+    });
+
+    it('warns about tokens still plaintext on disk', async () => {
+        await seedTokens(`
+    - { name: ci, tier: write, token: '${'y'.repeat(40)}' }`);
+        const page = await (await call('/ui')).text();
+        expect(page).toContain('Still plaintext in config.yaml');
+        expect(page).not.toContain('y'.repeat(40));
     });
 });
