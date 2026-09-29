@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.35.0](https://github.com/bardesss/arr-mcp/compare/v1.34.1...v1.35.0) (2026-09-29)
+
+
+### Features
+
+* configure OAuth from the config page ([#306](https://github.com/bardesss/arr-mcp/issues/306)) ([20aeae4](https://github.com/bardesss/arr-mcp/commit/20aeae4856c43d199c30ac4adabb38d114b411a1))
+
 ## [1.34.1](https://github.com/bardesss/arr-mcp/compare/v1.34.0...v1.34.1) (2026-09-29)
 
 
