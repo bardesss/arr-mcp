@@ -28,6 +28,19 @@ export interface AuthStrategy {
     recover?(response: Response): boolean | Promise<boolean>;
 }
 
+/**
+ * Strips `user:pass@` from `url` and returns it as a Basic header value.
+ * fetch refuses a URL that carries credentials, and a reverse proxy in front
+ * of a service is the usual reason one does.
+ */
+export function takeUserinfo(url: URL): string | undefined {
+    if (url.username === '' && url.password === '') return undefined;
+    const pair = `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`;
+    url.username = '';
+    url.password = '';
+    return `Basic ${Buffer.from(pair).toString('base64')}`;
+}
+
 /** Radarr, Sonarr, Prowlarr and Seerr use `X-Api-Key`; Bazarr uses `X-API-KEY`. */
 export function apiKeyHeader(header: string, key: string): AuthStrategy {
     return {
@@ -178,12 +191,16 @@ async function qbittorrentLogin(
 ): Promise<SessionCookie> {
     const base = new URL(creds.url);
     const url = new URL(base.pathname.replace(/\/+$/, '') + QB_LOGIN_PATH, base);
+    const basic = takeUserinfo(url);
 
     let response: Response;
     try {
         response = await doFetch(url.toString(), {
             method: 'POST',
-            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'content-type': 'application/x-www-form-urlencoded',
+                ...(basic === undefined ? {} : { authorization: basic })
+            },
             body: new URLSearchParams({
                 username: creds.username ?? '',
                 password: creds.password ?? ''

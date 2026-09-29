@@ -136,6 +136,20 @@ describe('qbittorrentSession', () => {
         });
     });
 
+    it('logs in without the url userinfo, sending it as Basic auth', async () => {
+        let seenUrl = '';
+        let seenAuth: string | null = null;
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            seenUrl = String(input);
+            seenAuth = new Headers(init?.headers).get('Authorization');
+            return loggedIn();
+        }) as unknown as typeof fetch;
+
+        await session({ url: 'http://proxy:pw@h:8081' }, impl).recover?.(forbidden());
+        expect(seenUrl).toBe('http://h:8081/api/v2/auth/login');
+        expect(seenAuth).toBe(`Basic ${Buffer.from('proxy:pw').toString('base64')}`);
+    });
+
     it('honours a base URL that carries a path prefix', async () => {
         let seen: string | undefined;
         const impl = (async (input: string | URL | Request) => {
