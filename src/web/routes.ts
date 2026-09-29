@@ -9,7 +9,6 @@ import { logFields, type LogStore } from '../core/logs.ts';
 import type { Runtime } from '../core/runtime.ts';
 import {
     clearedSessionCookie,
-    generateBearerToken,
     hashPassword,
     readCookie,
     sessionCookie,
@@ -23,7 +22,16 @@ import { hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
 import { MARK_SVG } from './icons.ts';
-import { addInstance, removeInstance, updateInstance, type InstanceFields } from '../config/mutate.ts';
+import {
+    addInstance,
+    addToken,
+    ConfigEditError,
+    removeInstance,
+    revokeToken,
+    updateInstance,
+    type InstanceFields
+} from '../config/mutate.ts';
+import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
 import { configPage } from './configPage.ts';
 import { mcpEndpoint, sameOrigin } from './origin.ts';
 import {
@@ -48,7 +56,7 @@ export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; ver
  * editing that applies without a restart.
  *
  * Server rendered, no build step. The only client JavaScript polls the log
- * stream and copies the bearer token.
+ * stream and copies a freshly created token.
  */
 export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const { runtime, audit, logs, version } = deps;
@@ -214,8 +222,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const guard = (c: Context): string | undefined => (unclaimed() ? undefined : sessionOf(c, runtime));
 
     // Every page behind `guard` sends `cache-control: no-store`. The dashboard
-    // renders the MCP bearer token into its own HTML, and signing out does not
-    // invalidate a cached copy of it.
+    // renders no token, but the config page reveals a new one once, and a
+    // cached copy would outlive that.
 
     app.get('/', c => c.redirect(guard(c) === undefined ? entry() : '/ui', 302));
 
@@ -241,8 +249,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 version,
                 diagnoses: health.services,
                 configured: snapshot.adapters.map(a => a.id),
-                bearerToken: snapshot.config.auth.bearer_token,
-                urlToken: snapshot.config.auth.allow_token_in_url,
+                tokens: snapshot.config.auth.tokens,
+                plaintextOnDisk: runtime.plaintextOnDisk,
+                now: new Date(),
                 mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
                 ...(runtime.dataset === undefined ? {} : { imdb: runtime.dataset.status() }),
                 disks: health.disks.items,
@@ -353,23 +362,25 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 version,
                 config: runtime.config,
                 csrf: runtime.sessions.csrfFor(session),
-                users: await usersByInstance()
+                users: await usersByInstance(),
+                plaintextOnDisk: runtime.plaintextOnDisk
             })
         );
     });
 
     /**
-     * The four config mutations share everything except the one line that
+     * The config mutations share everything except the one line that
      * decides what the next config is, so they share a handler.
      *
      * `render` carries the `confirmingRemoval` id through, which is what makes
      * the two-step remove work without JavaScript: the first post returns the
-     * page with that card asking, and the second carries `confirm`.
+     * page with that card asking, and the second carries `confirm`. Revoking a
+     * token does the same with `confirmingRevoke`.
      */
     const configMutation =
         (
             what: string,
-            next: (form: Record<string, unknown>) => Config | { ask: string } | Promise<Config | { ask: string }>,
+            next: (form: Record<string, unknown>) => MutationResult | Promise<MutationResult>,
             opts: {
                 /** The add form is a dialog, so a refusal has to bring it back —
                  *  a message about a form nobody can see explains nothing. */
@@ -407,21 +418,24 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             const render = async (
                 message: { kind: 'ok' | 'err'; text: string } | undefined,
                 status: 200 | 400 | 403,
-                confirming?: string
-            ) =>
-                c.html(
+                extra: Partial<Parameters<typeof configPage>[0]> = {}
+            ) => {
+                c.header('cache-control', 'no-store');
+                return c.html(
                     configPage({
                         version,
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(activeSession),
                         users: await usersByInstance(),
+                        plaintextOnDisk: runtime.plaintextOnDisk,
                         ...(touched === undefined ? {} : { openInstance: touched }),
-                        ...(confirming === undefined ? {} : { confirmingRemoval: confirming }),
                         ...(opts.reopensAdd === true && status !== 200 ? { openAdd: true } : {}),
-                        ...(message === undefined ? {} : { message })
+                        ...(message === undefined ? {} : { message }),
+                        ...extra
                     }),
                     status
                 );
+            };
 
             if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
                 logger.warn({ ...originOf(c) }, 'rejected config save with a bad CSRF token');
@@ -429,11 +443,18 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             }
 
             let updated: Config;
+            let reveal: { name: string; token: string } | undefined;
             try {
                 const result = await next(form);
                 // Not an error: the removal is waiting for a second click.
-                if ('ask' in result) return render(undefined, 200, result.ask);
-                updated = result;
+                if ('ask' in result) return render(undefined, 200, { confirmingRemoval: result.ask });
+                if ('askRevoke' in result) return render(undefined, 200, { confirmingRevoke: result.askRevoke });
+                if ('reveal' in result) {
+                    updated = result.config;
+                    reveal = { name: result.revealName, token: result.reveal };
+                } else {
+                    updated = result;
+                }
             } catch (err) {
                 return render({ kind: 'err', text: (err as Error).message }, 400);
             }
@@ -463,7 +484,19 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             }
 
             logger.info({ ...originOf(c), what }, 'configuration saved from the config UI');
-            return render({ kind: 'ok', text: `${what} Applied immediately; no restart needed.` }, 200);
+            return render(
+                { kind: 'ok', text: `${what} Applied immediately; no restart needed.` },
+                200,
+                reveal === undefined
+                    ? {}
+                    : {
+                          revealed: {
+                              ...reveal,
+                              mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
+                              urlToken: runtime.config.auth.allow_token_in_url
+                          }
+                      }
+            );
         };
 
     app.post(
@@ -516,6 +549,32 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         configMutation('MCP endpoint settings saved.', form => buildMcpConfig(runtime.config, form))
     );
 
+    app.post(
+        '/ui/config/tokens/add',
+        configMutation('Token created.', form => {
+            const tier = str(form['token.tier']);
+            const expiry = str(form['token.expiry']);
+            if (!['read', 'write', 'destructive'].includes(tier)) throw new ConfigEditError('Pick a tier.');
+            if (!['30', '90', 'never'].includes(expiry)) throw new ConfigEditError('Pick an expiry.');
+            const name = str(form['token.name']).trim();
+            const { config, plaintext } = addToken(
+                runtime.config,
+                { name, tier: tier as TokenTier, expiry: expiry as ExpiryChoice },
+                new Date()
+            );
+            return { config, reveal: plaintext, revealName: name };
+        })
+    );
+
+    app.post(
+        '/ui/config/tokens/revoke',
+        configMutation('Token revoked.', form => {
+            const name = str(form.token);
+            if (str(form.confirm) !== 'yes') return { askRevoke: name };
+            return revokeToken(runtime.config, name);
+        })
+    );
+
     /**
      * Test one instance against the fields as they stand, not as they are
      * saved — replacing "save it and see if the dashboard goes green", which
@@ -552,6 +611,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     config: runtime.config,
                     csrf: runtime.sessions.csrfFor(session),
                     users: await usersByInstance(),
+                    plaintextOnDisk: runtime.plaintextOnDisk,
                     ...(isAdd ? { openAdd: true } : {}),
                     ...extra
                 }),
@@ -587,6 +647,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         }
     });
 }
+
+/** What a config mutation decided: a config to save, a second click to ask
+ *  for, or a new token whose plaintext is shown once after the save. */
+type MutationResult =
+    | Config
+    | { ask: string }
+    | { askRevoke: string }
+    | { config: Config; reveal: string; revealName: string };
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
 const NO_STORE = { 'cache-control': 'no-store' };
@@ -791,7 +859,7 @@ export function buildAppearanceConfig(current: Config, form: Record<string, unkn
     return { ...rest, ...(theme === 'system' ? {} : { ui: { theme } }) };
 }
 
-/** The MCP endpoint. Owns `bearer_token` and `allowed_hosts`. */
+/** The MCP endpoint. Owns `allowed_hosts` and `allow_token_in_url`. */
 export function buildMcpConfig(current: Config, form: Record<string, unknown>): Config {
     const hosts = str(form['auth.allowed_hosts'])
         .split(',')
@@ -812,9 +880,6 @@ export function buildMcpConfig(current: Config, form: Record<string, unknown>): 
         ...current,
         auth: {
             ...current.auth,
-            bearer_token: on(form['auth.rotate_token'])
-                ? generateBearerToken()
-                : current.auth.bearer_token,
             allow_token_in_url: urlToken,
             allowed_hosts: hosts
         }

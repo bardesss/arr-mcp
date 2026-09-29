@@ -2,7 +2,7 @@ import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
-import { BEARER_CALLER, WriteAudit } from '../src/core/audit.ts';
+import { WriteAudit } from '../src/core/audit.ts';
 import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
@@ -1588,6 +1588,23 @@ const { privateKey: oauthPrivateKey, publicKey: oauthPublicKey } = await generat
 const oauthJwk = { ...(await exportJWK(oauthPublicKey)), kid: 'test', alg: 'RS256' };
 const oauthKeys = createLocalJWKSet({ keys: [oauthJwk] });
 
+const deletableRadarr = (): ServiceAdapter =>
+    ({
+        id: 'radarr',
+        type: 'radarr',
+        testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
+        getVersion: async () => '5.0.0',
+        getMediaDetails: async () => ({ title: 'Alien', year: 1979, sizeBytes: 4_000_000_000 }),
+        deleteMedia: async () => {}
+    }) as unknown as ServiceAdapter;
+
+const deleteMovieCall = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'delete_media', arguments: { service: 'radarr', id: '412' } }
+};
+
 describe('OAuth tokens at /mcp', () => {
     const oauthConfig = (services: Record<string, unknown> = {}): Config =>
         ConfigSchema.parse({
@@ -1628,30 +1645,13 @@ describe('OAuth tokens at /mcp', () => {
             .setExpirationTime('5m')
             .sign(oauthPrivateKey);
 
-    const deletableRadarr = (): ServiceAdapter =>
-        ({
-            id: 'radarr',
-            type: 'radarr',
-            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 3 }),
-            getVersion: async () => '5.0.0',
-            getMediaDetails: async () => ({ title: 'Alien', year: 1979, sizeBytes: 4_000_000_000 }),
-            deleteMedia: async () => {}
-        }) as unknown as ServiceAdapter;
-
     const permissiveRadarr = () =>
         oauthConfig({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k', permissions: { safe_write: true, destructive: true } } });
 
     const lockedRadarr = () =>
         oauthConfig({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k', permissions: { safe_write: false, destructive: false } } });
 
-    const deleteMovieCall = {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: { name: 'delete_media', arguments: { service: 'radarr', id: '412' } }
-    };
-
-    it('still accepts the static bearer token with oauth configured', async () => {
+    it('still accepts the legacy bearer token with oauth configured', async () => {
         const res = await oauthApp(oauthConfig()).request(
             'http://localhost:6060/mcp',
             rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
@@ -1777,7 +1777,7 @@ describe('OAuth tokens at /mcp', () => {
         expect(trail.recent()[0]?.caller).toBe('oauth:client-1');
     });
 
-    it('records the static bearer token as bearer, not as a blank cell', async () => {
+    it('records the legacy bearer token as the default named token', async () => {
         const trail = audit();
         const app = buildApp({
             runtime: Runtime.fromConfig(permissiveRadarr(), trail, { adapters: [deletableRadarr()], oauthKeys }),
@@ -1786,7 +1786,7 @@ describe('OAuth tokens at /mcp', () => {
         });
 
         await app.request('http://localhost:6060/mcp', rpc(deleteMovieCall, { Authorization: `Bearer ${TOKEN}` }));
-        expect(trail.recent()[0]?.caller).toBe(BEARER_CALLER);
+        expect(trail.recent()[0]?.caller).toEqual(expect.stringMatching(/^bearer:default#[0-9a-f]{8}$/));
     });
 
     // `logger` only ever forwards to the store `attachLogStore` last set, and
@@ -1815,5 +1815,135 @@ describe('OAuth tokens at /mcp', () => {
             detachLogStore();
             logs.close();
         }
+    });
+});
+
+describe('named tokens at /mcp', () => {
+    const PHONE = 'amcp_' + 'd'.repeat(64);
+    const LAPTOP = 'amcp_' + 'e'.repeat(64);
+    const writableRadarr = { url: 'http://192.0.2.10:7878', api_key: 'k', permissions: { safe_write: true, destructive: true } };
+
+    const withTokens = (tokens: unknown[], auth: Record<string, unknown> = {}): Config =>
+        ConfigSchema.parse({ auth: { tokens, password_hash: PASSWORD_HASH, ...auth }, services: { radarr: writableRadarr } });
+
+    const withTrail = (cfg: Config, extra: { oauthKeys?: typeof oauthKeys } = {}) => {
+        const trail = audit();
+        const app = buildApp({
+            runtime: Runtime.fromConfig(cfg, trail, { adapters: [deletableRadarr()], ...extra }),
+            audit: trail,
+            logs: LogStore.ephemeral()
+        });
+        return { app, trail };
+    };
+
+    const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'stack_health', arguments: {} } };
+
+    it('accepts a named token and refuses an unknown one', async () => {
+        const app = appWith(withTokens([{ name: 'phone', tier: 'read', token: PHONE }]));
+        expect((await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${PHONE}` }))).status).toBe(200);
+        expect((await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${WRONG}` }))).status).toBe(401);
+    });
+
+    it('accepts a named token from the URL when that is allowed', async () => {
+        const app = appWith(withTokens([{ name: 'phone', tier: 'read', token: PHONE }], { allow_token_in_url: true }));
+        expect((await app.request(`http://localhost:6060/mcp?token=${PHONE}`, rpc(toolsList))).status).toBe(200);
+    });
+
+    it('refuses everything when there are no tokens', async () => {
+        const app = appWith(withTokens([]));
+        expect((await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${TOKEN}` }))).status).toBe(401);
+        expect((await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: 'Bearer ' }))).status).toBe(401);
+    });
+
+    it('says when a token has expired, and does not try OAuth', async () => {
+        const app = appWith(withTokens([{ name: 'phone', tier: 'read', token: PHONE, expires: '2020-01-01' }]));
+        const res = await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${PHONE}` }));
+        expect(res.status).toBe(401);
+        expect(res.headers.get('WWW-Authenticate')).toBe(
+            `Bearer realm="arr-mcp", error="invalid_token", error_description="token 'phone' expired on 2020-01-01"`
+        );
+        expect(await res.json()).toMatchObject({ error: 'unauthorized', detail: "token 'phone' expired on 2020-01-01" });
+    });
+
+    // An unknown token goes on to OAuth; an expired one must not, or it would
+    // come back as a bad JWT (or a 503 here) instead of a dated token.
+    it('answers an expired token itself even with oauth configured', async () => {
+        const { app } = withTrail(withTokens([{ name: 'phone', tier: 'read', token: PHONE, expires: '2020-01-01' }], { oauth: OAUTH }), {
+            oauthKeys: (() => Promise.reject(new TypeError('fetch failed'))) as never
+        });
+        const res = await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${PHONE}` }));
+        expect(res.status).toBe(401);
+        expect(res.headers.get('WWW-Authenticate')).toMatch(
+            /^Bearer realm="arr-mcp", resource_metadata="[^"]+", error="invalid_token", error_description="token 'phone' expired on 2020-01-01"$/
+        );
+        expect(await res.json()).toMatchObject({ detail: "token 'phone' expired on 2020-01-01" });
+    });
+
+    it('still hands an unknown token to OAuth when an issuer is configured', async () => {
+        const { app } = withTrail(withTokens([{ name: 'phone', tier: 'read', token: PHONE }], { oauth: OAUTH }), {
+            oauthKeys: (() => Promise.reject(new TypeError('fetch failed'))) as never
+        });
+        const res = await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${WRONG}` }));
+        expect(res.status).toBe(401);
+        expect(res.headers.get('WWW-Authenticate')).toContain('invalid_token');
+    });
+
+    it('logs an expired token by name, not by its bytes', async () => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        try {
+            const app = appWith(withTokens([{ name: 'phone', tier: 'read', token: PHONE, expires: '2020-01-01' }]));
+            await app.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${PHONE}` }));
+            const row = logs.recent().find(r => r.msg === 'rejected an expired MCP token');
+            expect(row === undefined ? undefined : (JSON.parse(row.fields) as { token?: string }).token).toBe('phone');
+            expect(JSON.stringify(logs.recent())).not.toContain(PHONE);
+        } finally {
+            detachLogStore();
+            logs.close();
+        }
+    });
+
+    it('refuses a write above the token tier, naming the token, and audits the caller', async () => {
+        const { app, trail } = withTrail(withTokens([{ name: 'phone', tier: 'read', token: PHONE }]));
+        const payload = await rpcPayload(
+            await app.request('http://localhost:6060/mcp', rpc(deleteMovieCall, { Authorization: `Bearer ${PHONE}` }))
+        );
+        expect(JSON.stringify(payload)).toContain("token 'phone' is read-only");
+        expect(trail.recent()[0]?.caller).toEqual(expect.stringMatching(/^bearer:phone#[0-9a-f]{8}$/));
+        expect(JSON.stringify(trail.recent())).not.toContain(PHONE);
+    });
+
+    it('refuses a destructive write to a write-tier token', async () => {
+        const { app } = withTrail(withTokens([{ name: 'laptop', tier: 'write', token: LAPTOP }]));
+        const payload = await rpcPayload(
+            await app.request('http://localhost:6060/mcp', rpc(deleteMovieCall, { Authorization: `Bearer ${LAPTOP}` }))
+        );
+        expect(JSON.stringify(payload)).toContain("token 'laptop' has the write tier, which does not allow destructive writes");
+    });
+
+    it('reports permissions capped to the token in stack_health', async () => {
+        const cfg = withTokens([
+            { name: 'phone', tier: 'read', token: PHONE },
+            { name: 'laptop', tier: 'write', token: LAPTOP },
+            { name: 'admin', tier: 'destructive', token: TOKEN }
+        ]);
+        const permissionsFor = async (bearer: string) => {
+            const res = await withTrail(cfg).app.request('http://localhost:6060/mcp', rpc(stackHealth, { Authorization: `Bearer ${bearer}` }));
+            return ((await rpcPayload(res)) as { result: { structuredContent: { permissions: unknown } } }).result.structuredContent.permissions;
+        };
+
+        expect(await permissionsFor(PHONE)).toEqual([{ instance: 'radarr', safe_write: false, destructive: false }]);
+        expect(await permissionsFor(LAPTOP)).toEqual([{ instance: 'radarr', safe_write: true, destructive: false }]);
+        expect(await permissionsFor(TOKEN)).toEqual([{ instance: 'radarr', safe_write: true, destructive: true }]);
+    });
+
+    it('keeps the legacy token working as destructive', async () => {
+        const cfg = ConfigSchema.parse({ auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH }, services: { radarr: writableRadarr } });
+        const { app, trail } = withTrail(cfg);
+        const payload = (await rpcPayload(
+            await app.request('http://localhost:6060/mcp', rpc(deleteMovieCall, { Authorization: `Bearer ${TOKEN}` }))
+        )) as { result: { structuredContent: { permission: { allowed: boolean } } } };
+        expect(payload.result.structuredContent.permission.allowed).toBe(true);
+        expect(trail.recent()[0]?.caller).toEqual(expect.stringMatching(/^bearer:default#[0-9a-f]{8}$/));
     });
 });

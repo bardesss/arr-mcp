@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
     clearedSessionCookie,
-    generateBearerToken,
     generatePassword,
     hashPassword,
     readCookie,
@@ -52,10 +51,6 @@ describe('password storage', () => {
 });
 
 describe('generated credentials', () => {
-    it('generates a bearer token of the length the schema requires', () => {
-        expect(generateBearerToken()).toMatch(/^[0-9a-f]{64}$/);
-    });
-
     // It is read off a terminal and retyped into a browser.
     it('generates a password with no visually ambiguous characters', () => {
         for (let i = 0; i < 25; i += 1) {

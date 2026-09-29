@@ -1,3 +1,4 @@
+import { expiresIn, generateMcpToken, hashToken, type ExpiryChoice, type TokenTier } from '../core/mcpTokens.ts';
 import { instanceId } from './instances.ts';
 import {
     ConfigSchema,
@@ -212,4 +213,27 @@ function locate(
 
     if (index === -1) throw new ConfigEditError(`${id} is not configured.`);
     return { type, entries, index };
+}
+
+export function addToken(
+    config: Config,
+    opts: { name: string; tier: TokenTier; expiry: ExpiryChoice },
+    now: Date
+): { config: Config; plaintext: string } {
+    if (config.auth.tokens.some(t => t.name.toLowerCase() === opts.name.toLowerCase())) {
+        throw new ConfigEditError(`There is already a token named "${opts.name}".`);
+    }
+    const plaintext = generateMcpToken();
+    const expires = expiresIn(opts.expiry, now);
+    const token = { name: opts.name, tier: opts.tier, hash: hashToken(plaintext), ...(expires === undefined ? {} : { expires }) };
+    const parsed = ConfigSchema.safeParse({ ...config, auth: { ...config.auth, tokens: [...config.auth.tokens, token] } });
+    if (!parsed.success) {
+        throw new ConfigEditError('Token names must be letters, digits, dashes or underscores, starting with one.');
+    }
+    return { config: parsed.data, plaintext };
+}
+
+export function revokeToken(config: Config, name: string): Config {
+    if (!config.auth.tokens.some(t => t.name === name)) throw new ConfigEditError(`No token named "${name}".`);
+    return { ...config, auth: { ...config.auth, tokens: config.auth.tokens.filter(t => t.name !== name) } };
 }

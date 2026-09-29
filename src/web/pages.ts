@@ -1,6 +1,7 @@
 import type { Theme } from '../config/schema.ts';
-import { BEARER_CALLER, NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type AuditRow } from '../core/audit.ts';
+import { BEARER_CALLER, BEARER_CALLER_PREFIX, NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type AuditRow } from '../core/audit.ts';
 import { logFields, type LogRow } from '../core/logs.ts';
+import { expiringSoon, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
@@ -306,9 +307,10 @@ export function dashboardPage(opts: {
     version: string;
     diagnoses: ConnectionDiagnosis[];
     configured: string[];
-    bearerToken: string;
-    /** Whether `?token=` is accepted, which decides whether the copy button is offered. */
-    urlToken: boolean;
+    tokens: readonly StoredToken[];
+    /** Names of tokens config.yaml still holds in plaintext. */
+    plaintextOnDisk: readonly string[];
+    now: Date;
     /** Absent when the request carried no usable `Host` — see `origin.ts`. */
     mcpUrl?: string | undefined;
     writeCounts: { applied: number; denied: number; total: number };
@@ -436,8 +438,8 @@ export function dashboardPage(opts: {
         <h2>MCP endpoint</h2>
         <div class="panel">
             <p class="note">
-                Point your MCP client at this URL and give it the bearer token. This page is the
-                only place the token is shown — it is never written to a log.
+                Point your MCP client at this URL with one of your MCP tokens. A token is shown once, when
+                you create it.
             </p>
             ${opts.mcpUrl === undefined
                 ? html`<p class="note">
@@ -448,32 +450,19 @@ export function dashboardPage(opts: {
                       <input id="mcp-url" type="text" value="${opts.mcpUrl}" readonly>
                       <button class="ghost" type="button" data-copy="mcp-url">Copy</button>
                   </div>`}
-            <div class="token">
-                <input id="bearer" type="password" value="${opts.bearerToken}" readonly>
-                <button class="ghost" type="button" data-reveal="bearer">Show</button>
-                <button class="ghost" type="button" data-copy="bearer">Copy</button>
-            </div>
-            ${opts.mcpUrl === undefined
+            ${opts.tokens.length === 0
+                ? html`<p><strong>No MCP tokens yet. Create one to connect a client.</strong> <a class="button" href="/ui/config#tokens">Create a token</a></p>`
+                : html`<p>${opts.tokens.length} ${opts.tokens.length === 1 ? 'token' : 'tokens'} · <a href="/ui/config#tokens">Manage</a></p>`}
+            ${opts.tokens
+                .filter(t => isExpired(t.expires, opts.now) || expiringSoon(t.expires, opts.now))
+                .map(
+                    t => html`<p class="note"><strong>${isExpired(t.expires, opts.now)
+                        ? `token '${t.name}' expired on ${t.expires}`
+                        : `token '${t.name}' expires on ${t.expires}`}.</strong> Create a new one and revoke this one.</p>`
+                )}
+            ${opts.plaintextOnDisk.length === 0
                 ? raw('')
-                : html`<div class="row" style="margin-top:.75rem">
-                          <button class="ghost" type="button" data-copy-config="mcp-config">
-                              Copy client config
-                          </button>
-                          <span class="note" style="margin:0">Ready to paste — includes the token.</span>
-                      </div>
-                      <!-- Filled in by the browser at click time, never by the server: rendering
-                           the token here would undo the masked field above it, and a screenshot
-                           of this page would carry it. -->
-                      <textarea id="mcp-config" class="mono" rows="9" readonly hidden></textarea>`}
-            ${opts.mcpUrl === undefined || !opts.urlToken
-                ? raw('')
-                : html`<div class="row" style="margin-top:.75rem">
-                          <button class="ghost" type="button" data-copy-url-token="mcp-url">
-                              Copy URL with token
-                          </button>
-                          <span class="note" style="margin:0">For clients that take a URL and nothing else.</span>
-                      </div>
-                      <input id="mcp-url-token" type="text" readonly hidden>`}
+                : html`<p class="note"><strong>Still plaintext in config.yaml:</strong> ${opts.plaintextOnDisk.join(', ')}. arr-mcp could not rewrite the file. The tokens work, but replace them with hashes or revoke them.</p>`}
         </div>
 
         <h2>Writes</h2>
@@ -662,7 +651,8 @@ function argFields(args: string): SafeHtml {
 /**
  * Which credential made the write, in words rather than as a raw value.
  *
- * `bearer` is the static token, null is a row written before this column
+ * `bearer:<name>#<fingerprint>` is a named MCP token, shown as `name · fingerprint`.
+ * Bare `bearer` is the static token from before named tokens, null is a row written before this column
  * existed, and a bare `oauth:` is a token that named no client (`NO_CLIENT_ID`);
  * none of them is a client's name and none is printed as one. An
  * `oauth:` value is a client id someone chose, so that alone is set in `mono`,
@@ -670,7 +660,11 @@ function argFields(args: string): SafeHtml {
  */
 function callerField(caller: string | null): SafeHtml {
     if (caller === null) return html`<dd class="dim">not recorded — written before callers were logged</dd>`;
-    if (caller === BEARER_CALLER) return html`<dd class="dim">the static bearer token</dd>`;
+    if (caller === BEARER_CALLER) return html`<dd class="dim">the static bearer token (before named tokens)</dd>`;
+    if (caller.startsWith(BEARER_CALLER_PREFIX)) {
+        const [name, fp] = caller.slice(BEARER_CALLER_PREFIX.length).split('#');
+        return html`<dd class="mono">${name ?? ''} · ${fp ?? ''}</dd>`;
+    }
     const id = caller.startsWith(OAUTH_CALLER_PREFIX) ? caller.slice(OAUTH_CALLER_PREFIX.length) : caller;
     if (id === NO_CLIENT_ID) return html`<dd class="dim">an OAuth token that named no client</dd>`;
     return html`<dd class="mono">${id}</dd>`;

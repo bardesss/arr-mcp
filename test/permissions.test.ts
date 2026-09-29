@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AnyServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { assertPermitted, checkPermission, permissionSourceFrom } from '../src/core/permissions.ts';
-import { cappedTo } from '../src/mcp/scopes.ts';
+import { cappedTo, oauthRefusal, tokenRefusal } from '../src/mcp/scopes.ts';
 
 const service = (safe_write: boolean, destructive: boolean): AnyServiceConfig =>
     ({
@@ -89,7 +89,7 @@ describe('assertPermitted', () => {
 
 describe('the scope ceiling', () => {
     it('refuses a tier the token does not carry, even where config permits it', () => {
-        const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(['safe']));
+        const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(['safe']), oauthRefusal(undefined));
         const verdict = checkPermission(source, 'radarr', 'destructive');
         expect(verdict.allowed).toBe(false);
         expect(verdict.allowed === false && verdict.reason).toContain('access token');
@@ -97,16 +97,34 @@ describe('the scope ceiling', () => {
 
     it('names the scope an issuer admin grants, not the tier', () => {
         const scopes = { read: 'arr-mcp:read', write: 'media:write', destructive: 'media:delete' };
-        const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(), scopes);
+        const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(), oauthRefusal(scopes));
         const safe = checkPermission(source, 'radarr', 'safe');
         const destructive = checkPermission(source, 'radarr', 'destructive');
         expect(safe.allowed === false && `${safe.reason} ${safe.remedy}`).not.toContain('safe scope');
         expect(safe.allowed === false && safe.remedy).toContain('`media:write`');
         expect(destructive.allowed === false && destructive.remedy).toContain('`media:delete`');
+        expect(destructive.allowed === false && destructive.remedy).toContain('or use an MCP token from the config page');
+    });
+
+    it('names the token when its tier is the ceiling', () => {
+        const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(), tokenRefusal('phone-assistant', 'read'));
+        expect(checkPermission(source, 'radarr', 'safe')).toMatchObject({
+            allowed: false,
+            reason: "token 'phone-assistant' is read-only",
+            remedy: 'Use a token with the write tier, or create one on the config page.'
+        });
+    });
+
+    it('asks for destructive when a write token meets a destructive call', () => {
+        const source = cappedTo(sourceFor({ radarr: service(true, true) }), new Set(['safe']), tokenRefusal('ci', 'write'));
+        expect(checkPermission(source, 'radarr', 'destructive')).toMatchObject({
+            reason: "token 'ci' has the write tier, which does not allow destructive writes",
+            remedy: 'Use a token with the destructive tier, or create one on the config page.'
+        });
     });
 
     it('still refuses a tier the config denies, even where the token carries it', () => {
-        const source = cappedTo(sourceFor({ radarr: service(false, false) }), new Set(['safe', 'destructive']));
+        const source = cappedTo(sourceFor({ radarr: service(false, false) }), new Set(['safe', 'destructive']), oauthRefusal(undefined));
         const verdict = checkPermission(source, 'radarr', 'safe');
         expect(verdict.allowed).toBe(false);
         // The config's own message, unchanged: config.yaml is the authority.
@@ -114,7 +132,7 @@ describe('the scope ceiling', () => {
     });
 
     it('allows a write both the token and the config permit', () => {
-        const source = cappedTo(sourceFor({ radarr: service(true, false) }), new Set(['safe']));
+        const source = cappedTo(sourceFor({ radarr: service(true, false) }), new Set(['safe']), oauthRefusal(undefined));
         expect(checkPermission(source, 'radarr', 'safe').allowed).toBe(true);
     });
 

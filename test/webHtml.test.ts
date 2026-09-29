@@ -247,7 +247,8 @@ describe('the write audit', () => {
             auditPage({ csrf: 'test-csrf', version: '1.4.1', rows: [row({ caller })] });
 
         expect(page('oauth:desktop-client')).toContain('<dd class="mono">desktop-client</dd>');
-        expect(page(BEARER_CALLER)).toContain('the static bearer token');
+        expect(page(BEARER_CALLER)).toContain('the static bearer token (before named tokens)');
+        expect(page('bearer:phone#a1b2c3d4')).toContain('<dd class="mono">phone · a1b2c3d4</dd>');
         // A client whose id is literally "bearer" is stored as `oauth:bearer`,
         // so it can never be read as the static token.
         expect(page('oauth:bearer')).not.toContain('the static bearer token');

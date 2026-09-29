@@ -1,7 +1,7 @@
 /**
  * The stack the screenshots show. Invented, and deliberately so.
  *
- * The pages render a bearer token, an MCP endpoint host and every configured
+ * The pages render token names, an MCP endpoint host and every configured
  * service URL, and `screenshots/` is committed to a public repo — so the shots
  * are built from data that never touched `config.yaml` rather than from a live
  * instance with the secrets blanked afterwards. Nothing here is a credential,
@@ -20,9 +20,17 @@ import type { Config } from '../../src/config/schema.ts';
 import type { LogRow } from '../../src/core/logs.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../../src/services/types.ts';
 import type { AuditRow } from '../../src/core/audit.ts';
+import { hashToken } from '../../src/core/mcpTokens.ts';
 
-/** 64 characters because the schema demands it, and self-describing because it
- *  is about to be photographed and put in a README. */
+/** Frozen like the rest; the expiring token is dated relative to it. */
+export const NOW = new Date('2026-08-13T09:45:00Z');
+const THREE_DAYS_OUT = new Date(NOW.getTime() + 3 * 86_400_000).toISOString().slice(0, 10);
+
+/** Names of fixture tokens the dashboard reports as still plaintext on disk. */
+export const FIXTURE_PLAINTEXT_ON_DISK = ['phone-assistant'];
+
+/** Only its hash reaches the fixture config. Self-describing in case it is
+ *  ever photographed. */
 export const FIXTURE_TOKEN = 'screenshot-fixture-token-not-a-real-credential'.padEnd(64, '-');
 
 const HOST = 'media-host';
@@ -95,7 +103,10 @@ export const MCP_URL = `http://${HOST}:6060/mcp`;
  */
 export const CONFIG: Config = {
     auth: {
-        bearer_token: FIXTURE_TOKEN,
+        tokens: [
+            { name: 'claude-desktop', tier: 'destructive', hash: hashToken(FIXTURE_TOKEN) },
+            { name: 'phone-assistant', tier: 'read', hash: hashToken('p'.repeat(40)), expires: THREE_DAYS_OUT }
+        ],
         username: 'admin',
         password_hash: 'scrypt$fixture$fixture',
         allow_token_in_url: false,

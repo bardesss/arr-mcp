@@ -155,7 +155,7 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
 
 /**
  * Replaces `path` atomically, 0o600. Property 3 above, reusable — the loader's
- * bearer-token backfill needs the same guarantee.
+ * token rewrite needs the same guarantee.
  *
  * A unique temp name per write: a fixed `config.yaml.tmp` meant two overlapping
  * writes shared one file and both renamed it into place, so one could rename a
@@ -174,7 +174,7 @@ export function writeConfigAtomic(path: string, text: string): Promise<void> {
 
 /**
  * Serialises the replacements themselves, for the callers that do not go
- * through `saveConfig`'s queue: the repair page and the bearer-token backfill
+ * through `saveConfig`'s queue: the repair page and the loader's token rewrite
  * both call `writeConfigAtomic` directly. Two overlapping calls raced the
  * rename — on Windows that fails outright with EPERM, and everywhere else it
  * last-write-wins, which is the outcome the queue above exists to prevent.

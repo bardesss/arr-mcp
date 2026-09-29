@@ -1,4 +1,5 @@
 import * as z from 'zod/v4';
+import { hashToken } from '../core/mcpTokens.ts';
 
 export const ServiceIdSchema = z.enum([
     'radarr',
@@ -427,6 +428,30 @@ const OAuthSchema = z.strictObject({
 
 export type OAuthConfig = z.infer<typeof OAuthSchema>;
 
+export const MIN_PLAINTEXT_TOKEN = 32;
+
+const McpTokenSchema = z.strictObject({
+    name: InstanceNameSchema,
+    tier: z.enum(['read', 'write', 'destructive']),
+    hash: z.string().regex(/^sha256:[0-9a-f]{64}$/, 'hash must be sha256:<64 hex>').optional(),
+    token: z.string().optional(),
+    expires: z.iso.date().optional()
+});
+
+type RawToken = z.infer<typeof McpTokenSchema>;
+
+export function tokensNeedingRewrite(rawAuth: unknown): string[] {
+    if (rawAuth === null || typeof rawAuth !== 'object') return [];
+    const auth = rawAuth as { bearer_token?: unknown; tokens?: unknown };
+    const names = auth.bearer_token === undefined ? [] : ['default'];
+    if (Array.isArray(auth.tokens)) {
+        for (const t of auth.tokens as { name?: unknown; token?: unknown }[]) {
+            if (t?.token !== undefined) names.push(String(t.name));
+        }
+    }
+    return names;
+}
+
 /**
  * Named, rather than inlined into `ConfigSchema`, so `load.ts`'s salvage path
  * can parse against it directly. `ConfigSchema`'s `auth` field is this same
@@ -437,19 +462,18 @@ export type OAuthConfig = z.infer<typeof OAuthSchema>;
  * doesn't load.
  */
 export const AuthSchema = z.strictObject({
-    /** Generated on first run by loadConfig; 32 random bytes, hex. */
-    bearer_token: z.string().length(64),
+    /** Pre-1.34 single token. Normalised into a `default` entry on parse. */
+    bearer_token: z.string().length(64).optional(),
+    tokens: z.array(McpTokenSchema).optional(),
     /** Who logs into the config UI. Defaulted rather than generated —
      *  a random username helps nobody and is one more thing to look up. */
     username: z.string().min(1).default('admin'),
     /**
      * scrypt hash of the UI password, `scrypt$salt$hash`.
      *
-     * Optional, unlike `bearer_token`, and that difference is the design:
-     * absent means **unclaimed**, so the config UI serves its setup page
-     * until someone chooses a password in the browser. A bearer token has
-     * no interactive path and must be generated; a password does, so one is
-     * never invented.
+     * Optional, and that is the design: absent means **unclaimed**, so the
+     * config UI serves its setup page until someone chooses a password in
+     * the browser.
      *
      * Deleting this line is how you ask for a new password. The password
      * itself is never stored and never logged.
@@ -472,13 +496,34 @@ export const AuthSchema = z.strictObject({
 });
 
 export const ConfigSchema = z.object({
-    // Required, not optional: loadConfig always injects a generated token
-    // before parsing, so the only way this is missing is a hand-edited file
-    // that deleted it — which must fail loudly rather than default to ''.
+    // Parsing normalises tokens, so two parses of one file always agree.
     auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
         message: 'auth.allow_token_in_url cannot be set while auth.oauth is configured — a JWT in the URL reaches every proxy log',
         path: ['allow_token_in_url']
-    }),
+    })
+        .superRefine((auth, ctx) => {
+            if (auth.bearer_token !== undefined && auth.tokens !== undefined) {
+                ctx.addIssue({ code: 'custom', path: ['bearer_token'], message: 'bearer_token and tokens cannot both be set; move the old token into tokens or delete it' });
+            }
+            const seen = new Set<string>();
+            (auth.tokens ?? []).forEach((t: RawToken, i: number) => {
+                const key = t.name.toLowerCase();
+                if (seen.has(key)) ctx.addIssue({ code: 'custom', path: ['tokens', i, 'name'], message: `duplicate token name "${t.name}"` });
+                seen.add(key);
+                if ((t.hash === undefined) === (t.token === undefined)) {
+                    ctx.addIssue({ code: 'custom', path: ['tokens', i], message: `token '${t.name}' needs exactly one of hash or token` });
+                } else if (t.token !== undefined && t.token.length < MIN_PLAINTEXT_TOKEN) {
+                    ctx.addIssue({ code: 'custom', path: ['tokens', i, 'token'], message: `token '${t.name}' must be at least ${MIN_PLAINTEXT_TOKEN} characters` });
+                }
+            });
+        })
+        .transform(({ bearer_token, tokens, ...rest }) => ({
+            ...rest,
+            tokens: [
+                ...(bearer_token === undefined ? [] : [{ name: 'default', tier: 'destructive' as const, hash: hashToken(bearer_token) }]),
+                ...(tokens ?? []).map(({ token, hash, ...t }: RawToken) => ({ ...t, hash: hash ?? hashToken(token as string) }))
+            ]
+        })),
     services: ServicesSchema,
     /** Absent means off, exactly like a service nobody configured. */
     metadata: MetadataSchema.optional(),

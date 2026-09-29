@@ -69,10 +69,6 @@ export async function verifyPassword(password: string, stored: string): Promise<
  *  it. No `l`, `1`, `O` or `0`; length carries the entropy instead (~93 bits). */
 const ALPHABET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-/** 32 random bytes as hex — the 64 characters `ConfigSchema` requires, and the
- *  same shape `loadConfig` generates on first run. */
-export const generateBearerToken = (): string => randomBytes(32).toString('hex');
-
 export function generatePassword(length = 18): string {
     const bytes = randomBytes(length);
     let out = '';

@@ -89,10 +89,8 @@ export type WriteContext = {
     /**
      * Which credential this request arrived on, for the audit row.
      *
-     * Set per request in `cappedTools` (`app.ts`), on the same branch that
-     * narrows the tiers, and only there: a request with no `authInfo` came in
-     * on the static bearer token, falls out of that branch untouched, and is
-     * recorded as `BEARER_CALLER` here.
+     * Every `/mcp` request sets it, in `cappedTools` (`app.ts`). The
+     * `BEARER_CALLER` fallback only serves contexts built outside `/mcp`.
      */
     caller?: string;
 };

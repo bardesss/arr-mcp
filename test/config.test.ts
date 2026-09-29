@@ -3,6 +3,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { hashToken } from '../src/core/mcpTokens.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { saveConfig, writeConfigAtomic } from '../src/config/save.ts';
@@ -63,15 +64,15 @@ describe('reading without writing', () => {
         expect(await readFile(path, 'utf8')).not.toContain('password_hash');
     });
 
-    it('still backfills a missing bearer token, which has no interactive path', async () => {
+    it('seeds no token for an auth block that lacks one', async () => {
         const dir = await freshDir();
         const path = join(dir, 'config.yaml');
         await writeFile(path, 'auth: {}\nservices: {}\n', 'utf8');
 
-        const { generated } = await loadConfig(dir);
+        const { config } = await loadConfig(dir);
 
-        expect(generated.bearerToken).toHaveLength(64);
-        expect(await readFile(path, 'utf8')).toContain('bearer_token');
+        expect(config.auth.tokens).toEqual([]);
+        expect(await readFile(path, 'utf8')).toBe('auth: {}\nservices: {}\n');
     });
 
     // `auth: "abc"` reached `auth.bearer_token = ...`, which in strict mode is
@@ -497,31 +498,13 @@ describe('per-service config shapes', () => {
 });
 
 describe('loadConfig', () => {
-    it('creates config.yaml with a generated bearer token on first run', async () => {
-        const dir = await freshDir();
-        const { config, created } = await loadConfig(dir);
-
-        expect(created).toBe(true);
-        expect(config.auth.bearer_token).toMatch(/^[0-9a-f]{64}$/);
-        // and it is persisted, not just returned
-        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
-        expect(onDisk).toContain(config.auth.bearer_token);
-    });
-
-    it('is stable across restarts — the token is not regenerated', async () => {
+    it('is stable across restarts', async () => {
         const dir = await freshDir();
         const first = await loadConfig(dir);
         const second = await loadConfig(dir);
 
         expect(second.created).toBe(false);
-        expect(second.config.auth.bearer_token).toBe(first.config.auth.bearer_token);
-    });
-
-    it('generates a distinct token per install', async () => {
-        const [a, b] = await Promise.all([freshDir(), freshDir()]);
-        const [one, two] = await Promise.all([loadConfig(a), loadConfig(b)]);
-
-        expect(one.config.auth.bearer_token).not.toBe(two.config.auth.bearer_token);
+        expect(second.config).toEqual(first.config);
     });
 
     it('throws an actionable error when config.yaml is malformed', async () => {
@@ -538,12 +521,12 @@ describe('loadConfig', () => {
         await expect(loadConfig(dir)).rejects.toThrow(/not valid YAML/);
     });
 
-    it('backfills a missing bearer token rather than failing to start', async () => {
+    it('starts on a file with no auth block, with no tokens', async () => {
         const dir = await freshDir();
         await writeFile(join(dir, 'config.yaml'), 'services: {}\n', 'utf8');
 
         const { config } = await loadConfig(dir);
-        expect(config.auth.bearer_token).toMatch(/^[0-9a-f]{64}$/);
+        expect(config.auth.tokens).toEqual([]);
     });
 
     it('names the offending field when a service is misconfigured', async () => {
@@ -790,16 +773,18 @@ describe('comments through a save', () => {
         await expect(saveConfig(dir, config, { expected: config })).rejects.toThrow(/changed on disk/i);
     });
 
-    // saveConfig goes to four documented properties of effort to keep comments
-    // and replace atomically; the loader's own backfill bypassed all of it.
-    it('keeps comments and key order when backfilling a missing bearer token', async () => {
+    // The loader's rewrite goes through the same document and atomic write
+    // saveConfig uses, so it keeps comments too.
+    it('keeps comments and key order when hashing a legacy bearer token', async () => {
         const dir = await freshDir();
         const path = join(dir, 'config.yaml');
+        const legacy = 'e'.repeat(64);
         await writeFile(
             path,
             `# my stack, hand-written
 auth:
   password_hash: scrypt$00$11
+  bearer_token: ${legacy}
 ` +
                 `services:
   radarr:
@@ -809,13 +794,14 @@ auth:
             'utf8'
         );
 
-        const { generated } = await loadConfig(dir);
-        expect(generated.bearerToken).toBeDefined();
+        await loadConfig(dir);
 
         const written = await readFile(path, 'utf8');
         expect(written).toContain('# my stack, hand-written');
         expect(written).toContain('# LAN only');
-        expect(written).toContain(generated.bearerToken as string);
+        expect(written).not.toContain(legacy);
+        expect(written).toContain(hashToken(legacy));
+        expect(written.indexOf('password_hash')).toBeLessThan(written.indexOf('tokens'));
     });
 
     // The other half of the property: a stricter check must not start refusing
@@ -851,5 +837,94 @@ describe('writeConfigAtomic', () => {
         await expect(Promise.all(writes)).resolves.toHaveLength(100);
 
         expect(await readFile(path, 'utf8')).toMatch(/^value \d+\n$/);
+    });
+});
+
+describe('token rewrite on load', () => {
+    const LEGACY = 'a'.repeat(64);
+    const HAND = 'h'.repeat(40);
+
+    it('seeds a fresh install with no tokens', async () => {
+        const dir = await freshDir();
+        const { config, created } = await loadConfig(dir);
+        expect(created).toBe(true);
+        expect(config.auth.tokens).toEqual([]);
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('tokens: []');
+    });
+
+    it('migrates a legacy bearer_token into a hashed default, keeping comments', async () => {
+        const dir = await freshDir();
+        await writeFile(join(dir, 'config.yaml'), `# mine\nauth:\n  bearer_token: ${LEGACY} # old\nservices: {}\n`);
+        const { config, plaintextOnDisk } = await loadConfig(dir);
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(config.auth.tokens).toEqual([{ name: 'default', tier: 'destructive', hash: hashToken(LEGACY) }]);
+        expect(onDisk).not.toContain(LEGACY);
+        expect(onDisk).toContain(hashToken(LEGACY));
+        expect(onDisk).toContain('# mine');
+        expect(plaintextOnDisk).toEqual([]);
+    });
+
+    it('hashes a hand-written token in place', async () => {
+        const dir = await freshDir();
+        await writeFile(
+            join(dir, 'config.yaml'),
+            `auth:\n  tokens:\n    - name: ci\n      tier: read\n      token: ${HAND}\nservices: {}\n`
+        );
+        await loadConfig(dir);
+        const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
+        expect(onDisk).not.toContain(HAND);
+        expect(onDisk).toContain(hashToken(HAND));
+    });
+
+    it('reads without writing when persist is false', async () => {
+        const dir = await freshDir();
+        const text = `auth:\n  bearer_token: ${LEGACY}\nservices: {}\n`;
+        await writeFile(join(dir, 'config.yaml'), text);
+        const { plaintextOnDisk } = await loadConfig(dir, { persist: false });
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toBe(text);
+        expect(plaintextOnDisk).toEqual(['default']);
+    });
+
+    it('keeps working and reports the names when the file cannot be rewritten', async () => {
+        const dir = await freshDir();
+        await writeFile(
+            join(dir, 'config.yaml'),
+            `auth:\n  tokens:\n    - name: ci\n      tier: read\n      token: ${HAND}\nservices: {}\n`
+        );
+        const write = () => Promise.reject(Object.assign(new Error('read-only'), { code: 'EROFS' }));
+        const { config, plaintextOnDisk } = await loadConfig(dir, { write });
+        expect(config.auth.tokens[0]?.hash).toBe(hashToken(HAND));
+        expect(plaintextOnDisk).toEqual(['ci']);
+    });
+});
+
+describe('saving over a file that is still plaintext', () => {
+    const LEGACY = 'b'.repeat(64);
+
+    it('replaces bearer_token with tokens', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(path, `auth:\n  bearer_token: ${LEGACY}\nservices: {}\n`);
+        const { config } = await loadConfig(dir, { persist: false });
+
+        await saveConfig(dir, config);
+
+        const onDisk = await readFile(path, 'utf8');
+        expect(onDisk).not.toContain('bearer_token');
+        expect(onDisk).toContain(hashToken(LEGACY));
+        expect((await loadConfig(dir)).config).toEqual(config);
+    });
+
+    it('does not count a plaintext file as drift from its normalised config', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await writeFile(
+            path,
+            `auth:\n  tokens:\n    - name: ci\n      tier: read\n      token: ${'h'.repeat(40)}\nservices: {}\n`
+        );
+        const { config } = await loadConfig(dir, { persist: false });
+
+        await expect(saveConfig(dir, config, { expected: config })).resolves.toBeUndefined();
+        expect(await readFile(path, 'utf8')).not.toContain('h'.repeat(40));
     });
 });

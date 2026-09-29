@@ -40,19 +40,21 @@ export type WriteOutcome =
     | 'failed';
 
 /**
- * What a write made with the static bearer token records as its caller.
+ * The caller on rows written with the single static bearer token, before
+ * named tokens. `/mcp` no longer writes it; it stays so old rows still read.
  *
- * A real value rather than null, so a blank `caller` means one thing only: a
- * row written before this column existed. One credential and no credential
- * look identical in a null.
+ * A blank `caller` means a row written before this column existed.
  */
 export const BEARER_CALLER = 'bearer';
 
+/** Prefix on a named MCP token's caller: `bearer:<name>#<fingerprint>`. */
+export const BEARER_CALLER_PREFIX = 'bearer:';
+
 /**
  * Prefix on every OAuth caller. The client id is chosen by whoever registered
- * the client, so stored bare it could equal `BEARER_CALLER` and pass for the
- * static token, in the one column whose job is saying which credential asked.
- * A prefix puts the two in different namespaces by construction.
+ * the client, so stored bare it could pass for a bearer caller, in the one
+ * column whose job is saying which credential asked. A prefix puts the two in
+ * different namespaces by construction.
  */
 export const OAUTH_CALLER_PREFIX = 'oauth:';
 

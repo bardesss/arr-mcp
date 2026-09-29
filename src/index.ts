@@ -11,7 +11,7 @@ const PORT = Number(process.env.ARR_MCP_PORT ?? 6060);
 const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
 
 // Attached before anything else runs, so startup lines — including the
-// generated credentials and any config error — are in the ring buffer the
+// token-hashing warnings and any config error — are in the ring buffer the
 // config UI reads, not only on stdout.
 const logs = LogStore.open(CONFIG_DIR);
 attachLogStore(logs);
