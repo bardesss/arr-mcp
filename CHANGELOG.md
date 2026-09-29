@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.0](https://github.com/bardesss/arr-mcp/compare/v1.33.3...v1.34.0) (2026-09-29)
+
+
+### Features
+
+* named MCP tokens with a per-token ceiling and expiry ([#302](https://github.com/bardesss/arr-mcp/issues/302)) ([e20e8d1](https://github.com/bardesss/arr-mcp/commit/e20e8d12070af95eb83d02cd90ff8dcfd146c8ea))
+
 ## [1.33.3](https://github.com/bardesss/arr-mcp/compare/v1.33.2...v1.33.3) (2026-09-29)
 
 
