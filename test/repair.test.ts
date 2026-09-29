@@ -9,9 +9,8 @@ import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword, Sessions } from '../src/core/session.ts';
 import { repairPage, unreadableAuthPage } from '../src/web/repairPage.ts';
-import { ConfigInvalidError } from '../src/config/load.ts';
+import { ConfigInvalidError, type SalvagedAuth } from '../src/config/load.ts';
 import { buildRepairApp } from '../src/repair.ts';
-import type { Config } from '../src/config/schema.ts';
 
 const BEARER = 'a'.repeat(64);
 
@@ -81,14 +80,14 @@ describe('repair pages', () => {
     });
 });
 
-const AUTH_OK: Config['auth'] = {
+const AUTH_OK: SalvagedAuth = {
     bearer_token: BEARER,
     username: 'admin',
     allow_token_in_url: false,
     allowed_hosts: []
 };
 
-const repairApp = async (opts: { auth: Config['auth'] | undefined; raw?: string }) => {
+const repairApp = async (opts: { auth: SalvagedAuth | undefined; raw?: string }) => {
     const dir = await seedDir(opts.raw ?? 'auth: {}\n');
     return buildRepairApp({
         configDir: dir,

@@ -17,7 +17,7 @@ describe('validateConfigText', () => {
     it('accepts a valid config', () => {
         const result = validateConfigText(`${AUTH}services: {}\n`);
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.config.auth.bearer_token).toBe(BEARER);
+        if (result.ok) expect(result.config.auth.tokens[0]?.name).toBe('default');
     });
 
     it('reports unparseable YAML without throwing', () => {
@@ -65,12 +65,10 @@ describe('validateConfigText', () => {
         if (!result.ok) expect(result.detail).toContain('url');
     });
 
-    // The repair editor must not reject text for the one field the loader
-    // repairs itself, or deleting that line would be unfixable in the browser.
-    it('backfills a missing bearer token in memory rather than refusing', () => {
+    it('accepts a config with no tokens', () => {
         const result = validateConfigText('auth:\n  username: admin\n  allowed_hosts: []\nservices: {}\n');
         expect(result.ok).toBe(true);
-        expect(result.generatedBearerToken).toHaveLength(64);
+        if (result.ok) expect(result.config.auth.tokens).toEqual([]);
     });
 
     // The repair server decides whether it can authenticate anyone from this.
@@ -156,15 +154,14 @@ describe('loadConfig', () => {
         });
     });
 
-    // The token is persisted before the throw, exactly as before this change,
-    // and `raw` carries the persisted text — otherwise saving the page back
-    // would delete the token that was just generated and rotate it.
-    it('persists a backfilled bearer token even when the config is invalid, and reports the persisted text', async () => {
-        const dir = await seed('auth:\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: not-a-url\n    api_key: k\n');
+    // An invalid config is never rewritten, so `raw` is the file as it stands.
+    it('leaves an invalid config untouched, and reports its text', async () => {
+        const text = `${AUTH}services:\n  radarr:\n    url: not-a-url\n    api_key: k\n`;
+        const dir = await seed(text);
         const err = (await loadConfig(dir).catch((e: unknown) => e)) as ConfigInvalidError;
         expect(err).toBeInstanceOf(ConfigInvalidError);
-        expect(err.raw).toContain('bearer_token');
-        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('bearer_token');
+        expect(err.raw).toBe(text);
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toBe(text);
     });
 
     // Storage failures must stay fatal and untyped, so index.ts does not

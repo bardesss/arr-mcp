@@ -1,25 +1,15 @@
-import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { LineCounter, parse, parseDocument, stringify } from 'yaml';
 import * as z from 'zod/v4';
 import { logger } from '../core/logger.ts';
 import { writeConfigAtomic } from './save.ts';
-import { AuthSchema, ConfigSchema, type Config } from './schema.ts';
+import { AuthSchema, ConfigSchema, tokensNeedingRewrite, type Config } from './schema.ts';
 
 export const CONFIG_FILENAME = 'config.yaml';
 
-const generateToken = (): string => randomBytes(32).toString('hex');
-
-/**
- * Credentials created on a run.
- *
- * Only the bearer token, which has no interactive path: a config without one
- * has no working `/mcp` and no way to obtain one, so it must be generated. A
- * password does have an interactive path — the setup page — so the loader
- * never invents one, and no secret here is ever passed to the logger.
- */
-export type GeneratedCredentials = { bearerToken?: string };
+/** What repair mode reads of an `auth` block that did not fully validate. */
+export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth'>;
 
 /**
  * A config.yaml that was read but could not be understood — as opposed to one
@@ -31,9 +21,9 @@ export class ConfigInvalidError extends Error {
     // this project's TypeScript in strip-only mode, which rejects those.
     readonly detail: string;
     readonly raw: string;
-    readonly auth: Config['auth'] | undefined;
+    readonly auth: SalvagedAuth | undefined;
 
-    constructor(detail: string, raw: string, auth: Config['auth'] | undefined) {
+    constructor(detail: string, raw: string, auth: SalvagedAuth | undefined) {
         super(`config.yaml is invalid:\n${detail}`);
         this.name = 'ConfigInvalidError';
         this.detail = detail;
@@ -42,9 +32,7 @@ export class ConfigInvalidError extends Error {
     }
 }
 
-export type ConfigTextResult =
-    | { ok: true; config: Config; generatedBearerToken: string | undefined }
-    | { ok: false; detail: string; auth: Config['auth'] | undefined; generatedBearerToken: string | undefined };
+export type ConfigTextResult = { ok: true; config: Config } | { ok: false; detail: string; auth: SalvagedAuth | undefined };
 
 /**
  * Where a YAML syntax error is, without quoting what is there.
@@ -79,10 +67,9 @@ function yamlErrorDetail(err: unknown, lines: LineCounter, raw: string): string 
 }
 
 /**
- * The whole content pipeline — YAML, shape, bearer-token backfill, schema — in
- * one place, so the repair editor cannot accept text that startup then
- * rejects. It generates a bearer token when the text lacks one, and reports it
- * rather than writing anything.
+ * The whole content pipeline — YAML, shape, schema — in one place, so the
+ * repair editor cannot accept text that startup then rejects. It writes
+ * nothing; the schema normalises tokens in memory.
  */
 export function validateConfigText(raw: string): ConfigTextResult {
     let parsed: unknown;
@@ -98,8 +85,7 @@ export function validateConfigText(raw: string): ConfigTextResult {
         return {
             ok: false,
             detail: `config.yaml is not valid YAML: ${yamlErrorDetail(err, lines, raw)}`,
-            auth: undefined,
-            generatedBearerToken: undefined
+            auth: undefined
         };
     }
 
@@ -107,28 +93,16 @@ export function validateConfigText(raw: string): ConfigTextResult {
         return {
             ok: false,
             detail: 'config.yaml must contain a YAML mapping at the top level',
-            auth: undefined,
-            generatedBearerToken: undefined
+            auth: undefined
         };
     }
 
     const obj = parsed as Record<string, unknown>;
-
-    // A non-object `auth:` has to reach safeParse to be reported properly.
-    const rawAuth = obj.auth;
-    const authIsMapping =
-        rawAuth === undefined || (rawAuth !== null && typeof rawAuth === 'object' && !Array.isArray(rawAuth));
-    const auth = (authIsMapping ? (rawAuth ?? {}) : {}) as { bearer_token?: string };
-
-    let generatedBearerToken: string | undefined;
-    if (authIsMapping && !auth.bearer_token) {
-        auth.bearer_token = generateToken();
-        generatedBearerToken = auth.bearer_token;
-        obj.auth = auth;
-    }
+    // A file with no `auth` block is an unclaimed install with no tokens.
+    if (obj.auth === undefined) obj.auth = {};
 
     const result = ConfigSchema.safeParse(obj);
-    if (result.success) return { ok: true, config: result.data, generatedBearerToken };
+    if (result.success) return { ok: true, config: result.data };
 
     // Unrefined *and* unstrict on purpose: this runs precisely when the rest
     // of the file is already broken, and neither the oauth/allow_token_in_url
@@ -145,12 +119,11 @@ export function validateConfigText(raw: string): ConfigTextResult {
     // writes credentials back through a re-read YAML document rather than
     // through this object. ConfigSchema's own `auth` field stays strict, so a
     // typo anywhere in it is still a startup failure.
-    const authOnly = z.object(AuthSchema.shape).omit({ oauth: true }).safeParse(obj.auth);
+    const authOnly = z.object(AuthSchema.shape).omit({ oauth: true }).safeParse(obj.auth ?? {});
     return {
         ok: false,
         detail: z.prettifyError(result.error),
-        auth: authOnly.success ? authOnly.data : undefined,
-        generatedBearerToken
+        auth: authOnly.success ? authOnly.data : undefined
     };
 }
 
@@ -158,37 +131,36 @@ export function validateConfigText(raw: string): ConfigTextResult {
  * Written on first run so the knobs are discoverable without reading docs.
  *
  * No `password_hash`: a fresh install is *unclaimed*, and the config UI serves
- * its setup page until someone chooses a password in the browser.
+ * its setup page until someone chooses a password in the browser. No tokens
+ * either: the operator mints the first one there.
  */
 const seedConfig = () => ({
-    auth: {
-        bearer_token: generateToken(),
-        username: 'admin',
-        allowed_hosts: [] as string[]
-    },
+    auth: { username: 'admin', allowed_hosts: [] as string[], tokens: [] as unknown[] },
     services: {}
 });
 
 /**
- * Reads <configDir>/config.yaml, creating it with a generated bearer token on
- * first run. The file is the source of truth; environment variables seed
- * first-run defaults only.
- */
-/**
+ * Reads <configDir>/config.yaml, creating it on first run. The file is the
+ * source of truth; environment variables seed first-run defaults only.
+ *
+ * Plaintext MCP tokens (a legacy `bearer_token`, or a hand-written `token`)
+ * are hashed in place and the file rewritten. If it cannot be rewritten the
+ * tokens still work, and their names come back in `plaintextOnDisk`.
+ *
  * `persist: false` reads without ever writing.
  *
  * The maintainer scripts load this file only to reach the services it names,
  * and a read must not have side effects on the user's credentials. Before this
  * existed, running `npm run integration` against a config predating the config
- * UI silently backfilled credentials into it. A missing bearer token is still
- * synthesised in memory, because the schema requires it and a script has no
- * business failing over a field it does not use.
+ * UI silently backfilled credentials into it. Tokens are normalised in memory
+ * and nothing is written. `write` is the seam a test uses to fail the rewrite.
  */
 export async function loadConfig(
     configDir: string,
-    opts: { persist?: boolean } = {}
-): Promise<{ config: Config; created: boolean; generated: GeneratedCredentials }> {
+    opts: { persist?: boolean; write?: (path: string, text: string) => Promise<void> } = {}
+): Promise<{ config: Config; created: boolean; plaintextOnDisk: string[] }> {
     const persist = opts.persist ?? true;
+    const write = opts.write ?? writeConfigAtomic;
     const path = join(configDir, CONFIG_FILENAME);
     if (persist) await mkdir(configDir, { recursive: true });
 
@@ -206,35 +178,33 @@ export async function loadConfig(
             );
         }
         const seeded = seedConfig();
-        // 0o600: the file holds the bearer token and every service API key.
+        // 0o600: the file holds every service API key.
         await writeFile(path, stringify(seeded), { mode: 0o600 });
         logger.info({ path }, 'created config.yaml — no password set yet');
-        return {
-            config: ConfigSchema.parse(seeded),
-            created: true,
-            generated: { bearerToken: seeded.auth.bearer_token }
-        };
+        return { config: ConfigSchema.parse(seeded), created: true, plaintextOnDisk: [] };
     }
-
-    const generated: GeneratedCredentials = {};
 
     const result = validateConfigText(raw);
+    if (!result.ok) throw new ConfigInvalidError(result.detail, raw, result.auth);
 
-    let text = raw;
-    if (result.generatedBearerToken !== undefined) {
-        generated.bearerToken = result.generatedBearerToken;
-        // Through the document and the same atomic write saveConfig uses:
-        // `stringify` drops every comment, and a partial write could leave a
-        // truncated config holding every API key.
-        const doc = parseDocument(raw);
-        doc.setIn(['auth', 'bearer_token'], result.generatedBearerToken);
-        text = doc.toString();
-        if (persist) {
-            await writeConfigAtomic(path, text);
-            logger.warn({ path }, 'config.yaml was missing its bearer token; generated one');
-        }
+    const pending = tokensNeedingRewrite((parse(raw, { logLevel: 'error' }) as { auth?: unknown } | null)?.auth);
+    if (pending.length === 0 || !persist) return { config: result.config, created: false, plaintextOnDisk: pending };
+
+    // Through the document and the same atomic write saveConfig uses:
+    // `stringify` drops every comment, and a partial write could leave a
+    // truncated config holding every API key.
+    const doc = parseDocument(raw);
+    doc.deleteIn(['auth', 'bearer_token']);
+    doc.setIn(['auth', 'tokens'], result.config.auth.tokens);
+    try {
+        await write(path, doc.toString());
+        logger.warn({ path, tokens: pending }, 'hashed MCP tokens in config.yaml');
+        return { config: result.config, created: false, plaintextOnDisk: [] };
+    } catch (err) {
+        logger.warn(
+            { path, tokens: pending, err },
+            'config.yaml could not be rewritten, so these MCP tokens are still plaintext on disk; they work, but remove the plaintext'
+        );
+        return { config: result.config, created: false, plaintextOnDisk: pending };
     }
-
-    if (!result.ok) throw new ConfigInvalidError(result.detail, text, result.auth);
-    return { config: result.config, created: false, generated };
 }

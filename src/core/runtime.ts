@@ -57,6 +57,7 @@ const NO_REFRESH: Refresher = () => () => {};
 export class Runtime {
     #snapshot: RuntimeSnapshot;
     readonly #configDir: string;
+    #plaintextOnDisk: readonly string[] = [];
     readonly #audit: WriteAudit;
     readonly #refresh: Refresher;
 
@@ -118,8 +119,10 @@ export class Runtime {
         config: Config,
         refresh: Refresher,
         sessions: Sessions,
-        oauthKeys?: KeyResolver
+        oauthKeys?: KeyResolver,
+        plaintextOnDisk: readonly string[] = []
     ) {
+        this.#plaintextOnDisk = plaintextOnDisk;
         this.#configDir = configDir;
         this.#audit = audit;
         this.#refresh = refresh;
@@ -179,9 +182,17 @@ export class Runtime {
         audit: WriteAudit,
         opts: { refresh?: Refresher; sessions?: Sessions } = {}
     ): Promise<{ runtime: Runtime; created: boolean }> {
-        const { config, created } = await loadConfig(configDir);
+        const { config, created, plaintextOnDisk } = await loadConfig(configDir);
         return {
-            runtime: new Runtime(configDir, audit, config, opts.refresh ?? NO_REFRESH, opts.sessions ?? new Sessions()),
+            runtime: new Runtime(
+                configDir,
+                audit,
+                config,
+                opts.refresh ?? NO_REFRESH,
+                opts.sessions ?? new Sessions(),
+                undefined,
+                plaintextOnDisk
+            ),
             created
         };
     }
@@ -243,6 +254,11 @@ export class Runtime {
         return this.#configDir;
     }
 
+    /** Names of MCP tokens still plaintext in config.yaml (it could not be rewritten). */
+    get plaintextOnDisk(): readonly string[] {
+        return this.#plaintextOnDisk;
+    }
+
     /**
      * Re-reads config.yaml and rebuilds everything derived from it.
      *
@@ -251,7 +267,8 @@ export class Runtime {
      * The caller reports the error to whoever tried to save it.
      */
     async reload(): Promise<void> {
-        const { config } = await loadConfig(this.#configDir);
+        const { config, plaintextOnDisk } = await loadConfig(this.#configDir);
+        this.#plaintextOnDisk = plaintextOnDisk;
         this.#syncDataset(config);
         this.#snapshot = buildSnapshot(config, this.#audit, this.confirm, this.#dataset, this.#oauthKeys);
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');
