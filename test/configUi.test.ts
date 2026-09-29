@@ -63,11 +63,11 @@ const seedUnclaimed = async () => {
     app = buildApp({ runtime, audit, logs });
 };
 
-const seed = async (extra = '') => {
+const seed = async (extra = '', authExtra = '') => {
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
     await writeFile(
         join(dir, 'config.yaml'),
-        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\nservices:${extra === '' ? ' {}' : `\n${extra}`}\n`,
+        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\n${authExtra}services:${extra === '' ? ' {}' : `\n${extra}`}\n`,
         'utf8'
     );
 
@@ -114,6 +114,12 @@ const csrfFrom = async (): Promise<string> => {
     const page = await (await call('/ui/config')).text();
     return /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
 };
+
+// Both from one page load, as a browser's form would carry them.
+const keysFrom = (page: string): { csrf: string; etag: string } => ({
+    csrf: /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '',
+    etag: (/name="etag" value="([^"]+)"/.exec(page)?.[1] ?? '').replaceAll('&quot;', '"')
+});
 
 describe('access control', () => {
     it('sends an anonymous visitor to the login page', async () => {
@@ -1075,6 +1081,108 @@ describe('saving an instance', () => {
         expect(onDisk).toContain('fourk-key');
         expect(onDisk).toContain('192.0.2.10:7878');
         expect(onDisk).toContain('192.0.2.99:7878');
+    });
+});
+
+describe('a page left open while the config changed', () => {
+    const KEY = `amk_${'1'.repeat(64)}`;
+    const STALE = 'This page is out of date: the configuration changed after it loaded. Your edit was not saved. Review the page and make it again.';
+    const seedKeyed = () =>
+        seed(
+            '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n',
+            `  management_key: { hash: '${hashToken(KEY)}', created: '2026-09-29' }\n`
+        );
+    const putSafeWrite = () =>
+        app.request('http://localhost:6060/api/v1/app/radarr', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json', 'x-api-key': KEY },
+            body: JSON.stringify({ safeWrite: true })
+        });
+    const saveCard = (keys: { csrf: string; etag: string }) =>
+        call(
+            '/ui/config/save',
+            form({ ...keys, instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '', timeout_ms: '20000' })
+        );
+    const onDisk = () => readFile(join(dir, 'config.yaml'), 'utf8');
+
+    it('refuses the save instead of undoing an API change the page never saw', async () => {
+        await seedKeyed();
+        await signIn();
+        const keys = keysFrom(await (await call('/ui/config')).text());
+        expect(keys.etag).not.toBe('');
+
+        expect((await putSafeWrite()).status).toBe(200);
+        const res = await saveCard(keys);
+
+        expect(res.status).toBe(409);
+        expect(await res.text()).toContain(STALE);
+        expect(runtime.config.services.radarr).toMatchObject({ permissions: { safe_write: true } });
+        expect(await onDisk()).toMatch(/safe_write: true/);
+        expect(await onDisk()).not.toContain('20000');
+    });
+
+    it('saves once the page is reloaded', async () => {
+        await seedKeyed();
+        await signIn();
+        await putSafeWrite();
+        const keys = keysFrom(await (await call('/ui/config')).text());
+
+        const res = await saveCard(keys);
+
+        expect(res.status).toBe(200);
+        expect(runtime.config.services.radarr).toMatchObject({ timeout_ms: 20000 });
+    });
+
+    it('carries the etag through a two-step revoke', async () => {
+        await seedKeyed();
+        await signIn();
+        await call('/ui/config/tokens/add', form({ ...keysFrom(await (await call('/ui/config')).text()), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
+
+        const asked = await call('/ui/config/tokens/revoke', form({ ...keysFrom(await (await call('/ui/config')).text()), token: 'phone' }));
+        const confirm = keysFrom(await asked.text());
+        expect(confirm.etag).not.toBe('');
+        const res = await call('/ui/config/tokens/revoke', form({ ...confirm, token: 'phone', confirm: 'yes' }));
+
+        expect(res.status).toBe(200);
+        expect(runtime.config.auth.tokens.some(t => t.name === 'phone')).toBe(false);
+    });
+
+    it('refuses a stale confirm the same way', async () => {
+        await seedKeyed();
+        await signIn();
+        await call('/ui/config/tokens/add', form({ ...keysFrom(await (await call('/ui/config')).text()), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
+        const asked = keysFrom(await (await call('/ui/config/tokens/revoke', form({ ...keysFrom(await (await call('/ui/config')).text()), token: 'phone' }))).text());
+
+        await putSafeWrite();
+        const res = await call('/ui/config/tokens/revoke', form({ ...asked, token: 'phone', confirm: 'yes' }));
+
+        expect(res.status).toBe(409);
+        expect(runtime.config.auth.tokens.some(t => t.name === 'phone')).toBe(true);
+    });
+
+    it('puts the etag on every form that saves', async () => {
+        await seedKeyed();
+        await signIn();
+        await call('/ui/config/oauth', form({ ...keysFrom(await (await call('/ui/config')).text()), 'auth.oauth.issuer': 'https://auth.example.com/', 'auth.oauth.audience': 'arr-mcp', 'auth.oauth.jwks_uri': 'https://auth.example.com/jwks/' }));
+        const page = await (await call('/ui/config')).text();
+
+        const forms = [...page.matchAll(/<form method="post"[^>]*action="([^"#]+)[^>]*>([\s\S]*?)<\/form>/g)]
+            .map(m => ({ action: m[1] as string, body: m[2] as string }))
+            .filter(f => f.action.startsWith('/ui/config'));
+        expect(forms.map(f => f.action).sort()).toEqual([
+            '/ui/config/account',
+            '/ui/config/add',
+            '/ui/config/api-key',
+            '/ui/config/api-key/remove',
+            '/ui/config/appearance',
+            '/ui/config/imdb',
+            '/ui/config/mcp',
+            '/ui/config/save',
+            '/ui/config/tokens/add',
+            '/ui/config/tokens/revoke'
+        ]);
+        for (const f of forms) expect(f.body, f.action).toMatch(/name="etag" value="&quot;[0-9a-f]{16}&quot;"/);
+        expect(/<form id="oauth"[\s\S]*?<\/form>/.exec(page)?.[0]).toMatch(/name="etag"/);
     });
 });
 
