@@ -808,28 +808,36 @@ describe('PlexAdapter', () => {
     });
 
     describe('repairMetadata', () => {
-        type Seen = { method: string; path: string; params: Record<string, string> };
+        type Seen = { method: string; path: string; params: Record<string, string>; search: string };
+        type Fail = true | 'timeout' | number;
 
         const SECTIONS_WITH_AGENTS = {
             MediaContainer: {
                 Directory: [
                     { key: '1', type: 'movie', title: 'Movies', agent: 'tv.plex.agents.movie', language: 'en-US' },
                     { key: '2', type: 'show', title: 'TV Shows', agent: 'tv.plex.agents.series', language: 'en-US' },
-                    { key: '5', type: 'movie', title: 'Old Movies', agent: 'com.plexapp.agents.imdb', language: 'en' }
+                    { key: '5', type: 'movie', title: 'Old Movies', agent: 'com.plexapp.agents.imdb', language: 'en' },
+                    { key: '6', type: 'movie', title: 'Other Movies', agent: 'org.example.agent', language: 'en' }
                 ]
             }
         };
         const candidate = (guid: string, name: string) => ({ guid, name, year: 2001, score: 100 });
 
-        const probe = (opts: { section?: number; results?: unknown[]; failMatch?: boolean } = {}) => {
+        const failWith = (fail: Fail): Response => {
+            if (fail === 'timeout') throw new DOMException('timed out', 'TimeoutError');
+            return new Response('<html>fail</html>', { status: fail === true ? 500 : fail });
+        };
+
+        const probe = (opts: { section?: number; results?: unknown[]; failMatch?: Fail; failRefresh?: Fail } = {}) => {
             const seen: Seen[] = [];
             const impl = (async (input: string, init?: RequestInit) => {
                 const url = new URL(String(input));
                 const method = init?.method ?? 'GET';
-                seen.push({ method, path: url.pathname, params: Object.fromEntries(url.searchParams) });
+                seen.push({ method, path: url.pathname, params: Object.fromEntries(url.searchParams), search: url.search });
 
                 if (method === 'PUT') {
-                    if (opts.failMatch === true && url.pathname.endsWith('/match')) return new Response('<html>500</html>', { status: 500 });
+                    if (opts.failMatch !== undefined && url.pathname.endsWith('/match')) return failWith(opts.failMatch);
+                    if (opts.failRefresh !== undefined && url.pathname.endsWith('/refresh')) return failWith(opts.failRefresh);
                     // Plex answers writes with no body and no Content-Type.
                     return new Response(null);
                 }
@@ -902,6 +910,16 @@ describe('PlexAdapter', () => {
             expect((err as ServiceError).detail).toContain('legacy agent com.plexapp.agents.imdb');
             expect((err as ServiceError).remedy).toContain('Plex TV Series (or Plex Movie)');
             expect(seen.some(s => s.method === 'PUT')).toBe(false);
+            expect(seen.some(s => s.path.endsWith('/matches'))).toBe(false);
+        });
+
+        it('names a non-legacy agent without calling it legacy', async () => {
+            const { adapter, seen } = probe({ section: 6 });
+            const err = await failure(adapter.repairMetadata('900300', { tmdbId: 901 }));
+
+            expect((err as ServiceError).detail).toContain('the agent org.example.agent, which cannot match by id');
+            expect((err as ServiceError).detail).not.toContain('legacy');
+            expect(seen.some(s => s.method === 'PUT')).toBe(false);
         });
 
         it('refuses when the id search finds nothing', async () => {
@@ -919,8 +937,51 @@ describe('PlexAdapter', () => {
             });
             const err = await failure(adapter.repairMetadata('900100', { tvdbId: 900 }));
 
+            expect((err as ServiceError).kind).toBe('UpstreamError');
             expect((err as ServiceError).detail).toContain('Plex found 2 matches for tvdb-900');
             expect(seen.some(s => s.method === 'PUT')).toBe(false);
+        });
+
+        it('counts a result without a guid rather than filtering it away', async () => {
+            const { adapter, seen } = probe({
+                results: [candidate('plex://show/a', 'Fixture show 2'), { name: 'Fixture show 3', year: 2001 }]
+            });
+            const err = await failure(adapter.repairMetadata('900100', { tvdbId: 900 }));
+
+            expect((err as ServiceError).detail).toContain('Plex found 2 matches for tvdb-900');
+            expect(seen.some(s => s.method === 'PUT')).toBe(false);
+        });
+
+        it('refuses a single result that has no name', async () => {
+            const { adapter, seen } = probe({ results: [{ guid: 'plex://show/a', year: 2001 }] });
+            const err = await failure(adapter.repairMetadata('900100', { tvdbId: 900 }));
+
+            expect((err as ServiceError).kind).toBe('UpstreamError');
+            expect((err as ServiceError).detail).toContain('Plex found 1 match for tvdb-900');
+            expect(seen.some(s => s.method === 'PUT')).toBe(false);
+        });
+
+        it('encodes a guid and name carrying &, = and non-ASCII characters', async () => {
+            const guid = 'plex://show/a?x=1&y=2';
+            const name = 'Fixture show 2 & co = café';
+            const { adapter, seen } = probe({ results: [candidate(guid, name)] });
+            await adapter.repairMetadata('900100', { tvdbId: 900 });
+
+            const match = seen.find(s => s.path.endsWith('/match'));
+            expect(match?.params).toEqual({ guid, name });
+            expect(match?.search).toContain('caf%C3%A9');
+            expect(match?.search).not.toContain('&y=');
+        });
+
+        it('gives the match and refresh writes the long repair timeout', async () => {
+            const spy = vi.spyOn(AbortSignal, 'timeout');
+            try {
+                const { adapter } = probe();
+                await adapter.repairMetadata('900100', { tvdbId: 900 });
+                expect(spy.mock.calls.map(c => c[0])).toEqual([10_000, 10_000, 10_000, 120_000, 120_000]);
+            } finally {
+                spy.mockRestore();
+            }
         });
 
         it('names the failed step and sends no refresh after a failed match', async () => {
@@ -929,7 +990,36 @@ describe('PlexAdapter', () => {
 
             expect((err as ServiceError).kind).toBe('UpstreamError');
             expect((err as ServiceError).detail).toContain('the match step failed');
+            expect((err as ServiceError).remedy).toContain('may have been applied');
             expect(calls(seen)).not.toContain('PUT /library/metadata/900100/refresh');
+        });
+
+        it('says the match was applied when only the refresh fails', async () => {
+            const { adapter, seen } = probe({ failRefresh: true });
+            const err = await failure(adapter.repairMetadata('900100', { tvdbId: 900 }));
+
+            expect(calls(seen)).toContain('PUT /library/metadata/900100/match');
+            expect((err as ServiceError).kind).toBe('UpstreamError');
+            expect((err as ServiceError).detail).toContain('the refresh step failed');
+            expect((err as ServiceError).remedy).toContain('The match to <<untrusted:plex.name>>Fixture show 2<</untrusted>> was applied; only the refresh failed.');
+        });
+
+        it('keeps the kind of a timed-out match', async () => {
+            const { adapter, seen } = probe({ failMatch: 'timeout' });
+            const err = await failure(adapter.repairMetadata('900100', { tvdbId: 900 }));
+
+            expect((err as ServiceError).kind).toBe('Timeout');
+            expect((err as ServiceError).detail).toContain('the match step failed');
+            expect((err as ServiceError).remedy).toContain('may have been applied');
+            expect(calls(seen)).not.toContain('PUT /library/metadata/900100/refresh');
+        });
+
+        it('keeps the kind of a refused token on refresh', async () => {
+            const { adapter } = probe({ failRefresh: 401 });
+            const err = await failure(adapter.repairMetadata('900100', {}));
+
+            expect((err as ServiceError).kind).toBe('AuthFailed');
+            expect((err as ServiceError).detail).toContain('the refresh step failed');
         });
     });
 
