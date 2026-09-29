@@ -204,6 +204,23 @@ exactly the same from here. Absent rather than empty when the root is fully
 mapped, so "nothing unmapped" stays distinguishable from "the service did not
 say".
 
+### Seeding rules, at `detail: "full"`
+
+`seedingRules` answers "what are my seeding rules". `clients` gives each
+torrent client's default `ratioLimit` and `seedingLimitSeconds` (absent means
+none) and the `action` it takes on reaching one. `indexers` gives each torrent
+indexer's `seedRatio` and `seedTimeSeconds` from Radarr, Sonarr, Whisparr and
+Prowlarr, plus Prowlarr's `privacy`. An *arr hands its indexer's criteria to the
+client with every grab, and they override the client default, so the indexer
+row is usually the one that decides.
+
+`notes` names two gaps. One is an app's copy of an indexer that disagrees with
+Prowlarr's, matched on the `"<name> (Prowlarr)"` name sync gives it. The copy is
+what the app applies. The other is a torrent indexer with no criteria while no
+client has a default either, meaning its grabs seed until someone stops them.
+Which torrents are actually past their limit is `get_queue`'s answer, not this
+one. Absent when nothing configured seeds.
+
 ### Did that command finish?
 
 `commands` is every **followable** task a service has queued or running, plus
@@ -453,6 +470,26 @@ join rather than a finding about the library.
 Each Radarr or Sonarr row carries `downloadId`, the download client's own id
 for that grab. It is what `trigger_scan`'s `import` action takes, and it is the
 link between "this is stuck at `importBlocked`" and doing something about it.
+
+### Seeding, at `detail: "full"`
+
+Torrent rows carry `private` when the client says, and a finished torrent
+carries `seeding`: `ratio`, `seedingSeconds`, the `ratioLimit` and
+`seedingLimitSeconds` the client actually applies to it (absent means none),
+`ownLimit` when the torrent overrides the client default, and `overLimit` once
+it has reached one. The flags only ever appear as `true`. A row that is still
+seeding past its limit says so in its line.
+
+The limits are the client's effective ones. qBittorrent resolves torrent,
+category and global itself; Transmission's per-torrent mode is resolved against
+its session default here. qBittorrent skips share limits for force-started
+torrents, so those carry `forced` and the line says why the limit did nothing.
+Transmission has no seeding-time limit, only a ratio.
+
+Neither client can express a rule like "public trackers stop now, private ones
+seed to 1.0". `private` is there so that question can still be asked of the
+queue. The qBittorrent side is written against its source at release-5.2.4 and
+has not been run against a live instance; `private` needs 5.0 or later.
 
 ## `get_history`
 

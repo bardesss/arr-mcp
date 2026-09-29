@@ -6,6 +6,7 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
+    type ClientSeedLimits,
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
@@ -15,6 +16,8 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
+    type SeedingState,
+    type SeedLimitsCapable,
     type MagnetAdded,
     type MagnetAddCapable,
     type ServiceAdapter,
@@ -32,6 +35,8 @@ type RawSession = {
     /** KB/s, and only applied when the `-enabled` flag is set. */
     'speed-limit-down'?: number;
     'speed-limit-down-enabled'?: boolean;
+    seedRatioLimit?: number;
+    seedRatioLimited?: boolean;
 };
 
 /**
@@ -47,7 +52,53 @@ type RawTorrent = {
     leftUntilDone?: number;
     eta?: number;
     errorString?: string;
+    /** -1 not known yet, -2 infinite. */
+    uploadRatio?: number;
+    secondsSeeding?: number;
+    /** 0 follows the session, 1 uses `seedRatioLimit`, 2 is unlimited. */
+    seedRatioMode?: number;
+    seedRatioLimit?: number;
+    isPrivate?: boolean;
 };
+
+const QUEUE_FIELDS = [
+    'id',
+    'name',
+    'status',
+    'totalSize',
+    'leftUntilDone',
+    'eta',
+    'errorString',
+    'uploadRatio',
+    'secondsSeeding',
+    'seedRatioMode',
+    'seedRatioLimit',
+    'isPrivate'
+];
+
+/** Transmission has a ratio limit only; its idle limit is about inactivity,
+ *  not time spent seeding. */
+function seedingOf(t: RawTorrent, session: RawSession): { seeding?: SeedingState } {
+    if (t.leftUntilDone !== 0) return {};
+
+    const ratio = t.uploadRatio === -2 ? Infinity : t.uploadRatio === -1 ? undefined : t.uploadRatio;
+    const ratioLimit =
+        t.seedRatioMode === 1
+            ? t.seedRatioLimit
+            : t.seedRatioMode === 2 || session.seedRatioLimited !== true
+              ? undefined
+              : session.seedRatioLimit;
+
+    return {
+        seeding: {
+            ...(ratio === undefined || ratio === Infinity ? {} : { ratio }),
+            ...(t.secondsSeeding === undefined ? {} : { seedingSeconds: t.secondsSeeding }),
+            ...(ratioLimit === undefined ? {} : { ratioLimit }),
+            ...(t.seedRatioMode === 1 || t.seedRatioMode === 2 ? { ownLimit: true as const } : {}),
+            ...(ratioLimit !== undefined && ratio !== undefined && ratio >= ratioLimit ? { overLimit: true as const } : {})
+        }
+    };
+}
 
 /** Transmission reports status as an integer; these are the RPC spec's values. */
 const TORRENT_STATUS: Record<number, string> = {
@@ -68,7 +119,8 @@ export class TransmissionAdapter
         QueueRemoveCapable,
         PauseCapable,
         SpeedLimitCapable,
-        MagnetAddCapable
+        MagnetAddCapable,
+        SeedLimitsCapable
 {
     readonly type: ServiceId = 'transmission';
     readonly instance: string | undefined;
@@ -115,10 +167,14 @@ export class TransmissionAdapter
     }
 
     async getQueue(): Promise<QueueItem[]> {
-        const body = await this.#http.post<RpcResponse<{ torrents?: RawTorrent[] }>>(RPC_PATH, {
-            method: 'torrent-get',
-            arguments: { fields: ['id', 'name', 'status', 'totalSize', 'leftUntilDone', 'eta', 'errorString'] }
-        });
+        // The session holds the default ratio limit a torrent in mode 0 follows.
+        const [body, session] = await Promise.all([
+            this.#http.post<RpcResponse<{ torrents?: RawTorrent[] }>>(RPC_PATH, {
+                method: 'torrent-get',
+                arguments: { fields: QUEUE_FIELDS }
+            }),
+            this.#session()
+        ]);
         if (body.result !== 'success') {
             throw new ServiceError('UpstreamError', this.id, `torrent-get failed: ${body.result ?? 'no result field'}`);
         }
@@ -137,8 +193,18 @@ export class TransmissionAdapter
                 ...(t.eta === undefined || t.eta < 0 ? {} : { etaSeconds: t.eta }),
                 ...(t.errorString
                     ? { errorMessage: fenceText(t.errorString, { service: this.id, field: 'errorString' }) }
-                    : {})
+                    : {}),
+                ...(typeof t.isPrivate === 'boolean' ? { private: t.isPrivate } : {}),
+                ...seedingOf(t, session)
             }));
+    }
+
+    /** Transmission has no seeding-time limit, and always stops a torrent
+     *  that reaches its ratio. */
+    async getSeedLimits(): Promise<ClientSeedLimits> {
+        const session = await this.#session();
+        const ratio = session.seedRatioLimited === true ? session.seedRatioLimit : undefined;
+        return { service: this.id, ...(ratio === undefined ? {} : { ratioLimit: ratio }), action: 'stop' };
     }
 
     /** Transmission has no blocklist of grabbed releases — that is an *arr concept. */

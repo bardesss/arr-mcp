@@ -7,6 +7,7 @@ import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { applyLimit } from '../core/shape.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
@@ -21,6 +22,8 @@ import {
     type AddMediaOptions,
     type BlocklistCapable,
     type BlocklistEntry,
+    type IndexerSeedCriteria,
+    type SeedCriteriaCapable,
     type CalendarCapable,
     type CalendarEntry,
     type CommandHandle,
@@ -163,7 +166,8 @@ export class WhisparrAdapter
         SearchTriggerCapable,
         ReleaseSearchCapable,
         ReleaseGrabCapable,
-        ProfileDiagnosticsCapable
+        ProfileDiagnosticsCapable,
+        SeedCriteriaCapable
 {
     readonly type: ServiceId = 'whisparr';
     readonly instance: string | undefined = undefined;
@@ -262,6 +266,10 @@ export class WhisparrAdapter
 
     async readBlocklist(): Promise<BlocklistEntry[]> {
         return readArrBlocklist(this.#http, this.id, 'series');
+    }
+
+    async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
+        return readSeedCriteria(this.#http, this.id, 'arr');
     }
 
     async removeBlocklistItem(id: string): Promise<void> {

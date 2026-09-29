@@ -212,7 +212,68 @@ export type QueueItem = {
     /** The download client's own id for this grab — what `trigger_scan`'s
      *  `import` action is addressed with. */
     downloadId?: string;
+    /** Torrent clients only. Absent when the client did not say. */
+    private?: boolean;
+    /** Torrent clients only, and only once the download has finished. */
+    seeding?: SeedingState;
 };
+
+/**
+ * Where a finished torrent stands against the limit that applies to it.
+ * Limits are the client's effective ones: absent means none applies.
+ * `ratio` is absent when it is infinite or not known yet. The flags are only
+ * ever `true`, like `orphaned`, so 500 rows stay inside the budget.
+ */
+export type SeedingState = {
+    ratio?: number;
+    seedingSeconds?: number;
+    ratioLimit?: number;
+    seedingLimitSeconds?: number;
+    /** The torrent overrides the client default, possibly with "no limit". */
+    ownLimit?: true;
+    overLimit?: true;
+    /** qBittorrent skips share limits for force-started torrents. */
+    forced?: true;
+};
+
+/** A torrent client's default seed limits. Absent means none. */
+export type ClientSeedLimits = {
+    service: string;
+    ratioLimit?: number;
+    seedingLimitSeconds?: number;
+    /** What the client does when a torrent reaches the limit. */
+    action: 'stop' | 'remove' | 'remove with content' | 'super seeding' | 'unknown';
+};
+
+export interface SeedLimitsCapable {
+    getSeedLimits(): Promise<ClientSeedLimits>;
+}
+
+export const hasSeedLimits = (a: ServiceAdapter): a is ServiceAdapter & SeedLimitsCapable =>
+    typeof (a as Partial<SeedLimitsCapable>).getSeedLimits === 'function';
+
+/**
+ * A torrent indexer's seed criteria. An *arr hands these to the client with
+ * each grab, overriding the client default; absent means the default applies.
+ * Prowlarr's are pushed into each app's copy when it syncs.
+ */
+export type IndexerSeedCriteria = {
+    service: string;
+    indexer: string;
+    /** Prowlarr only: public, private or semiPrivate. */
+    privacy?: string;
+    seedRatio?: number;
+    seedTimeSeconds?: number;
+    /** Sonarr's season packs, and Prowlarr's packs. */
+    packSeedTimeSeconds?: number;
+};
+
+export interface SeedCriteriaCapable {
+    getSeedCriteria(): Promise<IndexerSeedCriteria[]>;
+}
+
+export const hasSeedCriteria = (a: ServiceAdapter): a is ServiceAdapter & SeedCriteriaCapable =>
+    typeof (a as Partial<SeedCriteriaCapable>).getSeedCriteria === 'function';
 
 export interface QueueCapable {
     getQueue(): Promise<QueueItem[]>;
