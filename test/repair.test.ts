@@ -133,6 +133,17 @@ describe('repair server, always-on routes', () => {
         expect(res.status).toBe(200);
         expect(res.headers.get('content-type')).toContain('text/css');
     });
+
+    it('refuses the management API with 503 JSON rather than a redirect', async () => {
+        const res = await get(await repairApp({ auth: AUTH_OK }), '/api/v1/system/status');
+        expect(res.status).toBe(503);
+        expect(((await res.json()) as { message: string }).message).toContain('config.yaml is invalid');
+    });
+
+    it('refuses the management API even when the auth block is unreadable', async () => {
+        const res = await get(await repairApp({ auth: undefined }), '/api/v1/app');
+        expect(res.status).toBe(503);
+    });
 });
 
 // A YAML syntax error is the case that reaches all three of these at once:
