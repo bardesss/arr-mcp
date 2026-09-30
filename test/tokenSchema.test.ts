@@ -35,7 +35,7 @@ describe('auth.tokens', () => {
 
     it.each([
         [{ tokens: [{ name: 'ci', tier: 'read', token: 'short' }] }, "token 'ci' must be at least 32 characters"],
-        [{ bearer_token: LEGACY, tokens: [] }, 'bearer_token and tokens cannot both be set'],
+        [{ bearer_token: LEGACY, tokens: [] }, 'cannot be set together with tokens'],
         [{ tokens: [{ name: 'a', tier: 'read', token: HAND }, { name: 'a', tier: 'read', token: HAND }] }, 'duplicate token name "a"'],
         [{ tokens: [{ name: 'ci', tier: 'read', token: HAND }, { name: 'CI', tier: 'read', token: HAND }] }, 'duplicate token name "CI"'],
         [{ tokens: [{ name: 'a', tier: 'read', token: HAND, hash: hashToken(HAND) }] }, "token 'a' needs exactly one of hash or token"],
