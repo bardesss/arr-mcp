@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiKeyHeader, embyToken, plexToken, qbittorrentSession, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
+import { apiKeyHeader, embyToken, plexToken, qbittorrentSession, queryParamKey, takeUserinfo, transmissionRpc } from '../src/core/auth.ts';
 
 const ctx = (url = 'http://h:7878/api/v3/system/status', method = 'GET') => ({
     url: new URL(url),
@@ -252,10 +252,54 @@ describe('qbittorrentSession', () => {
         await expect(session({}, impl).recover?.(forbidden())).rejects.toThrow(/no session cookie/i);
     });
 
+    // The login carries the password in its body, so no redirect is followed.
+    it('refuses a redirected login without following it', async () => {
+        let calls = 0;
+        let redirect: RequestInit['redirect'];
+        const impl = (async (_input: string, init?: RequestInit) => {
+            calls += 1;
+            redirect = init?.redirect;
+            return new Response(null, { status: 307, headers: { location: 'https://elsewhere.example/steal?k=1' } });
+        }) as unknown as typeof fetch;
+
+        const err = (await Promise.resolve(session({}, impl).recover?.(forbidden())).catch((e: unknown) => e)) as Error;
+        expect(calls).toBe(1);
+        expect(redirect).toBe('manual');
+        expect(err).toMatchObject({ kind: 'AuthFailed' });
+        expect(err.message).toContain('https://elsewhere.example');
+        expect(err.message).toContain('the address qBittorrent redirects the login to');
+        expect(err.message).not.toContain('steal');
+    });
+
+    it('does not name its own origin when the login redirects within it', async () => {
+        const redirect = new Response(null, { status: 302, headers: { location: '/qbit/api/v2/auth/login' } });
+        const impl = (async () => redirect) as unknown as typeof fetch;
+        const err = (await Promise.resolve(session({}, impl).recover?.(forbidden())).catch((e: unknown) => e)) as Error;
+        expect(err).toMatchObject({ kind: 'AuthFailed' });
+        expect(err.message).not.toContain(BASE);
+        expect(err.message).toContain('the address qBittorrent redirects the login to');
+    });
+
     it('names the qualified instance id, not the bare service, in a login failure', async () => {
         const impl = (async () => new Response('', { status: 403 })) as unknown as typeof fetch;
         await expect(session({ id: 'qbittorrent/vpn' }, impl).recover?.(forbidden())).rejects.toThrow(
             /qbittorrent\/vpn/
         );
+    });
+});
+
+describe('takeUserinfo', () => {
+    const decoded = (header: string | undefined) => Buffer.from((header ?? '').replace(/^Basic /, ''), 'base64').toString();
+
+    it('decodes percent-escapes in the credentials', () => {
+        const url = new URL('http://me%40home:p%40ss@h:7878/');
+        expect(decoded(takeUserinfo(url))).toBe('me@home:p@ss');
+        expect(url.toString()).toBe('http://h:7878/');
+    });
+
+    it('sends a stray % as it is rather than throwing', () => {
+        const url = new URL('http://u:100%zz@h:7878/');
+        expect(decoded(takeUserinfo(url))).toBe('u:100%zz');
+        expect(url.toString()).toBe('http://h:7878/');
     });
 });

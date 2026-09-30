@@ -1,3 +1,4 @@
+import { configEtag } from '../config/etag.ts';
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import {
     MULTI_INSTANCE,
@@ -224,7 +225,7 @@ function writeLabel(permissions: { safe_write: boolean; destructive: boolean }):
 
 function instanceCard(
     instance: ServiceInstance,
-    csrf: string,
+    keys: SafeHtml,
     confirming: string | undefined,
     users: readonly string[] | undefined,
     tested: ConnectionDiagnosis | undefined,
@@ -235,7 +236,7 @@ function instanceCard(
     const pendingRemoval = confirming === instance.id;
 
     return html`<form method="post" action="/ui/config/save" class="panel" ${IGNORE_FORM}>
-        <input type="hidden" name="csrf" value="${csrf}">
+        ${keys}
         <input type="hidden" name="instance" value="${instance.id}">
 
         <details class="svc"${open ? raw(' open') : raw('')}>
@@ -299,7 +300,7 @@ function instanceCard(
 
 function tokenList(opts: {
     tokens: readonly StoredToken[];
-    csrf: string;
+    keys: SafeHtml;
     confirming: string | undefined;
     plaintextOnDisk: readonly string[];
     now: Date;
@@ -325,7 +326,7 @@ function tokenList(opts: {
                         : raw('')}</td>
                     <td>
                         <form method="post" action="/ui/config/tokens/revoke" ${IGNORE_FORM}>
-                            <input type="hidden" name="csrf" value="${opts.csrf}">
+                            ${opts.keys}
                             <input type="hidden" name="token" value="${t.name}">
                             ${opts.confirming === t.name
                                 ? html`<button type="submit" name="confirm" value="yes" class="ghost">Yes, revoke ${t.name}</button>
@@ -373,8 +374,8 @@ const EXPIRIES: readonly { key: string; label: string }[] = [
     { key: 'never', label: 'Never' }
 ];
 
-const tokenCreateForm = (csrf: string): SafeHtml => html`<form method="post" action="/ui/config/tokens/add" ${IGNORE_FORM}>
-    <input type="hidden" name="csrf" value="${csrf}">
+const tokenCreateForm = (keys: SafeHtml): SafeHtml => html`<form method="post" action="/ui/config/tokens/add" ${IGNORE_FORM}>
+    ${keys}
     ${field({ id: 'token.name', name: 'token.name', label: 'Name', placeholder: 'phone' })}
     <div class="field">
         <label for="token.tier">Tier</label>
@@ -396,7 +397,7 @@ const tokenCreateForm = (csrf: string): SafeHtml => html`<form method="post" act
 
 function managementKeyCard(opts: {
     config: Config;
-    csrf: string;
+    keys: SafeHtml;
     revealed: { key: string; apiUrl: string | undefined } | undefined;
     confirmingRemoval: boolean;
 }): SafeHtml {
@@ -427,13 +428,13 @@ function managementKeyCard(opts: {
         </p>
         <div class="row" style="margin-top:1rem">
             <form method="post" action="/ui/config/api-key" ${IGNORE_FORM}>
-                <input type="hidden" name="csrf" value="${opts.csrf}">
+                ${opts.keys}
                 <button type="submit">${key === undefined ? 'Generate key' : 'Regenerate key'}</button>
             </form>
             ${key === undefined
                 ? raw('')
                 : html`<form method="post" action="/ui/config/api-key/remove" ${IGNORE_FORM}>
-                      <input type="hidden" name="csrf" value="${opts.csrf}">
+                      ${opts.keys}
                       ${opts.confirmingRemoval
                           ? html`<button type="submit" name="confirm" value="yes" class="ghost">Yes, turn the API off</button>`
                           : html`<button type="submit" class="ghost">Turn off</button>`}
@@ -459,7 +460,7 @@ function managementKeyCard(opts: {
  */
 function addDialog(
     config: Config,
-    csrf: string,
+    keys: SafeHtml,
     open: boolean,
     tested: ConnectionDiagnosis | undefined
 ): SafeHtml {
@@ -488,7 +489,7 @@ function addDialog(
 
     return html`<dialog id="add-service"${open ? raw(' open') : raw('')}>
         <form method="post" action="/ui/config/add" class="panel" ${IGNORE_FORM}>
-            <input type="hidden" name="csrf" value="${csrf}">
+            ${keys}
             <h3 style="margin:0 0 .75rem">Add a service</h3>
 
             <div class="field">
@@ -622,7 +623,7 @@ const oauthTestResult = (p: JwksProbe, note: string | undefined): SafeHtml =>
  * `auth.oauth`. The actions carry `#oauth` so the page that comes back is
  * scrolled to this card, which is also where its outcome is shown.
  */
-function oauthCard(config: Config, csrf: string, state: OAuthCardState): SafeHtml {
+function oauthCard(config: Config, keys: SafeHtml, state: OAuthCardState): SafeHtml {
     const current = config.auth.oauth;
     const defaults = OAuthSchema.shape.scopes.parse(undefined);
     const d: OAuthDraft = state.draft ?? {
@@ -636,7 +637,7 @@ function oauthCard(config: Config, csrf: string, state: OAuthCardState): SafeHtm
     const confirming = state.confirmingRemoval === true;
 
     return html`<form id="oauth" method="post" action="/ui/config/oauth#oauth" class="panel" ${IGNORE_FORM}>
-        <input type="hidden" name="csrf" value="${csrf}">
+        ${keys}
         <h3 style="margin:0 0 .75rem">OAuth</h3>
         <p class="note">
             arr-mcp only verifies access tokens: your identity provider issues them, and this is where to
@@ -705,6 +706,9 @@ export function configPage(opts: {
     oauth?: OAuthCardState | undefined;
 }): string {
     const instances = listInstances(opts.config);
+    // The etag is what lets a save tell that the config moved since this page was built.
+    const keys = html`<input type="hidden" name="csrf" value="${opts.csrf}">
+        <input type="hidden" name="etag" value="${configEtag(opts.config)}">`;
 
     const body = html`<h2>Services</h2>
         <div class="row" style="margin-bottom:1rem">
@@ -719,7 +723,7 @@ export function configPage(opts: {
         ${instances.map(i =>
             instanceCard(
                 i,
-                opts.csrf,
+                keys,
                 opts.confirmingRemoval,
                 opts.users?.[i.id],
                 opts.tested?.instance === i.id ? opts.tested.diagnosis : undefined,
@@ -730,7 +734,7 @@ export function configPage(opts: {
                 opts.tested?.instance === i.id || opts.confirmingRemoval === i.id || opts.openInstance === i.id
             )
         )}
-        ${addDialog(opts.config, opts.csrf, opts.openAdd === true, opts.testedAdd)}
+        ${addDialog(opts.config, keys, opts.openAdd === true, opts.testedAdd)}
 
         <h2>Access</h2>
         <p class="note" style="margin:-.5rem 0 1rem">
@@ -739,7 +743,7 @@ export function configPage(opts: {
         </p>
 
         <form method="post" action="/ui/config/account" class="panel" ${IGNORE_FORM}>
-            <input type="hidden" name="csrf" value="${opts.csrf}">
+            ${keys}
             <h3 style="margin:0 0 .75rem">Config UI sign-in</h3>
             ${field({ id: 'auth.username', name: 'auth.username', label: 'Username', value: opts.config.auth.username })}
             ${field({
@@ -756,7 +760,7 @@ export function configPage(opts: {
         </form>
 
         <form method="post" action="/ui/config/appearance" class="panel" ${IGNORE_FORM}>
-            <input type="hidden" name="csrf" value="${opts.csrf}">
+            ${keys}
             <h3 style="margin:0 0 .75rem">Appearance</h3>
             <div class="field">
                 <label for="ui.theme">Theme</label>
@@ -777,7 +781,7 @@ export function configPage(opts: {
         </form>
 
         <form method="post" action="/ui/config/imdb" class="panel" ${IGNORE_FORM}>
-            <input type="hidden" name="csrf" value="${opts.csrf}">
+            ${keys}
             <h3 style="margin:0 0 .75rem">IMDb dataset</h3>
             ${checkbox(
                 'metadata.imdb',
@@ -823,16 +827,16 @@ export function configPage(opts: {
             ${opts.revealed === undefined ? raw('') : revealPanel(opts.revealed)}
             ${tokenList({
                 tokens: opts.config.auth.tokens,
-                csrf: opts.csrf,
+                keys,
                 confirming: opts.confirmingRevoke,
                 plaintextOnDisk: opts.plaintextOnDisk ?? [],
                 now: opts.now ?? new Date()
             })}
-            ${tokenCreateForm(opts.csrf)}
+            ${tokenCreateForm(keys)}
         </div>
 
         <form method="post" action="/ui/config/mcp" class="panel" ${IGNORE_FORM}>
-            <input type="hidden" name="csrf" value="${opts.csrf}">
+            ${keys}
             <h3 style="margin:0 0 .75rem">MCP endpoint</h3>
             ${field({
                 id: 'auth.allowed_hosts',
@@ -869,11 +873,11 @@ export function configPage(opts: {
 
         ${managementKeyCard({
             config: opts.config,
-            csrf: opts.csrf,
+            keys,
             revealed: opts.revealedKey,
             confirmingRemoval: opts.confirmingKeyRemoval === true
         })}
-        ${oauthCard(opts.config, opts.csrf, opts.oauth ?? {})}
+        ${oauthCard(opts.config, keys, opts.oauth ?? {})}
 
         <p class="note"><a href="/ui">Back to the dashboard</a></p>`;
 

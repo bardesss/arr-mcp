@@ -1,6 +1,6 @@
 import type { BaseServiceConfig } from '../config/schema.ts';
 import { takeUserinfo, type AuthStrategy } from './auth.ts';
-import { ServiceError, classifyFetchError, classifyHttpStatus } from './errors.ts';
+import { ServiceError, classifyFetchError, classifyHttpStatus, redirectedElsewhere } from './errors.ts';
 import { logger } from './logger.ts';
 
 export const CIRCUIT_THRESHOLD = 5;
@@ -27,6 +27,22 @@ const discard = async (response: Response): Promise<void> => {
         // A body already consumed or already errored needs no releasing.
     }
 };
+
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
+
+// Origin and path only, never the full URL: a query-parameter auth strategy
+// puts the API key in the search string, and this value reaches the model
+// inside an error message.
+const safeUrl = (url: URL): string => `${url.origin}${url.pathname}`;
+
+/** Same origin, or a proxy upgrading the same host to https on 443 or the same port. */
+const followable = (from: URL, to: URL): boolean =>
+    to.origin === from.origin ||
+    (from.protocol === 'http:' &&
+        to.protocol === 'https:' &&
+        to.hostname === from.hostname &&
+        (to.port === '' || to.port === from.port));
 
 const encodeBody = (body: RequestBody): { contentType: string; payload: string } =>
     'form' in body
@@ -249,21 +265,52 @@ export class ServiceHttp {
         if (basic !== undefined) headers.set('Authorization', basic);
         this.#auth.apply({ url, headers, method });
 
-        // Origin and path only, never the full URL: a query-parameter auth
-        // strategy puts the API key in the search string, and this value
-        // reaches the model inside an error message.
-        const safeUrl = `${new URL(this.#baseUrl).origin}${url.pathname}`;
-
+        const signal = AbortSignal.timeout(timeoutMs ?? this.#timeoutMs);
+        let target = url;
+        let verb = method;
+        let payload = encoded?.payload;
         let response: Response;
-        try {
-            response = await this.#fetch(url.toString(), {
-                method,
-                headers,
-                signal: AbortSignal.timeout(timeoutMs ?? this.#timeoutMs),
-                ...(encoded === undefined ? {} : { body: encoded.payload })
-            });
-        } catch (err) {
-            throw classifyFetchError(err, this.#id, safeUrl);
+        for (let hop = 0; ; hop += 1) {
+            try {
+                response = await this.#fetch(target.toString(), {
+                    method: verb,
+                    headers,
+                    signal,
+                    // fetch keeps custom key headers on a cross-origin
+                    // redirect, so redirects are followed here instead.
+                    redirect: 'manual',
+                    ...(payload === undefined ? {} : { body: payload })
+                });
+            } catch (err) {
+                throw classifyFetchError(err, this.#id, safeUrl(target));
+            }
+
+            const location = REDIRECTS.has(response.status) ? response.headers.get('location') : null;
+            if (location === null) break;
+            await discard(response);
+
+            let next: URL;
+            try {
+                next = new URL(location, target);
+            } catch {
+                throw new ServiceError('UpstreamError', this.#id, 'redirected to an invalid address');
+            }
+            // The configured credentials stay; a Location's own are dropped.
+            next.username = '';
+            next.password = '';
+            if (!followable(target, next)) throw redirectedElsewhere(this.#id, next.origin);
+            if (hop >= MAX_REDIRECTS) {
+                throw new ServiceError('UpstreamError', this.#id, `too many redirects from ${url.pathname}`);
+            }
+            // What fetch does: 303 turns anything but GET/HEAD into GET, 301/302 only POST.
+            const toGet =
+                response.status === 303 ? verb !== 'GET' && verb !== 'HEAD' : response.status < 303 && verb === 'POST';
+            if (toGet) {
+                verb = 'GET';
+                payload = undefined;
+                headers.delete('content-type');
+            }
+            target = next;
         }
 
         let recovered = false;
@@ -287,7 +334,7 @@ export class ServiceHttp {
             return this.#attempt<T>(method, path, body, false, read, timeoutMs);
         }
 
-        const httpError = classifyHttpStatus(response.status, this.#id, safeUrl);
+        const httpError = classifyHttpStatus(response.status, this.#id, safeUrl(target));
         if (httpError) {
             await discard(response);
             throw httpError;
@@ -304,7 +351,7 @@ export class ServiceHttp {
         try {
             return (await response.json()) as T;
         } catch (err) {
-            throw new ServiceError('UpstreamError', this.#id, `response from ${url.pathname} was not valid JSON`, {
+            throw new ServiceError('UpstreamError', this.#id, `response from ${target.pathname} was not valid JSON`, {
                 cause: err
             });
         }

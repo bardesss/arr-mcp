@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { LEVELS } from '../src/core/logs.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
-import { api, closeApi, KEY, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
+import { api, closeApi, json, KEY, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 
 beforeEach(async () => {
     await seedApi();
 });
 
-afterEach(() => {
+afterEach(async () => {
     vi.restoreAllMocks();
-    closeApi();
+    await closeApi();
 });
 
 describe('the gate', () => {
@@ -42,7 +44,15 @@ describe('the gate', () => {
     });
 
     it('marks every answer no-store', async () => {
-        expect((await api('/nope')).headers.get('cache-control')).toBe('no-store');
+        const answers = [
+            await api('/nope'),
+            await api('/app'),
+            await api('/system/status', { key: null }),
+            await api('/log?level=loud'),
+            await api('/settings/imdb', json('PUT', { enabled: false }))
+        ];
+        expect(answers.map(r => r.status)).toEqual([404, 200, 401, 400, 200]);
+        for (const res of answers) expect(res.headers.get('cache-control')).toBe('no-store');
     });
 });
 
@@ -92,17 +102,23 @@ describe('GET /health detail', () => {
 });
 
 describe('GET /health connection errors', () => {
-    it('keeps userinfo credentials out of the error detail', async () => {
+    it('never shows the userinfo password when a real connection is refused', async () => {
+        const closed = createServer();
+        await new Promise<void>(resolve => closed.listen(0, '127.0.0.1', resolve));
+        const port = (closed.address() as AddressInfo).port;
+        await new Promise(resolve => closed.close(resolve));
+
         // Radarr goes to the real fetch; transmission's DNS lookup is too slow to wait on.
         const realFetch = globalThis.fetch;
         vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) =>
             String(input).includes('127.0.0.1') ? realFetch(input, init) : Promise.reject(new TypeError('fetch failed'))
         );
-        await seedApi({ radarrUrl: 'http://user:s3cretpw@127.0.0.1:1' });
+        await seedApi({ radarrUrl: `http://user:s3cretpw@127.0.0.1:${port}` });
         const res = await api('/health');
         expect(res.status).toBe(200);
         const text = await res.text();
-        expect(text).toContain('radarr/hd');
+        const radarr = (JSON.parse(text) as { app: string; error?: { kind: string } }[])[0];
+        expect(radarr).toMatchObject({ app: 'radarr/hd', error: { kind: 'Unreachable' } });
         expect(text).not.toContain('s3cretpw');
     });
 });

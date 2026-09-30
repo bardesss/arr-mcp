@@ -57,6 +57,14 @@ export function stableJson(value: unknown): string {
 
 export class ConfigDriftError extends Error {}
 
+/** The file drifted and what is there now does not load, so no retry can succeed yet. */
+export class ConfigUnloadableError extends Error {
+    constructor() {
+        super('config.yaml was changed by hand and no longer loads. Fix the file, then retry.');
+        this.name = 'ConfigUnloadableError';
+    }
+}
+
 /** `next` failed the schema, so nothing was written. */
 export class ConfigRejectedError extends Error {}
 

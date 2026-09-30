@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import type { BaseServiceConfig } from '../src/config/schema.ts';
 import { apiKeyHeader, embyToken, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
@@ -664,5 +666,161 @@ describe('ServiceHttp recovery failures', () => {
 
         await expect(client.get('/api/v3/system/status')).rejects.toThrow();
         expect(cancelled).toBe(true);
+    });
+});
+
+describe('ServiceHttp redirects', () => {
+    const redirect = (location: string, status = 302) => new Response(null, { status, headers: { location } });
+
+    it('follows a same-origin redirect and keeps the key header', async () => {
+        const calls: { url: string; key: string | null }[] = [];
+        const client = http(async (input: string, init?: RequestInit) => {
+            calls.push({ url: String(input), key: new Headers(init?.headers).get('X-Api-Key') });
+            return calls.length === 1 ? redirect('/api/v3/other') : json({ ok: true });
+        });
+        expect(await client.get('/api/v3/system/status')).toEqual({ ok: true });
+        expect(calls).toEqual([
+            { url: 'http://192.168.1.20:7878/api/v3/system/status', key: 'secret' },
+            { url: 'http://192.168.1.20:7878/api/v3/other', key: 'secret' }
+        ]);
+    });
+
+    it('refuses a redirect to another origin without fetching it', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            return redirect('https://evil.example:8443/steal?x=1');
+        });
+        const err = (await client.get('/api/v3/system/status').catch((e: unknown) => e)) as Error;
+        expect(calls).toBe(1);
+        expect(err).toMatchObject({ kind: 'UpstreamError' });
+        expect(err.message).toContain('redirected to another host (https://evil.example:8443)');
+        expect(err.message).toContain('address it redirects to');
+        expect(err.message).not.toContain('/steal');
+        expect(err.message).not.toContain('x=1');
+    });
+
+    it('treats a different port as a different origin', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            return redirect('http://192.168.1.20:9999/api/v3/system/status');
+        });
+        await expect(client.get('/api/v3/system/status')).rejects.toThrow('redirected to another host');
+        expect(calls).toBe(1);
+    });
+
+    const follow = (base: string, location: string) => {
+        const calls: { url: string; key: string | null; auth: string | null }[] = [];
+        const client = new ServiceHttp('radarr', { ...config, url: base }, apiKeyHeader('X-Api-Key', 'secret'), (async (
+            input: string,
+            init?: RequestInit
+        ) => {
+            const headers = new Headers(init?.headers);
+            calls.push({ url: String(input), key: headers.get('X-Api-Key'), auth: headers.get('Authorization') });
+            return calls.length === 1 ? redirect(location) : json({ ok: true });
+        }) as unknown as typeof fetch);
+        return { client, calls };
+    };
+
+    it('follows an upgrade to https on the same host, default or same port', async () => {
+        for (const location of ['https://192.168.1.20/api/v3/system/status', 'https://192.168.1.20:7878/api']) {
+            const { client, calls } = follow('http://192.168.1.20:7878', location);
+            expect(await client.get('/api/v3/system/status'), location).toEqual({ ok: true });
+            expect(calls[1], location).toEqual({ url: location, key: 'secret', auth: null });
+        }
+    });
+
+    it('refuses a downgrade to http, an upgrade to another host, or to another port', async () => {
+        const cases = [
+            ['https://192.168.1.20', 'http://192.168.1.20/api'],
+            ['http://192.168.1.20:7878', 'https://192.168.1.21/api'],
+            ['http://192.168.1.20:7878', 'https://192.168.1.20:8443/api']
+        ] as const;
+        for (const [base, location] of cases) {
+            const { client, calls } = follow(base, location);
+            await expect(client.get('/api/v3/system/status'), location).rejects.toThrow('redirected to another host');
+            expect(calls, location).toHaveLength(1);
+        }
+    });
+
+    it('drops userinfo from a same-origin Location and keeps the configured credentials', async () => {
+        const { client, calls } = follow('http://proxy:pw@192.168.1.20:7878', 'http://evil:x@192.168.1.20:7878/api');
+        expect(await client.get('/api/v3/system/status')).toEqual({ ok: true });
+        expect(calls[1]).toEqual({
+            url: 'http://192.168.1.20:7878/api',
+            key: 'secret',
+            auth: `Basic ${Buffer.from('proxy:pw').toString('base64')}`
+        });
+    });
+
+    it('gives up after five hops', async () => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            return redirect(`/hop/${calls}`);
+        });
+        await expect(client.get('/api/v3/system/status')).rejects.toThrow('too many redirects');
+        expect(calls).toBe(6);
+    });
+
+    it('keeps the method and body on a 307', async () => {
+        const calls: { method: string | undefined; body: unknown }[] = [];
+        const client = http(async (_input: string, init?: RequestInit) => {
+            calls.push({ method: init?.method, body: init?.body });
+            return calls.length === 1 ? redirect('/api/v3/command2', 307) : json({ id: 1 });
+        });
+        await client.post('/api/v3/command', { name: 'RssSync' });
+        expect(calls[1]).toEqual({ method: 'POST', body: JSON.stringify({ name: 'RssSync' }) });
+    });
+
+    it('turns a POST into a bodiless GET on a 303', async () => {
+        const calls: { method: string | undefined; body: unknown; type: string | null }[] = [];
+        const client = http(async (_input: string, init?: RequestInit) => {
+            const type = new Headers(init?.headers).get('content-type');
+            calls.push({ method: init?.method, body: init?.body, type });
+            return calls.length === 1 ? redirect('/api/v3/command/1', 303) : json({ id: 1 });
+        });
+        await client.post('/api/v3/command', { name: 'RssSync' });
+        expect(calls[1]).toEqual({ method: 'GET', body: undefined, type: null });
+    });
+
+    it('asks fetch not to follow redirects itself', async () => {
+        let seen: RequestInit['redirect'];
+        const client = http(async (_input: string, init?: RequestInit) => {
+            seen = init?.redirect;
+            return json({});
+        });
+        await client.get('/api/v3/system/status');
+        expect(seen).toBe('manual');
+    });
+
+    it('never sends the key to another origin over real fetch', async () => {
+        const seenByOther: (string | undefined)[] = [];
+        const other = createServer((req, res) => {
+            seenByOther.push(req.headers['x-api-key'] as string | undefined);
+            res.end('{}');
+        });
+        await new Promise<void>(resolve => other.listen(0, '127.0.0.1', resolve));
+        const otherPort = (other.address() as AddressInfo).port;
+        const origin = createServer((_req, res) => {
+            res.writeHead(302, { location: `http://127.0.0.1:${otherPort}/api/v3/system/status` });
+            res.end();
+        });
+        await new Promise<void>(resolve => origin.listen(0, '127.0.0.1', resolve));
+        const originPort = (origin.address() as AddressInfo).port;
+
+        try {
+            const client = new ServiceHttp(
+                'radarr',
+                { ...config, url: `http://127.0.0.1:${originPort}` },
+                apiKeyHeader('X-Api-Key', 'secret')
+            );
+            await expect(client.get('/api/v3/system/status')).rejects.toThrow('redirected to another host');
+            expect(seenByOther).toEqual([]);
+        } finally {
+            await new Promise(resolve => origin.close(resolve));
+            await new Promise(resolve => other.close(resolve));
+        }
     });
 });

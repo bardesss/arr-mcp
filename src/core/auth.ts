@@ -28,6 +28,15 @@ export interface AuthStrategy {
     recover?(response: Response): boolean | Promise<boolean>;
 }
 
+/** A `%` not followed by two hex digits is sent as typed. */
+function decodeOrRaw(part: string): string {
+    try {
+        return decodeURIComponent(part);
+    } catch {
+        return part;
+    }
+}
+
 /**
  * Strips `user:pass@` from `url` and returns it as a Basic header value.
  * fetch refuses a URL that carries credentials, and a reverse proxy in front
@@ -35,7 +44,7 @@ export interface AuthStrategy {
  */
 export function takeUserinfo(url: URL): string | undefined {
     if (url.username === '' && url.password === '') return undefined;
-    const pair = `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`;
+    const pair = `${decodeOrRaw(url.username)}:${decodeOrRaw(url.password)}`;
     url.username = '';
     url.password = '';
     return `Basic ${Buffer.from(pair).toString('base64')}`;
@@ -205,7 +214,9 @@ async function qbittorrentLogin(
                 username: creds.username ?? '',
                 password: creds.password ?? ''
             }).toString(),
-            signal: AbortSignal.timeout(creds.timeoutMs)
+            signal: AbortSignal.timeout(creds.timeoutMs),
+            // The body carries the password: never follow a redirect with it.
+            redirect: 'manual'
         });
     } catch (err) {
         throw new ServiceError('AuthFailed', creds.id, 'the login request failed', { cause: err });
@@ -215,6 +226,22 @@ async function qbittorrentLogin(
     // every future login, and skipping this on that path would leak one
     // pinned connection per attempt for as long as the ban lasts.
     const body = (await response.text()).trim();
+
+    const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+    if (location !== null) {
+        let origin: string | undefined;
+        try {
+            origin = new URL(location, url).origin;
+        } catch {
+            // Unparseable: name no address at all.
+        }
+        // Naming our own origin back as the fix would send the user in a circle.
+        const elsewhere = origin !== undefined && origin !== url.origin;
+        const detail = elsewhere ? `login redirected to ${origin}` : 'login was redirected';
+        throw new ServiceError('AuthFailed', creds.id, detail, {
+            remedy: 'Set its url in the config to the address qBittorrent redirects the login to.'
+        });
+    }
 
     if (response.status === 403) {
         throw new ServiceError('AuthFailed', creds.id, 'login refused', {

@@ -18,7 +18,7 @@ const fields = {
     password: z.string().optional(),
     defaultUser: z.string().nullable().optional(),
     allowOtherUsers: z.boolean().optional(),
-    timeoutMs: z.number().int().positive().optional(),
+    timeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
     safeWrite: z.boolean().optional(),
     destructive: z.boolean().optional(),
     allowMetadataRepair: z.boolean().optional()
@@ -35,6 +35,7 @@ export type AppBodyValue = z.infer<typeof AppBody>;
 export const NewAppBody = z.strictObject({
     ...readOnly,
     ...fields,
+    url: z.string({ error: 'required' }).trim().min(1, 'required'),
     type: ServiceIdSchema,
     name: z.string().min(1).nullable().optional(),
     renameExistingTo: z.string().min(1).optional()
@@ -51,17 +52,31 @@ export const TestAppBody = z.strictObject({
     renameExistingTo: z.string().min(1).optional()
 });
 
+/** Whether `sent` is `stored` as GET showed it: credentials stripped, maybe a trailing slash more or less. */
+function sameUrl(sent: string, stored: string): boolean {
+    let a: URL;
+    let b: URL;
+    try {
+        a = new URL(sent.trim());
+        b = new URL(withoutCredentials(stored));
+    } catch {
+        return false;
+    }
+    const path = (u: URL) => u.pathname.replace(/\/+$/, '');
+    return a.username === '' && a.password === '' && a.origin === b.origin && path(a) === path(b) && a.search === b.search;
+}
+
 /**
  * The body as the edit functions take it. `null` clears; a URL equal to the
  * credential-stripped one GET showed keeps the stored URL and its credentials.
  */
 export function fieldsFromBody(body: AppBodyValue, current: ServiceInstance | undefined): InstanceFields {
     const stored = current?.config as { url: string; permissions: { safe_write: boolean; destructive: boolean } } | undefined;
-    const sameUrl = stored !== undefined && body.url !== undefined && body.url.trim() === withoutCredentials(stored.url);
+    const unchanged = stored !== undefined && body.url !== undefined && sameUrl(body.url, stored.url);
     const permissionTouched = body.safeWrite !== undefined || body.destructive !== undefined;
 
     return {
-        ...(body.url === undefined || sameUrl ? {} : { url: body.url.trim() }),
+        ...(body.url === undefined || unchanged ? {} : { url: body.url.trim() }),
         ...(body.apiKey === undefined ? {} : { api_key: body.apiKey.trim() }),
         ...(body.username === undefined ? {} : { username: body.username === null ? '' : body.username.trim() }),
         ...(body.password === undefined ? {} : { password: body.password }),

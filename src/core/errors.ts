@@ -80,6 +80,13 @@ export class ServiceError extends Error {
     }
 }
 
+/** Origin only: a redirect target's path or query can carry anything. */
+export function redirectedElsewhere(service: string, origin: string): ServiceError {
+    return new ServiceError('UpstreamError', service, `redirected to another host (${origin})`, {
+        remedy: 'Set its url in the config to the address it redirects to.'
+    });
+}
+
 /** Extracts the path alone, so an api key in a query string cannot leak. */
 function safePath(url: string): string {
     try {

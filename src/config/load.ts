@@ -20,15 +20,16 @@ export class ConfigInvalidError extends Error {
     // Written out rather than as constructor parameter properties: Node runs
     // this project's TypeScript in strip-only mode, which rejects those.
     readonly detail: string;
-    readonly raw: string;
-    readonly auth: SalvagedAuth | undefined;
+    declare readonly raw: string;
+    declare readonly auth: SalvagedAuth | undefined;
 
     constructor(detail: string, raw: string, auth: SalvagedAuth | undefined) {
         super(`config.yaml is invalid:\n${detail}`);
         this.name = 'ConfigInvalidError';
         this.detail = detail;
-        this.raw = raw;
-        this.auth = auth;
+        // Non-enumerable, so a logged or serialised error carries neither the file nor the hashes.
+        Object.defineProperty(this, 'raw', { value: raw, enumerable: false });
+        Object.defineProperty(this, 'auth', { value: auth, enumerable: false });
     }
 }
 
@@ -144,7 +145,8 @@ const seedConfig = () => ({
  * are hashed in place and the file rewritten. If it cannot be rewritten the
  * tokens still work, and their names come back in `plaintextOnDisk`.
  *
- * `persist: false` reads without ever writing.
+ * `persist: false` reads without ever writing. `create: false` still rewrites
+ * tokens but never seeds a missing file: only startup may create one.
  *
  * The maintainer scripts load this file only to reach the services it names,
  * and a read must not have side effects on the user's credentials. Before this
@@ -154,12 +156,13 @@ const seedConfig = () => ({
  */
 export async function loadConfig(
     configDir: string,
-    opts: { persist?: boolean; write?: (path: string, text: string) => Promise<void> } = {}
+    opts: { persist?: boolean; create?: boolean; write?: (path: string, text: string) => Promise<void> } = {}
 ): Promise<{ config: Config; created: boolean; plaintextOnDisk: string[] }> {
     const persist = opts.persist ?? true;
+    const create = persist && (opts.create ?? true);
     const write = opts.write ?? writeConfigAtomic;
     const path = join(configDir, CONFIG_FILENAME);
-    if (persist) await mkdir(configDir, { recursive: true });
+    if (create) await mkdir(configDir, { recursive: true });
 
     let raw: string | undefined;
     try {
@@ -169,6 +172,7 @@ export async function loadConfig(
     }
 
     if (raw === undefined) {
+        if (persist && !create) throw new Error(`config.yaml is missing from ${configDir}; keeping the running config.`);
         if (!persist) {
             throw new Error(
                 `no config.yaml in ${configDir} — start arr-mcp once to create one, or point ARR_MCP_CONFIG_DIR at an existing config directory.`

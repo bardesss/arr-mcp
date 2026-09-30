@@ -121,6 +121,13 @@ describe('ConfigSchema', () => {
         expect(single(parsed.services.radarr)?.timeout_ms).toBe(10_000);
     });
 
+    it('caps the timeout where AbortSignal.timeout still accepts it', () => {
+        const radarr = (timeout_ms: number) => ({ auth: AUTH, services: { radarr: { url: 'http://h:7878', api_key: 'k', timeout_ms } } });
+        expect(ConfigSchema.safeParse(radarr(2_147_483_647)).success).toBe(true);
+        expect(ConfigSchema.safeParse(radarr(2_147_483_648)).success).toBe(false);
+        expect(ConfigSchema.safeParse(radarr(4_294_967_296)).success).toBe(false);
+    });
+
     it('defaults allowed_hosts to an empty list', () => {
         const parsed = ConfigSchema.parse({ auth: AUTH, services: {} });
         expect(parsed.auth.allowed_hosts).toEqual([]);
@@ -958,4 +965,28 @@ describe('saving over a file that is still plaintext', () => {
         await expect(saveConfig(dir, config, { expected: config })).resolves.toBeUndefined();
         expect(await readFile(path, 'utf8')).not.toContain('h'.repeat(40));
     });
+});
+
+// Every caller prefixes the issue path, so a message that repeats it reads twice.
+describe('schema refinement messages', () => {
+    const oauth = { issuer: 'https://auth.example.com', audience: 'arr-mcp', jwks_uri: 'https://auth.example.com/jwks' };
+    const cases: Record<string, unknown> = {
+        plex: { auth: {}, services: { plex: { url: 'http://plex:32400', api_key: 'k', allow_other_users: true } } },
+        tokenInUrl: { auth: { oauth, allow_token_in_url: true }, services: {} },
+        scopes: { auth: { oauth: { ...oauth, scopes: { read: 'x', write: 'x', destructive: 'y' } } }, services: {} },
+        issuer: { auth: { oauth: { ...oauth, issuer: 'http://auth.example.com/?a=1' } }, services: {} },
+        jwks: { auth: { oauth: { ...oauth, jwks_uri: 'http://auth.example.com/jwks' } }, services: {} }
+    };
+
+    for (const [name, input] of Object.entries(cases)) {
+        it(`does not repeat the path in the ${name} refusal`, () => {
+            const result = ConfigSchema.safeParse(input);
+            expect(result.success).toBe(false);
+            for (const issue of result.error?.issues ?? []) {
+                const last = String(issue.path.at(-1));
+                expect(issue.message.startsWith(last), issue.message).toBe(false);
+                expect(issue.message, issue.message).not.toContain(issue.path.join('.'));
+            }
+        });
+    }
 });
