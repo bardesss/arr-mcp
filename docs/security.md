@@ -326,8 +326,9 @@ valid on `/mcp`, and an MCP token is never valid there. The key can write
 config: services, their permissions, IMDb, `allowTokenInUrl` and MCP tokens.
 Treat it like an admin credential. It cannot change `allowed_hosts` (that could
 lock the owner out of the config page), the sign-in, OAuth or itself. Through a
-connection test it can send the stored credential of any configured service to
-a host of its choosing, and that test is logged with the target's origin. Tokens it
+connection test, or by saving a new URL for a service, it can send the stored
+credential of any configured service to a host of its choosing. Both are logged
+with the target's origin, never its path, query or credentials. Tokens it
 creates outlive a key regeneration, so if it leaks, regenerate it on the config
 page and also review the token list there.
 

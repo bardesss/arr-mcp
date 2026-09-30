@@ -1,27 +1,30 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commitConfig } from '../src/config/commit.ts';
 import { loadConfig } from '../src/config/load.ts';
-import { ConfigDriftError } from '../src/config/save.ts';
+import { ConfigDriftError, ConfigUnloadableError } from '../src/config/save.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { logger } from '../src/core/logger.ts';
 import { Runtime } from '../src/core/runtime.ts';
 
 let audit: WriteAudit;
+const dirs: string[] = [];
 
 const seeded = async () => {
     const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-commit-'));
+    dirs.push(dir);
     await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: admin\nservices: {}\n', 'utf8');
     const { config } = await loadConfig(dir);
     audit = WriteAudit.ephemeral();
     return { dir, runtime: Runtime.fromConfig(config, audit, { configDir: dir }) };
 };
 
-afterEach(() => {
+afterEach(async () => {
     vi.restoreAllMocks();
     audit.close();
+    await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
 
 describe('commitConfig', () => {
@@ -51,8 +54,28 @@ describe('commitConfig', () => {
         await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: [broken\nservices: 5\n', 'utf8');
         await expect(
             commitConfig(runtime, expected, { ...expected, auth: { ...expected.auth, username: 'owner' } })
-        ).rejects.toBeInstanceOf(ConfigDriftError);
+        ).rejects.toBeInstanceOf(ConfigUnloadableError);
         expect(runtime.config).toBe(expected);
         expect(warn).toHaveBeenCalled();
+    });
+
+    it('rethrows a reload that failed for another reason as itself', async () => {
+        const { dir, runtime } = await seeded();
+        const expected = runtime.config;
+        await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: someone-else\nservices: {}\n', 'utf8');
+        const denied = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+        vi.spyOn(runtime, 'reload').mockRejectedValue(denied);
+        await expect(
+            commitConfig(runtime, expected, { ...expected, auth: { ...expected.auth, username: 'owner' } })
+        ).rejects.toBe(denied);
+    });
+
+    it('never seeds a fresh config when the file is gone on reload', async () => {
+        const { dir, runtime } = await seeded();
+        const before = runtime.config;
+        await rm(join(dir, 'config.yaml'));
+        await expect(runtime.reload()).rejects.toThrow(/config\.yaml/);
+        expect(runtime.config).toBe(before);
+        await expect(access(join(dir, 'config.yaml'))).rejects.toThrow();
     });
 });

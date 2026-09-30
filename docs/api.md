@@ -43,6 +43,7 @@ this API can change them.
 | 401 | `Missing or wrong X-Api-Key.` |
 | 403 | `forbidden: Host not allowed`, as plain text. This comes from `auth.allowed_hosts`, before the API sees the request |
 | 404 | No key configured (`The management API is off. Generate a key on the config page to turn it on.`), `No such endpoint.`, `No such app.`, or `No such token.` |
+| 409 | `config.yaml was changed by hand and no longer loads. Fix the file, then retry.` Nothing was written |
 | 412 | The config changed since you read it. See [Concurrency](#concurrency) |
 | 415 | A write body that is not `application/json` |
 | 500 | A write that could not be saved for another reason, such as config.yaml not being writable. The server log has the details |
@@ -57,14 +58,22 @@ this API can change them.
   body is different: on `/api` it gets the `{message}` 400 above.
 - Secrets never come back. A service's API key or password appears only as
   `apiKeySet` or `passwordSet`, and the key hashes are not returned at all.
+- An instance id such as `radarr/hd` is `id` on `/app` but `app` on `/health`,
+  `/log` and in the `/app/test` answer, because on `/log` the value isn't
+  always an instance id (it can be a source such as `jellyfin:seasons`).
 
 ### Concurrency
 
 Every config read returns an `ETag`. Send it back as `If-Match` on a write. If
 the config moved since, the write gets a 412 and changes nothing. Without
-`If-Match` the write is still checked: if config.yaml was edited on disk after
-the request began, that is a 412 too, so nothing is silently overwritten. On a
-412, GET again and retry.
+`If-Match` the write is still checked: if config.yaml changed on disk since the
+server last loaded it, that is a 412 too, so nothing is silently overwritten.
+The server reloads the file when that happens, so a GET picks up the change and
+a retry works. If the hand edit left the file invalid, writes get the 409 above
+until the file is fixed.
+
+The ETag also changes when the server restarts, so a tag from before a restart
+gets a normal 412. GET again and retry.
 
 ```bash
 curl -i -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/imdb
@@ -86,11 +95,16 @@ If the ETag is stale:
 GET the app, change what you want, PUT the whole object back.
 
 - An omitted field is unchanged.
-- `null` clears `username` and `defaultUser`.
+- `null` clears `username` and `defaultUser`, and so does an empty string.
 - `apiKey` and `password` can be replaced, but never read or cleared. `null` is
   a 400, and an empty string means unchanged.
-- A `url` equal to the one GET showed keeps the stored URL, and any credentials
-  in it. A different `url` replaces the stored one, credentials included.
+- `apiKey`, `username` and `defaultUser` are trimmed. `password` is sent as is.
+- `url: ""` means unchanged.
+- GET shows a URL that carried credentials without them, and with a trailing
+  slash if it has no path. Sending that URL back, with or without the slash, keeps the stored
+  URL and its credentials. A URL with its own `user:pass@` replaces them, and
+  any other different `url` replaces the stored one, credentials included.
+- `timeoutMs` is a whole number from 1 to 2147483647.
 - Send `safeWrite` or `destructive` on its own and the other keeps its value.
 - Read-only fields from GET (`id`, `apiKeySet`, `passwordSet`, `type`, `name`)
   are accepted and ignored. Any other unknown field is a 400.
@@ -236,8 +250,9 @@ credentials in the URL are stripped.
 
 ### `GET /app/{type}` and `GET /app/{type}/{name}`
 
-One instance. Use the name for a service with several instances, and leave it
-off for one with a single instance. An unknown app is a 404.
+One instance, by its id: `/app/radarr` for an unnamed instance, and
+`/app/radarr/hd` for a named one, even when it is the only one. An unknown app
+is a 404.
 
 ```bash
 curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app/radarr/hd
@@ -259,7 +274,9 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app/radarr/hd
 ### `GET /settings/imdb`
 
 The IMDb dataset: whether it is on, and when it was last loaded and how much it
-holds. The last three are `null` until a dataset is loaded.
+holds. While it is off, the last three are `null`. Once it is on, `titles` and
+`ratings` are counts, `0` before the first load, and `ingestedAt` stays `null`
+until that load finishes.
 
 ```bash
 curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/imdb
@@ -316,8 +333,9 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token
 
 ### `POST /app`
 
-Adds an app. `type` is required. The other fields are the ones in the
-[update list](#updating-an-app): `url`, `apiKey`, `username`, `password`,
+Adds an app. `type` and `url` are required, and so is `apiKey` for every type
+except Transmission and qBittorrent. The other fields are the ones in the
+[update list](#updating-an-app): `username`, `password`,
 `defaultUser`, `allowOtherUsers`, `timeoutMs`, `safeWrite`, `destructive` and
 `allowMetadataRepair`.
 
@@ -410,9 +428,19 @@ list, so a body you got from GET can be sent back. Anything else is a 400 with
 `allowedHosts can only be changed on the config page.` The pin also gates the
 config page, so a leaked key could otherwise lock the owner out.
 
+Answers 200 with the same body as GET.
+
 ```bash
 curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
   -d '{"allowTokenInUrl": true}' http://arr-mcp:6060/api/v1/settings/mcp
+```
+
+```json
+{
+  "allowedHosts": [],
+  "allowTokenInUrl": true,
+  "oauthConfigured": false
+}
 ```
 
 ### `POST /token`
@@ -444,7 +472,8 @@ curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json
 
 ### `DELETE /token/{name}`
 
-Revokes a token. It stops working at once. Answers 200 with `{}`. An unknown
+Revokes a token. It stops working at once. Answers 200 with `{}`. The name
+matches regardless of case, as token names are unique that way. An unknown
 name is a 404.
 
 ```bash

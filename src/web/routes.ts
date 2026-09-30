@@ -1,8 +1,9 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
 import { commitConfig } from '../config/commit.ts';
+import { configEtag } from '../config/etag.ts';
 import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint } from '../config/edits.ts';
-import { saveConfig } from '../config/save.ts';
+import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
@@ -422,7 +423,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             // list is worth refreshing.
             const render = async (
                 message: { kind: 'ok' | 'err'; text: string } | undefined,
-                status: 200 | 400 | 403,
+                status: 200 | 400 | 403 | 409,
                 extra: Partial<Parameters<typeof configPage>[0]> = {}
             ) => {
                 c.header('cache-control', 'no-store');
@@ -439,7 +440,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                             ? {
                                   oauth: {
                                       ...(message === undefined ? {} : { message }),
-                                      ...(status === 200 ? {} : { draft: oauthDraftFrom(form) })
+                                      // A stale page's draft is what the 409 refused to apply.
+                                      ...(status === 200 || status === 409 ? {} : { draft: oauthDraftFrom(form) })
                                   }
                               }
                             : message === undefined
@@ -454,6 +456,20 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
                 logger.warn({ ...originOf(c) }, 'rejected config save with a bad CSRF token');
                 return render({ kind: 'err', text: 'That form was stale. Reload the page and try again.' }, 403);
+            }
+
+            // Each card posts its whole form, so a save built on an older page
+            // would quietly undo whatever changed since. No etag keeps the old
+            // behaviour for a hand-built post.
+            const etag = str(form.etag);
+            if (etag !== '' && etag !== configEtag(expected)) {
+                return render(
+                    {
+                        kind: 'err',
+                        text: 'This page is out of date: the configuration changed after it loaded. Your edit was not saved. Review the page and make it again.'
+                    },
+                    409
+                );
             }
 
             let updated: Config;
@@ -498,7 +514,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // The file is written atomically and validated first, so
                 // reaching here means the config on disk is still the working
                 // one.
-                logger.error({ err }, 'config save failed');
+                // commitConfig already warned about an unloadable hand edit.
+                if (!(err instanceof ConfigUnloadableError)) logger.error({ err }, 'config save failed');
                 return render({ kind: 'err', text: (err as Error).message }, 400);
             }
 

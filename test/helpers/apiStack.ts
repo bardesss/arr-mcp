@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp } from '../../src/app.ts';
@@ -21,10 +21,14 @@ export const stack = {} as {
     audit: WriteAudit;
 };
 
+let seeded = false;
+
 export const seedApi = async (opts: { keyed?: boolean; radarrUrl?: string; extra?: string[] } = {}): Promise<void> => {
-    stack.dir = await mkdtemp(join(tmpdir(), 'arr-mcp-api-'));
+    await closeApi();
+    const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-api-'));
+    stack.dir = dir;
     await writeFile(
-        join(stack.dir, 'config.yaml'),
+        join(dir, 'config.yaml'),
         [
             'auth:',
             '  username: admin',
@@ -41,16 +45,23 @@ export const seedApi = async (opts: { keyed?: boolean; radarrUrl?: string; extra
         ].join('\n'),
         'utf8'
     );
-    const { config } = await loadConfig(stack.dir);
+    const { config } = await loadConfig(dir);
     stack.audit = WriteAudit.ephemeral();
     stack.logs = LogStore.ephemeral();
-    stack.runtime = Runtime.fromConfig(config, stack.audit, { configDir: stack.dir });
+    stack.runtime = Runtime.fromConfig(config, stack.audit, { configDir: dir });
     stack.app = buildApp({ runtime: stack.runtime, audit: stack.audit, logs: stack.logs });
+    seeded = true;
 };
 
-export const closeApi = (): void => {
+/** Safe to call twice: seedApi calls it before replacing the stack. */
+export const closeApi = async (): Promise<void> => {
+    if (!seeded) return;
+    seeded = false;
+    // The dataset is a file in `dir`, and Windows will not remove an open one.
+    stack.runtime.dataset?.close();
     stack.logs.close();
     stack.audit.close();
+    await rm(stack.dir, { recursive: true, force: true });
 };
 
 export const api = (path: string, init: RequestInit & { key?: string | null } = {}) => {

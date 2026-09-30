@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import * as z from 'zod/v4';
 import { setImdb, setMcpEndpoint } from '../config/edits.ts';
-import { addCandidate, addToken, ConfigEditError, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
+import { addCandidate, addToken, ConfigEditError, NO_API_KEY, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
 import { logger } from '../core/logger.ts';
 import { buildAdapters } from '../services/registry.ts';
 import { originOf } from '../web/routes.ts';
@@ -44,6 +44,12 @@ const originOfUrl = (url: string): string | undefined => {
     } catch {
         return undefined;
     }
+};
+
+/** The log field for a URL a write points an app at. */
+const targetOf = (url: string | undefined): Record<string, string> => {
+    const target = url === undefined ? undefined : originOfUrl(url);
+    return target === undefined ? {} : { target };
 };
 
 export function registerWrites(app: Hono, deps: ApiDeps): void {
@@ -94,8 +100,9 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
     });
 
     app.delete(`${API_BASE}/token/:name`, async c => {
-        const name = c.req.param('name');
-        if (!runtime.config.auth.tokens.some(t => t.name === name)) return apiError(c, 404, 'No such token.');
+        const asked = c.req.param('name').toLowerCase();
+        const name = runtime.config.auth.tokens.find(t => t.name.toLowerCase() === asked)?.name;
+        if (name === undefined) return apiError(c, 404, 'No such token.');
         const config = await applyWrite(c, deps, `revoked token ${name}`, current => revokeToken(current, name));
         if (config instanceof Response) return config;
         return withEtag(c, config, {});
@@ -152,19 +159,22 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         const body = parseWith(c, NewAppBody, raw);
         if (body instanceof Response) return body;
         const name = body.name ?? undefined;
+        if (!NO_API_KEY.has(body.type) && (body.apiKey === undefined || body.apiKey.trim() === '')) {
+            return apiError(c, 400, `apiKey is required for ${body.type}.`);
+        }
 
         const alone = findInstance(runtime.config, body.type, undefined);
         const renamed =
             alone !== undefined && body.renameExistingTo !== undefined && body.renameExistingTo !== ''
                 ? ` (renamed ${body.type} to ${body.type}/${body.renameExistingTo})`
                 : '';
-        const config = await applyWrite(c, deps, `added ${body.type}${name === undefined ? '' : `/${name}`}${renamed}`, current =>
-            addCandidate(current, {
-                type: body.type,
-                name,
-                renameExistingTo: body.renameExistingTo,
-                fields: fieldsFromBody(body, undefined)
-            }).candidate
+        const fields = fieldsFromBody(body, undefined);
+        const config = await applyWrite(
+            c,
+            deps,
+            `added ${body.type}${name === undefined ? '' : `/${name}`}${renamed}`,
+            current => addCandidate(current, { type: body.type, name, renameExistingTo: body.renameExistingTo, fields }).candidate,
+            () => targetOf(fields.url)
         );
         if (config instanceof Response) return config;
         const created = findInstance(config, body.type, name);
@@ -179,11 +189,20 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         const body = parseWith(c, AppBody, raw);
         if (body instanceof Response) return body;
 
-        const config = await applyWrite(c, deps, `saved ${instance.id}`, current => {
-            const fresh = findInstance(current, instance.type, instance.name);
-            if (fresh === undefined) throw new Error(`${instance.id} is not configured.`);
-            return updateInstance(current, fresh.id, fieldsFromBody(body, fresh));
-        });
+        let newUrl: string | undefined;
+        const config = await applyWrite(
+            c,
+            deps,
+            `saved ${instance.id}`,
+            current => {
+                const fresh = findInstance(current, instance.type, instance.name);
+                if (fresh === undefined) throw new Error(`${instance.id} is not configured.`);
+                const fields = fieldsFromBody(body, fresh);
+                newUrl = fields.url;
+                return updateInstance(current, fresh.id, fields);
+            },
+            () => targetOf(newUrl)
+        );
         if (config instanceof Response) return config;
         const saved = findInstance(config, instance.type, instance.name);
         return withEtag(c, config, saved === undefined ? {} : appResource(saved));

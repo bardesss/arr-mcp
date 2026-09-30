@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -12,7 +12,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { FREE_ATTEMPTS } from '../src/core/loginThrottle.ts';
 import { Runtime } from '../src/core/runtime.ts';
-import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
+import { attachLogStore, detachLogStore, logger } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
 import * as session from '../src/core/session.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
@@ -41,13 +41,11 @@ let audit: WriteAudit;
  * The same fixture as `seed`, minus `password_hash` — an *unclaimed* instance,
  * which is what a fresh install looks like before anyone visits it.
  *
- * The two `close()` calls come first because `beforeEach` has already opened a
- * claimed fixture by the time this runs, and `afterEach` only closes the latest
- * pair; without them every unclaimed test leaks a log and an audit handle.
+ * `release` comes first because `beforeEach` has already opened a claimed
+ * fixture by the time this runs.
  */
 const seedUnclaimed = async () => {
-    logs.close();
-    audit.close();
+    await release();
 
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
     await writeFile(
@@ -61,13 +59,27 @@ const seedUnclaimed = async () => {
     logs = LogStore.ephemeral();
     runtime = Runtime.fromConfig(config, audit, { configDir: dir });
     app = buildApp({ runtime, audit, logs });
+    seeded = true;
 };
 
-const seed = async (extra = '') => {
+let seeded = false;
+
+/** Closes the stores and removes the temp dir. Safe to call twice. */
+const release = async () => {
+    if (!seeded) return;
+    seeded = false;
+    runtime.dataset?.close();
+    logs.close();
+    audit.close();
+    await rm(dir, { recursive: true, force: true });
+};
+
+const seed = async (extra = '', authExtra = '') => {
+    await release();
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
     await writeFile(
         join(dir, 'config.yaml'),
-        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\nservices:${extra === '' ? ' {}' : `\n${extra}`}\n`,
+        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\n${authExtra}services:${extra === '' ? ' {}' : `\n${extra}`}\n`,
         'utf8'
     );
 
@@ -76,15 +88,15 @@ const seed = async (extra = '') => {
     logs = LogStore.ephemeral();
     runtime = Runtime.fromConfig(config, audit, { configDir: dir });
     app = buildApp({ runtime, audit, logs });
+    seeded = true;
 };
 
 beforeEach(async () => {
     await seed();
 });
 
-afterEach(() => {
-    logs.close();
-    audit.close();
+afterEach(async () => {
+    await release();
 });
 
 let cookie = '';
@@ -114,6 +126,12 @@ const csrfFrom = async (): Promise<string> => {
     const page = await (await call('/ui/config')).text();
     return /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
 };
+
+// Both from one page load, as a browser's form would carry them.
+const keysFrom = (page: string): { csrf: string; etag: string } => ({
+    csrf: /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '',
+    etag: (/name="etag" value="([^"]+)"/.exec(page)?.[1] ?? '').replaceAll('&quot;', '"')
+});
 
 describe('access control', () => {
     it('sends an anonymous visitor to the login page', async () => {
@@ -369,12 +387,9 @@ describe('the MCP endpoint form', () => {
 });
 
 describe('the URL token checkbox while oauth is configured', () => {
-    /** Same fixture shape as `seed`, with an `auth.oauth` block added — the
-     *  leading closes match `seedUnclaimed`'s, since `beforeEach` has already
-     *  opened the plain fixture by the time this runs. */
+    /** Same fixture shape as `seed`, with an `auth.oauth` block added. */
     const seedWithOAuth = async () => {
-        logs.close();
-        audit.close();
+        await release();
 
         dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
         await writeFile(
@@ -388,6 +403,7 @@ describe('the URL token checkbox while oauth is configured', () => {
         logs = LogStore.ephemeral();
         runtime = Runtime.fromConfig(config, audit, { configDir: dir });
         app = buildApp({ runtime, audit, logs });
+        seeded = true;
     };
 
     it('refuses the URL-token checkbox in a sentence, not a schema dump', async () => {
@@ -1075,6 +1091,160 @@ describe('saving an instance', () => {
         expect(onDisk).toContain('fourk-key');
         expect(onDisk).toContain('192.0.2.10:7878');
         expect(onDisk).toContain('192.0.2.99:7878');
+    });
+});
+
+describe('a page left open while the config changed', () => {
+    const KEY = `amk_${'1'.repeat(64)}`;
+    const STALE = 'This page is out of date: the configuration changed after it loaded. Your edit was not saved. Review the page and make it again.';
+    const seedKeyed = () =>
+        seed(
+            '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n',
+            `  management_key: { hash: '${hashToken(KEY)}', created: '2026-09-29' }\n`
+        );
+    const putSafeWrite = () =>
+        app.request('http://localhost:6060/api/v1/app/radarr', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json', 'x-api-key': KEY },
+            body: JSON.stringify({ safeWrite: true })
+        });
+    const saveCard = (keys: { csrf: string; etag: string }) =>
+        call(
+            '/ui/config/save',
+            form({ ...keys, instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '', timeout_ms: '20000' })
+        );
+    const onDisk = () => readFile(join(dir, 'config.yaml'), 'utf8');
+
+    it('refuses the save instead of undoing an API change the page never saw', async () => {
+        await seedKeyed();
+        await signIn();
+        const keys = keysFrom(await (await call('/ui/config')).text());
+        expect(keys.etag).not.toBe('');
+
+        expect((await putSafeWrite()).status).toBe(200);
+        const res = await saveCard(keys);
+
+        expect(res.status).toBe(409);
+        expect(await res.text()).toContain(STALE);
+        expect(runtime.config.services.radarr).toMatchObject({ permissions: { safe_write: true } });
+        expect(await onDisk()).toMatch(/safe_write: true/);
+        expect(await onDisk()).not.toContain('20000');
+    });
+
+    it('saves once the page is reloaded', async () => {
+        await seedKeyed();
+        await signIn();
+        await putSafeWrite();
+        const keys = keysFrom(await (await call('/ui/config')).text());
+
+        const res = await saveCard(keys);
+
+        expect(res.status).toBe(200);
+        expect(runtime.config.services.radarr).toMatchObject({ timeout_ms: 20000 });
+    });
+
+    it('carries the etag through a two-step revoke', async () => {
+        await seedKeyed();
+        await signIn();
+        await call('/ui/config/tokens/add', form({ ...keysFrom(await (await call('/ui/config')).text()), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
+
+        const asked = await call('/ui/config/tokens/revoke', form({ ...keysFrom(await (await call('/ui/config')).text()), token: 'phone' }));
+        const confirm = keysFrom(await asked.text());
+        expect(confirm.etag).not.toBe('');
+        const res = await call('/ui/config/tokens/revoke', form({ ...confirm, token: 'phone', confirm: 'yes' }));
+
+        expect(res.status).toBe(200);
+        expect(runtime.config.auth.tokens.some(t => t.name === 'phone')).toBe(false);
+    });
+
+    it('refuses a stale confirm the same way', async () => {
+        await seedKeyed();
+        await signIn();
+        await call('/ui/config/tokens/add', form({ ...keysFrom(await (await call('/ui/config')).text()), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
+        const asked = keysFrom(await (await call('/ui/config/tokens/revoke', form({ ...keysFrom(await (await call('/ui/config')).text()), token: 'phone' }))).text());
+
+        await putSafeWrite();
+        const res = await call('/ui/config/tokens/revoke', form({ ...asked, token: 'phone', confirm: 'yes' }));
+
+        expect(res.status).toBe(409);
+        expect(await res.text()).toContain(STALE);
+        expect(runtime.config.auth.tokens.some(t => t.name === 'phone')).toBe(true);
+    });
+
+    // Ask, then confirm from the asking page, as a browser would.
+    const confirmFlow = async (path: string, fields: Record<string, string> = {}) => {
+        const asked = await call(path, form({ ...keysFrom(await (await call('/ui/config')).text()), ...fields }));
+        expect(asked.status).toBe(200);
+        const keys = keysFrom(await asked.text());
+        expect(keys.etag).not.toBe('');
+        return call(path, form({ ...keys, ...fields, confirm: 'yes' }));
+    };
+
+    it('carries the etag through a two-step app removal', async () => {
+        await seedKeyed();
+        await signIn();
+        expect((await confirmFlow('/ui/config/remove', { instance: 'radarr' })).status).toBe(200);
+        expect(runtime.config.services.radarr).toBeUndefined();
+    });
+
+    it('carries the etag through turning the management API off', async () => {
+        await seedKeyed();
+        await signIn();
+        expect((await confirmFlow('/ui/config/api-key/remove')).status).toBe(200);
+        expect(runtime.config.auth.management_key).toBeUndefined();
+    });
+
+    it('carries the etag through removing OAuth', async () => {
+        await seed(
+            '',
+            '  oauth:\n    issuer: https://auth.example.com\n    audience: arr-mcp\n    jwks_uri: https://auth.example.com/.well-known/jwks.json\n'
+        );
+        await signIn();
+        expect((await confirmFlow('/ui/config/oauth/remove')).status).toBe(200);
+        expect(runtime.config.auth.oauth).toBeUndefined();
+    });
+
+    it('logs a hand edit that no longer loads once, at warn', async () => {
+        await seedKeyed();
+        await signIn();
+        const keys = keysFrom(await (await call('/ui/config')).text());
+        await writeFile(join(dir, 'config.yaml'), 'services: 5\n', 'utf8');
+        const warn = vi.spyOn(logger, 'warn');
+        const error = vi.spyOn(logger, 'error');
+        try {
+            const res = await saveCard(keys);
+            expect(await res.text()).toContain('no longer loads. Fix the file, then retry.');
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(error).not.toHaveBeenCalled();
+        } finally {
+            warn.mockRestore();
+            error.mockRestore();
+        }
+    });
+
+    it('puts the etag on every form that saves', async () => {
+        await seedKeyed();
+        await signIn();
+        await call('/ui/config/oauth', form({ ...keysFrom(await (await call('/ui/config')).text()), 'auth.oauth.issuer': 'https://auth.example.com/', 'auth.oauth.audience': 'arr-mcp', 'auth.oauth.jwks_uri': 'https://auth.example.com/jwks/' }));
+        const page = await (await call('/ui/config')).text();
+
+        const forms = [...page.matchAll(/<form method="post"[^>]*action="([^"#]+)[^>]*>([\s\S]*?)<\/form>/g)]
+            .map(m => ({ action: m[1] as string, body: m[2] as string }))
+            .filter(f => f.action.startsWith('/ui/config'));
+        expect(forms.map(f => f.action).sort()).toEqual([
+            '/ui/config/account',
+            '/ui/config/add',
+            '/ui/config/api-key',
+            '/ui/config/api-key/remove',
+            '/ui/config/appearance',
+            '/ui/config/imdb',
+            '/ui/config/mcp',
+            '/ui/config/save',
+            '/ui/config/tokens/add',
+            '/ui/config/tokens/revoke'
+        ]);
+        for (const f of forms) expect(f.body, f.action).toMatch(/name="etag" value="&quot;[0-9a-f]{16}&quot;"/);
+        expect(/<form id="oauth"[\s\S]*?<\/form>/.exec(page)?.[0]).toMatch(/name="etag"/);
     });
 });
 
@@ -2176,7 +2346,7 @@ describe('the OAuth card', async () => {
         expect(res.status).toBe(400);
         const page = await decoded(res);
         expect(page).toMatch(/[Ii]ssuer/);
-        expect(page).toContain('https, or http on localhost');
+        expect(page).toContain('Issuer: must be https, or http on localhost.');
         expect(page).not.toContain('✖');
         expect(runtime.config.auth.oauth).toBeUndefined();
     });
@@ -2186,7 +2356,7 @@ describe('the OAuth card', async () => {
         const res = await post('/ui/config/oauth', fields({ 'auth.oauth.scopes.write': 'arr-mcp:read' }));
 
         expect(res.status).toBe(400);
-        expect(await decoded(res)).toContain('three distinct scopes');
+        expect(await decoded(res)).toContain('Scopes: must name three distinct scopes.');
         expect(runtime.config.auth.oauth).toBeUndefined();
     });
 
@@ -2195,6 +2365,17 @@ describe('the OAuth card', async () => {
         const res = await post('/ui/config/oauth', fields({ 'auth.oauth.issuer': 'http://auth.example.com' }));
 
         expect(valueOf(await res.text(), 'auth.oauth.issuer')).toBe('http://auth.example.com');
+    });
+
+    it('shows the current OAuth config, not the typed draft, when the page was stale', async () => {
+        await signIn();
+        const stale = keysFrom(await (await call('/ui/config')).text());
+        await post('/ui/config/oauth', fields());
+
+        const res = await call('/ui/config/oauth', form({ ...stale, ...fields({ 'auth.oauth.audience': 'typed' }) }));
+
+        expect(res.status).toBe(409);
+        expect(valueOf(await res.text(), 'auth.oauth.audience')).toBe('arr-mcp');
     });
 
     it('refuses to save while the URL token is on, in a sentence, and saves nothing', async () => {

@@ -154,7 +154,7 @@ export function addInstance(
     }
 
     if (entries.length > 0 && opts.name === undefined) {
-        throw new ConfigEditError(`Name the new ${opts.type} instance — several cannot share one name.`);
+        throw new ConfigEditError(`Name the new ${opts.type} instance: several cannot share one name.`);
     }
 
     // The rename this can force, made explicit. The existing instance's id is
@@ -164,7 +164,7 @@ export function addInstance(
     if (entries.length === 1 && existing !== undefined && existing.name === undefined) {
         if (opts.renameExistingTo === undefined || opts.renameExistingTo === '') {
             throw new ConfigEditError(
-                `Adding a second ${opts.type} means naming the one you already have — it is currently "${opts.type}".`
+                `Adding a second ${opts.type} means naming the one you already have. It is currently "${opts.type}".`
             );
         }
         entries[0] = { ...existing, name: opts.renameExistingTo };
@@ -244,7 +244,9 @@ export function addToken(
     return { config: parsed.data, plaintext };
 }
 
+/** Names are unique regardless of case (see addToken), so this matches that way too. */
 export function revokeToken(config: Config, name: string): Config {
-    if (!config.auth.tokens.some(t => t.name === name)) throw new ConfigEditError(`No token named "${name}".`);
-    return { ...config, auth: { ...config.auth, tokens: config.auth.tokens.filter(t => t.name !== name) } };
+    const same = (t: { name: string }) => t.name.toLowerCase() === name.toLowerCase();
+    if (!config.auth.tokens.some(same)) throw new ConfigEditError(`No token named "${name}".`);
+    return { ...config, auth: { ...config.auth, tokens: config.auth.tokens.filter(t => !same(t)) } };
 }

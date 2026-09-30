@@ -23,7 +23,7 @@ export function setMcpEndpoint(
     // The schema refuses this too, but as a union error nobody can read.
     if (urlToken && config.auth.oauth !== undefined) {
         throw new ConfigEditError(
-            'OAuth is configured, so the token cannot travel in the URL — a JWT in the address reaches every proxy log. Remove it on the OAuth card first.'
+            'OAuth is configured, so the token cannot travel in the URL: a JWT in the address reaches every proxy log. Remove it on the OAuth card first.'
         );
     }
     const hosts =

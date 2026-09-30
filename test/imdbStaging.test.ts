@@ -1,9 +1,23 @@
 import { mkdirSync, mkdtempSync, existsSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rmSync } from 'node:fs';
+import { logger } from '../src/core/logger.ts';
 import { STAGING_PREFIX, sweepStaging } from '../src/metadata/refresh.ts';
+
+// Lets a test make one stat fail, as a directory removed mid-scan does.
+const fsHook = vi.hoisted(() => ({ stat: undefined as ((path: string) => void) | undefined }));
+vi.mock('node:fs', async importOriginal => {
+    const real = await importOriginal<typeof import('node:fs')>();
+    return {
+        ...real,
+        statSync: ((path: string, ...rest: unknown[]) => {
+            fsHook.stat?.(path);
+            return (real.statSync as (...args: unknown[]) => unknown)(path, ...rest);
+        }) as typeof real.statSync
+    };
+});
 
 /**
  * Cleaning up after an ingest that never got to clean up after itself.
@@ -105,5 +119,36 @@ describe('sweeping abandoned staging directories', () => {
 
         expect(sweepStaging(root, { now: NOW })).toBe(0);
         expect(existsSync(file)).toBe(true);
+    });
+
+    describe('a directory that is gone before it is looked at', () => {
+        const failWith = (code: string) => {
+            fsHook.stat = path => {
+                if (path.includes(STAGING_PREFIX)) throw Object.assign(new Error(code), { code });
+            };
+        };
+
+        afterEach(() => {
+            fsHook.stat = undefined;
+            vi.restoreAllMocks();
+        });
+
+        it('does not warn when it is already gone', () => {
+            staged(`${STAGING_PREFIX}gone01`, 48 * HOUR);
+            const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+            failWith('ENOENT');
+
+            expect(sweepStaging(root, { now: NOW })).toBe(0);
+            expect(warn).not.toHaveBeenCalled();
+        });
+
+        it('still warns on any other failure', () => {
+            staged(`${STAGING_PREFIX}locked01`, 48 * HOUR);
+            const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+            failWith('EACCES');
+
+            expect(sweepStaging(root, { now: NOW })).toBe(0);
+            expect(warn).toHaveBeenCalledTimes(1);
+        });
     });
 });
