@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.39.0](https://github.com/bardesss/arr-mcp/compare/v1.38.1...v1.39.0) (2026-09-30)
+
+
+### Features
+
+* management API key and read endpoints ([#300](https://github.com/bardesss/arr-mcp/issues/300)) ([#321](https://github.com/bardesss/arr-mcp/issues/321)) ([759c776](https://github.com/bardesss/arr-mcp/commit/759c7760e1679344d2b395e1b79e3e6ca70117e4))
+* management API writes ([#300](https://github.com/bardesss/arr-mcp/issues/300)) ([#324](https://github.com/bardesss/arr-mcp/issues/324)) ([59d180f](https://github.com/bardesss/arr-mcp/commit/59d180ffcfd48589d0ce747ef08c6c3c79cce069))
+
+
+### Bug Fixes
+
+* harden the management API before 1.39.0 ([#325](https://github.com/bardesss/arr-mcp/issues/325)) ([297df09](https://github.com/bardesss/arr-mcp/commit/297df093605f0c22277eabb8ca3f69da40b912d6))
+* send credentials in a service URL as Basic auth ([#322](https://github.com/bardesss/arr-mcp/issues/322)) ([5a7774c](https://github.com/bardesss/arr-mcp/commit/5a7774c9718bee180af2b0c9b575939c64f75141))
+
 ## [1.38.1](https://github.com/bardesss/arr-mcp/compare/v1.38.0...v1.38.1) (2026-09-29)
 
 
