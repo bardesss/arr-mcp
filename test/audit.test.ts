@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -17,11 +17,13 @@ const record = (over: Partial<AuditRecord> = {}): AuditRecord => ({
 });
 
 let audit: WriteAudit | undefined;
+const dirs: string[] = [];
 const open = (): WriteAudit => (audit = WriteAudit.ephemeral());
 
-afterEach(() => {
+afterEach(async () => {
     audit?.close();
     audit = undefined;
+    await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true, maxRetries: 3 })));
 });
 
 describe('write audit', () => {
@@ -197,6 +199,7 @@ describe('the caller column', () => {
 
     it('adds the column to a database written before it existed, keeping the rows', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-audit-'));
+        dirs.push(dir);
         const path = join(dir, AUDIT_FILENAME);
 
         // The table exactly as a pre-#269 install has it, rows and all.

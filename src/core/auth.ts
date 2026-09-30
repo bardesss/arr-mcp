@@ -239,7 +239,9 @@ async function qbittorrentLogin(
         const elsewhere = origin !== undefined && origin !== url.origin;
         const detail = elsewhere ? `login redirected to ${origin}` : 'login was redirected';
         throw new ServiceError('AuthFailed', creds.id, detail, {
-            remedy: 'Set its url in the config to the address qBittorrent redirects the login to.'
+            remedy: elsewhere
+                ? 'Set its url in the config to the address qBittorrent redirects the login to.'
+                : 'Check the qBittorrent url: its login page redirected instead of answering. A reverse proxy or a URL base is the usual cause.'
         });
     }
 
