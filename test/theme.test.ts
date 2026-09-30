@@ -1,7 +1,7 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config/load.ts';
 import { saveConfig } from '../src/config/save.ts';
 import { ConfigSchema, ThemeSchema } from '../src/config/schema.ts';
@@ -82,8 +82,14 @@ describe('buildAppearanceConfig', () => {
  *  them — so the card saved nothing and the banner claimed it had. */
 describe('the theme through a save', () => {
     const BASE = `auth:\n  bearer_token: ${'f'.repeat(64)}\n  password_hash: scrypt$00$11\nservices: {}\n`;
+    const dirs: string[] = [];
+    afterEach(async () => {
+        await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true, maxRetries: 3 })));
+    });
+
     const dirWith = async (yaml: string) => {
         const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-theme-'));
+        dirs.push(dir);
         await writeFile(join(dir, 'config.yaml'), yaml, 'utf8');
         return dir;
     };

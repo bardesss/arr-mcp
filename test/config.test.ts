@@ -1,8 +1,8 @@
 import type { CredentialServiceConfig, KeyedServiceConfig } from '../src/config/schema.ts';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { hashToken } from '../src/core/mcpTokens.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { loadConfig } from '../src/config/load.ts';
@@ -14,7 +14,16 @@ const single = (value: unknown): KeyedServiceConfig | undefined => value as Keye
 const singleCredential = (value: unknown): CredentialServiceConfig | undefined =>
     value as CredentialServiceConfig | undefined;
 
-const freshDir = () => mkdtemp(join(tmpdir(), 'arr-mcp-cfg-'));
+const dirs: string[] = [];
+const freshDir = async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-cfg-'));
+    dirs.push(dir);
+    return dir;
+};
+
+afterEach(async () => {
+    await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true, maxRetries: 3 })));
+});
 /**
  * A literal hash rather than `hashPassword('…')`: scrypt is deliberately slow
  * (~50ms), and paying that in every schema test would add seconds to the suite
