@@ -1,14 +1,21 @@
-import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ConfigInvalidError, loadConfig, validateConfigText } from '../src/config/load.ts';
 
 const BEARER = 'a'.repeat(64);
 const AUTH = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\n`;
 
+const dirs: string[] = [];
+
+afterEach(async () => {
+    await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true, maxRetries: 3 })));
+});
+
 const seed = async (text: string): Promise<string> => {
     const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-invalid-'));
+    dirs.push(dir);
     await writeFile(join(dir, 'config.yaml'), text, 'utf8');
     return dir;
 };
@@ -181,6 +188,7 @@ describe('loadConfig', () => {
     // degrade into a page whose Save can never succeed.
     it('does not use ConfigInvalidError for an unreadable directory', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-invalid-'));
+        dirs.push(dir);
         await writeFile(join(dir, 'config.yaml'), `${AUTH}services: {}\n`, 'utf8');
         const err = await loadConfig(join(dir, 'config.yaml'), { persist: false }).catch((e: unknown) => e);
         expect(err).toBeInstanceOf(Error);

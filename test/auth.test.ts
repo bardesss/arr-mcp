@@ -277,7 +277,8 @@ describe('qbittorrentSession', () => {
         const err = (await Promise.resolve(session({}, impl).recover?.(forbidden())).catch((e: unknown) => e)) as Error;
         expect(err).toMatchObject({ kind: 'AuthFailed' });
         expect(err.message).not.toContain(BASE);
-        expect(err.message).toContain('the address qBittorrent redirects the login to');
+        expect(err.message).toContain('its login page redirected instead of answering');
+        expect(err.message).not.toContain('the address qBittorrent redirects the login to');
     });
 
     it('names the qualified instance id, not the bare service, in a login failure', async () => {

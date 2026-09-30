@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../src/bootstrap.ts';
 import { loadConfig, validateConfigText } from '../src/config/load.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
@@ -15,8 +15,15 @@ import { buildRepairApp } from '../src/repair.ts';
 
 const BEARER = 'a'.repeat(64);
 
+const dirs: string[] = [];
+
+afterEach(async () => {
+    await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true, maxRetries: 3 })));
+});
+
 const seedDir = async (text: string): Promise<string> => {
     const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-repair-'));
+    dirs.push(dir);
     await writeFile(join(dir, 'config.yaml'), text, 'utf8');
     return dir;
 };

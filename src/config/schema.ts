@@ -520,7 +520,7 @@ export const ConfigSchema = z.object({
     })
         .superRefine((auth, ctx) => {
             if (auth.bearer_token !== undefined && auth.tokens !== undefined) {
-                ctx.addIssue({ code: 'custom', path: ['bearer_token'], message: 'bearer_token and tokens cannot both be set; move the old token into tokens or delete it' });
+                ctx.addIssue({ code: 'custom', path: ['bearer_token'], message: 'cannot be set together with tokens; move the old token into tokens or delete it' });
             }
             const seen = new Set<string>();
             (auth.tokens ?? []).forEach((t: RawToken, i: number) => {

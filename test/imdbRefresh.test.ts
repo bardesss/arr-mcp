@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGzip } from 'node:zlib';
@@ -13,8 +13,10 @@ import { ingestOnce, linesOf, startRefresh } from '../src/metadata/refresh.ts';
  */
 
 let db: ImdbDataset;
+const dirs: string[] = [];
 afterEach(() => {
     db?.close();
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
     vi.unstubAllGlobals();
 });
 
@@ -101,7 +103,8 @@ describe('ingesting from the published dumps', () => {
  */
 describe('reading a staged dump', () => {
     const write = (text: string): string => {
-        const dir = mkdtempSync(join(tmpdir(), 'lines-'));
+        const dir = mkdtempSync(join(tmpdir(), 'arr-mcp-lines-'));
+        dirs.push(dir);
         const path = join(dir, 'dump.tsv');
         writeFileSync(path, text, 'utf8');
         return path;
