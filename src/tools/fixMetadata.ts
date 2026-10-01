@@ -73,6 +73,12 @@ const withPlexGate = (source: PermissionSource, adapters: readonly ServiceAdapte
 
 const serverName = (adapter: ServiceAdapter): string => (adapter.type === 'plex' ? 'Plex' : 'Jellyfin');
 
+/** Where the lock lives in each server's own UI. */
+export const unlockHow = (adapter: ServiceAdapter): string =>
+    adapter.type === 'plex'
+        ? 'Edit, then the lock icon beside the field'
+        : 'Edit metadata, then clear "Lock this item to prevent future metadata changes", or tick the field under Enabled Fields';
+
 /** How many examples ride along in the preview. Enough to recognise the
  *  pattern, few enough to read before confirming. */
 const EXAMPLE_LIMIT = 5;
@@ -212,7 +218,7 @@ export function registerFixMetadata(
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Finds and repairs films and series whose media-server metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. Works on Jellyfin and Plex. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`, or the `id` get_metadata_issues printed for it. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a year that disagrees means the server matched a different film. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and replaces all of its metadata, including anything corrected by hand. On Jellyfin there is no undo; on Plex, Fix Match or Unmatch on the item in Plex is the way back. It has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a media server rescan. On Jellyfin **the repair is slow**: the server holds the request open while it rebuilds the item, so a long wait is not a hang — do not retry. On Plex the repair is **off by default** (`services.plex.allow_metadata_repair`), needs a library on the Plex TV Series or Plex Movie agent, and refreshes in the background, so applying waits up to 30 seconds for the result to settle. A field locked in Plex is never overwritten, and the preview says when that is what disagrees. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Finds and repairs films and series whose media-server metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. Works on Jellyfin and Plex. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`, or the `id` get_metadata_issues printed for it. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a year that disagrees means the server matched a different film. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and replaces all of its metadata, including anything corrected by hand. On Jellyfin there is no undo; on Plex, Fix Match or Unmatch on the item in Plex is the way back. It has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a media server rescan. On Jellyfin **the repair is slow**: the server holds the request open while it rebuilds the item, so a long wait is not a hang — do not retry. On Plex the repair is **off by default** (`services.plex.allow_metadata_repair`), needs a library on the Plex TV Series or Plex Movie agent, and refreshes in the background, so applying waits up to 30 seconds for the result to settle. A locked field, or on Jellyfin a locked item, is never overwritten on either server, and the preview says when that is what disagrees. Previews by default — call again with the returned `confirm` token to apply it.',
         inputSchema: z.object({
             query: z
                 .string()
@@ -326,7 +332,7 @@ export function registerFixMetadata(
                     ...(locked === 0
                         ? []
                         : [
-                              `${locked === mismatches.length ? 'Every' : `${locked} of the ${mismatches.length}`} disagreeing ${film === undefined ? 'episodes have their' : 'film has its'} field locked in ${serverName(adapter)}. Fix Match and a refresh never overwrite a locked field, so unlock it on the item first (Edit, then the lock icon beside the field).`
+                              `${locked === mismatches.length ? 'Every' : `${locked} of the ${mismatches.length}`} disagreeing ${film === undefined ? 'episodes have their' : 'film has its'} field locked in ${serverName(adapter)}. ${adapter.type === 'plex' ? 'Fix Match and a refresh never overwrite' : 'A refresh never overwrites'} a locked field, so unlock it on the item first (${unlockHow(adapter)}).`
                           ]),
                     ...(pinned === 0
                         ? []
@@ -337,7 +343,7 @@ export function registerFixMetadata(
                           ]),
                     adapter.type === 'plex'
                         ? 'Re-matches the item in Plex (Fix Match) and refreshes all of its metadata in the background. Hand edits are overwritten unless the field is locked; Fix Match or Unmatch on the item in Plex is the way back.'
-                        : `Replaces every metadata field on the ${series.kind === 'movie' ? 'film' : 'series and its episodes'}. Anything corrected by hand in Jellyfin is overwritten, and the previous values are not recoverable.`,
+                        : `Replaces every metadata field on the ${series.kind === 'movie' ? 'film' : 'series and its episodes'}. Hand edits are overwritten unless the field or the item is locked, and the previous values are not recoverable.`,
                     ...(provider.id === undefined
                         ? [
                               'No provider id is known for this title, so the identity is not pinned before the refresh — the server may re-match it the same wrong way. Fix it in Radarr or Sonarr first.'
