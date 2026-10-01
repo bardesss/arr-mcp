@@ -107,8 +107,8 @@ username and a password of at least 12 characters.
 > Do this **before** exposing the port. Until it is claimed, whoever loads that
 > page first owns the instance — and it holds every service's API key.
 
-**3. Add your services** — **Add a service**, paste its URL and API key (or, for
-Transmission and qBittorrent, its username and password), save. It applies immediately; there is
+**3. Add your services** — **Add a service**, paste its URL and API key (for Plex,
+its `X-Plex-Token`; for Transmission and qBittorrent, its username and password), save. It applies immediately; there is
 no restart. Configure only what you run. A config file that will not parse no
 longer takes the container down: arr-mcp serves a repair page with the error and
 an editor instead.
@@ -233,19 +233,20 @@ not solve. Found something? [SECURITY.md](SECURITY.md).
 
 ## Thanks
 
-arr-mcp is glue; the hard parts belong to other people. Every service it speaks
-to is free software maintained largely by volunteers — [Radarr](https://radarr.video),
+arr-mcp is glue; the hard parts belong to other people. Nearly every service it
+speaks to is free software maintained largely by volunteers — [Radarr](https://radarr.video),
 [Sonarr](https://sonarr.tv), [Whisparr](https://github.com/Whisparr/Whisparr),
 [Prowlarr](https://prowlarr.com),
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
-[Plex](https://www.plex.tv),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
-[Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org) — as are the libraries it is built
+[Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
+[Profilarr](https://github.com/Dictionarry-Hub/profilarr) — as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),
 [Vitest](https://vitest.dev), [yaml](https://eemeli.org/yaml/) and
 [TypeScript](https://www.typescriptlang.org). If you find arr-mcp useful,
-consider supporting them first.
+consider supporting them first. [Plex](https://www.plex.tv) is the exception: a
+commercial product, but its API carries as much of the work as the rest.
 
 When you enable the [IMDb dataset](docs/imdb.md): information courtesy of
 [IMDb](https://www.imdb.com), used with permission, for personal and
