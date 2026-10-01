@@ -157,3 +157,54 @@ describe('IdentityResolver', () => {
         expect(err.toModelText()).toMatch(/every user's history/);
     });
 });
+
+/** Plex: a local token is one account, so with nothing configured it can only mean that one. */
+describe('IdentityResolver on a token-owner-only service', () => {
+    const owner = (users: ServiceUser[] | Error = [{ id: '1', name: 'Owner' }]) => {
+        const listUsers = vi.fn(async () => {
+            if (users instanceof Error) throw users;
+            return users;
+        });
+        const adapter: ServiceAdapter & UserDirectoryCapable = {
+            id: 'plex',
+            type: 'plex',
+            getVersion: async () => '1.43.4',
+            testConnection: async () => ({ ok: true, service: 'plex', latency_ms: 1 }),
+            listUsers,
+            tokenOwnerOnly: true
+        };
+        return { adapter, listUsers };
+    };
+
+    it('resolves to the token owner when no default_user is set', async () => {
+        const { adapter } = owner();
+        const r = new IdentityResolver(adapter, { allow_other_users: false });
+        expect(await r.resolve()).toEqual({ id: '1', name: 'Owner' });
+    });
+
+    it('still refuses a different named user without allow_other_users', async () => {
+        const { adapter, listUsers } = owner();
+        const r = new IdentityResolver(adapter, { allow_other_users: false });
+        await expect(r.resolve('Someone')).rejects.toThrow(/not permitted/);
+        expect(listUsers).not.toHaveBeenCalled();
+    });
+
+    it('passes on the error when the server cannot name the owner', async () => {
+        const { adapter } = owner(new Error('the server did not name the token owner'));
+        const r = new IdentityResolver(adapter, { allow_other_users: false });
+        await expect(r.resolve()).rejects.toThrow(/did not name the token owner/);
+    });
+
+    it('does not guess between several users', async () => {
+        const { adapter } = owner([{ id: '1', name: 'Owner' }, { id: '2', name: 'Other' }]);
+        const r = new IdentityResolver(adapter, { allow_other_users: false });
+        await expect(r.resolve()).rejects.toThrow(/token owner is unknown/);
+    });
+
+    it('leaves a multi-user service refusing as before', async () => {
+        const { adapter, listUsers } = directory([USERS[0] as ServiceUser]);
+        const r = new IdentityResolver(adapter, { allow_other_users: false });
+        await expect(r.resolve()).rejects.toThrow(/no user was named and none is configured/);
+        expect(listUsers).not.toHaveBeenCalled();
+    });
+});

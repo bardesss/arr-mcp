@@ -38,6 +38,14 @@ export class IdentityResolver {
         const wanted = this.#authorize(requested);
         const users = await this.#list();
 
+        if (wanted === undefined) {
+            const [owner] = users;
+            if (users.length === 1 && owner !== undefined) return owner;
+            throw new ServiceError('NotFound', this.#adapter.id, 'no user was named and the token owner is unknown', {
+                remedy: `Set services.${this.#adapter.id}.default_user in config.yaml, or pass a user explicitly.`
+            });
+        }
+
         const match = users.find(u => u.name.toLowerCase() === wanted.toLowerCase());
         if (match === undefined) {
             const available = users.map(u => u.name).join(', ');
@@ -70,12 +78,15 @@ export class IdentityResolver {
      * Configuration only. Returns the username to look up, or throws — and
      * throws *before* the directory is fetched, so a refused request costs no
      * network call and cannot be influenced by what the service would say.
+     * Undefined means the token's own account, which only an adapter that
+     * declares `tokenOwnerOnly` can answer with.
      */
-    #authorize(requested: string | undefined): string {
+    #authorize(requested: string | undefined): string | undefined {
         const fallback = this.#config.default_user;
 
         if (requested === undefined) {
             if (fallback === undefined) {
+                if (this.#adapter.tokenOwnerOnly === true) return undefined;
                 throw new ServiceError('NotFound', this.#adapter.id, 'no user was named and none is configured', {
                     remedy: `Set services.${this.#adapter.id}.default_user in config.yaml, or pass a user explicitly.`
                 });
