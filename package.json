@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "One MCP server for the whole self-hosted media stack: Radarr, Sonarr, Prowlarr, Bazarr, Jellyfin, Seerr, SABnzbd, Transmission.",
+  "description": "One MCP server for the whole self-hosted media stack: Radarr, Sonarr, Whisparr, Prowlarr, Bazarr, Jellyfin, Plex, Seerr, SABnzbd, Transmission, qBittorrent, Profilarr.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bardesss/arr-mcp.git"
