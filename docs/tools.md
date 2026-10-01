@@ -792,10 +792,13 @@ something a rematch fixes: placeholder titles in the server, and series where
 every title is shifted by one.
 Plex episodes are never treated as pinned: their provider ids follow from the
 show's match rather than identifying the episode on its own, so a title-only
-finding on Plex comes back as `refresh_metadata`. One more thing is unverified
-on Plex: the episode read assumes `allLeaves` returns the same rows a section
-listing would. If the sweep flags something on a Plex library that is actually
-fine, please open an issue with the filename and the title Plex shows.
+finding on Plex comes back as `refresh_metadata`. If the sweep flags something
+on a Plex library that is actually fine, please open an issue with the filename
+and the title Plex shows.
+
+Each row prints its item as `service:itemId`. Pass that to `fix_metadata` as
+`id` to repair exactly the item that was flagged, since a title can resolve to
+a different one.
 
 ### `remedy` is the field that matters
 
@@ -805,8 +808,10 @@ server ever matched the episode:
 
 | `remedy` | Means | What to run |
 | --- | --- | --- |
-| `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. | `fix_metadata` |
-| `rename_files` | The server matched it, so its title is the considered one and the **filename** is the outlier. Also every `numbering` finding, and every film whose year disagrees. | `trigger_scan` rename on the managing Radarr or Sonarr, then a media server rescan |
+| `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. Also every film whose year disagrees, since re-identifying re-derives a film's year. | `fix_metadata` |
+| `rename_files` | Every `numbering` finding: an episode's season and number are stored at scan time, so only the file can change. | `trigger_scan` rename on the managing Radarr or Sonarr, then a media server rescan |
+| `inspect` | The server matched it and only the wording disagrees, which a correct title in another language does too. | Look first, against the managing Radarr or Sonarr |
+| `unlock_fields` | The disagreeing field is locked on the item (Plex), so no rematch or refresh will change it. | Unlock it on the item in Plex if it is wrong, then `fix_metadata` |
 
 Three real series stand behind that rule, which is enough to act on and not
 enough to be certain — treat it as the likely fix rather than a verdict:
@@ -830,8 +835,10 @@ replaces it when it does not. The case it exists for: a file named
 which a scan reports as perfectly fine because the file is exactly where it
 should be.
 
-Give a series title as `query`, resolved through the library index the same
-way `get_media_details` resolves one.
+Give a film or series title as `query`, resolved through the library index the
+same way `get_media_details` resolves one, or the `id` that
+`get_metadata_issues` printed for it (`plex:119962`, or bare). The id wins when
+both are given.
 
 ### The two findings are not equally trustworthy
 
@@ -913,10 +920,10 @@ work. That repair is two tools that already exist, not this one:
 2. `trigger_scan` on the **media server**, so the renamed files are scanned in and
    parsed correctly.
 
-The result of an applied repair carries `mismatchesBefore`, `mismatchesAfter`
-and `verified`. `verified: false` means the calls succeeded and the count did
-not move — which is either "the background refresh has not finished" or "this
-was never going to work", and the tool does not guess which.
+The result of an applied repair carries `mismatchesBefore`, `mismatchesAfter`,
+`comparedBefore`, `comparedAfter` and `verified`. `verified: true` means fewer
+mismatches, with at least as many items compared as before, and for a queued
+refresh that it held across two reads.
 
 ### Films are judged on their year
 
@@ -959,14 +966,19 @@ the same count of zero, and reporting the first as the second is the
 reassuring lie the preview exists to prevent. Jellyfin returns `Path` only to
 a read that asks for it and only for a user who may see it.
 
-### The result does not claim the repair finished
+### Waiting on a queued refresh
 
-Both media servers can refresh in the background, so the re-read that follows the write is
-a snapshot taken while the work is very likely still running. A
-`mismatchesAfter` still equal to `mismatchesBefore` immediately afterwards is
-not evidence the repair failed, which is what `verified: false` says. Check
-`stack_health` for the running task, then run `get_metadata_issues` again, or
-re-run with `dry_run`, to see the settled result.
+Plex always refreshes in the background, and so does Jellyfin's plain refresh,
+and neither says when it is done. A single read straight afterwards was wrong in
+three of four live Plex applies: twice it caught a show mid-rebuild with almost
+nothing to compare and called that repaired, and once it read a film before the
+refresh landed and called that a failure.
+
+So apply reads again every 5 seconds for up to 30. It only reports `Repaired`
+when the count dropped, at least as many items were compared as before, and the
+same count came back on the next read. Otherwise the result is `NOT VERIFIED`,
+and says whether the item was still rebuilding or the count simply did not move.
+Run `get_metadata_issues` again a few minutes later for the settled answer.
 
 ### Repairing on Plex
 
@@ -1000,8 +1012,13 @@ With no provider id it skips steps 1 to 3 and only refreshes, on any agent.
 - **The match and refresh calls wait up to 120s**, the same allowance as
   Jellyfin's identify call. If the match step times out it may have been
   applied anyway, and the error says to check the item in Plex first.
-- **Plex refreshes in the background**, so the result straight afterwards is
-  usually `NOT VERIFIED`. Run `get_metadata_issues` again a minute later.
+- **Plex refreshes in the background**, so applying waits for the result to
+  settle, as described [above](#waiting-on-a-queued-refresh).
+- **Locked fields are kept.** A field edited by hand in Plex is locked, and
+  neither Fix Match nor a refresh overwrites it. When the field that disagrees
+  is locked, the preview says so and issues no token, and `get_metadata_issues`
+  gives it the remedy `unlock_fields`. Unlock it on the item in Plex (Edit, then
+  the lock icon beside the field) if the locked value is the wrong one.
 - **The result names what Plex matched the item to**, with its year when Plex
   gives one, so a wrong match shows before the refresh settles.
 - **A numbering mismatch usually needs a rename, not a rematch.** Plex takes
@@ -1010,11 +1027,12 @@ With no provider id it skips steps 1 to 3 and only refreshes, on any agent.
 - **Undo** is Fix Match or Unmatch on the item in Plex itself.
 - Every call goes to the server at `url`. Nothing goes near plex.tv.
 
-**What is unverified.** The match flow (`/matches`, `match`, `refresh`) has
-never run against a real Plex server, only against stubbed responses, and the
-`allLeaves` assumption above is untested too. If you turn it on, a report on
-[#203](../../issues/203) or the verification issue linked from it, good or bad,
-would let the default flip to on.
+**What is verified.** The match flow (`/matches`, `match`, `refresh`) ran
+against a real Plex 1.43.4 in [#312](../../issues/312). A film whose year was
+wrong was repaired once its locked date was unlocked. Two series rematched
+cleanly and kept their wrong episode titles, so a rematch does not fix every
+series finding yet, and the default stays off until it does. Reports on #312
+are still welcome.
 
 ## `get_profile_issues`
 

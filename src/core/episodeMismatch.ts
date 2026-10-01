@@ -41,6 +41,9 @@ export type EpisodeRecord = {
      * therefore cannot be repaired by refreshing it — see `pinnedToProvider`.
      */
     providerIds?: Record<string, string>;
+    /** Fields the server will not overwrite on a refresh. Plex only, from its
+     *  `Field` entries. */
+    lockedFields?: readonly string[];
 };
 
 /**
@@ -68,6 +71,7 @@ export type MovieRecord = {
     year?: number;
     path?: string;
     providerIds?: Record<string, string>;
+    lockedFields?: readonly string[];
 };
 
 export type Mismatch = {
@@ -84,7 +88,21 @@ export type Mismatch = {
     fileYear?: number;
     /** Most trustworthy first: `numbering` before `title`. */
     reasons: MismatchReason[];
+    /** A field this mismatch is about is locked, so no rematch or refresh
+     *  will change it. */
+    locked?: boolean;
 };
+
+/** Plex dates a film from `originallyAvailableAt` and derives `year` from it,
+ *  so a lock on either holds the year. */
+const LOCKS: Record<MismatchReason, readonly string[]> = {
+    title: ['title'],
+    year: ['year', 'originallyAvailableAt'],
+    numbering: []
+};
+
+const lockedFor = (item: { lockedFields?: readonly string[] }, reasons: readonly MismatchReason[]): boolean =>
+    item.lockedFields !== undefined && reasons.some(r => LOCKS[r].some(f => item.lockedFields?.includes(f)));
 
 /** Release tags live in brackets and are full of digits that read as
  *  numbering — `2160p`, `x265 10bit`, `FLAC 5.1`. Numbering and title are both
@@ -353,7 +371,7 @@ function titlesDisagree(serverTitle: string, fileTitle: string): boolean {
  * enough to be certain. Callers should present it as the likely fix, not a
  * verdict.
  */
-export type Remedy = 'refresh_metadata' | 'rename_files' | 'inspect';
+export type Remedy = 'refresh_metadata' | 'rename_files' | 'inspect' | 'unlock_fields';
 
 export type SeriesVerdict = {
     /** How many episodes had a file to compare at all. */
@@ -363,6 +381,8 @@ export type SeriesVerdict = {
     titleOnly: number;
     /** Of the mismatching episodes, how many the server had already matched. */
     pinned: number;
+    /** Of the mismatching episodes, how many have the disagreeing field locked. */
+    locked: number;
     remedy: Remedy;
 };
 
@@ -381,8 +401,9 @@ export type SeriesVerdict = {
  * rather than sending a destructive write at a coin flip. That is narrower
  * than the rule three series originally suggested, and deliberately so.
  */
-const seriesRemedy = (numbering: number, pinned: number, mismatches: number): Remedy => {
+const seriesRemedy = (numbering: number, pinned: number, locked: number, mismatches: number): Remedy => {
     if (numbering > 0) return 'rename_files';
+    if (locked === mismatches) return 'unlock_fields';
     return pinned === mismatches ? 'inspect' : 'refresh_metadata';
 };
 
@@ -395,7 +416,8 @@ const seriesRemedy = (numbering: number, pinned: number, mismatches: number): Re
  *  is exactly the repair — the opposite of what the episode rule
  * would have said, since every matched film carries provider ids.
  */
-export const movieRemedy = (reasons: readonly MismatchReason[], pinned: boolean): Remedy => {
+export const movieRemedy = (reasons: readonly MismatchReason[], pinned: boolean, locked = false): Remedy => {
+    if (locked) return 'unlock_fields';
     if (reasons.includes('year')) return 'refresh_metadata';
     return pinned ? 'inspect' : 'refresh_metadata';
 };
@@ -411,6 +433,7 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         const record = byId.get(m.id);
         return record !== undefined && pinnedToProvider(record);
     }).length;
+    const locked = mismatches.filter(m => m.locked === true).length;
 
     return {
         compared,
@@ -418,7 +441,8 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         numbering,
         titleOnly: mismatches.length - numbering,
         pinned,
-        remedy: seriesRemedy(numbering, pinned, mismatches.length)
+        locked,
+        remedy: seriesRemedy(numbering, pinned, locked, mismatches.length)
     };
 }
 
@@ -496,7 +520,8 @@ export function findMovieMismatches(items: readonly MovieRecord[]): Mismatch[] {
             ...(item.year === undefined ? {} : { serverYear: item.year }),
             ...(fileYear === undefined ? {} : { fileYear }),
             ...(fileTitle === undefined ? {} : { fileTitle }),
-            reasons
+            reasons,
+            ...(lockedFor(item, reasons) ? { locked: true } : {})
         });
     }
 
@@ -541,7 +566,8 @@ export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
             ...(fileSeason === undefined ? {} : { fileSeason }),
             ...(fileEpisode === undefined ? {} : { fileEpisode }),
             ...(fileTitle === undefined ? {} : { fileTitle }),
-            reasons
+            reasons,
+            ...(lockedFor(item, reasons) ? { locked: true } : {})
         });
     }
 
