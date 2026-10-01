@@ -64,7 +64,8 @@ const rpcPayload = async (
  * `Mcp-Method` is mandatory on Streamable HTTP POSTs as of that revision
  * (SEP-2243), and a request without it is refused -32020 whatever the body
  * says — which looks exactly like an unimplemented method if you are not
- * expecting it.
+ * expecting it. The SDK has also refused a missing `MCP-Protocol-Version`
+ * header the same way since 2.1.0, when the body claims the revision.
  */
 const modernRpc = (body: { method: string; params?: Record<string, unknown>; name?: string }) => ({
     method: 'POST',
@@ -72,6 +73,7 @@ const modernRpc = (body: { method: string; params?: Record<string, unknown>; nam
         'Content-Type': 'application/json',
         Accept: 'application/json, text/event-stream',
         Authorization: `Bearer ${TOKEN}`,
+        'MCP-Protocol-Version': '2026-07-28',
         'Mcp-Method': body.method,
         // And `Mcp-Name` alongside it whenever the body names a target — a
         // resource uri, a tool name. `resources/read` without it is refused
