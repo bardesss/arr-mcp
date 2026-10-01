@@ -227,6 +227,7 @@ export class PlexAdapter
 {
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
+    readonly tokenOwnerOnly = true;
     readonly #http: ServiceHttp;
     readonly #defaultUser: string | undefined;
     #warnedUnverifiedOwner = false;

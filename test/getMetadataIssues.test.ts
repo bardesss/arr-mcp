@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { EpisodeRecord, MovieRecord } from '../src/core/episodeMismatch.ts';
-import type { IdentityResolver } from '../src/core/identity.ts';
+import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { instancesOf } from './helpers/instances.ts';
@@ -284,7 +284,7 @@ describe('on Plex', () => {
     const fixture = (name: string): unknown =>
         JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/plex', name), 'utf8'));
 
-    const plexAdapter = () =>
+    const plexAdapter = (extra: Record<string, unknown> = {}) =>
         new PlexAdapter(
             {
                 url: 'http://192.0.2.10:32400',
@@ -317,6 +317,7 @@ describe('on Plex', () => {
                         ]
                     }
                 },
+                ...extra,
                 '/library/metadata/900100/allLeaves': fixture('allleaves-misnamed.json'),
                 // One title-only mismatch, Guid and all, and nothing else.
                 '/library/metadata/900300/allLeaves': {
@@ -370,6 +371,17 @@ describe('on Plex', () => {
 
         expect(issue?.remedy).toBe('refresh_metadata');
         expect(issue?.fix).not.toContain('allow_metadata_repair');
+    });
+
+    /** #312: detection failed outright on Plex until default_user was set. */
+    it('sweeps Plex with no default_user, as the token owner', async () => {
+        const adapter = plexAdapter({ '/accounts': { MediaContainer: { Account: [{ id: 1, name: 'Owner' }] } } });
+        const result = await buildGetMetadataIssues([adapter], new IdentityResolver(adapter, { allow_other_users: false }), {
+            detail: 'full',
+            limit: 50,
+            offset: 0
+        });
+        expect(result.itemsScanned).toBe(3);
     });
 
     it('names the media server, not Jellyfin, in the rename fix', async () => {
