@@ -14,7 +14,7 @@ import type { PermissionSource } from '../core/permissions.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasMetadataInspect, hasUserLibrary, type ServiceAdapter } from '../services/types.ts';
-import { plexRepairAllowed } from './fixMetadata.ts';
+import { plexRepairAllowed, unlockHow } from './fixMetadata.ts';
 
 /**
  * The discovery half of `fix_metadata`.
@@ -93,13 +93,15 @@ const FIX: Record<Remedy, string> = {
     inspect:
         'Look before acting: the file and the server disagree on wording only, and this cannot tell which is right. A title in a different language from the filename is a legitimate disagreement. Compare against the managing Radarr or Sonarr.',
     unlock_fields:
-        'The disagreeing field is locked on the item, so neither fix_metadata nor a refresh will change it. If the locked value is wrong, unlock it on the item in the media server (Edit, then the lock icon), then run fix_metadata.'
+        'The disagreeing field is locked on the item, so neither fix_metadata nor a refresh will change it. If the locked value is wrong, unlock it on the item in the media server, then run fix_metadata.'
 };
 
 const fixFor = (remedy: Remedy, adapter: ServiceAdapter, repairAllowed: boolean): string =>
     remedy === 'refresh_metadata' && adapter.type === 'plex' && !repairAllowed
         ? `${FIX[remedy]} The repair is off on this Plex until services.plex.allow_metadata_repair is set.`
-        : FIX[remedy];
+        : remedy === 'unlock_fields'
+          ? `${FIX[remedy]} To unlock: ${unlockHow(adapter)}.`
+          : FIX[remedy];
 
 const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
     if (detail === 'full') return issue;

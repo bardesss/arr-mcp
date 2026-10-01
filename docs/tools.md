@@ -811,7 +811,7 @@ server ever matched the episode:
 | `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. Also every film whose year disagrees, since re-identifying re-derives a film's year. | `fix_metadata` |
 | `rename_files` | Every `numbering` finding: an episode's season and number are stored at scan time, so only the file can change. | `trigger_scan` rename on the managing Radarr or Sonarr, then a media server rescan |
 | `inspect` | The server matched it and only the wording disagrees, which a correct title in another language does too. | Look first, against the managing Radarr or Sonarr |
-| `unlock_fields` | The disagreeing field is locked on the item (Plex), so no rematch or refresh will change it. | Unlock it on the item in Plex if it is wrong, then `fix_metadata` |
+| `unlock_fields` | The disagreeing field is locked on the item, or on Jellyfin the whole item is, so no rematch or refresh will change it. | Unlock it on the item in the media server if it is wrong, then `fix_metadata` |
 
 Three real series stand behind that rule, which is enough to act on and not
 enough to be certain — treat it as the likely fix rather than a verdict:
@@ -885,8 +885,17 @@ at all. A long wait here is not a hang — retrying starts a second full
 rematch.
 
 **Destructive tier, and not as a formality.** `replaceAllMetadata` overwrites
-every field the server held, including anything corrected by hand in Jellyfin.
-There is no undo on Jellyfin; for Plex see below.
+every field the server held, including anything corrected by hand in Jellyfin,
+unless it is locked. There is no undo on Jellyfin; for Plex see below.
+
+**Locks are respected, and read.** Checked against `MetadataService.cs` at
+v12.1: a locked item ("Lock this item to prevent future metadata changes")
+makes a refresh skip every provider, and a field unchecked under Enabled Fields
+is kept. Jellyfin has no lock for the year, so a locked `Name` is the only
+per-field lock a mismatch can be about. Both reads ask for `Fields=Settings`,
+which is what puts `LockData` and `LockedFields` on list rows. When what
+disagrees is locked, the preview says so and issues no token, and
+`get_metadata_issues` gives it the remedy `unlock_fields`.
 
 ### When it will not help, said before you confirm
 

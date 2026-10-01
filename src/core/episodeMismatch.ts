@@ -41,8 +41,8 @@ export type EpisodeRecord = {
      * therefore cannot be repaired by refreshing it — see `pinnedToProvider`.
      */
     providerIds?: Record<string, string>;
-    /** Fields the server will not overwrite on a refresh. Plex only, from its
-     *  `Field` entries. */
+    /** Fields the server will not overwrite on a refresh, as `title` and
+     *  `year` (Plex also names `originallyAvailableAt`). */
     lockedFields?: readonly string[];
 };
 

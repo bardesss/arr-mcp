@@ -791,3 +791,60 @@ describe('fix_metadata on Plex', () => {
         });
     });
 });
+
+/** Checked against MetadataService.cs at v12.1: LockData skips every provider, LockedFields keeps the named field. */
+describe('locks on Jellyfin', () => {
+    const MOVIE = 'aa939e2aa448fbe76b4f5eb80fa0d39f';
+    const film = (over: Record<string, unknown> = {}) => ({
+        Id: MOVIE,
+        Name: 'The Thing',
+        ProductionYear: 2011,
+        Path: '/movies/The Thing (1982)/The Thing (1982) [Bluray-1080p].mkv',
+        ...over
+    });
+    const filmItem = seriesItem({ kind: 'movie', title: 'The Thing', playback: { user: 'Sam', itemId: MOVIE } });
+
+    it('asks for the lock fields on both reads', async () => {
+        const seen: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            seen.push(url.searchParams.get('Fields') ?? '');
+            return jsonResponse({ Items: [] });
+        }) as unknown as typeof fetch;
+        const adapter = new JellyfinAdapter(jellyfinConfig(), impl);
+        const user = { id: 'user-sam', name: 'Sam' };
+
+        await adapter.readEpisodeMetadata(user, SERIES);
+        await adapter.readMovieMetadata(user);
+        expect(seen).toEqual(['Path,ProviderIds,Settings', 'Path,ProviderIds,Settings']);
+    });
+
+    it('does not offer a repair on a locked item, because a refresh skips it entirely', async () => {
+        const h = harness({ item: filmItem, films: [film({ LockData: true, LockedFields: [] })] });
+        const { structuredContent } = await h.call({ query: 'The Thing' });
+        const effects = structuredContent.effects.join('\n');
+
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.confirm_token).toBeUndefined();
+        expect(structuredContent.summary).toContain('locked in Jellyfin');
+        expect(effects).toContain('Lock this item to prevent future metadata changes');
+        expect(effects).not.toContain('Fix Match');
+    });
+
+    it('treats a locked Name as a locked title', async () => {
+        const named = { ...broken(1), LockData: false, LockedFields: ['Name'] };
+        const titleOnly = { ...named, IndexNumber: 1, ParentIndexNumber: 1, Path: '/tv/Some Show/Season 01/Some Show - S01E01 - Videl Crisis Urgent.mkv' };
+        const h = harness({ episodes: [titleOnly] });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.confirm_token).toBeUndefined();
+    });
+
+    /** Jellyfin has no year lock, so only LockData can hold a year. */
+    it('ignores locks on fields a mismatch is not about', async () => {
+        const h = harness({ item: filmItem, films: [film({ LockData: false, LockedFields: ['Name', 'Overview'] })] });
+        const { structuredContent } = await h.call({ query: 'The Thing' });
+        expect(structuredContent.confirm_token).toBeDefined();
+    });
+});

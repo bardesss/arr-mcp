@@ -105,6 +105,9 @@ type RawItemDetail = {
     MediaSources?: { Size?: number }[];
     Genres?: string[];
     UserData?: { Played?: boolean; PlayCount?: number; LastPlayedDate?: string };
+    /** Both only with `Fields=Settings`. */
+    LockData?: boolean;
+    LockedFields?: string[];
 };
 
 type RawEpisodeItem = {
@@ -120,6 +123,22 @@ type RawEpisodeItem = {
      *  across refreshes — see `pinnedToProvider`. */
     ProviderIds?: Record<string, string>;
     UserData?: { Played?: boolean; LastPlayedDate?: string };
+    LockData?: boolean;
+    LockedFields?: string[];
+};
+
+/**
+ * Jellyfin's locks in the detector's terms. `LockData` makes a refresh skip
+ * every provider, so it holds everything; `Name` is the only per-field lock a
+ * mismatch can be about, since Jellyfin has none for the year. Checked against
+ * MetadataService.cs at v12.1.
+ */
+const lockedFields = (item: { LockData?: boolean; LockedFields?: string[] }): string[] | undefined =>
+    item.LockData === true ? ['title', 'year'] : item.LockedFields?.includes('Name') === true ? ['title'] : undefined;
+
+const withLocks = (item: { LockData?: boolean; LockedFields?: string[] }): { lockedFields?: string[] } => {
+    const locked = lockedFields(item);
+    return locked === undefined ? {} : { lockedFields: locked };
 };
 
 /**
@@ -546,7 +565,7 @@ export class JellyfinAdapter
         // provider id is re-fetched from that id by a refresh, so refreshing it
         // rewrites exactly the metadata it already had.
         const page = await this.#http.get<{ Items?: RawEpisodeItem[] }>(
-            `/Shows/${id}/Episodes?userId=${encodeURIComponent(user.id)}&Fields=Path,ProviderIds&EnableImages=false`
+            `/Shows/${id}/Episodes?userId=${encodeURIComponent(user.id)}&Fields=Path,ProviderIds,Settings&EnableImages=false`
         );
 
         return (page.Items ?? [])
@@ -562,7 +581,8 @@ export class JellyfinAdapter
                 ...(e.Path === undefined ? {} : { path: fenceText(e.Path, { service: this.id, field: 'Path' }) }),
                 // Not fenced: these are read as structure — whether an id
                 // exists at all — and never printed as prose.
-                ...(e.ProviderIds === undefined ? {} : { providerIds: e.ProviderIds })
+                ...(e.ProviderIds === undefined ? {} : { providerIds: e.ProviderIds }),
+                ...withLocks(e)
             }));
     }
 
@@ -586,7 +606,7 @@ export class JellyfinAdapter
 
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
             `/Items?userId=${encodeURIComponent(user.id)}${scope}` +
-                '&Fields=Path,ProviderIds&EnableImages=false'
+                '&Fields=Path,ProviderIds,Settings&EnableImages=false'
         );
 
         return (page.Items ?? [])
@@ -596,7 +616,8 @@ export class JellyfinAdapter
                 name: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
                 ...(i.ProductionYear === undefined ? {} : { year: i.ProductionYear }),
                 ...(i.Path === undefined ? {} : { path: fenceText(i.Path, { service: this.id, field: 'Path' }) }),
-                ...(i.ProviderIds === undefined ? {} : { providerIds: i.ProviderIds })
+                ...(i.ProviderIds === undefined ? {} : { providerIds: i.ProviderIds }),
+                ...withLocks(i)
             }));
     }
 
