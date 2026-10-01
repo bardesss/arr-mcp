@@ -66,6 +66,10 @@ export type ServiceUser = { id: string; name: string };
 
 export interface UserDirectoryCapable {
     listUsers(): Promise<ServiceUser[]>;
+    /** The credential belongs to exactly one account, which `listUsers` names.
+     *  Plex: a local token cannot act as anyone else, so with no user named
+     *  there is nobody else it could mean. */
+    readonly tokenOwnerOnly?: boolean;
 }
 
 export const hasUserDirectory = (a: ServiceAdapter): a is ServiceAdapter & UserDirectoryCapable =>

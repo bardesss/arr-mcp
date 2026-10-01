@@ -143,6 +143,10 @@ setups do — a reverse proxy in front of `/accounts`, or a token without the
 scope to read it. In that case arr-mcp trusts what you configured, says so once
 in the log, and carries on.
 
+So on Plex `default_user` is optional. Leave it out and the per-user tools use
+the owner `/accounts` names, since the token cannot mean anyone else. You only
+need it when the server won't name the owner.
+
 **Only one media server.** `jellyfin` and `plex` cannot both be configured —
 `get_library`'s per-user join needs exactly one counterparty, and the schema
 refuses a config that sets both.
