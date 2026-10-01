@@ -366,6 +366,21 @@ describe('summariseSeries', () => {
         expect(verdict).toMatchObject({ mismatches: 2, pinned: 1, remedy: 'refresh_metadata' });
     });
 
+    it('sends an all-locked title mismatch to an unlock', () => {
+        const verdict = summariseSeries([
+            ep({ id: 'u', name: 'DTF St. Louis', season: 1, episode: 4, path: '/tv/D/Season 01/D - S01E04 - Missouri Mutual Life.mkv', lockedFields: ['title'] })
+        ]);
+        expect(verdict).toMatchObject({ locked: 1, remedy: 'unlock_fields' });
+    });
+
+    /** A lock does not move a file, so numbering still wants the rename. */
+    it('still sends a locked numbering mismatch to a rename', () => {
+        const verdict = summariseSeries([
+            ep({ id: 'n', name: 'Prologue to Battle!', season: 1, episode: 1, path: '/tv/K/Specials/Episode 101 Videls Crisis.mkv', lockedFields: ['title'] })
+        ]);
+        expect(verdict?.remedy).toBe('rename_files');
+    });
+
     it('counts what it could compare, not what it was handed', () => {
         const verdict = summariseSeries([
             ep({ id: 'n', name: 'X', season: 1, episode: 1, path: '/tv/K/Specials/Episode 101 Videls Crisis.mkv' }),

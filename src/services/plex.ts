@@ -76,6 +76,9 @@ export type RawPlexItem = {
     leafCount?: number;
     /** `/library/metadata/{id}` rows: the library section holding the item. */
     librarySectionID?: number | string;
+    /** Fields edited by hand in Plex. A locked one survives Fix Match and a
+     *  refresh. XML-derived, so `locked` arrives as `true`, `1` or `"1"`. */
+    Field?: { name?: string; locked?: boolean | number | string }[];
 };
 
 export const unwrap = <T>(body: unknown, key: string): T[] => {
@@ -707,6 +710,14 @@ export class PlexAdapter
         return Object.keys(out).length === 0 ? undefined : out;
     }
 
+    static #lockedFields(item: RawPlexItem): string[] | undefined {
+        const names = (item.Field ?? [])
+            .filter(f => f.locked === true || f.locked === 1 || f.locked === '1')
+            .map(f => f.name)
+            .filter((n): n is string => typeof n === 'string' && n !== '');
+        return names.length === 0 ? undefined : names;
+    }
+
     static #firstFile(item: RawPlexItem): string | undefined {
         return item.Media?.flatMap(m => m.Part ?? []).find(p => typeof p.file === 'string')?.file;
     }
@@ -724,12 +735,14 @@ export class PlexAdapter
             .filter((e): e is RawPlexItem & { ratingKey: string } => typeof e.ratingKey === 'string' && e.type === 'episode')
             .map(e => {
                 const file = PlexAdapter.#firstFile(e);
+                const lockedFields = PlexAdapter.#lockedFields(e);
                 return {
                     id: e.ratingKey,
                     name: this.#fence('title', e.title ?? ''),
                     ...(e.parentIndex === undefined ? {} : { season: e.parentIndex }),
                     ...(e.index === undefined ? {} : { episode: e.index }),
-                    ...(file === undefined ? {} : { path: this.#fence('file', file) })
+                    ...(file === undefined ? {} : { path: this.#fence('file', file) }),
+                    ...(lockedFields === undefined ? {} : { lockedFields })
                 };
             });
     }
@@ -750,12 +763,14 @@ export class PlexAdapter
             .map(m => {
                 const file = PlexAdapter.#firstFile(m);
                 const providerIds = PlexAdapter.#providerIds(m);
+                const lockedFields = PlexAdapter.#lockedFields(m);
                 return {
                     id: m.ratingKey,
                     name: this.#fence('title', m.title ?? ''),
                     ...(m.year === undefined ? {} : { year: m.year }),
                     ...(file === undefined ? {} : { path: this.#fence('file', file) }),
-                    ...(providerIds === undefined ? {} : { providerIds })
+                    ...(providerIds === undefined ? {} : { providerIds }),
+                    ...(lockedFields === undefined ? {} : { lockedFields })
                 };
             });
     }

@@ -1117,6 +1117,45 @@ describe('PlexAdapter', () => {
             expect(films.map(f => f.id)).toEqual(['44441']);
             expect(unfenced(films[0]?.path ?? '')).toBe('/library/movies/Fixture title 1 (2016)/Fixture title 1 (2016).mkv');
         });
+
+        /** XML-derived, so the flag arrives in every shape. */
+        it('reads which fields are locked, and only those', async () => {
+            const { adapter } = plex({
+                '/library/metadata/42': {
+                    MediaContainer: {
+                        Metadata: [
+                            {
+                                ratingKey: '42',
+                                type: 'movie',
+                                title: 'Fixture film',
+                                Field: [
+                                    { name: 'originallyAvailableAt', locked: true },
+                                    { name: 'title', locked: '1' },
+                                    { name: 'summary', locked: 1 },
+                                    { name: 'studio', locked: false }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            });
+            const [film] = await adapter.readMovieMetadata(viewer, '42');
+            expect(film?.lockedFields).toEqual(['originallyAvailableAt', 'title', 'summary']);
+        });
+
+        it('reads the locks off a real item', async () => {
+            const { adapter } = plex({ '/library/metadata/44441': CAPTURED_METADATA_DETAIL });
+            const [film] = await adapter.readMovieMetadata(viewer, '44441');
+            expect(film?.lockedFields).toEqual(['thumb', 'art', 'label']);
+        });
+
+        it('leaves lockedFields off when nothing is locked', async () => {
+            const { adapter } = plex({
+                '/library/metadata/42': { MediaContainer: { Metadata: [{ ratingKey: '42', type: 'movie', title: 'Fixture film' }] } }
+            });
+            const [film] = await adapter.readMovieMetadata(viewer, '42');
+            expect(film).not.toHaveProperty('lockedFields');
+        });
     });
 
     describe('against captured fixtures', () => {

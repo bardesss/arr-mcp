@@ -9,7 +9,7 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { MergedItem } from '../src/core/resolver.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
-import { registerFixMetadata } from '../src/tools/fixMetadata.ts';
+import { registerFixMetadata, type RepairTiming } from '../src/tools/fixMetadata.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -27,6 +27,12 @@ const jellyfinConfig = (over: Partial<MultiUserServiceConfig> = {}): MultiUserSe
         permissions: { safe_write: true, destructive: true },
         ...over
     }) as MultiUserServiceConfig;
+
+/** The real intervals, so the wording is what ships, with no real waiting. */
+const instant = (): RepairTiming & { slept: number[] } => {
+    const slept: number[] = [];
+    return { pollMs: 5_000, waitMs: 30_000, sleep: async ms => void slept.push(ms), slept };
+};
 
 const episodeId = (n: number) => `${String(n).padStart(2, '0')}${'abcdef1234567890'.repeat(2)}`.slice(0, 32);
 
@@ -128,7 +134,7 @@ function harness(
 
     const loader = {
         load: async () => ({
-            index: { search: () => [opts.item ?? seriesItem()] },
+            index: { search: () => [opts.item ?? seriesItem()], all: () => [opts.item ?? seriesItem()] },
             degraded: []
         }),
         invalidate: vi.fn()
@@ -144,7 +150,8 @@ function harness(
         },
         opts.adapters === 'none' ? [] : [adapter],
         loader,
-        opts.adapters === 'none' ? undefined : new IdentityResolver(adapter, config)
+        opts.adapters === 'none' ? undefined : new IdentityResolver(adapter, config),
+        instant()
     );
 
     return { call: (a: Record<string, unknown>) => call(a), wrote };
@@ -217,7 +224,17 @@ describe('fix_metadata', () => {
 
             expect(structuredContent.noop).toBe(false);
             expect(structuredContent.effects.join('\n')).toContain('year');
-            expect(structuredContent.summary).toContain('1 of 1 file');
+            expect(structuredContent.summary).toContain('its file names a different year');
+        });
+
+        /** Not the series wording: a film has no episodes and no numbering. */
+        it('describes a film in film terms', async () => {
+            const h = harness({ item: filmItem, films: [asFilm()] });
+            const effects = (await h.call({ query: 'The Thing' })).structuredContent.effects.join('\n');
+
+            expect(effects).toContain('The year in the filename disagrees');
+            expect(effects).not.toContain('episode');
+            expect(effects).not.toContain('only the title text');
         });
 
         it('is a no-op on a film whose file agrees with it', async () => {
@@ -418,9 +435,16 @@ function plexHarness(
         episodes?: Record<string, unknown>[];
         /** Served once a write has gone out. */
         repaired?: Record<string, unknown>[];
+        /** Served one per read once a write has gone out, the last one repeating. */
+        reads?: Record<string, unknown>[][];
+        /** The same for the film read. */
+        filmReads?: Record<string, unknown>[];
     } = {}
 ) {
     const config = plexConfig(opts);
+    const timing = instant();
+    let readsAfter = 0;
+    let filmReadsAfter = 0;
     const sent: { method: string; path: string; params: Record<string, string> }[] = [];
 
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -441,13 +465,22 @@ function plexHarness(
             });
         }
         if (url.pathname === `/library/metadata/${PLEX_SERIES}/allLeaves`) {
-            return jsonResponse({ MediaContainer: { Metadata: (sent.some(s => s.method === 'PUT') ? opts.repaired : undefined) ?? opts.episodes ?? [plexEpisode(1)] } });
+            const written = sent.some(s => s.method === 'PUT');
+            if (written && opts.reads !== undefined) {
+                const rows = opts.reads[Math.min(readsAfter++, opts.reads.length - 1)];
+                return jsonResponse({ MediaContainer: { Metadata: rows } });
+            }
+            return jsonResponse({ MediaContainer: { Metadata: (written ? opts.repaired : undefined) ?? opts.episodes ?? [plexEpisode(1)] } });
         }
         if (url.pathname.endsWith('/matches')) {
             return jsonResponse({ MediaContainer: { SearchResult: [{ guid: 'plex://show/fixture2', name: 'Fixture show 2', year: 2001, score: 100 }] } });
         }
         const film = (opts.films ?? []).find(f => url.pathname === `/library/metadata/${String(f.ratingKey)}`);
-        if (film !== undefined) return jsonResponse({ MediaContainer: { Metadata: [film] } });
+        if (film !== undefined) {
+            const later = sent.some(s => s.method === 'PUT') ? opts.filmReads : undefined;
+            const row = later === undefined ? film : later[Math.min(filmReadsAfter++, later.length - 1)];
+            return jsonResponse({ MediaContainer: { Metadata: [row] } });
+        }
         if (url.pathname === `/library/metadata/${PLEX_SERIES}`) {
             return jsonResponse({ MediaContainer: { Metadata: [{ ratingKey: PLEX_SERIES, type: 'show', librarySectionID: 2 }] } });
         }
@@ -464,7 +497,7 @@ function plexHarness(
         }
     };
     const loader = {
-        load: async () => ({ index: { search: () => [opts.item ?? plexSeries()] }, degraded: [] }),
+        load: async () => ({ index: { search: () => [opts.item ?? plexSeries()], all: () => [opts.item ?? plexSeries()] }, degraded: [] }),
         invalidate: vi.fn()
     } as unknown as LibraryLoader;
 
@@ -478,19 +511,21 @@ function plexHarness(
         },
         [adapter],
         loader,
-        new IdentityResolver(adapter, config)
+        new IdentityResolver(adapter, config),
+        timing
     );
 
     return {
         call: (a: Record<string, unknown>) => call(a),
         sent,
         audit,
+        timing,
         writes: () => sent.filter(s => s.method === 'PUT')
     };
 }
 
 const PLEX_OFF_REMEDY =
-    'Set services.plex.allow_metadata_repair: true in config.yaml to allow it. It has not been verified against a live Plex server yet, see docs/tools.md.';
+    'Set services.plex.allow_metadata_repair: true in config.yaml to allow it. On a live Plex it has repaired films but not yet series, see docs/tools.md.';
 
 describe('fix_metadata on Plex', () => {
     const confirmed = async (h: ReturnType<typeof plexHarness>, query = 'Fixture show 2') => {
@@ -523,7 +558,8 @@ describe('fix_metadata on Plex', () => {
 
         expect(result.verified).toBe(false);
         expect(result.note).toContain('NOT VERIFIED');
-        expect(result.note).toContain('get_metadata_issues again in a minute');
+        expect(result.note).toContain('get_metadata_issues again in a few minutes');
+        expect(result.note).toContain('after waiting 30 seconds');
     });
 
     it('says what Plex matched the item to', async () => {
@@ -624,5 +660,134 @@ describe('fix_metadata on Plex', () => {
         const h = plexHarness({ destructive: false });
         await expect(h.call({ query: 'Fixture show 2' })).rejects.toThrow(/destructive writes are disabled for plex/);
         expect(h.writes()).toHaveLength(0);
+    });
+
+    describe('waiting on the queued refresh', () => {
+        const ep = (n: number, title = 'Some other words') => ({ ...plexEpisode(n), title });
+
+        /** Cowboy Bebop: one read straight after caught the show mid-rebuild
+         *  with nothing to compare, and called that repaired. */
+        it('does not call a show with fewer episodes to compare repaired', async () => {
+            const h = plexHarness({ episodes: [plexEpisode(1), plexEpisode(2)], reads: [[], [plexEpisode(1), plexEpisode(2)]] });
+            const result = (await confirmed(h)).structuredContent.result as { verified: boolean; note: string; mismatchesAfter: number };
+
+            expect(result.verified).toBe(false);
+            expect(result.mismatchesAfter).toBe(2);
+            expect(result.note).toContain('NOT VERIFIED');
+        });
+
+        it('says so when the show is still rebuilding at the end of the wait', async () => {
+            const h = plexHarness({ episodes: [plexEpisode(1), plexEpisode(2)], reads: [[ep(1)]] });
+            const result = (await confirmed(h)).structuredContent.result as { verified: boolean; note: string };
+
+            expect(result.verified).toBe(false);
+            expect(result.note).toContain('still rebuilding');
+            expect(result.note).toContain('compared 1 of the 2 episodes');
+        });
+
+        /** Scooby-Doo: the refresh landed seconds after the single read. */
+        it('waits for a film whose refresh lands after the first read', async () => {
+            const film = {
+                ratingKey: '900200',
+                type: 'movie',
+                title: 'Fixture film',
+                year: 2011,
+                librarySectionID: 1,
+                Media: [{ Part: [{ file: '/library/movies/Fixture film (1982)/Fixture film (1982).mkv' }] }]
+            };
+            const h = plexHarness({
+                item: plexSeries({ kind: 'movie', title: 'Fixture film', ids: { tmdb: 901 }, playback: { user: 'Sam', itemId: '900200' } }),
+                films: [film],
+                filmReads: [film, { ...film, year: 1982 }]
+            });
+            const result = (await confirmed(h, 'Fixture film')).structuredContent.result as { verified: boolean; note: string };
+
+            expect(result.verified).toBe(true);
+            expect(result.note).toContain('Repaired: 1 of 1');
+            expect(result.note).toContain('held across two reads');
+        });
+
+        it('does not trust an improvement that a second read takes back', async () => {
+            const h = plexHarness({ episodes: [plexEpisode(1)], reads: [[ep(1, 'Fixture show 2')], [ep(1)], [plexEpisode(1)]] });
+            const result = (await confirmed(h)).structuredContent.result as { verified: boolean };
+            expect(result.verified).toBe(false);
+        });
+
+        it('stops waiting once the result holds', async () => {
+            const h = plexHarness({ repaired: [ep(1)] });
+            await confirmed(h);
+            expect(h.timing.slept).toEqual([5_000]);
+        });
+
+        it('gives up after the wait', async () => {
+            const h = plexHarness();
+            await confirmed(h);
+            expect(h.timing.slept).toHaveLength(6);
+        });
+    });
+
+    describe('locked fields', () => {
+        const lockedFilm = {
+            ratingKey: '900200',
+            type: 'movie',
+            title: 'Fixture film',
+            year: 2001,
+            librarySectionID: 1,
+            Field: [{ name: 'originallyAvailableAt', locked: true }],
+            Media: [{ Part: [{ file: '/library/movies/Fixture film (1998)/Fixture film (1998).mkv' }] }]
+        };
+        const filmItem = plexSeries({ kind: 'movie', title: 'Fixture film', ids: { tmdb: 901 }, playback: { user: 'Sam', itemId: '900200' } });
+
+        it('does not offer a repair a lock would ignore', async () => {
+            const h = plexHarness({ item: filmItem, films: [lockedFilm] });
+            const { structuredContent } = await h.call({ query: 'Fixture film' });
+
+            expect(structuredContent.noop).toBe(true);
+            expect(structuredContent.confirm_token).toBeUndefined();
+            expect(structuredContent.summary).toContain('locked in Plex');
+            expect(structuredContent.effects.join('\n')).toContain('unlock it on the item first');
+        });
+
+        it('offers it again once the field is unlocked', async () => {
+            const h = plexHarness({ item: filmItem, films: [{ ...lockedFilm, Field: [{ name: 'originallyAvailableAt', locked: false }] }] });
+            const { structuredContent } = await h.call({ query: 'Fixture film' });
+            expect(structuredContent.confirm_token).toBeDefined();
+        });
+
+        it('no longer says every hand edit is overwritten', async () => {
+            const h = plexHarness();
+            const effects = (await h.call({ query: 'Fixture show 2' })).structuredContent.effects.join('\n');
+            expect(effects).toContain('unless the field is locked');
+        });
+    });
+
+    describe('by id', () => {
+        /** The Fall: the title resolved to the film Fall, the id cannot. */
+        it('takes the id get_metadata_issues prints', async () => {
+            const h = plexHarness({ item: plexSeries({ title: 'Some other title' }) });
+            const { structuredContent } = await h.call({ id: `plex:${PLEX_SERIES}` });
+            expect(structuredContent.target).toBe(`plex:${PLEX_SERIES}`);
+            expect(structuredContent.confirm_token).toBeDefined();
+        });
+
+        it('keeps the managed ids when the item is in the library index', async () => {
+            const h = plexHarness();
+            const preview = await h.call({ id: PLEX_SERIES });
+            await h.call({ id: PLEX_SERIES, confirm: preview.structuredContent.confirm_token });
+            expect(h.sent.find(s => s.path.endsWith('/matches'))?.params.title).toBe('tvdb-900');
+        });
+
+        it('falls back to the media server for an item no index entry names', async () => {
+            const h = plexHarness({ item: plexSeries({ playback: { user: 'Sam', itemId: '1' } }) });
+            const { structuredContent } = await h.call({ id: `plex:${PLEX_SERIES}` });
+
+            expect(structuredContent.target).toBe(`plex:${PLEX_SERIES}`);
+            expect(structuredContent.effects.join('\n')).toContain('No provider id is known');
+        });
+
+        it('asks for one of the two when given neither', async () => {
+            const h = plexHarness();
+            await expect(h.call({})).rejects.toThrow(/`query`, or give its `id`/);
+        });
     });
 });

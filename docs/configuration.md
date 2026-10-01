@@ -120,8 +120,8 @@ services:
       destructive: true
 ```
 
-It is off by default because it has not been verified against a live Plex
-server yet. Jellyfin needs no such setting, and `allow_metadata_repair` on any
+It is off by default because the first live test only half passed: films were
+repaired, series were not. Jellyfin needs no such setting, and `allow_metadata_repair` on any
 other service is refused at startup. The Plex card on the config page has a
 checkbox for it, marked experimental. See
 [Repairing on Plex](tools.md#repairing-on-plex).
