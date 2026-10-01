@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.39.1](https://github.com/bardesss/arr-mcp/compare/v1.39.0...v1.39.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **deps:** bump node from `6950b66` to `8ec5d75` ([#330](https://github.com/bardesss/arr-mcp/issues/330)) ([95e384d](https://github.com/bardesss/arr-mcp/commit/95e384d6a072686216666319f5816a730388086a))
+* **deps:** bump the non-major group across 1 directory with 9 updates ([#332](https://github.com/bardesss/arr-mcp/issues/332)) ([d201676](https://github.com/bardesss/arr-mcp/commit/d201676de38f16029c0e7bc080e7e3a4030d099e))
+* metadata detector false positives on a real Plex library ([#339](https://github.com/bardesss/arr-mcp/issues/339)) ([8bd4c0c](https://github.com/bardesss/arr-mcp/commit/8bd4c0c15ebdaddf5c54715fe7ede5cb2cc73bcc))
+* Plex metadata repair findings from [#312](https://github.com/bardesss/arr-mcp/issues/312) ([#338](https://github.com/bardesss/arr-mcp/issues/338)) ([17cd1af](https://github.com/bardesss/arr-mcp/commit/17cd1af470fb3dbf9854e0f834506f64d9a7cf69))
+* Plex per-user tools work without default_user ([#341](https://github.com/bardesss/arr-mcp/issues/341)) ([0288ea3](https://github.com/bardesss/arr-mcp/commit/0288ea3df774678ff0a87b80afaaa0f80b09bac1))
+* read Jellyfin locks for metadata repair ([#340](https://github.com/bardesss/arr-mcp/issues/340)) ([9cb3e58](https://github.com/bardesss/arr-mcp/commit/9cb3e58d402de8a35e5ea173ee2af33b74a27a00))
+
 ## [1.39.0](https://github.com/bardesss/arr-mcp/compare/v1.38.1...v1.39.0) (2026-09-30)
 
 
