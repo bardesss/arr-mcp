@@ -511,7 +511,7 @@ describe('false positives found by review', () => {
         ).toEqual([]);
     });
 
-    it('still flags a film that is two years out', () => {
+    it('still flags a film that is decades out', () => {
         expect(
             findMovieMismatches([
                 { id: 'w', name: 'The Thing', year: 2011, path: '/movies/The Thing (1982)/The Thing (1982).mkv' }
@@ -521,6 +521,72 @@ describe('false positives found by review', () => {
 
     it('takes the last parenthesised year', () => {
         expect(parseMovieFile('/movies/Death Race 2000 (2008)/Death Race 2000 (2008).mkv')).toMatchObject({ year: 2008 });
+    });
+});
+
+/** From a sweep of a real Plex library of 5,988 items in #312. */
+describe('false positives on a real Plex library', () => {
+    const plexFilm = (name: string, year: number, file: string) => ({
+        id: name,
+        name,
+        year,
+        path: `/movies/${file}/${file}.mkv`,
+        providerIds: { Tmdb: '1' }
+    });
+
+    it('tolerates a two-year drift on a film', () => {
+        expect(findMovieMismatches([plexFilm('The Evil Dead', 1981, 'The Evil Dead (1983)')])).toEqual([]);
+        expect(findMovieMismatches([plexFilm('Our Friend', 2019, 'Our Friend (2021)')])).toEqual([]);
+    });
+
+    /** Plex showed 2001 for a 1998 file because a hand-edited date was locked. */
+    it('still flags a film three years out', () => {
+        expect(findMovieMismatches([plexFilm('Zombie Island Fixture', 2001, 'Zombie Island Fixture (1998)')])[0]?.reasons).toEqual(['year']);
+    });
+
+    it('is silent on a matched film under an alternate title', () => {
+        expect(findMovieMismatches([plexFilm('The Road Warrior', 1981, 'Mad Max 2 (1981)')])).toEqual([]);
+        expect(findMovieMismatches([plexFilm('I Spit on Your Grave', 1978, 'Day of the Woman (1978)')])).toEqual([]);
+    });
+
+    it('still flags an unmatched film whose title disagrees', () => {
+        const { providerIds: _p, ...unmatched } = plexFilm('The Road Warrior', 1981, 'Mad Max 2 (1981)');
+        expect(findMovieMismatches([unmatched])[0]?.reasons).toEqual(['title']);
+    });
+
+    it('still flags a matched film whose year and title both disagree', () => {
+        expect(findMovieMismatches([plexFilm('Something Else Entirely', 2015, 'Mad Max 2 (1981)')])[0]?.reasons).toEqual(['year', 'title']);
+    });
+
+    const episode = (name: string, file: string): EpisodeRecord =>
+        ep({ id: file, name, season: 1, episode: 1, path: `/tv/Show/Season 01/Show - S01E01 - ${file}.mkv` });
+
+    it('reads every title field, not just the first', () => {
+        expect(
+            findMismatches([
+                episode('The Boy in the Iceberg', 'Chapter One - The Boy in the Iceberg'),
+                episode('The Duck Who Would Be King (2)', 'Time is Money (2) - The Duck Who Would Be King'),
+                episode('Fry Bread, Fry', 'Flat Is Beautiful VI - Fry Bread, Fry'),
+                episode('Winter Wonderland', 'Christmas Special - Winter Wonderland')
+            ])
+        ).toEqual([]);
+    });
+
+    it('reads a title in parentheses', () => {
+        expect(findMismatches([episode('King Mario of Cramalot', 'Day of the Orphan (King Mario of Cramalot)')])).toEqual([]);
+    });
+
+    it('still reports the first field as the file title', () => {
+        expect(extractFileTitle('/tv/Show/Season 01/Show - S01E01 - Chapter One - The Boy in the Iceberg.mkv')).toBe('Chapter One');
+    });
+
+    it('folds accents before comparing', () => {
+        expect(findMismatches([episode('Sensô Kôi', 'Sensō Kōi')])).toEqual([]);
+    });
+
+    /** Cowboy Bebop: every episode showed the next one's title. */
+    it('still flags a title that shares nothing with the file', () => {
+        expect(findMismatches([episode('Stray Dog Strut', 'Asteroid Blues')])[0]?.reasons).toEqual(['title']);
     });
 });
 
