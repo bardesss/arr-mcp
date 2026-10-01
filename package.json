@@ -29,23 +29,23 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
-    "@modelcontextprotocol/hono": "^2.0.0",
+    "@modelcontextprotocol/hono": "^2.0.1",
     "@modelcontextprotocol/server": "^2.0.0",
     "better-sqlite3": "^13.0.3",
-    "hono": "^4.13.0",
+    "hono": "^4.13.9",
     "jose": "^6.2.12",
     "pino": "^10.3.1",
-    "yaml": "^2.8.1",
-    "zod": "^4.6.2"
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^24.13.4",
-    "eslint": "^10.10.0",
+    "@types/node": "^24.19.0",
+    "eslint": "^10.11.0",
     "playwright": "^1.63.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.70.0",
-    "vitest": "^5.0.0"
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.2"
   }
 }
