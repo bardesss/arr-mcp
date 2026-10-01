@@ -6,7 +6,9 @@ import type { PermissionSource } from '../core/permissions.ts';
 import { fenceText } from '../core/fence.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import type { IdentityResolver } from '../core/identity.ts';
+import type { MergedItem } from '../core/resolver.ts';
 import {
+    hasMediaDetails,
     hasMetadataInspect,
     hasMetadataRepair,
     type MetadataInspectCapable,
@@ -34,7 +36,7 @@ const NO_MEDIA_SERVER =
 
 const PLEX_REPAIR_OFF = {
     reason: 'Plex repair is off',
-    remedy: 'Set services.plex.allow_metadata_repair: true in config.yaml to allow it. It has not been verified against a live Plex server yet, see docs/tools.md.'
+    remedy: 'Set services.plex.allow_metadata_repair: true in config.yaml to allow it. On a live Plex it has repaired films but not yet series, see docs/tools.md.'
 };
 
 const configuredMediaServer = (adapters: readonly ServiceAdapter[]): ServiceAdapter | undefined =>
@@ -58,7 +60,7 @@ const requireIdentity = (adapters: readonly ServiceAdapter[], identity: Identity
 };
 
 // Read from config.yaml, like the permission gate, never from the adapter.
-const plexRepairAllowed = (permissions: PermissionSource): boolean => {
+export const plexRepairAllowed = (permissions: PermissionSource): boolean => {
     const config = permissions.get('plex');
     return config !== undefined && 'allow_metadata_repair' in config && config.allow_metadata_repair;
 };
@@ -145,30 +147,83 @@ async function resolve(loader: LibraryLoader, query: string, adapter: ServiceAda
         });
     }
 
+    return fromMerged(best, itemId);
+}
+
+const fromMerged = (item: MergedItem, itemId: string): Resolved => ({
+    itemId,
+    title: item.title,
+    kind: item.kind,
+    unmanaged: item.acquisition === undefined,
+    ...(item.ids.tvdb === undefined ? {} : { tvdbId: item.ids.tvdb }),
+    ...(item.ids.tmdb === undefined ? {} : { tmdbId: item.ids.tmdb })
+});
+
+/**
+ * The id get_metadata_issues printed, as `plex:119962` or bare. A title can
+ * resolve to a different item than the one flagged (The Fall the series came
+ * back as Fall the film), and the id cannot.
+ */
+async function resolveById(loader: LibraryLoader, raw: string, adapter: ServiceAdapter): Promise<Resolved> {
+    const prefix = `${adapter.id}:`;
+    const itemId = raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
+
+    // Through the index first, so a managed title keeps its Radarr or Sonarr ids.
+    const { index } = await loader.load();
+    const known = index.all().find(i => i.playback?.itemId === itemId);
+    if (known !== undefined) return fromMerged(known, itemId);
+
+    const notFound = new ServiceError('NotFound', adapter.id, `${serverName(adapter)} has no film or series with id ${itemId}`, {
+        remedy: 'Take the id from get_metadata_issues, which prints it as service:itemId.'
+    });
+    if (!hasMediaDetails(adapter)) throw notFound;
+    const details = await adapter.getMediaDetails(itemId, { includeEpisodes: false, episodeLimit: 0 });
+    if (details.kind !== 'movie' && details.kind !== 'series') throw notFound;
+
     return {
         itemId,
-        title: best.title,
-        kind: best.kind,
-        unmanaged: best.acquisition === undefined,
-        ...(best.ids.tvdb === undefined ? {} : { tvdbId: best.ids.tvdb }),
-        ...(best.ids.tmdb === undefined ? {} : { tmdbId: best.ids.tmdb })
+        title: details.title,
+        kind: details.kind,
+        unmanaged: true,
+        ...(details.ids.tvdb === undefined ? {} : { tvdbId: details.ids.tvdb }),
+        ...(details.ids.tmdb === undefined ? {} : { tmdbId: details.ids.tmdb })
     };
 }
+
+/** How long apply waits on a refresh the server queued. It has no done signal
+ *  on Plex, so the wait is for a result that holds across two reads. */
+export type RepairTiming = { pollMs: number; waitMs: number; sleep: (ms: number) => Promise<void> };
+
+const DEFAULT_TIMING: RepairTiming = { pollMs: 5_000, waitMs: 30_000, sleep: ms => new Promise(r => setTimeout(r, ms)) };
+
+type Reading = { mismatches: Mismatch[]; compared: number };
+
+const hasPath = (p: { path?: string }): boolean => p.path !== undefined && p.path.trim() !== '';
 
 export function registerFixMetadata(
     server: McpServer,
     context: WriteContext,
     adapters: readonly ServiceAdapter[],
     loader: LibraryLoader,
-    identity: IdentityResolver | undefined
+    identity: IdentityResolver | undefined,
+    timing: RepairTiming = DEFAULT_TIMING
 ): void {
     registerWriteTool(server, { ...context, permissions: withPlexGate(context.permissions, adapters) }, {
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Finds and repairs films and series whose media-server metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. Works on Jellyfin and Plex. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a year that disagrees means the server matched a different film. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and replaces all of its metadata, including anything corrected by hand. On Jellyfin there is no undo; on Plex, Fix Match or Unmatch on the item in Plex is the way back. It has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a media server rescan. On Jellyfin **the repair is slow**: the server holds the request open while it rebuilds the item, so a long wait is not a hang — do not retry. On Plex the repair is **off by default** (`services.plex.allow_metadata_repair`), needs a library on the Plex TV Series or Plex Movie agent, and refreshes in the background, so run `get_metadata_issues` again a minute after applying. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Finds and repairs films and series whose media-server metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. Works on Jellyfin and Plex. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`, or the `id` get_metadata_issues printed for it. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a year that disagrees means the server matched a different film. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and replaces all of its metadata, including anything corrected by hand. On Jellyfin there is no undo; on Plex, Fix Match or Unmatch on the item in Plex is the way back. It has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a media server rescan. On Jellyfin **the repair is slow**: the server holds the request open while it rebuilds the item, so a long wait is not a hang — do not retry. On Plex the repair is **off by default** (`services.plex.allow_metadata_repair`), needs a library on the Plex TV Series or Plex Movie agent, and refreshes in the background, so applying waits up to 30 seconds for the result to settle. A field locked in Plex is never overwritten, and the preview says when that is what disagrees. Previews by default — call again with the returned `confirm` token to apply it.',
         inputSchema: z.object({
-            query: z.string().min(1).describe('A film or series title. Resolved through the library index, the same way get_media_details resolves one.'),
+            query: z
+                .string()
+                .min(1)
+                .optional()
+                .describe('A film or series title. Resolved through the library index, the same way get_media_details resolves one.'),
+            id: z
+                .string()
+                .min(1)
+                .optional()
+                .describe('The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare. Wins over `query`.'),
             user: z
                 .string()
                 .optional()
@@ -180,10 +235,11 @@ export function registerFixMetadata(
         operation: 'fix_metadata',
         tier: 'destructive',
 
-        async plan({ query, user }): Promise<WritePlan> {
+        async plan({ query, id, user }): Promise<WritePlan> {
+            if (id === undefined && query === undefined) throw new Error('Name a film or series as `query`, or give its `id`.');
             const adapter = mediaServer(adapters);
             const viewer = await requireIdentity(adapters, identity).resolve(user);
-            const series = await resolve(loader, query, adapter);
+            const series = id !== undefined ? await resolveById(loader, id, adapter) : await resolve(loader, query ?? '', adapter);
 
             let parts: readonly (EpisodeRecord | MovieRecord)[];
             let mismatches: Mismatch[];
@@ -200,7 +256,7 @@ export function registerFixMetadata(
             const target = `${adapter.id}:${series.itemId}`;
             const unit = series.kind === 'movie' ? 'file' : 'episodes';
 
-            const comparable = parts.filter(e => e.path !== undefined).length;
+            const comparable = parts.filter(hasPath).length;
             if (comparable === 0) {
                 // Distinct from "nothing is wrong", and the difference matters:
                 // a server that returned no paths was never actually asked the
@@ -250,6 +306,8 @@ export function registerFixMetadata(
 
             const numbering = mismatches.filter(m => m.reasons.includes('numbering')).length;
             const titleOnly = mismatches.length - numbering;
+            const locked = mismatches.filter(m => m.locked === true).length;
+            const film = series.kind === 'movie' ? mismatches[0] : undefined;
             // One decision, used by the summary, the warning and the token
             // binding, so the three cannot disagree about which id is pinned.
             const provider = pinnedProvider(series);
@@ -257,10 +315,19 @@ export function registerFixMetadata(
             return {
                 target,
                 summary:
-                    pinned === mismatches.length
-                        ? `${series.title} has ${mismatches.length} of ${comparable} episodes disagreeing with their files, but every one of them was matched to a specific provider episode — a refresh will not move those, and this repair is expected to change nothing.`
-                        : `Re-identify ${series.title} against ${provider.label} and replace all of its metadata: ${mismatches.length} of ${comparable} ${unit} disagree with their files.`,
+                    locked === mismatches.length
+                        ? `${series.title} disagrees with its ${film === undefined ? 'files' : 'file'}, but every disagreeing field is locked in ${serverName(adapter)}, so a repair cannot change it. Unlock the field on the item in ${serverName(adapter)} first.`
+                        : pinned === mismatches.length
+                          ? `${series.title} has ${mismatches.length} of ${comparable} episodes disagreeing with their files, but every one of them was matched to a specific provider episode — a refresh will not move those, and this repair is expected to change nothing.`
+                          : film !== undefined
+                            ? `Re-identify ${series.title} against ${provider.label} and replace all of its metadata: its file names a different ${film.reasons.includes('year') ? 'year' : 'title'}.`
+                            : `Re-identify ${series.title} against ${provider.label} and replace all of its metadata: ${mismatches.length} of ${comparable} ${unit} disagree with their files.`,
                 effects: [
+                    ...(locked === 0
+                        ? []
+                        : [
+                              `${locked === mismatches.length ? 'Every' : `${locked} of the ${mismatches.length}`} disagreeing ${film === undefined ? 'episodes have their' : 'film has its'} field locked in ${serverName(adapter)}. Fix Match and a refresh never overwrite a locked field, so unlock it on the item first (Edit, then the lock icon beside the field).`
+                          ]),
                     ...(pinned === 0
                         ? []
                         : [
@@ -269,8 +336,8 @@ export function registerFixMetadata(
                                   : `${pinned} of the ${mismatches.length} mismatching episodes were matched to a specific provider episode, and a refresh will not move those — an episode's numbers and title are stored on the item from the original scan, not re-derived from the file. For those, trigger_scan with action "rename" on the Sonarr series and then a media server rescan is the repair that works.`
                           ]),
                     adapter.type === 'plex'
-                        ? 'Re-matches the item in Plex (Fix Match) and refreshes all of its metadata in the background. Anything corrected by hand in Plex is overwritten; Fix Match or Unmatch on the item in Plex is the way back.'
-                        : 'Replaces every metadata field on the series and its episodes. Anything corrected by hand in Jellyfin is overwritten, and the previous values are not recoverable.',
+                        ? 'Re-matches the item in Plex (Fix Match) and refreshes all of its metadata in the background. Hand edits are overwritten unless the field is locked; Fix Match or Unmatch on the item in Plex is the way back.'
+                        : `Replaces every metadata field on the ${series.kind === 'movie' ? 'film' : 'series and its episodes'}. Anything corrected by hand in Jellyfin is overwritten, and the previous values are not recoverable.`,
                     ...(provider.id === undefined
                         ? [
                               'No provider id is known for this title, so the identity is not pinned before the refresh — the server may re-match it the same wrong way. Fix it in Radarr or Sonarr first.'
@@ -284,13 +351,21 @@ export function registerFixMetadata(
                               `${provider.label} is the media server's own id for this title, and no Radarr or Sonarr manages it — so re-identifying may pin exactly the id that is already wrong.`
                           ]
                         : []),
-                    `${numbering} episode${numbering === 1 ? '' : 's'} where the path's own season/episode number disagrees with the server.`,
-                    ...(adapter.type === 'plex' && numbering > 0
+                    ...(film !== undefined
                         ? [
-                              'Plex takes season and episode numbers from the file names, so a numbering mismatch usually needs the files renamed (trigger_scan with action "rename" on Sonarr, then trigger_scan on Plex) rather than a rematch.'
+                              film.reasons.includes('year')
+                                  ? "The year in the filename disagrees with the server's, the stronger signal: it usually means a different film was matched."
+                                  : 'Only the title text disagrees, the weaker signal, and legitimate for an alternate or regional title.'
                           ]
-                        : []),
-                    `${titleOnly} where only the title text disagrees — the weaker signal, and legitimate for a romanised or alternate-language filename.`,
+                        : [
+                              `${numbering} episode${numbering === 1 ? '' : 's'} where the path's own season/episode number disagrees with the server.`,
+                              ...(adapter.type === 'plex' && numbering > 0
+                                  ? [
+                                        'Plex takes season and episode numbers from the file names, so a numbering mismatch usually needs the files renamed (trigger_scan with action "rename" on Sonarr, then trigger_scan on Plex) rather than a rematch.'
+                                    ]
+                                  : []),
+                              `${titleOnly} where only the title text disagrees — the weaker signal, and legitimate for a romanised or alternate-language filename.`
+                          ]),
                     ...mismatches.slice(0, EXAMPLE_LIMIT).map(m => describe(m, adapter.id)),
                     ...(mismatches.length > EXAMPLE_LIMIT ? [`…and ${mismatches.length - EXAMPLE_LIMIT} more.`] : [])
                 ],
@@ -302,7 +377,7 @@ export function registerFixMetadata(
                 // one asks a person to confirm a destructive, irreversible
                 // operation whose own preview says it achieves nothing, which
                 // is how confirming becomes reflexive.
-                ...(pinned > 0 && pinned === mismatches.length && numbering > 0 ? { noop: true } : {}),
+                ...((pinned > 0 && pinned === mismatches.length && numbering > 0) || locked === mismatches.length ? { noop: true } : {}),
                 args: {
                     itemId: series.itemId,
                     mismatches: mismatches.length,
@@ -310,6 +385,7 @@ export function registerFixMetadata(
                     // for a preview that unpinned nothing must not authorise one
                     // that unpins sixty-eight episodes.
                     pinned,
+                    locked,
                     kind: series.kind,
                     // The id `apply` will actually pin, not just the series one:
                     // a film pins TMDB, and binding only TVDB left a change to
@@ -330,10 +406,14 @@ export function registerFixMetadata(
             const bound = plan.args as { itemId: string; kind: 'movie' | 'series'; providerId?: { tvdbId?: number; tmdbId?: number } };
             const series = { itemId: bound.itemId, kind: bound.kind, title: plan.summary };
 
-            const read = async (): Promise<Mismatch[]> =>
-                series.kind === 'movie'
-                    ? findMovieMismatches(await adapter.readMovieMetadata(viewer, series.itemId))
-                    : findMismatches(await adapter.readEpisodeMetadata(viewer, series.itemId));
+            const read = async (): Promise<Reading> => {
+                if (series.kind === 'movie') {
+                    const films = await adapter.readMovieMetadata(viewer, series.itemId);
+                    return { mismatches: findMovieMismatches(films), compared: films.filter(hasPath).length };
+                }
+                const episodes = await adapter.readEpisodeMetadata(viewer, series.itemId);
+                return { mismatches: findMismatches(episodes), compared: episodes.filter(hasPath).length };
+            };
 
             const before = await read();
 
@@ -342,8 +422,35 @@ export function registerFixMetadata(
             const matched =
                 matchedTo === undefined ? '' : ` Matched to ${matchedTo.name}${matchedTo.year === undefined ? '' : ` (${matchedTo.year})`}.`;
 
-            // Plex, and Jellyfin's plain refresh, finish in the background: this is a snapshot.
-            const after = await read();
+            /**
+             * A queued refresh is read until an improvement holds across two
+             * reads, or the wait runs out. One read straight after was wrong in
+             * three of four live Plex applies: twice it caught a show mid-rebuild
+             * with nothing to compare and called that repaired, once it read a
+             * film before the refresh landed and called that a failure.
+             */
+            const improved = (r: Reading): boolean => r.compared >= before.compared && r.mismatches.length < before.mismatches.length;
+            let after = await read();
+            let held = settled && improved(after);
+            let waitedMs = 0;
+            while (!settled && waitedMs < timing.waitMs) {
+                await timing.sleep(timing.pollMs);
+                waitedMs += timing.pollMs;
+                const next = await read();
+                held = improved(after) && improved(next) && next.mismatches.length === after.mismatches.length;
+                after = next;
+                if (held) break;
+            }
+
+            const b = before.mismatches.length;
+            const a = after.mismatches.length;
+            const unit = series.kind === 'movie' ? 'file' : 'episodes';
+            const waited = `${Math.round(waitedMs / 1000)} seconds`;
+            const lockedBefore = before.mismatches.filter(m => m.locked === true).length;
+            const lockNote =
+                lockedBefore === 0
+                    ? ''
+                    : ` ${lockedBefore} of them ${lockedBefore === 1 ? 'is' : 'are'} on a field locked in ${serverName(adapter)}, which no repair overwrites; unlock it on the item first.`;
 
             /**
              * The write succeeding and the problem being fixed are two different
@@ -356,24 +463,27 @@ export function registerFixMetadata(
              * On Jellyfin the identify path finishes the refresh before it
              * answers, so its result is final and an unchanged count means it
              * genuinely did nothing. A queued refresh (Jellyfin's plain one, and
-             * Plex's always) may only be too early. `settled` carries that
-             * distinction instead of hedging over both.
+             * Plex's always) has no done signal, so it gets the wait above and an
+             * honest "not verified" when that runs out.
              */
             return {
-                mismatchesBefore: before.length,
-                mismatchesAfter: after.length,
-                verified: after.length < before.length,
-                note:
-                    after.length < before.length
-                        ? `Repaired: ${before.length - after.length} of ${before.length} mismatches are gone.${matched}` +
-                          (settled ? '' : ' The refresh is queued, so the final count can improve further.')
-                        : settled
-                          ? `NOT FIXED: the re-identify completed and ${after.length} mismatches remain, the same as before. This is a final answer rather than an early one, because the server finished the work before replying. An episode's season and number are stored on the item from the original scan and no refresh re-derives them, so the repair that works is trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on the media server.`
-                          : `NOT VERIFIED: the refresh was accepted but ${after.length} mismatches remain, the same as before.${matched} ` +
-                            (bound.providerId === undefined
-                                ? 'No provider id could be pinned, so this was a plain refresh, which the server queues. '
-                                : 'The server queues the refresh and finishes it in the background. ') +
-                            'Run get_metadata_issues again in a minute to see the settled result.'
+                mismatchesBefore: b,
+                mismatchesAfter: a,
+                comparedBefore: before.compared,
+                comparedAfter: after.compared,
+                verified: held,
+                note: held
+                    ? `Repaired: ${b - a} of ${b} mismatches are gone.${matched}` +
+                      (settled ? '' : ` That held across two reads ${Math.round(timing.pollMs / 1000)} seconds apart.`)
+                    : after.compared < before.compared
+                      ? `NOT VERIFIED: ${serverName(adapter)} was still rebuilding the item after ${waited}. The last read compared ${after.compared} of the ${before.compared} ${unit} compared before the repair, so its count says nothing yet.${matched} Run get_metadata_issues again in a few minutes.`
+                      : settled && a >= b
+                        ? `NOT FIXED: the re-identify completed and ${a} mismatches remain, the same as before. This is a final answer rather than an early one, because the server finished the work before replying. An episode's season and number are stored on the item from the original scan and no refresh re-derives them, so the repair that works is trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on the media server.`
+                        : `NOT VERIFIED: ${a} of ${b} mismatches remain after waiting ${waited}${a < b ? ', and that count did not hold across a second read' : ''}.${matched}${lockNote} ` +
+                          (bound.providerId === undefined
+                              ? 'No provider id could be pinned, so this was a plain refresh, which the server queues. '
+                              : 'The server queues the refresh and finishes it in the background. ') +
+                          'Run get_metadata_issues again in a few minutes. If they are still there, this repair does not fix them.'
             };
         }
     });

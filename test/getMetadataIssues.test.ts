@@ -3,6 +3,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { EpisodeRecord, MovieRecord } from '../src/core/episodeMismatch.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
+import { permissionSourceFrom } from '../src/core/permissions.ts';
+import type { AnyServiceConfig } from '../src/config/schema.ts';
+import { instancesOf } from './helpers/instances.ts';
 import { buildGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
@@ -355,12 +358,48 @@ describe('on Plex', () => {
     it('sends a misnamed Plex episode to a metadata refresh, because Plex episodes are never pinned', async () => {
         const issue = (await sweep(plexAdapter())).items.find(i => i.itemId === '900300');
         expect(issue).toMatchObject({ kind: 'series', mismatches: 1, titleOnly: 1, pinned: 0, remedy: 'refresh_metadata' });
-        expect(issue?.fix).toContain('off by default on Plex (services.plex.allow_metadata_repair)');
+        expect(issue?.fix).toContain('The repair is off on this Plex until services.plex.allow_metadata_repair is set.');
+    });
+
+    it('drops the "off" note once the repair is allowed', async () => {
+        const permissions = permissionSourceFrom(
+            instancesOf({ plex: { allow_metadata_repair: true, permissions: { safe_write: true, destructive: true } } as unknown as AnyServiceConfig })
+        );
+        const result = await buildGetMetadataIssues([plexAdapter()], identity, { detail: 'full', limit: 50, offset: 0, permissions });
+        const issue = result.items.find(i => i.itemId === '900300');
+
+        expect(issue?.remedy).toBe('refresh_metadata');
+        expect(issue?.fix).not.toContain('allow_metadata_repair');
     });
 
     it('names the media server, not Jellyfin, in the rename fix', async () => {
         const issue = (await sweep(plexAdapter())).items.find(i => i.remedy === 'rename_files');
         expect(issue?.fix).toContain('then trigger_scan on the media server');
         expect(issue?.fix).not.toContain('Jellyfin');
+    });
+});
+
+describe('locked fields', () => {
+    it('sends a film whose year is locked to an unlock, not a repair', async () => {
+        const film: MovieRecord = {
+            id: 'm1',
+            name: 'Fixture film',
+            year: 2001,
+            path: '/movies/Fixture film (1998)/Fixture film (1998).mkv',
+            lockedFields: ['originallyAvailableAt']
+        };
+        const [issue] = (await sweep(adapterWith({}, [], [film]))).items;
+        expect(issue).toMatchObject({ kind: 'movie', locked: 1, remedy: 'unlock_fields' });
+        expect(issue?.fix).toContain('unlock it');
+    });
+
+    it('sends a series whose disagreeing titles are all locked to an unlock', async () => {
+        const [issue] = (await sweep(adapterWith({ Show: [{ ...unmatched(1), lockedFields: ['title'] }] }))).items;
+        expect(issue).toMatchObject({ locked: 1, remedy: 'unlock_fields' });
+    });
+
+    it('ignores a lock on a field that is not the one disagreeing', async () => {
+        const [issue] = (await sweep(adapterWith({ Show: [{ ...unmatched(1), lockedFields: ['summary'] }] }))).items;
+        expect(issue).toMatchObject({ locked: 0, remedy: 'refresh_metadata' });
     });
 });
