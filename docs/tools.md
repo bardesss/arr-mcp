@@ -781,7 +781,15 @@ deliberately **not** folded into `get_library` where every caller would pay for
 it. A real library of 101 series and 118 films sweeps in seconds.
 
 It works on Jellyfin and Plex. The detector was tuned on Jellyfin libraries,
-101 real series of them, and has not yet been run over a real Plex library.
+101 real series of them, then on a sweep of a real Plex library of 5,988 items
+in [#312](../../issues/312). That sweep moved four rules: a film's year may
+drift by two, a matched film whose year agrees is not flagged on its title
+alone (Mad Max 2 shown as The Road Warrior), an episode title is compared
+against every field in the filename including parentheses (`Chapter One - The
+Boy in the Iceberg` shown as "The Boy in the Iceberg"), and accents are folded
+before comparing. Two kinds of finding it still makes are real but not
+something a rematch fixes: placeholder titles in the server, and series where
+every title is shifted by one.
 Plex episodes are never treated as pinned: their provider ids follow from the
 show's match rather than identifying the episode on its own, so a title-only
 finding on Plex comes back as `refresh_metadata`. One more thing is unverified
@@ -923,6 +931,13 @@ rather than pedantry. A bare four-digit token is not a year, it is a number that
 looks like one — `Blade Runner 2049 (2017)` parsed as year 2049 with the title
 "Blade Runner", which then disagreed with a perfectly correct record. `1917` and
 `2012` are the same trap. No parenthesised year, no claim.
+
+A drift of up to two years is not a finding. Radarr names a file with the year
+it held at import, and festival, limited and regional dates move it afterwards;
+on a real Plex library, nearly every film flagged at a one-year tolerance was
+the right film two years out. Three years or more still is. And a film the
+server matched, whose year agrees, is never flagged on its title alone: that is
+the same film under an alternate or regional title.
 
 Swept across a real library of 118 films, this produced no findings at all,
 which is the answer a healthy film library should give.

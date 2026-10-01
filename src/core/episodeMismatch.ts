@@ -183,11 +183,25 @@ export function parseFileNumbering(path: string): { season?: number; episode?: n
  * for.
  */
 export function extractFileTitle(path: string): string | undefined {
+    return titleFields(path, BRACKETED)?.[0];
+}
+
+/**
+ * Every title field after the numbering, parentheses kept, for the comparison
+ * only. A file often names more than the server shows: `Chapter One - The Boy
+ * in the Iceberg`, `Day of the Orphan (King Mario of Cramalot)`. Comparing the
+ * first field alone flagged all of those on a real Plex library.
+ */
+const wideFileTitle = (path: string): string | undefined => titleFields(path, SQUARE_BRACKETED)?.join(' ');
+
+const SQUARE_BRACKETED = /\[[^\]]*\]/g;
+
+function titleFields(path: string, stripped: RegExp): string[] | undefined {
     // Dots are the scene separator, so they become spaces before anything else
     // looks at words. Left as dots, `1080p.BluRay.x264` is one long token that
     // no tag pattern matches and no title ever shares.
     const base = withoutExtension(segments(path).at(-1) ?? '')
-        .replace(BRACKETED, ' ')
+        .replace(stripped, ' ')
         .replace(/\./g, ' ');
 
     const numbered = lastMatch(SEASON_EPISODE, base) ?? lastMatch(SEASON_X_EPISODE, base);
@@ -223,13 +237,12 @@ export function extractFileTitle(path: string): string | undefined {
         .map(part => part.replace(/-[A-Za-z0-9_.]+$/, '').trim())
         .filter(part => part !== '' && !/^\d+$/.test(part));
 
-    // The first surviving field, not the longest. The absolute episode number
-    // that sits in its own ` - 001 - ` field is already gone (the numeric
-    // filter above), and "longest" preferred a trailing release-tag blob:
-    // `… - Pilot - AMZN WEB-DL DDP5.1 H.264-NTb` extracted the tags as the
-    // title, whose surviving words then matched nothing.
-    const candidate = fields[0];
-    return candidate === undefined || candidate === '' ? undefined : candidate;
+    // The first surviving field is the title, not the longest. The absolute
+    // episode number that sits in its own ` - 001 - ` field is already gone
+    // (the numeric filter above), and "longest" preferred a trailing
+    // release-tag blob: `… - Pilot - AMZN WEB-DL DDP5.1 H.264-NTb` extracted
+    // the tags as the title, whose surviving words then matched nothing.
+    return fields.length === 0 ? undefined : fields;
 }
 
 /**
@@ -275,7 +288,8 @@ const STOPWORDS = new Set([
  *  three characters — which also drops "to", "of", "in" without listing them. */
 const contentWords = (value: string): Set<string> =>
     new Set(
-        normaliseTitle(value)
+        // Accents folded: `Sensō Kōi` and `Sensô Kôi` are the same title.
+        normaliseTitle(value.normalize('NFD').replace(/\p{M}/gu, ''))
             .split(' ')
             .filter(word => word.length >= 3 && !STOPWORDS.has(word) && !RELEASE_TAGS.test(word))
     );
@@ -464,12 +478,15 @@ export function findMovieMismatches(items: readonly MovieRecord[]): Mismatch[] {
         const { title: fileTitle, year: fileYear } = parseMovieFile(path);
         const reasons: MismatchReason[] = [];
 
-        // Two years apart, not one. Radarr names a file with the release year
-        // it held at import and TMDB moves festival and limited dates across a
-        // year boundary afterwards, so a drift of one is ordinary rather than
-        // evidence the wrong film was matched.
-        if (fileYear !== undefined && item.year !== undefined && Math.abs(fileYear - item.year) > 1) reasons.push('year');
+        // Three years apart, not one or two. Radarr names a file with the
+        // release year it held at import, and festival, limited and regional
+        // dates move it afterwards. On a real Plex library, 25 of the first 26
+        // films flagged were the right film two years out.
+        if (fileYear !== undefined && item.year !== undefined && Math.abs(fileYear - item.year) > 2) reasons.push('year');
         if (fileTitle !== undefined && titlesDisagree(item.name, fileTitle)) reasons.push('title');
+        // A matched film whose year agrees is the same film under another
+        // title: Mad Max 2 as The Road Warrior.
+        if (reasons.length === 1 && reasons[0] === 'title' && pinnedToProvider(item)) continue;
         if (reasons.length === 0) continue;
 
         out.push({
@@ -509,7 +526,9 @@ export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
             (fileEpisode !== undefined && item.episode !== undefined && fileEpisode !== item.episode);
         if (numberingOff) reasons.push('numbering');
 
-        if (fileTitle !== undefined && titlesDisagree(item.name, fileTitle)) reasons.push('title');
+        if (fileTitle !== undefined && titlesDisagree(item.name, fileTitle) && titlesDisagree(item.name, wideFileTitle(path) ?? fileTitle)) {
+            reasons.push('title');
+        }
 
         if (reasons.length === 0) continue;
 
