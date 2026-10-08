@@ -383,6 +383,22 @@ describe('episodes pinned to their own provider ids', () => {
         expect(effects).toContain('2 of the 2 mismatching episodes carry the title Jellyfin gives the episode next to them');
     });
 
+    it('says when the filename and the title are in different languages', async () => {
+        const h = harness({
+            episodes: [
+                {
+                    Id: episodeId(31),
+                    Name: 'The Sea Monster',
+                    IndexNumber: 1,
+                    ParentIndexNumber: 1,
+                    Path: '/storage/tv/Some Show/Season 01/Some Show - S01E01 - El monstruo marino [Bluray-1080p].mkv'
+                }
+            ]
+        });
+        const effects = (await h.call({ query: 'Dragon Ball Kai' })).structuredContent.effects.join('\n');
+        expect(effects).toContain('1 of the 1 mismatching episodes have the filename and the Jellyfin title in different languages');
+    });
+
     it('says nothing about pinning when no episode carries an id', async () => {
         const h = harness();
         const text = (await h.call({ query: 'Dragon Ball Kai' })).structuredContent.effects.join('\n');

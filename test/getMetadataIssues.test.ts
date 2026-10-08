@@ -453,3 +453,18 @@ describe('advisory findings', () => {
         expect(issue?.fix).toContain('3 carry the title the server gives the episode next to them');
     });
 });
+
+describe('language findings', () => {
+    it('explains a series titled in another language instead of sending it to a repair', async () => {
+        const at = (n: number, name: string, file: string): EpisodeRecord => ({
+            id: `es${n}`,
+            name,
+            season: 1,
+            episode: n,
+            path: `/tv/Show/Season 01/Show - S01E0${n} - ${file}.mkv`
+        });
+        const [issue] = (await sweep(adapterWith({ Espookys: [at(1, 'The Sea Monster', 'El monstruo marino')] }))).items;
+        expect(issue).toMatchObject({ languages: 1, remedy: 'inspect' });
+        expect(issue?.fix).toContain('1 have the filename and the server title in different languages');
+    });
+});

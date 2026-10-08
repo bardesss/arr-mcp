@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     findMismatches,
     findMovieMismatches,
+    guessLanguage,
     parseFileNumbering,
     extractFileTitle,
     movieRemedy,
@@ -682,6 +683,58 @@ describe('advisory findings from a real Plex library', () => {
         const found = findMismatches([
             ep({ id: 'k', name: 'Prologue to Battle!', season: 1, episode: 1, path: '/tv/K/Specials/Episode 101 Videls Crisis.mkv' })
         ]);
+        expect(found[0]?.reasons).toContain('numbering');
+        expect(found[0]?.advisory).toBeUndefined();
+    });
+});
+
+/** #312: Los Espookys, Bones S09E03, The House of Flowers. Both sides can be right. */
+describe('titles in different languages', () => {
+    const at = (n: number, name: string, file: string): EpisodeRecord =>
+        ep({ id: `l${n}`, name, season: 1, episode: n, path: `/tv/Show/Season 01/Show - S01E0${n} - ${file}.mkv` });
+
+    it('guesses a language from function words', () => {
+        expect(guessLanguage('El monstruo marino')).toBe('es');
+        expect(guessLanguage('The Sea Monster')).toBe('en');
+        expect(guessLanguage('El Carnicero en el Coche')).toBe('es');
+        expect(guessLanguage('Het huis van de familie')).toBe('nl');
+        expect(guessLanguage('Le chat dans la maison')).toBe('fr');
+        expect(guessLanguage('Der Hund und die Katze')).toBe('de');
+    });
+
+    it('stays undecided without function words or on a tie', () => {
+        expect(guessLanguage('Carnicero')).toBeUndefined();
+        expect(guessLanguage('Sensō Kōi')).toBeUndefined();
+        // "in" is English, "los" Spanish: a tie, so no claim.
+        expect(guessLanguage('Death in Los Angeles')).toBeUndefined();
+    });
+
+    it('marks a filename and a server title in different languages', () => {
+        const [found] = findMismatches([at(1, 'The Sea Monster', 'El monstruo marino')]);
+        expect(found).toMatchObject({ reasons: ['title'], advisory: 'language' });
+    });
+
+    it('sends a series of only those to inspect', () => {
+        const verdict = summariseSeries([at(1, 'The Sea Monster', 'El monstruo marino'), at(2, 'The Butcher in the Car', 'El Carnicero en el Coche')]);
+        expect(verdict).toMatchObject({ mismatches: 2, languages: 2, remedy: 'inspect' });
+    });
+
+    it('still sends a series with an ordinary mismatch to the repair', () => {
+        const verdict = summariseSeries([at(1, 'The Sea Monster', 'El monstruo marino'), at(2, 'The Fixture Show', 'Completely Unrelated Words')]);
+        expect(verdict).toMatchObject({ languages: 1, remedy: 'refresh_metadata' });
+    });
+
+    it('does not mark two English titles', () => {
+        expect(findMismatches([at(1, 'Stray Dog Strut', 'Asteroid Blues')])[0]?.advisory).toBeUndefined();
+        expect(findMismatches([at(1, 'The Butcher in the Car', 'Death of the Party')])[0]?.advisory).toBeUndefined();
+    });
+
+    it('does not mark a title it cannot place', () => {
+        expect(findMismatches([at(1, 'The Butcher in the Car', 'Carnicero Coche')])[0]?.advisory).toBeUndefined();
+    });
+
+    it('leaves numbering findings alone', () => {
+        const found = findMismatches([ep({ id: 'n', name: 'The Sea Monster', season: 1, episode: 2, path: '/tv/Show/Season 01/Show - S01E05 - El monstruo marino.mkv' })]);
         expect(found[0]?.reasons).toContain('numbering');
         expect(found[0]?.advisory).toBeUndefined();
     });
