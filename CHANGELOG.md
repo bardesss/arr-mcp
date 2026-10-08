@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.41.1](https://github.com/bardesss/arr-mcp/compare/v1.41.0...v1.41.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* mark metadata findings that are only a language difference ([#358](https://github.com/bardesss/arr-mcp/issues/358)) ([a121d54](https://github.com/bardesss/arr-mcp/commit/a121d543e3bb400e5eb175b7565f9aaedfa76531))
+
 ## [1.41.0](https://github.com/bardesss/arr-mcp/compare/v1.40.0...v1.41.0) (2026-10-08)
 
 
