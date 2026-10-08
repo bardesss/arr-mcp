@@ -384,6 +384,22 @@ describe('on Plex', () => {
         expect(result.itemsScanned).toBe(3);
     });
 
+    /** #312 rerun: the listing never carries Field, so the sweep saw no lock at all. */
+    it('reads locks by id for the flagged episodes', async () => {
+        const adapter = plexAdapter({
+            '/library/metadata/900301': {
+                MediaContainer: { Metadata: [{ ratingKey: '900301', type: 'episode', Field: [{ name: 'title', locked: true }] }] }
+            }
+        });
+        const issue = (await sweep(adapter)).items.find(i => i.itemId === '900300');
+        expect(issue).toMatchObject({ locked: 1, remedy: 'unlock_fields' });
+    });
+
+    it('keeps the finding when the lock read fails', async () => {
+        const issue = (await sweep(plexAdapter())).items.find(i => i.itemId === '900300');
+        expect(issue).toMatchObject({ locked: 0, remedy: 'refresh_metadata' });
+    });
+
     it('names the media server, not Jellyfin, in the rename fix', async () => {
         const issue = (await sweep(plexAdapter())).items.find(i => i.remedy === 'rename_files');
         expect(issue?.fix).toContain('then trigger_scan on the media server');

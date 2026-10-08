@@ -207,6 +207,7 @@ const PLEX_TYPE_EPISODE = 4;
  * every service — not just this one.
  */
 const PAGE_SIZE = 500;
+const LOCK_READ_BATCH = 8;
 
 /** The server owner's fixed id in Plex's `/accounts` response. */
 const OWNER_ACCOUNT_ID = 1;
@@ -717,6 +718,26 @@ export class PlexAdapter
             .map(f => f.name)
             .filter((n): n is string => typeof n === 'string' && n !== '');
         return names.length === 0 ? undefined : names;
+    }
+
+    /**
+     * Plex leaves `Field` off section listings and `allLeaves`, with or
+     * without `includeFields=1` (verified live in #312), so locks only come
+     * back on a read of the item itself. Callers ask only for the rows that
+     * mismatch, which keeps this to a handful of reads.
+     */
+    async readLockedFields(itemIds: readonly string[]): Promise<Map<string, string[]>> {
+        const out = new Map<string, string[]>();
+        for (let i = 0; i < itemIds.length; i += LOCK_READ_BATCH) {
+            await Promise.all(
+                itemIds.slice(i, i + LOCK_READ_BATCH).map(async id => {
+                    const body = await this.#http.get<unknown>(`/library/metadata/${this.#ratingKey(id)}`);
+                    const item = unwrap<RawPlexItem>(body, 'Metadata')[0];
+                    out.set(id, (item === undefined ? undefined : PlexAdapter.#lockedFields(item)) ?? []);
+                })
+            );
+        }
+        return out;
     }
 
     static #firstFile(item: RawPlexItem): string | undefined {
