@@ -569,3 +569,214 @@ describe('remapping episodes', () => {
         ).rejects.toThrow(/one file per episode/);
     });
 });
+
+/**
+ * bardesss/arr-mcp#352: a download blocked on ambiguity fails the same way on
+ * every retry. A person says what each file is, the service re-judges it with
+ * that answer (the reprocess endpoint the web UI's Manual Import dialog uses),
+ * and only what it then accepts is imported.
+ */
+describe('importing with a mapping', () => {
+    const BLOCKED = [
+        {
+            path: '/downloads/Good.Boy.2025/Good.Boy.2025.mkv',
+            relativePath: 'Good.Boy.2025.mkv',
+            quality: { quality: { id: 7, name: 'Bluray-1080p' } },
+            languages: [{ id: 1, name: 'English' }],
+            rejections: [{ reason: 'Unknown Movie' }]
+        },
+        CANDIDATES[0]
+    ];
+
+    const SHOW_FILE = {
+        path: '/downloads/Show.S02/Show.S02E03E04.mkv',
+        relativePath: 'Show.S02E03E04.mkv',
+        rejections: [{ reason: 'Unknown Series' }]
+    };
+
+    const EPISODES = [3, 4, 5].map(n => ({ id: 200 + n, seasonNumber: 2, episodeNumber: n }));
+
+    type Sent = { path: string; method: string; body: unknown }[];
+
+    function mappingStack(candidates: unknown[], reprocessRejections: string[] = []) {
+        const sent: Sent = [];
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            const method = init?.method ?? 'GET';
+            const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined;
+            sent.push({ path: url.pathname, method, body });
+
+            if (url.pathname === '/api/v3/manualimport' && method === 'POST') {
+                return jsonResponse(
+                    (body as Record<string, unknown>[]).map(item => ({
+                        ...item,
+                        ...(item.movieId === undefined ? {} : { movie: { id: item.movieId, title: 'Good Boy' } }),
+                        ...(item.episodeIds === undefined
+                            ? {}
+                            : {
+                                  episodeIds: null,
+                                  episodes: EPISODES.filter(e => (item.episodeIds as number[]).includes(e.id))
+                              }),
+                        rejections: reprocessRejections.map(reason => ({ reason }))
+                    }))
+                );
+            }
+            if (url.pathname === '/api/v3/manualimport') return jsonResponse(candidates);
+            if (url.pathname === '/api/v3/episode') return jsonResponse(EPISODES);
+            if (url.pathname === '/api/v3/series/7') return jsonResponse({ id: 7, title: 'Show' });
+            if (url.pathname === '/api/v3/movie/42') return jsonResponse({ id: 42, title: 'Good Boy' });
+            if (url.pathname === '/api/v3/command') return jsonResponse({ id: 92, name: 'ManualImport', status: 'queued' });
+            return jsonResponse({ message: 'NotFound' }, 404);
+        }) as unknown as typeof fetch;
+        return { impl, sent };
+    }
+
+    const reprocessBody = (sent: Sent) =>
+        sent.find(x => x.path === '/api/v3/manualimport' && x.method === 'POST')?.body as
+            | Record<string, unknown>[]
+            | undefined;
+    const commandBody = (sent: Sent) =>
+        sent.find(x => x.path === '/api/v3/command')?.body as { files: Record<string, unknown>[] } | undefined;
+
+    it('re-judges a mapped file with the movie a person named', async () => {
+        const s = mappingStack(BLOCKED);
+        const rows = await new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_gb', [
+            { path: 'Good.Boy.2025.mkv', movieId: 42 }
+        ]);
+
+        expect(rows[0]).toMatchObject({ matchedId: 42, rejections: [], mapped: true });
+        expect(rows[0]?.matchedTitle).toContain('Good Boy');
+        expect(reprocessBody(s.sent)).toEqual([
+            {
+                path: '/downloads/Good.Boy.2025/Good.Boy.2025.mkv',
+                downloadId: 'nzo_gb',
+                movieId: 42,
+                quality: { quality: { id: 7, name: 'Bluray-1080p' } },
+                languages: [{ id: 1, name: 'English' }]
+            }
+        ]);
+    });
+
+    it('leaves a file the mapping does not name on the service match', async () => {
+        const s = mappingStack(BLOCKED);
+        const rows = await new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_gb', [
+            { path: 'Good.Boy.2025.mkv', movieId: 42 }
+        ]);
+        expect(rows[1]).toMatchObject({ matchedId: 15 });
+        expect(rows[1]?.mapped).toBeUndefined();
+        expect(reprocessBody(s.sent)).toHaveLength(1);
+    });
+
+    it('imports the mapped file into the movie named', async () => {
+        const s = mappingStack(BLOCKED);
+        await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_gb', [
+            { path: '/downloads/Good.Boy.2025/Good.Boy.2025.mkv', movieId: 42 }
+        ]);
+        expect(commandBody(s.sent)?.files.map(f => [f.path, f.movieId])).toEqual([
+            ['/downloads/Good.Boy.2025/Good.Boy.2025.mkv', 42],
+            ['/downloads/Heat.1995.mkv', 15]
+        ]);
+    });
+
+    it('still refuses a file the service rejects with the mapping applied', async () => {
+        const s = mappingStack([BLOCKED[0]], ['Not an upgrade for existing movie file']);
+        await expect(
+            new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_gb', [{ path: 'Good.Boy.2025.mkv', movieId: 42 }])
+        ).rejects.toThrow(/Not an upgrade/);
+        expect(commandBody(s.sent)).toBeUndefined();
+    });
+
+    it('refuses a path that is not in the download, before anything is re-judged', async () => {
+        const s = mappingStack(BLOCKED);
+        await expect(
+            new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_gb', [{ path: 'Other.mkv', movieId: 42 }])
+        ).rejects.toThrow(/Other\.mkv/);
+        expect(reprocessBody(s.sent)).toBeUndefined();
+    });
+
+    it('refuses the same file mapped twice', async () => {
+        const s = mappingStack(BLOCKED);
+        await expect(
+            new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_gb', [
+                { path: 'Good.Boy.2025.mkv', movieId: 42 },
+                { path: '/downloads/Good.Boy.2025/Good.Boy.2025.mkv', movieId: 43 }
+            ])
+        ).rejects.toThrow(/more than once/);
+    });
+
+    it('names a movie that does not exist', async () => {
+        const s = mappingStack(BLOCKED);
+        await expect(
+            new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_gb', [{ path: 'Good.Boy.2025.mkv', movieId: 99 }])
+        ).rejects.toThrow(/movie 99/);
+        expect(reprocessBody(s.sent)).toBeUndefined();
+    });
+
+    it('wants a movie id on Radarr, not episodes', async () => {
+        const s = mappingStack(BLOCKED);
+        await expect(
+            new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_gb', [
+                { path: 'Good.Boy.2025.mkv', seriesId: 7, season: 1, episodes: [1] }
+            ])
+        ).rejects.toThrow(/movie_id/);
+    });
+
+    it('turns season and episode numbers into the episode ids Sonarr wants', async () => {
+        const s = mappingStack([SHOW_FILE]);
+        const rows = await new SonarrAdapter(keyed(8989), s.impl).listImportCandidates('nzo_show', [
+            { path: 'Show.S02E03E04.mkv', seriesId: 7, season: 2, episodes: [3, 4] }
+        ]);
+
+        expect(reprocessBody(s.sent)?.[0]).toMatchObject({ seriesId: 7, seasonNumber: 2, episodeIds: [203, 204] });
+        expect(rows[0]).toMatchObject({ matchedId: 7, episodeIds: [203, 204], rejections: [], mapped: true });
+        expect(rows[0]?.matchedTitle).toContain('Show');
+        expect(rows[0]?.episodeLabels).toEqual(['S02E03', 'S02E04']);
+    });
+
+    // Sonarr reads both without a null check, so leaving either out is a 500.
+    it('always sends Sonarr a quality and languages, Unknown when the file had none', async () => {
+        const s = mappingStack([SHOW_FILE]);
+        await new SonarrAdapter(keyed(8989), s.impl).listImportCandidates('nzo_show', [
+            { path: 'Show.S02E03E04.mkv', seriesId: 7, season: 2, episodes: [3] }
+        ]);
+        const sent = reprocessBody(s.sent)?.[0];
+        expect(sent?.languages).toEqual([{ id: 0, name: 'Unknown' }]);
+        expect((sent?.quality as { quality: { id: number } }).quality.id).toBe(0);
+    });
+
+    it('imports into the episodes resolved, not whatever Sonarr guessed', async () => {
+        const s = mappingStack([SHOW_FILE]);
+        await new SonarrAdapter(keyed(8989), s.impl).runManualImport('nzo_show', [
+            { path: 'Show.S02E03E04.mkv', seriesId: 7, season: 2, episodes: [3, 4] }
+        ]);
+        expect(commandBody(s.sent)?.files[0]).toMatchObject({ seriesId: 7, seasonNumber: 2, episodeIds: [203, 204] });
+    });
+
+    it('names an episode the series does not have', async () => {
+        const s = mappingStack([SHOW_FILE]);
+        await expect(
+            new SonarrAdapter(keyed(8989), s.impl).listImportCandidates('nzo_show', [
+                { path: 'Show.S02E03E04.mkv', seriesId: 7, season: 2, episodes: [9] }
+            ])
+        ).rejects.toThrow(/S02E09/);
+        expect(reprocessBody(s.sent)).toBeUndefined();
+    });
+
+    it('names a series that does not exist', async () => {
+        const s = mappingStack([SHOW_FILE]);
+        await expect(
+            new SonarrAdapter(keyed(8989), s.impl).listImportCandidates('nzo_show', [
+                { path: 'Show.S02E03E04.mkv', seriesId: 8, season: 2, episodes: [3] }
+            ])
+        ).rejects.toThrow(/series 8/);
+    });
+
+    it('wants series, season and episodes on Sonarr', async () => {
+        const s = mappingStack([SHOW_FILE]);
+        await expect(
+            new SonarrAdapter(keyed(8989), s.impl).listImportCandidates('nzo_show', [
+                { path: 'Show.S02E03E04.mkv', movieId: 42 }
+            ])
+        ).rejects.toThrow(/series_id/);
+    });
+});

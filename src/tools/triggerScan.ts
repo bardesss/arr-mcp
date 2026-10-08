@@ -10,6 +10,7 @@ import {
     hasMediaDetails,
     type EpisodeRemapCapable,
     type LibraryMaintenanceCapable,
+    type ImportMapping,
     type LibraryScanCapable,
     type ManualImportCapable,
     type ServiceAdapter
@@ -103,6 +104,25 @@ const findRemapAdapter = (
     return adapter;
 };
 
+const IdSchema = z.string().regex(/^\d+$/, 'a numeric id, as `acquisition.id` on get_library');
+
+type MappingInput = {
+    path: string;
+    movie_id?: string | undefined;
+    series_id?: string | undefined;
+    season?: number | undefined;
+    episodes?: number[] | undefined;
+};
+
+const toImportMapping = (mapping: MappingInput[] | undefined): ImportMapping[] | undefined =>
+    mapping?.map(m => ({
+        path: m.path,
+        ...(m.movie_id === undefined ? {} : { movieId: Number(m.movie_id) }),
+        ...(m.series_id === undefined ? {} : { seriesId: Number(m.series_id) }),
+        ...(m.season === undefined ? {} : { season: m.season }),
+        ...(m.episodes === undefined ? {} : { episodes: m.episodes })
+    }));
+
 export function registerTriggerScan(
     server: McpServer,
     context: WriteContext,
@@ -112,7 +132,7 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Scan for new files',
         description:
-            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. Everything here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again. `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. Everything here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe(
                 'radarr, sonarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps.'
@@ -122,7 +142,7 @@ export function registerTriggerScan(
                 .enum(['scan', 'rename', 'import', 'remap'])
                 .default('scan')
                 .describe(
-                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`.'
+                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`.'
                 ),
             id: z
                 .string()
@@ -153,6 +173,28 @@ export function registerTriggerScan(
                 .optional()
                 .describe(
                     'Required for action: "remap", ignored otherwise. Include every file the change touches: a file moved onto an episode that already has one must say where that one goes too, or the call is refused.'
+                ),
+            mapping: z
+                .array(
+                    z.object({
+                        path: z
+                            .string()
+                            .min(1)
+                            .describe('A file in the download, as the import preview names it, or absolute.'),
+                        movie_id: IdSchema.optional().describe('Radarr: the movie this file is, `acquisition.id` on get_library.'),
+                        series_id: IdSchema.optional().describe('Sonarr: the series, `acquisition.id` on get_library.'),
+                        season: z.number().int().min(0).optional().describe('Sonarr: the season the episodes are in.'),
+                        episodes: z
+                            .array(z.number().int().min(1))
+                            .min(1)
+                            .optional()
+                            .describe('Sonarr: the episode numbers in this file, more than one for a multi-episode file.')
+                    })
+                )
+                .min(1)
+                .optional()
+                .describe(
+                    'For action: "import", ignored otherwise. What each named file really is, for a download the service matched wrongly or not at all. The service judges each mapped file again with that answer and imports it only if it then accepts it; files left out keep the service\'s own match.'
                 )
         }),
         // Resolved from the arguments, so the permission checked, the audit row
@@ -163,7 +205,7 @@ export function registerTriggerScan(
         operation: 'trigger_scan',
         tier: 'safe',
 
-        async plan({ service, instance, action, id, download_id, reassignments }): Promise<WritePlan> {
+        async plan({ service, instance, action, id, download_id, reassignments, mapping }): Promise<WritePlan> {
             if (action === 'remap') {
                 if (id === undefined || reassignments === undefined) {
                     throw new Error(
@@ -214,7 +256,7 @@ export function registerTriggerScan(
                 }
 
                 const adapter = findImportAdapter(adapters, service, instance);
-                const candidates = await adapter.listImportCandidates(download_id);
+                const candidates = await adapter.listImportCandidates(download_id, toImportMapping(mapping));
                 const target = `${adapter.id}:${download_id}`;
 
                 if (candidates.length === 0) {
@@ -251,13 +293,21 @@ export function registerTriggerScan(
                     effects: [
                         ...importable.map(
                             c =>
-                                `Imports ${c.display}${c.matchedTitle === undefined ? '' : ` as ${c.matchedTitle}`} — the file is moved or hardlinked out of the download folder by ${adapter.id}.`
+                                `Imports ${c.display}${c.matchedTitle === undefined ? '' : ` as ${c.matchedTitle}`}${
+                                    c.episodeLabels === undefined ? '' : ` ${c.episodeLabels.join(', ')}`
+                                }${c.mapped === true ? ' (your mapping)' : ''} — the file is moved or hardlinked out of the download folder by ${adapter.id}.`
                         ),
                         ...rejected.map(
                             c => `Skips ${c.display}: ${c.rejections.join(', ') || 'the service matched it to nothing'}.`
                         )
                     ],
-                    args: { service, action, downloadId: download_id, ...(instance === undefined ? {} : { instance }) }
+                    args: {
+                        service,
+                        action,
+                        downloadId: download_id,
+                        ...(mapping === undefined ? {} : { mapping }),
+                        ...(instance === undefined ? {} : { instance })
+                    }
                 };
             }
 
@@ -316,7 +366,7 @@ export function registerTriggerScan(
             };
         },
 
-        async apply(_plan, { service, instance, action, id, download_id, reassignments }) {
+        async apply(_plan, { service, instance, action, id, download_id, reassignments, mapping }) {
             if (action === 'remap' && id !== undefined && reassignments !== undefined) {
                 const remapper = findRemapAdapter(adapters, service, instance);
                 const { renamed, blocked, caughtInWindow } = await remapper.runEpisodeRemap(id, reassignments);
@@ -344,7 +394,7 @@ export function registerTriggerScan(
 
             if (action === 'import' && download_id !== undefined) {
                 const importer = findImportAdapter(adapters, service, instance);
-                const queued = await importer.runManualImport(download_id);
+                const queued = await importer.runManualImport(download_id, toImportMapping(mapping));
                 return `${importer.id} queued ${queued.name} for download ${download_id}. Importing runs in the background — check get_queue and stack_health's \`commands\` rather than expecting it to be done now.`;
             }
 
