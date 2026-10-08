@@ -219,7 +219,7 @@ describe('PUT /app/{type}/{name}', () => {
 
     it('logs the origin of a changed URL, and nothing past it', async () => {
         const info = vi.spyOn(logger, 'info');
-        await api('/app/radarr/hd', json('PUT', { url: 'http://u:leakpw@elsewhere.example:9999/x?apikey=leak' }));
+        await api('/app/radarr/hd', json('PUT', { url: 'http://u:leakpw@elsewhere.example:9999/x?apikey=leak', apiKey: 'k2' }));
         const line = info.mock.calls.find(call => call[1] === 'configuration saved from the management API');
         expect(line?.[0]).toMatchObject({ what: 'saved radarr/hd', target: 'http://elsewhere.example:9999' });
         expect(JSON.stringify(line)).not.toContain('leak');
@@ -250,7 +250,7 @@ describe('PUT /app/{type}/{name}', () => {
     it('treats another path, port or query as a new URL', async () => {
         for (const url of ['http://radarr:7878/radarr', 'http://radarr:7879', 'http://radarr:7878/?x=1']) {
             await seedApi();
-            await api('/app/radarr/hd', json('PUT', { url }));
+            await api('/app/radarr/hd', json('PUT', { url, apiKey: 'k2' }));
             expect(radarr()?.url, url).toBe(url);
         }
     });
@@ -258,7 +258,7 @@ describe('PUT /app/{type}/{name}', () => {
     it('treats another scheme, or new credentials on the same host, as a new URL', async () => {
         for (const url of ['https://radarr:7878', 'http://other:pw2@radarr:7878']) {
             await seedApi();
-            await api('/app/radarr/hd', json('PUT', { url }));
+            await api('/app/radarr/hd', json('PUT', { url, apiKey: 'k2' }));
             expect(radarr()?.url, url).toBe(url);
         }
     });
@@ -343,7 +343,7 @@ describe('DELETE /app', () => {
 describe('POST /app/test', () => {
     it('tests an existing app with overrides, saving nothing, and answers 400 on failure', async () => {
         vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
-        const res = await api('/app/test', json('POST', { id: 'radarr/hd', url: 'http://radarr-other:7878' }));
+        const res = await api('/app/test', json('POST', { id: 'radarr/hd', url: 'http://radarr-other:7878', apiKey: 'k2' }));
         expect(res.status).toBe(400);
         const body = (await res.json()) as { ok: boolean; app: string; latencyMs: number; error?: { kind: string } };
         expect(body).toMatchObject({ ok: false, app: 'radarr/hd' });
@@ -371,10 +371,18 @@ describe('POST /app/test', () => {
     it('logs the origin of a URL the body sends, and nothing past it', async () => {
         vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
         const info = vi.spyOn(logger, 'info');
-        await api('/app/test', json('POST', { id: 'radarr/hd', url: ' http://elsewhere.example:9999/x?apikey=leak ' }));
+        await api('/app/test', json('POST', { id: 'radarr/hd', url: ' http://elsewhere.example:9999/x?apikey=leak ', apiKey: 'k2' }));
         const line = info.mock.calls.find(call => call[1] === 'connection tested from the management API');
         expect(line?.[0]).toMatchObject({ service: 'radarr/hd', target: 'http://elsewhere.example:9999' });
         expect(JSON.stringify(line)).not.toContain('leak');
+    });
+
+    it('will not send the stored key to a new host', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const res = await api('/app/test', json('POST', { id: 'radarr/hd', url: 'http://elsewhere.example:9999' }));
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { message: string }).message).toMatch(/api_key/);
+        expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it('answers a candidate that will not build with {message}', async () => {

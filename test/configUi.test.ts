@@ -1066,12 +1066,26 @@ describe('saving an instance', () => {
 
         await call(
             '/ui/config/save',
-            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:9999', api_key: '' })
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878/radarr', api_key: '' })
         );
 
         const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
         expect(onDisk).toContain('keep-me');
-        expect(onDisk).toContain('192.0.2.10:9999');
+        expect(onDisk).toContain('192.0.2.10:7878/radarr');
+    });
+
+    it('asks for the key again before moving an instance to another host', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: keep-me\n');
+        await signIn();
+
+        const res = await call(
+            '/ui/config/save',
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:9999', api_key: '' })
+        );
+
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('enter the api_key again');
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).not.toContain('9999');
     });
 
     it('leaves every other instance untouched', async () => {
@@ -1083,14 +1097,14 @@ describe('saving an instance', () => {
 
         await call(
             '/ui/config/save',
-            form({ csrf: await csrfFrom(), instance: 'radarr/4k', url: 'http://192.0.2.99:7878' })
+            form({ csrf: await csrfFrom(), instance: 'radarr/4k', url: 'http://192.0.2.11:7878/4k' })
         );
 
         const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
         expect(onDisk).toContain('hd-key');
         expect(onDisk).toContain('fourk-key');
         expect(onDisk).toContain('192.0.2.10:7878');
-        expect(onDisk).toContain('192.0.2.99:7878');
+        expect(onDisk).toContain('192.0.2.11:7878/4k');
     });
 });
 

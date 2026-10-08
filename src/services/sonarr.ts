@@ -17,7 +17,7 @@ import {
     runArrEpisodeRemap,
     runArrManualImport
 } from './arrManualImport.ts';
-import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
+import { numericId, readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
@@ -422,7 +422,7 @@ export class SonarrAdapter
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {
-        const s = await this.#http.get<RawSeries>(`/api/v3/series/${encodeURIComponent(id)}`);
+        const s = await this.#http.get<RawSeries>(`/api/v3/series/${numericId(this.id, 'series', id)}`);
         const ratings = flattenSeriesRating(s.ratings);
 
         const base: MediaDetails = {

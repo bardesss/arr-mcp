@@ -11,6 +11,7 @@ import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
+import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import {
     hasDiskSpace,
     hasHealthChecks,
@@ -910,5 +911,33 @@ describe('the media server item id on a library row', () => {
         );
         const first = (await jelly.listUserLibrary({ id: 'u1', name: 'Someone' }))[0];
         expect(first?.playback?.itemId).toBeUndefined();
+    });
+});
+
+// encodeURIComponent leaves `.` alone, so `..` would climb out of the resource.
+describe('getMediaDetails ids', () => {
+    const recording = () => {
+        const paths: string[] = [];
+        const impl: typeof fetch = async input => {
+            paths.push(String(input instanceof Request ? input.url : input));
+            return jsonResponse({});
+        };
+        return { paths, impl };
+    };
+    const opts = { includeEpisodes: false, episodeLimit: 5 };
+
+    it.each(['..', '.', '7/../..', 'abc', '', '0', '-3'])('refuses %j before Radarr is called', async id => {
+        const r = recording();
+        await expect(new RadarrAdapter(keyed(7878), r.impl).getMediaDetails(id)).rejects.toThrow(/not a radarr movie id/i);
+        expect(r.paths).toEqual([]);
+    });
+
+    it.each(['..', 'abc'])('refuses %j before Sonarr or Whisparr is called', async id => {
+        const r = recording();
+        await expect(new SonarrAdapter(keyed(8989), r.impl).getMediaDetails(id, opts)).rejects.toThrow(/not a sonarr series id/i);
+        await expect(new WhisparrAdapter(keyed(6969), r.impl).getMediaDetails(id, opts)).rejects.toThrow(
+            /not a whisparr series id/i
+        );
+        expect(r.paths).toEqual([]);
     });
 });

@@ -97,7 +97,10 @@ GET the app, change what you want, PUT the whole object back.
 - An omitted field is unchanged.
 - `null` clears `username` and `defaultUser`, and so does an empty string.
 - `apiKey` and `password` can be replaced, but never read or cleared. `null` is
-  a 400, and an empty string means unchanged.
+  a 400, and an empty string means unchanged. A `url` on another scheme, host
+  or port is a 400 unless the stored `apiKey` or `password` comes with it, so
+  the stored one is never sent somewhere new. This applies to `POST /app/test`
+  too.
 - `apiKey`, `username` and `defaultUser` are trimmed. `password` is sent as is.
 - `url: ""` means unchanged.
 - GET shows a URL that carried credentials without them, and with a trailing

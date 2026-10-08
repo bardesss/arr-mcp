@@ -118,7 +118,7 @@ describe('updating an instance', () => {
 
     it('leaves every other instance byte-identical', () => {
         const before = two();
-        const after = updateInstance(before, 'radarr/4k', { url: 'http://192.0.2.99:7878' });
+        const after = updateInstance(before, 'radarr/4k', { url: 'http://192.0.2.99:7878', api_key: 'k4' });
 
         const hdBefore = listInstances(before).find(i => i.id === 'radarr/hd');
         const hdAfter = listInstances(after).find(i => i.id === 'radarr/hd');
@@ -135,6 +135,38 @@ describe('updating an instance', () => {
         const after = updateInstance(two(), 'radarr/hd', { api_key: 'rotated' });
         const hd = listInstances(after).find(i => i.id === 'radarr/hd');
         expect((hd?.config as { api_key: string }).api_key).toBe('rotated');
+    });
+
+    it('refuses a new host with a blank API key, so the stored one is never sent there', () => {
+        expect(() => updateInstance(two(), 'radarr/hd', { url: 'http://203.0.113.5:7878', api_key: '' })).toThrow(
+            /api_key/
+        );
+        expect(() => updateInstance(two(), 'radarr/hd', { url: 'http://192.0.2.10:7879' })).toThrow(/api_key/);
+    });
+
+    it('takes a new host when the API key comes with it', () => {
+        const after = updateInstance(two(), 'radarr/hd', { url: 'http://203.0.113.5:7878', api_key: 'k3' });
+        const hd = listInstances(after).find(i => i.id === 'radarr/hd');
+        expect(hd?.config).toMatchObject({ url: 'http://203.0.113.5:7878', api_key: 'k3' });
+    });
+
+    it('keeps the stored API key across a path change on the same host', () => {
+        const after = updateInstance(two(), 'radarr/hd', { url: `${KEYED.url}/radarr`, api_key: '' });
+        const hd = listInstances(after).find(i => i.id === 'radarr/hd');
+        expect((hd?.config as { api_key: string }).api_key).toBe('k');
+    });
+
+    it('refuses a new host with a blank password for a torrent client', () => {
+        const config = base({ qbittorrent: { url: 'http://192.0.2.20:8080', username: 'u', password: 'p' } });
+        expect(() => updateInstance(config, 'qbittorrent', { url: 'http://203.0.113.5:8080', password: '' })).toThrow(
+            /password/
+        );
+    });
+
+    it('lets a torrent client with no password move hosts', () => {
+        const config = base({ transmission: { url: 'http://192.0.2.20:9091' } });
+        const after = updateInstance(config, 'transmission', { url: 'http://203.0.113.5:9091' });
+        expect(listInstances(after)[0]?.config).toMatchObject({ url: 'http://203.0.113.5:9091' });
     });
 
     it('refuses an unknown instance rather than silently doing nothing', () => {

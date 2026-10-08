@@ -88,7 +88,15 @@ const validate = (config: Config, services: Record<string, unknown>): Config => 
     return result.data;
 };
 
-export const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
+const originOrSelf = (url: string): string => {
+    try {
+        return new URL(url).origin;
+    } catch {
+        return url;
+    }
+};
+
+export const MULTI_USER:ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
 export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent']);
 
 /**
@@ -102,6 +110,21 @@ export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmiss
  */
 function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entry {
     const next = { ...base } as Record<string, unknown>;
+
+    // A blank credential keeps the stored one, which must not follow the
+    // instance to a different host.
+    const secret = NO_API_KEY.has(type) ? 'password' : 'api_key';
+    const stored = (base as Record<string, unknown>)[secret];
+    const given = fields[secret];
+    if (
+        typeof stored === 'string' &&
+        (given === undefined || given === '') &&
+        fields.url !== undefined &&
+        fields.url !== '' &&
+        originOrSelf(fields.url) !== originOrSelf((base as { url: string }).url)
+    ) {
+        throw new ConfigEditError(`The URL points somewhere new, so enter the ${secret} again.`);
+    }
 
     if (fields.url !== undefined && fields.url !== '') next.url = fields.url;
     if (fields.timeout_ms !== undefined) next.timeout_ms = fields.timeout_ms;
