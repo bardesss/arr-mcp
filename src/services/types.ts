@@ -462,6 +462,10 @@ export interface MetadataInspectCapable {
      *  no per-title read the way episodes need a per-series one, but a caller
      *  repairing a single film should not pull the whole library to find it. */
     readMovieMetadata(user: ServiceUser, itemId?: string): Promise<MovieRecord[]>;
+
+    /** Locked fields per item, for servers whose list reads leave them out.
+     *  Absent where the reads above already carry them. */
+    readLockedFields?(itemIds: readonly string[]): Promise<Map<string, string[]>>;
 }
 
 export const hasMetadataInspect = (a: ServiceAdapter): a is ServiceAdapter & MetadataInspectCapable =>

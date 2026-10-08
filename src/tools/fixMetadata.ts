@@ -4,6 +4,7 @@ import { findMismatches, findMovieMismatches, pinnedToProvider, type EpisodeReco
 import { ServiceError } from '../core/errors.ts';
 import type { PermissionSource } from '../core/permissions.ts';
 import { fenceText } from '../core/fence.ts';
+import { logger } from '../core/logger.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import type { MergedItem } from '../core/resolver.ts';
@@ -206,6 +207,34 @@ type Reading = { mismatches: Mismatch[]; compared: number };
 
 const hasPath = (p: { path?: string }): boolean => p.path !== undefined && p.path.trim() !== '';
 
+/** Rows and their mismatches, with locks read by id for the mismatching rows
+ *  on a server whose list reads leave locks out. A failed lock read costs the
+ *  lock, not the answer. */
+export async function withLocks<T extends EpisodeRecord | MovieRecord>(
+    adapter: ServiceAdapter & MetadataInspectCapable,
+    rows: readonly T[],
+    find: (rows: readonly T[]) => Mismatch[]
+): Promise<{ rows: readonly T[]; mismatches: Mismatch[] }> {
+    const mismatches = find(rows);
+    if (adapter.readLockedFields === undefined || mismatches.length === 0) return { rows, mismatches };
+
+    let locks: Map<string, string[]>;
+    try {
+        locks = await adapter.readLockedFields(mismatches.map(m => m.id));
+    } catch (err) {
+        logger.warn({ service: adapter.id, err }, 'could not read locked fields; answering without them');
+        return { rows, mismatches };
+    }
+    const merged = rows.map(r => {
+        const locked = locks.get(r.id);
+        return locked === undefined || locked.length === 0 ? r : { ...r, lockedFields: locked };
+    });
+    return { rows: merged, mismatches: find(merged) };
+}
+
+/** Errors a server gives while it rebuilds an item: Plex answers 503 mid-refresh. */
+const STILL_SETTLING = new Set(['UpstreamError', 'Timeout', 'Unreachable', 'NotFound']);
+
 export function registerFixMetadata(
     server: McpServer,
     context: WriteContext,
@@ -255,9 +284,7 @@ export function registerFixMetadata(
                 parts = films;
                 mismatches = findMovieMismatches(films);
             } else {
-                const episodes = await adapter.readEpisodeMetadata(viewer, series.itemId);
-                parts = episodes;
-                mismatches = findMismatches(episodes);
+                ({ rows: parts, mismatches } = await withLocks(adapter, await adapter.readEpisodeMetadata(viewer, series.itemId), findMismatches));
             }
             const target = `${adapter.id}:${series.itemId}`;
             const unit = series.kind === 'movie' ? 'file' : 'episodes';
@@ -412,16 +439,17 @@ export function registerFixMetadata(
             const bound = plan.args as { itemId: string; kind: 'movie' | 'series'; providerId?: { tvdbId?: number; tmdbId?: number } };
             const series = { itemId: bound.itemId, kind: bound.kind, title: plan.summary };
 
-            const read = async (): Promise<Reading> => {
+            const read = async (locks = false): Promise<Reading> => {
                 if (series.kind === 'movie') {
                     const films = await adapter.readMovieMetadata(viewer, series.itemId);
                     return { mismatches: findMovieMismatches(films), compared: films.filter(hasPath).length };
                 }
                 const episodes = await adapter.readEpisodeMetadata(viewer, series.itemId);
-                return { mismatches: findMismatches(episodes), compared: episodes.filter(hasPath).length };
+                const { mismatches } = locks ? await withLocks(adapter, episodes, findMismatches) : { mismatches: findMismatches(episodes) };
+                return { mismatches, compared: episodes.filter(hasPath).length };
             };
 
-            const before = await read();
+            const before = await read(true);
 
             // Exactly the id the preview named and the token bound.
             const { settled, matchedTo } = await adapter.repairMetadata(series.itemId, bound.providerId ?? {});
@@ -435,23 +463,47 @@ export function registerFixMetadata(
              * with nothing to compare and called that repaired, once it read a
              * film before the refresh landed and called that a failure.
              */
-            const improved = (r: Reading): boolean => r.compared >= before.compared && r.mismatches.length < before.mismatches.length;
-            let after = await read();
+            // The write has landed by now, so a failed read is "not settled
+            // yet", never an error: Broken Darkness was repaired and reported
+            // as a 503.
+            let readError: string | undefined;
+            const readAfter = async (): Promise<Reading | undefined> => {
+                try {
+                    return await read();
+                } catch (err) {
+                    if (!(err instanceof ServiceError) || !STILL_SETTLING.has(err.kind)) throw err;
+                    readError = err.detail;
+                    return undefined;
+                }
+            };
+
+            const improved = (r: Reading | undefined): boolean =>
+                r !== undefined && r.compared >= before.compared && r.mismatches.length < before.mismatches.length;
+            let after = await readAfter();
             let held = settled && improved(after);
             let waitedMs = 0;
             while (!settled && waitedMs < timing.waitMs) {
                 await timing.sleep(timing.pollMs);
                 waitedMs += timing.pollMs;
-                const next = await read();
-                held = improved(after) && improved(next) && next.mismatches.length === after.mismatches.length;
-                after = next;
+                const next = await readAfter();
+                held = improved(after) && improved(next) && next?.mismatches.length === after?.mismatches.length;
+                if (next !== undefined) after = next;
                 if (held) break;
             }
 
             const b = before.mismatches.length;
-            const a = after.mismatches.length;
             const unit = series.kind === 'movie' ? 'file' : 'episodes';
             const waited = `${Math.round(waitedMs / 1000)} seconds`;
+
+            if (after === undefined) {
+                return {
+                    mismatchesBefore: b,
+                    comparedBefore: before.compared,
+                    verified: false,
+                    note: `NOT VERIFIED: the repair was accepted, but ${serverName(adapter)} answered every read after it with an error (${readError ?? 'unknown'}) for ${waited}, so the result could not be checked.${matched} That usually means it is still refreshing the item. Run get_metadata_issues again in a few minutes.`
+                };
+            }
+            const a = after.mismatches.length;
             const lockedBefore = before.mismatches.filter(m => m.locked === true).length;
             const lockNote =
                 lockedBefore === 0
