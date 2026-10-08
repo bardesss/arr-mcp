@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.39.3](https://github.com/bardesss/arr-mcp/compare/v1.39.2...v1.39.3) (2026-10-08)
+
+
+### Bug Fixes
+
+* keep src runnable under Node type stripping ([#349](https://github.com/bardesss/arr-mcp/issues/349)) ([4973adc](https://github.com/bardesss/arr-mcp/commit/4973adccffe441da98a32453f38d939579b75cc3))
+* metadata detector findings from the [#312](https://github.com/bardesss/arr-mcp/issues/312) rerun ([#350](https://github.com/bardesss/arr-mcp/issues/350)) ([30cd1a5](https://github.com/bardesss/arr-mcp/commit/30cd1a5ef580af4f71ae14ada96c3e7bb80f8b85))
+* Plex repair rerun findings from [#312](https://github.com/bardesss/arr-mcp/issues/312) ([#348](https://github.com/bardesss/arr-mcp/issues/348)) ([3dcdd0b](https://github.com/bardesss/arr-mcp/commit/3dcdd0b35501b68ffb903fff744b0bdf90ca0d0a))
+
 ## [1.39.2](https://github.com/bardesss/arr-mcp/compare/v1.39.1...v1.39.2) (2026-10-08)
 
 
