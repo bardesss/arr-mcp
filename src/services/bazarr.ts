@@ -130,7 +130,7 @@ export class BazarrAdapter
             service: this.id,
             source: row.object ?? 'bazarr',
             type: 'warning',
-            message: row.issue ?? ''
+            message: fenceText(row.issue ?? '', { service: this.id, field: 'message' })
         }));
     }
 
