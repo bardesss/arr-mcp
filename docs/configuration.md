@@ -62,7 +62,9 @@ If the proxy asks for a username and password, put them in the URL:
 `Authorization` header, not in the address. Services that send their own
 `Authorization` header (Jellyfin, and Transmission with a username set) keep
 theirs, so this can't stack with those. Percent-encode `@`, `:` or `%` itself
-(as `%25`) in either part.
+(as `%25`) in either part. The config page shows the URL without them, and
+saving that URL unchanged keeps them; to change them, type a URL that has
+its own `user:pass@`.
 
 A redirect from `http` to `https` on the same host (port 443 or the same port)
 is followed, as a proxy upgrading to TLS does. Any other redirect to a different
