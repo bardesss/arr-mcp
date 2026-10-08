@@ -17,6 +17,9 @@
     // alone forbids emitting.
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
+    // Type stripping cannot run enums, namespaces or parameter properties,
+    // and vitest compiles them happily, so only tsc can catch one.
+    "erasableSyntaxOnly": true,
 
     "outDir": "dist",
     "rootDir": ".",
