@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.40.0](https://github.com/bardesss/arr-mcp/compare/v1.39.3...v1.40.0) (2026-10-08)
+
+
+### Features
+
+* manage_indexer disables or deletes a Prowlarr indexer ([#328](https://github.com/bardesss/arr-mcp/issues/328)) ([#353](https://github.com/bardesss/arr-mcp/issues/353)) ([f54ad11](https://github.com/bardesss/arr-mcp/commit/f54ad114f6b5d0afcd62154a39ccc68b8ee04d0b))
+
 ## [1.39.3](https://github.com/bardesss/arr-mcp/compare/v1.39.2...v1.39.3) (2026-10-08)
 
 
