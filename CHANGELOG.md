@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.39.2](https://github.com/bardesss/arr-mcp/compare/v1.39.1...v1.39.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* config page hides user:pass@ in service URLs ([#346](https://github.com/bardesss/arr-mcp/issues/346)) ([7ae2dfd](https://github.com/bardesss/arr-mcp/commit/7ae2dfde28d3f8df6a57d951afc6b24e974d75dc))
+* fence the remaining upstream text, and match Seerr requests by user id ([#345](https://github.com/bardesss/arr-mcp/issues/345)) ([aad5a44](https://github.com/bardesss/arr-mcp/commit/aad5a4494b152f5ba47b6c64c936ac0c52a130e6))
+* harden tool and config input against SSRF-style misuse ([#343](https://github.com/bardesss/arr-mcp/issues/343)) ([040f917](https://github.com/bardesss/arr-mcp/commit/040f917c48ad2411172978e52c8186fe81c55f7d))
+
 ## [1.39.1](https://github.com/bardesss/arr-mcp/compare/v1.39.0...v1.39.1) (2026-10-01)
 
 
