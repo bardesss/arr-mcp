@@ -9,7 +9,8 @@ import type {
     EpisodeReassignment,
     EpisodeRemapOutcome,
     EpisodeRemapPlan,
-    ImportCandidate
+    ImportCandidate,
+    ImportMapping
 } from './types.ts';
 
 /**
@@ -37,9 +38,16 @@ type RawCandidate = {
     movie?: { id?: number; title?: string };
     series?: { id?: number; title?: string };
     seasonNumber?: number | null;
-    episodes?: { id?: number }[] | null;
+    episodes?: { id?: number; seasonNumber?: number; episodeNumber?: number }[] | null;
     rejections?: RawRejection[] | null;
+    /** Set here, never upstream: the file was placed by a caller's mapping. */
+    mapped?: true;
 };
+
+type RawEpisodeRow = { id?: number; seasonNumber?: number; episodeNumber?: number; episodeFileId?: number };
+
+const sxe = (season: number, episode: number): string =>
+    `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
 
 const matchedIdOf = (raw: RawCandidate, resource: 'movie' | 'series'): number | undefined =>
     resource === 'movie' ? raw.movie?.id : raw.series?.id;
@@ -49,6 +57,9 @@ function toCandidate(service: string, resource: 'movie' | 'series', raw: RawCand
 
     const title = resource === 'movie' ? raw.movie?.title : raw.series?.title;
     const episodes = (raw.episodes ?? []).map(e => e.id).filter((id): id is number => typeof id === 'number');
+    const labels = (raw.episodes ?? [])
+        .filter(e => typeof e.seasonNumber === 'number' && typeof e.episodeNumber === 'number')
+        .map(e => sxe(e.seasonNumber as number, e.episodeNumber as number));
 
     // A series file the service could not place in an episode is not
     // importable, however healthy it looks: `ManualImport` with no episode ids
@@ -68,7 +79,9 @@ function toCandidate(service: string, resource: 'movie' | 'series', raw: RawCand
             ...unplaced
         ],
         ...(matchedIdOf(raw, resource) === undefined ? {} : { matchedId: matchedIdOf(raw, resource) as number }),
-        ...(episodes.length === 0 ? {} : { episodeIds: episodes })
+        ...(episodes.length === 0 ? {} : { episodeIds: episodes }),
+        ...(labels.length === 0 ? {} : { episodeLabels: labels }),
+        ...(raw.mapped === true ? { mapped: true as const } : {})
     };
 }
 
@@ -113,11 +126,146 @@ async function explainUnfinishedDownload(
     });
 }
 
+const UNKNOWN_QUALITY = { quality: { id: 0, name: 'Unknown' }, revision: { version: 1, real: 0, isRepack: false } };
+const UNKNOWN_LANGUAGES = [{ id: 0, name: 'Unknown' }];
+
+function checkMappingShape(service: string, resource: 'movie' | 'series', m: ImportMapping): void {
+    const series = m.seriesId !== undefined || m.season !== undefined || m.episodes !== undefined;
+    if (resource === 'movie' && (m.movieId === undefined || series)) {
+        throw new Error(`On ${service}, a mapping entry takes \`movie_id\` and nothing else ("${m.path}").`);
+    }
+    if (
+        resource === 'series' &&
+        (m.movieId !== undefined || m.seriesId === undefined || m.season === undefined || (m.episodes ?? []).length === 0)
+    ) {
+        throw new Error(`On ${service}, a mapping entry takes \`series_id\`, \`season\` and \`episodes\` ("${m.path}").`);
+    }
+}
+
+type TargetLookup = { title?: string; episodes: RawEpisodeRow[] };
+
+/** Read before the reprocess call, which answers an unknown id with a 404 that
+ *  names `/manualimport` rather than the id. */
+async function lookUpTarget(
+    http: ServiceHttp,
+    service: string,
+    resource: 'movie' | 'series',
+    id: number
+): Promise<TargetLookup> {
+    let target: { title?: string };
+    try {
+        target = await http.get<{ title?: string }>(`/api/v3/${resource}/${id}`);
+    } catch (err) {
+        if (err instanceof ServiceError && err.kind === 'NotFound') {
+            throw new ServiceError('NotFound', service, `${service} has no ${resource} ${id}`, {
+                remedy: 'Take the id from `acquisition.id` on get_library.',
+                cause: err
+            });
+        }
+        throw err;
+    }
+    const episodes =
+        resource === 'series' ? await http.get<RawEpisodeRow[]>(`/api/v3/episode?seriesId=${id}`) : [];
+    return { ...(target.title === undefined ? {} : { title: target.title }), episodes };
+}
+
+/**
+ * The service re-judges each mapped file through the reprocess call its own
+ * Manual Import dialog makes, so a person's answer replaces the matcher's guess
+ * without overriding a rejection the service still has. Paths, series and
+ * episodes are all resolved first, so a bad one fails before anything is sent.
+ */
+async function applyMapping(
+    http: ServiceHttp,
+    service: string,
+    resource: 'movie' | 'series',
+    downloadId: string,
+    raw: RawCandidate[],
+    mapping: ImportMapping[]
+): Promise<RawCandidate[]> {
+    const seen = new Set<number>();
+    const located = mapping.map(m => {
+        checkMappingShape(service, resource, m);
+        const index = raw.findIndex(r => r.path === m.path || r.relativePath === m.path || r.name === m.path);
+        if (index === -1) {
+            const known = raw.map(r => r.relativePath ?? r.name ?? r.path).join('; ');
+            throw new ServiceError('NotFound', service, `download ${downloadId} has no file "${m.path}"`, {
+                remedy: `Use a path as the preview names it. ${service} sees: ${fenceText(known, { service, field: 'path' })}.`
+            });
+        }
+        if (seen.has(index)) throw new Error(`"${m.path}" appears more than once in mapping.`);
+        seen.add(index);
+        return { m, r: raw[index] as RawCandidate & { path: string }, index };
+    });
+
+    const targetOf = (m: ImportMapping): number => (resource === 'movie' ? m.movieId : m.seriesId) as number;
+    const targets = new Map<number, TargetLookup>();
+    for (const id of new Set(located.map(l => targetOf(l.m)))) {
+        targets.set(id, await lookUpTarget(http, service, resource, id));
+    }
+
+    const items = located.map(({ m, r, index }) => {
+        const known = targets.get(targetOf(m))?.episodes ?? [];
+        const episodes = (m.episodes ?? []).map(n => {
+            const found = known.find(e => e.seasonNumber === m.season && e.episodeNumber === n);
+            if (found?.id === undefined) {
+                throw new ServiceError('NotFound', service, `series ${m.seriesId} has no episode ${sxe(m.season ?? 0, n)}`, {
+                    remedy: 'get_media_details with include_episodes lists the season and episode numbers Sonarr knows.'
+                });
+            }
+            return found;
+        });
+
+        return {
+            m,
+            r,
+            index,
+            episodes,
+            body: {
+                path: r.path,
+                downloadId,
+                ...(resource === 'movie'
+                    ? { movieId: m.movieId }
+                    : { seriesId: m.seriesId, seasonNumber: m.season, episodeIds: episodes.map(e => e.id) }),
+                // Sonarr reads both without a null check. Unknown asks it to
+                // parse them from the file, as it would have anyway.
+                quality: r.quality ?? UNKNOWN_QUALITY,
+                languages: r.languages ?? UNKNOWN_LANGUAGES,
+                ...(r.releaseGroup === null || r.releaseGroup === undefined ? {} : { releaseGroup: r.releaseGroup }),
+                ...(r.indexerFlags === undefined ? {} : { indexerFlags: r.indexerFlags })
+            }
+        };
+    });
+
+    const judged = await http.post<RawCandidate[]>('/api/v3/manualimport', items.map(i => i.body));
+
+    const merged = [...raw];
+    items.forEach(({ m, r, index, episodes, body }, i) => {
+        const back = judged[i] ?? {};
+        const title = targets.get(targetOf(m))?.title;
+        const releaseGroup = back.releaseGroup ?? r.releaseGroup;
+        const indexerFlags = back.indexerFlags ?? r.indexerFlags;
+        const target = { id: targetOf(m), ...(title === undefined ? {} : { title }) };
+        merged[index] = {
+            ...r,
+            ...(resource === 'movie' ? { movie: target } : { series: target, seasonNumber: m.season as number, episodes }),
+            quality: back.quality ?? body.quality,
+            languages: back.languages ?? body.languages,
+            ...(releaseGroup === undefined ? {} : { releaseGroup }),
+            ...(indexerFlags === undefined ? {} : { indexerFlags }),
+            rejections: back.rejections ?? [],
+            mapped: true
+        };
+    });
+    return merged;
+}
+
 async function readCandidates(
     http: ServiceHttp,
     service: string,
     resource: 'movie' | 'series',
-    downloadId: string
+    downloadId: string,
+    mapping: ImportMapping[] = []
 ): Promise<{ raw: RawCandidate[]; candidates: ImportCandidate[] }> {
     let raw: RawCandidate[];
     try {
@@ -127,6 +275,7 @@ async function readCandidates(
     } catch (err) {
         throw await explainUnfinishedDownload(http, service, resource, downloadId, err);
     }
+    if (mapping.length > 0) raw = await applyMapping(http, service, resource, downloadId, raw, mapping);
 
     return {
         raw,
@@ -138,9 +287,10 @@ export async function listArrImportCandidates(
     http: ServiceHttp,
     service: string,
     resource: 'movie' | 'series',
-    downloadId: string
+    downloadId: string,
+    mapping?: ImportMapping[]
 ): Promise<ImportCandidate[]> {
-    return (await readCandidates(http, service, resource, downloadId)).candidates;
+    return (await readCandidates(http, service, resource, downloadId, mapping)).candidates;
 }
 
 /**
@@ -152,9 +302,10 @@ export async function runArrManualImport(
     http: ServiceHttp,
     service: string,
     resource: 'movie' | 'series',
-    downloadId: string
+    downloadId: string,
+    mapping?: ImportMapping[]
 ): Promise<CommandHandle> {
-    const { raw, candidates } = await readCandidates(http, service, resource, downloadId);
+    const { raw, candidates } = await readCandidates(http, service, resource, downloadId, mapping);
 
     const importable = raw.filter((_, i) => {
         const candidate = candidates[i];
@@ -167,7 +318,7 @@ export async function runArrManualImport(
             remedy:
                 reasons === ''
                     ? `${service} reported no importable files for that download id. Check it is still in get_queue — ids do not survive an item leaving the queue.`
-                    : `It rejected every file: ${reasons}. Fix that in ${service} — this tool imports what the service is willing to take, and forcing a rejected file is not something it will do on your behalf.`
+                    : `It rejected every file: ${reasons}. If ${service} matched a file to the wrong movie or episodes, or to none, pass \`mapping\` to say what it is and ${service} judges it again. Anything it still rejects has to be fixed in ${service}: this tool imports what the service is willing to take, and forcing a rejected file is not something it will do on your behalf.`
         });
     }
 
@@ -209,11 +360,7 @@ export async function runArrManualImport(
  * different item rather than a different slot in the same one.
  */
 
-type RawEpisodeRow = { id?: number; seasonNumber?: number; episodeNumber?: number; episodeFileId?: number };
 type RawSeriesFile = RawCandidate & { episodeFileId?: number };
-
-const sxe = (season: number, episode: number): string =>
-    `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
 
 type ResolvedRemap = {
     moves: {

@@ -473,6 +473,82 @@ describe('trigger_scan importing a finished download', () => {
             h.call({ service: 'jellyfin', action: 'import', download_id: 'x', dry_run: true })
         ).rejects.toThrow(/cannot import a download/i);
     });
+
+    describe('with a mapping', () => {
+        const BLOCKED = [
+            {
+                path: '/downloads/Good.Boy.2025/Good.Boy.2025.mkv',
+                relativePath: 'Good.Boy.2025.mkv',
+                quality: { quality: { id: 7 } },
+                languages: [{ id: 1, name: 'English' }],
+                rejections: [{ reason: 'Unknown Movie' }]
+            }
+        ];
+
+        const mappingHarness = () => {
+            const sent: { url: string; method: string; body: unknown }[] = [];
+            const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const method = init?.method ?? 'GET';
+                const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined;
+                sent.push({ url: url.pathname, method, body });
+                if (url.pathname === '/api/v3/manualimport' && method === 'POST') {
+                    return jsonResponse(
+                        (body as { movieId: number }[]).map(item => ({
+                            ...item,
+                            movie: { id: item.movieId, title: 'Good Boy' },
+                            rejections: []
+                        }))
+                    );
+                }
+                if (url.pathname === '/api/v3/manualimport') return jsonResponse(BLOCKED);
+                if (url.pathname === '/api/v3/movie/42') return jsonResponse({ id: 42, title: 'Good Boy' });
+                if (url.pathname === '/api/v3/movie/43') return jsonResponse({ id: 43, title: 'Other' });
+                if (url.pathname === '/api/v3/command') return jsonResponse({ id: 5, name: 'ManualImport', status: 'queued' });
+                return jsonResponse({ message: 'not found' }, 404);
+            }) as unknown as typeof fetch;
+            return {
+                ...harness({
+                    adapters: [new RadarrAdapter(keyed(7878), impl)],
+                    permissions: { radarr: permissive(true) }
+                }),
+                sent
+            };
+        };
+
+        const args = (movieId: string) => ({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'nzo_gb',
+            mapping: [{ path: 'Good.Boy.2025.mkv', movie_id: movieId }]
+        });
+
+        it('previews the file as the movie it was mapped to, importing nothing', async () => {
+            const h = mappingHarness();
+            const { structuredContent } = await h.call(args('42'));
+
+            expect(structuredContent.effects.join(' ')).toMatch(/Good\.Boy\.2025\.mkv.*Good Boy.*mapping/);
+            expect(h.sent.some(x => x.url === '/api/v3/command')).toBe(false);
+        });
+
+        it('imports into the mapped movie once confirmed', async () => {
+            const h = mappingHarness();
+            const first = await h.call(args('42'));
+            await h.call({ ...args('42'), confirm: first.structuredContent.confirm_token });
+
+            const command = h.sent.find(x => x.url === '/api/v3/command')?.body as { files: { movieId: number }[] };
+            expect(command.files[0]?.movieId).toBe(42);
+        });
+
+        it('does not let a token for one mapping confirm another', async () => {
+            const h = mappingHarness();
+            const first = await h.call(args('42'));
+            const second = await h.call({ ...args('43'), confirm: first.structuredContent.confirm_token });
+            expect(second.structuredContent.applied).toBe(false);
+            expect(second.structuredContent.confirm_error).toBeDefined();
+            expect(h.sent.some(x => x.url === '/api/v3/command')).toBe(false);
+        });
+    });
 });
 
 /**

@@ -50,6 +50,7 @@ import {
     type DeleteMediaOptions,
     type MediaAddCapable,
     type ImportCandidate,
+    type ImportMapping,
     type LibraryMaintenanceCapable,
     type ManualImportCapable,
     type MediaUpdateCapable,
@@ -242,12 +243,12 @@ export class RadarrAdapter
         return readArrCommands(this.#http, this.id);
     }
 
-    async listImportCandidates(downloadId: string): Promise<ImportCandidate[]> {
-        return listArrImportCandidates(this.#http, this.id, 'movie', downloadId);
+    async listImportCandidates(downloadId: string, mapping?: ImportMapping[]): Promise<ImportCandidate[]> {
+        return listArrImportCandidates(this.#http, this.id, 'movie', downloadId, mapping);
     }
 
-    async runManualImport(downloadId: string): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'movie', downloadId);
+    async runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'movie', downloadId, mapping);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {

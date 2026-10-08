@@ -59,6 +59,7 @@ import {
     type EpisodeFileCapable,
     type MediaAddCapable,
     type ImportCandidate,
+    type ImportMapping,
     type LibraryMaintenanceCapable,
     type EpisodeReassignment,
     type EpisodeRemapCapable,
@@ -276,12 +277,12 @@ export class SonarrAdapter
         return readArrCommands(this.#http, this.id);
     }
 
-    async listImportCandidates(downloadId: string): Promise<ImportCandidate[]> {
-        return listArrImportCandidates(this.#http, this.id, 'series', downloadId);
+    async listImportCandidates(downloadId: string, mapping?: ImportMapping[]): Promise<ImportCandidate[]> {
+        return listArrImportCandidates(this.#http, this.id, 'series', downloadId, mapping);
     }
 
-    async runManualImport(downloadId: string): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'series', downloadId);
+    async runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'series', downloadId, mapping);
     }
 
     async planEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapPlan> {
