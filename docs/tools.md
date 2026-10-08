@@ -36,7 +36,7 @@ off until you turn them on — see [writes](writes.md).
 | `add_media` | Add this film or series and start looking for it |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there |
 | `fix_metadata` | Repair one item whose metadata does not describe its files |
-| `manage_indexer` | Stop grabbing from this indexer, or delete it from Prowlarr and the apps |
+| `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, stop grabbing from it, or delete it |
 
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
@@ -753,9 +753,9 @@ same trap `remove_queue_item` documents, and it is checked the same way.
 
 ## `manage_indexer`
 
-Disables, re-enables or deletes one Prowlarr indexer, then queues Prowlarr's
-Application Indexer Sync. Take `id` from `get_indexers`: `21` for a row shown
-as `prowlarr:21`.
+Adds, edits, disables, re-enables or deletes one Prowlarr indexer, then queues
+Prowlarr's Application Indexer Sync. Every action but `add` takes `id` from
+`get_indexers`: `21` for a row shown as `prowlarr:21`.
 
 What happens to the copies in Radarr and Sonarr depends on each app's sync
 level in Prowlarr, so the preview reads `/applications` and says it per app.
@@ -763,9 +763,48 @@ From Prowlarr's own source (2.6.5):
 
 | Action | Add and Remove Only | Full Sync | Sync disabled |
 | --- | --- | --- | --- |
+| `add` | copy added | copy added | nothing |
+| `edit` | copy keeps its old settings | copy updated | nothing |
 | `disable` | copy stays listed, every search and grab through it fails | copy is disabled too | copy stays listed, every search and grab through it fails |
 | `enable` | works again; the sync re-adds a missing copy | copy is enabled again | works again if the copy still exists |
 | `delete` | copy removed | copy removed | copy stays and fails; remove it by hand |
+
+An app only gets an indexer when two things line up: its tags are empty or
+share one with the indexer, and the indexer covers at least one category the
+app syncs (Sonarr's anime categories count). So a movies-only indexer never
+reaches Sonarr, and the preview says which of the two kept it out.
+
+### Adding
+
+`add` takes a `definition`, by the name in Prowlarr's Add Indexer list
+(`Nyaa.si`) or its definition name (`nyaasi`), and only adds **public indexers
+that need no login**: no password, cookie or captcha field. Private and
+semi-private ones are refused with a pointer to Prowlarr's UI, because arr-mcp
+never handles indexer credentials. Prowlarr's own field flag misses cookies and
+most Cardigann passwords, so the check is on the field type too. On a current
+Prowlarr that leaves about 88 of its 650 definitions.
+
+The indexer is posted as Prowlarr's own template with only the settings you
+named changed, enabled, on your first app profile unless you name another.
+Prowlarr tests it before saving, which means a request to the site from
+Prowlarr's network; if that fails nothing is added, and Prowlarr's logs have
+the reason. A definition already configured is a no-op naming its id.
+
+### Editing
+
+`edit` changes `priority`, `app_profile`, `tags` and the four torrent seed
+settings, and nothing else. It goes through Prowlarr's bulk endpoint, which
+takes just those fields, so the indexer's credentials never pass through
+arr-mcp. That is also why the name, URL and categories are not editable here.
+
+Profiles and tags are named, not numbered, and must already exist; arr-mcp
+does not create either. `tags` replaces the whole list, and the preview works
+out which apps gain or lose the indexer because of it: Full Sync apps drop a
+copy whose tags no longer match, Add and Remove Only apps keep it.
+
+A seed setting that is unset today means the download client's default
+applies. Setting it is fine, but the bulk endpoint cannot unset it again, so
+the preview says so and only Prowlarr's UI can put it back.
 
 `disable` stops grabs everywhere because Prowlarr answers a disabled indexer's
 searches and downloads with `410 Indexer is disabled`, whatever the app thinks
@@ -773,10 +812,14 @@ it has. The cost is that an app at Add and Remove Only reports the indexer as
 failing until it is enabled again or deleted. An app whose tags exclude the
 indexer never had it, and the preview says so.
 
-`disable` and `enable` are safe tier. `delete` is destructive: Prowlarr keeps
-nothing to restore, so getting it back means adding the indexer again,
-credentials included. The tool is annotated `destructiveHint` because one of
-its actions is.
+`add`, `edit`, `disable` and `enable` are safe tier. `delete` is destructive:
+Prowlarr keeps nothing to restore, so getting it back means adding the
+indexer again, credentials included. The tool is annotated `destructiveHint`
+because one of its actions is.
+
+Adding and deleting the same indexer seconds apart can leave a copy behind in
+an app: the delete's sync joins the add's, which is still running. The next
+sync clears it; `trigger_scan` on Prowlarr runs one.
 
 ## `set_watched`
 

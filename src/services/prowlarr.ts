@@ -13,7 +13,12 @@ import {
     type HealthCheck,
     type HealthCheckCapable,
     type IndexerCapable,
+    type IndexerDefinition,
+    type IndexerLookups,
     type IndexerRejection,
+    type IndexerSeeding,
+    type IndexerSettings,
+    type IndexerSyncApp,
     type IndexerSeedCriteria,
     type IndexerSummary,
     type IndexerSyncLevel,
@@ -29,8 +34,21 @@ import {
 
 type RawStatus = components['schemas']['SystemResource'];
 type RawHealthCheck = components['schemas']['HealthResource'];
-type RawIndexer = { id?: number; name?: string; enable?: boolean; protocol?: string; priority?: number; tags?: number[] };
-type RawApplication = { name?: string; implementation?: string; syncLevel?: string; tags?: number[] };
+type RawField = { name?: string; value?: unknown; type?: string; privacy?: string };
+type RawIndexer = {
+    id?: number;
+    name?: string;
+    definitionName?: string;
+    enable?: boolean;
+    protocol?: string;
+    privacy?: string;
+    priority?: number;
+    appProfileId?: number;
+    tags?: number[];
+    fields?: RawField[];
+    capabilities?: { categories?: { id?: number; subCategories?: { id?: number }[] }[] };
+};
+type RawApplication = { name?: string; implementation?: string; syncLevel?: string; tags?: number[]; fields?: RawField[] };
 type RawIndexerStatus = { indexerId?: number; disabledTill?: string; mostRecentFailure?: string };
 type RawIndexerStats = {
     indexers?: {
@@ -126,9 +144,8 @@ export class ProwlarrAdapter
     }
 
     /**
-     * The indexer plus every app Prowlarr syncs to. `receives` mirrors
-     * Prowlarr's own tag rule: an app with no tags takes every indexer, an
-     * app with tags only the ones sharing one.
+     * The indexer plus every app Prowlarr syncs to, with what `reachOf`
+     * needs to say whether the indexer reaches each one.
      */
     async readIndexerSync(id: number): Promise<IndexerSyncView | undefined> {
         const [indexers, apps, version] = await Promise.all([
@@ -141,15 +158,126 @@ export class ProwlarrAdapter
         const tags = indexer.tags ?? [];
 
         return {
-            indexer: { id, name: indexer.name ?? `indexer ${id}`, enabled: indexer.enable ?? false },
-            apps: apps.map(a => ({
-                name: a.name ?? a.implementation ?? 'unnamed app',
-                implementation: a.implementation ?? 'unknown',
-                syncLevel: syncLevelOf(a.syncLevel),
-                receives: (a.tags ?? []).length === 0 || (a.tags ?? []).some(t => tags.includes(t))
-            })),
-            canToggle: atLeast(version, 1, 8)
+            indexer: {
+                id,
+                name: indexer.name ?? `indexer ${id}`,
+                enabled: indexer.enable ?? false,
+                protocol: indexer.protocol ?? 'unknown',
+                priority: indexer.priority ?? 25,
+                appProfileId: indexer.appProfileId ?? 0,
+                tags,
+                seeding: seedingOf(indexer.fields ?? []),
+                ...categoriesOf(indexer)
+            },
+            apps: appsFor(apps),
+            bulkEdit: atLeast(version, 1, 8)
         };
+    }
+
+    async readIndexerApps(): Promise<IndexerSyncApp[]> {
+        return appsFor(await this.#http.get<RawApplication[]>('/api/v1/applications'));
+    }
+
+    async readIndexerLookups(): Promise<IndexerLookups> {
+        const [profiles, tags] = await Promise.all([
+            this.#http.get<{ id?: number; name?: string }[]>('/api/v1/appprofile'),
+            this.#http.get<{ id?: number; label?: string }[]>('/api/v1/tag')
+        ]);
+        return {
+            appProfiles: profiles.flatMap(p =>
+                typeof p.id === 'number' ? [{ id: p.id, name: p.name ?? `profile ${p.id}` }] : []
+            ),
+            tags: tags.flatMap(t =>
+                typeof t.id === 'number' && t.label !== undefined ? [{ id: t.id, label: t.label }] : []
+            )
+        };
+    }
+
+    async readIndexerDefinitions(): Promise<{
+        definitions: IndexerDefinition[];
+        configured: { id: number; definitionName: string }[];
+    }> {
+        const [schema, indexers] = await Promise.all([
+            this.#http.get<RawIndexer[]>('/api/v1/indexer/schema'),
+            this.#http.get<RawIndexer[]>('/api/v1/indexer')
+        ]);
+        return {
+            definitions: schema
+                .filter((d): d is RawIndexer & { definitionName: string } => typeof d.definitionName === 'string')
+                .map(d => ({
+                    definitionName: d.definitionName,
+                    name: d.name ?? d.definitionName,
+                    privacy: d.privacy ?? 'unknown',
+                    protocol: d.protocol ?? 'unknown',
+                    credentialFree: isCredentialFree(d),
+                    ...categoriesOf(d)
+                })),
+            configured: indexers.flatMap(i =>
+                typeof i.id === 'number' && typeof i.definitionName === 'string'
+                    ? [{ id: i.id, definitionName: i.definitionName }]
+                    : []
+            )
+        };
+    }
+
+    /**
+     * Only ever a credential-free definition, checked again here rather than
+     * trusted from the plan: the body is Prowlarr's own template with nothing
+     * but the settings below changed, so no secret is ever written.
+     *
+     * Prowlarr tests the indexer before saving, which is a request to the
+     * site itself. A site it cannot reach answers 400 and nothing is saved.
+     */
+    async addIndexer(definitionName: string, settings: IndexerSettings): Promise<number> {
+        const schema = await this.#http.get<RawIndexer[]>('/api/v1/indexer/schema');
+        const template = schema.find(d => d.definitionName === definitionName);
+        if (template === undefined || !isCredentialFree(template)) {
+            throw new ServiceError('NotFound', this.id, `no credential-free definition named "${definitionName}"`);
+        }
+
+        const seeding = SEED_FIELDS.filter(([key]) => settings[key] !== undefined);
+        const body = {
+            ...template,
+            enable: true,
+            ...(settings.priority === undefined ? {} : { priority: settings.priority }),
+            ...(settings.appProfileId === undefined ? {} : { appProfileId: settings.appProfileId }),
+            tags: settings.tags ?? [],
+            fields: (template.fields ?? []).map(f => {
+                const seed = seeding.find(([, field]) => field === f.name);
+                return seed === undefined ? f : { ...f, value: settings[seed[0]] };
+            })
+        };
+
+        try {
+            const created = await this.#http.post<{ id?: number }>('/api/v1/indexer', body);
+            return created.id ?? 0;
+        } catch (err) {
+            if (err instanceof ServiceError && err.detail.startsWith('HTTP 400')) {
+                throw new ServiceError('UpstreamError', this.id, `Prowlarr refused to add ${definitionName}`, {
+                    remedy: "Prowlarr tests an indexer before saving it, and the test failed: the site is usually down, blocked, or behind a captcha from here. Prowlarr's logs have its reason. Nothing was added.",
+                    cause: err
+                });
+            }
+            throw err;
+        }
+    }
+
+    /** The bulk endpoint again, for the same reason: no credential round-trips. */
+    async editIndexer(id: number, settings: IndexerSettings): Promise<void> {
+        await this.#http.put(
+            '/api/v1/indexer/bulk',
+            {
+                ids: [id],
+                ...(settings.priority === undefined ? {} : { priority: settings.priority }),
+                ...(settings.appProfileId === undefined ? {} : { appProfileId: settings.appProfileId }),
+                ...(settings.tags === undefined ? {} : { tags: settings.tags, applyTags: 'replace' }),
+                ...(settings.minimumSeeders === undefined ? {} : { minimumSeeders: settings.minimumSeeders }),
+                ...(settings.seedRatio === undefined ? {} : { seedRatio: settings.seedRatio }),
+                ...(settings.seedTime === undefined ? {} : { seedTime: settings.seedTime }),
+                ...(settings.packSeedTime === undefined ? {} : { packSeedTime: settings.packSeedTime })
+            },
+            true
+        );
     }
 
     /**
@@ -316,6 +444,57 @@ export class ProwlarrAdapter
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 }
+
+const SEED_FIELDS: [keyof IndexerSeeding, string][] = [
+    ['minimumSeeders', 'torrentBaseSettings.appMinimumSeeders'],
+    ['seedRatio', 'torrentBaseSettings.seedRatio'],
+    ['seedTime', 'torrentBaseSettings.seedTime'],
+    ['packSeedTime', 'torrentBaseSettings.packSeedTime']
+];
+
+const seedingOf = (fields: RawField[]): IndexerSeeding => {
+    const out: IndexerSeeding = {};
+    for (const [key, name] of SEED_FIELDS) {
+        const value = fields.find(f => f.name === name)?.value;
+        if (typeof value === 'number') out[key] = value;
+    }
+    return out;
+};
+
+/**
+ * Prowlarr's own `privacy` flag on a field misses cookies and most Cardigann
+ * passwords, so the field type is checked too. A public definition with no
+ * password or captcha field is the only kind added without a person.
+ */
+const isCredentialFree = (d: RawIndexer): boolean =>
+    d.privacy === 'public' &&
+    (d.fields ?? []).every(
+        f => f.type !== 'password' && f.type !== 'cardigannCaptcha' && (f.privacy ?? 'normal') === 'normal'
+    );
+
+/** Top-level categories and their subcategories, the set Prowlarr matches on. */
+const categoriesOf = (d: RawIndexer): { categories?: number[] } => {
+    const tree = d.capabilities?.categories;
+    if (tree === undefined) return {};
+    const ids = tree.flatMap(c => [c.id, ...(c.subCategories ?? []).map(s => s.id)]);
+    return { categories: ids.filter((id): id is number => typeof id === 'number') };
+};
+
+/** Sonarr syncs `animeSyncCategories` as well as `syncCategories`; both count. */
+const appsFor = (apps: RawApplication[]): IndexerSyncApp[] =>
+    apps.map(a => {
+        const synced = (a.fields ?? []).filter(f => /syncCategories$/i.test(f.name ?? ''));
+        const categories = synced.flatMap(f =>
+            Array.isArray(f.value) ? f.value.filter((v): v is number => typeof v === 'number') : []
+        );
+        return {
+            name: a.name ?? a.implementation ?? 'unnamed app',
+            implementation: a.implementation ?? 'unknown',
+            syncLevel: syncLevelOf(a.syncLevel),
+            tags: a.tags ?? [],
+            ...(synced.length === 0 ? {} : { categories })
+        };
+    });
 
 const atLeast = (version: string, major: number, minor: number): boolean => {
     const [a = 0, b = 0] = version.split('.').map(Number);
