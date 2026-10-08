@@ -129,6 +129,9 @@ const DYNAMIC_TOOLS: ToolName[] = [
     'pause_downloads',
     'set_watched',
     'remove_blocklist_item',
+    // Needs a real Prowlarr indexer id from get_indexers. Dry run of a delete,
+    // so the preview reads every app's sync level.
+    'manage_indexer',
     // Needs a real service+id the same way trigger_search does. Driven off
     // the same searchableHit, but kept to one call: this one polls every
     // configured indexer synchronously (up to the tool's own 120s budget),
@@ -297,6 +300,7 @@ let subtitlesResult: ToolCallResult | undefined;
 let playbackResult: ToolCallResult | undefined;
 let releasesResult: ToolCallResult | undefined;
 let blocklistResult: ToolCallResult | undefined;
+let indexersResult: ToolCallResult | undefined;
 
 for (const { tool, args } of CASES) {
     const result = await run(tool, args);
@@ -307,6 +311,7 @@ for (const { tool, args } of CASES) {
     if (tool === 'get_subtitles') subtitlesResult = result;
     if (tool === 'get_playback') playbackResult = result;
     if (tool === 'get_blocklist') blocklistResult = result;
+    if (tool === 'get_indexers') indexersResult = result;
 }
 
 /**
@@ -787,6 +792,24 @@ if (typeof blocklistRow?.service === 'string' && blocklistRow.id !== undefined) 
 } else {
     // Routine: a stack that has never had a failed grab has an empty blocklist.
     console.log('SKIP remove_blocklist_item — the blocklist is empty, so there is no real entry to preview against.');
+}
+
+const indexerRow = ((indexersResult?.structuredContent as { items?: unknown[] } | undefined)?.items ?? []).find(
+    (i): i is { service: string; id: number } =>
+        typeof (i as { service?: unknown }).service === 'string' &&
+        (i as { service: string }).service.startsWith('prowlarr') &&
+        typeof (i as { id?: unknown }).id === 'number'
+);
+
+if (indexerRow !== undefined) {
+    const instance = indexerRow.service.split('/')[1];
+    await run(
+        'manage_indexer',
+        { id: indexerRow.id, action: 'delete', dry_run: true, ...(instance === undefined ? {} : { instance }) },
+        'DRY RUN ONLY — never applied from this script'
+    );
+} else {
+    console.log('SKIP manage_indexer — no Prowlarr indexer to preview against.');
 }
 
 /**

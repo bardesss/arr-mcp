@@ -42,6 +42,7 @@ import { registerGrabRelease } from './grabRelease.ts';
 import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
+import { registerManageIndexer } from './manageIndexer.ts';
 import { registerPauseDownloads } from './pauseDownloads.ts';
 import { registerRemoveBlocklistItem } from './removeBlocklistItem.ts';
 import { registerRemoveQueueItem } from './removeQueueItem.ts';
@@ -258,6 +259,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerSetWatched(server, write, adapters, mediaServerIdentity);
     registerFixMetadata(server, write, adapters, library, mediaServerIdentity);
     registerRemoveBlocklistItem(server, write, adapters);
+    registerManageIndexer(server, write, adapters);
 }
 
 /**
@@ -305,5 +307,6 @@ export const TOOL_NAMES = [
     'sync_database',
     'set_watched',
     'fix_metadata',
-    'remove_blocklist_item'
+    'remove_blocklist_item',
+    'manage_indexer'
 ] as const;

@@ -1,6 +1,6 @@
 # Tools
 
-Thirty-eight of them. The first nineteen read; the last nineteen write, and are
+Thirty-nine of them. The first nineteen read; the last twenty write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -36,6 +36,7 @@ off until you turn them on — see [writes](writes.md).
 | `add_media` | Add this film or series and start looking for it |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there |
 | `fix_metadata` | Repair one item whose metadata does not describe its files |
+| `manage_indexer` | Stop grabbing from this indexer, or delete it from Prowlarr and the apps |
 
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
@@ -132,10 +133,10 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
-read, and on the nineteen writes `destructiveHint`, taken from the same permission
+read, and on the twenty writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from thirty-eight similarly-shaped
+about, reads those rather than guessing from thirty-nine similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -743,6 +744,33 @@ services answer a `DELETE` of a blocklist id that **does not exist** with
 success — probed against a live Radarr and a live Sonarr — so a stale id
 would otherwise be reported as removed when nothing had happened. It is the
 same trap `remove_queue_item` documents, and it is checked the same way.
+
+## `manage_indexer`
+
+Disables, re-enables or deletes one Prowlarr indexer, then queues Prowlarr's
+Application Indexer Sync. Take `id` from `get_indexers`: `21` for a row shown
+as `prowlarr:21`.
+
+What happens to the copies in Radarr and Sonarr depends on each app's sync
+level in Prowlarr, so the preview reads `/applications` and says it per app.
+From Prowlarr's own source (2.6.5):
+
+| Action | Add and Remove Only | Full Sync | Sync disabled |
+| --- | --- | --- | --- |
+| `disable` | copy stays listed, every search and grab through it fails | copy is disabled too | copy stays listed, every search and grab through it fails |
+| `enable` | works again; the sync re-adds a missing copy | copy is enabled again | works again if the copy still exists |
+| `delete` | copy removed | copy removed | copy stays and fails; remove it by hand |
+
+`disable` stops grabs everywhere because Prowlarr answers a disabled indexer's
+searches and downloads with `410 Indexer is disabled`, whatever the app thinks
+it has. The cost is that an app at Add and Remove Only reports the indexer as
+failing until it is enabled again or deleted. An app whose tags exclude the
+indexer never had it, and the preview says so.
+
+`disable` and `enable` are safe tier. `delete` is destructive: Prowlarr keeps
+nothing to restore, so getting it back means adding the indexer again,
+credentials included. The tool is annotated `destructiveHint` because one of
+its actions is.
 
 ## `set_watched`
 

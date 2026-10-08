@@ -387,6 +387,7 @@ describe('the advertised tool surface', () => {
         'delete_request',
         'fix_metadata',
         'grab_release',
+        'manage_indexer',
         'pause_downloads',
         'remove_blocklist_item',
         'remove_queue_item',
@@ -402,7 +403,8 @@ describe('the advertised tool surface', () => {
     ];
 
     /**
-     * Of those, the six whose effect cannot be undone by calling again.
+     * Of those, the seven whose effect cannot be undone by calling again.
+     * `manage_indexer` is here for its `delete`; its disable is safe tier.
      *
      * `fix_metadata` is the one that destroys no *file*: it replaces metadata
      * with `replaceAllMetadata`, so what it overwrites — including anything
@@ -415,6 +417,7 @@ describe('the advertised tool surface', () => {
         'delete_media',
         'delete_request',
         'fix_metadata',
+        'manage_indexer',
         'remove_queue_item'
     ];
 

@@ -66,7 +66,13 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
     service: string | ((args: z.infer<Schema>) => string);
     /** The adapter-level verb, e.g. `delete_movie`; one tool may reach several. */
     operation: string;
-    tier: WriteTier;
+    /**
+     * Fixed for most tools. A function for one whose actions differ in kind
+     * (`manage_indexer` disables or deletes), derived from the arguments for
+     * the same reason `service` is. Such a tool is advertised as destructive,
+     * since it can be.
+     */
+    tier: WriteTier | ((args: z.infer<Schema>) => WriteTier);
     plan(args: z.infer<Schema>): Promise<WritePlan>;
     apply(plan: WritePlan, args: z.infer<Schema>): Promise<unknown>;
     /**
@@ -201,7 +207,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
              * repeat the write — it fails the token check. Nothing a client
              * would do with the hint is right for that.
              */
-            annotations: { readOnlyHint: false, destructiveHint: spec.tier === 'destructive' },
+            annotations: { readOnlyHint: false, destructiveHint: spec.tier !== 'safe' },
             description: spec.description,
             // Rebuilt through `toolInput` rather than extended, and the
             // difference is the error text: strictness carried over from the
@@ -224,6 +230,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             // audit names and the token binds to. Deriving it later — from the
             // plan, say — would let the three disagree.
             const service = typeof spec.service === 'function' ? spec.service(args) : spec.service;
+            const tier = typeof spec.tier === 'function' ? spec.tier(args) : spec.tier;
 
             // Resolution happens first, and for every path including a denied
             // one. A refusal that cannot even name what it refused ("permission
@@ -232,7 +239,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             // do for itself with get_media_details.
             const plan = await spec.plan(args);
 
-            const verdict = checkPermission(permissions, service, spec.tier);
+            const verdict = checkPermission(permissions, service, tier);
             const permission: WriteToolResult['permission'] = verdict.allowed
                 ? { allowed: true }
                 : { allowed: false, reason: verdict.reason, remedy: verdict.remedy };
@@ -241,7 +248,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                 tool: spec.name,
                 service,
                 operation: spec.operation,
-                tier: spec.tier,
+                tier,
                 target: plan.target,
                 args: plan.args ?? {},
                 caller
@@ -253,7 +260,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                 tool: spec.name,
                 service,
                 operation: spec.operation,
-                tier: spec.tier,
+                tier,
                 target: plan.target,
                 summary: plan.summary,
                 effects: plan.effects,
@@ -307,7 +314,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             const intent: WriteIntent = {
                 tool: spec.name,
                 service,
-                tier: spec.tier,
+                tier,
                 operation: spec.operation,
                 target: plan.target,
                 ...(plan.args === undefined ? {} : { args: plan.args })

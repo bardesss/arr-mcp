@@ -16,6 +16,9 @@ import {
     type IndexerRejection,
     type IndexerSeedCriteria,
     type IndexerSummary,
+    type IndexerSyncLevel,
+    type IndexerSyncView,
+    type IndexerWriteCapable,
     type LibraryScanCapable,
     type SearchCapable,
     type SearchHit,
@@ -26,7 +29,8 @@ import {
 
 type RawStatus = components['schemas']['SystemResource'];
 type RawHealthCheck = components['schemas']['HealthResource'];
-type RawIndexer = { id?: number; name?: string; enable?: boolean; protocol?: string; priority?: number };
+type RawIndexer = { id?: number; name?: string; enable?: boolean; protocol?: string; priority?: number; tags?: number[] };
+type RawApplication = { name?: string; implementation?: string; syncLevel?: string; tags?: number[] };
 type RawIndexerStatus = { indexerId?: number; disabledTill?: string; mostRecentFailure?: string };
 type RawIndexerStats = {
     indexers?: {
@@ -69,7 +73,14 @@ type RawRelease = {
  * It is also API v1, not v3 — Prowlarr never had a v3 like its siblings.
  */
 export class ProwlarrAdapter
-    implements ServiceAdapter, HealthCheckCapable, IndexerCapable, SearchCapable, LibraryScanCapable, SeedCriteriaCapable
+    implements
+        ServiceAdapter,
+        HealthCheckCapable,
+        IndexerCapable,
+        IndexerWriteCapable,
+        SearchCapable,
+        LibraryScanCapable,
+        SeedCriteriaCapable
 {
     readonly type: ServiceId = 'prowlarr';
     readonly instance: string | undefined;
@@ -108,6 +119,50 @@ export class ProwlarrAdapter
             name: queued.name ?? 'ApplicationIndexerSync',
             ...(typeof queued.status === 'string' ? { status: queued.status } : {})
         };
+    }
+
+    async syncIndexers(): Promise<CommandHandle> {
+        return this.startLibraryScan();
+    }
+
+    /**
+     * The indexer plus every app Prowlarr syncs to. `receives` mirrors
+     * Prowlarr's own tag rule: an app with no tags takes every indexer, an
+     * app with tags only the ones sharing one.
+     */
+    async readIndexerSync(id: number): Promise<IndexerSyncView | undefined> {
+        const [indexers, apps, version] = await Promise.all([
+            this.#http.get<RawIndexer[]>('/api/v1/indexer'),
+            this.#http.get<RawApplication[]>('/api/v1/applications'),
+            this.getVersion()
+        ]);
+        const indexer = indexers.find(i => i.id === id);
+        if (indexer === undefined) return undefined;
+        const tags = indexer.tags ?? [];
+
+        return {
+            indexer: { id, name: indexer.name ?? `indexer ${id}`, enabled: indexer.enable ?? false },
+            apps: apps.map(a => ({
+                name: a.name ?? a.implementation ?? 'unnamed app',
+                implementation: a.implementation ?? 'unknown',
+                syncLevel: syncLevelOf(a.syncLevel),
+                receives: (a.tags ?? []).length === 0 || (a.tags ?? []).some(t => tags.includes(t))
+            })),
+            canToggle: atLeast(version, 1, 8)
+        };
+    }
+
+    /**
+     * The bulk endpoint rather than `PUT /indexer/{id}`: it takes just the
+     * flag, so the indexer's credentials never round-trip through here, and
+     * it skips the connection test a single PUT runs. It arrived in 1.8.
+     */
+    async setIndexerEnabled(id: number, enabled: boolean): Promise<void> {
+        await this.#http.put('/api/v1/indexer/bulk', { ids: [id], enable: enabled }, true);
+    }
+
+    async deleteIndexer(id: number): Promise<void> {
+        await this.#http.delete(`/api/v1/indexer/${id}`);
     }
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
@@ -261,3 +316,11 @@ export class ProwlarrAdapter
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 }
+
+const atLeast = (version: string, major: number, minor: number): boolean => {
+    const [a = 0, b = 0] = version.split('.').map(Number);
+    return a > major || (a === major && b >= minor);
+};
+
+const syncLevelOf = (raw: string | undefined): IndexerSyncLevel =>
+    raw === 'addOnly' || raw === 'fullSync' ? raw : 'disabled';
