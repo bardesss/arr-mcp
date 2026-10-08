@@ -114,6 +114,36 @@ export interface IndexerCapable {
 export const hasIndexers = (a: ServiceAdapter): a is ServiceAdapter & IndexerCapable =>
     typeof (a as Partial<IndexerCapable>).getIndexers === 'function';
 
+/** Prowlarr's own sync levels. "Add and Remove Only" in its UI is `addOnly`. */
+export type IndexerSyncLevel = 'disabled' | 'addOnly' | 'fullSync';
+
+/** One app Prowlarr syncs to, and whether this indexer reaches it at all. */
+export type IndexerSyncApp = {
+    name: string;
+    implementation: string;
+    syncLevel: IndexerSyncLevel;
+    /** False when the app's tags exclude this indexer: Prowlarr never synced it there. */
+    receives: boolean;
+};
+
+export type IndexerSyncView = {
+    indexer: { id: number; name: string; enabled: boolean };
+    apps: IndexerSyncApp[];
+    /** Whether this Prowlarr has the bulk endpoint `setIndexerEnabled` uses (1.8+). */
+    canToggle: boolean;
+};
+
+export interface IndexerWriteCapable {
+    /** Undefined when no indexer has that id. */
+    readIndexerSync(id: number): Promise<IndexerSyncView | undefined>;
+    setIndexerEnabled(id: number, enabled: boolean): Promise<void>;
+    deleteIndexer(id: number): Promise<void>;
+    syncIndexers(): Promise<CommandHandle>;
+}
+
+export const hasIndexerWrites = (a: ServiceAdapter): a is ServiceAdapter & IndexerWriteCapable =>
+    typeof (a as Partial<IndexerWriteCapable>).setIndexerEnabled === 'function';
+
 export type ArrFormatItem = { name: string; score: number };
 export type ArrQualityProfile = { name: string; minFormatScore: number; formatItems: ArrFormatItem[] };
 export type ArrFormatSpecification = {
