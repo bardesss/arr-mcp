@@ -168,7 +168,7 @@ function serviceFields(
               label: 'Password',
               secret: true,
               placeholder: 'unchanged',
-              note: 'Leave blank to keep the current password.'
+              note: 'Leave blank to keep the current password. A new host, port or scheme needs it entered again.'
           })}`
         : field({
               id: `${prefix}.api_key`,
@@ -176,7 +176,7 @@ function serviceFields(
               label: 'API key',
               secret: true,
               placeholder: 'unchanged',
-              note: 'Leave blank to keep the current key.'
+              note: 'Leave blank to keep the current key. A new host, port or scheme needs it entered again.'
           })}
     ${MULTI_USER.has(type)
         ? html`${field({

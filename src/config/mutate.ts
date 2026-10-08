@@ -38,6 +38,16 @@ export type InstanceFields = {
 
 export class ConfigEditError extends Error {}
 
+/** Logged where it is caught: an attempt to aim a stored secret at a new host. */
+export class CredentialWouldMoveError extends ConfigEditError {
+    constructor(
+        readonly target: string,
+        secret: string
+    ) {
+        super(`The URL points somewhere new, so enter the ${secret} again.`);
+    }
+}
+
 const entriesOf = (services: Record<string, unknown>, type: ServiceId): Entry[] => {
     const value = services[type];
     if (value === undefined) return [];
@@ -102,6 +112,23 @@ export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmiss
  */
 function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entry {
     const next = { ...base } as Record<string, unknown>;
+
+    // A blank credential keeps the stored one, which must not follow the
+    // instance to a different host.
+    const secret = NO_API_KEY.has(type) ? 'password' : 'api_key';
+    const stored = (base as Record<string, unknown>)[secret];
+    const given = fields[secret];
+    // An unparseable url is left for the schema to name.
+    if (
+        typeof stored === 'string' &&
+        stored !== '' &&
+        (given === undefined || given === '') &&
+        fields.url !== undefined &&
+        URL.canParse(fields.url) &&
+        new URL(fields.url).origin !== new URL((base as { url: string }).url).origin
+    ) {
+        throw new CredentialWouldMoveError(new URL(fields.url).origin, secret);
+    }
 
     if (fields.url !== undefined && fields.url !== '') next.url = fields.url;
     if (fields.timeout_ms !== undefined) next.timeout_ms = fields.timeout_ms;

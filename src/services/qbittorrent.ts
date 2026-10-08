@@ -265,7 +265,7 @@ export class QbittorrentAdapter
      * removal of nothing.
      */
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
-        const hash = id.trim().toLowerCase();
+        const hash = this.#hash(id);
         const existing = await this.#http.get<RawTorrent[]>(
             `${API}/torrents/info?hashes=${encodeURIComponent(hash)}`
         );
@@ -316,7 +316,7 @@ export class QbittorrentAdapter
             });
         }
 
-        const hashes = id === undefined ? 'all' : id.trim().toLowerCase();
+        const hashes = id === undefined ? 'all' : this.#hash(id);
         const [modern, legacy] = paused ? ['stop', 'pause'] : ['start', 'resume'];
 
         try {
@@ -369,11 +369,22 @@ export class QbittorrentAdapter
         };
     }
 
+    /** `hashes` is `|`-separated with `all` as a keyword, so only one bare hash may reach it. */
+    #hash(id: string): string {
+        const hash = id.trim().toLowerCase();
+        if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(hash)) {
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a torrent info hash`, {
+                remedy: 'qBittorrent torrent ids are 40 or 64 hex characters. Take one from get_queue.'
+            });
+        }
+        return hash;
+    }
+
     async #torrents(id?: string): Promise<RawTorrent[]> {
         const path =
             id === undefined
                 ? `${API}/torrents/info`
-                : `${API}/torrents/info?hashes=${encodeURIComponent(id.trim().toLowerCase())}`;
+                : `${API}/torrents/info?hashes=${encodeURIComponent(this.#hash(id))}`;
         const torrents = await this.#http.get<RawTorrent[]>(path);
         return Array.isArray(torrents) ? torrents : [];
     }

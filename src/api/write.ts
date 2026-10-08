@@ -3,7 +3,7 @@ import { commitConfig } from '../config/commit.ts';
 import { ConfigDriftError, ConfigRejectedError, ConfigUnloadableError } from '../config/save.ts';
 import type { Config } from '../config/schema.ts';
 import { logger } from '../core/logger.ts';
-import { originOf } from '../web/routes.ts';
+import { originOf, warnIfCredentialMove } from '../web/routes.ts';
 import { apiError, etagMatches } from './http.ts';
 import type { ApiDeps } from './index.ts';
 
@@ -25,6 +25,7 @@ export async function applyWrite(
     try {
         next = build(expected);
     } catch (err) {
+        warnIfCredentialMove(c, err);
         return apiError(c, 400, (err as Error).message);
     }
 
