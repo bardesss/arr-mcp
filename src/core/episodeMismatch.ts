@@ -96,9 +96,10 @@ export type Mismatch = {
      * title the server gives the episode next to it, a different episode
      * order (Cowboy Bebop, TNG and 20 more on one Plex library; a rematch did
      * not move them). `special`: both sides say season 0, which sources number
-     * differently.
+     * differently. `language`: the file and the server title are in different
+     * languages (Los Espookys, The House of Flowers).
      */
-    advisory?: 'shifted' | 'special';
+    advisory?: 'shifted' | 'special' | 'language';
 };
 
 /** Plex dates a film from `originallyAvailableAt` and derives `year` from it,
@@ -347,6 +348,40 @@ const MIN_WORDS = 2;
  */
 const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
 
+/**
+ * Function words per language. A word in several lists scores for each, so
+ * `de` or `en` alone never decides anything.
+ */
+const LANGUAGE_WORDS: Record<string, ReadonlySet<string>> = {
+    en: new Set(['the', 'of', 'and', 'with', 'from', 'for', 'to', 'in', 'is', 'at', 'on', 'my', 'your', 'his', 'who', 'what']),
+    es: new Set(['el', 'la', 'los', 'las', 'del', 'y', 'con', 'por', 'para', 'una', 'un', 'que', 'en', 'es', 'al', 'mi', 'su', 'sin', 'de', 'a']),
+    fr: new Set(['le', 'la', 'les', 'des', 'du', 'et', 'avec', 'pour', 'une', 'un', 'dans', 'sur', 'est', 'au', 'aux', 'que', 'de', 'en', 'sans', 'mon', 'ma']),
+    de: new Set(['der', 'die', 'das', 'und', 'mit', 'von', 'ein', 'eine', 'im', 'ist', 'zu', 'den', 'dem', 'auf', 'fur', 'nicht', 'in']),
+    it: new Set(['il', 'lo', 'la', 'gli', 'le', 'di', 'del', 'della', 'e', 'con', 'per', 'una', 'un', 'che', 'nel', 'alla', 'a', 'in']),
+    pt: new Set(['o', 'os', 'a', 'as', 'do', 'da', 'dos', 'das', 'e', 'com', 'para', 'uma', 'um', 'que', 'no', 'na', 'em']),
+    nl: new Set(['de', 'het', 'een', 'van', 'en', 'met', 'voor', 'op', 'is', 'niet', 'zijn', 'mijn', 'naar', 'in'])
+};
+
+/** The language a title's function words point at, or undefined unless one
+ *  language clearly wins. Short titles with none stay undefined. */
+export function guessLanguage(title: string): string | undefined {
+    const words = unfenced(title)
+        .normalize('NFD')
+        .replace(/\p{M}/gu, '')
+        .toLowerCase()
+        .split(/[^\p{L}]+/u);
+    const scores = Object.entries(LANGUAGE_WORDS)
+        .map(([language, set]) => [language, words.filter(w => set.has(w)).length] as const)
+        .sort((x, y) => y[1] - x[1]);
+    const [best, next] = scores;
+    return best !== undefined && best[1] > 0 && best[1] > (next?.[1] ?? 0) ? best[0] : undefined;
+}
+
+const inDifferentLanguages = (a: string, b: string): boolean => {
+    const [x, y] = [guessLanguage(a), guessLanguage(b)];
+    return x !== undefined && y !== undefined && x !== y;
+};
+
 /** Every content word of the shorter title appears in the longer one. */
 function titlesMatch(a: string, b: string): boolean {
     const [small, large] = [contentWords(a), contentWords(b)].sort((x, y) => x.size - y.size) as [Set<string>, Set<string>];
@@ -404,6 +439,7 @@ export type SeriesVerdict = {
     /** Of the mismatching episodes, how many are `advisory`, by kind. */
     shifted: number;
     specials: number;
+    languages: number;
     remedy: Remedy;
 };
 
@@ -471,6 +507,7 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         locked,
         shifted: mismatches.filter(m => m.advisory === 'shifted').length,
         specials: mismatches.filter(m => m.advisory === 'special').length,
+        languages: mismatches.filter(m => m.advisory === 'language').length,
         remedy: seriesRemedy(numbering, locked, repairable, mismatches.length)
     };
 }
@@ -603,9 +640,13 @@ export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
 
         const advisory = special
             ? 'special'
-            : !numberingOff && fileTitle !== undefined && neighbourHas(item, fileTitle)
-              ? 'shifted'
-              : undefined;
+            : numberingOff || fileTitle === undefined
+              ? undefined
+              : neighbourHas(item, fileTitle)
+                ? 'shifted'
+                : inDifferentLanguages(item.name, fileTitle)
+                  ? 'language'
+                  : undefined;
 
         out.push({
             id: item.id,

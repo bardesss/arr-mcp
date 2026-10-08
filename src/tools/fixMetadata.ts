@@ -341,6 +341,7 @@ export function registerFixMetadata(
             const titleOnly = mismatches.length - numbering;
             const locked = mismatches.filter(m => m.locked === true).length;
             const shifted = mismatches.filter(m => m.advisory === 'shifted').length;
+            const languages = mismatches.filter(m => m.advisory === 'language').length;
             const film = series.kind === 'movie' ? mismatches[0] : undefined;
             // One decision, used by the summary, the warning and the token
             // binding, so the three cannot disagree about which id is pinned.
@@ -361,6 +362,11 @@ export function registerFixMetadata(
                         ? []
                         : [
                               `${shifted} of the ${mismatches.length} mismatching episodes carry the title ${serverName(adapter)} gives the episode next to them. That is a different episode order rather than a wrong match, and on a real Plex library a rematch did not move a single one.`
+                          ]),
+                    ...(languages === 0
+                        ? []
+                        : [
+                              `${languages} of the ${mismatches.length} mismatching episodes have the filename and the ${serverName(adapter)} title in different languages. Both can be right, and a rematch does not change the language.`
                           ]),
                     ...(locked === 0
                         ? []

@@ -54,9 +54,11 @@ export type MetadataIssue = {
     pinned?: number;
     /** How many have the disagreeing field locked, which no repair overwrites. */
     locked?: number;
-    /** How many carry a neighbouring episode's title, and how many are specials. */
+    /** How many carry a neighbouring episode's title, are specials, or are
+     *  titled in a different language from the file. */
     shifted?: number;
     specials?: number;
+    languages?: number;
     remedy: Remedy;
     /** What to actually run. */
     fix: string;
@@ -107,11 +109,14 @@ const fixFor = (remedy: Remedy, adapter: ServiceAdapter, repairAllowed: boolean)
           : FIX[remedy];
 
 /** Said on the row, because these are the findings a rematch was measured not to fix. */
-const advisoryNote = (v: { shifted: number; specials: number }): string =>
+const advisoryNote = (v: { shifted: number; specials: number; languages: number }): string =>
     (v.shifted === 0
         ? ''
         : ` ${v.shifted} carry the title the server gives the episode next to them: a different episode order rather than a wrong match, which a rematch did not move on a real library.`) +
-    (v.specials === 0 ? '' : ` ${v.specials} are specials (season 0), which sources number differently, so treat those as a hint.`);
+    (v.specials === 0 ? '' : ` ${v.specials} are specials (season 0), which sources number differently, so treat those as a hint.`) +
+    (v.languages === 0
+        ? ''
+        : ` ${v.languages} have the filename and the server title in different languages, which a rematch does not change.`);
 
 const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
     if (detail === 'full') return issue;
@@ -121,7 +126,7 @@ const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
     }
     // minimal: which series, how bad, and what to run. `remedy` and `fix` stay
     // — they are the answer, not the detail.
-    const { examples: _e, pinned: _p, locked: _l, shifted: _s, specials: _sp, compared: _c, numbering: _n, titleOnly: _t, ...rest } = issue;
+    const { examples: _e, pinned: _p, locked: _l, shifted: _s, specials: _sp, languages: _lg, compared: _c, numbering: _n, titleOnly: _t, ...rest } = issue;
     return rest;
 };
 
@@ -242,6 +247,7 @@ export async function buildGetMetadataIssues(
                 pinned: verdict.pinned,
                 locked: verdict.locked,
                 shifted: verdict.shifted,
+                languages: verdict.languages,
                 specials: verdict.specials,
                 remedy: verdict.remedy,
                 fix: fixFor(verdict.remedy, adapter, repairAllowed) + advisoryNote(verdict),
