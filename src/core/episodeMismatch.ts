@@ -91,6 +91,14 @@ export type Mismatch = {
     /** A field this mismatch is about is locked, so no rematch or refresh
      *  will change it. */
     locked?: boolean;
+    /**
+     * Real, but not something a rematch fixes. `shifted`: the file carries the
+     * title the server gives the episode next to it, a different episode
+     * order (Cowboy Bebop, TNG and 20 more on one Plex library; a rematch did
+     * not move them). `special`: both sides say season 0, which sources number
+     * differently.
+     */
+    advisory?: 'shifted' | 'special';
 };
 
 /** Plex dates a film from `originallyAvailableAt` and derives `year` from it,
@@ -119,7 +127,8 @@ const BRACKETED = /\[[^\]]*\]|\([^)]*\)/g;
  * The left boundary stops a series title ending in a letter or digit from
  * contributing its tail to the match.
  */
-const SEASON_EPISODE = /(?<![A-Za-z0-9])[Ss](\d{1,3})[Ee](\d{1,4})(?!\d)/;
+// The optional tail is a multi-episode file: `S04E10-E11`, `S04E10E11`, `S04E10-11`.
+const SEASON_EPISODE = /(?<![A-Za-z0-9])[Ss](\d{1,3})[Ee](\d{1,4})(?:(?:-[Ee]?|[Ee])(\d{1,4}))?(?!\d)/;
 
 /**
  * The `1x02` form, narrowed to what that convention actually looks like: a
@@ -160,13 +169,14 @@ const withoutExtension = (name: string): string => name.replace(/\.[A-Za-z0-9]{2
  * the season and not the episode, and saying so is not the same as claiming
  * episode zero.
  */
-export function parseFileNumbering(path: string): { season?: number; episode?: number } {
+export function parseFileNumbering(path: string): { season?: number; episode?: number; episodeEnd?: number } {
     const parts = segments(path);
     const base = withoutExtension(parts.at(-1) ?? '').replace(BRACKETED, ' ');
     const parent = parts.at(-2) ?? '';
 
     let season: number | undefined;
     let episode: number | undefined;
+    let episodeEnd: number | undefined;
 
     // The folder is the weaker claim, so it goes first and an explicit
     // SxxExx in the filename overwrites it below.
@@ -181,6 +191,7 @@ export function parseFileNumbering(path: string): { season?: number; episode?: n
     if (sxe?.[1] !== undefined && sxe[2] !== undefined) {
         season = Number(sxe[1]);
         episode = Number(sxe[2]);
+        if (sxe[3] !== undefined && Number(sxe[3]) > episode) episodeEnd = Number(sxe[3]);
     } else {
         const worded = EPISODE_WORD.exec(base);
         if (worded?.[1] !== undefined) episode = Number(worded[1]);
@@ -188,7 +199,8 @@ export function parseFileNumbering(path: string): { season?: number; episode?: n
 
     return {
         ...(season === undefined ? {} : { season }),
-        ...(episode === undefined ? {} : { episode })
+        ...(episode === undefined ? {} : { episode }),
+        ...(episodeEnd === undefined ? {} : { episodeEnd })
     };
 }
 
@@ -335,6 +347,12 @@ const MIN_WORDS = 2;
  */
 const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
 
+/** Every content word of the shorter title appears in the longer one. */
+function titlesMatch(a: string, b: string): boolean {
+    const [small, large] = [contentWords(a), contentWords(b)].sort((x, y) => x.size - y.size) as [Set<string>, Set<string>];
+    return small.size > 0 && [...small].every(w => large.has(w));
+}
+
 function titlesDisagree(serverTitle: string, fileTitle: string): boolean {
     if (NON_LATIN.test(unfenced(serverTitle)) || NON_LATIN.test(unfenced(fileTitle))) return false;
 
@@ -383,6 +401,9 @@ export type SeriesVerdict = {
     pinned: number;
     /** Of the mismatching episodes, how many have the disagreeing field locked. */
     locked: number;
+    /** Of the mismatching episodes, how many are `advisory`, by kind. */
+    shifted: number;
+    specials: number;
     remedy: Remedy;
 };
 
@@ -401,10 +422,10 @@ export type SeriesVerdict = {
  * rather than sending a destructive write at a coin flip. That is narrower
  * than the rule three series originally suggested, and deliberately so.
  */
-const seriesRemedy = (numbering: number, pinned: number, locked: number, mismatches: number): Remedy => {
+const seriesRemedy = (numbering: number, locked: number, repairable: number, mismatches: number): Remedy => {
     if (numbering > 0) return 'rename_files';
     if (locked === mismatches) return 'unlock_fields';
-    return pinned === mismatches ? 'inspect' : 'refresh_metadata';
+    return repairable === 0 ? 'inspect' : 'refresh_metadata';
 };
 
 /**
@@ -434,6 +455,12 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         return record !== undefined && pinnedToProvider(record);
     }).length;
     const locked = mismatches.filter(m => m.locked === true).length;
+    // A refresh can help only an episode the server never matched and that is
+    // not one of the advisory kinds.
+    const repairable = mismatches.filter(m => {
+        const record = byId.get(m.id);
+        return m.advisory === undefined && !(record !== undefined && pinnedToProvider(record));
+    }).length;
 
     return {
         compared,
@@ -442,7 +469,9 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         titleOnly: mismatches.length - numbering,
         pinned,
         locked,
-        remedy: seriesRemedy(numbering, pinned, locked, mismatches.length)
+        shifted: mismatches.filter(m => m.advisory === 'shifted').length,
+        specials: mismatches.filter(m => m.advisory === 'special').length,
+        remedy: seriesRemedy(numbering, locked, repairable, mismatches.length)
     };
 }
 
@@ -535,20 +564,35 @@ export function findMovieMismatches(items: readonly MovieRecord[]): Mismatch[] {
  */
 export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
     const out: Mismatch[] = [];
+    // Both directions, so the ends of a shifted run count too: the first
+    // episode's server title is the next file's title, the last episode's
+    // file title is the previous server title.
+    const byNumber = new Map(items.map(i => [`${i.season}:${i.episode}`, { name: i.name, file: i.path === undefined ? undefined : extractFileTitle(i.path) }]));
+    const neighbourHas = (item: EpisodeRecord, fileTitle: string): boolean =>
+        item.season !== undefined &&
+        item.episode !== undefined &&
+        [item.episode - 1, item.episode + 1].some(n => {
+            const next = byNumber.get(`${item.season}:${n}`);
+            return next !== undefined && (titlesMatch(next.name, fileTitle) || (next.file !== undefined && titlesMatch(item.name, next.file)));
+        });
 
     for (const item of items) {
         const path = item.path;
         if (path === undefined || path.trim() === '') continue;
 
-        const { season: fileSeason, episode: fileEpisode } = parseFileNumbering(path);
+        const { season: fileSeason, episode: fileEpisode, episodeEnd } = parseFileNumbering(path);
         const fileTitle = extractFileTitle(path);
         const reasons: MismatchReason[] = [];
+        const special = fileSeason === 0 && item.season === 0;
 
         // Only where both sides actually state a value. An absent number is
         // not a disagreement with the number that is present.
         const numberingOff =
             (fileSeason !== undefined && item.season !== undefined && fileSeason !== item.season) ||
-            (fileEpisode !== undefined && item.episode !== undefined && fileEpisode !== item.episode);
+            (!special &&
+                fileEpisode !== undefined &&
+                item.episode !== undefined &&
+                (item.episode < fileEpisode || item.episode > (episodeEnd ?? fileEpisode)));
         if (numberingOff) reasons.push('numbering');
 
         if (fileTitle !== undefined && titlesDisagree(item.name, fileTitle) && titlesDisagree(item.name, wideFileTitle(path) ?? fileTitle)) {
@@ -556,6 +600,12 @@ export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
         }
 
         if (reasons.length === 0) continue;
+
+        const advisory = special
+            ? 'special'
+            : !numberingOff && fileTitle !== undefined && neighbourHas(item, fileTitle)
+              ? 'shifted'
+              : undefined;
 
         out.push({
             id: item.id,
@@ -567,7 +617,8 @@ export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
             ...(fileEpisode === undefined ? {} : { fileEpisode }),
             ...(fileTitle === undefined ? {} : { fileTitle }),
             reasons,
-            ...(lockedFor(item, reasons) ? { locked: true } : {})
+            ...(lockedFor(item, reasons) ? { locked: true } : {}),
+            ...(advisory === undefined ? {} : { advisory })
         });
     }
 

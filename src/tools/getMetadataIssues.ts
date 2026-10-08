@@ -54,6 +54,9 @@ export type MetadataIssue = {
     pinned?: number;
     /** How many have the disagreeing field locked, which no repair overwrites. */
     locked?: number;
+    /** How many carry a neighbouring episode's title, and how many are specials. */
+    shifted?: number;
+    specials?: number;
     remedy: Remedy;
     /** What to actually run. */
     fix: string;
@@ -103,6 +106,13 @@ const fixFor = (remedy: Remedy, adapter: ServiceAdapter, repairAllowed: boolean)
           ? `${FIX[remedy]} To unlock: ${unlockHow(adapter)}.`
           : FIX[remedy];
 
+/** Said on the row, because these are the findings a rematch was measured not to fix. */
+const advisoryNote = (v: { shifted: number; specials: number }): string =>
+    (v.shifted === 0
+        ? ''
+        : ` ${v.shifted} carry the title the server gives the episode next to them: a different episode order rather than a wrong match, which a rematch did not move on a real library.`) +
+    (v.specials === 0 ? '' : ` ${v.specials} are specials (season 0), which sources number differently, so treat those as a hint.`);
+
 const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
     if (detail === 'full') return issue;
     if (detail === 'standard') {
@@ -111,7 +121,7 @@ const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
     }
     // minimal: which series, how bad, and what to run. `remedy` and `fix` stay
     // — they are the answer, not the detail.
-    const { examples: _e, pinned: _p, locked: _l, compared: _c, numbering: _n, titleOnly: _t, ...rest } = issue;
+    const { examples: _e, pinned: _p, locked: _l, shifted: _s, specials: _sp, compared: _c, numbering: _n, titleOnly: _t, ...rest } = issue;
     return rest;
 };
 
@@ -231,8 +241,10 @@ export async function buildGetMetadataIssues(
                 titleOnly: verdict.titleOnly,
                 pinned: verdict.pinned,
                 locked: verdict.locked,
+                shifted: verdict.shifted,
+                specials: verdict.specials,
                 remedy: verdict.remedy,
-                fix: fixFor(verdict.remedy, adapter, repairAllowed),
+                fix: fixFor(verdict.remedy, adapter, repairAllowed) + advisoryNote(verdict),
                 // Re-fenced after the basename split, for the reason
                 // fixMetadata's own formatter documents: the closing marker
                 // contains a slash, so splitting a fenced path on separators

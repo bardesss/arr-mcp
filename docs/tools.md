@@ -788,9 +788,17 @@ drift by two, a matched film whose year agrees is not flagged on its title
 alone (Mad Max 2 shown as The Road Warrior), an episode title is compared
 against every field in the filename including parentheses (`Chapter One - The
 Boy in the Iceberg` shown as "The Boy in the Iceberg"), and accents are folded
-before comparing. Two kinds of finding it still makes are real but not
-something a rematch fixes: placeholder titles in the server, and series where
-every title is shifted by one.
+before comparing. A rerun moved three more: a multi-episode file
+(`S04E10-E11`) matches every episode in its range, specials whose file and
+server both say season 0 are never a numbering finding, and an episode whose
+title belongs to the episode next to it is marked as shifted (Cowboy Bebop,
+TNG and 20 more series on that library).
+
+Shifted episodes and specials are real disagreements that a rematch does not
+fix, so they are counted in `shifted` and `specials` and never on their own
+push a series to `refresh_metadata`. A rematch was measured not to move a
+shifted series. Placeholder titles in the server are the other finding a repair
+cannot fix.
 Plex episodes are never treated as pinned: their provider ids follow from the
 show's match rather than identifying the episode on its own, so a title-only
 finding on Plex comes back as `refresh_metadata`. If the sweep flags something
@@ -811,7 +819,7 @@ server ever matched the episode:
 | --- | --- | --- |
 | `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. Also every film whose year disagrees, since re-identifying re-derives a film's year. | `fix_metadata` |
 | `rename_files` | Every `numbering` finding: an episode's season and number are stored at scan time, so only the file can change. | `trigger_scan` rename on the managing Radarr or Sonarr, then a media server rescan |
-| `inspect` | The server matched it and only the wording disagrees, which a correct title in another language does too. | Look first, against the managing Radarr or Sonarr |
+| `inspect` | The server matched it and only the wording disagrees, which a correct title in another language does too. Also a series whose mismatches are all shifted titles or specials. | Look first, against the managing Radarr or Sonarr |
 | `unlock_fields` | The disagreeing field is locked on the item, or on Jellyfin the whole item is, so no rematch or refresh will change it. | Unlock it on the item in the media server if it is wrong, then `fix_metadata` |
 
 Three real series stand behind that rule, which is enough to act on and not
