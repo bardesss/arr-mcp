@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.41.0](https://github.com/bardesss/arr-mcp/compare/v1.40.0...v1.41.0) (2026-10-08)
+
+
+### Features
+
+* get_queue carries the import status messages ([#355](https://github.com/bardesss/arr-mcp/issues/355)) ([91ed01d](https://github.com/bardesss/arr-mcp/commit/91ed01d68929c93dbf1a975c0663275c9181abd9)), closes [#352](https://github.com/bardesss/arr-mcp/issues/352)
+* trigger_scan import takes a mapping for files the service cannot place ([#357](https://github.com/bardesss/arr-mcp/issues/357)) ([ccc5bad](https://github.com/bardesss/arr-mcp/commit/ccc5bad36c061798ab84c8a22cd456ca3e05de21)), closes [#352](https://github.com/bardesss/arr-mcp/issues/352)
+
 ## [1.40.0](https://github.com/bardesss/arr-mcp/compare/v1.39.3...v1.40.0) (2026-10-08)
 
 
