@@ -40,11 +40,11 @@ export class ConfigEditError extends Error {}
 
 /** Logged where it is caught: an attempt to aim a stored secret at a new host. */
 export class CredentialWouldMoveError extends ConfigEditError {
-    constructor(
-        readonly target: string,
-        secret: string
-    ) {
+    readonly target: string;
+
+    constructor(target: string, secret: string) {
         super(`The URL points somewhere new, so enter the ${secret} again.`);
+        this.target = target;
     }
 }
 
