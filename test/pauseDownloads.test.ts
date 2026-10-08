@@ -36,6 +36,7 @@ const credential = (port: number): CredentialServiceConfig => ({
 });
 
 const rpc = (result: unknown) => jsonResponse(result);
+const HASH = 'a'.repeat(40);
 
 // --- adapters ------------------------------------------------------------
 
@@ -147,7 +148,7 @@ describe('qbittorrent pause', () => {
             return new Response('', { status: 200 });
         }) as unknown as typeof fetch;
 
-        await adapterWith(impl).setPaused(true, 'abc');
+        await adapterWith(impl).setPaused(true, HASH);
         expect(seen.some(u => u.endsWith('/torrents/stop'))).toBe(true);
         expect(seen.some(u => u.endsWith('/torrents/pause'))).toBe(true);
     });
@@ -161,13 +162,29 @@ describe('qbittorrent pause', () => {
             return new Response('', { status: 200 });
         }) as unknown as typeof fetch;
 
-        await adapterWith(impl).setPaused(true, 'abc');
+        await adapterWith(impl).setPaused(true, HASH);
         expect(seen.filter(u => u.endsWith('/torrents/pause'))).toHaveLength(0);
+    });
+
+    // qBittorrent reads `hashes` as `|`-separated, with `all` as a keyword, so
+    // either would pause more than the preview named.
+    it.each(['all', `${HASH}|${'b'.repeat(40)}`, 'abc'])('refuses %j before qBittorrent is called', async id => {
+        const seen: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            seen.push(String(input instanceof Request ? input.url : input));
+            return jsonResponse([{ hash: HASH, state: 'downloading' }]);
+        }) as unknown as typeof fetch;
+        await expect(adapterWith(impl).setPaused(true, id)).rejects.toThrow(/info hash/);
+        await expect(adapterWith(impl).readPauseState(id)).rejects.toThrow(/info hash/);
+        await expect(adapterWith(impl).removeQueueItem(id, { removeFromClient: false, blocklist: false })).rejects.toThrow(
+            /info hash/
+        );
+        expect(seen).toEqual([]);
     });
 
     it('refuses a hash it cannot find', async () => {
         const impl = (async () => jsonResponse([])) as unknown as typeof fetch;
-        await expect(adapterWith(impl).setPaused(true, 'abc')).rejects.toThrow(/no torrent/);
+        await expect(adapterWith(impl).setPaused(true, HASH)).rejects.toThrow(/no torrent/);
     });
 
     it('counts both spellings of stopped when reading state', async () => {
@@ -188,7 +205,7 @@ describe('qbittorrent pause', () => {
             { ...credential(8081), name: 'vpn', username: 'u', password: 'p' },
             impl
         );
-        await expect(named.setPaused(true, 'abc')).rejects.toThrow(/qbittorrent\/vpn/);
+        await expect(named.setPaused(true, HASH)).rejects.toThrow(/qbittorrent\/vpn/);
     });
 });
 

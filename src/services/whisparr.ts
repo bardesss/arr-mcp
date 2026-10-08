@@ -16,6 +16,7 @@ import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { numericId } from './arrUpdate.ts';
 import {
     diagnoseConnection,
     type AddCandidate,
@@ -382,7 +383,7 @@ export class WhisparrAdapter
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {
-        const s = await this.#http.get<RawSeries>(`/api/v3/series/${encodeURIComponent(id)}`);
+        const s = await this.#http.get<RawSeries>(`/api/v3/series/${numericId(this.id, 'series', id)}`);
         const ratings = flattenSeriesRating(s.ratings);
 
         const base: MediaDetails = {

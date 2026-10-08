@@ -53,9 +53,10 @@ const findClient = (
  * The one place in this server where a caller-supplied URI causes a download,
  * so the scheme is checked rather than trusted. A `magnet:` link with no btih
  * hash is not a torrent, and passing it on would have the client fail in its
- * own words about a string this tool could have rejected.
+ * own words about a string this tool could have rejected. No whitespace at
+ * all: qbittorrent splits `urls` on newlines and fetches every part.
  */
-const MAGNET = /^magnet:\?.*xt=urn:btih:[0-9a-zA-Z]+/;
+const MAGNET = /^magnet:\?\S*xt=urn:btih:[0-9a-zA-Z]+\S*$/;
 
 export function registerGrabRelease(
     server: McpServer,

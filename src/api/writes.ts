@@ -4,7 +4,7 @@ import { setImdb, setMcpEndpoint } from '../config/edits.ts';
 import { addCandidate, addToken, ConfigEditError, NO_API_KEY, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
 import { logger } from '../core/logger.ts';
 import { buildAdapters } from '../services/registry.ts';
-import { originOf } from '../web/routes.ts';
+import { originOf, warnIfCredentialMove } from '../web/routes.ts';
 import { AppBody, fieldsFromBody, NewAppBody, TestAppBody } from './bodies.ts';
 import { parseWith, readObject } from './body.ts';
 import { API_BASE, apiError, withEtag } from './http.ts';
@@ -149,6 +149,7 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
                 d.ok ? 200 : 400
             );
         } catch (err) {
+            warnIfCredentialMove(c, err);
             return apiError(c, 400, (err as Error).message);
         }
     });

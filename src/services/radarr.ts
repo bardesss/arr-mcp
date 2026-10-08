@@ -11,7 +11,7 @@ import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
-import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
+import { numericId, readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
@@ -281,7 +281,7 @@ export class RadarrAdapter
     }
 
     async getMediaDetails(id: string): Promise<MediaDetails> {
-        const m = await this.#http.get<RawMovie>(`/api/v3/movie/${encodeURIComponent(id)}`);
+        const m = await this.#http.get<RawMovie>(`/api/v3/movie/${numericId(this.id, 'movie', id)}`);
         const ratings = flattenRatings(m.ratings);
         // No second read, unlike Sonarr's: Radarr embeds the file in the movie.
         const audioLanguages = readAudioLanguages(m.movieFile?.mediaInfo);

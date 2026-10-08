@@ -26,7 +26,7 @@ type RawResource = {
     seriesType?: string;
 };
 
-const numericId = (service: string, resource: 'movie' | 'series', value: string): number => {
+export const numericId = (service: string, resource: 'movie' | 'series', value: string): number => {
     const id = Number(value);
     if (!Number.isInteger(id) || id <= 0) {
         throw new ServiceError('NotFound', service, `"${value}" is not a ${service} ${resource} id`, {

@@ -1,4 +1,5 @@
 import { ServiceError } from './errors.ts';
+import { fenceText } from './fence.ts';
 
 /**
  * Per-service request shaping, and nothing else. Resilience policy lives in
@@ -256,7 +257,7 @@ async function qbittorrentLogin(
     // a wrong password is also a 200, with the body "Fails." (5.2 uses 401).
     const accepted = response.status === 204 ? body === '' : response.status === 200 && body === 'Ok.';
     if (!accepted) {
-        throw new ServiceError('AuthFailed', creds.id, `login returned "${body || response.status}"`, {
+        throw new ServiceError('AuthFailed', creds.id, `login returned ${body === '' ? response.status : fenceText(body, { service: creds.id, field: 'login' })}`, {
             remedy: 'Check username and password against Options → Web UI in qBittorrent.'
         });
     }

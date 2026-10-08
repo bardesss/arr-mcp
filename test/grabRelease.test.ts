@@ -373,6 +373,16 @@ describe('grab_release with a magnet', () => {
         );
     });
 
+    it.each([
+        ['a newline', `${MAGNET}\nhttp://10.0.0.5:8080/x`],
+        ['a carriage return', `${MAGNET}\rhttp://10.0.0.5:8080/x`],
+        ['a space', `${MAGNET} http://10.0.0.5:8080/x`]
+    ])('refuses a magnet carrying %s, which qbittorrent would split into a second url', async (_, magnet) => {
+        const h = clientHarness();
+        await expect(h.call({ service: 'qbittorrent', magnet, dry_run: true })).rejects.toThrow(/not a magnet/i);
+        expect(h.sent).toHaveLength(0);
+    });
+
     it('refuses a search scope alongside a magnet, which never reaches an *arr', async () => {
         const h = clientHarness();
         await expect(
