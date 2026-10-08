@@ -431,3 +431,25 @@ describe('locked fields', () => {
         expect(issue).toMatchObject({ locked: 0, remedy: 'refresh_metadata' });
     });
 });
+
+describe('advisory findings', () => {
+    const at = (n: number, name: string, file: string): EpisodeRecord => ({
+        id: `e${n}`,
+        name,
+        season: 1,
+        episode: n,
+        path: `/tv/Show/Season 01/Show - S01E0${n} - ${file}.mkv`
+    });
+
+    it('explains a shifted series instead of sending it to a repair', async () => {
+        const [issue] = (
+            await sweep(
+                adapterWith({
+                    Shifted: [at(1, 'Stray Dog Strut', 'Asteroid Blues'), at(2, 'Honky Tonk Women', 'Stray Dog Strut'), at(3, 'Gateway Shuffle', 'Honky Tonk Women')]
+                })
+            )
+        ).items;
+        expect(issue).toMatchObject({ shifted: 3, remedy: 'inspect' });
+        expect(issue?.fix).toContain('3 carry the title the server gives the episode next to them');
+    });
+});
