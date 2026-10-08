@@ -10,6 +10,7 @@ import {
 } from '../config/schema.ts';
 import { fingerprint, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
+import { withoutCredentials } from '../tools/stackHealth.ts';
 import { html, raw, type SafeHtml } from './html.ts';
 import { serviceIcon } from './icons.ts';
 import type { JwksProbe } from './jwksProbe.ts';
@@ -243,11 +244,11 @@ function instanceCard(
         <summary class="svc-title">
             ${serviceIcon(instance.id)}
             <span class="mono">${instance.id}</span>
-            <span class="svc-host mono">${service.url}</span>
+            <span class="svc-host mono">${withoutCredentials(service.url)}</span>
             <span class="svc-writes">${writeLabel(service.permissions)}</span>
         </summary>
 
-        ${field({ id: `${p}.url`, name: 'url', label: 'URL', value: service.url })}
+        ${field({ id: `${p}.url`, name: 'url', label: 'URL', value: withoutCredentials(service.url) })}
         ${serviceFields(instance, p, users)}
         ${field({ id: `${p}.timeout_ms`, name: 'timeout_ms', label: 'Timeout (ms)', type: 'number', value: service.timeout_ms })}
 

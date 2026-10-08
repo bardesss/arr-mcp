@@ -53,7 +53,7 @@ export const TestAppBody = z.strictObject({
 });
 
 /** Whether `sent` is `stored` as GET showed it: credentials stripped, maybe a trailing slash more or less. */
-function sameUrl(sent: string, stored: string): boolean {
+export function sameUrl(sent: string, stored: string): boolean {
     let a: URL;
     let b: URL;
     try {

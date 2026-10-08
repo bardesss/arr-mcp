@@ -1,7 +1,9 @@
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
+import { sameUrl } from '../api/bodies.ts';
 import { commitConfig } from '../config/commit.ts';
 import { configEtag } from '../config/etag.ts';
+import { listInstances } from '../config/instances.ts';
 import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint } from '../config/edits.ts';
 import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
@@ -555,7 +557,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.post(
         '/ui/config/save',
         configMutation('Saved.', form =>
-            updateInstance(runtime.config, str(form.instance), instanceFieldsFrom(form))
+            updateInstance(runtime.config, str(form.instance), instanceFieldsFrom(form, storedUrl(runtime.config, str(form.instance))))
         )
     );
 
@@ -762,7 +764,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         try {
             const { candidate, target } = isAdd
                 ? addCandidateFrom(runtime.config, form)
-                : { candidate: updateInstance(runtime.config, id, instanceFieldsFrom(form)), target: id };
+                : {
+                      candidate: updateInstance(runtime.config, id, instanceFieldsFrom(form, storedUrl(runtime.config, id))),
+                      target: id
+                  };
 
             const adapter = buildAdapters(candidate).find(a => a.id === target);
             if (adapter === undefined) throw new Error(`${target} is not configured.`);
@@ -886,11 +891,19 @@ function logQuery(
  * secret back, so blank is what an untouched field always looks like; clearing
  * is expressed by removing the instance, which is confirmed.
  */
-export function instanceFieldsFrom(form: Record<string, unknown>): InstanceFields {
+const storedUrl = (config: Config, id: string): string | undefined =>
+    (listInstances(config).find(i => i.id === id)?.config as { url?: string } | undefined)?.url;
+
+/**
+ * The page shows a URL without its `user:pass@`, so getting that URL back
+ * means unchanged, not "drop the credentials". The API does the same.
+ */
+export function instanceFieldsFrom(form: Record<string, unknown>, stored?: string): InstanceFields {
     const timeout = Number(str(form.timeout_ms));
+    const url = str(form.url).trim();
 
     return {
-        url: str(form.url).trim(),
+        url: stored !== undefined && sameUrl(url, stored) ? '' : url,
         api_key: str(form.api_key).trim(),
         username: str(form.username).trim(),
         password: str(form.password),

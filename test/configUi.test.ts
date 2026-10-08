@@ -1080,6 +1080,46 @@ describe('the Plex repair switch', () => {
     });
 });
 
+describe('a URL with credentials in it', () => {
+    const WITH_USERINFO = '  radarr:\n    url: http://proxyuser:proxy-secret@192.0.2.10:7878\n    api_key: keep-me\n';
+    const realFetch = globalThis.fetch;
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    it('is shown without them', async () => {
+        await seed(WITH_USERINFO);
+        await signIn();
+
+        const page = await (await call('/ui/config')).text();
+        expect(page).not.toContain('proxy-secret');
+        expect(page).toContain('http://192.0.2.10:7878/');
+    });
+
+    it('keeps them when the page sends the shown URL back', async () => {
+        await seed(WITH_USERINFO);
+        await signIn();
+
+        await call('/ui/config/save', form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878/', api_key: '' }));
+
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('proxyuser:proxy-secret@192.0.2.10:7878');
+    });
+
+    it('tests with them when the page sends the shown URL back', async () => {
+        await seed(WITH_USERINFO);
+        let auth: string | null = null;
+        globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+            auth = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)).get('authorization');
+            return new Response(JSON.stringify({ version: '5.1.0' }), { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        await signIn();
+
+        await call('/ui/config/test', form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://192.0.2.10:7878', api_key: '' }));
+
+        expect(auth).toBe(`Basic ${Buffer.from('proxyuser:proxy-secret').toString('base64')}`);
+    });
+});
+
 describe('saving an instance', () => {
     it('keeps an existing key when the field is left blank', async () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: keep-me\n');
