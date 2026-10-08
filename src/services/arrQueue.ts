@@ -22,7 +22,25 @@ type RawQueueRecord = {
     seriesId?: number;
     trackedDownloadState?: string;
     downloadId?: string;
+    statusMessages?: { title?: string | null; messages?: string[] | null }[] | null;
 };
+
+const MAX_STATUS_MESSAGES = 10;
+
+/**
+ * Upstream titles each entry with the release, a filename, or the message
+ * itself when `messages` is empty. The release title only repeats the row's.
+ */
+function statusMessagesOf(service: string, r: RawQueueRecord): string[] {
+    const lines = (r.statusMessages ?? []).flatMap(m => {
+        const title = m.title ?? '';
+        const messages = (m.messages ?? []).filter(text => text !== '');
+        if (messages.length === 0) return title === '' ? [] : [title];
+        return messages.map(text => (title === '' || title === r.title ? text : `${title}: ${text}`));
+    });
+    const shown = lines.slice(0, MAX_STATUS_MESSAGES).map(line => fenceText(line, { service, field: 'statusMessage' }));
+    return lines.length > MAX_STATUS_MESSAGES ? [...shown, `${lines.length - MAX_STATUS_MESSAGES} more not shown`] : shown;
+}
 
 /**
  * Radarr and Sonarr report time remaining as a .NET `TimeSpan`, whose "c"
@@ -54,6 +72,7 @@ export async function readArrQueue(
         .filter((r): r is RawQueueRecord & { id: number } => typeof r.id === 'number')
         .map(r => {
             const eta = parseTimeleft(r.timeleft);
+            const statusMessages = statusMessagesOf(service, r);
             return {
                 service,
                 id: String(r.id),
@@ -73,7 +92,8 @@ export async function readArrQueue(
                 ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
                     ? {}
                     : { importState: r.trackedDownloadState }),
-                ...(r.downloadId === undefined ? {} : { downloadId: r.downloadId })
+                ...(r.downloadId === undefined ? {} : { downloadId: r.downloadId }),
+                ...(statusMessages.length === 0 ? {} : { statusMessages })
             };
         });
 }
