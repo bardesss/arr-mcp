@@ -1292,8 +1292,26 @@ The flow is `get_queue` → take that row's `downloadId` → `trigger_scan` with
 
 The preview lists, file by file, what will be imported and what the service
 refuses and why. Rejected files are **excluded** from the import rather than
-forced through: this imports what the service is willing to take, and overriding
-its own matching is not something it will do on your behalf.
+forced through: this imports what the service is willing to take.
+
+#### When the service cannot tell what a file is
+
+A title mismatch, an unknown movie or an unplaceable episode fails the same way
+on every retry; `get_queue`'s `statusMessages` say which. `mapping` gives the
+answer the web UI's Manual Import dialog would: per file, `movie_id` on Radarr,
+or `series_id`, `season` and `episodes` on Sonarr.
+
+```json
+{ "service": "sonarr", "action": "import", "download_id": "SABnzbd_nzo_ab12",
+  "mapping": [{ "path": "Show.S02E03E04.mkv", "series_id": "7", "season": 2, "episodes": [3, 4] }] }
+```
+
+Each mapped file goes back through the service's own reprocess call, the one
+that dialog makes, and is imported only if the service then accepts it. A
+mapping answers "which movie is this"; it does not override a rejection the
+service still has, like a sample or a file that is not an upgrade. Files the
+mapping leaves out keep the service's own match. The confirm token binds to
+the mapping, so a token from one mapping does not apply another.
 
 Three outcomes that look alike and are not:
 

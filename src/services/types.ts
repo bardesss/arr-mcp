@@ -861,12 +861,26 @@ export type ImportCandidate = {
     matchedId?: number;
     /** Sonarr only: the episodes this file was placed in. */
     episodeIds?: number[];
+    /** Sonarr only: those episodes as `S01E02`, when the service named them. */
+    episodeLabels?: string[];
     rejections: string[];
+    /** Placed by a caller's mapping and re-judged by the service, not its own match. */
+    mapped?: true;
+};
+
+/** What a person says one file in a download is. `path` is as the preview
+ *  names it, or absolute. Radarr takes `movieId`; Sonarr takes the rest. */
+export type ImportMapping = {
+    path: string;
+    movieId?: number;
+    seriesId?: number;
+    season?: number;
+    episodes?: number[];
 };
 
 export interface ManualImportCapable {
-    listImportCandidates(downloadId: string): Promise<ImportCandidate[]>;
-    runManualImport(downloadId: string): Promise<CommandHandle>;
+    listImportCandidates(downloadId: string, mapping?: ImportMapping[]): Promise<ImportCandidate[]>;
+    runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle>;
 }
 
 export const hasManualImport = (a: ServiceAdapter): a is ServiceAdapter & ManualImportCapable =>
