@@ -452,6 +452,8 @@ function plexHarness(
         reads?: Record<string, unknown>[][];
         /** The same for the film read. */
         filmReads?: Record<string, unknown>[];
+        /** How many reads after the write answer 503, as Plex does mid-refresh. */
+        failAfterWrite?: number;
     } = {}
 ) {
     const config = plexConfig(opts);
@@ -477,14 +479,22 @@ function plexHarness(
                 }
             });
         }
+        // Like real Plex: list rows carry no Field, the item read does.
+        const listed = (rows: Record<string, unknown>[] | undefined) =>
+            jsonResponse({ MediaContainer: { Metadata: rows?.map(({ Field: _f, ...row }) => row) } });
         if (url.pathname === `/library/metadata/${PLEX_SERIES}/allLeaves`) {
             const written = sent.some(s => s.method === 'PUT');
-            if (written && opts.reads !== undefined) {
-                const rows = opts.reads[Math.min(readsAfter++, opts.reads.length - 1)];
-                return jsonResponse({ MediaContainer: { Metadata: rows } });
+            if (written && opts.failAfterWrite !== undefined && readsAfter < opts.failAfterWrite) {
+                readsAfter++;
+                return jsonResponse({ message: 'busy' }, 503);
             }
-            return jsonResponse({ MediaContainer: { Metadata: (written ? opts.repaired : undefined) ?? opts.episodes ?? [plexEpisode(1)] } });
+            if (written && opts.reads !== undefined) {
+                return listed(opts.reads[Math.min(readsAfter++, opts.reads.length - 1)]);
+            }
+            return listed((written ? opts.repaired : undefined) ?? opts.episodes ?? [plexEpisode(1)]);
         }
+        const episode = (opts.episodes ?? [plexEpisode(1)]).find(e => url.pathname === `/library/metadata/${String(e.ratingKey)}`);
+        if (episode !== undefined) return jsonResponse({ MediaContainer: { Metadata: [episode] } });
         if (url.pathname.endsWith('/matches')) {
             return jsonResponse({ MediaContainer: { SearchResult: [{ guid: 'plex://show/fixture2', name: 'Fixture show 2', year: 2001, score: 100 }] } });
         }
@@ -732,6 +742,29 @@ describe('fix_metadata on Plex', () => {
             expect(h.timing.slept).toEqual([5_000]);
         });
 
+        /** Broken Darkness: repaired, and reported as a 503 from the read after. */
+        it('reads through a 503 while Plex refreshes the item', async () => {
+            const h = plexHarness({ failAfterWrite: 2, repaired: [ep(1)] });
+            const { structuredContent } = await confirmed(h);
+            const result = structuredContent.result as { verified: boolean; note: string };
+
+            expect(structuredContent.applied).toBe(true);
+            expect(result.verified).toBe(true);
+            expect(result.note).toContain('Repaired');
+        });
+
+        it('reports an unchecked repair, not an error, when every read fails', async () => {
+            const h = plexHarness({ failAfterWrite: 100 });
+            const { structuredContent } = await confirmed(h);
+            const result = structuredContent.result as { verified: boolean; note: string; mismatchesAfter?: number };
+
+            expect(structuredContent.applied).toBe(true);
+            expect(result.verified).toBe(false);
+            expect(result.mismatchesAfter).toBeUndefined();
+            expect(result.note).toContain('answered every read after it with an error');
+            expect(result.note).toContain('Matched to');
+        });
+
         it('gives up after the wait', async () => {
             const h = plexHarness();
             await confirmed(h);
@@ -765,6 +798,25 @@ describe('fix_metadata on Plex', () => {
             const h = plexHarness({ item: filmItem, films: [{ ...lockedFilm, Field: [{ name: 'originallyAvailableAt', locked: false }] }] });
             const { structuredContent } = await h.call({ query: 'Fixture film' });
             expect(structuredContent.confirm_token).toBeDefined();
+        });
+
+        /** Plex leaves Field off allLeaves, so an episode lock needs the item read. */
+        it('sees an episode lock that only the item read carries', async () => {
+            const h = plexHarness({ episodes: [{ ...plexEpisode(1), Field: [{ name: 'title', locked: true }] }] });
+            const { structuredContent } = await h.call({ query: 'Fixture show 2' });
+
+            expect(structuredContent.noop).toBe(true);
+            expect(structuredContent.confirm_token).toBeUndefined();
+            expect(h.sent.some(s => s.path === '/library/metadata/900101')).toBe(true);
+        });
+
+        it('reads locks only for the episodes that disagree', async () => {
+            const fine = { ...plexEpisode(2), title: 'Some other words' };
+            const h = plexHarness({ episodes: [plexEpisode(1), fine] });
+            await h.call({ query: 'Fixture show 2' });
+
+            expect(h.sent.some(s => s.path === '/library/metadata/900101')).toBe(true);
+            expect(h.sent.some(s => s.path === '/library/metadata/900102')).toBe(false);
         });
 
         it('no longer says every hand edit is overwritten', async () => {

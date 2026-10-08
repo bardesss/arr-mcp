@@ -998,6 +998,10 @@ same count came back on the next read. Otherwise the result is `NOT VERIFIED`,
 and says whether the item was still rebuilding or the count simply did not move.
 Run `get_metadata_issues` again a few minutes later for the settled answer.
 
+A read that fails during the wait counts as "not settled yet", because the write
+has already landed and Plex answers 503 while it refreshes an item. If every
+read fails, the result is `NOT VERIFIED` and says so, rather than an error.
+
 ### Repairing on Plex
 
 Plex repair is **off by default**, because nobody has run it against a live
@@ -1032,11 +1036,14 @@ With no provider id it skips steps 1 to 3 and only refreshes, on any agent.
   applied anyway, and the error says to check the item in Plex first.
 - **Plex refreshes in the background**, so applying waits for the result to
   settle, as described [above](#waiting-on-a-queued-refresh).
-- **Locked fields are kept.** A field edited by hand in Plex is locked, and
-  neither Fix Match nor a refresh overwrites it. When the field that disagrees
-  is locked, the preview says so and issues no token, and `get_metadata_issues`
-  gives it the remedy `unlock_fields`. Unlock it on the item in Plex (Edit, then
-  the lock icon beside the field) if the locked value is the wrong one.
+- **Locked fields are kept.** Plex locks a field when it is edited by hand, and
+  fields get locked in other ways too, so a lock is not proof of a hand edit.
+  Neither Fix Match nor a refresh overwrites one. Plex leaves locks out of its
+  list responses (section listings and `allLeaves`), so both tools re-read the
+  mismatching items by id to see them. When the field that disagrees is locked,
+  the preview says so and issues no token, and `get_metadata_issues` gives it
+  the remedy `unlock_fields`. Unlock it on the item in Plex (Edit, then the lock
+  icon beside the field) if the locked value is the wrong one.
 - **The result names what Plex matched the item to**, with its year when Plex
   gives one, so a wrong match shows before the refresh settles.
 - **A numbering mismatch usually needs a rename, not a rematch.** Plex takes
