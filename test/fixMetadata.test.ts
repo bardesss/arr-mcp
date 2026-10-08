@@ -370,6 +370,19 @@ describe('episodes pinned to their own provider ids', () => {
         expect(text).not.toContain('EXPECTED TO ACHIEVE NOTHING');
     });
 
+    it('says when the mismatches are a shifted episode order', async () => {
+        const at = (n: number, name: string, file: string) => ({
+            Id: episodeId(n + 20),
+            Name: name,
+            IndexNumber: n,
+            ParentIndexNumber: 1,
+            Path: `/storage/tv/Some Show/Season 01/Some Show - S01E0${n} - ${file} [Bluray-1080p].mkv`
+        });
+        const h = harness({ episodes: [at(1, 'Stray Dog Strut', 'Asteroid Blues'), at(2, 'Honky Tonk Women', 'Stray Dog Strut')] });
+        const effects = (await h.call({ query: 'Dragon Ball Kai' })).structuredContent.effects.join('\n');
+        expect(effects).toContain('2 of the 2 mismatching episodes carry the title Jellyfin gives the episode next to them');
+    });
+
     it('says nothing about pinning when no episode carries an id', async () => {
         const h = harness();
         const text = (await h.call({ query: 'Dragon Ball Kai' })).structuredContent.effects.join('\n');

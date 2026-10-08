@@ -607,3 +607,82 @@ describe('movieRemedy', () => {
         expect(movieRemedy(['title'], false)).toBe('refresh_metadata');
     });
 });
+
+/** The #312 rerun on 1.39.1: still flagged, but nothing a rematch fixes. */
+describe('advisory findings from a real Plex library', () => {
+    const at = (season: number, n: number, name: string, file: string): EpisodeRecord =>
+        ep({ id: `${season}x${n}`, name, season, episode: n, path: `/tv/Show/Season ${season}/Show - S0${season}E${String(n).padStart(2, '0')} - ${file}.mkv` });
+
+    /** Cowboy Bebop: every episode shows the next one's title. */
+    const bebop = [
+        at(1, 1, 'Stray Dog Strut', 'Asteroid Blues'),
+        at(1, 2, 'Honky Tonk Women', 'Stray Dog Strut'),
+        at(1, 3, 'Gateway Shuffle', 'Honky Tonk Women')
+    ];
+
+    it('marks a title the neighbouring episode carries as shifted', () => {
+        const found = findMismatches(bebop);
+        expect(found.map(m => m.advisory)).toEqual(['shifted', 'shifted', 'shifted']);
+    });
+
+    it('sends an all-shifted series to inspect, not a repair', () => {
+        expect(summariseSeries(bebop)).toMatchObject({ mismatches: 3, shifted: 3, remedy: 'inspect' });
+    });
+
+    it('still sends a series with one ordinary mismatch to the repair', () => {
+        const verdict = summariseSeries([...bebop, at(1, 9, 'The Fixture Show', 'Completely Unrelated Words')]);
+        expect(verdict).toMatchObject({ shifted: 3, remedy: 'refresh_metadata' });
+    });
+
+    it('does not call a title shifted when no neighbour carries it', () => {
+        expect(findMismatches([at(1, 1, 'Stray Dog Strut', 'Asteroid Blues')])[0]?.advisory).toBeUndefined();
+    });
+
+    it('reads a multi-episode file as a range', () => {
+        expect(parseFileNumbering('/tv/12 Monkeys/Season 04/12 Monkeys - S04E10-E11 - The Beginning.mkv')).toEqual({ season: 4, episode: 10, episodeEnd: 11 });
+        expect(parseFileNumbering('/tv/S/Season 01/S - S01E01E02 - Pilot.mkv')).toMatchObject({ episode: 1, episodeEnd: 2 });
+        expect(parseFileNumbering('/tv/S/Season 01/S - S01E01-02 - Pilot.mkv')).toMatchObject({ episode: 1, episodeEnd: 2 });
+    });
+
+    /** 12 Monkeys: the second half of a two-episode file got `rename_files`. */
+    it('does not flag the second episode of a multi-episode file', () => {
+        const second = ep({
+            id: 'b',
+            name: 'The Beginning (2)',
+            season: 4,
+            episode: 11,
+            path: '/tv/12 Monkeys/Season 04/12 Monkeys - S04E10-E11 - The Beginning.mkv'
+        });
+        expect(findMismatches([second])).toEqual([]);
+    });
+
+    it('still flags an episode outside the range', () => {
+        const outside = ep({ id: 'c', name: 'Something', season: 4, episode: 12, path: '/tv/12 Monkeys/Season 04/12 Monkeys - S04E10-E11 - The Beginning.mkv' });
+        expect(findMismatches([outside])[0]?.reasons).toContain('numbering');
+    });
+
+    it('reads the title after a range, not the range', () => {
+        expect(extractFileTitle('/tv/12 Monkeys/Season 04/12 Monkeys - S04E10-E11 - The Beginning.mkv')).toBe('The Beginning');
+    });
+
+    it('does not flag a special numbered differently', () => {
+        const special = ep({ id: 's', name: 'The Fixture Special', season: 0, episode: 7, path: '/tv/Show/Specials/Show - S00E03 - The Fixture Special.mkv' });
+        expect(findMismatches([special])).toEqual([]);
+    });
+
+    it('keeps a special whose title disagrees, as advisory', () => {
+        const special = ep({ id: 's', name: 'Totally Different Words', season: 0, episode: 3, path: '/tv/Show/Specials/Show - S00E03 - The Fixture Special.mkv' });
+        const [found] = findMismatches([special]);
+        expect(found).toMatchObject({ reasons: ['title'], advisory: 'special' });
+        expect(summariseSeries([special])).toMatchObject({ specials: 1, remedy: 'inspect' });
+    });
+
+    /** Dragon Ball Kai: a season 1 episode filed under Specials is still numbering. */
+    it('still flags an episode the server puts in a different season from Specials', () => {
+        const found = findMismatches([
+            ep({ id: 'k', name: 'Prologue to Battle!', season: 1, episode: 1, path: '/tv/K/Specials/Episode 101 Videls Crisis.mkv' })
+        ]);
+        expect(found[0]?.reasons).toContain('numbering');
+        expect(found[0]?.advisory).toBeUndefined();
+    });
+});
