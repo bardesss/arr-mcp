@@ -14,7 +14,7 @@ import type { PermissionSource } from '../core/permissions.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasMetadataInspect, hasUserLibrary, type ServiceAdapter } from '../services/types.ts';
-import { plexRepairAllowed, unlockHow } from './fixMetadata.ts';
+import { plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
 
 /**
  * The discovery half of `fix_metadata`.
@@ -153,16 +153,18 @@ export async function buildGetMetadataIssues(
     let scanned = 0;
     let skipped = 0;
 
+
     // Films first, and in one request: they need no per-title read, so the
     // whole film half of the library costs what a single series costs.
     try {
-        const movies = await adapter.readMovieMetadata(viewer);
-        scanned += movies.length;
-        for (const mismatch of findMovieMismatches(movies)) {
+        const read = await adapter.readMovieMetadata(viewer);
+        scanned += read.length;
+        const { rows: movies, mismatches } = await withLocks(adapter, read, findMovieMismatches);
+        for (const mismatch of mismatches) {
             const record = movies.find(m => m.id === mismatch.id);
             const pinned = record !== undefined && pinnedToProvider(record) ? 1 : 0;
-            const locked = mismatch.locked === true ? 1 : 0;
-            const remedy = movieRemedy(mismatch.reasons, pinned === 1, locked === 1);
+            const lockedCount = mismatch.locked === true ? 1 : 0;
+            const remedy = movieRemedy(mismatch.reasons, pinned === 1, lockedCount === 1);
 
             issues.push({
                 service: adapter.id,
@@ -174,7 +176,7 @@ export async function buildGetMetadataIssues(
                 numbering: mismatch.reasons.includes('year') ? 1 : 0,
                 titleOnly: mismatch.reasons.includes('year') ? 0 : 1,
                 pinned,
-                locked,
+                locked: lockedCount,
                 remedy,
                 fix: fixFor(remedy, adapter, repairAllowed),
                 examples: [
@@ -196,7 +198,7 @@ export async function buildGetMetadataIssues(
         const itemId = item.playback?.itemId;
         if (itemId === undefined) continue;
         try {
-            const episodes = await adapter.readEpisodeMetadata(viewer, itemId);
+            const listed = await adapter.readEpisodeMetadata(viewer, itemId);
 
             // "Could not look" is not "looked and found nothing". A series whose
             // episodes came back with no file paths compared nothing, and
@@ -204,12 +206,13 @@ export async function buildGetMetadataIssues(
             // token cannot see file paths for answers "0 items disagree".
             // fix_metadata already refuses this exact state as an error; the two
             // must not contradict each other about the same input.
-            if (episodes.length > 0 && episodes.every(e => e.path === undefined || e.path.trim() === '')) {
+            if (listed.length > 0 && listed.every(e => e.path === undefined || e.path.trim() === '')) {
                 notComparable.push(item.title);
                 continue;
             }
 
             scanned += 1;
+            const { rows: episodes } = await withLocks(adapter, listed, findMismatches);
             const verdict = summariseSeries(episodes);
             if (verdict === undefined) continue;
 
