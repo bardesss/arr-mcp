@@ -201,6 +201,56 @@ describe('unknown queue items', () => {
         expect(item).toMatchObject({ id: '693439963', orphaned: true, importState: 'importBlocked' });
     });
 
+    // Shapes from Sonarr's CompletedDownloadService: a whole-download warning
+    // titled with the release, per-file rejections titled with the filename,
+    // and a bare title with no messages.
+    it('carries why the import is blocked, fenced', async () => {
+        const { impl } = recording([
+            {
+                id: 9,
+                title: 'Some.Show.S02-GROUP',
+                status: 'completed',
+                seriesId: 3,
+                trackedDownloadState: 'importBlocked',
+                statusMessages: [
+                    { title: 'Some.Show.S02-GROUP', messages: ['Series title mismatch'] },
+                    { title: 'Some.Show.S02E03.mkv', messages: ['Unknown episode', 'Sample'] },
+                    { title: 'One or more episodes expected in this release were not imported', messages: [] }
+                ]
+            }
+        ]);
+        const [item] = await new SonarrAdapter(keyed(8989), impl).getQueue();
+        expect(item?.statusMessages).toEqual([
+            '<<untrusted:sonarr.statusMessage>>Series title mismatch<</untrusted>>',
+            '<<untrusted:sonarr.statusMessage>>Some.Show.S02E03.mkv: Unknown episode<</untrusted>>',
+            '<<untrusted:sonarr.statusMessage>>Some.Show.S02E03.mkv: Sample<</untrusted>>',
+            '<<untrusted:sonarr.statusMessage>>One or more episodes expected in this release were not imported<</untrusted>>'
+        ]);
+    });
+
+    it('omits status messages when there are none', async () => {
+        const { impl } = recording([
+            { id: 5, title: 'Some.Film-GROUP', status: 'downloading', movieId: 1, statusMessages: [] }
+        ]);
+        const [item] = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(item?.statusMessages).toBeUndefined();
+    });
+
+    it('caps a season pack of rejections and says how many it left out', async () => {
+        const { impl } = recording([
+            {
+                id: 9,
+                title: 'Some.Show.S02-GROUP',
+                status: 'completed',
+                seriesId: 3,
+                statusMessages: Array.from({ length: 14 }, (_, i) => ({ title: `E${i}.mkv`, messages: ['Unknown episode'] }))
+            }
+        ]);
+        const [item] = await new SonarrAdapter(keyed(8989), impl).getQueue();
+        expect(item?.statusMessages).toHaveLength(11);
+        expect(item?.statusMessages?.at(-1)).toBe('4 more not shown');
+    });
+
     // The generated spec types movieId as `number | null`, so a build that
     // serialises the null rather than omitting the key must not hide the row.
     it('marks an item whose movieId is null, not just absent', async () => {

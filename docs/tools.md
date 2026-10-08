@@ -472,6 +472,12 @@ Each Radarr or Sonarr row carries `downloadId`, the download client's own id
 for that grab. It is what `trigger_scan`'s `import` action takes, and it is the
 link between "this is stuck at `importBlocked`" and doing something about it.
 
+A blocked row also carries `statusMessages`, the service's own reasons, one per
+line and fenced. A file the service rejected leads with its filename. They
+tell a retry apart from a dead end: "Series title mismatch" or an unknown
+episode fails the same way every time, so `trigger_scan`'s `import` will not
+help. Past ten lines the rest are counted, not listed.
+
 ### Seeding, at `detail: "full"`
 
 Torrent rows carry `private` when the client says, and a finished torrent

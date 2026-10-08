@@ -246,6 +246,8 @@ export type QueueItem = {
     /** The download client's own id for this grab — what `trigger_scan`'s
      *  `import` action is addressed with. */
     downloadId?: string;
+    /** Why Radarr or Sonarr will not import it, one line per reason. */
+    statusMessages?: string[];
     /** Torrent clients only. Absent when the client did not say. */
     private?: boolean;
     /** Torrent clients only, and only once the download has finished. */
