@@ -1,4 +1,5 @@
 import { ServiceError } from '../core/errors.ts';
+import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { postArrCommand } from './arrCommands.ts';
 import type { CommandHandle, DiskSpace, HealthCheck, ScanState } from './types.ts';
@@ -49,7 +50,8 @@ export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Prom
             // Coerced: upstream has been seen sending a non-string here, and
             // `HealthCheck.type` is declared `string`.
             type: String(c.type ?? 'warning'),
-            message: c.message ?? ''
+            // Health text quotes indexer, list and client names, and their errors.
+            message: fenceText(c.message ?? '', { service: id, field: 'message' })
         }));
 }
 

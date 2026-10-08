@@ -317,6 +317,7 @@ const REQUESTS = {
 };
 
 const seerrRoutes = { '/api/v1/user': SEERR_USERS, '/api/v1/request': REQUESTS };
+const BARTUS = '<<untrusted:seerr.user>>bartus<</untrusted>>';
 
 const seerr = (over: Partial<MultiUserServiceConfig> = {}, routes: Record<string, unknown> = seerrRoutes) => {
     const config = seerrConfig(over);
@@ -335,14 +336,14 @@ describe('get_requests', () => {
         const { adapter, resolver } = seerr();
         const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50, user: 'bartus' });
 
-        expect(result.items.every(i => i.requestedBy === 'bartus')).toBe(true);
+        expect(result.items.every(i => i.requestedBy === BARTUS)).toBe(true);
         expect(result.total).toBe(2);
     });
 
     it('defaults to the configured user when none is named', async () => {
         const { adapter, resolver } = seerr();
         const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50 });
-        expect(result.items.every(i => i.requestedBy === 'bartus')).toBe(true);
+        expect(result.items.every(i => i.requestedBy === BARTUS)).toBe(true);
     });
 
     it('filters by status when asked', async () => {
@@ -364,6 +365,12 @@ describe('get_requests', () => {
         expect(result.items.find(i => i.id === 10)?.title).toBe('<<untrusted:seerr.title>>Fight Club<</untrusted>>');
     });
 
+    it('fences who made the request, since Seerr users choose their own display names', async () => {
+        const { adapter, resolver } = seerr();
+        const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50, user: 'bartus' });
+        expect(result.items.every(i => i.requestedBy === BARTUS)).toBe(true);
+    });
+
     it('omits the title rather than inventing one when the media has none', async () => {
         const { adapter, resolver } = seerr();
         const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50, user: 'bartus' });
@@ -382,7 +389,7 @@ describe('get_requests', () => {
         const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50, user: 'guest' });
 
         expect(result.items).toHaveLength(1);
-        expect(result.items[0]?.requestedBy).toBe('guest');
+        expect(result.items[0]?.requestedBy).toBe('<<untrusted:seerr.user>>guest<</untrusted>>');
     });
 
     it('degrades rather than failing when Seerr is unreachable', async () => {

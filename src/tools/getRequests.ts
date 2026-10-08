@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { fenceText } from '../core/fence.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import type { MediaIssue, MediaRequest, RequestStatus } from '../services/types.ts';
 import { UserSchema } from './getPlayback.ts';
@@ -93,7 +94,11 @@ export async function buildGetRequests(
     const shaped = applyLimit(requests, opts.limit, opts.offset);
     return {
         ...shaped,
-        items: shaped.items.map(r => project(r, opts.detail)),
+        // The name is fenced here rather than in the adapter, which keeps it raw
+        // for the write path. The id is for ownership checks, not for the model.
+        items: shaped.items.map(({ requestedById: _, ...r }) =>
+            project({ ...r, requestedBy: fenceText(r.requestedBy, { service: r.service, field: 'user' }) }, opts.detail)
+        ),
         degraded: [],
         ...(issues === undefined ? {} : { issues })
     };

@@ -82,7 +82,7 @@ export function assertVersionSupported(service: ServiceId, raw: string): void {
     if (actual === undefined || minimum === undefined) return;
 
     if (compareVersions(actual, minimum) < 0) {
-        throw new ServiceError('VersionUnsupported', service, `reports version ${raw}`, {
+        throw new ServiceError('VersionUnsupported', service, `reports version ${actual.join('.')}`, {
             remedy: `arr-mcp needs ${service} ${floor} or newer. Upgrade the service, or pin an older arr-mcp.`
         });
     }
