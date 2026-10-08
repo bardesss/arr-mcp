@@ -59,6 +59,13 @@ export function stripDangerous(value: string): string {
     return out;
 }
 
+/** Slices without leaving half an astral character at the end. */
+const cut = (value: string, length: number): string => {
+    const out = value.slice(0, length);
+    const last = out.charCodeAt(out.length - 1);
+    return last >= 0xd800 && last <= 0xdbff ? out.slice(0, -1) : out;
+};
+
 /** Long enough for any real guid (usually a URL); short enough to bound a
  *  hostile one. */
 export const GUID_MAX_LENGTH = 500;
@@ -72,7 +79,7 @@ export const GUID_MAX_LENGTH = 500;
  */
 export function sanitizeGuid(value: string): string {
     const clean = stripDangerous(value);
-    return clean.length > GUID_MAX_LENGTH ? clean.slice(0, GUID_MAX_LENGTH) : clean;
+    return clean.length > GUID_MAX_LENGTH ? cut(clean, GUID_MAX_LENGTH) : clean;
 }
 
 /**
@@ -89,7 +96,7 @@ export function fenceText(value: string, source: { service: string; field: strin
 
     let clean = stripDangerous(value).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
     if (clean.length > FENCE_MAX_LENGTH) {
-        clean = `${clean.slice(0, FENCE_MAX_LENGTH)}…[truncated]`;
+        clean = `${cut(clean, FENCE_MAX_LENGTH)}…[truncated]`;
     }
 
     return `${OPEN}${source.service}.${source.field}>>${clean}${CLOSE}`;

@@ -28,6 +28,7 @@ import {
     addCandidate,
     addToken,
     ConfigEditError,
+    CredentialWouldMoveError,
     removeInstance,
     revokeToken,
     updateInstance,
@@ -492,6 +493,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     updated = result;
                 }
             } catch (err) {
+                warnIfCredentialMove(c, err);
                 return render({ kind: 'err', text: (err as Error).message }, 400);
             }
 
@@ -774,6 +776,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             // A config that will not even build — a URL that is not a URL, a
             // timeout that is not a number. testConnection never gets to run,
             // so the message is the validation one, which names the field.
+            warnIfCredentialMove(c, err);
+            if (!wantsJson && !isAdd) {
+                return render(400, { message: { kind: 'err', text: (err as Error).message }, openInstance: id });
+            }
             return fail(400, (err as Error).message);
         }
     });
@@ -815,6 +821,12 @@ export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
         ip: peerAddress(c),
         ...(claimed === undefined || claimed === '' ? {} : { forwardedFor: claimed })
     };
+};
+
+export const warnIfCredentialMove = (c: Context, err: unknown): void => {
+    if (err instanceof CredentialWouldMoveError) {
+        logger.warn({ ...originOf(c), target: err.target }, 'refused to send a stored credential to a new host');
+    }
 };
 
 const peerAddress = (c: Context): string => {

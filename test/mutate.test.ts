@@ -163,10 +163,15 @@ describe('updating an instance', () => {
         );
     });
 
-    it('lets a torrent client with no password move hosts', () => {
-        const config = base({ transmission: { url: 'http://192.0.2.20:9091' } });
-        const after = updateInstance(config, 'transmission', { url: 'http://203.0.113.5:9091' });
+    it.each([{}, { password: '' }])('lets a torrent client with no password move hosts (%j)', stored => {
+        const config = base({ transmission: { url: 'http://192.0.2.20:9091', ...stored } });
+        const after = updateInstance(config, 'transmission', { url: 'http://203.0.113.5:9091', password: '' });
         expect(listInstances(after)[0]?.config).toMatchObject({ url: 'http://203.0.113.5:9091' });
+    });
+
+    it('names a malformed url as malformed, not as a new host', () => {
+        expect(() => updateInstance(two(), 'radarr/hd', { url: 'garbage' })).toThrow(/url/);
+        expect(() => updateInstance(two(), 'radarr/hd', { url: 'garbage' })).not.toThrow(/somewhere new/);
     });
 
     it('refuses an unknown instance rather than silently doing nothing', () => {

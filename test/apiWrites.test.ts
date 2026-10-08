@@ -378,11 +378,14 @@ describe('POST /app/test', () => {
     });
 
     it('will not send the stored key to a new host', async () => {
-        const fetchSpy = vi.spyOn(globalThis, 'fetch');
-        const res = await api('/app/test', json('POST', { id: 'radarr/hd', url: 'http://elsewhere.example:9999' }));
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+        const warn = vi.spyOn(logger, 'warn');
+        const res = await api('/app/test', json('POST', { id: 'radarr/hd', url: 'http://elsewhere.example:9999/x' }));
         expect(res.status).toBe(400);
         expect(((await res.json()) as { message: string }).message).toMatch(/api_key/);
         expect(fetchSpy).not.toHaveBeenCalled();
+        const line = warn.mock.calls.find(call => call[1] === 'refused to send a stored credential to a new host');
+        expect(line?.[0]).toMatchObject({ target: 'http://elsewhere.example:9999' });
     });
 
     it('answers a candidate that will not build with {message}', async () => {

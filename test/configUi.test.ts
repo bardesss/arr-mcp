@@ -862,6 +862,27 @@ describe('testing a connection', () => {
         expect(await res.text()).toContain('msg err');
     });
 
+    it('will not test the stored key against a new host, and keeps the card open', async () => {
+        await seed(RADARR);
+        let fetched = false;
+        globalThis.fetch = (async () => {
+            fetched = true;
+            return new Response('{}');
+        }) as typeof fetch;
+        await signIn();
+
+        const res = await call(
+            '/ui/config/test',
+            form({ csrf: await csrfFrom(), instance: 'radarr', url: 'http://203.0.113.5:7878', api_key: '' })
+        );
+
+        expect(res.status).toBe(400);
+        const html = await res.text();
+        expect(html).toContain('enter the api_key again');
+        expect(html).toMatch(/<details class="svc[^"]*" open/);
+        expect(fetched).toBe(false);
+    });
+
     /** The whole point: it must be safe to test a URL you have not committed to. */
     it('writes nothing to disk, whatever the answer', async () => {
         await seed(RADARR);

@@ -38,6 +38,16 @@ export type InstanceFields = {
 
 export class ConfigEditError extends Error {}
 
+/** Logged where it is caught: an attempt to aim a stored secret at a new host. */
+export class CredentialWouldMoveError extends ConfigEditError {
+    constructor(
+        readonly target: string,
+        secret: string
+    ) {
+        super(`The URL points somewhere new, so enter the ${secret} again.`);
+    }
+}
+
 const entriesOf = (services: Record<string, unknown>, type: ServiceId): Entry[] => {
     const value = services[type];
     if (value === undefined) return [];
@@ -88,15 +98,7 @@ const validate = (config: Config, services: Record<string, unknown>): Config => 
     return result.data;
 };
 
-const originOrSelf = (url: string): string => {
-    try {
-        return new URL(url).origin;
-    } catch {
-        return url;
-    }
-};
-
-export const MULTI_USER:ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
+export const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
 export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent']);
 
 /**
@@ -116,14 +118,16 @@ function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entr
     const secret = NO_API_KEY.has(type) ? 'password' : 'api_key';
     const stored = (base as Record<string, unknown>)[secret];
     const given = fields[secret];
+    // An unparseable url is left for the schema to name.
     if (
         typeof stored === 'string' &&
+        stored !== '' &&
         (given === undefined || given === '') &&
         fields.url !== undefined &&
-        fields.url !== '' &&
-        originOrSelf(fields.url) !== originOrSelf((base as { url: string }).url)
+        URL.canParse(fields.url) &&
+        new URL(fields.url).origin !== new URL((base as { url: string }).url).origin
     ) {
-        throw new ConfigEditError(`The URL points somewhere new, so enter the ${secret} again.`);
+        throw new CredentialWouldMoveError(new URL(fields.url).origin, secret);
     }
 
     if (fields.url !== undefined && fields.url !== '') next.url = fields.url;

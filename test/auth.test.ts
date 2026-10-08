@@ -175,7 +175,8 @@ describe('qbittorrentSession', () => {
         const message = (err as Error).message;
         expect(message).toMatch(/<<untrusted/);
         expect(message).not.toContain('‮');
-        expect(message.match(/<<\/untrusted>>/g)).toHaveLength(1);
+        expect(message).not.toContain('<</untrusted>> and');
+        expect(message).toContain('\\u003c\\u003c/untrusted\\u003e\\u003e and');
     });
 
     it('fails rather than silently continuing when login sets no cookie', async () => {

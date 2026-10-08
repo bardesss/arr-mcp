@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FENCE_MAX_LENGTH, fenceText, stripDangerous } from '../src/core/fence.ts';
+import { FENCE_MAX_LENGTH, GUID_MAX_LENGTH, fenceText, sanitizeGuid, stripDangerous } from '../src/core/fence.ts';
 
 const src = { service: 'prowlarr' as const, field: 'title' };
 
@@ -78,6 +78,12 @@ describe('fenceText', () => {
         const fenced = fenceText('a'.repeat(FENCE_MAX_LENGTH + 500), src);
         expect(fenced).toContain('…[truncated]');
         expect(fenced.length).toBeLessThan(FENCE_MAX_LENGTH + 100);
+    });
+
+    it('does not cut an astral character in half at the cap', () => {
+        const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+        expect(fenceText(`${'a'.repeat(FENCE_MAX_LENGTH - 1)}\u{1F600}tail`, src)).not.toMatch(lone);
+        expect(sanitizeGuid(`${'a'.repeat(GUID_MAX_LENGTH - 1)}\u{1F600}tail`)).not.toMatch(lone);
     });
 
     it('leaves an empty string empty rather than fencing nothing', () => {
