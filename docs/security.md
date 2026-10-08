@@ -49,9 +49,9 @@ MCP tokens, so it is a concentrated target.
 - Upstream errors carry the **origin and path only**, never the full URL
   (`src/core/http.ts`). SABnzbd authenticates by query parameter, so a logged
   full URL would be a logged API key.
-- `get_stack_health` is the one place a service URL leaves the process, and it
-  strips any `user:pass@` userinfo on the way out — `withoutCredentials` in
-  `src/tools/stackHealth.ts`.
+- `get_stack_health`, the management API and the config page all show service
+  URLs with any `user:pass@` userinfo stripped (`withoutCredentials` in
+  `src/tools/stackHealth.ts`).
 - Audit arguments pass through a key-name redactor before they are written, even
   though no write tool accepts a credential today (`src/core/audit.ts`). That
   keeps it true by construction rather than by everyone remembering.
