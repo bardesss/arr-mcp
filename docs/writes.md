@@ -41,7 +41,7 @@ re-monitor it.
 | `pause_downloads` | safe | `safe_write` |
 | `set_watched` | safe | `safe_write` |
 | `remove_blocklist_item` | safe | `safe_write` |
-| `manage_indexer` | safe to disable or enable, destructive to delete | `safe_write`, or `destructive` for `delete` |
+| `manage_indexer` | safe to add, edit, disable or enable; destructive to delete | `safe_write`, or `destructive` for `delete` |
 | `remove_queue_item` | destructive | `destructive` |
 | `clean_queue` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
@@ -105,6 +105,12 @@ an indexer is undone by enabling it, so it needs only `safe_write`; deleting it
 throws away the indexer's settings and credentials, so it needs `destructive`.
 They share a tool to stay inside the tool budget, not because they share a
 risk, and a confirmation token issued for one will not apply the other.
+
+Adding and editing an indexer are safe for the same reason disabling is: each
+is undone by the tool itself, a delete or an edit back. Neither ever carries a
+credential. `add` is limited to public indexers that need no login, and `edit`
+uses Prowlarr's bulk endpoint, which never sees the indexer's settings, so no
+API key, password or cookie passes through arr-mcp or lands in the audit trail.
 
 `pause_downloads` names one client rather than defaulting to all of them, and
 that is a permission property rather than a missing convenience: every write's

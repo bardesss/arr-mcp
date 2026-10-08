@@ -122,22 +122,92 @@ export type IndexerSyncApp = {
     name: string;
     implementation: string;
     syncLevel: IndexerSyncLevel;
-    /** False when the app's tags exclude this indexer: Prowlarr never synced it there. */
-    receives: boolean;
+    /** Tag ids. Empty takes every indexer; otherwise only ones sharing a tag. */
+    tags: number[];
+    /** The categories it syncs, anime included. Undefined when the app does not say. */
+    categories?: number[];
+};
+
+/**
+ * Whether Prowlarr syncs an indexer to an app, and if not, why: the app's
+ * tags must be empty or share one with the indexer, and the indexer must
+ * cover at least one of the app's sync categories. Unknown categories on
+ * either side are taken as a match, which is what Prowlarr's UI assumes too.
+ */
+export const reachOf = (
+    app: IndexerSyncApp,
+    tags: readonly number[],
+    categories: readonly number[] | undefined
+): 'yes' | 'tags' | 'categories' => {
+    if (app.tags.length > 0 && !app.tags.some(t => tags.includes(t))) return 'tags';
+    if (app.categories !== undefined && categories !== undefined && !app.categories.some(c => categories.includes(c))) {
+        return 'categories';
+    }
+    return 'yes';
+};
+
+/** The four torrent seeding knobs Prowlarr's bulk edit takes. Absent on usenet. */
+export type IndexerSeeding = {
+    minimumSeeders?: number;
+    seedRatio?: number;
+    seedTime?: number;
+    packSeedTime?: number;
+};
+
+/** What `editIndexer` may change. Nothing here carries a credential. */
+export type IndexerSettings = IndexerSeeding & {
+    priority?: number;
+    appProfileId?: number;
+    tags?: number[];
 };
 
 export type IndexerSyncView = {
-    indexer: { id: number; name: string; enabled: boolean };
+    indexer: {
+        id: number;
+        name: string;
+        enabled: boolean;
+        protocol: string;
+        priority: number;
+        appProfileId: number;
+        tags: number[];
+        seeding: IndexerSeeding;
+        categories?: number[];
+    };
     apps: IndexerSyncApp[];
-    /** Whether this Prowlarr has the bulk endpoint `setIndexerEnabled` uses (1.8+). */
-    canToggle: boolean;
+    /** Whether this Prowlarr has the bulk endpoint disable, enable and edit use (1.8+). */
+    bulkEdit: boolean;
+};
+
+/** One entry in Prowlarr's catalogue of indexers it knows how to add. */
+export type IndexerDefinition = {
+    definitionName: string;
+    name: string;
+    privacy: string;
+    protocol: string;
+    /** Public, and no field that takes a password, cookie or captcha. */
+    credentialFree: boolean;
+    categories?: number[];
+};
+
+/** The names a person uses for the ids `editIndexer` takes. */
+export type IndexerLookups = {
+    appProfiles: { id: number; name: string }[];
+    tags: { id: number; label: string }[];
 };
 
 export interface IndexerWriteCapable {
     /** Undefined when no indexer has that id. */
     readIndexerSync(id: number): Promise<IndexerSyncView | undefined>;
     setIndexerEnabled(id: number, enabled: boolean): Promise<void>;
+    editIndexer(id: number, settings: IndexerSettings): Promise<void>;
     deleteIndexer(id: number): Promise<void>;
+    readIndexerLookups(): Promise<IndexerLookups>;
+    /** Every definition, with existing indexers' definition names, for duplicate checks. */
+    readIndexerDefinitions(): Promise<{ definitions: IndexerDefinition[]; configured: { id: number; definitionName: string }[] }>;
+    /** Adds a credential-free definition and returns the new indexer id. */
+    addIndexer(definitionName: string, settings: IndexerSettings): Promise<number>;
+    /** Apps Prowlarr syncs to, for an indexer that does not exist yet. */
+    readIndexerApps(): Promise<IndexerSyncApp[]>;
     syncIndexers(): Promise<CommandHandle>;
 }
 
