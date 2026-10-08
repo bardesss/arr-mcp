@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
+import { fenceText } from '../core/fence.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import {
     hasRequestCreate,
@@ -149,7 +150,7 @@ export function registerRequestMedia(
             if (existing !== undefined) {
                 return {
                     target: `seerr:${media_type}:${media_id}`,
-                    summary: `${label} has already been requested by ${existing.requestedBy} (currently ${existing.status}).`,
+                    summary: `${label} has already been requested by ${fenceText(existing.requestedBy, { service: adapter.id, field: 'user' })} (currently ${existing.status}).`,
                     effects: [],
                     noop: true
                 };

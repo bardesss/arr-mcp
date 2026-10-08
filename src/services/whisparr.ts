@@ -195,9 +195,10 @@ export class WhisparrAdapter
      */
     async getVersion(): Promise<string> {
         const raw = await arrVersion(this.#http, this.id);
-        const major = parseVersion(raw)?.[0];
-        if (major !== undefined && major !== 2) {
-            throw new ServiceError('VersionUnsupported', this.id, `reports version ${raw}`, {
+        const parsed = parseVersion(raw);
+        const major = parsed?.[0];
+        if (parsed !== undefined && major !== 2) {
+            throw new ServiceError('VersionUnsupported', this.id, `reports version ${parsed.join('.')}`, {
                 remedy:
                     'This looks like Whisparr Eros (V3), which is a Radarr fork and a different API. ' +
                     'The `whisparr` service is Whisparr V2 only.'

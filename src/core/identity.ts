@@ -1,6 +1,7 @@
 import type { MultiUserServiceConfig } from '../config/schema.ts';
 import type { ServiceAdapter, ServiceUser, UserDirectoryCapable } from '../services/types.ts';
 import { ServiceError } from './errors.ts';
+import { fenceText } from './fence.ts';
 
 type IdentityConfig = Pick<MultiUserServiceConfig, 'default_user' | 'allow_other_users'>;
 
@@ -46,9 +47,17 @@ export class IdentityResolver {
             });
         }
 
-        const match = users.find(u => u.name.toLowerCase() === wanted.toLowerCase());
+        const matches = users.filter(u => u.name.toLowerCase() === wanted.toLowerCase());
+        // Users can pick their own names, so a second account can take this
+        // one. Guessing between them would let it stand in for the real one.
+        if (matches.length > 1) {
+            throw new ServiceError('PermissionDenied', this.#adapter.id, `${matches.length} users are named "${wanted}"`, {
+                remedy: `Rename all but one of them in ${this.#adapter.id}, or point default_user at a unique name.`
+            });
+        }
+        const [match] = matches;
         if (match === undefined) {
-            const available = users.map(u => u.name).join(', ');
+            const available = fenceText(users.map(u => u.name).join(', '), { service: this.#adapter.id, field: 'users' });
             throw new ServiceError('NotFound', this.#adapter.id, `no user named "${wanted}"`, {
                 remedy: available
                     ? `Known users: ${available}. Fix default_user in config.yaml.`
@@ -58,19 +67,8 @@ export class IdentityResolver {
         return match;
     }
 
-    /**
-     * Whether this server may deal in the named user's data at all — the
-     * configuration half of `resolve`, with no directory lookup.
-     *
-     * The write path needs the gate *after* it knows whose request an id
-     * belongs to, which `resolve` cannot serve: it would also insist the name
-     * appear in the directory, and Seerr's display name on a request need not
-     * match. Answering from configuration alone keeps the rule identical to
-     * the read side's without inventing a second failure mode.
-     */
-    permits(name: string): boolean {
-        const fallback = this.#config.default_user;
-        if (fallback !== undefined && name.toLowerCase() === fallback.toLowerCase()) return true;
+    /** Configuration only: whether users other than `default_user` are in reach. */
+    get allowsOtherUsers(): boolean {
         return this.#config.allow_other_users;
     }
 

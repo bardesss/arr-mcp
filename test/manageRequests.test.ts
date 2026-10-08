@@ -50,6 +50,7 @@ const MOVIE_DETAILS = { title: 'The Matrix', releaseDate: '1999-03-30' };
 
 function recordingFetch(handlers: {
     requests?: unknown;
+    users?: unknown[];
     onWrite?: (path: string, method: string) => Response;
     titleLookupFails?: boolean;
 }) {
@@ -68,6 +69,13 @@ function recordingFetch(handlers: {
         }
         if (url.pathname === '/api/v1/request') {
             return jsonResponse(handlers.requests ?? { results: [PENDING] });
+        }
+        if (url.pathname === '/api/v1/user') {
+            return jsonResponse({ pageInfo: { pages: 1 }, results: handlers.users ?? [
+                    { id: 1, displayName: 'Bartus' },
+                    { id: 2, displayName: 'Sam' }
+                ]
+            });
         }
         if (url.pathname.startsWith('/api/v1/movie/')) {
             return handlers.titleLookupFails === true
@@ -94,10 +102,12 @@ function harness(
         titleLookupFails?: boolean;
         adapters?: ServiceAdapter[];
         identity?: MultiUserServiceConfig;
+        users?: unknown[];
     } = {}
 ) {
     const fetchImpl = recordingFetch({
         ...(opts.requests === undefined ? {} : { requests: opts.requests }),
+        ...(opts.users === undefined ? {} : { users: opts.users }),
         ...(opts.onWrite === undefined ? {} : { onWrite: opts.onWrite }),
         ...(opts.titleLookupFails === undefined ? {} : { titleLookupFails: opts.titleLookupFails })
     });
@@ -260,6 +270,52 @@ describe('respond_to_request', () => {
         await expect(h.call({ id: '31', verdict: 'approve', dry_run: true })).rejects.toThrow(/allow_other_users/);
     });
 
+    // Display names are the user's own choice, so they cannot decide whose
+    // request this is. Seerr user 2 renames itself to the configured user.
+    it('is not fooled by another user taking the configured name', async () => {
+        const h = harness(registerRespondToRequest, {
+            identity: otherUserConfig,
+            permissions: { seerr: tiered(true, false) },
+            requests: { results: [{ ...PENDING, requestedBy: { id: 2, displayName: 'Bartus' } }] },
+            users: [
+                { id: 1, displayName: 'Bartus' },
+                { id: 2, displayName: 'Bartus' }
+            ]
+        });
+
+        await expect(h.call({ id: '31', verdict: 'approve', dry_run: true })).rejects.toThrow();
+        expect(h.fetchImpl.sent.filter(s => s.method !== 'GET')).toHaveLength(0);
+    });
+
+    it('acts on the configured user’s own request, matched by id', async () => {
+        const h = harness(registerRespondToRequest, {
+            identity: otherUserConfig,
+            permissions: { seerr: tiered(true, false) },
+            requests: { results: [{ ...PENDING, requestedBy: { id: 1, displayName: 'Bartus' } }] },
+            users: [
+                { id: 1, displayName: 'Bartus' },
+                { id: 2, displayName: 'Sam' }
+            ]
+        });
+
+        const { structuredContent } = await h.call({ id: '31', verdict: 'approve', dry_run: true });
+        expect(structuredContent.summary).toContain('The Matrix');
+    });
+
+    it('refuses another user’s request even when its display name matches', async () => {
+        const h = harness(registerRespondToRequest, {
+            identity: otherUserConfig,
+            permissions: { seerr: tiered(true, false) },
+            requests: { results: [{ ...PENDING, requestedBy: { id: 2, displayName: 'Bartus' } }] },
+            users: [
+                { id: 1, displayName: 'Bartus' },
+                { id: 2, displayName: 'Sam' }
+            ]
+        });
+
+        await expect(h.call({ id: '31', verdict: 'approve', dry_run: true })).rejects.toThrow(/allow_other_users/);
+    });
+
     it('names the film and who asked for it', async () => {
         const h = harness(registerRespondToRequest, { permissions: { seerr: tiered(true, false) } });
         const { structuredContent } = await h.call({ id: '31', verdict: 'approve', dry_run: true });
@@ -268,6 +324,16 @@ describe('respond_to_request', () => {
         expect(structuredContent.summary).toContain('1999');
         expect(structuredContent.summary).toContain('Sam');
         expect(structuredContent.tier).toBe('safe');
+    });
+
+    it('fences the requester, whose display name is their own choice', async () => {
+        const h = harness(registerRespondToRequest, { permissions: { seerr: tiered(true, false) } });
+        const { structuredContent } = await h.call({ id: '31', verdict: 'approve', dry_run: true });
+
+        const fenced = '<<untrusted:seerr.user>>Sam<</untrusted>>';
+        expect(structuredContent.summary).toContain(fenced);
+        expect(structuredContent.effects.join(' ')).toContain(fenced);
+        expect(`${structuredContent.summary} ${structuredContent.effects.join(' ')}`.replaceAll(fenced, '')).not.toContain('Sam');
     });
 
     // The live-stack regression: with no title lookup this read "request 31,

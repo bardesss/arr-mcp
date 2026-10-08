@@ -500,6 +500,10 @@ describe('remapping episodes', () => {
         });
 
         await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow(/renamed only 0 of 2/);
+        // The message names the series, so it is fenced like the title.
+        await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow(
+            /<<untrusted:sonarr\.message>>0 selected episode files renamed for Show<<\/untrusted>>/
+        );
     });
 
     /** A build that stops sending the message is not a build that renamed

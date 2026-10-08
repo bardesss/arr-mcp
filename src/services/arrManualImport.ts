@@ -544,7 +544,7 @@ async function renameRemappedFiles(
             service,
             `${service} reassigned the files but renamed only ${count} of ${free.length}`,
             {
-                remedy: `The reassignment is applied and correct; only the filenames are behind. ${service} reported: "${settled.message ?? ''}". Check its log for the file it would not rename, then run action: "rename" on the series to retry.`
+                remedy: `The reassignment is applied and correct; only the filenames are behind. ${service} reported: ${fenceText(settled.message ?? '', { service, field: 'message' }) || 'nothing'}. Check its log for the file it would not rename, then run action: "rename" on the series to retry.`
             }
         );
     }

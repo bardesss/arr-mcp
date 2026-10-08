@@ -218,7 +218,7 @@ export class SeerrAdapter
             // The in-memory user filter runs unconditionally, even when the
             // server filtered too. It costs nothing, and it means flipping
             // SEERR_FILTERS_SERVER_SIDE can never silently widen what a user sees.
-            .filter(r => opts.user === undefined || r.requestedBy.toLowerCase() === opts.user.name.toLowerCase())
+            .filter(r => opts.user === undefined || r.requestedById === opts.user.id)
             .filter(r => opts.status === undefined || r.status === opts.status);
     }
 
@@ -247,7 +247,9 @@ export class SeerrAdapter
                 ...(i.media?.title === undefined
                     ? {}
                     : { title: fenceText(i.media.title, { service: this.id, field: 'title' }) }),
-                ...((name => (name === undefined ? {} : { reportedBy: name }))(nameOf(i.createdBy ?? {}))),
+                ...((name => (name === undefined ? {} : { reportedBy: fenceText(name, { service: this.id, field: 'user' }) }))(
+                    nameOf(i.createdBy ?? {})
+                )),
                 comments: (i.comments ?? [])
                     .slice(-ISSUE_COMMENT_CAP)
                     .map(c => c.message)
@@ -276,6 +278,7 @@ export class SeerrAdapter
                 ? {}
                 : { title: fenceText(r.media.title, { service: this.id, field: 'title' }) }),
             requestedBy: nameOf(r.requestedBy ?? {}) ?? 'unknown',
+            ...(r.requestedBy?.id === undefined ? {} : { requestedById: String(r.requestedBy.id) }),
             ...(r.createdAt === undefined ? {} : { requestedAt: r.createdAt })
         };
     }

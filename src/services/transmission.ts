@@ -111,6 +111,10 @@ const TORRENT_STATUS: Record<number, string> = {
     6: 'seeding'
 };
 
+/** A failed RPC's `result` is free text, often an error string from a tracker or the filesystem. */
+const resultOf = (service: string, result: string | undefined): string =>
+    result === undefined ? 'no result field' : fenceText(result, { service, field: 'result' });
+
 export class TransmissionAdapter
     implements
         ServiceAdapter,
@@ -176,7 +180,7 @@ export class TransmissionAdapter
             this.#session()
         ]);
         if (body.result !== 'success') {
-            throw new ServiceError('UpstreamError', this.id, `torrent-get failed: ${body.result ?? 'no result field'}`);
+            throw new ServiceError('UpstreamError', this.id, `torrent-get failed: ${resultOf(this.id, body.result)}`);
         }
 
         return (body.arguments?.torrents ?? [])
@@ -247,7 +251,7 @@ export class TransmissionAdapter
         });
 
         if (body.result !== 'success') {
-            throw new ServiceError('UpstreamError', this.id, `torrent-remove failed: ${body.result ?? 'no result field'}`);
+            throw new ServiceError('UpstreamError', this.id, `torrent-remove failed: ${resultOf(this.id, body.result)}`);
         }
     }
 
@@ -290,7 +294,7 @@ export class TransmissionAdapter
             throw new ServiceError(
                 'UpstreamError',
                 this.id,
-                `${paused ? 'torrent-stop' : 'torrent-start'} failed: ${body.result ?? 'no result field'}`
+                `${paused ? 'torrent-stop' : 'torrent-start'} failed: ${resultOf(this.id, body.result)}`
             );
         }
     }
@@ -323,7 +327,7 @@ export class TransmissionAdapter
         });
 
         if (body.result !== 'success') {
-            throw new ServiceError('UpstreamError', this.id, `session-set failed: ${body.result ?? 'no result field'}`);
+            throw new ServiceError('UpstreamError', this.id, `session-set failed: ${resultOf(this.id, body.result)}`);
         }
     }
 
@@ -342,7 +346,7 @@ export class TransmissionAdapter
         >(RPC_PATH, { method: 'torrent-add', arguments: { filename: uri } });
 
         if (body.result !== 'success') {
-            throw new ServiceError('UpstreamError', this.id, `torrent-add failed: ${body.result ?? 'no result field'}`, {
+            throw new ServiceError('UpstreamError', this.id, `torrent-add failed: ${resultOf(this.id, body.result)}`, {
                 remedy: 'Transmission refused the magnet. Check the link is complete and the client can reach a tracker.'
             });
         }
@@ -381,7 +385,7 @@ export class TransmissionAdapter
             }
         });
         if (body.result !== 'success') {
-            throw new ServiceError('UpstreamError', this.id, `torrent-get failed: ${body.result ?? 'no result field'}`);
+            throw new ServiceError('UpstreamError', this.id, `torrent-get failed: ${resultOf(this.id, body.result)}`);
         }
         return body.arguments?.torrents ?? [];
     }
@@ -398,7 +402,7 @@ export class TransmissionAdapter
     async #session(): Promise<RawSession> {
         const body = await this.#http.post<RpcResponse<RawSession>>(RPC_PATH, { method: 'session-get' });
         if (body.result !== 'success') {
-            throw new ServiceError('UpstreamError', this.id, `session-get failed: ${body.result ?? 'no result field'}`);
+            throw new ServiceError('UpstreamError', this.id, `session-get failed: ${resultOf(this.id, body.result)}`);
         }
         return body.arguments ?? {};
     }

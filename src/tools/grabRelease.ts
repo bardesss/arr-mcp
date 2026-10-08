@@ -58,6 +58,14 @@ const findClient = (
  */
 const MAGNET = /^magnet:\?\S*xt=urn:btih:[0-9a-zA-Z]+\S*$/;
 
+/** Trackers, web seeds and .torrent sources: hosts the client reaches out to on the link's say-so. */
+const contactedHosts = (magnet: string): string[] => {
+    const params = [...new URLSearchParams(magnet.slice('magnet:?'.length))];
+    const urls = params.filter(([key]) => ['tr', 'ws', 'xs', 'as'].includes(key)).map(([, value]) => value);
+    const hosts = urls.filter(u => URL.canParse(u)).map(u => new URL(u).host);
+    return [...new Set(hosts.filter(h => h !== ''))];
+};
+
 export function registerGrabRelease(
     server: McpServer,
     context: WriteContext,
@@ -133,6 +141,7 @@ export function registerGrabRelease(
                 // this id back to `remove_queue_item`.
                 const btih = /xt=urn:btih:([0-9a-zA-Z]+)/.exec(magnet)?.[1];
                 const hash = btih === undefined ? 'unknown' : btihToHex(btih);
+                const hosts = contactedHosts(magnet);
 
                 return {
                     target: `${client.id}:${hash}`,
@@ -140,7 +149,8 @@ export function registerGrabRelease(
                     effects: [
                         `Starts downloading whatever that link points at, straight into ${client.id}. Nothing vetted it: no indexer, no quality profile, no Radarr or Sonarr.`,
                         'It will not be imported into your library, because no *arr knows about it — move or import it yourself afterwards.',
-                        'It appears in get_queue and can be removed again with remove_queue_item.'
+                        'It appears in get_queue and can be removed again with remove_queue_item.',
+                        ...(hosts.length === 0 ? [] : [`The client will also contact: ${hosts.join(', ')}.`])
                     ],
                     args: { magnet }
                 };

@@ -262,6 +262,11 @@ refused unless `services.seerr.allow_other_users` is `true`:
 > request 31 belongs to another user — set `services.seerr.allow_other_users:
 > true` to manage requests other people made.
 
+Whose request it is goes by Seerr user id, never by display name. Users choose
+their own display names, so another account could take the configured one. For
+the same reason, a `default_user` that matches more than one Seerr user is
+refused rather than guessed between.
+
 This is the same gate `get_requests` applies to reading them. Without it, the
 read side would refuse to so much as list a request that the write side would
 approve — and name the title and requester while previewing it. Request ids are

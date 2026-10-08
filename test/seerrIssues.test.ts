@@ -40,7 +40,7 @@ const REQUESTS = {
             id: 1,
             status: 1,
             media: { mediaType: 'movie', tmdbId: 949, title: 'Heat' },
-            requestedBy: { displayName: 'Someone' },
+            requestedBy: { id: 1, displayName: 'Someone' },
             createdAt: '2026-09-01T09:00:00Z'
         }
     ],
@@ -80,7 +80,7 @@ describe('Seerr issues', () => {
 
     it('names who reported it and what it is about', async () => {
         const rows = await new SeerrAdapter(config, serving()).getIssues({ limit: 50 });
-        expect(rows[0]?.reportedBy).toBe('Someone');
+        expect(rows[0]?.reportedBy).toBe('<<untrusted:seerr.user>>Someone<</untrusted>>');
         expect(rows[0]?.title).toContain('Heat');
     });
 });

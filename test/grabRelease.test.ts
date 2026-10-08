@@ -383,6 +383,20 @@ describe('grab_release with a magnet', () => {
         expect(h.sent).toHaveLength(0);
     });
 
+    it('names every host the magnet will make the client contact', async () => {
+        const h = clientHarness();
+        const magnet = `${MAGNET}&tr=udp%3A%2F%2Ftracker.example%3A1337&xs=http%3A%2F%2F10.0.0.5%2Fx.torrent&ws=https%3A%2F%2Fseed.example%2Ff&tr=not-a-url`;
+        const { structuredContent } = await h.call({ service: 'qbittorrent', magnet, dry_run: true });
+        const contact = structuredContent.effects.find(e => e.startsWith('The client will also contact'));
+        expect(contact).toBe('The client will also contact: tracker.example:1337, 10.0.0.5, seed.example.');
+    });
+
+    it('says nothing about contacts when the magnet names none', async () => {
+        const h = clientHarness();
+        const { structuredContent } = await h.call({ service: 'qbittorrent', magnet: MAGNET, dry_run: true });
+        expect(structuredContent.effects.join(' ')).not.toContain('will also contact');
+    });
+
     it('refuses a search scope alongside a magnet, which never reaches an *arr', async () => {
         const h = clientHarness();
         await expect(

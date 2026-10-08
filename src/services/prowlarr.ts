@@ -118,7 +118,7 @@ export class ProwlarrAdapter
                 service: this.id,
                 source: c.source ?? 'unknown',
                 type: String(c.type ?? 'warning'),
-                message: c.message ?? ''
+                message: fenceText(c.message ?? '', { service: this.id, field: 'message' })
             }));
     }
 

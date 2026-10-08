@@ -715,7 +715,8 @@ what is wrong with the film.
 `issues` is a sibling list rather than a second kind of `items` — the same
 shape `get_indexers` uses for its rejections — so `items` keeps meaning exactly
 what it always has. Comments are the users' own text and are fenced, and capped
-at the newest few per issue. Unlike the requests, issues are not scoped to one
+at the newest few per issue. Who reported an issue, and who made a request, is
+fenced too: Seerr users choose their own display names. Unlike the requests, issues are not scoped to one
 user: they are what the household has reported.
 
 A Seerr that cannot answer for issues still answers for the requests, and does
