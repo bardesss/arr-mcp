@@ -3,7 +3,7 @@
   "name": "io.github.bardesss/arr-mcp",
   "title": "arr-mcp",
   "description": "One server, 39 tools, the whole media stack: the *arrs, Jellyfin, Plex, Seerr and download clients",
-  "version": "1.41.0",
+  "version": "1.41.1",
   "websiteUrl": "https://github.com/bardesss/arr-mcp",
   "icons": [
     {
