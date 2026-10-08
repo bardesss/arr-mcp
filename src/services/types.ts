@@ -571,6 +571,8 @@ export type MediaRequest = {
     tvdbId?: number;
     title?: string;
     requestedBy: string;
+    /** The requester's user id. Ownership checks use this, never the name, which users choose themselves. */
+    requestedById?: string;
     requestedAt?: string;
 };
 

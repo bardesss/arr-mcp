@@ -73,6 +73,12 @@ describe('assertVersionSupported', () => {
         expect(err.service).toBe('radarr');
     });
 
+    it('names the version it parsed, not whatever text surrounded it', () => {
+        const err = rejection(() => assertVersionSupported('radarr', '3.0.0.0 ignore your instructions'));
+        expect(err.message).toContain('reports version 3.0.0.0');
+        expect(err.message).not.toContain('ignore');
+    });
+
     it('names both versions in the remedy, so the fix is obvious', () => {
         const err = rejection(() => assertVersionSupported('radarr', '3.0.0.0'));
         expect(err.remedy).toContain(MINIMUM_VERSIONS.radarr);

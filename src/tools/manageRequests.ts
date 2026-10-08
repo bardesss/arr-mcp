@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
+import { fenceText } from '../core/fence.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import {
     hasRequestManage,
@@ -68,8 +69,10 @@ async function findRequest(
     // request ids are small integers, so everything the read gate refused was
     // one guess away. `PermissionDenied` rather than the identity resolver's
     // own `AuthFailed`: nothing is wrong with the API key, and a model told
-    // "auth failed" goes looking at the wrong thing.
-    if (!identity.permits(found.requestedBy)) {
+    // "auth failed" goes looking at the wrong thing. Matched on the user id:
+    // a display name is the requester's own choice.
+    const own = identity.allowsOtherUsers || !identity.hasDefaultUser ? undefined : await identity.resolve();
+    if (!identity.allowsOtherUsers && (own === undefined || found.requestedById !== own.id)) {
         throw new ServiceError('PermissionDenied', 'seerr', `request ${id} belongs to another user`, {
             remedy: 'Set services.seerr.allow_other_users: true to manage requests other people made — this also exposes their request history to get_requests.'
         });
@@ -88,6 +91,9 @@ async function findRequest(
  * Falls back to the id when the lookup cannot answer, and says so, rather than
  * quietly presenting a bare id as though that were the whole story.
  */
+/** Seerr users pick their own display names, so the name is fenced wherever it is shown. */
+const requester = (request: MediaRequest): string => fenceText(request.requestedBy, { service: request.service, field: 'user' });
+
 async function describe(adapters: readonly ServiceAdapter[], request: MediaRequest): Promise<string> {
     const adapter = adapters.find(a => a.type === 'seerr');
     const media =
@@ -97,9 +103,9 @@ async function describe(adapters: readonly ServiceAdapter[], request: MediaReque
 
     if (media === undefined) {
         const kind = request.mediaType === 'unknown' ? 'media' : request.mediaType;
-        return `request ${request.id} (${kind}, title unavailable), requested by ${request.requestedBy}`;
+        return `request ${request.id} (${kind}, title unavailable), requested by ${requester(request)}`;
     }
-    return `${media.title}${media.year === undefined ? '' : ` (${media.year})`}, requested by ${request.requestedBy}`;
+    return `${media.title}${media.year === undefined ? '' : ` (${media.year})`}, requested by ${requester(request)}`;
 }
 
 export function registerRespondToRequest(
@@ -142,10 +148,10 @@ export function registerRespondToRequest(
                 verdict === 'approve'
                     ? [
                           'Hands the request to Radarr or Sonarr, which will search for it and start downloading — this uses disk space and bandwidth.',
-                          `Marks the request approved. ${request.requestedBy} will see it as accepted.`
+                          `Marks the request approved. ${requester(request)} will see it as accepted.`
                       ]
                     : [
-                          `Marks the request declined. ${request.requestedBy} will see it as rejected.`,
+                          `Marks the request declined. ${requester(request)} will see it as rejected.`,
                           'Downloads nothing. Anything already downloaded for it is left alone.'
                       ];
 
@@ -196,7 +202,7 @@ export function registerDeleteRequest(
                     // The distinction people get wrong, stated before they act
                     // rather than discovered after: this is not delete_media.
                     'Does NOT delete any media. Anything already downloaded stays on disk and in Radarr or Sonarr — use delete_media for that.',
-                    `${request.requestedBy} will no longer see this request at all.`
+                    `${requester(request)} will no longer see this request at all.`
                 ],
                 args: { id }
             };
