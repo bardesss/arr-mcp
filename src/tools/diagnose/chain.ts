@@ -382,7 +382,7 @@ function libraryStep(ev: Evidence, item: MergedItem): Step {
             detail: `${item.acquisition.service} has a file on disk that ${server} cannot see.${others}`
         };
     }
-    return SKIPPED('library', `Not in ${server}, and there is no file for it to have found.`);
+    return SKIPPED('library', `Not in ${server}, and there is no file for it to have found.${others}`);
 }
 
 function scanStep(ev: Evidence): Step {

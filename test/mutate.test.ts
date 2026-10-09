@@ -304,9 +304,9 @@ describe('media servers', () => {
         expect(addInstance(both, { type: 'sonarr', fields: RA }).primary_media_server).toBe('plex');
     });
 
-    it('buildMediaServerConfig sets the primary and ignores a bad value', () => {
+    it('buildMediaServerConfig sets the primary and refuses a bad value', () => {
         const both = ConfigSchema.parse({ auth: AUTH, services: { jellyfin: JF, plex: PX }, primary_media_server: 'jellyfin' });
         expect(buildMediaServerConfig(both, { primary_media_server: 'plex' }).primary_media_server).toBe('plex');
-        expect(buildMediaServerConfig(both, { primary_media_server: 'nope' })).toBe(both);
+        expect(() => buildMediaServerConfig(both, { primary_media_server: 'nope' })).toThrow(ConfigEditError);
     });
 });

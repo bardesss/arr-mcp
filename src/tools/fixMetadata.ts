@@ -43,7 +43,11 @@ const PLEX_REPAIR_OFF = {
 
 /** The server `service` names, else the one an `id` prefix names, else the primary. */
 const chooseServer = (servers: MediaServers, service: string | undefined, id: string | undefined): { adapter: MediaServer; identity: IdentityResolver } => {
-    const chosen = pickMediaServer(servers, service ?? prefixed(servers, id));
+    const named = prefixed(servers, id);
+    if (service !== undefined && named !== undefined && service !== named) {
+        throw new Error(`\`id\` is a ${named} id; drop \`service\` or pass \`service: ${named}\`.`);
+    }
+    const chosen = pickMediaServer(servers, service ?? named);
     if (chosen === undefined || !hasMetadataInspect(chosen.adapter) || !hasMetadataRepair(chosen.adapter) || chosen.identity === undefined) {
         throw new ServiceError('NotFound', chosen?.adapter.id ?? 'jellyfin', 'no media server is configured', { remedy: NO_MEDIA_SERVER });
     }

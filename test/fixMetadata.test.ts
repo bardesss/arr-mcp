@@ -1094,6 +1094,18 @@ describe('fix_metadata with two media servers', () => {
         expect(h.jellyfin.readEpisodeMetadata).toHaveBeenCalledWith(expect.anything(), 'j9');
     });
 
+    it('refuses a service that contradicts the id prefix, and accepts one that matches', async () => {
+        const h = dual();
+
+        await expect(h.call({ id: 'plex:p9', service: 'jellyfin', dry_run: true })).rejects.toThrow(
+            /plex id.*drop `service` or pass `service: plex`/
+        );
+        expect(h.jellyfin.readEpisodeMetadata).not.toHaveBeenCalled();
+
+        const { structuredContent } = await h.call({ id: 'jellyfin:j9', service: 'jellyfin', dry_run: true });
+        expect(structuredContent.service).toBe('jellyfin');
+    });
+
     it('repairs on the server it previewed', async () => {
         const h = dual();
         const preview = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' });

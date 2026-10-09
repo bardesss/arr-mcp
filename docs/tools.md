@@ -388,6 +388,9 @@ its own `default_user`, not as the `user` you pass, since names rarely match
 across servers. A failed read of it lands in `degraded` by name and leaves
 `presence` alone.
 
+The secondary is matched to the primary's items on shared tmdb, tvdb or imdb
+ids only, so an item it holds without any of them reads `present: false`.
+
 `missing_from` takes a server id and keeps the items that server reported it
 does not have. An omitted entry never matches, so a server that could not be
 read gives an empty answer rather than a wrong one. It is offered only when two

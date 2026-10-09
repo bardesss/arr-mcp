@@ -1018,7 +1018,8 @@ export function buildAppearanceConfig(current: Config, form: Record<string, unkn
 /** The primary media server. Owns `primary_media_server` and nothing else. */
 export function buildMediaServerConfig(current: Config, form: Record<string, unknown>): Config {
     const parsed = MediaServerIdSchema.safeParse(str(form.primary_media_server));
-    return parsed.success ? { ...current, primary_media_server: parsed.data } : current;
+    if (!parsed.success) throw new ConfigEditError('Pick jellyfin or plex as the primary media server.');
+    return { ...current, primary_media_server: parsed.data };
 }
 
 export function oauthDraftFrom(form: Record<string, unknown>): OAuthDraft {

@@ -548,6 +548,43 @@ describe('two media servers', () => {
         expect(other.mediaServer).toBe('plex');
     });
 
+    it('does not claim the primary has an item that only the secondary was named for', async () => {
+        const { adapters, library } = setup(async () => [], 'plex');
+        const jellyfin = adapters.find(a => a.id === 'jellyfin') as unknown as Record<string, unknown>;
+        jellyfin.getMediaDetails = async () => ({
+            service: 'jellyfin',
+            kind: 'item',
+            id: 'jf1',
+            title: 'Only On Jellyfin',
+            ids: { tmdb: 4242 }
+        });
+        const deps = { adapters, library, primaryMediaServer: 'plex' };
+
+        const evidence = await collectEvidence(deps, { service: 'jellyfin', id: 'jf1' });
+        expect(evidence.item?.presence).toBe('unknown');
+        expect(evidence.item?.media_servers).toEqual({ jellyfin: { present: true, itemId: 'jf1' } });
+
+        const d = await buildDiagnose(deps, { service: 'jellyfin', id: 'jf1' });
+        const text = JSON.stringify(d);
+        expect(text).not.toMatch(/Present in the plex library/);
+        expect(text).toMatch(/jellyfin library/);
+    });
+
+    it('still diagnoses a primary-named id as present in the primary', async () => {
+        const { adapters, library } = setup(async () => [], 'plex');
+        const plex = adapters.find(a => a.id === 'plex') as unknown as Record<string, unknown>;
+        plex.getMediaDetails = async () => ({
+            service: 'plex',
+            kind: 'item',
+            id: 'p1',
+            title: 'Only On Plex',
+            ids: { tmdb: 4243 }
+        });
+        const evidence = await collectEvidence({ adapters, library, primaryMediaServer: 'plex' }, { service: 'plex', id: 'p1' });
+        expect(evidence.item?.presence).toBe('jellyfin_only');
+        expect(evidence.item?.media_servers).toBeUndefined();
+    });
+
     it('does not let a down secondary lower certainty or mark a stage unknown', async () => {
         const down = async (): Promise<IndexInput[]> => {
             throw new ServiceError('Unreachable', 'plex', 'connection refused');

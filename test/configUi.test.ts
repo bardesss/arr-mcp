@@ -639,6 +639,16 @@ describe('the add dialog', () => {
             expect(config.primary_media_server).toBe('plex');
         });
 
+        it('refuses an invalid primary instead of saying it saved', async () => {
+            await seed(JF + PX + 'primary_media_server: jellyfin\n');
+            await signIn();
+            const keys = keysFrom(await (await call('/ui/config')).text());
+            const res = await call('/ui/config/media-servers', form({ ...keys, primary_media_server: 'nope' }));
+            expect(await res.text()).not.toContain('Primary media server saved.');
+            const { config } = await loadConfig(dir);
+            expect(config.primary_media_server).toBe('jellyfin');
+        });
+
         it('adding plex to a jellyfin install keeps jellyfin primary', async () => {
             await seed(JF);
             await signIn();

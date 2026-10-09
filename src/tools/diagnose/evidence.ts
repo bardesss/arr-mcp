@@ -132,12 +132,16 @@ async function resolveItem(
         // is the capability that decides the shape, not the service's name —
         // a second one must not need editing here.
         const isMediaServer = hasUserLibrary(adapter);
+        // The secondary's items are not in the primary's library, so naming
+        // one must not read as "present in the primary".
+        const isSecondary = isMediaServer && adapter.id === secondary;
         return {
             kind: searchKind ?? 'movie',
             title: details.title,
             ...(details.year === undefined ? {} : { year: details.year }),
             ids: details.ids,
-            presence: isMediaServer ? 'jellyfin_only' : 'arr_only',
+            presence: isSecondary ? 'unknown' : isMediaServer ? 'jellyfin_only' : 'arr_only',
+            ...(isSecondary ? { media_servers: { [adapter.id]: { present: true, itemId: target.id } } } : {}),
             ...(isMediaServer
                 ? {}
                 : {
