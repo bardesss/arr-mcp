@@ -445,6 +445,10 @@ deliberately live outside the snapshot and survive a reload: confirmation
 tokens, because a write handshake spans two calls, and sessions, because a
 config edit must not log you out of the page you are editing from.
 
+A new config key needs a place in the [management API](docs/api.md) too, or a
+reason it stays on the page. `test/apiParity.test.ts` lists every key, service
+fields included, and fails on one it has not placed.
+
 ## Vendored API specs
 
 `specs/*.json` are upstream OpenAPI documents, refreshed by `npm run specs:fetch`

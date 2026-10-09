@@ -1,6 +1,6 @@
 import type { Hono } from 'hono';
 import * as z from 'zod/v4';
-import { setImdb, setMcpEndpoint } from '../config/edits.ts';
+import { setImdb, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
 import { addCandidate, addToken, ConfigEditError, NO_API_KEY, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
 import { logger } from '../core/logger.ts';
 import { buildAdapters } from '../services/registry.ts';
@@ -9,7 +9,7 @@ import { AppBody, fieldsFromBody, NewAppBody, TestAppBody } from './bodies.ts';
 import { parseWith, readObject } from './body.ts';
 import { API_BASE, apiError, withEtag } from './http.ts';
 import type { ApiDeps } from './index.ts';
-import { appResource, findInstance, imdbSettings, mcpSettings, tokenResources } from './resources.ts';
+import { appResource, findInstance, imdbSettings, mcpSettings, mediaServerSettings, tokenResources } from './resources.ts';
 import { applyWrite } from './write.ts';
 
 const ImdbBody = z.strictObject({
@@ -23,6 +23,11 @@ const McpBody = z.strictObject({
     allowedHosts: z.array(z.string()).optional(),
     allowTokenInUrl: z.boolean().optional(),
     oauthConfigured: z.unknown().optional()
+});
+
+const MediaServersBody = z.strictObject({
+    primary: z.string(),
+    configured: z.unknown().optional()
 });
 
 const TokenBody = z.strictObject({
@@ -80,6 +85,16 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         });
         if (config instanceof Response) return config;
         return withEtag(c, config, mcpSettings(config));
+    });
+
+    app.put(`${API_BASE}/settings/media-servers`, async c => {
+        const raw = await readObject(c);
+        if (raw instanceof Response) return raw;
+        const body = parseWith(c, MediaServersBody, raw);
+        if (body instanceof Response) return body;
+        const config = await applyWrite(c, deps, 'primary media server', current => setPrimaryMediaServer(current, body.primary));
+        if (config instanceof Response) return config;
+        return withEtag(c, config, mediaServerSettings(config));
     });
 
     app.post(`${API_BASE}/token`, async c => {
