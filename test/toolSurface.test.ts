@@ -102,3 +102,20 @@ describe('what 1.0 documents', () => {
         expect(discover.inputSchema.shape.media_type?.description).toBeUndefined();
     });
 });
+
+describe('get_library on one media server', () => {
+    const shapeOf = (ids?: [string, string]) => {
+        const server = new McpServer({ name: 'test', version: '0' });
+        registerGetLibrary(server, new LibraryLoader([radarr()], undefined), ids);
+        const tool = (server as unknown as { _registeredTools: Record<string, { inputSchema: { shape: Record<string, unknown> } }> })._registeredTools.get_library!;
+        return Object.keys(tool.inputSchema.shape);
+    };
+
+    it('does not offer missing_from', () => {
+        expect(shapeOf()).not.toContain('missing_from');
+    });
+
+    it('offers missing_from with both', () => {
+        expect(shapeOf(['jellyfin', 'plex'])).toContain('missing_from');
+    });
+});

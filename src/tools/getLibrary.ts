@@ -90,6 +90,7 @@ export type LibraryQuery = {
     min_rating?: number;
     rating_source?: RatingSource;
     presence?: MergedItem['presence'];
+    missing_from?: string;
 };
 
 export type GetLibraryResult = {
@@ -216,7 +217,8 @@ const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
             title: item.title,
             ...(item.year === undefined ? {} : { year: item.year }),
             ids: item.ids,
-            presence: item.presence
+            presence: item.presence,
+            ...(item.media_servers === undefined ? {} : { media_servers: item.media_servers })
         };
     }
     // `seasons` joins `genres` here rather than riding along: it is the largest
@@ -309,6 +311,7 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         // has never seen is exactly what `watched: false` should surface.
         if (opts.watched !== undefined && (item.playback?.watched ?? false) !== opts.watched) return false;
         if (opts.presence !== undefined && item.presence !== opts.presence) return false;
+        if (opts.missing_from !== undefined && item.media_servers?.[opts.missing_from]?.present !== false) return false;
         if (quality !== undefined) {
             // Series are excluded rather than compared: they have no
             // series-level quality to compare against.
@@ -379,14 +382,14 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     };
 }
 
-export function registerGetLibrary(server: McpServer, loader: LibraryLoader): void {
+export function registerGetLibrary(server: McpServer, loader: LibraryLoader, mediaServerIds?: [string, string]): void {
     server.registerTool(
         'get_library',
         {
             title: 'Library',
             annotations: READ_ONLY,
             description:
-                'Your library, joined across Radarr, Sonarr and your media server on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means the media server *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means the media server has it and no *arr manages it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. (The value is spelled `jellyfin_only` regardless of which media server is configured — it is a frozen output contract, not a claim about which one answered.) If the media server is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If no media server is configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — and the top-level `note` says so; report that reason rather than describing the library as unwatched. `has_file: false` with `monitored: true` is "what am I still waiting for". Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered. A series at `detail: "full"` also carries `seasons`: per season, how many episodes you have watched (`watched`), how many are on disk (`onDisk`), how many have aired (`aired`), and how many exist in total (`total`, which is TVDB\'s count via Sonarr). `complete` is true only when every episode of the season has been watched — and is **absent, not false**, when either half is unknown: a series no *arr manages has no `total`, and one the media server has never seen has no `watched`. Season 0 is specials and is reported like any other season. `seasons` is omitted below `detail: "full"`. Each season row also carries `monitored`, Sonarr’s own per-season flag — the same field `get_media_details` reports — absent rather than false when no Sonarr manages the series.',
+                'Your library, joined across Radarr, Sonarr and your media server on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means the media server *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means the media server has it and no *arr manages it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. (The value is spelled `jellyfin_only` regardless of which media server is configured — it is a frozen output contract, not a claim about which one answered.) If the media server is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If no media server is configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — and the top-level `note` says so; report that reason rather than describing the library as unwatched. `has_file: false` with `monitored: true` is "what am I still waiting for". Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered. A series at `detail: "full"` also carries `seasons`: per season, how many episodes you have watched (`watched`), how many are on disk (`onDisk`), how many have aired (`aired`), and how many exist in total (`total`, which is TVDB\'s count via Sonarr). `complete` is true only when every episode of the season has been watched — and is **absent, not false**, when either half is unknown: a series no *arr manages has no `total`, and one the media server has never seen has no `watched`. Season 0 is specials and is reported like any other season. `seasons` is omitted below `detail: "full"`. Each season row also carries `monitored`, Sonarr’s own per-season flag — the same field `get_media_details` reports — absent rather than false when no Sonarr manages the series. With two media servers, `presence`, `playback` and `seasons` describe the primary, and `media_servers` says per server whether it has the item and under which `itemId`; a server missing from that map was not read. Items only the non-primary server has do not appear here; search_media finds them.',
             outputSchema: PagedOutputSchema.extend({
                 note: z
                     .string()
@@ -429,8 +432,18 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader): vo
                     .enum(['both', 'arr_only', 'jellyfin_only', 'unknown'])
                     .optional()
                     .describe(
-                        'both / arr_only (possible broken import) / jellyfin_only (unmanaged media — the value keeps this name whichever media server is configured) / unknown (media server degraded or unconfigured — arr_only cannot be asserted).'
+                        'both / arr_only (possible broken import) / jellyfin_only (unmanaged media — the value keeps this name whichever media server is configured) / unknown (media server degraded or unconfigured — arr_only cannot be asserted). With two media servers, measured against the primary.'
                     ),
+                ...(mediaServerIds === undefined
+                    ? {}
+                    : {
+                          missing_from: z
+                              .enum(mediaServerIds)
+                              .optional()
+                              .describe(
+                                  'Items this media server reported it does not have. A server that could not be read matches nothing.'
+                              )
+                      }),
                 sort: z
                     .enum(SORT_FIELDS)
                     .optional()

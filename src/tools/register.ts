@@ -13,7 +13,7 @@ import {
     hasSubtitles,
     type ServiceAdapter
 } from '../services/types.ts';
-import { selectMediaServers, type MediaServers } from './mediaServers.ts';
+import { bothIds, selectMediaServers, type MediaServers } from './mediaServers.ts';
 import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
 import { registerCleanQueue } from './cleanQueue.ts';
@@ -178,7 +178,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset);
     registerGetMetadataIssues(server, adapters, mediaServerIdentity, write.permissions);
-    registerGetLibrary(server, library);
+    registerGetLibrary(server, library, bothIds(context.mediaServers));
     registerGetProfileIssues(server, adapters, instances);
     registerSearchMedia(server, adapters, dataset);
     registerLookupMedia(server, adapters, dataset);
