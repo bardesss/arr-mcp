@@ -79,6 +79,13 @@ once you have that one, so the picker never offers a choice that ends in
 "already configured". With scripting off the dialog is the plain form it used to
 be, every field showing, and the server still refuses what does not make sense.
 
+**Plex and Jellyfin can both be added.** The dialog offers the second media
+server once you have the first, and adding it keeps the existing one as the
+primary. With both configured a **Media servers** card appears with a **Primary**
+selector, the one every tool reads by default. The other still answers when a
+tool is given its name. Removing one of the two drops the setting. See
+[Plex and Jellyfin together](configuration.md#plex-and-jellyfin-together).
+
 **Test** tries the URL and key *as they are on screen*, saved or not, and tells
 you what came back — reachable and how fast, or what is wrong and what to do
 about it. Nothing is written to disk, so it is safe to try a URL you are unsure

@@ -168,13 +168,19 @@ no file yet and that neither the download queue nor an indexer rejection
 explains why — which is the real answer, and the one that tells you what to do
 next.
 
+With two media servers the verdicts are against the primary. The library step
+adds "Also in" or "Not in" the other server's library, as extra detail and
+never as a blocking stage. A secondary that is down does not lower `certain`.
+
 **It also works with services down.** Any step it could not check sets
 `certain: false`, and the summary names what was missed: a confident verdict
 across a hole is worse than no verdict.
 
 ## `stack_health`
 
-With more than one instance of a service, each is reported separately.
+With more than one instance of a service, each is reported separately. With
+Plex and Jellyfin both configured, `primaryMediaServer` names the one the tools
+default to.
 
 It also reports `endpoints` — `instance`, `service` and `baseUrl` for every
 configured instance, so a script knows where each one lives. It never carries a
@@ -258,7 +264,9 @@ Every merged record carries, under `acquisition`:
 | `path` | Where the service keeps it on disk. |
 
 and, under `playback`, `itemId` — the media server's own id, which is what
-`set_watched` takes.
+`set_watched` takes. With Plex as primary that id is Plex's, so take it from
+`media_servers.jellyfin.itemId` instead, as
+[below](#which-media-server-has-it).
 
 Before this, a caller had the external ids and nothing a write would accept,
 so answering "delete this" meant a second `search_media(source: "library")` hop
@@ -357,6 +365,38 @@ stack, `plex:seasons` on a Plex one. Sonarr's half of `seasons` survives intact
 `lastPlayed`) and `complete`, which needs both halves, go missing. Film watch
 state and `presence` are unaffected.
 
+### Which media server has it
+
+With [Plex and Jellyfin both configured](configuration.md#plex-and-jellyfin-together),
+`presence`, `playback` and `seasons` still describe the primary alone. Each
+record also carries `media_servers`, saying per server whether it has the item:
+
+```json
+"media_servers": {
+  "jellyfin": { "present": true, "itemId": "9f3c..." },
+  "plex":     { "present": false }
+}
+```
+
+`itemId` is that server's own id for the item, present when `present` is true.
+A server arr-mcp did not read is **omitted**, never reported `present: false`:
+the key is missing when the server was down, or when it is the secondary and has
+no `default_user` (the `note` then names the setting). The secondary is read as
+its own `default_user`, not as the `user` you pass, since names rarely match
+across servers. A failed read of it lands in `degraded` by name and leaves
+`presence` alone.
+
+`missing_from` takes a server id and keeps the items that server reported it
+does not have. An omitted entry never matches, so a server that could not be
+read gives an empty answer rather than a wrong one. It is offered only when two
+media servers are configured.
+
+Items only the secondary has do not appear in `get_library`, because the join
+runs against the primary. `search_media` finds them.
+
+A single-server stack sees none of this: no `media_servers` key, no
+`missing_from`.
+
 ### Which audio languages a file carries
 
 Anything with a file carries `audioLanguages`: the track languages the service
@@ -427,8 +467,10 @@ The tool is not Jellyfin-specific in its plumbing: it reads any adapter that
 implements `PlaybackCapable`, and the summary line names whichever media server
 failed. The endpoint detail above is Jellyfin's; Plex answers the same three
 scopes from `/status/sessions`, `/library/onDeck` and
-`/status/sessions/history/all` — only one media server is ever configured, so
-the two never compete for an answer.
+`/status/sessions/history/all`. With both configured, the call answers from the
+primary; pass `service` (`jellyfin` or `plex`) to ask the other. The answers are
+never merged. `service` exists only when two media servers are configured, and
+`user` is resolved on the server you chose.
 
 Plex's `/library/onDeck` mixes resume and next-up rows with nothing marking
 which is which, so `active` and `next_up` split it by `viewOffset`: non-zero
@@ -449,7 +491,7 @@ filtered as the owner. This has not been verified against a managed-user
 token; if you run one, a config UI issue with what `/accounts` actually
 returns for it would help.
 
-`set_watched`, below, remains Jellyfin-only. The Plex adapter writes with
+`set_watched`, below, remains Jellyfin-only, whichever server is primary. The Plex adapter writes with
 `trigger_scan` and `fix_metadata`, and `fix_metadata` is off by default there,
 see [Repairing on Plex](#repairing-on-plex).
 
@@ -830,7 +872,9 @@ watched or unwatched in Jellyfin.
 than incidental. Jellyfin's own ids never enter the library index —
 `listUserLibrary` carries TMDB, TVDB and IMDb ids only — so an id here can
 only have come from the `itemId` `get_playback` reports or from a jellyfin
-hit in `search_media`. A Radarr or Sonarr id is a small integer and is
+hit in `search_media`. With Plex as primary, `playback.itemId` is a Plex id;
+take the Jellyfin one from `media_servers.jellyfin.itemId` on `get_library` or
+`get_media_details`. A Radarr or Sonarr id is a small integer and is
 refused before any network call, rather than becoming a 404 that names
 nothing.
 
@@ -889,6 +933,8 @@ finding on Plex comes back as `refresh_metadata`. If the sweep flags something
 on a Plex library that is actually fine, please open an issue with the filename
 and the title Plex shows.
 
+With two media servers it sweeps the primary; `service` picks the other.
+
 Each row prints its item as `service:itemId`. Pass that to `fix_metadata` as
 `id` to repair exactly the item that was flagged, since a title can resolve to
 a different one.
@@ -932,6 +978,10 @@ Give a film or series title as `query`, resolved through the library index the
 same way `get_media_details` resolves one, or the `id` that
 `get_metadata_issues` printed for it (`plex:119962`, or bare). The id wins when
 both are given.
+
+With two media servers it repairs on the primary. `service` picks the other, and
+an `id` prefixed `plex:` or `jellyfin:` picks its own server. Plex repair still
+needs `allow_metadata_repair` on the Plex block, whichever server is primary.
 
 ### The two findings are not equally trustworthy
 

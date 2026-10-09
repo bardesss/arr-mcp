@@ -149,9 +149,37 @@ So on Plex `default_user` is optional. Leave it out and the per-user tools use
 the owner `/accounts` names, since the token cannot mean anyone else. You only
 need it when the server won't name the owner.
 
-**Only one media server.** `jellyfin` and `plex` cannot both be configured —
-`get_library`'s per-user join needs exactly one counterparty, and the schema
-refuses a config that sets both.
+## Plex and Jellyfin together
+
+Both can be configured. One is the primary and answers as it always has; the
+other is the secondary. Say which in a top-level setting:
+
+```yaml
+primary_media_server: jellyfin   # or plex
+services:
+  jellyfin:
+    url: http://192.168.1.20:8096
+    api_key: "…"
+    default_user: "you"
+  plex:
+    url: http://192.168.1.20:32400
+    api_key: "…"
+    default_user: "you"
+```
+
+`primary_media_server` is required when both are configured, and must name one
+that is. With one media server configured it is not needed. The config page
+sets it for you: adding the second server keeps the existing one primary.
+
+`get_library`'s per-user join runs against the primary, so `presence`,
+`playback` and `seasons` describe the primary only. The secondary adds
+`media_servers`, which says per item whether it has it. See
+[`get_library`](tools.md#which-media-server-has-it).
+
+Each server keeps its own `default_user`. The secondary is read as that user, so
+a secondary with none is not read at all, and `get_library` says so in its
+`note`. `allow_other_users` and, on Plex, `allow_metadata_repair` are likewise
+per server.
 
 ## Profilarr
 
@@ -211,8 +239,9 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Five services stay single.** Jellyfin and Plex because, as explained above,
-`get_library`'s per-user join needs exactly one counterparty. Seerr because a
+**Five services stay single.** Jellyfin and Plex because each is one server,
+and [running both](#plex-and-jellyfin-together) is a different thing from
+running two of one. Seerr because a
 request carries the identity of the person who made it, and a second Seerr makes
 "which one do I ask" a guess with an approver on the other end of it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
