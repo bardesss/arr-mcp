@@ -958,7 +958,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'status', path: '/api/v1/status' },
         { name: 'arr', path: '/api/v1/arr' },
         { name: 'health', path: '/api/v1/health' }
-    ]
+    ],
+    cleanuparr: [{ name: 'status', path: '/api/status' }]
 };
 
 function strategyFor(id: ServiceId, service: NonNullable<Config['services'][ServiceId]>): AuthStrategy {
