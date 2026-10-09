@@ -4,9 +4,9 @@ import { sameUrl } from '../api/bodies.ts';
 import { commitConfig } from '../config/commit.ts';
 import { configEtag } from '../config/etag.ts';
 import { listInstances } from '../config/instances.ts';
-import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint } from '../config/edits.ts';
+import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
 import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
-import { MediaServerIdSchema, OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
+import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
@@ -1017,9 +1017,7 @@ export function buildAppearanceConfig(current: Config, form: Record<string, unkn
 
 /** The primary media server. Owns `primary_media_server` and nothing else. */
 export function buildMediaServerConfig(current: Config, form: Record<string, unknown>): Config {
-    const parsed = MediaServerIdSchema.safeParse(str(form.primary_media_server));
-    if (!parsed.success) throw new ConfigEditError('Pick jellyfin or plex as the primary media server.');
-    return { ...current, primary_media_server: parsed.data };
+    return setPrimaryMediaServer(current, str(form.primary_media_server));
 }
 
 export function oauthDraftFrom(form: Record<string, unknown>): OAuthDraft {

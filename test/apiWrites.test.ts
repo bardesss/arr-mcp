@@ -428,6 +428,48 @@ describe('PUT /settings', () => {
     });
 });
 
+describe('/settings/media-servers', () => {
+    const JF = "  jellyfin: { url: 'http://jellyfin:8096', api_key: 'jellyfin-key-000' }";
+    const PX = "  plex: { url: 'http://plex:32400', api_key: 'plex-token-000' }";
+    const both = () => seedApi({ extra: [JF, PX, '', 'primary_media_server: jellyfin'] });
+
+    it('reads null with no media server, and a lone server as primary', async () => {
+        expect(await (await api('/settings/media-servers')).json()).toEqual({ primary: null, configured: [] });
+        await seedApi({ extra: [PX] });
+        expect(await (await api('/settings/media-servers')).json()).toEqual({ primary: 'plex', configured: ['plex'] });
+    });
+
+    it('switches the primary when both are configured', async () => {
+        await both();
+        expect(await (await api('/settings/media-servers')).json()).toEqual({ primary: 'jellyfin', configured: ['jellyfin', 'plex'] });
+        const res = await api('/settings/media-servers', json('PUT', { primary: 'plex' }));
+        expect(await res.json()).toEqual({ primary: 'plex', configured: ['jellyfin', 'plex'] });
+        expect(stack.runtime.config.primary_media_server).toBe('plex');
+        expect(await readFile(join(stack.dir, 'config.yaml'), 'utf8')).toContain('primary_media_server: plex');
+    });
+
+    it('accepts its own GET body back', async () => {
+        await both();
+        const current = await (await api('/settings/media-servers')).json();
+        expect((await api('/settings/media-servers', json('PUT', current))).status).toBe(200);
+    });
+
+    it('leaves a lone server without the setting', async () => {
+        await seedApi({ extra: [PX] });
+        expect((await api('/settings/media-servers', json('PUT', { primary: 'plex' }))).status).toBe(200);
+        expect(stack.runtime.config.primary_media_server).toBeUndefined();
+    });
+
+    it('refuses a server that is not configured, or not a media server', async () => {
+        await seedApi({ extra: [PX] });
+        const missing = await api('/settings/media-servers', json('PUT', { primary: 'jellyfin' }));
+        expect(missing.status).toBe(400);
+        expect(((await missing.json()) as { message: string }).message).toBe('jellyfin is not configured.');
+        expect((await api('/settings/media-servers', json('PUT', { primary: 'radarr' }))).status).toBe(400);
+        expect((await api('/settings/media-servers', json('PUT', {}))).status).toBe(400);
+    });
+});
+
 describe('tokens', () => {
     it('creates a token, returns it once, and it works on /mcp', async () => {
         const res = await api('/token', json('POST', { name: 'companion', tier: 'read', expiry: '30' }));

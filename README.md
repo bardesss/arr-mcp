@@ -168,7 +168,7 @@ Thirty-eight tools, but you never name them — you ask, and the model picks:
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, the seven services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
-| **[Management API](docs/api.md)** | JSON API for companion apps to see and manage services and tokens, with a key you generate on the config page |
+| **[Management API](docs/api.md)** | JSON API for companion apps to see and manage services, settings and tokens, with a key you generate on the config page |
 | **[IMDb ratings](docs/imdb.md)** | The only way to get an IMDb score for a series, and what it costs |
 | **[Security](docs/security.md)** | The threat model, walked against the OWASP MCP Top 10, including what it does not solve |
 | **[Contributing](CONTRIBUTING.md)** | [Which services qualify](CONTRIBUTING.md#which-services-qualify), how to add an adapter, and the rules an AI agent tends to break |
