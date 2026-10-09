@@ -184,13 +184,9 @@ export class LibraryLoader {
     }
 
     /**
-     * The secondary is only ever read as its default user, and never fails the
-     * read: a refusal (`AuthFailed`) or an outage throws, and `gather` degrades
-     * it by name, since the primary's half is the answer and the secondary only
-     * annotates it. A missing or wrong `default_user` is config, so it is
-     * skipped and goes in the note instead. Plex with none is read as the
-     * token owner, so only Jellyfin needs one. A 404 from the user listing
-     * itself is an outage, not a wrong name.
+     * Read only as its default user. A refusal or outage throws so `gather`
+     * degrades it; a missing or wrong `default_user` is config, so it goes in
+     * the note. Plex with none is read as the token owner.
      */
     async #secondaryUser(identity: IdentityResolver | undefined): Promise<SecondaryUser> {
         if (identity === undefined) return { skipped: 'unconfigured' };
