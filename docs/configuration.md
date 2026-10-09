@@ -176,10 +176,11 @@ sets it for you: adding the second server keeps the existing one primary.
 `media_servers`, which says per item whether it has it. See
 [`get_library`](tools.md#which-media-server-has-it).
 
-Each server keeps its own `default_user`. The secondary is read as that user, so
-a secondary with none is not read at all, and `get_library` says so in its
-`note`. `allow_other_users` and, on Plex, `allow_metadata_repair` are likewise
-per server.
+Each server keeps its own `default_user`, and the secondary is read as that
+user. A Plex secondary with none is read as the token's owner. A Jellyfin
+secondary with none, or either one with a `default_user` that matches nobody, is
+not read, and `get_library` says so in its `note`. Jellyfin's
+`allow_other_users` and Plex's `allow_metadata_repair` stay on their own blocks.
 
 ## Profilarr
 

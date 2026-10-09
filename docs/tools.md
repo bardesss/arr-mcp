@@ -380,8 +380,10 @@ record also carries `media_servers`, saying per server whether it has the item:
 
 `itemId` is that server's own id for the item, present when `present` is true.
 A server arr-mcp did not read is **omitted**, never reported `present: false`:
-the key is missing when the server was down, or when it is the secondary and has
-no `default_user` (the `note` then names the setting). The secondary is read as
+the key is missing when the server was down, or when it is a Jellyfin secondary
+with no `default_user`, or a secondary whose `default_user` matches nobody (the
+`note` then names the setting). A Plex secondary with no `default_user` is read
+as the token's owner. The secondary is read as
 its own `default_user`, not as the `user` you pass, since names rarely match
 across servers. A failed read of it lands in `degraded` by name and leaves
 `presence` alone.
@@ -491,9 +493,9 @@ filtered as the owner. This has not been verified against a managed-user
 token; if you run one, a config UI issue with what `/accounts` actually
 returns for it would help.
 
-`set_watched`, below, remains Jellyfin-only, whichever server is primary. The Plex adapter writes with
-`trigger_scan` and `fix_metadata`, and `fix_metadata` is off by default there,
-see [Repairing on Plex](#repairing-on-plex).
+`set_watched`, below, remains Jellyfin-only, whichever server is primary. The
+Plex adapter writes with `trigger_scan` and `fix_metadata`, and `fix_metadata`
+is off by default there, see [Repairing on Plex](#repairing-on-plex).
 
 ### When no media server is configured
 
