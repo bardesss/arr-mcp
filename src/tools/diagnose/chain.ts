@@ -367,15 +367,19 @@ function libraryStep(ev: Evidence, item: MergedItem): Step {
         // `hasFile` is real *arr data this module must not reinterpret.
         return { stage: 'library', service: server, status: 'unknown', detail: `${server} could not be reached, so its library was not checked.` };
     }
+    const others = Object.entries(item.media_servers ?? {})
+        .filter(([id]) => id !== server)
+        .map(([id, p]) => (p?.present === true ? ` Also in the ${id} library.` : ` Not in the ${id} library.`))
+        .join('');
     if (item.presence === 'both' || item.presence === 'jellyfin_only') {
-        return { stage: 'library', service: server, status: 'ok', detail: `Present in the ${server} library.` };
+        return { stage: 'library', service: server, status: 'ok', detail: `Present in the ${server} library.${others}` };
     }
     if (item.acquisition?.hasFile === true) {
         return {
             stage: 'library',
             service: server,
             status: 'blocked',
-            detail: `${item.acquisition.service} has a file on disk that ${server} cannot see.`
+            detail: `${item.acquisition.service} has a file on disk that ${server} cannot see.${others}`
         };
     }
     return SKIPPED('library', `Not in ${server}, and there is no file for it to have found.`);

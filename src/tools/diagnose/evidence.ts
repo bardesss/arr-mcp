@@ -25,6 +25,8 @@ export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string;
 export type DiagnoseDeps = {
     adapters: readonly ServiceAdapter[];
     library: LibraryLoader;
+    /** With two media servers, the one diagnose walks; absent means the first. */
+    primaryMediaServer?: string;
 };
 
 const RECENT_REJECTION_LIMIT = 50;
@@ -59,7 +61,10 @@ async function resolveItem(
     // believe the *library read* failed, nor a Radarr library read make
     // `queueStep` believe Radarr's *queue* probe failed. Each stage reads only
     // the signal that applies to it.
-    for (const id of snapshot.degraded) if (!libraryDegraded.includes(id)) libraryDegraded.push(id);
+    // The secondary's rows never enter the join, so its outage leaves the
+    // primary's answer complete.
+    const secondary = deps.library.secondaryMediaServerId;
+    for (const id of snapshot.degraded) if (id !== secondary && !libraryDegraded.includes(id)) libraryDegraded.push(id);
 
     // The explicit id wins: it is unambiguous and a title is not.
     if (target.service !== undefined && target.id !== undefined) {
@@ -184,7 +189,9 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     const prowlarrConfigured = prowlarrs.length > 0;
     // `hasUserLibrary`, matching what `LibraryLoader` itself selects on, so this
     // stage's "configured" cannot disagree with whether the library was gathered.
-    const mediaServerAdapter = deps.adapters.find(hasUserLibrary);
+    const mediaServerAdapter = deps.adapters.find(
+        a => hasUserLibrary(a) && (deps.primaryMediaServer === undefined || a.id === deps.primaryMediaServer)
+    );
     const mediaServer = mediaServerAdapter?.id;
     // Separate from the line above: a media server that reads a library but cannot
     // report a scan makes `scanStep` skip without making `libraryStep` skip too.

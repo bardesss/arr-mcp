@@ -39,6 +39,8 @@ export type StackHealthResult = {
      * `scans` and absent at `minimal`: a running command is not a fault.
      */
     commands?: CommandStatus[];
+    /** Present only with two media servers: the one tools default to. */
+    primaryMediaServer?: string;
     /**
      * What each instance is allowed to do — absent unless the caller supplied
      * the instances, and absent at `minimal`, which answers "is anything
@@ -168,6 +170,7 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
         })),
         // No permissions and no endpoints: minimal answers "is anything
         // broken", and neither a grant nor a URL is a fault.
+        ...(result.primaryMediaServer === undefined ? {} : { primaryMediaServer: result.primaryMediaServer }),
         degraded: result.degraded
     };
 }
@@ -182,7 +185,8 @@ export async function buildStackHealth(
     adapters: readonly ServiceAdapter[],
     opts: { detail: DetailLevel; limit: number },
     /** Optional and last, so every existing call site keeps compiling. */
-    instances?: readonly ServiceInstance[]
+    instances?: readonly ServiceInstance[],
+    primaryMediaServer?: string
 ): Promise<StackHealthResult> {
     const services: ConnectionDiagnosis[] = [];
     const degraded: string[] = [];
@@ -374,6 +378,7 @@ export async function buildStackHealth(
             ...(options === undefined ? {} : { options }),
             ...(hasSeedingRules ? { seedingRules } : {}),
             ...(opts.detail === 'minimal' ? {} : { commands }),
+            ...(primaryMediaServer === undefined ? {} : { primaryMediaServer }),
             degraded
         },
         opts.detail
@@ -383,7 +388,8 @@ export async function buildStackHealth(
 export function registerStackHealth(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
-    instances?: readonly ServiceInstance[]
+    instances?: readonly ServiceInstance[],
+    primaryMediaServer?: string
 ): void {
     server.registerTool(
         'stack_health',
@@ -416,11 +422,12 @@ export function registerStackHealth(
                     .object({ clients: z.array(z.unknown()), indexers: z.array(z.unknown()), notes: z.array(z.string()) })
                     .optional()
                     .describe('Client seed limits, indexer seed criteria, and where they disagree. Only at `detail: "full"`.'),
+                primaryMediaServer: z.string().optional().describe('With two media servers, the one tools default to.'),
                 degraded: z.array(z.string())
             })
         },
         async ({ detail, limit }) => {
-            const result = await buildStackHealth(adapters, { detail, limit }, instances);
+            const result = await buildStackHealth(adapters, { detail, limit }, instances, primaryMediaServer);
             const neverScanned = result.scans.filter(s => s.lastCompleted === undefined).length;
             const summary =
                 result.degraded.length === 0

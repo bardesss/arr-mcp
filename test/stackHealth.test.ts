@@ -36,6 +36,20 @@ const broken: ConnectionDiagnosis = {
 
 const std = { detail: 'standard', limit: 50 } as const;
 
+describe('stack_health primary media server', () => {
+    it('names the primary media server at every detail level', async () => {
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, undefined, 'plex');
+            expect(result.primaryMediaServer).toBe('plex');
+        }
+    });
+
+    it('leaves the key out without one', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);
+        expect('primaryMediaServer' in result).toBe(false);
+    });
+});
+
 describe('stack_health', () => {
     it('reports a healthy service with its version and latency', async () => {
         const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);
