@@ -6,7 +6,7 @@ import { configEtag } from '../config/etag.ts';
 import { listInstances } from '../config/instances.ts';
 import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint } from '../config/edits.ts';
 import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
-import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
+import { MediaServerIdSchema, OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
@@ -585,6 +585,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     );
 
     app.post(
+        '/ui/config/media-servers',
+        configMutation('Primary media server saved.', form => buildMediaServerConfig(runtime.config, form))
+    );
+
+    app.post(
         '/ui/config/appearance',
         configMutation('Appearance saved.', form => buildAppearanceConfig(runtime.config, form))
     );
@@ -1008,6 +1013,12 @@ export function buildAppearanceConfig(current: Config, form: Record<string, unkn
     const theme = parsed.success ? parsed.data : 'system';
 
     return { ...rest, ...(theme === 'system' ? {} : { ui: { theme } }) };
+}
+
+/** The primary media server. Owns `primary_media_server` and nothing else. */
+export function buildMediaServerConfig(current: Config, form: Record<string, unknown>): Config {
+    const parsed = MediaServerIdSchema.safeParse(str(form.primary_media_server));
+    return parsed.success ? { ...current, primary_media_server: parsed.data } : current;
 }
 
 export function oauthDraftFrom(form: Record<string, unknown>): OAuthDraft {

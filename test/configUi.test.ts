@@ -597,41 +597,55 @@ describe('the add dialog', () => {
         expect(page).toContain('Already configured, and limited to one instance');
     });
 
-    /** arr-mcp joins against exactly one media server, so the schema already
-     *  refuses jellyfin and plex together — the picker should not offer a
-     *  choice that would only fail on save. */
-    describe('the media server rivalry', () => {
-        it('offers plex when no media server is configured', async () => {
+    describe('two media servers', () => {
+        const JF = '  jellyfin:\n    url: http://192.0.2.10:8096\n    api_key: k\n';
+        const PX = '  plex:\n    url: http://192.0.2.10:32400\n    api_key: k\n';
+
+        it('offers plex once jellyfin is configured', async () => {
+            await seed(JF);
             await signIn();
             const page = await (await call('/ui/config')).text();
-
             const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
             expect(offered).toContain('plex');
+        });
+
+        it('offers jellyfin once plex is configured', async () => {
+            await seed(PX);
+            await signIn();
+            const page = await (await call('/ui/config')).text();
+            const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
             expect(offered).toContain('jellyfin');
         });
 
-        it('does not offer plex once jellyfin is configured, and says why', async () => {
-            await seed('  jellyfin:\n    url: http://192.0.2.10:8096\n    api_key: k\n');
+        it('shows a primary selector only when both are configured', async () => {
+            await seed(JF + PX + 'primary_media_server: jellyfin\n');
             await signIn();
             const page = await (await call('/ui/config')).text();
-
-            const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
-            expect(offered).not.toContain('plex');
-            // Distinct from the "already configured, limited to one instance"
-            // sentence — plex itself is not configured, jellyfin is.
-            expect(page).toMatch(/media server/i);
+            expect(page).toContain('name="primary_media_server"');
         });
 
-        it('does not offer jellyfin once plex is configured', async () => {
-            await seed('  plex:\n    url: http://192.0.2.10:32400\n    api_key: k\n');
+        it('has no primary selector with one', async () => {
+            await seed(JF);
             await signIn();
-            const page = await (await call('/ui/config')).text();
+            expect(await (await call('/ui/config')).text()).not.toContain('name="primary_media_server"');
+        });
 
-            // jellyfin is hidden as the rival; plex itself is also gone, but
-            // for the pre-existing "already configured" reason.
-            const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
-            expect(offered).not.toContain('jellyfin');
-            expect(offered).not.toContain('plex');
+        it('saves the primary from the Media servers card', async () => {
+            await seed(JF + PX + 'primary_media_server: jellyfin\n');
+            await signIn();
+            const keys = keysFrom(await (await call('/ui/config')).text());
+            await call('/ui/config/media-servers', form({ ...keys, primary_media_server: 'plex' }));
+            const { config } = await loadConfig(dir);
+            expect(config.primary_media_server).toBe('plex');
+        });
+
+        it('adding plex to a jellyfin install keeps jellyfin primary', async () => {
+            await seed(JF);
+            await signIn();
+            const keys = keysFrom(await (await call('/ui/config')).text());
+            await call('/ui/config/add', form({ ...keys, type: 'plex', url: 'http://192.0.2.10:32400', api_key: 'k' }));
+            const { config } = await loadConfig(dir);
+            expect(config.primary_media_server).toBe('jellyfin');
         });
     });
 
