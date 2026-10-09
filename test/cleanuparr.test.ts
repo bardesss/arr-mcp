@@ -39,3 +39,47 @@ describe('CleanuparrAdapter', () => {
         expect(result.error?.kind).toBe('VersionUnsupported');
     });
 });
+
+const healthRoutes = (over: Record<string, unknown> = {}) => ({
+    '/api/status': fixture('status'),
+    '/health/detailed': fixture('health-detailed'),
+    '/api/status/arrs': fixture('status-arrs'),
+    '/api/status/download-client': fixture('status-download-client'),
+    '/api/jobs': fixture('jobs'),
+    '/api/configuration/general': fixture('configuration-general'),
+    ...over
+});
+
+describe('CleanuparrAdapter health', () => {
+    it('reports unhealthy entries, disconnected arrs, dry run and unscheduled cleaners', async () => {
+        const adapter = new CleanuparrAdapter(config, stub(healthRoutes()));
+        const checks = await adapter.getFailedHealthChecks();
+        const messages = checks.map(c => c.message);
+        expect(messages.some(m => m.includes('download_clients: 1 download client(s) unreachable'))).toBe(true);
+        expect(messages.some(m => m.includes('Radarr') && m.includes('Connection refused'))).toBe(true);
+        expect(messages.some(m => /dry run/i.test(m))).toBe(true);
+        expect(messages.some(m => m.includes('Queue Cleaner is not scheduled'))).toBe(true);
+        expect(messages.some(m => m.includes('Download Cleaner'))).toBe(false);
+        expect(checks.every(c => c.service === 'cleanuparr')).toBe(true);
+    });
+
+    it('warns on a minor version newer than the tested one', async () => {
+        const adapter = new CleanuparrAdapter(config, stub(healthRoutes({ '/api/status': { application: { version: '2.11.0.0' } } })));
+        const checks = await adapter.getFailedHealthChecks();
+        expect(checks.some(c => c.type === 'warning' && c.message.includes('2.11.0') && c.message.includes('2.10'))).toBe(true);
+    });
+
+    it('stays quiet about the version on the tested minor', async () => {
+        const adapter = new CleanuparrAdapter(config, stub(healthRoutes()));
+        const checks = await adapter.getFailedHealthChecks();
+        expect(checks.some(c => c.message.includes('untested'))).toBe(false);
+    });
+
+    it('never asks for the download client configuration, which holds passwords', async () => {
+        const seen: string[] = [];
+        const adapter = new CleanuparrAdapter(config, stub(healthRoutes(), seen));
+        await adapter.getFailedHealthChecks();
+        expect(seen.some(s => s.includes('/api/configuration/download_client'))).toBe(false);
+        expect(seen.every(s => s.startsWith('GET '))).toBe(true);
+    });
+});

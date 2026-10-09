@@ -959,8 +959,35 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'arr', path: '/api/v1/arr' },
         { name: 'health', path: '/api/v1/health' }
     ],
-    cleanuparr: [{ name: 'status', path: '/api/status' }]
+    cleanuparr: [
+        { name: 'status', path: '/api/status' },
+        { name: 'health-detailed', path: '/health/detailed' },
+        { name: 'status-arrs', path: '/api/status/arrs', anonymise: body => rewriteUrls(body, 'url') },
+        { name: 'status-download-client', path: '/api/status/download-client', anonymise: body => rewriteUrls(body, 'host') },
+        { name: 'jobs', path: '/api/jobs' },
+        { name: 'configuration-general', path: '/api/configuration/general' }
+    ]
 };
+
+/** Points every `key` URL in the body at `<name>.example`, keeping the port. */
+function rewriteUrls(body: unknown, key: string): unknown {
+    if (Array.isArray(body)) return body.map(v => rewriteUrls(v, key));
+    if (!isRow(body)) return body;
+    return Object.fromEntries(
+        Object.entries(body).map(([k, v]) => {
+            if (k === key && typeof v === 'string') {
+                try {
+                    const u = new URL(v);
+                    const label = String(body.name ?? 'host').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    return [k, `${u.protocol}//${label}.example${u.port === '' ? '' : `:${u.port}`}${u.pathname === '/' ? '/' : u.pathname}`];
+                } catch {
+                    return [k, 'http://host.example/'];
+                }
+            }
+            return [k, rewriteUrls(v, key)];
+        })
+    );
+}
 
 function strategyFor(id: ServiceId, service: NonNullable<Config['services'][ServiceId]>): AuthStrategy {
     if (id === 'transmission') {
