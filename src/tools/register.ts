@@ -1,6 +1,6 @@
 import { listInstances } from '../config/instances.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
-import type { Config, MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
+import type { Config } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { ConfirmTokens } from '../core/confirm.ts';
@@ -10,13 +10,10 @@ import { permissionSourceFrom } from '../core/permissions.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import {
     hasIndexers,
-    hasPlayback,
     hasSubtitles,
-    hasUserDirectory,
-    hasUserLibrary,
-    type MediaServerAdapter,
     type ServiceAdapter
 } from '../services/types.ts';
+import { selectMediaServers, type MediaServers } from './mediaServers.ts';
 import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
 import { registerCleanQueue } from './cleanQueue.ts';
@@ -65,8 +62,10 @@ import type { WriteContext } from './write.ts';
  */
 export type ToolContext = {
     adapters: readonly ServiceAdapter[];
-    /** Jellyfin's or Plex's, whichever is configured — never both. */
+    /** The primary media server's identity; `mediaServers.primary?.identity`. */
     mediaServerIdentity: IdentityResolver | undefined;
+    /** Primary is what every tool defaults to. */
+    mediaServers: MediaServers;
     seerrIdentity: IdentityResolver | undefined;
     library: LibraryLoader;
     /**
@@ -92,69 +91,6 @@ export type ToolContext = {
 };
 
 /**
- * The one media server, or none.
- *
- * Throws on a second rather than picking: `get_library`'s `presence` asks
- * whether the *other side* can see a file, and with two media servers that
- * question has no single answer. The config schema refuses the pair, so
- * reaching here means a path that bypassed it.
- *
- * The filter is `hasPlayback` **or** `hasUserLibrary`, not `hasPlayback`
- * alone: `library.ts` and `diagnose/evidence.ts` both select their media
- * server by `hasUserLibrary`. An adapter with a library read and no
- * playback used to pass neither branch here (returning `undefined`, no
- * throw) while those two treated it as configured — `get_playback` said
- * "no media server" about the exact adapter `get_library` was reading.
- * Widening the filter means that disagreement is now a startup-time throw,
- * naming the missing capability, instead of a runtime contradiction between
- * tools.
- */
-function theMediaServer(adapters: readonly ServiceAdapter[]): MediaServerAdapter | undefined {
-    const found = adapters.filter(a => hasPlayback(a) || hasUserLibrary(a));
-    if (found.length > 1) {
-        throw new Error(
-            `only one media server may be configured, found ${found.map(a => a.id).join(', ')}`
-        );
-    }
-    const candidate = found[0];
-    if (candidate === undefined) return undefined;
-
-    // Neither capability alone makes something a full media server — a
-    // candidate missing any of the three must say so by name, not fail later
-    // with a raw "listUsers is not a function" at the IdentityResolver call
-    // site, or a silent disagreement between tools.
-    if (!hasPlayback(candidate)) {
-        throw new Error(
-            `${candidate.id} has a user library but is missing getPlayback/getNextUp/getWatchHistory, so it is not a complete media server`
-        );
-    }
-    if (!hasUserDirectory(candidate)) {
-        throw new Error(`${candidate.id} has playback but is missing listUsers, so it is not a complete media server`);
-    }
-    if (!hasUserLibrary(candidate)) {
-        throw new Error(`${candidate.id} has playback but is missing listUserLibrary, so it is not a complete media server`);
-    }
-    return candidate;
-}
-
-/**
- * The media server's own config block, keyed by its adapter `type` rather
- * than a hardcoded `services.jellyfin`.
- *
- * That hardcoding was the Critical bug: a Plex-only stack built its resolver
- * from `config.services.jellyfin`, which is always undefined there, so
- * `get_playback` answered "no media server" and `get_library` reported Plex
- * permanently degraded — both about a media server that was configured and
- * healthy. `config.services` has a different shape per key, so this hand
- * narrows `type` rather than indexing it, which would need an unsound cast.
- */
-function mediaServerConfig(type: ServiceId, services: Config['services']): MultiUserServiceConfig | undefined {
-    if (type === 'jellyfin') return services.jellyfin;
-    if (type === 'plex') return services.plex;
-    return undefined;
-}
-
-/**
  * `confirm` is supplied rather than created here: it outlives a config reload
  * on purpose (see `core/runtime.ts`), because a confirmation handshake spans
  * two calls and a config edit between them must not silently invalidate it.
@@ -168,14 +104,9 @@ export function buildToolContext(
      *  library loader, which is the one place the join happens. */
     dataset?: ImdbDataset
 ): ToolContext {
-    const mediaServer = theMediaServer(adapters);
+    const mediaServers = selectMediaServers(adapters, config);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
-
-    const mediaServerConfigBlock = mediaServer === undefined ? undefined : mediaServerConfig(mediaServer.type, config.services);
-    const mediaServerIdentity =
-        mediaServer !== undefined && mediaServerConfigBlock !== undefined
-            ? new IdentityResolver(mediaServer, mediaServerConfigBlock)
-            : undefined;
+    const mediaServerIdentity = mediaServers.primary?.identity;
 
     const library = new LibraryLoader(adapters, mediaServerIdentity, undefined, dataset);
 
@@ -184,6 +115,7 @@ export function buildToolContext(
         dataset,
         instances: listInstances(config),
         mediaServerIdentity,
+        mediaServers,
         seerrIdentity:
             seerr !== undefined && config.services.seerr !== undefined
                 ? new IdentityResolver(seerr, config.services.seerr)
@@ -212,7 +144,6 @@ export function buildToolContext(
  */
 export function registerAllTools(server: McpServer, context: ToolContext): void {
     const { adapters, dataset, instances, mediaServerIdentity, seerrIdentity, library, write } = context;
-    const mediaServer = theMediaServer(adapters);
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
     registerDiagnose(server, { adapters, library });
@@ -225,7 +156,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetReleases(server, adapters);
     registerGetBlocklist(server, adapters);
     registerGetCalendar(server, adapters);
-    registerGetPlayback(server, mediaServer, mediaServerIdentity);
+    registerGetPlayback(server, context.mediaServers.primary?.adapter, mediaServerIdentity);
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset);
     registerGetMetadataIssues(server, adapters, mediaServerIdentity, write.permissions);
