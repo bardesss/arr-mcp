@@ -9,6 +9,7 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { MergedItem } from '../src/core/resolver.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
+import type { MediaServerAdapter } from '../src/services/types.ts';
 import { registerFixMetadata, type RepairTiming } from '../src/tools/fixMetadata.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -148,9 +149,8 @@ function harness(
             audit: WriteAudit.ephemeral(),
             library: loader
         },
-        opts.adapters === 'none' ? [] : [adapter],
+        opts.adapters === 'none' ? {} : { primary: { adapter, identity: new IdentityResolver(adapter, config) } },
         loader,
-        opts.adapters === 'none' ? undefined : new IdentityResolver(adapter, config),
         instant()
     );
 
@@ -548,9 +548,8 @@ function plexHarness(
             audit,
             library: loader
         },
-        [adapter],
+        { primary: { adapter, identity: new IdentityResolver(adapter, config) } },
         loader,
-        new IdentityResolver(adapter, config),
         timing
     );
 
@@ -927,5 +926,137 @@ describe('locks on Jellyfin', () => {
         const h = harness({ item: filmItem, films: [film({ LockData: false, LockedFields: ['Name', 'Overview'] })] });
         const { structuredContent } = await h.call({ query: 'The Thing' });
         expect(structuredContent.confirm_token).toBeDefined();
+    });
+});
+
+describe('fix_metadata with two media servers', () => {
+    const mismatching = [{ id: 'e1', name: 'Real Title', season: 1, episode: 1, path: '/tv/Show/Season 01/Show - S01E05 - Other words.mkv' }];
+    const fake = (id: 'plex' | 'jellyfin') =>
+        ({
+            id,
+            type: id,
+            readEpisodeMetadata: vi.fn(async () => mismatching),
+            readMovieMetadata: vi.fn(async () => []),
+            repairMetadata: vi.fn(async () => ({ settled: true }))
+        }) as unknown as MediaServerAdapter & {
+            readEpisodeMetadata: ReturnType<typeof vi.fn>;
+            repairMetadata: ReturnType<typeof vi.fn>;
+        };
+    const identity = { resolve: async () => ({ id: 'u', name: 'Sam' }) } as unknown as IdentityResolver;
+    const dualItem = seriesItem({
+        playback: { user: 'Sam', itemId: 'p9' },
+        media_servers: { plex: { present: true, itemId: 'p9' }, jellyfin: { present: true, itemId: 'j9' } }
+    });
+
+    function dual(opts: { plexRepair?: boolean } = {}) {
+        const plex = fake('plex');
+        const jellyfin = fake('jellyfin');
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        const server = {
+            registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
+                call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        const loader = {
+            load: async () => ({ index: { search: () => [dualItem], all: () => [dualItem] }, degraded: [] }),
+            invalidate: vi.fn()
+        } as unknown as LibraryLoader;
+        registerFixMetadata(
+            server as never,
+            {
+                permissions: permissionSourceFrom(
+                    instancesOf({
+                        jellyfin: jellyfinConfig() as unknown as AnyServiceConfig,
+                        plex: plexConfig({ allow: opts.plexRepair ?? true }) as unknown as AnyServiceConfig
+                    })
+                ),
+                confirm: new ConfirmTokens(),
+                audit: WriteAudit.ephemeral(),
+                library: loader
+            },
+            { primary: { adapter: plex, identity }, secondary: { adapter: jellyfin, identity } },
+            loader,
+            instant()
+        );
+        return { call: (a: Record<string, unknown>) => call(a), plex, jellyfin };
+    }
+
+    it('reads through the server `service` names, by its own item id', async () => {
+        const h = dual();
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' });
+
+        expect(structuredContent.service).toBe('jellyfin');
+        expect(structuredContent.target).toBe('jellyfin:j9');
+        expect(h.jellyfin.readEpisodeMetadata).toHaveBeenCalledWith(expect.anything(), 'j9');
+        expect(h.plex.readEpisodeMetadata).not.toHaveBeenCalled();
+    });
+
+    it('defaults to the primary', async () => {
+        const h = dual();
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+
+        expect(structuredContent.target).toBe('plex:p9');
+        expect(h.plex.readEpisodeMetadata).toHaveBeenCalledWith(expect.anything(), 'p9');
+    });
+
+    it('picks the server from a prefixed id', async () => {
+        const h = dual();
+        const { structuredContent } = await h.call({ id: 'jellyfin:j9' });
+
+        expect(structuredContent.service).toBe('jellyfin');
+        expect(h.jellyfin.readEpisodeMetadata).toHaveBeenCalledWith(expect.anything(), 'j9');
+    });
+
+    it('repairs on the server it previewed', async () => {
+        const h = dual();
+        const preview = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' });
+        const applied = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin', confirm: preview.structuredContent.confirm_token });
+
+        expect(applied.structuredContent.applied).toBe(true);
+        expect(h.jellyfin.repairMetadata).toHaveBeenCalledWith('j9', { tvdbId: TVDB });
+        expect(h.plex.repairMetadata).not.toHaveBeenCalled();
+    });
+
+    it('will not apply a Jellyfin preview to Plex', async () => {
+        const h = dual();
+        const preview = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' });
+        const again = await h.call({ query: 'Dragon Ball Kai', confirm: preview.structuredContent.confirm_token });
+
+        expect(again.structuredContent.applied).toBe(false);
+        expect(h.plex.repairMetadata).not.toHaveBeenCalled();
+        expect(h.jellyfin.repairMetadata).not.toHaveBeenCalled();
+    });
+
+    it('gates Plex repair without gating Jellyfin', async () => {
+        const h = dual({ plexRepair: false });
+
+        const onPlex = await h.call({ query: 'Dragon Ball Kai', dry_run: true });
+        expect(onPlex.structuredContent.permission.reason).toBe('Plex repair is off');
+
+        const onJellyfin = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin', dry_run: true });
+        expect(onJellyfin.structuredContent.permission.allowed).toBe(true);
+    });
+
+    it('refuses a service that is not configured', async () => {
+        const h = dual();
+        await expect(async () => h.call({ query: 'Dragon Ball Kai', service: 'emby' })).rejects.toThrow(/jellyfin/);
+    });
+});
+
+describe('fix_metadata input on one media server', () => {
+    it('has no service input', async () => {
+        let shape: Record<string, unknown> = {};
+        registerFixMetadata(
+            { registerTool: (_n: string, cfg: { inputSchema: z.ZodObject }) => void (shape = cfg.inputSchema.shape) } as never,
+            {
+                permissions: permissionSourceFrom([]),
+                confirm: new ConfirmTokens(),
+                audit: WriteAudit.ephemeral(),
+                library: {} as LibraryLoader
+            },
+            {},
+            {} as LibraryLoader
+        );
+        expect(Object.keys(shape)).not.toContain('service');
     });
 });

@@ -161,7 +161,7 @@ export function buildToolContext(
  * not find it missing after a config edit.
  */
 export function registerAllTools(server: McpServer, context: ToolContext): void {
-    const { adapters, dataset, instances, mediaServerIdentity, seerrIdentity, library, write } = context;
+    const { adapters, dataset, instances, seerrIdentity, library, write } = context;
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
     registerDiagnose(server, { adapters, library });
@@ -205,8 +205,13 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerRequestMedia(server, write, adapters, seerrIdentity);
     registerPauseDownloads(server, write, adapters);
     registerSyncDatabase(server, write, adapters);
-    registerSetWatched(server, write, adapters, mediaServerIdentity);
-    registerFixMetadata(server, write, adapters, library, mediaServerIdentity);
+    registerSetWatched(
+        server,
+        write,
+        adapters,
+        [context.mediaServers.primary, context.mediaServers.secondary].find(c => c?.adapter.type === 'jellyfin')?.identity
+    );
+    registerFixMetadata(server, write, context.mediaServers, library);
     registerRemoveBlocklistItem(server, write, adapters);
     registerManageIndexer(server, write, adapters);
 }

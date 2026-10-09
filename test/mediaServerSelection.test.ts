@@ -3,7 +3,7 @@ import { ConfigSchema, type Config } from '../src/config/schema.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { buildToolContext } from '../src/tools/register.ts';
-import { pickMediaServer, bothIds } from '../src/tools/mediaServers.ts';
+import { pickMediaServer, bothIds, itemIdOn } from '../src/tools/mediaServers.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import type { MediaServerAdapter, ServiceAdapter } from '../src/services/types.ts';
 
@@ -146,5 +146,20 @@ describe('pickMediaServer', () => {
     it('names both ids only when both are configured', () => {
         expect(bothIds({ primary: p, secondary: j })).toEqual(['plex', 'jellyfin']);
         expect(bothIds({ primary: j })).toBeUndefined();
+    });
+});
+
+describe('itemIdOn', () => {
+    const base = { kind: 'movie' as const, title: 'T', ids: { tmdb: 1 }, presence: 'both' as const };
+    it('reads playback on one server', () => {
+        expect(itemIdOn({ ...base, playback: { user: 'u', itemId: 'j1' } }, 'jellyfin')).toBe('j1');
+    });
+    it('reads media_servers on two, never the primary playback id', () => {
+        const item = { ...base, playback: { user: 'u', itemId: 'p1' }, media_servers: { plex: { present: true, itemId: 'p1' }, jellyfin: { present: true, itemId: 'j1' } } };
+        expect(itemIdOn(item, 'jellyfin')).toBe('j1');
+        expect(itemIdOn(item, 'plex')).toBe('p1');
+    });
+    it('is undefined when that server was not read', () => {
+        expect(itemIdOn({ ...base, media_servers: { plex: { present: true, itemId: 'p1' } } }, 'jellyfin')).toBeUndefined();
     });
 });
