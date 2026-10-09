@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { TtlCache } from '../src/core/cache.ts';
 import { ServiceError } from '../src/core/errors.ts';
-import type { IdentityResolver } from '../src/core/identity.ts';
+import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
@@ -524,7 +524,10 @@ describe('a secondary media server', () => {
             undefined,
             {
                 primaryId: 'jellyfin',
-                secondary: { id: 'plex', identity: identity(new ServiceError('NotFound', 'plex', 'no user Nobody'), true) }
+                secondary: {
+                    id: 'plex',
+                    identity: identity(new ServiceError('NotFound', 'plex', 'no user Nobody', { reason: 'unknown_user' }), true)
+                }
             }
         ).load();
 
@@ -583,6 +586,77 @@ describe('a secondary media server', () => {
             expect(item?.media_servers).toEqual({ jellyfin: { present: true, itemId: 'j550' } });
         });
     }
+
+    it("resolves the secondary's user alongside the primary's reads, not before them", async () => {
+        const events: string[] = [];
+        const primary = stub('jellyfin', {
+            listUserLibrary: async () => {
+                events.push('primary:start');
+                await Promise.resolve();
+                events.push('primary:end');
+                return [onJellyfin(550, 'j550')];
+            }
+        });
+        const slowIdentity = {
+            resolve: async () => {
+                events.push('secondary:start');
+                await Promise.resolve();
+                events.push('secondary:end');
+                return other;
+            },
+            hasDefaultUser: true
+        } as unknown as IdentityResolver;
+
+        const snapshot = await new LibraryLoader(
+            [radarr(), primary, plex([onPlex(550, 'p550')])],
+            identity(someone),
+            new TtlCache(),
+            undefined,
+            { primaryId: 'jellyfin', secondary: { id: 'plex', identity: slowIdentity } }
+        ).load();
+
+        expect(events.indexOf('primary:start')).toBeLessThan(events.indexOf('secondary:end'));
+        expect(events.indexOf('secondary:start')).toBeLessThan(events.indexOf('primary:end'));
+        expect(snapshot.index.find({ tmdb: 550 })?.media_servers).toEqual({
+            jellyfin: { present: true, itemId: 'j550' },
+            plex: { present: true, itemId: 'p550' }
+        });
+    });
+
+    const resolverOver = (listUsers: () => Promise<ServiceUser[]>, defaultUser: string) =>
+        new IdentityResolver(stub('plex', { listUsers }) as never, { default_user: defaultUser, allow_other_users: false });
+
+    it('degrades a secondary whose user listing 404s, rather than blaming default_user', async () => {
+        const listUserLibrary = vi.fn(async () => []);
+        const notThere = resolverOver(async () => {
+            throw new ServiceError('NotFound', 'plex', 'HTTP 404 at /proxy/accounts');
+        }, 'Other');
+        const snapshot = await new LibraryLoader(
+            [radarr(), jellyfin({ Someone: [onJellyfin(550, 'j550')] }), stub('plex', { listUserLibrary })],
+            identity(someone),
+            new TtlCache(),
+            undefined,
+            { primaryId: 'jellyfin', secondary: { id: 'plex', identity: notThere } }
+        ).load();
+
+        expect(listUserLibrary).not.toHaveBeenCalled();
+        expect(snapshot.degraded).toContain('plex');
+        expect(snapshot.note).toBeUndefined();
+    });
+
+    it('still notes a default_user the real resolver finds nobody for', async () => {
+        const nobody = resolverOver(async () => [{ id: 'x', name: 'Someone Else' }], 'Nobody');
+        const snapshot = await new LibraryLoader(
+            [radarr(), jellyfin({ Someone: [onJellyfin(550, 'j550')] }), plex([])],
+            identity(someone),
+            new TtlCache(),
+            undefined,
+            { primaryId: 'jellyfin', secondary: { id: 'plex', identity: nobody } }
+        ).load();
+
+        expect(snapshot.degraded).not.toContain('plex');
+        expect(snapshot.note).toMatch(/does not match any user/);
+    });
 
     it('counts the rows the secondary actually returned', async () => {
         const snapshot = await loader([onPlex(551, 'p551'), onPlex(999, 'p999')]).load();

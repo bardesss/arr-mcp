@@ -1,7 +1,7 @@
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather, type Source } from '../core/gather.ts';
-import type { IdentityResolver } from '../core/identity.ts';
+import { isUnknownUser, type IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
 import { LibraryIndex, type IndexInput, type MediaServerPresence, type MergedItem } from '../core/resolver.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -35,8 +35,9 @@ export type LibrarySnapshot = {
      */
     counts: Record<string, number>;
     /** Set when the media server half is missing — no server configured, or one
-     *  configured with no `default_user` — or when a secondary's `default_user`
-     *  is missing or matches nobody. */
+     *  configured with no `default_user` — or when a secondary is not read
+     *  because its `default_user` is missing (Jellyfin; Plex falls back to the
+     *  token owner) or matches nobody. */
     note?: string;
 };
 
@@ -46,7 +47,8 @@ export type LibraryMediaServers = {
     secondary?: { id: string; identity: IdentityResolver | undefined };
 };
 
-type SecondaryUser = { user: ServiceUser | undefined; unconfigured: boolean; unreachable: boolean; unmatched?: boolean };
+type SecondarySkip = 'unconfigured' | 'unmatched';
+type SecondaryUser = { user: ServiceUser } | { skipped: SecondarySkip };
 
 const presenceOf = (row: MergedItem | undefined): MediaServerPresence =>
     row === undefined
@@ -183,26 +185,23 @@ export class LibraryLoader {
 
     /**
      * The secondary is only ever read as its default user, and never fails the
-     * read: a refusal (`AuthFailed`) degrades it like an outage, since the
-     * primary's half is the answer and the secondary only annotates it. A
-     * missing or wrong `default_user` is config, so it goes in the note instead.
-     * Plex with none is read as the token owner, so only Jellyfin needs one.
+     * read: a refusal (`AuthFailed`) or an outage throws, and `gather` degrades
+     * it by name, since the primary's half is the answer and the secondary only
+     * annotates it. A missing or wrong `default_user` is config, so it is
+     * skipped and goes in the note instead. Plex with none is read as the
+     * token owner, so only Jellyfin needs one. A 404 from the user listing
+     * itself is an outage, not a wrong name.
      */
     async #secondaryUser(identity: IdentityResolver | undefined): Promise<SecondaryUser> {
-        if (identity === undefined) return { user: undefined, unconfigured: true, unreachable: false };
+        if (identity === undefined) return { skipped: 'unconfigured' };
         try {
-            return { user: await identity.resolve(undefined), unconfigured: false, unreachable: false };
+            return { user: await identity.resolve(undefined) };
         } catch (err) {
-            if (err instanceof ServiceError && err.kind === 'NotFound') {
-                return identity.hasDefaultUser
-                    ? { user: undefined, unconfigured: false, unreachable: false, unmatched: true }
-                    : { user: undefined, unconfigured: true, unreachable: false };
+            if (!identity.hasDefaultUser && err instanceof ServiceError && err.kind === 'NotFound') {
+                return { skipped: 'unconfigured' };
             }
-            logger.warn(
-                { service: identity.serviceId, err },
-                'secondary media server identity unavailable; leaving it out of media_servers'
-            );
-            return { user: undefined, unconfigured: false, unreachable: true };
+            if (identity.hasDefaultUser && isUnknownUser(err)) return { skipped: 'unmatched' };
+            throw err;
         }
     }
 
@@ -245,19 +244,24 @@ export class LibraryLoader {
             });
         }
 
-        // Its rows are kept out of the join (they would fuse into `playback`);
-        // the source returns none, so `gather` only records whether it failed.
+        // Its user is resolved inside its own source, so a down secondary
+        // waits alongside the primary's reads rather than before them. Its
+        // rows are kept out of the join (they would fuse into `playback`); the
+        // source returns none, so `gather` only records whether it failed.
         const secondary = this.#mediaServers?.secondary;
         const secondaryAdapter =
             secondary === undefined ? undefined : this.#adapters.filter(hasUserLibrary).find(a => a.id === secondary.id);
-        const secondaryUser = secondary === undefined ? undefined : await this.#secondaryUser(secondary.identity);
+        const secondaryState: { skipped?: SecondarySkip } = {};
         const secondaryRows: IndexInput[] = [];
-        if (secondaryAdapter !== undefined && secondaryUser?.user !== undefined) {
-            const user = secondaryUser.user;
+        if (secondary !== undefined) {
             sources.push({
-                id: secondaryAdapter.id,
+                id: secondary.id,
                 fetch: async () => {
-                    secondaryRows.push(...(await secondaryAdapter.listUserLibrary(user)));
+                    const resolved = await this.#secondaryUser(secondary.identity);
+                    if ('skipped' in resolved) secondaryState.skipped = resolved.skipped;
+                    else if (secondaryAdapter !== undefined) {
+                        secondaryRows.push(...(await secondaryAdapter.listUserLibrary(resolved.user)));
+                    }
                     return [];
                 }
             });
@@ -265,12 +269,10 @@ export class LibraryLoader {
 
         const { items, degraded, counts } = await gather(sources);
 
-        if (secondary !== undefined && secondaryUser?.unreachable === true) {
-            degraded.push(secondary.id);
-            degraded.sort();
-        }
         const secondaryRead =
-            secondaryAdapter !== undefined && secondaryUser?.user !== undefined && !degraded.includes(secondaryAdapter.id);
+            secondaryAdapter !== undefined && secondaryState.skipped === undefined && !degraded.includes(secondaryAdapter.id);
+        // Absent, not zero, when it was not read: zero would claim it was asked.
+        if (secondary !== undefined) Reflect.deleteProperty(counts, secondary.id);
         if (secondaryRead) counts[secondaryAdapter.id] = secondaryRows.length;
 
         // The one place that knows whether the media server was actually read:
@@ -302,9 +304,9 @@ export class LibraryLoader {
         const secondaryNote =
             secondary === undefined
                 ? undefined
-                : secondaryUser?.unconfigured === true
+                : secondaryState.skipped === 'unconfigured'
                   ? `${secondary.id} is configured without a default_user, so media_servers leaves it out. Set \`services.${secondary.id}.default_user\` in config.yaml.`
-                  : secondaryUser?.unmatched === true
+                  : secondaryState.skipped === 'unmatched'
                     ? `\`services.${secondary.id}.default_user\` does not match any user on ${secondary.id}, so media_servers leaves it out. Fix it in config.yaml.`
                     : undefined;
         const note = [primaryNote, secondaryNote].filter(n => n !== undefined).join(' ') || undefined;

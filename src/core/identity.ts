@@ -5,6 +5,9 @@ import { fenceText } from './fence.ts';
 
 type IdentityConfig = Pick<MultiUserServiceConfig, 'default_user' | 'allow_other_users'>;
 
+/** The resolver's own "no such user", as opposed to a NotFound from the service itself. */
+export const isUnknownUser = (err: unknown): boolean => err instanceof ServiceError && err.reason === 'unknown_user';
+
 /**
  * Two of the nine services have their own user concepts, and
  * both issue admin-scoped keys — so one key plus a user parameter can query as
@@ -43,7 +46,8 @@ export class IdentityResolver {
             const [owner] = users;
             if (users.length === 1 && owner !== undefined) return owner;
             throw new ServiceError('NotFound', this.#adapter.id, 'no user was named and the token owner is unknown', {
-                remedy: `Set services.${this.#adapter.id}.default_user in config.yaml, or pass a user explicitly.`
+                remedy: `Set services.${this.#adapter.id}.default_user in config.yaml, or pass a user explicitly.`,
+                reason: 'unknown_user'
             });
         }
 
@@ -61,7 +65,8 @@ export class IdentityResolver {
             throw new ServiceError('NotFound', this.#adapter.id, `no user named "${wanted}"`, {
                 remedy: available
                     ? `Known users: ${available}. Fix default_user in config.yaml.`
-                    : 'The service reported no users at all — check the API key has admin scope.'
+                    : 'The service reported no users at all — check the API key has admin scope.',
+                reason: 'unknown_user'
             });
         }
         return match;
@@ -86,7 +91,8 @@ export class IdentityResolver {
             if (fallback === undefined) {
                 if (this.#adapter.tokenOwnerOnly === true) return undefined;
                 throw new ServiceError('NotFound', this.#adapter.id, 'no user was named and none is configured', {
-                    remedy: `Set services.${this.#adapter.id}.default_user in config.yaml, or pass a user explicitly.`
+                    remedy: `Set services.${this.#adapter.id}.default_user in config.yaml, or pass a user explicitly.`,
+                    reason: 'unknown_user'
                 });
             }
             return fallback;
