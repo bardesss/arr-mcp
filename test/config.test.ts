@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { hashToken } from '../src/core/mcpTokens.ts';
-import { ConfigObjectSchema, ConfigSchema } from '../src/config/schema.ts';
+import { ConfigSchema } from '../src/config/schema.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { saveConfig, writeConfigAtomic } from '../src/config/save.ts';
 
@@ -702,7 +702,7 @@ describe('every top-level block', () => {
     // Fails the moment a block joins the schema, which is the point: the round
     // trip below can only cover what this fixture carries.
     it('appears in the fixture below', () => {
-        expect(Object.keys(FULL).sort()).toEqual(Object.keys(ConfigObjectSchema.shape).sort());
+        expect(Object.keys(FULL).sort()).toEqual(Object.keys(ConfigSchema.shape).sort());
     });
 
     it('reaches a file that had none of them', async () => {

@@ -495,9 +495,7 @@ export const AuthSchema = z.strictObject({
 export const MediaServerIdSchema = z.enum(['jellyfin', 'plex']);
 export type MediaServerId = z.infer<typeof MediaServerIdSchema>;
 
-/** The object without its cross-field rules. `save.ts` walks its keys, and
- *  `ConfigSchema` is no longer an object once refined. */
-export const ConfigObjectSchema = z.object({
+export const ConfigSchema = z.object({
     // Parsing normalises tokens, so two parses of one file always agree.
     auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
         message: 'must be false while auth.oauth is configured. A JWT in the URL reaches every proxy log',
@@ -534,15 +532,11 @@ export const ConfigObjectSchema = z.object({
     /** Absent means `system`, so a config nobody touched stays as clean as it
      *  started — the same reasoning as `metadata`. */
     ui: UiSchema.optional()
-});
-
-/**
- * `jellyfin` and `plex` are distinct, individually valid keys, so the two
- * together are admitted, and this rule says which one the tools default to.
- * Refused rather than guessed: a silent default would send a Plex question to
- * Jellyfin, or the reverse.
- */
-export const ConfigSchema = ConfigObjectSchema.superRefine((config, ctx) => {
+}).superRefine((config, ctx) => {
+    // `jellyfin` and `plex` are distinct, individually valid keys, so the two
+    // together are admitted, and this rule says which one the tools default to.
+    // Refused rather than guessed: a silent default would send a Plex question
+    // to Jellyfin, or the reverse.
     const configured = MediaServerIdSchema.options.filter(id => config.services[id] !== undefined);
     const primary = config.primary_media_server;
     if (configured.length === 2 && primary === undefined) {

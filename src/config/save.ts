@@ -3,7 +3,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isMap, parseDocument, type Document } from 'yaml';
 import * as z from 'zod/v4';
-import { ConfigObjectSchema, ConfigSchema, type Config } from './schema.ts';
+import { ConfigSchema, type Config } from './schema.ts';
 
 const FILENAME = 'config.yaml';
 
@@ -161,7 +161,7 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
     // Top-level keys the schema has never heard of are untouched, since nothing
     // iterates them. They do nothing either way; the loader strips them.
     const blocks = value as Record<string, unknown>;
-    for (const key of Object.keys(ConfigObjectSchema.shape)) mergeInto(doc, [key], blocks[key]);
+    for (const key of Object.keys(ConfigSchema.shape)) mergeInto(doc, [key], blocks[key]);
 
     await writeConfigAtomic(path, doc.toString());
 }
