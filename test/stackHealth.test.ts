@@ -66,6 +66,30 @@ describe('stack_health primary media server', () => {
     it('leaves the summary alone with one media server', async () => {
         expect(await summaryOf()).toBe('All 1 configured service(s) healthy.');
     });
+
+    const outputKeys = (primary?: string) => {
+        const server = new McpServer({ name: 'test', version: '0.0.0' });
+        registerStackHealth(server, [], undefined, primary);
+        const tool = (server as unknown as { _registeredTools: Record<string, { outputSchema: { shape: Record<string, unknown> } }> })
+            ._registeredTools.stack_health!;
+        return Object.keys(tool.outputSchema.shape);
+    };
+
+    it('declares primaryMediaServer in the output schema only with two media servers', () => {
+        expect(outputKeys('plex')).toContain('primaryMediaServer');
+        expect(outputKeys()).toEqual([
+            'services',
+            'failures',
+            'disks',
+            'scans',
+            'commands',
+            'permissions',
+            'endpoints',
+            'options',
+            'seedingRules',
+            'degraded'
+        ]);
+    });
 });
 
 describe('stack_health', () => {

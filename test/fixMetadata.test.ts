@@ -80,6 +80,7 @@ function harness(
         films?: Record<string, unknown>[];
         /** No media-server adapter at all. */
         adapters?: 'none';
+        degraded?: string[];
     } = {}
 ) {
     const config = opts.config ?? jellyfinConfig();
@@ -138,7 +139,7 @@ function harness(
     const loader = {
         load: async () => ({
             index: { search: () => [opts.item ?? seriesItem()], all: () => [opts.item ?? seriesItem()] },
-            degraded: []
+            degraded: opts.degraded ?? []
         }),
         invalidate: vi.fn()
     } as unknown as LibraryLoader;
@@ -160,6 +161,16 @@ function harness(
 }
 
 describe('fix_metadata', () => {
+    it('sends a lone server that could not be read to stack_health, not to default_user', async () => {
+        const h = harness({ item: seriesItem({ playback: { user: 'Sam' } }), degraded: ['jellyfin'] });
+
+        const err = (await h.call({ query: 'Dragon Ball Kai' }).catch((e: unknown) => e)) as ServiceError;
+        expect(err).toBeInstanceOf(ServiceError);
+        expect(err.detail).toMatch(/could not be read/);
+        expect(err.remedy).toMatch(/stack_health/);
+        expect(err.remedy).not.toMatch(/default_user/);
+    });
+
     it('shows the mismatching file itself, not just a count', async () => {
         // A count is not approvable for a destructive write: the person
         // confirming has to be able to see what the tool thinks is wrong.
@@ -1044,6 +1055,24 @@ describe('fix_metadata with two media servers', () => {
         expect((err as ServiceError).detail).toMatch(/could not be read/);
         expect((err as ServiceError).remedy).toMatch(/stack_health/);
         expect((err as ServiceError).remedy).not.toMatch(/trigger_scan/);
+    });
+
+    it('leaves default_user out of the remedy when the unread secondary was simply down', async () => {
+        const unread = seriesItem({ playback: { user: 'Sam', itemId: 'p9' }, media_servers: { plex: { present: true, itemId: 'p9' } } });
+        const h = dual({ snapshot: { item: unread, degraded: ['jellyfin'] } });
+
+        const err = (await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' }).catch((e: unknown) => e)) as ServiceError;
+        expect(err.remedy).toMatch(/stack_health/);
+        expect(err.remedy).not.toMatch(/default_user/);
+    });
+
+    it('names default_user when the secondary was skipped for it rather than down', async () => {
+        const skipped = seriesItem({ playback: { user: 'Sam', itemId: 'p9' }, media_servers: { plex: { present: true, itemId: 'p9' } } });
+        const h = dual({ snapshot: { item: skipped, degraded: [] } });
+
+        const err = (await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' }).catch((e: unknown) => e)) as ServiceError;
+        expect(err.detail).toMatch(/could not be read/);
+        expect(err.remedy).toMatch(/services\.jellyfin\.default_user/);
     });
 
     it('still sends a title the server read but lacks for a scan', async () => {

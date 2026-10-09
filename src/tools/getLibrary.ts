@@ -401,7 +401,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     .optional()
                     .describe(
                         'Present when a fact about the stack\'s config, not this call, needs stating — no media server configured at all, or one configured with no default_user.' +
-                            withBoth(mediaServerIds, 'Also when the secondary media server has no default_user, or one that matches no user.')
+                            withBoth(mediaServerIds, 'Also when the secondary media server is not read because its default_user is missing (Jellyfin) or matches no user.')
                     )
             }),
             inputSchema: toolInput({

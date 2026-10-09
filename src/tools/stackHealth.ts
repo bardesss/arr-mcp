@@ -422,7 +422,9 @@ export function registerStackHealth(
                     .object({ clients: z.array(z.unknown()), indexers: z.array(z.unknown()), notes: z.array(z.string()) })
                     .optional()
                     .describe('Client seed limits, indexer seed criteria, and where they disagree. Only at `detail: "full"`.'),
-                primaryMediaServer: z.string().optional().describe('With two media servers, the one tools default to.'),
+                ...(primaryMediaServer === undefined
+                    ? {}
+                    : { primaryMediaServer: z.string().describe('The media server tools default to when `service` is not given.') }),
                 degraded: z.array(z.string())
             })
         },

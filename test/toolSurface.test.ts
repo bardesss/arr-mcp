@@ -127,6 +127,19 @@ describe('get_library on one media server', () => {
     it('offers missing_from with both', () => {
         expect(shapeOf(['jellyfin', 'plex'])).toContain('missing_from');
     });
+
+    const noteOf = (ids?: [string, string]) => {
+        const server = new McpServer({ name: 'test', version: '0' });
+        registerGetLibrary(server, new LibraryLoader([radarr()], undefined), ids);
+        const tool = (server as unknown as { _registeredTools: Record<string, { outputSchema: { shape: Record<string, { description?: string }> } }> })
+            ._registeredTools.get_library!;
+        return tool.outputSchema.shape.note?.description ?? '';
+    };
+
+    it('says a secondary note means it was not read, which a Plex one without default_user still is', () => {
+        expect(noteOf(['jellyfin', 'plex'])).toMatch(/secondary media server is not read because its default_user is missing \(Jellyfin\) or matches no user/);
+        expect(noteOf()).not.toMatch(/secondary/);
+    });
 });
 
 describe('tool descriptions on one media server', () => {

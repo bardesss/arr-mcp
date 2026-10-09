@@ -143,16 +143,22 @@ const pinnedProvider = (
  * almost universally, and a year that disagrees means the server matched a
  * different film rather than the same one worded differently.
  */
-async function resolve(loader: LibraryLoader, query: string, adapter: ServiceAdapter): Promise<Resolved> {
+async function resolve(loader: LibraryLoader, query: string, adapter: ServiceAdapter, isSecondary: boolean): Promise<Resolved> {
     const best = await buildResolvedMediaDetails(loader, query);
 
     const itemId = itemIdOn(best, adapter.id);
     if (itemId === undefined) {
         const { degraded } = await loader.load();
-        const unread = degraded.includes(adapter.id) || (best.media_servers !== undefined && best.media_servers[adapter.id] === undefined);
+        const down = degraded.includes(adapter.id);
+        const unread = down || (best.media_servers !== undefined && best.media_servers[adapter.id] === undefined);
         if (unread) {
+            // Unread without being degraded only happens to a secondary skipped
+            // for a missing or unmatched default_user.
+            const skipped = isSecondary && !down;
             throw new ServiceError('Unreachable', adapter.id, `${serverName(adapter)}'s library could not be read, so "${best.title}" cannot be looked up there`, {
-                remedy: `Check stack_health for ${adapter.id}, and that services.${adapter.id}.default_user is set and names a real user.`
+                remedy: skipped
+                    ? `Check that services.${adapter.id}.default_user is set and names a real user.`
+                    : `Check stack_health for ${adapter.id}.`
             });
         }
         throw new ServiceError('NotFound', adapter.id, `"${best.title}" is not in ${serverName(adapter)}`, {
@@ -287,7 +293,7 @@ export function registerFixMetadata(
             if (id === undefined && query === undefined) throw new Error('Name a film or series as `query`, or give its `id`.');
             const { adapter, identity } = chooseServer(servers, service, id);
             const viewer = await identity.resolve(user);
-            const series = id !== undefined ? await resolveById(loader, id, adapter) : await resolve(loader, query ?? '', adapter);
+            const series = id !== undefined ? await resolveById(loader, id, adapter) : await resolve(loader, query ?? '', adapter, adapter.id === servers.secondary?.adapter.id);
 
             let parts: readonly (EpisodeRecord | MovieRecord)[];
             let mismatches: Mismatch[];
