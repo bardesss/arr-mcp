@@ -446,8 +446,8 @@ tokens, because a write handshake spans two calls, and sessions, because a
 config edit must not log you out of the page you are editing from.
 
 A new config key needs a place in the [management API](docs/api.md) too, or a
-reason it stays on the page. `test/apiParity.test.ts` lists every key and fails
-on one it has not placed.
+reason it stays on the page. `test/apiParity.test.ts` lists every key, service
+fields included, and fails on one it has not placed.
 
 ## Vendored API specs
 

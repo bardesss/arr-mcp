@@ -2,8 +2,8 @@
 
 A JSON API for companion apps such as nzb360 or ArrMatey, so they can look at
 arr-mcp the way they look at Sonarr. It shows what the config page shows, and
-it can change the same things: services, their permissions, IMDb, the MCP
-endpoint's token setting and MCP tokens.
+it can change the same things: services, their permissions, the primary media
+server, IMDb, the MCP endpoint's token setting and MCP tokens.
 
 ## Turning it on
 
