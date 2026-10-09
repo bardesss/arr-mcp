@@ -512,6 +512,101 @@ describe('diagnose', () => {
     });
 });
 
+describe('two media servers', () => {
+    const FILM_WITH_FILE: IndexInput = { ...FILM, acquisition: { service: 'radarr', monitored: true, hasFile: true } };
+    const mediaServer = (id: string, listUserLibrary: () => Promise<IndexInput[]>) =>
+        stub(id, {
+            listUserLibrary,
+            getScanState: async () => ({ service: id, lastCompleted: '2026-08-05T02:00:00Z' }),
+            listUsers: async () => [{ id: 'u1', name: 'Someone' }]
+        }) as unknown as ServiceAdapter & UserDirectoryCapable;
+    const setup = (plexLibrary: () => Promise<IndexInput[]>, primary: string) => {
+        const plex = mediaServer('plex', plexLibrary);
+        const jellyfin = mediaServer('jellyfin', async () => [FILM_WITH_FILE]);
+        const adapters = [stub('radarr', { listLibrary: async () => [FILM_WITH_FILE], getQueue: async () => [] }), plex, jellyfin];
+        const identity = (a: ServiceAdapter & UserDirectoryCapable) =>
+            new IdentityResolver(a, { default_user: 'Someone', allow_other_users: false });
+        const secondary = primary === 'jellyfin' ? plex : jellyfin;
+        const library = new LibraryLoader(adapters, identity(primary === 'jellyfin' ? jellyfin : plex), undefined, undefined, {
+            primaryId: primary,
+            secondary: { id: secondary.id, identity: identity(secondary as ServiceAdapter & UserDirectoryCapable) }
+        });
+        return { adapters, library };
+    };
+
+    it('reports the media server the deps name as primary', async () => {
+        const evidence = await collectEvidence(
+            { ...setup(async () => [], 'jellyfin'), primaryMediaServer: 'jellyfin' },
+            { query: 'some film' }
+        );
+
+        expect(evidence.mediaServer).toBe('jellyfin');
+        const other = await collectEvidence(
+            { ...setup(async () => [], 'plex'), primaryMediaServer: 'plex' },
+            { query: 'some film' }
+        );
+        expect(other.mediaServer).toBe('plex');
+    });
+
+    it('does not claim the primary has an item that only the secondary was named for', async () => {
+        const { adapters, library } = setup(async () => [], 'plex');
+        const jellyfin = adapters.find(a => a.id === 'jellyfin') as unknown as Record<string, unknown>;
+        jellyfin.getMediaDetails = async () => ({
+            service: 'jellyfin',
+            kind: 'item',
+            id: 'jf1',
+            title: 'Only On Jellyfin',
+            ids: { tmdb: 4242 }
+        });
+        const deps = { adapters, library, primaryMediaServer: 'plex' };
+
+        const evidence = await collectEvidence(deps, { service: 'jellyfin', id: 'jf1' });
+        expect(evidence.item?.presence).toBe('unknown');
+        expect(evidence.item?.media_servers).toEqual({ jellyfin: { present: true, itemId: 'jf1' } });
+
+        const d = await buildDiagnose(deps, { service: 'jellyfin', id: 'jf1' });
+        const text = JSON.stringify(d);
+        expect(text).not.toMatch(/Present in the plex library/);
+        expect(text).toMatch(/jellyfin library/);
+    });
+
+    it('still diagnoses a primary-named id as present in the primary', async () => {
+        const { adapters, library } = setup(async () => [], 'plex');
+        const plex = adapters.find(a => a.id === 'plex') as unknown as Record<string, unknown>;
+        plex.getMediaDetails = async () => ({
+            service: 'plex',
+            kind: 'item',
+            id: 'p1',
+            title: 'Only On Plex',
+            ids: { tmdb: 4243 }
+        });
+        const evidence = await collectEvidence({ adapters, library, primaryMediaServer: 'plex' }, { service: 'plex', id: 'p1' });
+        expect(evidence.item?.presence).toBe('jellyfin_only');
+        expect(evidence.item?.media_servers).toBeUndefined();
+    });
+
+    it('does not let a down secondary lower certainty or mark a stage unknown', async () => {
+        const down = async (): Promise<IndexInput[]> => {
+            throw new ServiceError('Unreachable', 'plex', 'connection refused');
+        };
+        const healthyRun = await buildDiagnose(
+            { ...setup(async () => [FILM_WITH_FILE], 'jellyfin'), primaryMediaServer: 'jellyfin' },
+            { query: 'some film' }
+        );
+        const downRun = await buildDiagnose(
+            { ...setup(down, 'jellyfin'), primaryMediaServer: 'jellyfin' },
+            { query: 'some film' }
+        );
+
+        // The summary differs only by the healthy run's "Also in the plex library."
+        expect(downRun.verdict).toMatchObject({ stage: healthyRun.verdict.stage, certain: healthyRun.verdict.certain });
+        expect(downRun.verdict.certain).toBe(true);
+        expect(downRun.steps.map(s => [s.stage, s.status])).toEqual(healthyRun.steps.map(s => [s.stage, s.status]));
+        expect(downRun.steps.find(s => s.stage === 'library')?.detail).not.toMatch(/plex/);
+        expect(downRun.degraded).not.toContain('plex');
+    });
+});
+
 describe('a definitive answer is not an outage', () => {
     /**
      * `probe` catches everything, so the NotFound a nonexistent id produces

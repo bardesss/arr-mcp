@@ -55,8 +55,7 @@ export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].s
 /** Which extra fields each service actually has, so a card matches the schema
  *  rather than showing eight identical boxes. */
 const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'plex', 'seerr']);
-/** arr-mcp joins against exactly one media server — see the schema refinement
- *  in `schema.ts` that this UI rule mirrors. */
+/** The media servers; when both are configured, one is primary. */
 const MEDIA_SERVERS: readonly ServiceId[] = ['jellyfin', 'plex'];
 const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent'];
 const NO_API_KEY: ReadonlySet<string> = new Set(NO_API_KEY_IDS);
@@ -468,18 +467,12 @@ function addDialog(
     const instances = listInstances(config);
     const configured = new Set(instances.map(i => i.type));
 
-    // The schema already refuses jellyfin and plex together — arr-mcp joins
-    // against exactly one media server — so offering the rival here would
-    // only lead to a save that fails.
-    const mediaServer = MEDIA_SERVERS.find(id => configured.has(id));
-    const rivalMediaServer = mediaServer === undefined ? undefined : MEDIA_SERVERS.find(id => id !== mediaServer);
-
     /** A service that cannot have a second instance and already has one is not
      *  a choice — offering it only to answer "already configured" wastes the
      *  click. The multi-instance types are always here, so this list is
      *  never empty. */
     const offerable = SERVICE_IDS_ALPHABETICAL.filter(
-        id => id !== rivalMediaServer && (MULTI_INSTANCE.includes(id) || !configured.has(id))
+        id => MULTI_INSTANCE.includes(id) || !configured.has(id)
     );
 
     const keyed = offerable.filter(id => !NO_API_KEY.has(id));
@@ -502,20 +495,13 @@ function addDialog(
                     ? raw('')
                     : html`<p class="note">
                           ${(() => {
-                              const alreadyConfigured = SERVICE_IDS_ALPHABETICAL.filter(
-                                  id => !offerable.includes(id) && id !== rivalMediaServer
-                              );
+                              const alreadyConfigured = SERVICE_IDS_ALPHABETICAL.filter(id => !offerable.includes(id));
                               return alreadyConfigured.length === 0
                                   ? raw('')
                                   : html`Already configured, and limited to one instance:
                                         <span class="mono">${alreadyConfigured.join(', ')}</span>. Edit those on the
                                         card above. `;
                           })()}
-                          ${rivalMediaServer === undefined
-                              ? raw('')
-                              : html`<span class="mono">${rivalMediaServer}</span> is hidden because
-                                    <span class="mono">${mediaServer}</span> is already your media server —
-                                    arr-mcp joins against exactly one.`}
                       </p>`}
             </div>
 
@@ -707,6 +693,7 @@ export function configPage(opts: {
     oauth?: OAuthCardState | undefined;
 }): string {
     const instances = listInstances(opts.config);
+    const bothMediaServers = MEDIA_SERVERS.every(id => instances.some(i => i.type === id));
     // The etag is what lets a save tell that the config moved since this page was built.
     const keys = html`<input type="hidden" name="csrf" value="${opts.csrf}">
         <input type="hidden" name="etag" value="${configEtag(opts.config)}">`;
@@ -780,6 +767,21 @@ export function configPage(opts: {
             </p>
             <button type="submit">Save</button>
         </form>
+
+        ${bothMediaServers
+            ? html`<form method="post" action="/ui/config/media-servers" class="panel" ${IGNORE_FORM}>
+                  ${keys}
+                  <h3 style="margin:0 0 .75rem">Media servers</h3>
+                  <div class="field">
+                      <label for="primary_media_server">Primary</label>
+                      <select id="primary_media_server" name="primary_media_server">
+                          ${MEDIA_SERVERS.map(id => html`<option value="${id}" ${opts.config.primary_media_server === id ? raw('selected') : raw('')}>${id}</option>`)}
+                      </select>
+                  </div>
+                  <p class="note">The one every tool reads by default. The other still answers when a tool is given its name.</p>
+                  <button type="submit">Save</button>
+              </form>`
+            : raw('')}
 
         <form method="post" action="/ui/config/imdb" class="panel" ${IGNORE_FORM}>
             ${keys}

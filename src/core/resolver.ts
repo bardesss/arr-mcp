@@ -131,9 +131,18 @@ export type MergedItem = {
      * Plex is a second one, the literal stays `jellyfin_only` regardless —
      * it is a frozen output contract, and a rename would break every saved
      * prompt that matches on it.
+     *
+     * With two media servers it is measured against the primary.
      */
     presence: 'both' | 'arr_only' | 'jellyfin_only' | 'unknown';
+    /**
+     * Which media server has this item, keyed by server id. Only set when two
+     * are configured; a server that was not read is absent, never `present: false`.
+     */
+    media_servers?: Partial<Record<string, MediaServerPresence>>;
 };
+
+export type MediaServerPresence = { present: boolean; itemId?: string };
 
 export type IndexInput = Omit<MergedItem, 'presence'>;
 

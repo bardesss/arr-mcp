@@ -43,9 +43,9 @@ export type PermissionSource = {
      * permits and never widening it. Absent means no ceiling, which now only
      * applies to sources built outside `/mcp` (tests, scripts).
      */
-    permits?(tier: WriteTier): boolean;
-    /** Why the credential's ceiling refuses a tier, in its own terms. */
-    refusal?(tier: WriteTier): { reason: string; remedy: string };
+    permits?(tier: WriteTier, instance: string): boolean;
+    /** Why the ceiling refuses a tier, in its own terms. */
+    refusal?(tier: WriteTier, instance: string): { reason: string; remedy: string } | undefined;
 };
 
 /**
@@ -92,8 +92,8 @@ export function checkPermission(source: PermissionSource, service: string, tier:
     // The ceiling first, and with its own message: "set safe_write: true"
     // would be actively misleading when the file already says so and it is
     // the token that falls short.
-    if (source.permits?.(tier) === false) {
-        const said = source.refusal?.(tier) ?? { reason: `this credential does not allow ${tier} writes`, remedy: 'Use a credential with a higher tier.' };
+    if (source.permits?.(tier, service) === false) {
+        const said = source.refusal?.(tier, service) ?? { reason: `this credential does not allow ${tier} writes`, remedy: 'Use a credential with a higher tier.' };
         return { allowed: false, tier, ...said };
     }
 

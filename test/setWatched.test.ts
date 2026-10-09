@@ -6,7 +6,9 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { ServiceError } from '../src/core/errors.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
+import type { ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerSetWatched } from '../src/tools/setWatched.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -232,5 +234,56 @@ describe('set_watched', () => {
         const denied = harness({ config: jellyfinConfig({ permissions: { safe_write: false, destructive: false } }) });
         await expect(denied.call({ item_id: MOVIE, watched: true })).rejects.toThrow();
         expect(denied.audit.recent(10)).toHaveLength(1);
+    });
+});
+
+describe('set_watched beside Plex', () => {
+    const plex = { id: 'plex', type: 'plex' } as unknown as ServiceAdapter;
+    const context = (permissions = permissionSourceFrom([])) => ({
+        permissions,
+        confirm: new ConfirmTokens(),
+        audit: WriteAudit.ephemeral(),
+        library: { invalidate: vi.fn() } as unknown as LibraryLoader
+    });
+
+    it('tells a Plex-only stack to add Jellyfin alongside, not to replace Plex', async () => {
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        const server = {
+            registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
+                call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        registerSetWatched(server as never, context(), [plex], undefined);
+
+        const err = await call({ item_id: MOVIE, watched: true }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).remedy).toMatch(/alongside/);
+        expect((err as ServiceError).remedy).not.toMatch(/Replace/);
+    });
+
+    it('previews on the Jellyfin adapter when Plex is listed first', async () => {
+        const config = jellyfinConfig();
+        const jellyfin = new JellyfinAdapter(config, (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/Users') return jsonResponse(USERS);
+            if (url.pathname === `/Items/${MOVIE}`) return jsonResponse({ Id: MOVIE, Name: 'Alien', Type: 'Movie', UserData: { Played: false } });
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch);
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        const server = {
+            registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
+                call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        registerSetWatched(
+            server as never,
+            context(permissionSourceFrom(instancesOf({ jellyfin: config as unknown as AnyServiceConfig }))),
+            [plex, jellyfin],
+            new IdentityResolver(jellyfin, config)
+        );
+
+        const { structuredContent } = await call({ item_id: MOVIE, watched: true });
+        expect(structuredContent.target).toBe(`jellyfin:${MOVIE}`);
+        expect(structuredContent.confirm_token).toBeDefined();
     });
 });

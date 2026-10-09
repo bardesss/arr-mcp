@@ -645,6 +645,31 @@ describe('buildChain — a media server that is not Jellyfin', () => {
         expect(stepFor(d, 'scan')?.status).toBe('skipped');
     });
 
+    it('notes the other media server in the library step', () => {
+        const merged = item({ media_servers: { jellyfin: { present: true, itemId: 'j' }, plex: { present: false } } });
+        const step = stepFor(buildChain('some film', healthy({ item: merged })), 'library');
+
+        expect(step?.status).toBe('ok');
+        expect(step?.detail).toBe('Present in the jellyfin library. Not in the plex library.');
+    });
+
+    it('notes a file the primary cannot see that the other server has', () => {
+        const merged = item({
+            presence: 'arr_only',
+            media_servers: { jellyfin: { present: false }, plex: { present: true, itemId: 'p' } }
+        });
+        const step = stepFor(buildChain('some film', healthy({ item: merged })), 'library');
+
+        expect(step?.status).toBe('blocked');
+        expect(step?.detail).toMatch(/cannot see.*Also in the plex library\./);
+    });
+
+    it('says nothing extra on one media server', () => {
+        const step = stepFor(buildChain('some film', healthy()), 'library');
+
+        expect(step?.detail).toBe('Present in the jellyfin library.');
+    });
+
     it('says no media server is configured rather than naming one', () => {
         const ev = healthy({ mediaServer: undefined, scanCapable: false, scan: undefined });
 

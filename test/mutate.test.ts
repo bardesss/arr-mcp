@@ -3,6 +3,7 @@ import { listInstances } from '../src/config/instances.ts';
 import { ConfigEditError, addInstance, addToken, removeInstance, revokeToken, updateInstance } from '../src/config/mutate.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
+import { buildMediaServerConfig } from '../src/web/routes.ts';
 
 /**
  * The config algebra behind the Configuration page, tested without a browser.
@@ -277,5 +278,35 @@ describe('tokens', () => {
     it('revokes regardless of case, as names are unique regardless of case', () => {
         const once = addToken(base, { name: 'phone', tier: 'read', expiry: '90' }, NOW).config;
         expect(revokeToken(once, 'PHONE').auth.tokens).toEqual([]);
+    });
+});
+
+describe('media servers', () => {
+    const JF = { url: 'http://192.0.2.10:8096', api_key: 'k' };
+    const PX = { url: 'http://192.0.2.10:32400', api_key: 'k' };
+    const RA = { url: 'http://192.0.2.10:7878', api_key: 'k' };
+
+    it('adding the second media server keeps the first as primary', () => {
+        const next = addInstance(base({ jellyfin: JF }), { type: 'plex', fields: PX });
+        expect(next.primary_media_server).toBe('jellyfin');
+    });
+
+    it('removing one of two drops the primary setting', () => {
+        const both = ConfigSchema.parse({ auth: AUTH, services: { jellyfin: JF, plex: PX }, primary_media_server: 'plex' });
+        const next = removeInstance(both, 'plex');
+        expect(next.primary_media_server).toBeUndefined();
+        expect(ids(next)).toEqual(['jellyfin']);
+    });
+
+    it('an unrelated edit leaves a hand-set primary alone', () => {
+        const both = ConfigSchema.parse({ auth: AUTH, services: { jellyfin: JF, plex: PX, radarr: RA }, primary_media_server: 'plex' });
+        expect(removeInstance(both, 'radarr').primary_media_server).toBe('plex');
+        expect(addInstance(both, { type: 'sonarr', fields: RA }).primary_media_server).toBe('plex');
+    });
+
+    it('buildMediaServerConfig sets the primary and refuses a bad value', () => {
+        const both = ConfigSchema.parse({ auth: AUTH, services: { jellyfin: JF, plex: PX }, primary_media_server: 'jellyfin' });
+        expect(buildMediaServerConfig(both, { primary_media_server: 'plex' }).primary_media_server).toBe('plex');
+        expect(() => buildMediaServerConfig(both, { primary_media_server: 'nope' })).toThrow(ConfigEditError);
     });
 });

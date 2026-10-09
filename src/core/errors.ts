@@ -44,12 +44,15 @@ export class ServiceError extends Error {
     readonly service: string;
     readonly detail: string;
     readonly remedy: string | undefined;
+    /** Set by IdentityResolver when no configured or named user exists, so
+     *  that refusal is not mistaken for an HTTP 404 from the user listing. */
+    readonly reason: 'unknown_user' | undefined;
 
     constructor(
         kind: ServiceErrorKind,
         service: string,
         detail: string,
-        opts?: { remedy?: string; cause?: unknown }
+        opts?: { remedy?: string; cause?: unknown; reason?: 'unknown_user' }
     ) {
         super(
             formatServiceError(kind, service, detail, opts?.remedy),
@@ -60,6 +63,7 @@ export class ServiceError extends Error {
         this.service = service;
         this.detail = detail;
         this.remedy = opts?.remedy;
+        this.reason = opts?.reason;
     }
 
     /**

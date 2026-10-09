@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import { hasWatchState, type ServiceAdapter, type WatchStateCapable, type WatchTarget } from '../services/types.ts';
+import { withBoth } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -14,18 +15,12 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  */
 
 /**
- * `set_watched` is Jellyfin-only by design — Plex watch state stays read-only in
- * arr-mcp — so the refusal itself is correct even for a Plex-only stack.
- * Only the remedy needs to stop assuming the reader has no media server at
- * all: a Plex user is told this is a Jellyfin-specific write, not "go add
- * a media server". And since jellyfin and plex cannot both be configured
- * (schema.ts refuses it), the remedy for a Plex user cannot be "add
- * services.jellyfin" — that config would fail to start. It has to be
- * "replace".
+ * Jellyfin-only by design: Plex watch state stays read-only in arr-mcp.
+ * A Plex user is told to add Jellyfin alongside, not to replace Plex.
  */
 const watchedRemedy = (adapters: readonly ServiceAdapter[]): string =>
     adapters.some(a => a.type === 'plex')
-        ? 'set_watched needs Jellyfin — arr-mcp cannot write Plex watch state, and jellyfin/plex cannot both be configured. Replace the services.plex block with services.jellyfin and restart.'
+        ? 'set_watched needs Jellyfin — arr-mcp cannot write Plex watch state. Add a services.jellyfin block alongside Plex, set primary_media_server, and restart.'
         : 'Watch state lives in Jellyfin. Add a services.jellyfin block to config.yaml and restart.';
 
 const jellyfinAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & WatchStateCapable => {
@@ -73,18 +68,25 @@ export function registerSetWatched(
     server: McpServer,
     context: WriteContext,
     adapters: readonly ServiceAdapter[],
-    identity: IdentityResolver | undefined
+    identity: IdentityResolver | undefined,
+    mediaServerIds?: [string, string]
 ): void {
     registerWriteTool(server, context, {
         name: 'set_watched',
         title: 'Mark watched or unwatched',
         description:
-            'Marks a film, series, season or episode watched or unwatched in Jellyfin. `item_id` is a **Jellyfin** item id — take it from `playback.itemId` on a get_library or get_media_details record, from the `itemId` get_playback reports, or from a jellyfin hit in search_media. Radarr and Sonarr ids will not work here and are refused rather than guessed at. Pass a series id with `season` to mark one season; the preview says how many episodes that is. Safe tier, with one caveat: unmarking and re-marking restores the flag but not the original play date or resume position. `user` names whose watch state changes, and naming anyone but the configured default user needs services.jellyfin.allow_other_users. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Marks a film, series, season or episode watched or unwatched in Jellyfin. `item_id` is a **Jellyfin** item id — take it from `playback.itemId` on a get_library or get_media_details record, from the `itemId` get_playback reports, or from a jellyfin hit in search_media.' +
+            withBoth(mediaServerIds, 'When Plex is the primary media server, take it from `media_servers.jellyfin.itemId` instead: `playback.itemId` is then a Plex id.') +
+            ' Radarr and Sonarr ids will not work here and are refused rather than guessed at. Pass a series id with `season` to mark one season; the preview says how many episodes that is. Safe tier, with one caveat: unmarking and re-marking restores the flag but not the original play date or resume position. `user` names whose watch state changes, and naming anyone but the configured default user needs services.jellyfin.allow_other_users. Previews by default — call again with the returned `confirm` token to apply it.',
         inputSchema: z.object({
             item_id: z
                 .string()
                 .min(1)
-                .describe('The Jellyfin item id — 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports. Not a Radarr or Sonarr id.'),
+                .describe(
+                    'The Jellyfin item id — 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.' +
+                        withBoth(mediaServerIds, 'Or `media_servers.jellyfin.itemId` when Plex is the primary media server.') +
+                        ' Not a Radarr or Sonarr id.'
+                ),
             season: z
                 .number()
                 .int()

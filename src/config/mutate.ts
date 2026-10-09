@@ -2,6 +2,7 @@ import { expiresIn, generateMcpToken, hashToken, type ExpiryChoice, type TokenTi
 import { instanceId } from './instances.ts';
 import {
     ConfigSchema,
+    MediaServerIdSchema,
     MULTI_INSTANCE,
     type AnyServiceConfig,
     type Config,
@@ -96,6 +97,19 @@ const validate = (config: Config, services: Record<string, unknown>): Config => 
         throw new ConfigEditError(result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; '));
     }
     return result.data;
+};
+
+const MEDIA_SERVER_IDS = MediaServerIdSchema.options;
+const isMediaServer = (type: ServiceId): boolean => (MEDIA_SERVER_IDS as readonly string[]).includes(type);
+
+/** Keeps primary_media_server valid across an add or remove: the first server stays primary, and one server needs no setting. */
+const withPrimary = (config: Config, services: Record<string, unknown>): Config => {
+    const configured = MEDIA_SERVER_IDS.filter(id => services[id] !== undefined);
+    const { primary_media_server: current, ...rest } = config;
+    if (configured.length < 2) return rest;
+    if (current !== undefined && configured.includes(current)) return config;
+    const existing = MEDIA_SERVER_IDS.find(id => (config.services as Record<string, unknown>)[id] !== undefined);
+    return { ...rest, primary_media_server: existing ?? configured[0] };
 };
 
 export const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
@@ -209,7 +223,7 @@ export function addInstance(
     entries.push(opts.name === undefined ? created : { ...created, name: opts.name });
 
     writeBack(services, opts.type, entries);
-    return validate(config, services);
+    return validate(isMediaServer(opts.type) ? withPrimary(config, services) : config, services);
 }
 
 /** What an add would produce and the id it would take; Add and Test share it. */
@@ -235,7 +249,7 @@ export function removeInstance(config: Config, id: string): Config {
 
     entries.splice(index, 1);
     writeBack(services, type, entries);
-    return validate(config, services);
+    return validate(isMediaServer(type) ? withPrimary(config, services) : config, services);
 }
 
 function locate(
