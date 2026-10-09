@@ -289,26 +289,6 @@ const ServicesSchema = z
     })
     .superRefine((services, ctx) => {
         /**
-         * `get_library`'s `presence` asks whether *the other side* can see a file.
-         * With two media servers that question has no single answer, so one is an
-         * invariant rather than a preference. Refused here rather than degraded at
-         * runtime, the same call `MULTI_INSTANCE` makes: admitting a shape the code
-         * then degrades on is worse than refusing it.
-         *
-         * This is a different rule from the single-instance ones, which catch two of
-         * the *same* service. `jellyfin` and `plex` are distinct, individually valid
-         * keys and nothing else would object to both.
-         */
-        if (services.jellyfin !== undefined && services.plex !== undefined) {
-            ctx.addIssue({
-                code: 'custom',
-                message:
-                    'jellyfin and plex cannot both be configured: arr-mcp joins Radarr and Sonarr against exactly one media server. Remove whichever you are not using.',
-                path: ['plex']
-            });
-        }
-
-        /**
          * Jellyfin and Seerr issue one admin-scoped key that can answer for
          * anybody, which is what `allow_other_users` governs. A Plex
          * `X-Plex-Token` is scoped to a single account — `PlexAdapter` never
@@ -512,7 +492,12 @@ export const AuthSchema = z.strictObject({
     management_key: ManagementKeySchema.optional()
 });
 
-export const ConfigSchema = z.object({
+export const MediaServerIdSchema = z.enum(['jellyfin', 'plex']);
+export type MediaServerId = z.infer<typeof MediaServerIdSchema>;
+
+/** The object without its cross-field rules. `save.ts` walks its keys, and
+ *  `ConfigSchema` is no longer an object once refined. */
+export const ConfigObjectSchema = z.object({
     // Parsing normalises tokens, so two parses of one file always agree.
     auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
         message: 'must be false while auth.oauth is configured. A JWT in the URL reaches every proxy log',
@@ -542,10 +527,37 @@ export const ConfigSchema = z.object({
             ]
         })),
     services: ServicesSchema,
+    /** Which media server the tools default to. Required when both are configured. */
+    primary_media_server: MediaServerIdSchema.optional(),
     /** Absent means off, exactly like a service nobody configured. */
     metadata: MetadataSchema.optional(),
     /** Absent means `system`, so a config nobody touched stays as clean as it
      *  started — the same reasoning as `metadata`. */
     ui: UiSchema.optional()
+});
+
+/**
+ * `jellyfin` and `plex` are distinct, individually valid keys, so the two
+ * together are admitted, and this rule says which one the tools default to.
+ * Refused rather than guessed: a silent default would send a Plex question to
+ * Jellyfin, or the reverse.
+ */
+export const ConfigSchema = ConfigObjectSchema.superRefine((config, ctx) => {
+    const configured = MediaServerIdSchema.options.filter(id => config.services[id] !== undefined);
+    const primary = config.primary_media_server;
+    if (configured.length === 2 && primary === undefined) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['primary_media_server'],
+            message: 'set to jellyfin or plex: both are configured, so arr-mcp needs to know which one the tools default to'
+        });
+    }
+    if (primary !== undefined && !configured.includes(primary)) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['primary_media_server'],
+            message: `is ${primary}, but services.${primary} is not configured`
+        });
+    }
 });
 export type Config = z.infer<typeof ConfigSchema>;
