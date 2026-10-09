@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.44.0](https://github.com/bardesss/arr-mcp/compare/v1.43.0...v1.44.0) (2026-10-09)
+
+
+### Features
+
+* management API reads and sets the primary media server ([#364](https://github.com/bardesss/arr-mcp/issues/364)) ([c1937c4](https://github.com/bardesss/arr-mcp/commit/c1937c4b8caf66bb89226b67a68a35bc694820ba))
+
 ## [1.43.0](https://github.com/bardesss/arr-mcp/compare/v1.42.0...v1.43.0) (2026-10-09)
 
 
