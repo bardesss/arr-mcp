@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.43.0](https://github.com/bardesss/arr-mcp/compare/v1.42.0...v1.43.0) (2026-10-09)
+
+
+### Features
+
+* allow Plex and Jellyfin together ([#362](https://github.com/bardesss/arr-mcp/issues/362)) ([8fc815e](https://github.com/bardesss/arr-mcp/commit/8fc815e0bc67e16d5891e523c0ec07086bfa55e7))
+
 ## [1.42.0](https://github.com/bardesss/arr-mcp/compare/v1.41.1...v1.42.0) (2026-10-08)
 
 
