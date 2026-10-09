@@ -1,3 +1,4 @@
+import * as z from 'zod/v4';
 import type { Config, MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { IdentityResolver } from '../core/identity.ts';
@@ -81,3 +82,15 @@ export function bothIds(servers: MediaServers): [string, string] | undefined {
         ? [servers.primary.adapter.id, servers.secondary.adapter.id]
         : undefined;
 }
+
+/**
+ * The `service` input, present only when there is a second server to choose.
+ * Typed as always present so handlers read `service` as `string | undefined`;
+ * at runtime it is simply absent on a single-server stack.
+ */
+export const serviceInput = (ids: [string, string] | undefined): { service: z.ZodOptional<z.ZodString> } =>
+    (ids === undefined
+        ? {}
+        : { service: z.enum(ids).optional().describe(`Which media server to ask. Defaults to the primary, ${ids[0]}.`) }) as {
+        service: z.ZodOptional<z.ZodString>;
+    };

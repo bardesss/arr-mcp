@@ -174,10 +174,10 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetReleases(server, adapters);
     registerGetBlocklist(server, adapters);
     registerGetCalendar(server, adapters);
-    registerGetPlayback(server, context.mediaServers.primary?.adapter, mediaServerIdentity);
+    registerGetPlayback(server, context.mediaServers);
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset);
-    registerGetMetadataIssues(server, adapters, mediaServerIdentity, write.permissions);
+    registerGetMetadataIssues(server, context.mediaServers, write.permissions);
     registerGetLibrary(server, library, bothIds(context.mediaServers));
     registerGetProfileIssues(server, adapters, instances);
     registerSearchMedia(server, adapters, dataset);
