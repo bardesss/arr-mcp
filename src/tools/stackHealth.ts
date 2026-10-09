@@ -430,10 +430,11 @@ export function registerStackHealth(
             const result = await buildStackHealth(adapters, { detail, limit }, instances, primaryMediaServer);
             const neverScanned = result.scans.filter(s => s.lastCompleted === undefined).length;
             const summary =
-                result.degraded.length === 0
+                (result.degraded.length === 0
                     ? `All ${result.services.length} configured service(s) healthy.` +
                       (neverScanned > 0 ? ` ${neverScanned} report no completed library scan.` : '')
-                    : `${result.degraded.length} of ${result.services.length} service(s) degraded: ${result.degraded.join(', ')}.`;
+                    : `${result.degraded.length} of ${result.services.length} service(s) degraded: ${result.degraded.join(', ')}.`) +
+                (primaryMediaServer === undefined ? '' : ` ${primaryMediaServer} is the primary media server.`);
 
             return {
                 content: [{ type: 'text', text: summary }],

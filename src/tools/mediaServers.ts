@@ -84,6 +84,9 @@ export function bothIds(servers: MediaServers): [string, string] | undefined {
         : undefined;
 }
 
+/** A sentence that only applies with two media servers, so a single-server description stays as it was. */
+export const withBoth = (ids: [string, string] | undefined, sentence: string): string => (ids === undefined ? '' : ` ${sentence}`);
+
 /** The item's id on `serverId`: from media_servers when two are configured, else playback. */
 export const itemIdOn = (item: MergedItem, serverId: string): string | undefined =>
     item.media_servers !== undefined ? item.media_servers[serverId]?.itemId : item.playback?.itemId;

@@ -515,6 +515,26 @@ describe('a secondary media server', () => {
         });
     });
 
+    it('treats a secondary default_user that matches nobody as config, not an outage', async () => {
+        const listUserLibrary = vi.fn(async () => []);
+        const snapshot = await new LibraryLoader(
+            [radarr(), jellyfin({ Someone: [onJellyfin(550, 'j550')] }), stub('plex', { listUserLibrary })],
+            identity(someone),
+            new TtlCache(),
+            undefined,
+            {
+                primaryId: 'jellyfin',
+                secondary: { id: 'plex', identity: identity(new ServiceError('NotFound', 'plex', 'no user Nobody'), true) }
+            }
+        ).load();
+
+        expect(listUserLibrary).not.toHaveBeenCalled();
+        expect(snapshot.degraded).not.toContain('plex');
+        expect(snapshot.note).toMatch(/services\.plex\.default_user/);
+        expect(snapshot.note).toMatch(/does not match any user/);
+        expect(snapshot.index.find({ tmdb: 550 })?.media_servers).toEqual({ jellyfin: { present: true, itemId: 'j550' } });
+    });
+
     it('omits the primary when it failed, and still reports the secondary', async () => {
         const failing = stub('jellyfin', {
             listUserLibrary: async () => {

@@ -177,7 +177,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, context.mediaServers);
     registerGetRequests(server, seerr, seerrIdentity);
-    registerGetMediaDetails(server, adapters, library, dataset);
+    registerGetMediaDetails(server, adapters, library, dataset, bothIds(context.mediaServers));
     registerGetMetadataIssues(server, context.mediaServers, write.permissions);
     registerGetLibrary(server, library, bothIds(context.mediaServers));
     registerGetProfileIssues(server, adapters, instances);
@@ -210,7 +210,8 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         server,
         write,
         adapters,
-        [context.mediaServers.primary, context.mediaServers.secondary].find(c => c?.adapter.type === 'jellyfin')?.identity
+        [context.mediaServers.primary, context.mediaServers.secondary].find(c => c?.adapter.type === 'jellyfin')?.identity,
+        bothIds(context.mediaServers)
     );
     registerFixMetadata(server, write, context.mediaServers, library);
     registerRemoveBlocklistItem(server, write, adapters);

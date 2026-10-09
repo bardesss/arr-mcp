@@ -4,8 +4,10 @@ import type * as z from 'zod/v4';
 import type { AnyServiceConfig, MultiUserServiceConfig, PlexServiceConfig } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
+import { ServiceError } from '../src/core/errors.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
-import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { permissionSourceFrom, type WriteTier } from '../src/core/permissions.ts';
+import { cappedTo } from '../src/mcp/scopes.ts';
 import type { MergedItem } from '../src/core/resolver.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
@@ -942,15 +944,35 @@ describe('fix_metadata with two media servers', () => {
             readEpisodeMetadata: ReturnType<typeof vi.fn>;
             repairMetadata: ReturnType<typeof vi.fn>;
         };
-    const identity = { resolve: async () => ({ id: 'u', name: 'Sam' }) } as unknown as IdentityResolver;
+    const viewers = { plex: { id: 'u-plex', name: 'PlexOwner' }, jellyfin: { id: 'u-jf', name: 'Sam' } };
+    const identityOf = (id: 'plex' | 'jellyfin') => {
+        const resolve = vi.fn(async () => viewers[id]);
+        return { identity: { resolve } as unknown as IdentityResolver, resolve };
+    };
     const dualItem = seriesItem({
         playback: { user: 'Sam', itemId: 'p9' },
         media_servers: { plex: { present: true, itemId: 'p9' }, jellyfin: { present: true, itemId: 'j9' } }
     });
 
-    function dual(opts: { plexRepair?: boolean; primary?: 'plex' | 'jellyfin' } = {}) {
+    function dual(
+        opts: {
+            plexRepair?: boolean;
+            primary?: 'plex' | 'jellyfin';
+            ceiling?: ReadonlySet<WriteTier>;
+            snapshot?: { item: MergedItem; degraded: string[] };
+        } = {}
+    ) {
         const plex = fake('plex');
         const jellyfin = fake('jellyfin');
+        const plexId = identityOf('plex');
+        const jellyfinId = identityOf('jellyfin');
+        const item = opts.snapshot?.item ?? dualItem;
+        const configured = permissionSourceFrom(
+            instancesOf({
+                jellyfin: jellyfinConfig() as unknown as AnyServiceConfig,
+                plex: plexConfig({ allow: opts.plexRepair ?? true }) as unknown as AnyServiceConfig
+            })
+        );
         let call: Call = () => Promise.reject(new Error('not registered'));
         const server = {
             registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
@@ -958,29 +980,29 @@ describe('fix_metadata with two media servers', () => {
             }
         };
         const loader = {
-            load: async () => ({ index: { search: () => [dualItem], all: () => [dualItem] }, degraded: [] }),
+            load: async () => ({ index: { search: () => [item], all: () => [item] }, degraded: opts.snapshot?.degraded ?? [] }),
             invalidate: vi.fn()
         } as unknown as LibraryLoader;
+        const plexChoice = { adapter: plex, identity: plexId.identity };
+        const jellyfinChoice = { adapter: jellyfin, identity: jellyfinId.identity };
         registerFixMetadata(
             server as never,
             {
-                permissions: permissionSourceFrom(
-                    instancesOf({
-                        jellyfin: jellyfinConfig() as unknown as AnyServiceConfig,
-                        plex: plexConfig({ allow: opts.plexRepair ?? true }) as unknown as AnyServiceConfig
-                    })
-                ),
+                permissions:
+                    opts.ceiling === undefined
+                        ? configured
+                        : cappedTo(configured, opts.ceiling, () => ({ reason: 'token is capped', remedy: 'Use a token with a higher tier.' })),
                 confirm: new ConfirmTokens(),
                 audit: WriteAudit.ephemeral(),
                 library: loader
             },
             opts.primary === 'jellyfin'
-                ? { primary: { adapter: jellyfin, identity }, secondary: { adapter: plex, identity } }
-                : { primary: { adapter: plex, identity }, secondary: { adapter: jellyfin, identity } },
+                ? { primary: jellyfinChoice, secondary: plexChoice }
+                : { primary: plexChoice, secondary: jellyfinChoice },
             loader,
             instant()
         );
-        return { call: (a: Record<string, unknown>) => call(a), plex, jellyfin };
+        return { call: (a: Record<string, unknown>) => call(a), plex, jellyfin, resolves: { plex: plexId.resolve, jellyfin: jellyfinId.resolve } };
     }
 
     it('reads through the server `service` names, by its own item id', async () => {
@@ -989,8 +1011,10 @@ describe('fix_metadata with two media servers', () => {
 
         expect(structuredContent.service).toBe('jellyfin');
         expect(structuredContent.target).toBe('jellyfin:j9');
-        expect(h.jellyfin.readEpisodeMetadata).toHaveBeenCalledWith(expect.anything(), 'j9');
+        expect(h.jellyfin.readEpisodeMetadata).toHaveBeenCalledWith(viewers.jellyfin, 'j9');
         expect(h.plex.readEpisodeMetadata).not.toHaveBeenCalled();
+        expect(h.resolves.jellyfin).toHaveBeenCalled();
+        expect(h.resolves.plex).not.toHaveBeenCalled();
     });
 
     it('defaults to the primary', async () => {
@@ -998,7 +1022,39 @@ describe('fix_metadata with two media servers', () => {
         const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
 
         expect(structuredContent.target).toBe('plex:p9');
-        expect(h.plex.readEpisodeMetadata).toHaveBeenCalledWith(expect.anything(), 'p9');
+        expect(h.plex.readEpisodeMetadata).toHaveBeenCalledWith(viewers.plex, 'p9');
+        expect(h.resolves.plex).toHaveBeenCalled();
+        expect(h.resolves.jellyfin).not.toHaveBeenCalled();
+    });
+
+    it('keeps the token ceiling with the Plex gate in front of it', async () => {
+        const h = dual({ plexRepair: false, primary: 'jellyfin', ceiling: new Set<WriteTier>(['safe']) });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai', dry_run: true });
+
+        expect(structuredContent.service).toBe('jellyfin');
+        expect(structuredContent.permission).toMatchObject({ allowed: false, reason: 'token is capped' });
+    });
+
+    it('says a server that was not read could not be read, rather than send for a scan', async () => {
+        const unread = seriesItem({ playback: { user: 'Sam', itemId: 'p9' }, media_servers: { plex: { present: true, itemId: 'p9' } } });
+        const h = dual({ snapshot: { item: unread, degraded: ['jellyfin'] } });
+
+        const err = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).detail).toMatch(/could not be read/);
+        expect((err as ServiceError).remedy).toMatch(/stack_health/);
+        expect((err as ServiceError).remedy).not.toMatch(/trigger_scan/);
+    });
+
+    it('still sends a title the server read but lacks for a scan', async () => {
+        const absent = seriesItem({
+            playback: { user: 'Sam', itemId: 'p9' },
+            media_servers: { plex: { present: true, itemId: 'p9' }, jellyfin: { present: false } }
+        });
+        const h = dual({ snapshot: { item: absent, degraded: [] } });
+
+        const err = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' }).catch((e: unknown) => e);
+        expect((err as ServiceError).remedy).toMatch(/trigger_scan/);
     });
 
     it('picks the server from a prefixed id', async () => {
@@ -1046,7 +1102,11 @@ describe('fix_metadata with two media servers', () => {
         expect(onJellyfin.structuredContent.service).toBe('jellyfin');
         expect(onJellyfin.structuredContent.permission.allowed).toBe(true);
 
+        expect(h.resolves.jellyfin).toHaveBeenCalled();
+        expect(h.resolves.plex).not.toHaveBeenCalled();
+
         const byService = await h.call({ query: 'Dragon Ball Kai', service: 'plex', dry_run: true });
+        expect(h.plex.readEpisodeMetadata).toHaveBeenCalledWith(viewers.plex, 'p9');
         expect(byService.structuredContent.service).toBe('plex');
         expect(byService.structuredContent.permission).toMatchObject({ allowed: false, reason: 'Plex repair is off' });
 

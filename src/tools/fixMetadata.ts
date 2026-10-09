@@ -18,7 +18,7 @@ import {
 } from '../services/types.ts';
 import { buildResolvedMediaDetails } from './getMediaDetails.ts';
 import type { LibraryLoader } from './library.ts';
-import { bothIds, itemIdOn, pickMediaServer, serviceInput, type MediaServers } from './mediaServers.ts';
+import { bothIds, itemIdOn, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -148,6 +148,13 @@ async function resolve(loader: LibraryLoader, query: string, adapter: ServiceAda
 
     const itemId = itemIdOn(best, adapter.id);
     if (itemId === undefined) {
+        const { degraded } = await loader.load();
+        const unread = degraded.includes(adapter.id) || (best.media_servers !== undefined && best.media_servers[adapter.id] === undefined);
+        if (unread) {
+            throw new ServiceError('Unreachable', adapter.id, `${serverName(adapter)}'s library could not be read, so "${best.title}" cannot be looked up there`, {
+                remedy: `Check stack_health for ${adapter.id}, and that services.${adapter.id}.default_user is set and names a real user.`
+            });
+        }
         throw new ServiceError('NotFound', adapter.id, `"${best.title}" is not in ${serverName(adapter)}`, {
             remedy:
                 'fix_metadata repairs what the media server holds. This title is managed by an *arr but the media server has no item for it — run trigger_scan first, then try again.'
@@ -247,7 +254,11 @@ export function registerFixMetadata(
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Finds and repairs films and series whose media-server metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. Works on Jellyfin and Plex. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`, or the `id` get_metadata_issues printed for it. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a year that disagrees means the server matched a different film. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and replaces all of its metadata, including anything corrected by hand. On Jellyfin there is no undo; on Plex, Fix Match or Unmatch on the item in Plex is the way back. It has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a media server rescan. On Jellyfin **the repair is slow**: the server holds the request open while it rebuilds the item, so a long wait is not a hang — do not retry. On Plex the repair is **off by default** (`services.plex.allow_metadata_repair`), needs a library on the Plex TV Series or Plex Movie agent, and refreshes in the background, so applying waits up to 30 seconds for the result to settle. A locked field, or on Jellyfin a locked item, is never overwritten on either server, and the preview says when that is what disagrees. Previews by default — call again with the returned `confirm` token to apply it. With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.',
+            'Finds and repairs films and series whose media-server metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. Works on Jellyfin and Plex. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`, or the `id` get_metadata_issues printed for it. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a year that disagrees means the server matched a different film. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and replaces all of its metadata, including anything corrected by hand. On Jellyfin there is no undo; on Plex, Fix Match or Unmatch on the item in Plex is the way back. It has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a media server rescan. On Jellyfin **the repair is slow**: the server holds the request open while it rebuilds the item, so a long wait is not a hang — do not retry. On Plex the repair is **off by default** (`services.plex.allow_metadata_repair`), needs a library on the Plex TV Series or Plex Movie agent, and refreshes in the background, so applying waits up to 30 seconds for the result to settle. A locked field, or on Jellyfin a locked item, is never overwritten on either server, and the preview says when that is what disagrees. Previews by default — call again with the returned `confirm` token to apply it.' +
+            withBoth(
+                bothIds(servers),
+                'With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.'
+            ),
         inputSchema: z.object({
             ...serviceInput(bothIds(servers)),
             query: z
@@ -267,14 +278,8 @@ export function registerFixMetadata(
                     "Whose view of the library to read the episodes through. Defaults to the media server's default_user; on Jellyfin, naming anyone else needs services.jellyfin.allow_other_users."
                 )
         }),
-        // An unknown `service` throws from plan, before anything is checked or audited.
-        service: ({ service, id }) => {
-            try {
-                return pickMediaServer(servers, service ?? prefixed(servers, id))?.adapter.id ?? 'jellyfin';
-            } catch {
-                return 'jellyfin';
-            }
-        },
+        // `service` is enum-checked against the configured ids, so this cannot throw.
+        service: ({ service, id }) => pickMediaServer(servers, service ?? prefixed(servers, id))?.adapter.id ?? 'jellyfin',
         operation: 'fix_metadata',
         tier: 'destructive',
 

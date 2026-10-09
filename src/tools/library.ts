@@ -35,7 +35,8 @@ export type LibrarySnapshot = {
      */
     counts: Record<string, number>;
     /** Set when the media server half is missing — no server configured, or one
-     *  configured with no `default_user`. */
+     *  configured with no `default_user` — or when a secondary's `default_user`
+     *  is missing or matches nobody. */
     note?: string;
 };
 
@@ -45,7 +46,7 @@ export type LibraryMediaServers = {
     secondary?: { id: string; identity: IdentityResolver | undefined };
 };
 
-type SecondaryUser = { user: ServiceUser | undefined; unconfigured: boolean; unreachable: boolean };
+type SecondaryUser = { user: ServiceUser | undefined; unconfigured: boolean; unreachable: boolean; unmatched?: boolean };
 
 const presenceOf = (row: MergedItem | undefined): MediaServerPresence =>
     row === undefined
@@ -183,15 +184,19 @@ export class LibraryLoader {
     /**
      * The secondary is only ever read as its default user, and never fails the
      * read: a refusal (`AuthFailed`) degrades it like an outage, since the
-     * primary's half is the answer and the secondary only annotates it.
+     * primary's half is the answer and the secondary only annotates it. A
+     * missing or wrong `default_user` is config, so it goes in the note instead.
+     * Plex with none is read as the token owner, so only Jellyfin needs one.
      */
     async #secondaryUser(identity: IdentityResolver | undefined): Promise<SecondaryUser> {
         if (identity === undefined) return { user: undefined, unconfigured: true, unreachable: false };
         try {
             return { user: await identity.resolve(undefined), unconfigured: false, unreachable: false };
         } catch (err) {
-            if (err instanceof ServiceError && err.kind === 'NotFound' && !identity.hasDefaultUser) {
-                return { user: undefined, unconfigured: true, unreachable: false };
+            if (err instanceof ServiceError && err.kind === 'NotFound') {
+                return identity.hasDefaultUser
+                    ? { user: undefined, unconfigured: false, unreachable: false, unmatched: true }
+                    : { user: undefined, unconfigured: true, unreachable: false };
             }
             logger.warn(
                 { service: identity.serviceId, err },
@@ -295,9 +300,13 @@ export class LibraryLoader {
               ? NO_MEDIA_SERVER_NOTE
               : undefined;
         const secondaryNote =
-            secondary !== undefined && secondaryUser?.unconfigured === true
-                ? `${secondary.id} is configured without a default_user, so media_servers leaves it out. Set \`services.${secondary.id}.default_user\` in config.yaml.`
-                : undefined;
+            secondary === undefined
+                ? undefined
+                : secondaryUser?.unconfigured === true
+                  ? `${secondary.id} is configured without a default_user, so media_servers leaves it out. Set \`services.${secondary.id}.default_user\` in config.yaml.`
+                  : secondaryUser?.unmatched === true
+                    ? `\`services.${secondary.id}.default_user\` does not match any user on ${secondary.id}, so media_servers leaves it out. Fix it in config.yaml.`
+                    : undefined;
         const note = [primaryNote, secondaryNote].filter(n => n !== undefined).join(' ') || undefined;
 
         const index = LibraryIndex.build(rated, { playbackGathered });

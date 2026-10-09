@@ -1,10 +1,19 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it } from 'vitest';
+import { WriteAudit } from '../src/core/audit.ts';
+import { ConfirmTokens } from '../src/core/confirm.ts';
+import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
-import type { ServiceAdapter } from '../src/services/types.ts';
+import type { MediaServerAdapter, ServiceAdapter } from '../src/services/types.ts';
 import { registerDiscoverMedia } from '../src/tools/discoverMedia.ts';
+import { registerFixMetadata } from '../src/tools/fixMetadata.ts';
 import { registerGetLibrary } from '../src/tools/getLibrary.ts';
+import { registerGetMediaDetails } from '../src/tools/getMediaDetails.ts';
+import { registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
+import { registerGetPlayback } from '../src/tools/getPlayback.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
+import { bothIds, type MediaServers } from '../src/tools/mediaServers.ts';
+import { registerSetWatched } from '../src/tools/setWatched.ts';
 
 /**
  * The surface a client actually sees, driven through real registrations.
@@ -117,5 +126,46 @@ describe('get_library on one media server', () => {
 
     it('offers missing_from with both', () => {
         expect(shapeOf(['jellyfin', 'plex'])).toContain('missing_from');
+    });
+});
+
+describe('tool descriptions on one media server', () => {
+    const server = (type: 'jellyfin' | 'plex') => ({ id: type, type }) as unknown as MediaServerAdapter;
+    const single: MediaServers = { primary: { adapter: server('jellyfin'), identity: undefined } };
+    const dual: MediaServers = {
+        primary: { adapter: server('plex'), identity: undefined },
+        secondary: { adapter: server('jellyfin'), identity: undefined }
+    };
+    const loader = new LibraryLoader([radarr()], undefined);
+    const write = { permissions: permissionSourceFrom([]), confirm: new ConfirmTokens(), audit: WriteAudit.ephemeral(), library: loader };
+
+    type Registered = { description?: string; inputSchema?: { shape: Record<string, { description?: string }> }; outputSchema?: { shape: Record<string, { description?: string }> } };
+    const textOf = (servers: MediaServers): Record<string, string> => {
+        const ids = bothIds(servers);
+        const s = new McpServer({ name: 'test', version: '0' });
+        registerGetLibrary(s, loader, ids);
+        registerGetPlayback(s, servers);
+        registerGetMetadataIssues(s, servers);
+        registerFixMetadata(s, write, servers, loader);
+        registerGetMediaDetails(s, [], loader, undefined, ids);
+        registerSetWatched(s, write, [], undefined, ids);
+        const tools = (s as unknown as { _registeredTools: Record<string, Registered> })._registeredTools;
+        const names = ['get_library', 'get_playback', 'get_metadata_issues', 'fix_metadata', 'get_media_details', 'set_watched'];
+        return Object.fromEntries(
+            names.map(name => {
+                const t = tools[name]!;
+                const fields = [...Object.values(t.inputSchema?.shape ?? {}), ...Object.values(t.outputSchema?.shape ?? {})];
+                return [name, [t.description ?? '', ...fields.map(f => f.description ?? '')].join('\n')];
+            })
+        );
+    };
+    const DUAL_ONLY = /two media servers|media_servers|primary media server|`service` picks/;
+
+    it('says nothing about a second server', () => {
+        for (const [name, text] of Object.entries(textOf(single))) expect(text, name).not.toMatch(DUAL_ONLY);
+    });
+
+    it('says it with two', () => {
+        for (const [name, text] of Object.entries(textOf(dual))) expect(text, name).toMatch(DUAL_ONLY);
     });
 });
