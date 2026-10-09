@@ -948,7 +948,7 @@ describe('fix_metadata with two media servers', () => {
         media_servers: { plex: { present: true, itemId: 'p9' }, jellyfin: { present: true, itemId: 'j9' } }
     });
 
-    function dual(opts: { plexRepair?: boolean } = {}) {
+    function dual(opts: { plexRepair?: boolean; primary?: 'plex' | 'jellyfin' } = {}) {
         const plex = fake('plex');
         const jellyfin = fake('jellyfin');
         let call: Call = () => Promise.reject(new Error('not registered'));
@@ -974,7 +974,9 @@ describe('fix_metadata with two media servers', () => {
                 audit: WriteAudit.ephemeral(),
                 library: loader
             },
-            { primary: { adapter: plex, identity }, secondary: { adapter: jellyfin, identity } },
+            opts.primary === 'jellyfin'
+                ? { primary: { adapter: jellyfin, identity }, secondary: { adapter: plex, identity } }
+                : { primary: { adapter: plex, identity }, secondary: { adapter: jellyfin, identity } },
             loader,
             instant()
         );
@@ -1035,6 +1037,22 @@ describe('fix_metadata with two media servers', () => {
 
         const onJellyfin = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin', dry_run: true });
         expect(onJellyfin.structuredContent.permission.allowed).toBe(true);
+    });
+
+    it('gates a Plex secondary, not just the first media server', async () => {
+        const h = dual({ plexRepair: false, primary: 'jellyfin' });
+
+        const onJellyfin = await h.call({ query: 'Dragon Ball Kai', dry_run: true });
+        expect(onJellyfin.structuredContent.service).toBe('jellyfin');
+        expect(onJellyfin.structuredContent.permission.allowed).toBe(true);
+
+        const byService = await h.call({ query: 'Dragon Ball Kai', service: 'plex', dry_run: true });
+        expect(byService.structuredContent.service).toBe('plex');
+        expect(byService.structuredContent.permission).toMatchObject({ allowed: false, reason: 'Plex repair is off' });
+
+        const byId = await h.call({ id: 'plex:p9', dry_run: true });
+        expect(byId.structuredContent.service).toBe('plex');
+        expect(byId.structuredContent.permission).toMatchObject({ allowed: false, reason: 'Plex repair is off' });
     });
 
     it('refuses a service that is not configured', async () => {
