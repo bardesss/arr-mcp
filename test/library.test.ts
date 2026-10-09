@@ -544,6 +544,31 @@ describe('a secondary media server', () => {
         expect(snapshot.index.find({ tmdb: 550 })?.playback?.itemId).toBe('j550');
     });
 
+    for (const err of [new ServiceError('AuthFailed', 'plex', 'refused'), new Error('network down')]) {
+        it(`degrades a secondary whose identity fails with ${err.message}, without failing the read`, async () => {
+            const listUserLibrary = vi.fn(async () => [onPlex(550, 'p550')]);
+            const snapshot = await new LibraryLoader(
+                [radarr(), jellyfin({ Someone: [onJellyfin(550, 'j550')] }), stub('plex', { listUserLibrary })],
+                identity(someone),
+                new TtlCache(),
+                undefined,
+                { primaryId: 'jellyfin', secondary: { id: 'plex', identity: identity(err) } }
+            ).load();
+
+            const item = snapshot.index.find({ tmdb: 550 });
+            expect(listUserLibrary).not.toHaveBeenCalled();
+            expect(snapshot.degraded).toContain('plex');
+            expect(item?.presence).toBe('both');
+            expect(item?.playback?.itemId).toBe('j550');
+            expect(item?.media_servers).toEqual({ jellyfin: { present: true, itemId: 'j550' } });
+        });
+    }
+
+    it('counts the rows the secondary actually returned', async () => {
+        const snapshot = await loader([onPlex(551, 'p551'), onPlex(999, 'p999')]).load();
+        expect(snapshot.counts.plex).toBe(2);
+    });
+
     it('carries no media_servers on a single-server stack', async () => {
         const { index } = await new LibraryLoader(
             [radarr(), jellyfin({ Someone: [onJellyfin(550, 'j550')] })],
