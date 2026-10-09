@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.42.0](https://github.com/bardesss/arr-mcp/compare/v1.41.1...v1.42.0) (2026-10-08)
+
+
+### Features
+
+* manage_indexer adds public indexers and edits settings ([#360](https://github.com/bardesss/arr-mcp/issues/360)) ([b314568](https://github.com/bardesss/arr-mcp/commit/b314568de5d3731f9cfa67cfbbac9305c2a1c48a))
+
 ## [1.41.1](https://github.com/bardesss/arr-mcp/compare/v1.41.0...v1.41.1) (2026-10-08)
 
 
