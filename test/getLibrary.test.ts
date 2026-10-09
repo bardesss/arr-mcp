@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { LibraryIndex, type IndexInput } from '../src/core/resolver.ts';
+import { LibraryIndex, type IndexInput, type MergedItem } from '../src/core/resolver.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
@@ -834,5 +834,40 @@ describe('paging a library larger than one answer', () => {
         expect(result.items).toEqual([]);
         expect(result.total).toBe(12);
         expect(result.truncated).toBe(true);
+    });
+});
+
+describe('missing_from', () => {
+    const item = (tmdb: number, media_servers: NonNullable<MergedItem['media_servers']>): MergedItem => ({
+        kind: 'movie',
+        title: `Film ${tmdb}`,
+        ids: { tmdb },
+        presence: 'both',
+        media_servers
+    });
+    const fakeLoaderOf = (items: MergedItem[]) =>
+        ({
+            load: async () => ({ index: { all: () => items }, degraded: [], counts: {} }),
+            imdbDatasetState: 'off'
+        }) as unknown as LibraryLoader;
+
+    it('matches only items the server reported absent', async () => {
+        const result = await buildGetLibrary(
+            fakeLoaderOf([
+                item(1, { jellyfin: { present: true }, plex: { present: false } }),
+                item(2, { jellyfin: { present: true }, plex: { present: true } }),
+                item(3, { jellyfin: { present: true } })
+            ]),
+            { detail: 'minimal', limit: 50, missing_from: 'plex' }
+        );
+        expect(result.items.map(i => i.ids.tmdb)).toEqual([1]);
+    });
+
+    it('keeps media_servers at minimal detail', async () => {
+        const result = await buildGetLibrary(fakeLoaderOf([item(1, { plex: { present: false } })]), {
+            detail: 'minimal',
+            limit: 50
+        });
+        expect(result.items[0]?.media_servers).toEqual({ plex: { present: false } });
     });
 });

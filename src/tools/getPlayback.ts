@@ -4,6 +4,7 @@ import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry } from '../services/types.ts';
+import { bothIds, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 
 export type GetPlaybackResult = {
     items: PlaybackEntry[];
@@ -129,18 +130,18 @@ export function playbackLine(entry: PlaybackEntry): string {
     return `${name} — ${facts.join(', ')}`;
 }
 
-export function registerGetPlayback(
-    server: McpServer,
-    adapter: MediaServerAdapter | undefined,
-    resolver: IdentityResolver | undefined
-): void {
+export function registerGetPlayback(server: McpServer, servers: MediaServers): void {
     server.registerTool(
         'get_playback',
         {
             title: 'Playback activity',
             annotations: READ_ONLY,
             description:
-                'What a media server user is watching, has queued up next, or has already watched. Watch state exists only in your media server — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.',
+                'What a media server user is watching, has queued up next, or has already watched. Watch state exists only in your media server — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.' +
+                withBoth(
+                    bothIds(servers),
+                    'With two media servers configured, `service` picks one; it defaults to the primary. Call once per server for everything playing everywhere.'
+                ),
             outputSchema: PagedOutputSchema.extend({
                 note: z
                     .string()
@@ -154,11 +155,13 @@ export function registerGetPlayback(
                 limit: LimitSchema,
                 offset: OffsetSchema,
                 user: UserSchema,
-                scope: ScopeSchema
+                scope: ScopeSchema,
+                ...serviceInput(bothIds(servers))
             })
         },
-        async ({ detail, limit, offset, user, scope }) => {
-            const result = await buildGetPlayback(adapter, resolver, {
+        async ({ detail, limit, offset, user, scope, service }) => {
+            const chosen = pickMediaServer(servers, service);
+            const result = await buildGetPlayback(chosen?.adapter, chosen?.identity, {
                 detail,
                 limit,
                 offset,

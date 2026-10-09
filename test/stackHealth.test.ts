@@ -36,6 +36,62 @@ const broken: ConnectionDiagnosis = {
 
 const std = { detail: 'standard', limit: 50 } as const;
 
+describe('stack_health primary media server', () => {
+    it('names the primary media server at every detail level', async () => {
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, undefined, 'plex');
+            expect(result.primaryMediaServer).toBe('plex');
+        }
+    });
+
+    it('leaves the key out without one', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);
+        expect('primaryMediaServer' in result).toBe(false);
+    });
+
+    const summaryOf = async (primary?: string, adapters = [fakeArr({ diagnosis: healthy })]) => {
+        const server = new McpServer({ name: 'test', version: '0.0.0' });
+        registerStackHealth(server, adapters, undefined, primary);
+        const tool = (server as unknown as {
+            _registeredTools: Record<string, { handler: (a: Record<string, unknown>, e: object) => Promise<{ content: { text: string }[] }> }>;
+        })._registeredTools.stack_health!;
+        return (await tool.handler(std, {})).content[0]!.text;
+    };
+
+    it('names the primary in the summary', async () => {
+        expect(await summaryOf('plex')).toBe('All 1 configured service(s) healthy. plex is the primary media server.');
+        expect(await summaryOf('jellyfin', [fakeArr({ diagnosis: broken })])).toMatch(/degraded: radarr\. jellyfin is the primary media server\.$/);
+    });
+
+    it('leaves the summary alone with one media server', async () => {
+        expect(await summaryOf()).toBe('All 1 configured service(s) healthy.');
+    });
+
+    const outputKeys = (primary?: string) => {
+        const server = new McpServer({ name: 'test', version: '0.0.0' });
+        registerStackHealth(server, [], undefined, primary);
+        const tool = (server as unknown as { _registeredTools: Record<string, { outputSchema: { shape: Record<string, unknown> } }> })
+            ._registeredTools.stack_health!;
+        return Object.keys(tool.outputSchema.shape);
+    };
+
+    it('declares primaryMediaServer in the output schema only with two media servers', () => {
+        expect(outputKeys('plex')).toContain('primaryMediaServer');
+        expect(outputKeys()).toEqual([
+            'services',
+            'failures',
+            'disks',
+            'scans',
+            'commands',
+            'permissions',
+            'endpoints',
+            'options',
+            'seedingRules',
+            'degraded'
+        ]);
+    });
+});
+
 describe('stack_health', () => {
     it('reports a healthy service with its version and latency', async () => {
         const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);

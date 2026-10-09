@@ -12,6 +12,7 @@ import { SeerrAdapter } from '../services/seerr.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasMediaDetails, type EpisodeSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
 import type { LibraryLoader } from './library.ts';
+import { withBoth } from './mediaServers.ts';
 
 /**
  * Unlike the list tools, this one **throws rather than degrades**. A request
@@ -113,8 +114,10 @@ export async function buildResolvedMediaDetails(
         // source like `jellyfin:seasons` intersects its own series list with
         // this user's episodes, so it can only ever *add* `seasons` to items
         // another source already returned. It can never be why a title was not
-        // found, and saying it might be is a hedge against nothing.
-        const unreachable = servicesOnly(degraded);
+        // found, and saying it might be is a hedge against nothing. The same
+        // goes for the secondary media server, whose rows never enter the join.
+        const secondary = loader.secondaryMediaServerId;
+        const unreachable = servicesOnly(degraded).filter(id => id !== secondary);
         const hedge =
             unreachable.length === 0
                 ? ''
@@ -194,7 +197,8 @@ export function registerGetMediaDetails(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
     loader: LibraryLoader,
-    dataset?: ImdbDataset
+    dataset?: ImdbDataset,
+    mediaServerIds?: [string, string]
 ): void {
     server.registerTool(
         'get_media_details',
@@ -202,7 +206,8 @@ export function registerGetMediaDetails(
             title: 'Media details',
             annotations: READ_ONLY,
             description:
-                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full returns its episodes on **either** form: the raw view lists them from that service, and the title form fetches them from the Sonarr that manages the series — so a series no Sonarr manages carries none. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known. Both forms — by title and by `service` plus `id` — carry `seasons[].monitored`, Sonarr’s own per-season monitoring flag, absent rather than false when no Sonarr manages the series. Check it before delete_episode_files: deleting the files of a season that is still monitored makes Sonarr search for them again and re-download exactly what was removed. Anything with a file also carries `audioLanguages` — the track languages the service read off the file itself, like `jpn/eng`. That is what answers “is the English dub here”: a `MULTi` or `Dual Audio` in a release name says what the grab was labelled, not what landed on disk. It sits on each episode row for a series, which needs detail: full, and on the record itself for a film.',
+                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full returns its episodes on **either** form: the raw view lists them from that service, and the title form fetches them from the Sonarr that manages the series — so a series no Sonarr manages carries none. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known. Both forms — by title and by `service` plus `id` — carry `seasons[].monitored`, Sonarr’s own per-season monitoring flag, absent rather than false when no Sonarr manages the series. Check it before delete_episode_files: deleting the files of a season that is still monitored makes Sonarr search for them again and re-download exactly what was removed. Anything with a file also carries `audioLanguages` — the track languages the service read off the file itself, like `jpn/eng`. That is what answers “is the English dub here”: a `MULTi` or `Dual Audio` in a release name says what the grab was labelled, not what landed on disk. It sits on each episode row for a series, which needs detail: full, and on the record itself for a film.' +
+                withBoth(mediaServerIds, 'With two media servers, `media_servers` says which has it and under which `itemId`.'),
             /**
              * One item, and the only tool answering in two different shapes:
              * asked by title it returns the merged record, asked by `service`

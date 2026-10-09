@@ -1,12 +1,13 @@
+import { McpServer } from '@modelcontextprotocol/server';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EpisodeRecord, MovieRecord } from '../src/core/episodeMismatch.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { instancesOf } from './helpers/instances.ts';
-import { buildGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
+import { buildGetMetadataIssues, registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { serving } from './helpers/serve.ts';
@@ -466,5 +467,41 @@ describe('language findings', () => {
         const [issue] = (await sweep(adapterWith({ Espookys: [at(1, 'The Sea Monster', 'El monstruo marino')] }))).items;
         expect(issue).toMatchObject({ languages: 1, remedy: 'inspect' });
         expect(issue?.fix).toContain('1 have the filename and the server title in different languages');
+    });
+});
+
+describe('get_metadata_issues with two media servers', () => {
+    const tagged = (id: string, type: 'jellyfin' | 'plex') => {
+        const adapter = adapterWith({ Fine: [healthy(1)] }) as unknown as Record<string, unknown>;
+        const listUserLibrary = vi.fn(adapter.listUserLibrary as () => Promise<unknown[]>);
+        return { ...adapter, id, type, listUserLibrary } as unknown as ServiceAdapter & { listUserLibrary: typeof listUserLibrary };
+    };
+    const ident = { resolve: async () => ({ id: 'u1', name: 'Sam' }), hasDefaultUser: true } as unknown as IdentityResolver;
+    const toolsOf = (register: (s: McpServer) => void) => {
+        const server = new McpServer({ name: 'test', version: '0' });
+        register(server);
+        return (server as unknown as { _registeredTools: Record<string, { handler: (a: Record<string, unknown>, e: Record<string, unknown>) => Promise<unknown>; inputSchema: { shape: object } }> })._registeredTools;
+    };
+
+    it('sweeps the primary by default and the secondary when asked', async () => {
+        const p = tagged('plex', 'plex');
+        const j = tagged('jellyfin', 'jellyfin');
+        const tools = toolsOf(s =>
+            registerGetMetadataIssues(s, { primary: { adapter: p as never, identity: ident }, secondary: { adapter: j as never, identity: ident } })
+        );
+
+        await tools.get_metadata_issues!.handler({ detail: 'standard', limit: 50, offset: 0 }, {});
+        expect(p.listUserLibrary).toHaveBeenCalledTimes(1);
+        expect(j.listUserLibrary).not.toHaveBeenCalled();
+
+        await tools.get_metadata_issues!.handler({ detail: 'standard', limit: 50, offset: 0, service: 'jellyfin' }, {});
+        expect(j.listUserLibrary).toHaveBeenCalledTimes(1);
+    });
+
+    it('has no service argument on one media server', () => {
+        const tools = toolsOf(s =>
+            registerGetMetadataIssues(s, { primary: { adapter: tagged('jellyfin', 'jellyfin') as never, identity: ident } })
+        );
+        expect(Object.keys(tools.get_metadata_issues!.inputSchema.shape)).not.toContain('service');
     });
 });

@@ -372,14 +372,44 @@ describe('plex', () => {
         ).toThrow(/allow_metadata_repair/);
     });
 
-    it('refuses jellyfin and plex together, naming both keys', () => {
-        const run = () =>
-            ConfigSchema.parse({
-                auth: AUTH2,
-                services: { jellyfin: media('http://192.0.2.10:8096'), plex: media('http://192.0.2.10:32400') }
-            });
-        expect(run).toThrow(/jellyfin/);
-        expect(run).toThrow(/plex/);
+    describe('primary_media_server', () => {
+        const both = { jellyfin: media('http://192.0.2.10:8096'), plex: media('http://192.0.2.10:32400') };
+
+        it('accepts jellyfin and plex together with a primary', () => {
+            const c = ConfigSchema.parse({ auth: AUTH2, services: both, primary_media_server: 'plex' });
+            expect(c.primary_media_server).toBe('plex');
+        });
+
+        it('requires a primary when both are configured, naming the setting', () => {
+            const run = () => ConfigSchema.parse({ auth: AUTH2, services: both });
+            expect(run).toThrow(/primary_media_server/);
+        });
+
+        it('refuses a primary that is not configured', () => {
+            const run = () =>
+                ConfigSchema.parse({ auth: AUTH2, services: { jellyfin: media('http://192.0.2.10:8096') }, primary_media_server: 'plex' });
+            expect(run).toThrow(/primary_media_server/);
+        });
+
+        it('refuses a primary when no media server is configured', () => {
+            const run = () => ConfigSchema.parse({ auth: AUTH2, services: {}, primary_media_server: 'jellyfin' });
+            expect(run).toThrow(/primary_media_server/);
+        });
+
+        it('accepts a matching primary on a single server', () => {
+            const c = ConfigSchema.parse({ auth: AUTH2, services: { plex: media('http://192.0.2.10:32400') }, primary_media_server: 'plex' });
+            expect(c.primary_media_server).toBe('plex');
+        });
+
+        it('leaves a single-server config without the key', () => {
+            const c = ConfigSchema.parse({ auth: AUTH2, services: { jellyfin: media('http://192.0.2.10:8096') } });
+            expect('primary_media_server' in c).toBe(false);
+        });
+
+        it('refuses an unknown value', () => {
+            const run = () => ConfigSchema.parse({ auth: AUTH2, services: both, primary_media_server: 'emby' });
+            expect(run).toThrow();
+        });
     });
 
     it('refuses allow_other_users: true on plex — a token is scoped to one account', () => {
@@ -659,7 +689,12 @@ describe('the metadata block', () => {
 describe('every top-level block', () => {
     const FULL = ConfigSchema.parse({
         auth: { bearer_token: 'f'.repeat(64), password_hash: 'scrypt$00$11', allowed_hosts: ['arr.lan'] },
-        services: { radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' } },
+        services: {
+            radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' },
+            jellyfin: { url: 'http://192.0.2.10:8096', api_key: 'k' },
+            plex: { url: 'http://192.0.2.10:32400', api_key: 'k' }
+        },
+        primary_media_server: 'plex',
         metadata: { imdb: { enabled: true } },
         ui: { theme: 'dark' }
     });
@@ -684,12 +719,15 @@ describe('every top-level block', () => {
         await writeFile(join(dir, 'config.yaml'), `auth:\n  bearer_token: ${'f'.repeat(64)}\nservices: {}\n`, 'utf8');
         await saveConfig(dir, FULL);
 
-        const { metadata: _m, ui: _u, ...bare } = FULL;
+        // One media server left, so the primary goes with the second one.
+        const { metadata: _m, ui: _u, primary_media_server: _p, ...rest } = FULL;
+        const bare = { ...rest, services: { radarr: rest.services.radarr } };
         await saveConfig(dir, bare);
 
         const { config } = await loadConfig(dir);
         expect(config.metadata).toBeUndefined();
         expect(config.ui).toBeUndefined();
+        expect(config.primary_media_server).toBeUndefined();
     });
 });
 

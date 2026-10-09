@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ServiceError } from '../src/core/errors.ts';
-import { IdentityResolver } from '../src/core/identity.ts';
+import { ServiceError } from '../src/core/errors.ts';
+import { IdentityResolver, isUnknownUser } from '../src/core/identity.ts';
 import type { ServiceAdapter, ServiceUser, UserDirectoryCapable } from '../src/services/types.ts';
 
 /**
@@ -92,6 +92,17 @@ describe('IdentityResolver', () => {
         // The silent-mismatch trap §14 names: a typo should be a one-line fix,
         // not a hunt for what the service actually calls you.
         expect((await rejection(r.resolve())).remedy).toMatch(/Bartus, Guest/);
+    });
+
+    it('marks its own "no such user" apart from a 404 the user listing itself returned', async () => {
+        const { adapter } = directory();
+        expect(isUnknownUser(await rejection(new IdentityResolver(adapter, { default_user: 'Bartsu', allow_other_users: false }).resolve()))).toBe(true);
+        expect(isUnknownUser(await rejection(new IdentityResolver(adapter, { allow_other_users: false }).resolve()))).toBe(true);
+
+        const missing = { ...adapter, listUsers: async () => Promise.reject(new ServiceError('NotFound', 'jellyfin', 'HTTP 404 at /proxy/Users')) };
+        const transport = await rejection(new IdentityResolver(missing, { default_user: 'Bartus', allow_other_users: false }).resolve());
+        expect(transport.kind).toBe('NotFound');
+        expect(isUnknownUser(transport)).toBe(false);
     });
 
     it('fences the names it lists, which the users themselves may have chosen', async () => {
