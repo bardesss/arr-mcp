@@ -108,7 +108,25 @@ export function buildToolContext(
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
     const mediaServerIdentity = mediaServers.primary?.identity;
 
-    const library = new LibraryLoader(adapters, mediaServerIdentity, undefined, dataset);
+    const library = new LibraryLoader(
+        adapters,
+        mediaServerIdentity,
+        undefined,
+        dataset,
+        mediaServers.primary === undefined
+            ? undefined
+            : {
+                  primaryId: mediaServers.primary.adapter.id,
+                  ...(mediaServers.secondary === undefined
+                      ? {}
+                      : {
+                            secondary: {
+                                id: mediaServers.secondary.adapter.id,
+                                identity: mediaServers.secondary.identity
+                            }
+                        })
+              }
+    );
 
     return {
         adapters,

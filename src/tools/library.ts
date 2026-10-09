@@ -3,7 +3,7 @@ import { ServiceError } from '../core/errors.ts';
 import { gather, type Source } from '../core/gather.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
-import { LibraryIndex, type IndexInput } from '../core/resolver.ts';
+import { LibraryIndex, type IndexInput, type MediaServerPresence, type MergedItem } from '../core/resolver.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import {
@@ -39,6 +39,19 @@ export type LibrarySnapshot = {
     note?: string;
 };
 
+/** Which configured media server is the primary, and the secondary if there is one. */
+export type LibraryMediaServers = {
+    primaryId: string;
+    secondary?: { id: string; identity: IdentityResolver | undefined };
+};
+
+type SecondaryUser = { user: ServiceUser | undefined; unconfigured: boolean; unreachable: boolean };
+
+const presenceOf = (row: MergedItem | undefined): MediaServerPresence =>
+    row === undefined
+        ? { present: false }
+        : { present: true, ...(row.playback?.itemId === undefined ? {} : { itemId: row.playback.itemId }) };
+
 /**
  * One cached library index, shared by get_library, get_media_details and
  * diagnose (duplicating the join is how joins drift apart).
@@ -51,6 +64,7 @@ export class LibraryLoader {
     readonly #identity: IdentityResolver | undefined;
     readonly #cache: TtlCache;
     readonly #dataset: ImdbDataset | undefined;
+    readonly #mediaServers: LibraryMediaServers | undefined;
 
     constructor(
         adapters: readonly ServiceAdapter[],
@@ -63,12 +77,19 @@ export class LibraryLoader {
          * TTL rather than once per call. Last and optional, so existing call
          * sites keep compiling.
          */
-        dataset?: ImdbDataset
+        dataset?: ImdbDataset,
+        /** Absent means pick the first media server, as before there could be two. */
+        mediaServers?: LibraryMediaServers
     ) {
         this.#adapters = adapters;
         this.#identity = mediaServerIdentity;
         this.#cache = cache;
         this.#dataset = dataset;
+        this.#mediaServers = mediaServers;
+    }
+
+    get secondaryMediaServerId(): string | undefined {
+        return this.#mediaServers?.secondary?.id;
     }
 
     /**
@@ -159,13 +180,36 @@ export class LibraryLoader {
         }
     }
 
+    /**
+     * The secondary is only ever read as its default user, and never fails the
+     * read: a refusal (`AuthFailed`) degrades it like an outage, since the
+     * primary's half is the answer and the secondary only annotates it.
+     */
+    async #secondaryUser(identity: IdentityResolver | undefined): Promise<SecondaryUser> {
+        if (identity === undefined) return { user: undefined, unconfigured: true, unreachable: false };
+        try {
+            return { user: await identity.resolve(undefined), unconfigured: false, unreachable: false };
+        } catch (err) {
+            if (err instanceof ServiceError && err.kind === 'NotFound' && !identity.hasDefaultUser) {
+                return { user: undefined, unconfigured: true, unreachable: false };
+            }
+            logger.warn(
+                { service: identity.serviceId, err },
+                'secondary media server identity unavailable; leaving it out of media_servers'
+            );
+            return { user: undefined, unconfigured: false, unreachable: true };
+        }
+    }
+
     async #build(resolved: { user: ServiceUser | undefined; unconfigured: boolean }): Promise<LibrarySnapshot> {
         const { user } = resolved;
         const sources: Source<IndexInput>[] = this.#adapters
             .filter(hasLibrary)
             .map(a => ({ id: a.id, fetch: () => a.listLibrary() }));
 
-        const mediaServer = this.#adapters.find(hasUserLibrary);
+        const primaryId = this.#mediaServers?.primaryId;
+        const isPrimary = (a: ServiceAdapter) => primaryId === undefined || a.id === primaryId;
+        const mediaServer = this.#adapters.filter(hasUserLibrary).find(isPrimary);
         if (mediaServer !== undefined) {
             sources.push({
                 id: mediaServer.id,
@@ -181,7 +225,7 @@ export class LibraryLoader {
         // Its own source, so `gather` degrades it by name. A try/catch inside
         // the adapter could not tell the snapshot *why* seasons were missing —
         // the same ambiguity `BuildOptions.playbackGathered` exists to prevent.
-        const seasons = this.#adapters.find(hasUserSeasons);
+        const seasons = this.#adapters.filter(hasUserSeasons).find(isPrimary);
         if (seasons !== undefined) {
             sources.push({
                 // Not `:episodes` — `listUserSeasons` returns one row per
@@ -196,7 +240,33 @@ export class LibraryLoader {
             });
         }
 
+        // Its rows are kept out of the join (they would fuse into `playback`);
+        // the source returns none, so `gather` only records whether it failed.
+        const secondary = this.#mediaServers?.secondary;
+        const secondaryAdapter =
+            secondary === undefined ? undefined : this.#adapters.filter(hasUserLibrary).find(a => a.id === secondary.id);
+        const secondaryUser = secondary === undefined ? undefined : await this.#secondaryUser(secondary.identity);
+        const secondaryRows: IndexInput[] = [];
+        if (secondaryAdapter !== undefined && secondaryUser?.user !== undefined) {
+            const user = secondaryUser.user;
+            sources.push({
+                id: secondaryAdapter.id,
+                fetch: async () => {
+                    secondaryRows.push(...(await secondaryAdapter.listUserLibrary(user)));
+                    return [];
+                }
+            });
+        }
+
         const { items, degraded, counts } = await gather(sources);
+
+        if (secondary !== undefined && secondaryUser?.unreachable === true) {
+            degraded.push(secondary.id);
+            degraded.sort();
+        }
+        const secondaryRead =
+            secondaryAdapter !== undefined && secondaryUser?.user !== undefined && !degraded.includes(secondaryAdapter.id);
+        if (secondaryRead) counts[secondaryAdapter.id] = secondaryRows.length;
 
         // The one place that knows whether the media server was actually read:
         // configured (a source was pushed above) *and* successful (its id is
@@ -219,14 +289,33 @@ export class LibraryLoader {
         // unusable is a different remedy from none at all, and only one of the
         // two can be true — `resolved.unconfigured` needs an identity, which
         // needs an adapter.
-        const note = resolved.unconfigured
+        const primaryNote = resolved.unconfigured
             ? `${mediaServerId} is configured without a default_user, so watch state is not included. Set \`services.${mediaServerId}.default_user\` in config.yaml, or pass \`user\` explicitly.`
             : mediaServer === undefined
               ? NO_MEDIA_SERVER_NOTE
               : undefined;
+        const secondaryNote =
+            secondary !== undefined && secondaryUser?.unconfigured === true
+                ? `${secondary.id} is configured without a default_user, so media_servers leaves it out. Set \`services.${secondary.id}.default_user\` in config.yaml.`
+                : undefined;
+        const note = [primaryNote, secondaryNote].filter(n => n !== undefined).join(' ') || undefined;
+
+        const index = LibraryIndex.build(rated, { playbackGathered });
+
+        if (secondary !== undefined) {
+            const secondaryIndex = secondaryRead ? LibraryIndex.build(secondaryRows) : undefined;
+            for (const item of index.all()) {
+                const servers: Record<string, MediaServerPresence> = {};
+                if (playbackGathered) servers[mediaServer.id] = item.playback === undefined ? { present: false } : presenceOf(item);
+                if (secondaryIndex !== undefined && secondaryAdapter !== undefined) {
+                    servers[secondaryAdapter.id] = presenceOf(secondaryIndex.find(item.ids, item.kind));
+                }
+                item.media_servers = servers;
+            }
+        }
 
         return {
-            index: LibraryIndex.build(rated, { playbackGathered }),
+            index,
             degraded,
             counts,
             ...(note === undefined ? {} : { note })
