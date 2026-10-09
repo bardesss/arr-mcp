@@ -310,6 +310,22 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/mcp
 }
 ```
 
+### `GET /settings/media-servers`
+
+Which media servers are configured, and `primary`, the one the tools default
+to. With one server, that one is primary. With none, `primary` is `null`.
+
+```bash
+curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/media-servers
+```
+
+```json
+{
+  "primary": "jellyfin",
+  "configured": ["jellyfin", "plex"]
+}
+```
+
 ### `GET /token`
 
 The named MCP tokens. Never the tokens themselves: `fingerprint` is the first
@@ -344,6 +360,10 @@ except Transmission and qBittorrent. The other fields are the ones in the
 A second instance of a type that allows several needs a `name`. If the first
 one has no name yet, also send `renameExistingTo` to name it, because its id
 changes. Answers 201 with the new app.
+
+Adding Plex beside Jellyfin, or the other way round, keeps the one already
+there as primary. Change it with
+[`PUT /settings/media-servers`](#put-settingsmedia-servers).
 
 ```bash
 curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
@@ -443,6 +463,20 @@ curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json'
   "allowTokenInUrl": true,
   "oauthConfigured": false
 }
+```
+
+### `PUT /settings/media-servers`
+
+Sets `primary` to `jellyfin` or `plex`. It has to name a configured server, or
+it is a 400. `configured` from GET is accepted and ignored. With one server,
+naming it changes nothing. See
+[Plex and Jellyfin together](configuration.md#plex-and-jellyfin-together).
+
+Answers 200 with the same body as GET.
+
+```bash
+curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"primary": "plex"}' http://arr-mcp:6060/api/v1/settings/media-servers
 ```
 
 ### `POST /token`

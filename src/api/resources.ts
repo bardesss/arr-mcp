@@ -1,4 +1,5 @@
 import { instanceId, listInstances, type ServiceInstance } from '../config/instances.ts';
+import { configuredMediaServers } from '../config/edits.ts';
 import { MULTI_USER, NO_API_KEY } from '../config/mutate.ts';
 import { ServiceIdSchema, type Config, type ServiceId } from '../config/schema.ts';
 import { fingerprint, isExpired } from '../core/mcpTokens.ts';
@@ -70,6 +71,12 @@ export const mcpSettings = (config: Config) => ({
     allowTokenInUrl: config.auth.allow_token_in_url,
     oauthConfigured: config.auth.oauth !== undefined
 });
+
+/** `primary` is the server the tools default to, so a lone server is primary too. */
+export function mediaServerSettings(config: Config) {
+    const configured = configuredMediaServers(config);
+    return { primary: config.primary_media_server ?? configured[0] ?? null, configured };
+}
 
 export function imdbSettings(config: Config, dataset: ImdbDataset | undefined) {
     const status = dataset?.status();

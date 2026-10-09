@@ -5,7 +5,7 @@ import { buildStackHealth } from '../tools/stackHealth.ts';
 import { mcpEndpoint } from '../web/origin.ts';
 import { API_BASE, apiError, withEtag } from './http.ts';
 import type { ApiDeps } from './index.ts';
-import { appResource, findInstance, imdbSettings, mcpSettings, tokenResources } from './resources.ts';
+import { appResource, findInstance, imdbSettings, mcpSettings, mediaServerSettings, tokenResources } from './resources.ts';
 
 const MAX_LOG_RECORDS = 300;
 const DEFAULT_LOG_RECORDS = 100;
@@ -92,6 +92,11 @@ export function registerReads(app: Hono, deps: ApiDeps): void {
     app.get(`${API_BASE}/settings/imdb`, c => {
         const config = runtime.config;
         return withEtag(c, config, imdbSettings(config, runtime.dataset));
+    });
+
+    app.get(`${API_BASE}/settings/media-servers`, c => {
+        const config = runtime.config;
+        return withEtag(c, config, mediaServerSettings(config));
     });
 
     app.get(`${API_BASE}/token`, c => {

@@ -1,5 +1,5 @@
 import { ConfigEditError } from './mutate.ts';
-import type { Config } from './schema.ts';
+import { MediaServerIdSchema, type Config, type MediaServerId } from './schema.ts';
 import { generateManagementKey } from '../core/managementKey.ts';
 import { hashToken } from '../core/mcpTokens.ts';
 
@@ -44,4 +44,17 @@ export function setManagementKey(config: Config, now: Date): { config: Config; p
 export function clearManagementKey(config: Config): Config {
     const { management_key: _dropped, ...auth } = config.auth;
     return { ...config, auth };
+}
+
+export const configuredMediaServers = (config: Config): MediaServerId[] =>
+    MediaServerIdSchema.options.filter(id => config.services[id] !== undefined);
+
+/** Only meaningful with both configured; with one, naming that one is a no-op. */
+export function setPrimaryMediaServer(config: Config, primary: string): Config {
+    const parsed = MediaServerIdSchema.safeParse(primary);
+    if (!parsed.success) throw new ConfigEditError('Pick jellyfin or plex as the primary media server.');
+    const configured = configuredMediaServers(config);
+    if (!configured.includes(parsed.data)) throw new ConfigEditError(`${parsed.data} is not configured.`);
+    if (configured.length < 2) return config;
+    return { ...config, primary_media_server: parsed.data };
 }
