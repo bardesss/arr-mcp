@@ -727,6 +727,25 @@ describe('collectEvidence — Cleanuparr', () => {
         expect(buildChain('some film', evidence).steps.find(s => s.stage === 'queue')?.status).not.toBe('unknown');
     });
 
+    it('does not read Cleanuparr when the item has no download id', async () => {
+        const noGrabs = stub('radarr', { listLibrary: async () => [film], getQueue: async () => [], readHistory: async () => ({ items: [], total: 0 }) });
+        let calls = 0;
+        const down = stub('cleanuparr', {
+            getSeedingRules: async () => [],
+            readHistory: async () => {
+                calls += 1;
+                throw new Error('down');
+            }
+        });
+        const evidenceFor = (adapters: ServiceAdapter[]) => collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        const evidence = await evidenceFor([noGrabs, down]);
+        expect(calls).toBe(0);
+        expect(evidence.degraded).not.toContain('cleanuparr');
+        expect(evidence.cleanuparr).toEqual([]);
+        const without = await evidenceFor([noGrabs]);
+        expect(buildChain('some film', evidence).verdict.certain).toBe(buildChain('some film', without).verdict.certain);
+    });
+
     it('is null when Cleanuparr is not configured', async () => {
         expect((await run(undefined)).cleanuparr).toBeNull();
     });

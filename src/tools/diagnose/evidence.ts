@@ -317,10 +317,15 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                 if (r.downloadId !== undefined) ids.add(r.downloadId.toLowerCase());
             }
         }
-        const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
-        const events = await probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: 500 }));
-        const list = events === undefined ? undefined : Array.isArray(events) ? events : events.items;
-        cleanuparr = list?.filter(e => e.downloadId !== undefined && ids.has(e.downloadId));
+        // Nothing to match, so an outage there must not cost an unrelated verdict its certainty.
+        if (ids.size === 0) {
+            cleanuparr = [];
+        } else {
+            const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
+            const events = await probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: 500 }));
+            const list = events === undefined ? undefined : Array.isArray(events) ? events : events.items;
+            cleanuparr = list?.filter(e => e.downloadId !== undefined && ids.has(e.downloadId));
+        }
     }
 
     degraded.sort();
