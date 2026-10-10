@@ -958,8 +958,68 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'status', path: '/api/v1/status' },
         { name: 'arr', path: '/api/v1/arr' },
         { name: 'health', path: '/api/v1/health' }
+    ],
+    cleanuparr: [
+        { name: 'status', path: '/api/status' },
+        { name: 'health-detailed', path: '/health/detailed' },
+        { name: 'status-arrs', path: '/api/status/arrs', anonymise: body => rewriteUrls(body, 'url') },
+        { name: 'status-download-client', path: '/api/status/download-client', anonymise: body => rewriteUrls(body, 'host') },
+        { name: 'events', path: '/api/events?pageSize=50', anonymise: anonymiseCleanuparrEvents },
+        { name: 'jobs', path: '/api/jobs' },
+        { name: 'configuration-general', path: '/api/configuration/general' },
+        // seeding-rules-<type>.json is captured by hand with GET /api/seeding-rules/<id> for each id in
+        // status-download-client.json, until the script supports dependent paths.
+        { name: 'configuration-download_cleaner', path: '/api/configuration/download_cleaner' }
     ]
 };
+
+/** Replaces event titles and hashes with stable dummies; one download's events share a hash. */
+function anonymiseCleanuparrEvents(body: unknown): unknown {
+    if (!isRow(body) || !Array.isArray(body.items)) return body;
+    const hashes = new Map<string, string>();
+    const titles = new Map<string, string>();
+    const dummy = (map: Map<string, string>, key: string, make: (n: number) => string): string => {
+        const known = map.get(key);
+        if (known !== undefined) return known;
+        const made = make(map.size + 1);
+        map.set(key, made);
+        return made;
+    };
+    return {
+        ...body,
+        items: (body.items as unknown[]).map((item): unknown => {
+            if (!isRow(item)) return item;
+            const out: Row = { ...item };
+            if (typeof item.message === 'string') out.message = 'Example event message';
+            if (typeof item.cleanedCategory === 'string') out.cleanedCategory = 'example-category';
+            if (Array.isArray(item.failedImportReasons)) out.failedImportReasons = item.failedImportReasons.map(() => 'Example import failure reason');
+            if (Array.isArray(item.grabbedItems)) out.grabbedItems = item.grabbedItems.map((_, i) => ({ title: `Example.Grab.${i + 1}` }));
+            if (typeof item.itemTitle === 'string') out.itemTitle = dummy(titles, item.itemTitle, n => `Example.Title.${n}`);
+            if (typeof item.itemHash === 'string') out.itemHash = dummy(hashes, item.itemHash, n => n.toString(16).padStart(8, '0').repeat(5));
+            return out;
+        })
+    };
+}
+
+/** Points every `key` URL in the body at `<name>.example`, keeping the port. */
+function rewriteUrls(body: unknown, key: string): unknown {
+    if (Array.isArray(body)) return body.map(v => rewriteUrls(v, key));
+    if (!isRow(body)) return body;
+    return Object.fromEntries(
+        Object.entries(body).map(([k, v]) => {
+            if (k === key && typeof v === 'string') {
+                try {
+                    const u = new URL(v);
+                    const label = String(body.name ?? 'host').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    return [k, `${u.protocol}//${label}.example${u.port === '' ? '' : `:${u.port}`}${u.pathname === '/' ? '/' : u.pathname}`];
+                } catch {
+                    return [k, 'http://host.example/'];
+                }
+            }
+            return [k, rewriteUrls(v, key)];
+        })
+    );
+}
 
 function strategyFor(id: ServiceId, service: NonNullable<Config['services'][ServiceId]>): AuthStrategy {
     if (id === 'transmission') {

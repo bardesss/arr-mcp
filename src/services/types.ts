@@ -1,4 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
+import type { CleanuparrRule, RuleAction, TorrentFacts } from '../core/cleanuparrRules.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
@@ -322,6 +323,8 @@ export type QueueItem = {
     private?: boolean;
     /** Torrent clients only, and only once the download has finished. */
     seeding?: SeedingState;
+    /** Internal: what Cleanuparr's rules match on. Never returned by a tool. */
+    torrent?: TorrentFacts;
 };
 
 /**
@@ -340,7 +343,23 @@ export type SeedingState = {
     overLimit?: true;
     /** qBittorrent skips share limits for force-started torrents. */
     forced?: true;
+    /** Set when `overLimit` was judged against a Cleanuparr rule instead of the client's limit. */
+    limitSource?: 'cleanuparr';
+    cleanuparr?: CleanuparrVerdict;
 };
+
+export type CleanuparrVerdict =
+    | {
+          rule: string;
+          action: RuleAction;
+          ratioLimit?: number;
+          seedingLimitSeconds?: number;
+          minSeedSeconds?: number;
+          dryRun?: true;
+          notEnforced?: true;
+          uncertain?: string;
+      }
+    | { skipped: string };
 
 /** A torrent client's default seed limits. Absent means none. */
 export type ClientSeedLimits = {
@@ -357,6 +376,38 @@ export interface SeedLimitsCapable {
 
 export const hasSeedLimits = (a: ServiceAdapter): a is ServiceAdapter & SeedLimitsCapable =>
     typeof (a as Partial<SeedLimitsCapable>).getSeedLimits === 'function';
+
+export type CleanuparrRuleSet = {
+    /** Cleanuparr's name for the client. */
+    client: string;
+    clientType: string;
+    /** `host:port` Cleanuparr reaches it on, matched against `TorrentEndpoint.endpoint`. */
+    endpoint?: string;
+    rules: CleanuparrRule[];
+};
+
+export type CleanuparrSeeding = {
+    sets: CleanuparrRuleSet[];
+    dryRun: boolean;
+    /** The Download Cleaner job is scheduled. Unscheduled rules are never applied. */
+    enforced: boolean;
+    ignored: string[];
+};
+
+export interface CleanuparrCapable {
+    getSeedingRules(): Promise<CleanuparrSeeding>;
+}
+
+export const hasCleanuparr = (a: ServiceAdapter): a is ServiceAdapter & CleanuparrCapable =>
+    typeof (a as Partial<CleanuparrCapable>).getSeedingRules === 'function';
+
+export interface TorrentEndpoint {
+    /** `host:port` of the client, for matching Cleanuparr's record of it. */
+    readonly endpoint: string;
+}
+
+export const hasTorrentEndpoint = (a: ServiceAdapter): a is ServiceAdapter & TorrentEndpoint =>
+    typeof (a as Partial<TorrentEndpoint>).endpoint === 'string';
 
 /**
  * A torrent indexer's seed criteria. An *arr hands these to the client with
@@ -399,7 +450,9 @@ export const HISTORY_EVENT_TYPES = [
     'renamed',
     'ignored',
     'subtitle',
-    'unknown'
+    'unknown',
+    'strike',
+    'stopped'
 ] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
@@ -431,6 +484,12 @@ export type HistoryEntry = {
      *  release-grab tooling needs it verbatim. */
     guid?: string;
     indexerId?: number;
+    /** The download client's id for the grab, lowercased: what links a Cleanuparr event to an *arr grab. */
+    downloadId?: string;
+    /** Cleanuparr only. */
+    strikeCount?: number;
+    /** Cleanuparr only: logged under dry run, nothing was done. */
+    dryRun?: true;
 };
 
 /** The first rows of a longer list, and how long that list is. */

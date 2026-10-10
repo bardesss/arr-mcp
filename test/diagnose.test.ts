@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ServiceError } from '../src/core/errors.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
+import { buildChain } from '../src/tools/diagnose/chain.ts';
 import { collectEvidence } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
@@ -664,5 +665,88 @@ describe('scoping that cannot be applied', () => {
 
     it('still accepts a query on its own, and a service with an id', async () => {
         await expect(collectEvidence(deps(), { query: 'some film' })).resolves.toBeDefined();
+    });
+});
+
+describe('collectEvidence — Cleanuparr', () => {
+    const event = (id: string, downloadId: string) => ({
+        service: 'cleanuparr',
+        id,
+        at: '2026-10-09T12:00:00+00:00',
+        event: 'deleted',
+        title: 'x',
+        downloadId
+    });
+    const film = { ...FILM, acquisition: { service: 'radarr', id: '7', monitored: true, hasFile: false } };
+    const radarr = stub('radarr', {
+        listLibrary: async () => [film],
+        getQueue: async () => [],
+        readHistory: async () => ({ items: [{ service: 'radarr', id: 'h1', at: '2026-10-08T00:00:00Z', event: 'grabbed', title: 'x', downloadId: 'aaaa1111' }], total: 1 })
+    });
+    const run = (cleanuparr: ServiceAdapter | undefined) => {
+        const adapters = cleanuparr === undefined ? [radarr] : [radarr, cleanuparr];
+        return collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+    };
+
+    it('keeps only the events whose download id matches the item', async () => {
+        const evidence = await run(
+            stub('cleanuparr', {
+                getSeedingRules: async () => [],
+                readHistory: async () => ({ items: [event('e1', 'aaaa1111'), event('e2', 'zzzz9999')], total: 2 })
+            })
+        );
+        expect(evidence.cleanuparr?.map(e => e.id)).toEqual(['e1']);
+    });
+
+    it('is undefined, and degraded, when Cleanuparr cannot be read', async () => {
+        const evidence = await run(
+            stub('cleanuparr', {
+                getSeedingRules: async () => [],
+                readHistory: async () => {
+                    throw new Error('down');
+                }
+            })
+        );
+        expect(evidence.cleanuparr).toBeUndefined();
+        expect(evidence.degraded).toContain('cleanuparr');
+    });
+
+    it('does not turn the queue unknown when only the *arr history read fails', async () => {
+        const failing = stub('radarr', {
+            listLibrary: async () => [film],
+            getQueue: async () => [],
+            readHistory: async () => {
+                throw new Error('down');
+            }
+        });
+        const cleanuparr = stub('cleanuparr', { getSeedingRules: async () => [], readHistory: async () => ({ items: [], total: 0 }) });
+        const adapters = [failing, cleanuparr];
+        const evidence = await collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        expect(evidence.degraded).toContain('radarr:history');
+        expect(evidence.degraded).not.toContain('radarr');
+        expect(buildChain('some film', evidence).steps.find(s => s.stage === 'queue')?.status).not.toBe('unknown');
+    });
+
+    it('does not read Cleanuparr when the item has no download id', async () => {
+        const noGrabs = stub('radarr', { listLibrary: async () => [film], getQueue: async () => [], readHistory: async () => ({ items: [], total: 0 }) });
+        let calls = 0;
+        const down = stub('cleanuparr', {
+            getSeedingRules: async () => [],
+            readHistory: async () => {
+                calls += 1;
+                throw new Error('down');
+            }
+        });
+        const evidenceFor = (adapters: ServiceAdapter[]) => collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        const evidence = await evidenceFor([noGrabs, down]);
+        expect(calls).toBe(0);
+        expect(evidence.degraded).not.toContain('cleanuparr');
+        expect(evidence.cleanuparr).toEqual([]);
+        const without = await evidenceFor([noGrabs]);
+        expect(buildChain('some film', evidence).verdict.certain).toBe(buildChain('some film', without).verdict.certain);
+    });
+
+    it('is null when Cleanuparr is not configured', async () => {
+        expect((await run(undefined)).cleanuparr).toBeNull();
     });
 });
