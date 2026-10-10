@@ -39,6 +39,7 @@ import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { ProfilarrAdapter } from '../src/services/profilarr.ts';
+import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
 
@@ -904,6 +905,31 @@ if (config.services?.profilarr !== undefined) {
     }
 } else {
     console.log('SKIP sync_database — no profilarr is configured.');
+}
+
+/**
+ * Cleanuparr, read only: its version, health findings, seeding rules and
+ * recent events. Nothing here is written; the adapter has no write.
+ */
+if (config.services?.cleanuparr !== undefined) {
+    const started = performance.now();
+    try {
+        const cleanuparr = new CleanuparrAdapter(config.services.cleanuparr);
+        const version = await cleanuparr.getVersion();
+        const findings = await cleanuparr.getFailedHealthChecks();
+        const seeding = await cleanuparr.getSeedingRules();
+        const history = await cleanuparr.readHistory({ want: 20 });
+        const ms = Math.round(performance.now() - started);
+        console.log(
+            `PASS cleanuparr ${version}: ${findings.length} finding(s), ${seeding.sets.length} client rule set(s), ${history.items.length} recent event(s) (${ms}ms)`
+        );
+        passes += 1;
+    } catch (err) {
+        console.error(`FAIL cleanuparr — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+} else {
+    console.log('SKIP cleanuparr — not configured.');
 }
 
 /**

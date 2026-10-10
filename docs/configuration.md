@@ -24,8 +24,8 @@ services:
     password: "…"
 ```
 
-All twelve service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
-`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`, `profilarr`. Configure only what you run —
+All thirteen service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
+`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`, `profilarr`, `cleanuparr`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
@@ -198,6 +198,30 @@ needs it configured to run at all. Leaving it out is fine — `get_profile_issue
 still reports its other five finding kinds, with a `note` saying drift was
 not checked.
 
+## Cleanuparr
+
+```yaml
+services:
+  cleanuparr:
+    url: http://192.168.1.20:11011
+    api_key: "…"
+```
+
+The key is under Settings > Account > API Key in Cleanuparr. Single instance
+only, because one Cleanuparr cleans one stack. Read-only: arr-mcp only ever
+sends GET requests to it, and never reads its download client settings, which
+hold client passwords. Written against Cleanuparr 2.10.x. A newer minor works,
+but `stack_health` flags it as untested.
+
+It covers torrent clients only. Its findings appear in `stack_health`, its
+events in `get_history`, and `diagnose` uses them to explain a download it
+removed. At `detail: "full"`, its seeding rules also reach `get_queue`, but
+only for a client arr-mcp can match: the host and port of the download client
+in Cleanuparr must equal the host and port in the matching arr-mcp client's
+`url`, and the client type must be the same. A rule set that matches no client,
+or that two Cleanuparr clients both point at, is left out of `get_queue` and
+named in `stack_health`'s `seedingRules.notes`.
+
 ## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
@@ -240,14 +264,15 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Five services stay single.** Jellyfin and Plex because each is one server,
+**Six services stay single.** Jellyfin and Plex because each is one server,
 and [running both](#plex-and-jellyfin-together) is a different thing from
 running two of one. Seerr because a
 request carries the identity of the person who made it, and a second Seerr makes
 "which one do I ask" a guess with an approver on the other end of it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
 different API with no adapter. Profilarr because it is the one place that owns
-profile config, so two of them would mean two sources of truth.
+profile config, so two of them would mean two sources of truth. Cleanuparr
+because one instance cleans one stack.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 Transmission and qBittorrent.
