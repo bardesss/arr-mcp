@@ -21,9 +21,10 @@ export type GetQueueResult = {
 };
 
 const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
-    if (detail === 'full') return q;
+    const { torrent: _t, ...visible } = q;
+    if (detail === 'full') return visible;
     if (detail === 'minimal') return { service: q.service, id: q.id, title: q.title, status: q.status };
-    const { errorMessage: _e, private: _p, seeding: _s, ...rest } = q;
+    const { errorMessage: _e, private: _p, seeding: _s, ...rest } = visible;
     return rest;
 };
 

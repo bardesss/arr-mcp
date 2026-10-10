@@ -3,6 +3,8 @@ import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { qbittorrentSession } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
+import { hostPort } from '../core/hostPort.ts';
+import type { TorrentFacts } from '../core/cleanuparrRules.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
@@ -22,7 +24,8 @@ import {
     type SeedLimitsCapable,
     type ServiceAdapter,
     type SpeedLimit,
-    type SpeedLimitCapable
+    type SpeedLimitCapable,
+    type TorrentEndpoint
 } from './types.ts';
 
 const API = '/api/v2';
@@ -55,6 +58,9 @@ type RawTorrent = {
     max_seeding_time?: number;
     /** 5.x only, and null until metadata arrives. */
     private?: boolean | null;
+    category?: string;
+    tags?: string;
+    tracker?: string;
 };
 
 type RawMainData = { server_state?: { free_space_on_disk?: number } };
@@ -152,6 +158,29 @@ function seedingOf(t: RawTorrent): { seeding?: SeedingState } {
     };
 }
 
+const STOPPED = new Set(['pausedUP', 'stoppedUP', 'pausedDL', 'stoppedDL']);
+
+/** Only the active tracker: torrents/info carries one. Cleanuparr checks every tracker. */
+function torrentOf(t: RawTorrent & { hash: string }): { torrent: TorrentFacts } {
+    let trackerDomains: string[];
+    try {
+        trackerDomains = t.tracker ? [new URL(t.tracker).hostname.toLowerCase()] : [];
+    } catch {
+        trackerDomains = [];
+    }
+    return {
+        torrent: {
+            hash: t.hash.toLowerCase(),
+            category: t.category ?? '',
+            tags: (t.tags ?? '').split(',').map(s => s.trim()).filter(s => s !== ''),
+            trackerDomains,
+            ...(typeof t.private === 'boolean' ? { private: t.private } : {}),
+            stopped: STOPPED.has(t.state ?? ''),
+            seeding: t.amount_left === 0
+        }
+    };
+}
+
 export class QbittorrentAdapter
     implements
         ServiceAdapter,
@@ -161,15 +190,18 @@ export class QbittorrentAdapter
         PauseCapable,
         SpeedLimitCapable,
         MagnetAddCapable,
-        SeedLimitsCapable
+        SeedLimitsCapable,
+        TorrentEndpoint
 {
     readonly type: ServiceId = 'qbittorrent';
+    readonly endpoint: string;
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
 
     constructor(config: ConfigByService['qbittorrent'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
+        this.endpoint = hostPort(config.url) ?? config.url;
         this.id = instanceId('qbittorrent', config.name);
         this.#http = new ServiceHttp(
             this.id,
@@ -235,7 +267,8 @@ export class QbittorrentAdapter
                 ...(t.amount_left === undefined ? {} : { remainingBytes: t.amount_left }),
                 ...(t.eta === undefined || t.eta <= 0 || t.eta >= ETA_UNKNOWN ? {} : { etaSeconds: t.eta }),
                 ...(typeof t.private === 'boolean' ? { private: t.private } : {}),
-                ...seedingOf(t)
+                ...seedingOf(t),
+                ...torrentOf(t)
             }));
     }
 

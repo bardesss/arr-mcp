@@ -288,6 +288,23 @@ describe('unknown queue items', () => {
 });
 
 describe('get_queue', () => {
+    it('never returns the internal torrent facts, at any detail level', async () => {
+        const adapter = new TransmissionAdapter(transmissionConfig, (async (_i: unknown, init?: RequestInit) => {
+            const method = (JSON.parse(String(init?.body ?? '{}')) as { method?: string }).method;
+            if (method === 'session-get') return jsonResponse({ result: 'success', arguments: {} });
+            return jsonResponse({
+                result: 'success',
+                arguments: { torrents: [{ id: 1, name: 'x', status: 6, leftUntilDone: 0, hashString: 'ABCDEF' }] }
+            });
+        }) as unknown as typeof fetch);
+
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const { items } = await buildGetQueue([adapter], { detail, limit: 50 });
+            expect(items).toHaveLength(1);
+            for (const item of items) expect(item).not.toHaveProperty('torrent');
+        }
+    });
+
     it('merges three services into one list', async () => {
         const result = await buildGetQueue([radarr(), sabnzbd(), transmission()], opts);
         expect(result.items.map(i => i.service).sort()).toEqual(['radarr', 'sabnzbd', 'transmission']);

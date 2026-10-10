@@ -1,4 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
+import type { TorrentFacts } from '../core/cleanuparrRules.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
@@ -322,6 +323,8 @@ export type QueueItem = {
     private?: boolean;
     /** Torrent clients only, and only once the download has finished. */
     seeding?: SeedingState;
+    /** Internal: what Cleanuparr's rules match on. Never returned by a tool. */
+    torrent?: TorrentFacts;
 };
 
 /**
@@ -357,6 +360,14 @@ export interface SeedLimitsCapable {
 
 export const hasSeedLimits = (a: ServiceAdapter): a is ServiceAdapter & SeedLimitsCapable =>
     typeof (a as Partial<SeedLimitsCapable>).getSeedLimits === 'function';
+
+export interface TorrentEndpoint {
+    /** `host:port` of the client, for matching Cleanuparr's record of it. */
+    readonly endpoint: string;
+}
+
+export const hasTorrentEndpoint = (a: ServiceAdapter): a is ServiceAdapter & TorrentEndpoint =>
+    typeof (a as Partial<TorrentEndpoint>).endpoint === 'string';
 
 /**
  * A torrent indexer's seed criteria. An *arr hands these to the client with
