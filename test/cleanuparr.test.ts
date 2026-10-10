@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
+import type { HistoryEntry } from '../src/services/types.ts';
 
 const config = { url: 'http://cleanuparr:11011', api_key: 'k', timeout_ms: 5000, permissions: { safe_write: false, destructive: false } };
 const fixture = (name: string): unknown =>
@@ -150,5 +151,44 @@ describe('CleanuparrAdapter seeding rules', () => {
         const rule = (await adapter.getSeedingRules()).sets.find(s => s.clientType === 'qBittorrent')?.rules[0];
         expect(rule?.maxInactiveDays).toBe(0);
         expect(rule?.minSeeders).toBeUndefined();
+    });
+});
+
+describe('CleanuparrAdapter history', () => {
+    it('maps events to history rows and drops Seeker searches', async () => {
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': fixture('events') }));
+        const { items, total } = (await adapter.readHistory({})) as { items: HistoryEntry[]; total: number };
+        expect(items.map(i => i.event)).toEqual(['stopped', 'deleted', 'strike', 'strike', 'unknown']);
+        expect(total).toBe(5);
+        expect(items[0]).toMatchObject({ service: 'cleanuparr', id: 'e1', rawEvent: 'DownloadStopped', downloadId: 'aaaa1111', dryRun: true });
+        expect(items[1]).toMatchObject({ downloadId: 'bbbb2222', strikeCount: 3 });
+        expect(items[1]?.reason).toContain('Stalled');
+        expect(items[3]?.reason).toContain('No files found are eligible for import');
+        expect(items[0]?.title).toContain('Example.Show.S01E01.1080p');
+    });
+
+    it('sends since as fromDate and a mappable event type upstream', async () => {
+        const seen: string[] = [];
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': { items: [], page: 1, pageSize: 50, totalCount: 0, totalPages: 0 } }, seen));
+        await adapter.readHistory({ since: '2026-10-01T00:00:00Z', eventType: 'stopped' });
+        expect(seen[0]).toContain('fromDate=2026-10-01T00%3A00%3A00Z');
+        expect(seen[0]).toContain('eventType=DownloadStopped');
+    });
+
+    it('filters strike locally and counts only what matched', async () => {
+        const seen: string[] = [];
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': fixture('events') }, seen));
+        const { items, total } = (await adapter.readHistory({ eventType: 'strike', want: 1 })) as { items: HistoryEntry[]; total: number };
+        expect(seen[0]).not.toContain('eventType=');
+        expect(items.map(i => i.id)).toEqual(['e3', 'e4']);
+        expect(total).toBe(2);
+    });
+
+    it('reports the upstream total when want stops paging early', async () => {
+        const body = { items: [{ id: 'x1', eventType: 'DownloadStopped', timestamp: 't' }], page: 1, pageSize: 1, totalCount: 250, totalPages: 250 };
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': body }));
+        const read = (await adapter.readHistory({ eventType: 'stopped', want: 1 })) as { items: HistoryEntry[]; total: number };
+        expect(read.items).toHaveLength(1);
+        expect(read.total).toBe(250);
     });
 });

@@ -5,7 +5,7 @@ import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
-import { buildGetHistory, registerGetHistory } from '../src/tools/getHistory.ts';
+import { buildGetHistory, historyLine, registerGetHistory } from '../src/tools/getHistory.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { jsonResponse, serving } from './helpers/serve.ts';
@@ -338,5 +338,15 @@ describe('SABnzbd history', () => {
     it('fences the release name, which came from an indexer', async () => {
         const rows = await new SabnzbdAdapter(sabConfig, answering(SLOTS)).readHistory({});
         expect(rows[0]?.title).toMatch(/untrusted/);
+    });
+});
+
+describe('historyLine for Cleanuparr rows', () => {
+    it('says the strike count and that nothing was done under dry run', () => {
+        const line = historyLine({ service: 'cleanuparr', id: 'e', at: '2026-10-09T10:00:00Z', event: 'strike', title: 't', strikeCount: 2, dryRun: true, reason: 'Stalled' });
+        expect(line).toContain('2 strikes');
+        expect(line).toContain('dry run');
+        expect(line).toContain('Stalled');
+        expect(historyLine({ service: 'cleanuparr', id: 'e', at: 'x', event: 'strike', title: 't', strikeCount: 1 })).toMatch(/1 strike$/);
     });
 });

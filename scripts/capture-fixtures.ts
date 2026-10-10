@@ -964,6 +964,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'health-detailed', path: '/health/detailed' },
         { name: 'status-arrs', path: '/api/status/arrs', anonymise: body => rewriteUrls(body, 'url') },
         { name: 'status-download-client', path: '/api/status/download-client', anonymise: body => rewriteUrls(body, 'host') },
+        { name: 'events', path: '/api/events?pageSize=50', anonymise: anonymiseCleanuparrEvents },
         { name: 'jobs', path: '/api/jobs' },
         { name: 'configuration-general', path: '/api/configuration/general' },
         // seeding-rules-<type>.json is captured by hand with GET /api/seeding-rules/<id> for each id in
@@ -971,6 +972,30 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'configuration-download_cleaner', path: '/api/configuration/download_cleaner' }
     ]
 };
+
+/** Replaces event titles and hashes with stable dummies; one download's events share a hash. */
+function anonymiseCleanuparrEvents(body: unknown): unknown {
+    if (!isRow(body) || !Array.isArray(body.items)) return body;
+    const hashes = new Map<string, string>();
+    const titles = new Map<string, string>();
+    const dummy = (map: Map<string, string>, key: string, make: (n: number) => string): string => {
+        const known = map.get(key);
+        if (known !== undefined) return known;
+        const made = make(map.size + 1);
+        map.set(key, made);
+        return made;
+    };
+    return {
+        ...body,
+        items: (body.items as unknown[]).map((item): unknown => {
+            if (!isRow(item)) return item;
+            const out: Row = { ...item };
+            if (typeof item.itemTitle === 'string') out.itemTitle = dummy(titles, item.itemTitle, n => `Example.Title.${n}`);
+            if (typeof item.itemHash === 'string') out.itemHash = dummy(hashes, item.itemHash, n => n.toString(16).padStart(8, '0').repeat(5));
+            return out;
+        })
+    };
+}
 
 /** Points every `key` URL in the body at `<name>.example`, keeping the port. */
 function rewriteUrls(body: unknown, key: string): unknown {

@@ -12,7 +12,12 @@ import {
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
-    type ServiceAdapter
+    type HistoryCapable,
+    type HistoryEntry,
+    type HistoryEventType,
+    type HistoryQuery,
+    type ServiceAdapter,
+    type Window
 } from './types.ts';
 import { compareVersions, parseVersion } from './versions.ts';
 
@@ -45,6 +50,39 @@ type RawRule = {
     deleteSourceFiles?: boolean;
     action?: string;
 };
+
+type RawEvent = {
+    id?: string;
+    timestamp?: string;
+    eventType?: string;
+    message?: string;
+    isDryRun?: boolean;
+    itemTitle?: string | null;
+    itemHash?: string | null;
+    strikeCount?: number | null;
+    failedImportReasons?: string[];
+    deleteReason?: string | null;
+    cleanReason?: string | null;
+};
+type RawPage<T> = { items?: T[]; totalCount?: number; totalPages?: number };
+
+const EVENT: Record<string, HistoryEventType> = {
+    QueueItemDeleted: 'deleted',
+    DownloadCleaned: 'deleted',
+    FailedImportStrike: 'strike',
+    StalledStrike: 'strike',
+    DownloadingMetadataStrike: 'strike',
+    SlowSpeedStrike: 'strike',
+    SlowTimeStrike: 'strike',
+    DeadTorrentStrike: 'strike',
+    DownloadStopped: 'stopped',
+    ForceImported: 'imported'
+};
+/** One upstream type per filter value, so the service filters before paging. */
+const UPSTREAM: Partial<Record<HistoryEventType, string>> = { stopped: 'DownloadStopped', imported: 'ForceImported' };
+/** Seeker's own searches are about no download, and would crowd out the rest. */
+const DROPPED = new Set(['SearchTriggered']);
+const PAGE_SIZE = 100;
 
 const PRIVACY: Record<string, RulePrivacy> = { Public: 'public', Private: 'private', Both: 'both' };
 const ACTION: Record<string, RuleAction> = { Delete: 'delete', Stop: 'stop' };
@@ -84,7 +122,7 @@ const JOB_LABEL: Record<string, string> = { QueueCleaner: 'Queue Cleaner', Downl
  * Hand-written against the source at tag v2.10.9: Cleanuparr publishes no
  * API reference, and minor releases may break this contract.
  */
-export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, CleanuparrCapable {
+export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, CleanuparrCapable, HistoryCapable {
     readonly type: ServiceId = 'cleanuparr';
     readonly id = 'cleanuparr';
     readonly #http: ServiceHttp;
@@ -173,6 +211,49 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
     }
 
     /** The client list without credentials. `/api/configuration/download_client` has passwords. */
+    async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
+        const upstream = opts.eventType === undefined ? undefined : UPSTREAM[opts.eventType];
+        // A filter the service cannot apply means every page is read, to count the matches.
+        const local = opts.eventType !== undefined && upstream === undefined;
+        const base = [
+            ...(opts.since === undefined ? [] : [`fromDate=${encodeURIComponent(opts.since)}`]),
+            ...(upstream === undefined ? [] : [`eventType=${upstream}`]),
+            `pageSize=${PAGE_SIZE}`
+        ];
+        const items: HistoryEntry[] = [];
+        let dropped = 0;
+        for (let page = 1; ; page += 1) {
+            const body = await this.#http.get<RawPage<RawEvent>>(`${CLEANUPARR_API}/events?${[...base, `page=${page}`].join('&')}`);
+            for (const e of body.items ?? []) {
+                const entry = this.#entryOf(e);
+                if (entry === undefined) dropped += 1;
+                else if (opts.eventType === undefined || entry.event === opts.eventType) items.push(entry);
+            }
+            if (page >= (body.totalPages ?? 1)) return { items, total: items.length };
+            if (!local && opts.want !== undefined && items.length >= opts.want) {
+                return { items, total: Math.max(items.length, (body.totalCount ?? 0) - dropped) };
+            }
+        }
+    }
+
+    #entryOf(e: RawEvent): HistoryEntry | undefined {
+        if (e.id === undefined || e.eventType === undefined || DROPPED.has(e.eventType)) return undefined;
+        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const reasons = [e.deleteReason, e.cleanReason, ...(e.failedImportReasons ?? [])].filter((r): r is string => typeof r === 'string' && r !== '');
+        return {
+            service: this.id,
+            id: e.id,
+            at: e.timestamp ?? '',
+            event: EVENT[e.eventType] ?? 'unknown',
+            rawEvent: e.eventType,
+            title: fence(e.itemTitle ?? e.message ?? '', 'itemTitle'),
+            ...(reasons.length === 0 ? {} : { reason: fence(reasons.join('; '), 'reason') }),
+            ...(e.itemHash ? { downloadId: e.itemHash.toLowerCase() } : {}),
+            ...(typeof e.strikeCount === 'number' ? { strikeCount: e.strikeCount } : {}),
+            ...(e.isDryRun === true ? { dryRun: true as const } : {})
+        };
+    }
+
     async #clients(): Promise<RawClientStatus[]> {
         const body = await this.#http.get<{ Clients?: RawClientStatus[] }>(`${CLEANUPARR_API}/status/download-client`);
         return body.Clients ?? [];

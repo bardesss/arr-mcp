@@ -450,7 +450,9 @@ export const HISTORY_EVENT_TYPES = [
     'renamed',
     'ignored',
     'subtitle',
-    'unknown'
+    'unknown',
+    'strike',
+    'stopped'
 ] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
@@ -482,6 +484,12 @@ export type HistoryEntry = {
      *  release-grab tooling needs it verbatim. */
     guid?: string;
     indexerId?: number;
+    /** The download client's id for the grab, lowercased: what links a Cleanuparr event to an *arr grab. */
+    downloadId?: string;
+    /** Cleanuparr only. */
+    strikeCount?: number;
+    /** Cleanuparr only: logged under dry run, nothing was done. */
+    dryRun?: true;
 };
 
 /** The first rows of a longer list, and how long that list is. */
