@@ -56,11 +56,11 @@ const limit = (v: number | null | undefined, off: number): number | undefined =>
 const optional = <K extends string>(key: K, v: number | undefined): Partial<Record<K, number>> =>
     (v === undefined ? {} : { [key]: v }) as Partial<Record<K, number>>;
 
-function ruleOf(r: RawRule): CleanuparrRule {
+function ruleOf(r: RawRule, service: string): CleanuparrRule {
     const nullable = ['tagsAny', 'tagsAll', 'minSeeders', 'maxInactiveDays'] as const;
     return {
         id: r.id ?? '',
-        name: r.name ?? '',
+        name: fenceText(r.name ?? '', { service, field: 'rule' }),
         priority: r.priority ?? Number.MAX_SAFE_INTEGER,
         categories: r.categories ?? [],
         trackerPatterns: r.trackerPatterns ?? [],
@@ -160,7 +160,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
                     client: c.name,
                     clientType: c.type,
                     ...(endpoint === undefined ? {} : { endpoint }),
-                    rules: rules.map(ruleOf).sort((a, b) => a.priority - b.priority)
+                    rules: rules.map(r => ruleOf(r, this.id)).sort((a, b) => a.priority - b.priority)
                 };
             })
         );
@@ -168,7 +168,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             sets,
             dryRun: general.dryRun === true,
             enforced: jobs.some(j => j.jobType === 'DownloadCleaner' && j.status === 'Scheduled'),
-            ignored: [...(general.ignoredDownloads ?? []), ...(cleaner.ignoredDownloads ?? [])].map(v => v.trim()).filter(v => v !== '')
+            ignored: [...(general.ignoredDownloads ?? []), ...(cleaner.ignoredDownloads ?? [])].filter(v => v.trim() !== '')
         };
     }
 
