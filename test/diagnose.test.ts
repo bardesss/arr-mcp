@@ -666,3 +666,51 @@ describe('scoping that cannot be applied', () => {
         await expect(collectEvidence(deps(), { query: 'some film' })).resolves.toBeDefined();
     });
 });
+
+describe('collectEvidence — Cleanuparr', () => {
+    const event = (id: string, downloadId: string) => ({
+        service: 'cleanuparr',
+        id,
+        at: '2026-10-09T12:00:00+00:00',
+        event: 'deleted',
+        title: 'x',
+        downloadId
+    });
+    const film = { ...FILM, acquisition: { service: 'radarr', id: '7', monitored: true, hasFile: false } };
+    const radarr = stub('radarr', {
+        listLibrary: async () => [film],
+        getQueue: async () => [],
+        readHistory: async () => ({ items: [{ service: 'radarr', id: 'h1', at: '2026-10-08T00:00:00Z', event: 'grabbed', title: 'x', downloadId: 'aaaa1111' }], total: 1 })
+    });
+    const run = (cleanuparr: ServiceAdapter | undefined) => {
+        const adapters = cleanuparr === undefined ? [radarr] : [radarr, cleanuparr];
+        return collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+    };
+
+    it('keeps only the events whose download id matches the item', async () => {
+        const evidence = await run(
+            stub('cleanuparr', {
+                getSeedingRules: async () => [],
+                readHistory: async () => ({ items: [event('e1', 'aaaa1111'), event('e2', 'zzzz9999')], total: 2 })
+            })
+        );
+        expect(evidence.cleanuparr?.map(e => e.id)).toEqual(['e1']);
+    });
+
+    it('is undefined, and degraded, when Cleanuparr cannot be read', async () => {
+        const evidence = await run(
+            stub('cleanuparr', {
+                getSeedingRules: async () => [],
+                readHistory: async () => {
+                    throw new Error('down');
+                }
+            })
+        );
+        expect(evidence.cleanuparr).toBeUndefined();
+        expect(evidence.degraded).toContain('cleanuparr');
+    });
+
+    it('is null when Cleanuparr is not configured', async () => {
+        expect((await run(undefined)).cleanuparr).toBeNull();
+    });
+});

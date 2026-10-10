@@ -62,6 +62,7 @@ const healthy = (over: EvidenceOverride = {}): Evidence => {
         scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
         mediaServer: 'jellyfin',
         scanCapable: true,
+        cleanuparr: null,
         libraryDegraded: [],
         degraded: [],
         ...over
@@ -396,6 +397,7 @@ describe('buildChain — certainty', () => {
             scan: { service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' },
             mediaServer: 'jellyfin',
             scanCapable: true,
+            cleanuparr: null,
             libraryDegraded: [],
             degraded: ['seerr']
         });
@@ -491,6 +493,7 @@ describe('buildChain — certainty', () => {
             scan: undefined,
             mediaServer: 'jellyfin',
             scanCapable: true,
+            cleanuparr: null,
             libraryDegraded: ['radarr'],
             degraded: []
         });
@@ -1321,5 +1324,62 @@ describe('buildChain — fencing', () => {
             }
         });
         expect(d.verdict.summary).toContain('<<untrusted:sabnzbd.fail_message>>');
+    });
+});
+
+describe('buildChain — Cleanuparr', () => {
+    const base = { service: 'cleanuparr', title: 'x' } as const;
+    const downloading = {
+        service: 'sabnzbd',
+        id: '1',
+        title: queueTitle('sabnzbd', 'Some.Film.2026'),
+        status: 'downloading'
+    };
+
+    it('explains a download Cleanuparr removed', () => {
+        const d = buildChain(
+            'some film',
+            healthy({
+                item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
+                cleanuparr: [
+                    { ...base, id: 'e2', at: '2026-10-09T12:00:00+00:00', event: 'deleted', rawEvent: 'QueueItemDeleted', reason: 'Stalled', strikeCount: 3, downloadId: 'bbbb2222' }
+                ]
+            })
+        );
+        const step = stepFor(d, 'queue');
+        expect(step?.status).toBe('blocked');
+        expect(step?.service).toBe('cleanuparr');
+        expect(step?.detail).toContain('Cleanuparr removed it');
+        expect(step?.detail).toContain('Stalled');
+        expect(step?.detail).toContain('3 strikes');
+        expect(d.verdict.stage).toBe('queue');
+    });
+
+    it('says would have when the removal was a dry run', () => {
+        const d = buildChain(
+            'some film',
+            healthy({
+                cleanuparr: [{ ...base, id: 'e1', at: '2026-10-09T13:00:00+00:00', event: 'stopped', dryRun: true, downloadId: 'aaaa1111' }]
+            })
+        );
+        expect(stepFor(d, 'queue')?.detail).toContain('would have stopped');
+    });
+
+    it('warns about strikes on a download still in progress', () => {
+        const d = buildChain(
+            'some film',
+            healthy({
+                queue: { items: [downloading], partial: [] },
+                cleanuparr: [
+                    { ...base, id: 'e3', at: '2026-10-09T11:00:00+00:00', event: 'strike', rawEvent: 'StalledStrike', strikeCount: 2, downloadId: 'aaaa1111' }
+                ]
+            })
+        );
+        expect(stepFor(d, 'queue')?.detail).toContain('2 strikes from Cleanuparr');
+    });
+
+    it('ignores Cleanuparr when it could not be read', () => {
+        const d = buildChain('some film', healthy({ cleanuparr: undefined }));
+        expect(stepFor(d, 'queue')?.status).toBe('skipped');
     });
 });

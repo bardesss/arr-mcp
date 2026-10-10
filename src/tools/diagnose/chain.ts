@@ -2,7 +2,7 @@ import type { ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import type { MergedItem } from '../../core/resolver.ts';
-import type { IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
+import type { HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
 
 export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan';
 export type StepStatus = 'ok' | 'blocked' | 'unknown' | 'skipped';
@@ -45,6 +45,8 @@ export type Evidence = {
     mediaServer?: string;
     /** Whether that media server can report scan state at all. */
     scanCapable: boolean;
+    /** Cleanuparr events for this item's downloads, newest first. null: not configured. */
+    cleanuparr: HistoryEntry[] | null | undefined;
     /**
      * Library-read reachability, separate from `degraded` below, which is
      * *probe* reachability. A service can fail one without the other: a failing
@@ -112,7 +114,7 @@ const titleWords = (item: MergedItem): string[] => {
  *   name splits on it ("Spider.Man.2002" → spider, man, 2002), so neither ever
  *   produced the same tokens. `tokenize` splits both sides identically.
  */
-const mentions = (haystack: string, item: MergedItem): boolean => {
+export const mentions = (haystack: string, item: MergedItem): boolean => {
     const words = titleWords(item);
     if (words.length === 0) return false;
 
@@ -254,8 +256,26 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     // every download client had answered in full.
     const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => QUEUE_SERVICES.some(t => s === t || s.startsWith(`${t}/`)))])];
     const mine = items.filter(q => mentions(q.title, item));
+    const acted = (ev.cleanuparr ?? []).find(e => e.event === 'deleted' || e.event === 'stopped');
 
     if (mine.length === 0) {
+        if (acted !== undefined) {
+            const verb = acted.event === 'deleted' ? 'removed' : 'stopped';
+            const strikes = acted.strikeCount === undefined ? '' : `, ${acted.strikeCount} strikes`;
+            const why = acted.reason === undefined ? '' : `: ${acted.reason}`;
+            return {
+                step: {
+                    stage: 'queue',
+                    service: 'cleanuparr',
+                    status: 'blocked',
+                    detail:
+                        acted.dryRun === true
+                            ? `Cleanuparr would have ${verb} it on ${acted.at.slice(0, 10)}${why}${strikes} (dry run, nothing was done).`
+                            : `Cleanuparr ${verb} it on ${acted.at.slice(0, 10)}${why}${strikes}.`
+                },
+                remedy: 'Check the queue cleaner and seeding rules in Cleanuparr for the rule that fired, then search for it again.'
+            };
+        }
         if (effectivePartial.length > 0) {
             // A row for this item could be sitting on the client that failed
             // to answer — a partial read cannot rule that out, so this is
@@ -311,7 +331,9 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     const eta = row.etaSeconds === undefined ? '' : ` — about ${Math.round(row.etaSeconds / 60)} minute(s) left`;
     // A download genuinely in progress is not a fault: there is nothing to
     // fix, so no remedy — see QueueResult's optional `remedy`.
-    return { step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Still downloading${eta}.` } };
+    const strike = (ev.cleanuparr ?? []).find(e => e.event === 'strike');
+    const strikeNote = strike?.strikeCount === undefined ? '' : ` ${strike.strikeCount} strikes from Cleanuparr so far.`;
+    return { step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Still downloading${eta}.${strikeNote}` } };
 }
 
 function indexerStep(ev: Evidence, item: MergedItem): Step {
