@@ -312,7 +312,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         const arr = managing?.id === undefined ? undefined : deps.adapters.find(a => a.id === managing.service);
         if (arr !== undefined && hasHistory(arr) && managing?.id !== undefined) {
             const id = managing.id;
-            const rows = await probe(arr.id, degraded, () => arr.readHistory({ id, want: 50 }));
+            const rows = await probe(`${arr.id}:history`, degraded, () => arr.readHistory({ id, want: 50 }));
             for (const r of rows === undefined ? [] : Array.isArray(rows) ? rows : rows.items) {
                 if (r.downloadId !== undefined) ids.add(r.downloadId.toLowerCase());
             }

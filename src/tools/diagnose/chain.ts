@@ -256,22 +256,24 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     // every download client had answered in full.
     const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => QUEUE_SERVICES.some(t => s === t || s.startsWith(`${t}/`)))])];
     const mine = items.filter(q => mentions(q.title, item));
-    const acted = (ev.cleanuparr ?? []).find(e => e.event === 'deleted' || e.event === 'stopped');
+    // A file on disk means whatever Cleanuparr removed was replaced since.
+    const removals = item.acquisition?.hasFile === true ? [] : (ev.cleanuparr ?? []).filter(e => e.event === 'deleted' || e.event === 'stopped');
+    const acted = removals.find(e => e.dryRun !== true) ?? removals[0];
 
     if (mine.length === 0) {
         if (acted !== undefined) {
             const verb = acted.event === 'deleted' ? 'removed' : 'stopped';
             const strikes = acted.strikeCount === undefined ? '' : `, ${acted.strikeCount} strikes`;
             const why = acted.reason === undefined ? '' : `: ${acted.reason}`;
+            if (acted.dryRun === true) {
+                return { step: SKIPPED('queue', `Cleanuparr would have ${verb} it on ${acted.at.slice(0, 10)}${why} (dry run, nothing was done).`) };
+            }
             return {
                 step: {
                     stage: 'queue',
                     service: 'cleanuparr',
                     status: 'blocked',
-                    detail:
-                        acted.dryRun === true
-                            ? `Cleanuparr would have ${verb} it on ${acted.at.slice(0, 10)}${why}${strikes} (dry run, nothing was done).`
-                            : `Cleanuparr ${verb} it on ${acted.at.slice(0, 10)}${why}${strikes}.`
+                    detail: `Cleanuparr ${verb} it on ${acted.at.slice(0, 10)}${why}${strikes}.`
                 },
                 remedy: 'Check the queue cleaner and seeding rules in Cleanuparr for the rule that fired, then search for it again.'
             };
@@ -331,7 +333,8 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     const eta = row.etaSeconds === undefined ? '' : ` — about ${Math.round(row.etaSeconds / 60)} minute(s) left`;
     // A download genuinely in progress is not a fault: there is nothing to
     // fix, so no remedy — see QueueResult's optional `remedy`.
-    const strike = (ev.cleanuparr ?? []).find(e => e.event === 'strike');
+    const rowId = (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
+    const strike = rowId === undefined ? undefined : (ev.cleanuparr ?? []).find(e => e.event === 'strike' && e.downloadId === rowId);
     const strikeNote = strike?.strikeCount === undefined ? '' : ` ${strike.strikeCount} strikes from Cleanuparr so far.`;
     return { step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Still downloading${eta}.${strikeNote}` } };
 }

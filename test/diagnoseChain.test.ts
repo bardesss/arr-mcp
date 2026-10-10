@@ -1333,7 +1333,8 @@ describe('buildChain — Cleanuparr', () => {
         service: 'sabnzbd',
         id: '1',
         title: queueTitle('sabnzbd', 'Some.Film.2026'),
-        status: 'downloading'
+        status: 'downloading',
+        downloadId: 'aaaa1111'
     };
 
     it('explains a download Cleanuparr removed', () => {
@@ -1355,14 +1356,43 @@ describe('buildChain — Cleanuparr', () => {
         expect(d.verdict.stage).toBe('queue');
     });
 
-    it('says would have when the removal was a dry run', () => {
+    it('reports a dry run without blocking on it', () => {
+        const noFile = item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } });
+        const dry = { ...base, id: 'e1', at: '2026-10-09T13:00:00+00:00', event: 'stopped', dryRun: true, downloadId: 'aaaa1111' } as const;
+        const d = buildChain('some film', healthy({ item: noFile, cleanuparr: [dry] }));
+        const step = stepFor(d, 'queue');
+        expect(step?.status).toBe('skipped');
+        expect(step?.detail).toContain('would have stopped');
+        expect(d.verdict).toEqual(buildChain('some film', healthy({ item: noFile })).verdict);
+    });
+
+    it('lets a real removal win over a dry-run one', () => {
+        const noFile = item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } });
+        const dry = { ...base, id: 'e1', at: '2026-10-09T13:00:00+00:00', event: 'stopped', dryRun: true, downloadId: 'aaaa1111' } as const;
+        const real = { ...base, id: 'e0', at: '2026-10-08T13:00:00+00:00', event: 'deleted', downloadId: 'aaaa1111' } as const;
+        const step = stepFor(buildChain('some film', healthy({ item: noFile, cleanuparr: [dry, real] })), 'queue');
+        expect(step?.status).toBe('blocked');
+        expect(step?.detail).toContain('Cleanuparr removed it');
+    });
+
+    it('does not mention a removal once the file is on disk', () => {
+        const d = buildChain(
+            'some film',
+            healthy({ cleanuparr: [{ ...base, id: 'e2', at: '2026-10-09T12:00:00+00:00', event: 'deleted', reason: 'Stalled', downloadId: 'aaaa1111' }] })
+        );
+        expect(d.verdict.summary).not.toContain('Cleanuparr');
+        expect(d.steps.some(s => s.detail.includes('Cleanuparr'))).toBe(false);
+    });
+
+    it('ignores strikes on a different download', () => {
         const d = buildChain(
             'some film',
             healthy({
-                cleanuparr: [{ ...base, id: 'e1', at: '2026-10-09T13:00:00+00:00', event: 'stopped', dryRun: true, downloadId: 'aaaa1111' }]
+                queue: { items: [downloading], partial: [] },
+                cleanuparr: [{ ...base, id: 'e4', at: '2026-10-08T11:00:00+00:00', event: 'strike', strikeCount: 2, downloadId: 'cccc3333' }]
             })
         );
-        expect(stepFor(d, 'queue')?.detail).toContain('would have stopped');
+        expect(stepFor(d, 'queue')?.detail).not.toContain('Cleanuparr');
     });
 
     it('warns about strikes on a download still in progress', () => {

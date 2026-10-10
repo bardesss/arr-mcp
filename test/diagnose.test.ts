@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ServiceError } from '../src/core/errors.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
+import { buildChain } from '../src/tools/diagnose/chain.ts';
 import { collectEvidence } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
@@ -708,6 +709,22 @@ describe('collectEvidence — Cleanuparr', () => {
         );
         expect(evidence.cleanuparr).toBeUndefined();
         expect(evidence.degraded).toContain('cleanuparr');
+    });
+
+    it('does not turn the queue unknown when only the *arr history read fails', async () => {
+        const failing = stub('radarr', {
+            listLibrary: async () => [film],
+            getQueue: async () => [],
+            readHistory: async () => {
+                throw new Error('down');
+            }
+        });
+        const cleanuparr = stub('cleanuparr', { getSeedingRules: async () => [], readHistory: async () => ({ items: [], total: 0 }) });
+        const adapters = [failing, cleanuparr];
+        const evidence = await collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        expect(evidence.degraded).toContain('radarr:history');
+        expect(evidence.degraded).not.toContain('radarr');
+        expect(buildChain('some film', evidence).steps.find(s => s.stage === 'queue')?.status).not.toBe('unknown');
     });
 
     it('is null when Cleanuparr is not configured', async () => {
