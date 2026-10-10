@@ -83,3 +83,64 @@ describe('CleanuparrAdapter health', () => {
         expect(seen.every(s => s.startsWith('GET '))).toBe(true);
     });
 });
+
+const seedingRoutes = (over: Record<string, unknown> = {}) => ({
+    ...healthRoutes(),
+    '/api/seeding-rules/77893a81-a4e1-450e-b187-bb0d3ccd4e17': fixture('seeding-rules-transmission'),
+    '/api/seeding-rules/0b6f3c1e-2a4d-4f7e-9c8b-1d2e3f4a5b6c': fixture('seeding-rules-qbittorrent'),
+    '/api/configuration/download_cleaner': fixture('configuration-download_cleaner'),
+    ...over
+});
+
+describe('CleanuparrAdapter seeding rules', () => {
+    it('maps rules per client, turning -1 into absent and null into unsupported', async () => {
+        const adapter = new CleanuparrAdapter(config, stub(seedingRoutes()));
+        const seeding = await adapter.getSeedingRules();
+        const tr = seeding.sets.find(s => s.clientType === 'Transmission');
+        expect(tr?.endpoint).toBe('transmission.example:9091');
+        expect(tr?.rules[0]).toMatchObject({ name: 'Public: stop now', privacy: 'public', maxRatio: 0, action: 'stop', unsupported: ['maxInactiveDays'] });
+        expect(tr?.rules[0]?.maxSeedHours).toBeUndefined();
+        expect(tr?.rules[0]?.minSeedHours).toBeUndefined();
+        expect(tr?.rules[0]?.minSeeders).toBeUndefined();
+        const qb = seeding.sets.find(s => s.clientType === 'qBittorrent');
+        expect(qb?.rules[0]).toMatchObject({ privacy: 'both', maxSeedHours: 48, action: 'delete', unsupported: [] });
+        expect(qb?.rules[0]?.maxRatio).toBeUndefined();
+    });
+
+    it('reports dry run, enforcement and the merged ignore list', async () => {
+        const adapter = new CleanuparrAdapter(config, stub(seedingRoutes()));
+        const seeding = await adapter.getSeedingRules();
+        expect(seeding.dryRun).toBe(true);
+        expect(seeding.enforced).toBe(true);
+        expect(seeding.ignored).toEqual(['linux-isos', 'abcdef0123456789abcdef0123456789abcdef01']);
+    });
+
+    it('drops blank entries from the ignore list', async () => {
+        const cleaner = { ...(fixture('configuration-download_cleaner') as object), ignoredDownloads: ['', '  ', ' keep '] };
+        const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/configuration/download_cleaner': cleaner })));
+        expect((await adapter.getSeedingRules()).ignored).toEqual(['linux-isos', 'keep']);
+    });
+
+    it('is not enforced when the Download Cleaner is not scheduled', async () => {
+        const jobs = (fixture('jobs') as Array<{ jobType: string; status: string }>).map(j =>
+            j.jobType === 'DownloadCleaner' ? { ...j, status: 'Not Scheduled' } : j
+        );
+        const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/jobs': jobs })));
+        expect((await adapter.getSeedingRules()).enforced).toBe(false);
+    });
+
+    it('maps an action it does not know to unknown', async () => {
+        const rules = [{ ...(fixture('seeding-rules-transmission') as object[])[0], action: 'Archive' }];
+        const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/seeding-rules/77893a81-a4e1-450e-b187-bb0d3ccd4e17': rules })));
+        const seeding = await adapter.getSeedingRules();
+        expect(seeding.sets.find(s => s.clientType === 'Transmission')?.rules[0]?.action).toBe('unknown');
+    });
+
+    it('keeps maxInactiveDays 0 as a limit and drops minSeeders 0', async () => {
+        const rules = [{ ...(fixture('seeding-rules-qbittorrent') as object[])[0], maxInactiveDays: 0, minSeeders: 0 }];
+        const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/seeding-rules/0b6f3c1e-2a4d-4f7e-9c8b-1d2e3f4a5b6c': rules })));
+        const rule = (await adapter.getSeedingRules()).sets.find(s => s.clientType === 'qBittorrent')?.rules[0];
+        expect(rule?.maxInactiveDays).toBe(0);
+        expect(rule?.minSeeders).toBeUndefined();
+    });
+});

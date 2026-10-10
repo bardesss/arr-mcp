@@ -1,5 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
-import type { TorrentFacts } from '../core/cleanuparrRules.ts';
+import type { CleanuparrRule, TorrentFacts } from '../core/cleanuparrRules.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
@@ -360,6 +360,30 @@ export interface SeedLimitsCapable {
 
 export const hasSeedLimits = (a: ServiceAdapter): a is ServiceAdapter & SeedLimitsCapable =>
     typeof (a as Partial<SeedLimitsCapable>).getSeedLimits === 'function';
+
+export type CleanuparrRuleSet = {
+    /** Cleanuparr's name for the client. */
+    client: string;
+    clientType: string;
+    /** `host:port` Cleanuparr reaches it on, matched against `TorrentEndpoint.endpoint`. */
+    endpoint?: string;
+    rules: CleanuparrRule[];
+};
+
+export type CleanuparrSeeding = {
+    sets: CleanuparrRuleSet[];
+    dryRun: boolean;
+    /** The Download Cleaner job is scheduled. Unscheduled rules are never applied. */
+    enforced: boolean;
+    ignored: string[];
+};
+
+export interface CleanuparrCapable {
+    getSeedingRules(): Promise<CleanuparrSeeding>;
+}
+
+export const hasCleanuparr = (a: ServiceAdapter): a is ServiceAdapter & CleanuparrCapable =>
+    typeof (a as Partial<CleanuparrCapable>).getSeedingRules === 'function';
 
 export interface TorrentEndpoint {
     /** `host:port` of the client, for matching Cleanuparr's record of it. */

@@ -2,9 +2,13 @@ import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
+import type { CleanuparrRule, RuleAction, RulePrivacy } from '../core/cleanuparrRules.ts';
+import { hostPort } from '../core/hostPort.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
+    type CleanuparrCapable,
+    type CleanuparrSeeding,
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
@@ -24,13 +28,63 @@ export type RawClientStatus = { id: string; name: string; type: string; host: st
 type RawJob = { jobType?: string; status?: string };
 export type RawGeneral = { dryRun?: boolean; ignoredDownloads?: string[] };
 
+type RawRule = {
+    id?: string;
+    name?: string;
+    categories?: string[];
+    trackerPatterns?: string[];
+    tagsAny?: string[] | null;
+    tagsAll?: string[] | null;
+    priority?: number;
+    privacyType?: string;
+    maxRatio?: number | null;
+    minSeedTime?: number | null;
+    maxSeedTime?: number | null;
+    minSeeders?: number | null;
+    maxInactiveDays?: number | null;
+    deleteSourceFiles?: boolean;
+    action?: string;
+};
+
+const PRIVACY: Record<string, RulePrivacy> = { Public: 'public', Private: 'private', Both: 'both' };
+const ACTION: Record<string, RuleAction> = { Delete: 'delete', Stop: 'stop' };
+
+/** -1 is "no limit", and minSeedTime/minSeeders use 0 for "off". */
+const limit = (v: number | null | undefined, off: number): number | undefined =>
+    v === null || v === undefined || v === off || v < 0 ? undefined : v;
+
+const optional = <K extends string>(key: K, v: number | undefined): Partial<Record<K, number>> =>
+    (v === undefined ? {} : { [key]: v }) as Partial<Record<K, number>>;
+
+function ruleOf(r: RawRule): CleanuparrRule {
+    const nullable = ['tagsAny', 'tagsAll', 'minSeeders', 'maxInactiveDays'] as const;
+    return {
+        id: r.id ?? '',
+        name: r.name ?? '',
+        priority: r.priority ?? Number.MAX_SAFE_INTEGER,
+        categories: r.categories ?? [],
+        trackerPatterns: r.trackerPatterns ?? [],
+        tagsAny: r.tagsAny ?? [],
+        tagsAll: r.tagsAll ?? [],
+        privacy: PRIVACY[r.privacyType ?? ''] ?? 'both',
+        ...optional('maxRatio', limit(r.maxRatio, -1)),
+        ...optional('minSeedHours', limit(r.minSeedTime, 0)),
+        ...optional('maxSeedHours', limit(r.maxSeedTime, -1)),
+        ...optional('minSeeders', limit(r.minSeeders, 0)),
+        ...optional('maxInactiveDays', limit(r.maxInactiveDays, -1)),
+        unsupported: nullable.filter(k => r[k] === null),
+        deleteSourceFiles: r.deleteSourceFiles ?? false,
+        action: ACTION[r.action ?? ''] ?? 'unknown'
+    };
+}
+
 const JOB_LABEL: Record<string, string> = { QueueCleaner: 'Queue Cleaner', DownloadCleaner: 'Download Cleaner' };
 
 /**
  * Hand-written against the source at tag v2.10.9: Cleanuparr publishes no
  * API reference, and minor releases may break this contract.
  */
-export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable {
+export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, CleanuparrCapable {
     readonly type: ServiceId = 'cleanuparr';
     readonly id = 'cleanuparr';
     readonly #http: ServiceHttp;
@@ -89,6 +143,33 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable {
             out.push(check('version', 'warning', `Cleanuparr ${version} is newer than ${TESTED_MINOR}.x, which this adapter was written against; untested, results may be wrong`));
         }
         return out;
+    }
+
+    async getSeedingRules(): Promise<CleanuparrSeeding> {
+        const [clients, jobs, general, cleaner] = await Promise.all([
+            this.#clients(),
+            this.#jobs(),
+            this.#general(),
+            this.#http.get<{ ignoredDownloads?: string[] }>(`${CLEANUPARR_API}/configuration/download_cleaner`)
+        ]);
+        const sets = await Promise.all(
+            clients.map(async c => {
+                const rules = await this.#http.get<RawRule[]>(`${CLEANUPARR_API}/seeding-rules/${encodeURIComponent(c.id)}`);
+                const endpoint = hostPort(c.host);
+                return {
+                    client: c.name,
+                    clientType: c.type,
+                    ...(endpoint === undefined ? {} : { endpoint }),
+                    rules: rules.map(ruleOf).sort((a, b) => a.priority - b.priority)
+                };
+            })
+        );
+        return {
+            sets,
+            dryRun: general.dryRun === true,
+            enforced: jobs.some(j => j.jobType === 'DownloadCleaner' && j.status === 'Scheduled'),
+            ignored: [...(general.ignoredDownloads ?? []), ...(cleaner.ignoredDownloads ?? [])].map(v => v.trim()).filter(v => v !== '')
+        };
     }
 
     /** The client list without credentials. `/api/configuration/download_client` has passwords. */

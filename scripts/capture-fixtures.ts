@@ -965,7 +965,10 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'status-arrs', path: '/api/status/arrs', anonymise: body => rewriteUrls(body, 'url') },
         { name: 'status-download-client', path: '/api/status/download-client', anonymise: body => rewriteUrls(body, 'host') },
         { name: 'jobs', path: '/api/jobs' },
-        { name: 'configuration-general', path: '/api/configuration/general' }
+        { name: 'configuration-general', path: '/api/configuration/general' },
+        // seeding-rules-<type>.json is captured by hand with GET /api/seeding-rules/<id> for each id in
+        // status-download-client.json, until the script supports dependent paths.
+        { name: 'configuration-download_cleaner', path: '/api/configuration/download_cleaner' }
     ]
 };
 
