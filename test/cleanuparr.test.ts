@@ -184,6 +184,34 @@ describe('CleanuparrAdapter history', () => {
         expect(total).toBe(2);
     });
 
+    it('refuses an id, since Cleanuparr has no per-media history', async () => {
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': fixture('events') }));
+        await expect(adapter.readHistory({ id: '15' })).rejects.toThrow(/no per-movie or per-series history/);
+    });
+
+    it('stops a local-filter read at the page cap', async () => {
+        const seen: string[] = [];
+        const body = { items: [{ id: 'x', eventType: 'OtherEvent', timestamp: 't' }], page: 1, pageSize: 1, totalCount: 9999, totalPages: 9999 };
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': body }, seen));
+        const read = (await adapter.readHistory({ eventType: 'strike' })) as { items: HistoryEntry[]; total: number };
+        expect(seen).toHaveLength(50);
+        expect(read.total).toBe(read.items.length);
+    });
+
+    it('stops on an empty page whatever totalPages claims', async () => {
+        const seen: string[] = [];
+        let calls = 0;
+        const fetchImpl = (async (input: string | URL | Request) => {
+            seen.push(String(input));
+            calls += 1;
+            const items = calls === 1 ? [{ id: 'x', eventType: 'StalledStrike', timestamp: 't' }] : [];
+            return new Response(JSON.stringify({ items, totalCount: 1000, totalPages: 1000 }), { status: 200 });
+        }) as unknown as typeof fetch;
+        const read = (await new CleanuparrAdapter(config, fetchImpl).readHistory({ eventType: 'strike' })) as { items: HistoryEntry[]; total: number };
+        expect(seen).toHaveLength(2);
+        expect(read.items).toHaveLength(1);
+    });
+
     it('reports the upstream total when want stops paging early', async () => {
         const body = { items: [{ id: 'x1', eventType: 'DownloadStopped', timestamp: 't' }], page: 1, pageSize: 1, totalCount: 250, totalPages: 250 };
         const adapter = new CleanuparrAdapter(config, stub({ '/api/events': body }));

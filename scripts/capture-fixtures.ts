@@ -990,6 +990,10 @@ function anonymiseCleanuparrEvents(body: unknown): unknown {
         items: (body.items as unknown[]).map((item): unknown => {
             if (!isRow(item)) return item;
             const out: Row = { ...item };
+            if (typeof item.message === 'string') out.message = 'Example event message';
+            if (typeof item.cleanedCategory === 'string') out.cleanedCategory = 'example-category';
+            if (Array.isArray(item.failedImportReasons)) out.failedImportReasons = item.failedImportReasons.map(() => 'Example import failure reason');
+            if (Array.isArray(item.grabbedItems)) out.grabbedItems = item.grabbedItems.map((_, i) => ({ title: `Example.Grab.${i + 1}` }));
             if (typeof item.itemTitle === 'string') out.itemTitle = dummy(titles, item.itemTitle, n => `Example.Title.${n}`);
             if (typeof item.itemHash === 'string') out.itemHash = dummy(hashes, item.itemHash, n => n.toString(16).padStart(8, '0').repeat(5));
             return out;

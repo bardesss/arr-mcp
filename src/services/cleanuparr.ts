@@ -83,6 +83,7 @@ const UPSTREAM: Partial<Record<HistoryEventType, string>> = { stopped: 'Download
 /** Seeker's own searches are about no download, and would crowd out the rest. */
 const DROPPED = new Set(['SearchTriggered']);
 const PAGE_SIZE = 100;
+const MAX_PAGES = 50;
 
 const PRIVACY: Record<string, RulePrivacy> = { Public: 'public', Private: 'private', Both: 'both' };
 const ACTION: Record<string, RuleAction> = { Delete: 'delete', Stop: 'stop' };
@@ -210,8 +211,12 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
         };
     }
 
-    /** The client list without credentials. `/api/configuration/download_client` has passwords. */
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
+        if (opts.id !== undefined) {
+            throw new ServiceError('NotFound', this.id, 'Cleanuparr has no per-movie or per-series history', {
+                remedy: 'Scope `id` to radarr or sonarr, which know what the id means. Cleanuparr answers for the whole stack.'
+            });
+        }
         const upstream = opts.eventType === undefined ? undefined : UPSTREAM[opts.eventType];
         // A filter the service cannot apply means every page is read, to count the matches.
         const local = opts.eventType !== undefined && upstream === undefined;
@@ -229,7 +234,9 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
                 if (entry === undefined) dropped += 1;
                 else if (opts.eventType === undefined || entry.event === opts.eventType) items.push(entry);
             }
-            if (page >= (body.totalPages ?? 1)) return { items, total: items.length };
+            const pages = Number.isFinite(body.totalPages) ? (body.totalPages as number) : 1;
+            // Past the cap or on an empty page the read stops, and total is what was read.
+            if (page >= pages || page >= MAX_PAGES || (body.items ?? []).length === 0) return { items, total: items.length };
             if (!local && opts.want !== undefined && items.length >= opts.want) {
                 return { items, total: Math.max(items.length, (body.totalCount ?? 0) - dropped) };
             }
@@ -254,6 +261,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
         };
     }
 
+    /** The client list without credentials. `/api/configuration/download_client` has passwords. */
     async #clients(): Promise<RawClientStatus[]> {
         const body = await this.#http.get<{ Clients?: RawClientStatus[] }>(`${CLEANUPARR_API}/status/download-client`);
         return body.Clients ?? [];
