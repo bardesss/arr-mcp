@@ -1,5 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
-import type { CleanuparrRule, TorrentFacts } from '../core/cleanuparrRules.ts';
+import type { CleanuparrRule, RuleAction, TorrentFacts } from '../core/cleanuparrRules.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
@@ -343,7 +343,23 @@ export type SeedingState = {
     overLimit?: true;
     /** qBittorrent skips share limits for force-started torrents. */
     forced?: true;
+    /** Set when `overLimit` was judged against a Cleanuparr rule instead of the client's limit. */
+    limitSource?: 'cleanuparr';
+    cleanuparr?: CleanuparrVerdict;
 };
+
+export type CleanuparrVerdict =
+    | {
+          rule: string;
+          action: RuleAction;
+          ratioLimit?: number;
+          seedingLimitSeconds?: number;
+          minSeedSeconds?: number;
+          dryRun?: true;
+          notEnforced?: true;
+          uncertain?: string;
+      }
+    | { skipped: string };
 
 /** A torrent client's default seed limits. Absent means none. */
 export type ClientSeedLimits = {
