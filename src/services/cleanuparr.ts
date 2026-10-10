@@ -80,6 +80,8 @@ const EVENT: Record<string, HistoryEventType> = {
 };
 /** One upstream type per filter value, so the service filters before paging. */
 const UPSTREAM: Partial<Record<HistoryEventType, string>> = { stopped: 'DownloadStopped', imported: 'ForceImported' };
+/** Everything else Cleanuparr never emits, so a filter for it reads nothing. */
+const EMITTED = new Set<HistoryEventType>(['deleted', 'strike', 'stopped', 'imported', 'unknown']);
 /** Seeker's own searches are about no download, and would crowd out the rest. */
 const DROPPED = new Set(['SearchTriggered']);
 const PAGE_SIZE = 100;
@@ -117,8 +119,6 @@ function ruleOf(r: RawRule, service: string): CleanuparrRule {
     };
 }
 
-const JOB_LABEL: Record<string, string> = { QueueCleaner: 'Queue Cleaner', DownloadCleaner: 'Download Cleaner' };
-
 /**
  * Hand-written against the source at tag v2.10.9: Cleanuparr publishes no
  * API reference, and minor releases may break this contract.
@@ -145,36 +145,51 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
     }
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        const [version, health, arrs, clients, jobs, general] = await Promise.all([
+        // One missing endpoint on an older 2.10.x must not hide the rest; only the version read is fatal.
+        const [version, settled] = await Promise.all([
             this.getVersion(),
-            this.#http.get<RawHealth>('/health/detailed'),
-            this.#http.get<RawArrStatus>(`${CLEANUPARR_API}/status/arrs`),
-            this.#clients(),
-            this.#jobs(),
-            this.#general()
+            Promise.allSettled([
+                this.#http.get<RawHealth>('/health/detailed'),
+                this.#http.get<RawArrStatus>(`${CLEANUPARR_API}/status/arrs`),
+                this.#clients(),
+                this.#jobs(),
+                this.#general()
+            ])
         ]);
         const check = (source: string, type: string, message: string): HealthCheck => ({ service: this.id, source, type, message });
         const fence = (value: string) => fenceText(value, { service: this.id, field: 'message' });
         const out: HealthCheck[] = [];
+        const read = <T>(source: string, result: PromiseSettledResult<T>): T | undefined => {
+            if (result.status === 'fulfilled') return result.value;
+            out.push(check(source, 'warning', `Could not read ${source} from Cleanuparr, so its findings are missing`));
+            return undefined;
+        };
+        const [health, arrs, clients, jobs, general] = [
+            read('health', settled[0]),
+            read('arrs', settled[1]),
+            read('clients', settled[2]),
+            read('jobs', settled[3]),
+            read('general', settled[4])
+        ];
 
-        for (const [name, entry] of Object.entries(health.entries ?? {})) {
+        for (const [name, entry] of Object.entries(health?.entries ?? {})) {
             if (entry.status !== 'healthy') out.push(check('health', 'error', fence(`${name}: ${entry.description ?? entry.status ?? 'unknown'}`)));
         }
-        for (const [kind, list] of Object.entries(arrs)) {
+        for (const [kind, list] of Object.entries(arrs ?? {})) {
             for (const a of list) {
                 if (a.isConnected === false) {
                     out.push(check('arrs', 'error', fence(`${kind} "${a.name ?? kind}" is not connected: ${a.message ?? 'no reason given'}`)));
                 }
             }
         }
-        for (const c of clients) {
+        for (const c of clients ?? []) {
             if (c.enabled && !c.isConnected) out.push(check('clients', 'error', fence(`Download client "${c.name}" is not connected`)));
         }
-        for (const job of jobs) {
-            const label = JOB_LABEL[job.jobType ?? ''];
-            if (label !== undefined && job.status !== 'Scheduled') out.push(check('jobs', 'warning', `${label} is not scheduled, so its rules are not enforced`));
+        // The Download Cleaner is covered by the seeding rules note, which knows whether any rules exist.
+        if ((jobs ?? []).some(j => j.jobType === 'QueueCleaner' && j.status !== 'Scheduled')) {
+            out.push(check('jobs', 'warning', 'Queue Cleaner is not scheduled, so its rules are not enforced'));
         }
-        if (general.dryRun === true) out.push(check('general', 'warning', 'Dry run is on: Cleanuparr logs what it would do and does nothing'));
+        if (general?.dryRun === true) out.push(check('general', 'warning', 'Dry run is on: Cleanuparr logs what it would do and does nothing'));
 
         const actual = parseVersion(version);
         const tested = parseVersion(TESTED_MINOR);
@@ -191,12 +206,13 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             this.#general(),
             this.#http.get<{ ignoredDownloads?: string[] }>(`${CLEANUPARR_API}/configuration/download_cleaner`)
         ]);
+        // Cleanuparr applies no rules for a disabled client.
         const sets = await Promise.all(
-            clients.map(async c => {
+            clients.filter(c => c.enabled).map(async c => {
                 const rules = await this.#http.get<RawRule[]>(`${CLEANUPARR_API}/seeding-rules/${encodeURIComponent(c.id)}`);
                 const endpoint = hostPort(c.host);
                 return {
-                    client: c.name,
+                    client: fenceText(c.name, { service: this.id, field: 'client' }),
                     clientType: c.type,
                     ...(endpoint === undefined ? {} : { endpoint }),
                     rules: rules.map(r => ruleOf(r, this.id)).sort((a, b) => a.priority - b.priority)
@@ -217,6 +233,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
                 remedy: 'Scope `id` to radarr or sonarr, which know what the id means. Cleanuparr answers for the whole stack.'
             });
         }
+        if (opts.eventType !== undefined && !EMITTED.has(opts.eventType)) return { items: [], total: 0 };
         const upstream = opts.eventType === undefined ? undefined : UPSTREAM[opts.eventType];
         // A filter the service cannot apply means every page is read, to count the matches.
         const local = opts.eventType !== undefined && upstream === undefined;
