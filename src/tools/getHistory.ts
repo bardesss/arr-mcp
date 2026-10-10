@@ -116,7 +116,7 @@ export async function buildGetHistory(
         // and more misleading claim than "this service cannot answer that".
         if (!hasHistory(adapter)) {
             throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no history to return`, {
-                remedy: 'radarr, sonarr, sabnzbd and bazarr can answer get_history. A media server has no download history.'
+                remedy: 'radarr, sonarr, sabnzbd, bazarr and cleanuparr can answer get_history. A media server has no download history.'
             });
         }
         scoped = [adapter];

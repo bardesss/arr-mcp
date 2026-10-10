@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CleanuparrRule } from '../src/core/cleanuparrRules.ts';
 import { annotateCleanuparr } from '../src/tools/cleanuparrQueue.ts';
+import { buildGetQueue } from '../src/tools/getQueue.ts';
 import type { CleanuparrSeeding, QueueItem, ServiceAdapter } from '../src/services/types.ts';
 
 const rule = (over: Partial<CleanuparrRule>): CleanuparrRule => ({
@@ -111,5 +112,37 @@ describe('annotateCleanuparr edge cases', () => {
         await annotateCleanuparr(items, [cleanuparr(dup), transmission], () => {});
         expect(items[0]?.seeding?.cleanuparr).toBeUndefined();
         expect(items[0]?.seeding?.overLimit).toBeUndefined();
+    });
+});
+
+describe('get_queue and Cleanuparr', () => {
+    const counted = (s: CleanuparrSeeding | Error) => {
+        const calls = { n: 0 };
+        const base = cleanuparr(s) as unknown as { getSeedingRules: () => Promise<CleanuparrSeeding> };
+        const adapter = { ...base, getSeedingRules: () => { calls.n += 1; return base.getSeedingRules(); } } as unknown as ServiceAdapter;
+        return { adapter, calls };
+    };
+    const queued = { ...transmission, getQueue: async () => [row({})] } as unknown as ServiceAdapter;
+
+    it('makes no Cleanuparr call below full', async () => {
+        const { adapter, calls } = counted(seeding());
+        const result = await buildGetQueue([adapter, queued], { detail: 'standard', limit: 50 });
+        expect(calls.n).toBe(0);
+        expect(result.degraded).toEqual([]);
+    });
+
+    it('annotates rows at full', async () => {
+        const { adapter, calls } = counted(seeding());
+        const result = await buildGetQueue([adapter, queued], { detail: 'full', limit: 50 });
+        expect(calls.n).toBe(1);
+        expect(result.items[0]?.seeding?.cleanuparr).toMatchObject({ rule: 'Public: stop now' });
+    });
+
+    it('marks Cleanuparr degraded at full when it throws, and keeps the rows', async () => {
+        const { adapter } = counted(new Error('down'));
+        const result = await buildGetQueue([adapter, queued], { detail: 'full', limit: 50 });
+        expect(result.degraded).toEqual(['cleanuparr']);
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0]?.seeding?.cleanuparr).toBeUndefined();
     });
 });

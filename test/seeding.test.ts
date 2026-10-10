@@ -393,3 +393,24 @@ describe('stack_health Cleanuparr rules', () => {
         expect(rules.notes.some(n => n.includes('matches no configured'))).toBe(false);
     });
 });
+
+describe('Cleanuparr seeding wording', () => {
+    it('says all and none when three Cleanuparr clients point at one client', async () => {
+        const set = (client: string) => ({ client, clientType: 'Transmission', endpoint: 'transmission.example:9091', rules: [] });
+        const cleanuparr = { id: 'cleanuparr', type: 'cleanuparr', getSeedingRules: async () => ({ sets: [set('A'), set('B'), set('C')], dryRun: false, enforced: true, ignored: [] }) } as unknown as ServiceAdapter;
+        const transmission = { id: 'transmission', type: 'transmission', endpoint: 'transmission.example:9091' } as unknown as ServiceAdapter;
+        const rules = await buildSeedingRules([cleanuparr, transmission], () => {});
+        expect(rules.notes).toContain("Cleanuparr's clients \"A\", \"B\" and \"C\" all point at transmission, so none of their rules are applied to get_queue.");
+    });
+
+    it('marks a Cleanuparr rule that is only logged or not scheduled', () => {
+        const line = (cleanuparr: object) =>
+            queueLine({
+                service: 'transmission', id: '1', title: 'Some.Release', status: 'seeding',
+                seeding: { ratio: 3, seedingSeconds: 600, overLimit: true, limitSource: 'cleanuparr', cleanuparr: { rule: 'R', action: 'stop', ...cleanuparr } }
+            });
+        expect(line({})).toMatch(/past Cleanuparr rule "R"$/);
+        expect(line({ dryRun: true })).toContain('past Cleanuparr rule "R" (dry run)');
+        expect(line({ notEnforced: true })).toContain('past Cleanuparr rule "R" (not scheduled)');
+    });
+});

@@ -68,7 +68,8 @@ function cleanuparrNotes(
     const notes: string[] = [];
     for (const [service, list] of conflicts) {
         const names = list.map(s => `"${s.client}"`);
-        notes.push(`Cleanuparr's clients ${names.slice(0, -1).join(', ')} and ${names.at(-1)} both point at ${service}, so neither's rules are applied to get_queue.`);
+        const [all, none] = names.length > 2 ? ['all', 'none of their'] : ['both', "neither's"];
+        notes.push(`Cleanuparr's clients ${names.slice(0, -1).join(', ')} and ${names.at(-1)} ${all} point at ${service}, so ${none} rules are applied to get_queue.`);
     }
     const conflicted = new Set([...conflicts.values()].flat());
     for (const set of seeding.sets) {

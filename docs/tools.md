@@ -180,8 +180,10 @@ When Cleanuparr removed or stopped the download and nothing is in the queue,
 the queue stage says so, with the date, its reason and its strike count, and
 `remedy` points at its rules. This only applies while the item has no file; a
 file on disk means the removal was since replaced. A dry run is shown as "would
-have removed it" and does not block the verdict. A download still in the queue
-that Cleanuparr has struck carries its strike count in the queue stage.
+have removed or stopped it" and does not block the verdict. While a download
+client cannot be reached, the queue stage is unknown instead, since a new grab
+could be on that client. A download still in the queue that Cleanuparr has
+struck carries its strike count and kind in the queue stage.
 
 ## `stack_health`
 
@@ -238,9 +240,10 @@ one. Absent when nothing configured seeds.
 ### Cleanuparr
 
 With Cleanuparr configured, its health findings join the failing checks: an
-unhealthy entry, a disconnected *arr or download client, a Download Cleaner or
-Queue Cleaner that is not scheduled, dry run being on, and a Cleanuparr minor
-newer than 2.10 (flagged as untested).
+unhealthy entry, a disconnected *arr or download client, a Queue Cleaner that
+is not scheduled, dry run being on, and a Cleanuparr minor newer than 2.10
+(flagged as untested). A source it could not read is a warning of its own, and
+the rest still report.
 
 At `full`, `seedingRules.cleanuparr` lists the rule sets of each Cleanuparr
 download client. A set carries `service` when it maps to an arr-mcp torrent
@@ -617,7 +620,9 @@ where it has one, and `dryRun: true` when it only logged the action. A `reason`
 is fenced like any other upstream text.
 
 `downloadId` is lowercased and links a row to the *arr grab it belongs to.
-Radarr and Sonarr rows now carry the same `downloadId`. Passing `id` with
+Radarr and Sonarr rows now carry the same `downloadId`, also lowercased.
+`get_queue`'s `downloadId` is as the *arr reports it, so compare the two
+case-insensitively. Passing `id` with
 `service: cleanuparr` is refused, because Cleanuparr does not keep history per
 movie or series.
 

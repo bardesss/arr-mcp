@@ -42,12 +42,13 @@ export function queueLine(item: QueueItem): string {
     if (item.errorMessage !== undefined && item.errorMessage !== '') facts.push(item.errorMessage);
     if (item.statusMessages !== undefined) facts.push(...item.statusMessages);
     if (item.seeding?.overLimit === true && item.status.startsWith('seeding')) {
-        const rule = item.seeding.cleanuparr !== undefined && 'rule' in item.seeding.cleanuparr ? item.seeding.cleanuparr.rule : undefined;
+        const c = item.seeding.cleanuparr !== undefined && 'rule' in item.seeding.cleanuparr ? item.seeding.cleanuparr : undefined;
+        const marks = [...(c?.dryRun === true ? ['dry run'] : []), ...(c?.notEnforced === true ? ['not scheduled'] : [])];
         facts.push(
             item.seeding.forced === true
                 ? 'past its seed limit (force-started, so exempt)'
-                : rule !== undefined && item.seeding.limitSource === 'cleanuparr'
-                  ? `past Cleanuparr rule "${rule}"`
+                : c !== undefined && item.seeding.limitSource === 'cleanuparr'
+                  ? `past Cleanuparr rule "${c.rule}"${marks.length === 0 ? '' : ` (${marks.join(', ')})`}`
                   : 'past its seed limit'
         );
     }
