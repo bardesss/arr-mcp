@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.44.1](https://github.com/bardesss/arr-mcp/compare/v1.44.0...v1.44.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* close the Plex metadata detector gaps from the 1.44.0 rerun ([#369](https://github.com/bardesss/arr-mcp/issues/369)) ([b5a1c7d](https://github.com/bardesss/arr-mcp/commit/b5a1c7ddec4ac7922d0b32c5fa3d29d8eaaa3ab7)), closes [#312](https://github.com/bardesss/arr-mcp/issues/312)
+* language_preferred_not_required fires whenever the floor doesn't need the language ([#368](https://github.com/bardesss/arr-mcp/issues/368)) ([6455b6c](https://github.com/bardesss/arr-mcp/commit/6455b6c816adf9702ee0aa239453245f9ee07fd7)), closes [#367](https://github.com/bardesss/arr-mcp/issues/367)
+
 ## [1.44.0](https://github.com/bardesss/arr-mcp/compare/v1.43.0...v1.44.0) (2026-10-09)
 
 
