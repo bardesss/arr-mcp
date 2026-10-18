@@ -1205,8 +1205,10 @@ the configuration mistakes that make a profile unable to do what it looks
 like it does. Read-only, and deliberately so: Profilarr owns quality profiles
 and custom formats, re-syncing them from its own git source, so a direct
 write here would be reverted on the next sync or reported back as drift.
-Every `remedy` names a change to make **in Profilarr**, never one this tool
-performs.
+Every `remedy` is a change to make **in Profilarr** when it syncs the profile,
+or in the arr itself when it does not, never one this tool performs.
+Profilarr's API says how many profiles it syncs to each arr but not which, so
+the remedy names both places.
 
 Six finding kinds, each carrying a `confidence`:
 
@@ -1215,7 +1217,7 @@ Six finding kinds, each carrying a `confidence`:
 | `unreachable_floor` | certain | The profile's minimum custom format score is higher than every positive score in it adds up to. Nothing can satisfy it. |
 | `knife_edge_floor` | certain | The minimum is exactly that total. Every positive format must match, and one negative match rejects the release. |
 | `subset_format_scored` | certain | A scored format matches a strict subset of the languages an unscored one does — the wider format would have scored and does not. |
-| `language_preferred_not_required` | likely | A language format is scored but the profile has no minimum, so a release in any language still passes. |
+| `language_preferred_not_required` | likely | A language format is scored, but the other formats reach the minimum without it (or there is no minimum), so a release in any language still passes. |
 | `dialect_sibling_missing` | likely | A required format covers one half of a dialect pair (Dutch/Flemish, Portuguese/Brazilian, Spanish/Latino) but not the other, rejecting that half outright. |
 | `profilarr_drift` | certain | Profilarr's saved profiles have drifted from what this Radarr/Sonarr instance currently holds. |
 
