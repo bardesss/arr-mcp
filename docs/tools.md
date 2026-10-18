@@ -918,20 +918,30 @@ before comparing. A rerun moved three more: a multi-episode file
 (`S04E10-E11`) matches every episode in its range, specials whose file and
 server both say season 0 are never a numbering finding, and an episode whose
 title belongs to the episode next to it is marked as shifted (Cowboy Bebop,
-TNG and 20 more series on that library).
+TNG and 20 more series on that library). The rerun on 1.44.0 widened that to
+any episode in the same season, for shifts of two or more and reordered
+seasons (Goof Troop, Tales from the Crypt).
 
 An episode whose filename and server title are in different languages is
-marked too (Los Espookys: `El monstruo marino` shown as "The Sea Monster").
-The language is guessed from function words such as `el`, `the`, `der` or
-`het`, for English, Spanish, French, German, Italian, Portuguese and Dutch. A
-title gets a language only when one clearly wins, so short titles and ties make
-no claim at all.
+marked too (`El monstruo del mar` shown as "The Monster of the Sea"). The
+language is guessed from function words such as `el`, `the`, `der` or `het`,
+for English, Spanish, French, German, Italian, Portuguese and Dutch. A title
+gets a language only when at least two of its function words point at one
+language and it clearly wins, so short titles and ties make no claim at all.
+One word was not enough: "Coming of Age" read as English and a title with "as"
+in it as Portuguese.
 
 Shifted episodes, specials and language differences are real disagreements that
 a rematch does not fix, so they are counted in `shifted`, `specials` and
 `languages`, and never on their own push a series to `refresh_metadata`. A
 rematch was measured not to move a shifted series. Placeholder titles in the
 server are the other finding a repair cannot fix.
+
+A Plex film matched to a provider id whose year alone disagrees with its file
+gets `inspect`, not `refresh_metadata`. The repair re-matches the id Plex
+already holds and the Plex Movie agent keeps Plex's own year, so on the #312
+library none of those years moved. On Jellyfin the same film still gets
+`refresh_metadata`, because Jellyfin refreshes a film's year from TMDB.
 Plex episodes are never treated as pinned: their provider ids follow from the
 show's match rather than identifying the episode on its own, so a title-only
 finding on Plex comes back as `refresh_metadata`. If the sweep flags something

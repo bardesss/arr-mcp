@@ -369,6 +369,12 @@ export function registerFixMetadata(
             // One decision, used by the summary, the warning and the token
             // binding, so the three cannot disagree about which id is pinned.
             const provider = pinnedProvider(series);
+            // The Plex Movie agent takes a film's year from Plex's own metadata,
+            // so re-matching to the id Plex already holds leaves it alone (#312).
+            const plexFilm = film !== undefined && adapter.type === 'plex';
+            const serverTmdb = film === undefined ? undefined : (byId.get(film.id) as MovieRecord | undefined)?.providerIds?.Tmdb;
+            const sameMatch =
+                plexFilm && film.reasons.length === 1 && film.reasons[0] === 'year' && provider.id?.tmdbId !== undefined && serverTmdb === String(provider.id.tmdbId);
 
             return {
                 target,
@@ -377,14 +383,21 @@ export function registerFixMetadata(
                         ? `${series.title} disagrees with its ${film === undefined ? 'files' : 'file'}, but every disagreeing field is locked in ${serverName(adapter)}, so a repair cannot change it. Unlock the field on the item in ${serverName(adapter)} first.`
                         : pinned === mismatches.length
                           ? `${series.title} has ${mismatches.length} of ${comparable} episodes disagreeing with their files, but every one of them was matched to a specific provider episode — a refresh will not move those, and this repair is expected to change nothing.`
-                          : film !== undefined
+                          : plexFilm
+                            ? `Re-match ${series.title} in Plex${provider.id === undefined ? '' : ` using ${provider.label}`} and refresh it from Plex's own metadata: its file names a different ${film.reasons.includes('year') ? 'year' : 'title'}.`
+                            : film !== undefined
                             ? `Re-identify ${series.title} against ${provider.label} and replace all of its metadata: its file names a different ${film.reasons.includes('year') ? 'year' : 'title'}.`
                             : `Re-identify ${series.title} against ${provider.label} and replace all of its metadata: ${mismatches.length} of ${comparable} ${unit} disagree with their files.`,
                 effects: [
+                    ...(sameMatch
+                        ? [
+                              `Plex is already matched to ${provider.label}, so this re-matches the same film, and the Plex Movie agent keeps Plex's own year. A repair is not expected to change the year. Check the year in Radarr and the file name first.`
+                          ]
+                        : []),
                     ...(shifted === 0
                         ? []
                         : [
-                              `${shifted} of the ${mismatches.length} mismatching episodes carry the title ${serverName(adapter)} gives the episode next to them. That is a different episode order rather than a wrong match, and on a real Plex library a rematch did not move a single one.`
+                              `${shifted} of the ${mismatches.length} mismatching episodes carry the title ${serverName(adapter)} gives another episode in the same season. That is a different episode order rather than a wrong match, and on a real Plex library a rematch did not move a single one.`
                           ]),
                     ...(languages === 0
                         ? []
