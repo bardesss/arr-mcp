@@ -182,7 +182,7 @@ describe('write tool harness — preview and confirm', () => {
     // it out takes the trailing word or the final backticked span, and prose
     // after the token defeats both — `unwrap` strips punctuation, not a clause.
     it('ends both the preview and the rejection with the token itself', async () => {
-        const ending = /`v1\.[\w.-]+`\.?$/u;
+        const ending = /`v2\.[\w.-]+`\.?$/u;
 
         const preview = await harness.call('delete_media', { id: '5' });
         expect(preview.content[0]?.text.trimEnd()).toMatch(ending);

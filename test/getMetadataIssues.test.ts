@@ -451,7 +451,38 @@ describe('advisory findings', () => {
             )
         ).items;
         expect(issue).toMatchObject({ shifted: 3, remedy: 'inspect' });
-        expect(issue?.fix).toContain('3 carry the title the server gives the episode next to them');
+        expect(issue?.fix).toContain('3 carry the title the server gives another episode in the same season');
+    });
+});
+
+/** #312 on 1.44.0: five Plex films flagged on year, none of which a repair moved. */
+describe('films a Plex repair cannot move', () => {
+    const plex = (movies: MovieRecord[]): ServiceAdapter => ({ ...(adapterWith({}, [], movies) as object), id: 'plex', type: 'plex' }) as unknown as ServiceAdapter;
+    const matched: MovieRecord = {
+        id: 'p1',
+        name: 'Fixture Musical',
+        year: 1993,
+        path: '/movies/Fixture Musical (1996)/Fixture Musical (1996).mkv',
+        providerIds: { Tmdb: '9001' }
+    };
+
+    it('sends a matched Plex film whose year alone disagrees to inspect', async () => {
+        const [row] = (await sweep(plex([matched]))).items;
+        expect(row).toMatchObject({ kind: 'movie', remedy: 'inspect' });
+        expect(row?.fix).toContain('year');
+        expect(row?.fix).not.toContain('wording only');
+    });
+
+    it('still re-identifies an unmatched Plex film', async () => {
+        const { providerIds: _p, ...unmatched } = matched;
+        const [row] = (await sweep(plex([unmatched]))).items;
+        expect(row).toMatchObject({ remedy: 'refresh_metadata' });
+    });
+
+    // Jellyfin refreshes a film from TMDB, so a stale year there can move.
+    it('leaves the same film on Jellyfin to a refresh', async () => {
+        const [row] = (await sweep(adapterWith({}, [], [matched]))).items;
+        expect(row).toMatchObject({ remedy: 'refresh_metadata' });
     });
 });
 
@@ -464,7 +495,7 @@ describe('language findings', () => {
             episode: n,
             path: `/tv/Show/Season 01/Show - S01E0${n} - ${file}.mkv`
         });
-        const [issue] = (await sweep(adapterWith({ Espookys: [at(1, 'The Sea Monster', 'El monstruo marino')] }))).items;
+        const [issue] = (await sweep(adapterWith({ Espookys: [at(1, 'The Monster of the Sea', 'El monstruo del mar')] }))).items;
         expect(issue).toMatchObject({ languages: 1, remedy: 'inspect' });
         expect(issue?.fix).toContain('1 have the filename and the server title in different languages');
     });
