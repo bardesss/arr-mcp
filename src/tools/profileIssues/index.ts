@@ -79,7 +79,14 @@ export function profileIssueLine(issue: ProfileIssue): string {
     return `${where}${profile} — ${issue.kind} (${issue.confidence}): ${issue.detail}`;
 }
 
-const isArrAdapter = (a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
+const ARR_NAMES: Record<ArrServiceType, string> = { radarr: 'Radarr', sonarr: 'Sonarr', whisparr: 'Whisparr' };
+
+/** Profilarr's API reports how many profiles it syncs per arr, not which, so
+ *  a remedy cannot tell a synced profile from one made in the arr. */
+const profileOwner = (service: ArrServiceType): string =>
+    `In Profilarr if it syncs this profile, otherwise in ${ARR_NAMES[service]}`;
+
+const isArrAdapter =(a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
     (a.type === 'radarr' || a.type === 'sonarr' || a.type === 'whisparr') && hasProfileDiagnostics(a);
 
 type ProfilarrStatusCapable = {
@@ -237,6 +244,7 @@ export async function buildGetProfileIssues(
                 for (const f of findings) {
                     items.push({
                         ...f,
+                        remedy: `${profileOwner(adapter.type as ArrServiceType)}, ${f.remedy}`,
                         service: adapter.type as ArrServiceType,
                         ...(adapter.instance === undefined ? {} : { instance: adapter.instance }),
                         profile: profile.name
@@ -299,13 +307,15 @@ export function registerGetProfileIssues(
             title: 'Profile issues',
             annotations: READ_ONLY,
             description:
-                'Faults in Radarr, Sonarr and Whisparr quality profiles that Profilarr, not arr-mcp, can fix: a ' +
+                'Faults in Radarr, Sonarr and Whisparr quality profiles: a ' +
                 'minimum custom format score nothing can reach, a score set exactly on the edge, a narrower ' +
-                'language format scored while a wider one sits at zero, a language scored without a minimum to ' +
-                'enforce it, a dialect sibling left uncovered, and Profilarr-reported drift between its saved ' +
-                'profiles and what an instance actually holds. Drift findings are instance-scoped, not tied to any ' +
-                'one profile, and are unaffected by the `profile` filter. Read-only — every `remedy` names a ' +
-                'change to make in Profilarr, never one arr-mcp performs. `note` explains when nothing was ' +
+                'language format scored while a wider one sits at zero, a scored language the minimum does not ' +
+                'enforce, a dialect sibling left uncovered, and Profilarr-reported drift between its saved ' +
+                'profiles and what an instance actually holds. Each profile is checked on its own, so a finding ' +
+                'on some profiles says nothing about which others score the same format. Drift findings are ' +
+                'instance-scoped, not tied to any one profile, and are unaffected by the `profile` filter. ' +
+                'Read-only — every `remedy` is a change to make in Profilarr when it syncs that profile, or in ' +
+                'the arr itself when it does not, never one arr-mcp performs. `note` explains when nothing was ' +
                 'configured to check.',
             outputSchema: PagedOutputSchema.extend({
                 note: z
