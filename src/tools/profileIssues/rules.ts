@@ -29,7 +29,7 @@ export function floorFindings(profile: ProfileInput): Finding[] {
             kind: 'unreachable_floor',
             confidence: 'certain',
             detail: `\`${profile.name}\` requires a score of ${profile.minFormatScore}, but every custom format it scores adds up to at most ${total}. Nothing can satisfy it.`,
-            remedy: `In Profilarr, lower this profile's minimum custom format score below ${total}, or score the formats that would supply the difference.`
+            remedy: `lower this profile's minimum custom format score below ${total}, or score the formats that would supply the difference.`
         }];
     }
     if (total > 0 && profile.minFormatScore === total) {
@@ -37,7 +37,7 @@ export function floorFindings(profile: ProfileInput): Finding[] {
             kind: 'knife_edge_floor',
             confidence: 'certain',
             detail: `\`${profile.name}\` requires ${profile.minFormatScore}, which is exactly the total of every positive custom format. Each one must match, and a single negative match rejects the release.`,
-            remedy: `In Profilarr, lower this profile's minimum custom format score so it has headroom above the formats you actually require.`
+            remedy: `lower this profile's minimum custom format score so it has headroom above the formats you actually require.`
         }];
     }
     return [];
@@ -83,7 +83,7 @@ export function subsetFindings(profile: ProfileInput, formats: readonly CustomFo
                 kind: 'subset_format_scored',
                 confidence: 'certain',
                 detail: `\`${profile.name}\` scores \`${narrow.name}\`, which matches fewer languages than \`${wide.name}\`. \`${wide.name}\` is scored 0, so releases it would have matched score nothing.`,
-                remedy: `In Profilarr, score \`${wide.name}\` in this profile instead of \`${narrow.name}\`.`
+                remedy: `score \`${wide.name}\` in this profile instead of \`${narrow.name}\`.`
             });
         }
     }
@@ -104,16 +104,22 @@ const hasLanguageCondition = (cf: CustomFormatInput | undefined): boolean =>
     (cf?.specifications ?? []).some(s => s.implementation === 'LanguageSpecification');
 
 export function languagePreferenceFindings(profile: ProfileInput, formats: readonly CustomFormatInput[]): Finding[] {
-    if (profile.minFormatScore !== 0) return [];
     const byName = new Map(formats.map(f => [f.name, f]));
     const scored = profile.formatItems.filter(f => f.score > 0 && hasLanguageCondition(byName.get(f.name)));
     if (scored.length === 0) return [];
+    const withoutLanguage = positiveTotal(profile) - scored.reduce((sum, f) => sum + f.score, 0);
+    if (withoutLanguage < profile.minFormatScore) return [];
     const names = scored.map(f => `\`${f.name}\``).join(', ');
+    const min = profile.minFormatScore;
+    const why =
+        min <= 0
+            ? 'has no minimum custom format score'
+            : `its other formats can reach the minimum of ${min} without them`;
     return [{
         kind: 'language_preferred_not_required',
         confidence: 'likely',
-        detail: `\`${profile.name}\` scores ${names} but has no minimum custom format score, so a release in any language is still acceptable. It prefers the language rather than requiring it.`,
-        remedy: `In Profilarr, set this profile's minimum custom format score above zero if the language is meant to be a requirement.`
+        detail: `\`${profile.name}\` scores ${names}, but ${why}, so a release in any language is still acceptable. It prefers the language rather than requiring it.`,
+        remedy: `if the language is meant to be a requirement, raise this profile's minimum custom format score above ${Math.max(withoutLanguage, 0)}, or score a format that matches the other languages negatively.`
     }];
 }
 
@@ -136,7 +142,7 @@ export function dialectFindings(profile: ProfileInput, formats: readonly CustomF
                     kind: 'dialect_sibling_missing',
                     confidence: 'likely',
                     detail: `\`${profile.name}\` requires \`${item.name}\` to reach its minimum score, and that format matches ${have} but not ${missing}. ${missing} releases are rejected outright.`,
-                    remedy: `In Profilarr, add ${missing} to \`${item.name}\`, or score a format that covers both.`
+                    remedy: `add ${missing} to \`${item.name}\`, or score a format that covers both.`
                 });
             }
         }
