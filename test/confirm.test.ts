@@ -109,7 +109,8 @@ describe('confirmation tokens', () => {
 
     it('rejects a forged token rather than trusting its timestamp', () => {
         const tokens = new ConfirmTokens();
-        const forged = `v1.${Date.now().toString(36)}.not-a-real-signature`;
+        const [version, keyId] = tokens.issue(intent()).split('.');
+        const forged = `${version}.${keyId}.${Date.now().toString(36)}.not-a-real-signature`;
 
         const result = tokens.verifyAndConsume(forged, intent());
         expect(result.ok).toBe(false);
@@ -177,6 +178,25 @@ describe('confirmation tokens', () => {
         const a = new ConfirmTokens();
         const b = new ConfirmTokens();
         expect(b.verifyAndConsume(a.issue(intent()), intent()).ok).toBe(false);
+    });
+
+    // #312: a token from another process was reported as "a different
+    // operation or different arguments", which sent the reader the wrong way.
+    it('says when a token comes from another process or before a restart', () => {
+        const a = new ConfirmTokens();
+        const b = new ConfirmTokens();
+        const result = b.verifyAndConsume(a.issue(intent()), intent());
+        if (result.ok) throw new Error('expected a rejection');
+        expect(result.failure).toBe('foreign');
+        expect(result.remedy).toMatch(/another arr-mcp process|restart/);
+        expect(result.remedy).not.toMatch(/different arguments/);
+    });
+
+    it('still reports a mismatch for a token from this process with other arguments', () => {
+        const tokens = new ConfirmTokens();
+        const result = tokens.verifyAndConsume(tokens.issue(intent({ target: '5' })), intent({ target: '9' }));
+        if (result.ok) throw new Error('expected a rejection');
+        expect(result.failure).toBe('mismatch');
     });
 
     it('every rejection carries a remedy saying what to do next', () => {

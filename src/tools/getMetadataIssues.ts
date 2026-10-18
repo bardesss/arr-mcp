@@ -102,6 +102,9 @@ const FIX: Record<Remedy, string> = {
         'The disagreeing field is locked on the item, so neither fix_metadata nor a refresh will change it. If the locked value is wrong, unlock it on the item in the media server, then run fix_metadata.'
 };
 
+const FILM_YEAR_INSPECT =
+    "Look before acting: Plex already matched this film, and a repair re-matches it to the same id while the Plex Movie agent keeps Plex's own year, so fix_metadata is not expected to change it. Check the year in Radarr and the file name; if Plex matched a different film of the same name, use Fix Match in Plex.";
+
 const fixFor = (remedy: Remedy, adapter: ServiceAdapter, repairAllowed: boolean): string =>
     remedy === 'refresh_metadata' && adapter.type === 'plex' && !repairAllowed
         ? `${FIX[remedy]} The repair is off on this Plex until services.plex.allow_metadata_repair is set.`
@@ -113,7 +116,7 @@ const fixFor = (remedy: Remedy, adapter: ServiceAdapter, repairAllowed: boolean)
 const advisoryNote = (v: { shifted: number; specials: number; languages: number }): string =>
     (v.shifted === 0
         ? ''
-        : ` ${v.shifted} carry the title the server gives the episode next to them: a different episode order rather than a wrong match, which a rematch did not move on a real library.`) +
+        : ` ${v.shifted} carry the title the server gives another episode in the same season: a different episode order rather than a wrong match, which a rematch did not move on a real library.`) +
     (v.specials === 0 ? '' : ` ${v.specials} are specials (season 0), which sources number differently, so treat those as a hint.`) +
     (v.languages === 0
         ? ''
@@ -180,7 +183,7 @@ export async function buildGetMetadataIssues(
             const record = movies.find(m => m.id === mismatch.id);
             const pinned = record !== undefined && pinnedToProvider(record) ? 1 : 0;
             const lockedCount = mismatch.locked === true ? 1 : 0;
-            const remedy = movieRemedy(mismatch.reasons, pinned === 1, lockedCount === 1);
+            const remedy = movieRemedy(mismatch.reasons, pinned === 1, lockedCount === 1, { keepsOwnYear: adapter.type === 'plex' });
 
             issues.push({
                 service: adapter.id,
@@ -194,7 +197,7 @@ export async function buildGetMetadataIssues(
                 pinned,
                 locked: lockedCount,
                 remedy,
-                fix: fixFor(remedy, adapter, repairAllowed),
+                fix: remedy === 'inspect' && mismatch.reasons.includes('year') ? FILM_YEAR_INSPECT : fixFor(remedy, adapter, repairAllowed),
                 examples: [
                     fenceText(
                         `${unfenced(mismatch.path).split(/[/\\]/).at(-1) ?? ''} → ${unfenced(mismatch.serverTitle)}${mismatch.serverYear === undefined ? '' : ` (${mismatch.serverYear})`}`,

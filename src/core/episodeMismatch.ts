@@ -93,7 +93,7 @@ export type Mismatch = {
     locked?: boolean;
     /**
      * Real, but not something a rematch fixes. `shifted`: the file carries the
-     * title the server gives the episode next to it, a different episode
+     * title the server gives another episode in the same season, a different episode
      * order (Cowboy Bebop, TNG and 20 more on one Plex library; a rematch did
      * not move them). `special`: both sides say season 0, which sources number
      * differently. `language`: the file and the server title are in different
@@ -363,7 +363,8 @@ const LANGUAGE_WORDS: Record<string, ReadonlySet<string>> = {
 };
 
 /** The language a title's function words point at, or undefined unless one
- *  language clearly wins. Short titles with none stay undefined. */
+ *  language clearly wins on at least two of them. One is noise: Skeleton Crew
+ *  read "of" as English and "as" as Portuguese (#312). */
 export function guessLanguage(title: string): string | undefined {
     const words = unfenced(title)
         .normalize('NFD')
@@ -374,7 +375,7 @@ export function guessLanguage(title: string): string | undefined {
         .map(([language, set]) => [language, words.filter(w => set.has(w)).length] as const)
         .sort((x, y) => y[1] - x[1]);
     const [best, next] = scores;
-    return best !== undefined && best[1] > 0 && best[1] > (next?.[1] ?? 0) ? best[0] : undefined;
+    return best !== undefined && best[1] >= 2 && best[1] > (next?.[1] ?? 0) ? best[0] : undefined;
 }
 
 const inDifferentLanguages = (a: string, b: string): boolean => {
@@ -473,8 +474,16 @@ const seriesRemedy = (numbering: number, locked: number, repairable: number, mis
  *  is exactly the repair — the opposite of what the episode rule
  * would have said, since every matched film carries provider ids.
  */
-export const movieRemedy = (reasons: readonly MismatchReason[], pinned: boolean, locked = false): Remedy => {
+export const movieRemedy = (
+    reasons: readonly MismatchReason[],
+    pinned: boolean,
+    locked = false,
+    server: { keepsOwnYear?: boolean } = {}
+): Remedy => {
     if (locked) return 'unlock_fields';
+    // Plex: a repair re-pins the id Plex already holds and the Plex Movie
+    // agent keeps its own year, so a matched film's year does not move (#312).
+    if (server.keepsOwnYear === true && pinned && reasons.length === 1 && reasons[0] === 'year') return 'inspect';
     if (reasons.includes('year')) return 'refresh_metadata';
     return pinned ? 'inspect' : 'refresh_metadata';
 };
@@ -601,17 +610,18 @@ export function findMovieMismatches(items: readonly MovieRecord[]): Mismatch[] {
  */
 export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
     const out: Mismatch[] = [];
-    // Both directions, so the ends of a shifted run count too: the first
-    // episode's server title is the next file's title, the last episode's
-    // file title is the previous server title.
-    const byNumber = new Map(items.map(i => [`${i.season}:${i.episode}`, { name: i.name, file: i.path === undefined ? undefined : extractFileTitle(i.path) }]));
-    const neighbourHas = (item: EpisodeRecord, fileTitle: string): boolean =>
+    // Any episode in the same season, not just the neighbours: Goof Troop was
+    // out by two and Cowboy Bebop reordered (#312). Both directions, so the
+    // ends of a shifted run count too.
+    const others = items.map(i => ({ id: i.id, season: i.season, name: i.name, file: i.path === undefined ? undefined : extractFileTitle(i.path) }));
+    const seasonHas = (item: EpisodeRecord, fileTitle: string): boolean =>
         item.season !== undefined &&
-        item.episode !== undefined &&
-        [item.episode - 1, item.episode + 1].some(n => {
-            const next = byNumber.get(`${item.season}:${n}`);
-            return next !== undefined && (titlesMatch(next.name, fileTitle) || (next.file !== undefined && titlesMatch(item.name, next.file)));
-        });
+        others.some(
+            o =>
+                o.id !== item.id &&
+                o.season === item.season &&
+                (titlesMatch(o.name, fileTitle) || (o.file !== undefined && titlesMatch(item.name, o.file)))
+        );
 
     for (const item of items) {
         const path = item.path;
@@ -642,7 +652,7 @@ export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
             ? 'special'
             : numberingOff || fileTitle === undefined
               ? undefined
-              : neighbourHas(item, fileTitle)
+              : seasonHas(item, fileTitle)
                 ? 'shifted'
                 : inDifferentLanguages(item.name, fileTitle)
                   ? 'language'

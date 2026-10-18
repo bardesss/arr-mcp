@@ -393,7 +393,7 @@ describe('episodes pinned to their own provider ids', () => {
         });
         const h = harness({ episodes: [at(1, 'Stray Dog Strut', 'Asteroid Blues'), at(2, 'Honky Tonk Women', 'Stray Dog Strut')] });
         const effects = (await h.call({ query: 'Dragon Ball Kai' })).structuredContent.effects.join('\n');
-        expect(effects).toContain('2 of the 2 mismatching episodes carry the title Jellyfin gives the episode next to them');
+        expect(effects).toContain('2 of the 2 mismatching episodes carry the title Jellyfin gives another episode in the same season');
     });
 
     it('says when the filename and the title are in different languages', async () => {
@@ -401,10 +401,10 @@ describe('episodes pinned to their own provider ids', () => {
             episodes: [
                 {
                     Id: episodeId(31),
-                    Name: 'The Sea Monster',
+                    Name: 'The Monster of the Sea',
                     IndexNumber: 1,
                     ParentIndexNumber: 1,
-                    Path: '/storage/tv/Some Show/Season 01/Some Show - S01E01 - El monstruo marino [Bluray-1080p].mkv'
+                    Path: '/storage/tv/Some Show/Season 01/Some Show - S01E01 - El monstruo del mar [Bluray-1080p].mkv'
                 }
             ]
         });
@@ -667,6 +667,39 @@ describe('fix_metadata on Plex', () => {
             agent: 'tv.plex.agents.movie'
         });
         expect(h.writes().map(w => w.path)).toEqual(['/library/metadata/900200/match', '/library/metadata/900200/refresh']);
+    });
+
+    /** #312: Cannibal! The Musical kept Plex's year after a repair. The Plex
+     *  Movie agent takes the year from Plex's own metadata, not from TMDB. */
+    describe('a film Plex already matched to the id the repair pins', () => {
+        const film = {
+            ratingKey: '900300',
+            type: 'movie',
+            title: 'Fixture musical',
+            year: 1993,
+            librarySectionID: 1,
+            Guid: [{ id: 'tmdb://903' }],
+            Media: [{ Part: [{ file: '/library/movies/Fixture musical (1996)/Fixture musical (1996).mkv' }] }]
+        };
+        const preview = async () => {
+            const h = plexHarness({
+                item: plexSeries({ kind: 'movie', title: 'Fixture musical', ids: { tmdb: 903 }, playback: { user: 'Sam', itemId: '900300' } }),
+                films: [film]
+            });
+            return (await h.call({ query: 'Fixture musical' })).structuredContent;
+        };
+
+        it('does not say the year comes from TMDB', async () => {
+            const { summary } = await preview();
+            expect(summary).not.toContain('against TMDB');
+            expect(summary).toContain("Plex's own metadata");
+        });
+
+        it('says the year is not expected to move', async () => {
+            const effects = (await preview()).effects.join('\n');
+            expect(effects).toContain('already matched to TMDB 903');
+            expect(effects).toContain('not expected to change the year');
+        });
     });
 
     it('only refreshes when no provider id is known', async () => {
