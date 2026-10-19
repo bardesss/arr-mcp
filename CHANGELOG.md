@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.44.2](https://github.com/bardesss/arr-mcp/compare/v1.44.1...v1.44.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* close the detector gaps from the 1.44.1 rerun ([#372](https://github.com/bardesss/arr-mcp/issues/372)) ([e7aba8a](https://github.com/bardesss/arr-mcp/commit/e7aba8a4fbf7d1f96ce4b4e2988e1ba7b8fcaaff)), closes [#312](https://github.com/bardesss/arr-mcp/issues/312)
+
 ## [1.44.1](https://github.com/bardesss/arr-mcp/compare/v1.44.0...v1.44.1) (2026-10-18)
 
 
