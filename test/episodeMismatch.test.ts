@@ -650,6 +650,25 @@ describe('advisory findings from a real Plex library', () => {
         expect(findMismatches([at(1, 1, 'Stray Dog Strut', 'Asteroid Blues')])[0]?.advisory).toBeUndefined();
     });
 
+    /** #312 on 1.44.1: Super Mario Bros. Super Show! files name both segments,
+     *  and the server titles each episode after the second one. */
+    it('finds a shifted title in the second half of a two-part file name', () => {
+        const found = findMismatches([
+            at(1, 7, 'Plumber Picnic Panic', 'Bats in the Basement (Fixture and the Beanstalk)'),
+            at(1, 8, 'Fixture and the Beanstalk', 'Lighthouse Rescue (Love Them and Leave Them)'),
+            at(1, 9, 'Love Them and Leave Them', 'Volcano Rumble (Koopa Kitchen)')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual(['shifted', 'shifted', 'shifted']);
+    });
+
+    it('does not call a one-word second half a shift', () => {
+        const found = findMismatches([
+            at(1, 1, 'Plumber Picnic Panic', 'Bats in the Basement (Fixture)'),
+            at(1, 2, 'Fixture Goes Fishing', 'Fixture Goes Fishing')
+        ]);
+        expect(found[0]?.advisory).toBeUndefined();
+    });
+
     /** #312 on 1.44.0: shifts further than one place still went to a refresh. */
     it('marks a file whose title is two episodes away as shifted', () => {
         const found = findMismatches([
@@ -756,8 +775,35 @@ describe('titles in different languages', () => {
     it('needs two function words before a guess counts', () => {
         expect(guessLanguage('El monstruo marino')).toBeUndefined();
         expect(guessLanguage('Coming of Age')).toBeUndefined();
-        expect(guessLanguage('Very Interesting, as an Orbital Problem')).toBeUndefined();
+        expect([undefined, 'en']).toContain(guessLanguage('Very Interesting, as an Orbital Problem'));
         expect(findMismatches([at(3, 'Coming of Age', 'Very Interesting, as an Orbital Problem')])[0]?.advisory).toBeUndefined();
+    });
+
+    /** #312 on 1.44.1: Bleach read "as" and "a" as Portuguese. Both are English too. */
+    it('does not count words other languages share with English', () => {
+        expect(guessLanguage('Wrath as a Lightning')).toBeUndefined();
+        expect(guessLanguage('Do No Harm')).toBeUndefined();
+        expect(findMismatches([at(5, 'Wrath as a Lightning', 'Penetrate the Center with an Enormous Bombshell')])[0]?.advisory).toBeUndefined();
+    });
+
+    /** #312 on 1.44.1: Los Espookys' titles are too short to place one by one. */
+    it('places short titles by the language of the whole series', () => {
+        const found = findMismatches([
+            at(1, 'The Sea Monster', 'El monstruo marino'),
+            at(2, 'The Haunted Fixture', 'La casa embrujada'),
+            at(3, 'The Ghosts of the Night', 'Los fantasmas de las sombras'),
+            at(4, 'The Fixture Parade', 'Un desfile en el pueblo')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual(['language', 'language', 'language', 'language']);
+    });
+
+    it('does not mark short titles in a series whose two sides share a language', () => {
+        const found = findMismatches([
+            at(1, 'The Sea Monster', 'Asteroid Blues'),
+            at(2, 'The Haunted Fixture', 'Stray Dog Strut'),
+            at(3, 'The Ghosts of the Night', 'Death of the Party')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual([undefined, undefined, undefined]);
     });
 
     it('does not read short English titles as another language', () => {

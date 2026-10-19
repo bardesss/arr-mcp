@@ -52,15 +52,23 @@ export type ConfirmFailure = 'expired' | 'mismatch' | 'foreign' | 'used' | 'malf
 
 export type ConfirmResult = { ok: true } | { ok: false; failure: ConfirmFailure; remedy: string };
 
-const REMEDY: Record<ConfirmFailure, string> = {
-    expired: `The confirmation token has expired (they last ${CONFIRM_TTL_MS / 1000}s). Call this tool again without \`confirm\` to preview the operation and get a fresh token.`,
-    mismatch:
-        'That confirmation token was issued for a different operation or different arguments. Call this tool again without `confirm` to preview *this* operation and use the token it returns — do not reuse a token from an earlier preview.',
+/** The diagnosis alone, for a caller that hands back a fresh token and so
+ *  must not repeat the "call again without `confirm`" half of the remedy. */
+export const CONFIRM_REASON: Record<ConfirmFailure, string> = {
+    expired: `The confirmation token has expired (they last ${CONFIRM_TTL_MS / 1000}s).`,
+    mismatch: 'That confirmation token was issued for a different operation or different arguments.',
     foreign:
-        'That confirmation token was issued by another arr-mcp process, or by this one before it restarted. Tokens only work in the process that issued them. Call this tool again without `confirm` to preview the operation here and use the token it returns.',
-    used: 'That confirmation token has already been used. Tokens are single-use so a write cannot be applied twice; call this tool again without `confirm` if you genuinely intend to repeat the operation.',
-    malformed:
-        'That is not a confirmation token issued by this server. Call this tool again without `confirm` to preview the operation and use the token it returns verbatim.'
+        'That confirmation token was issued by another arr-mcp process, or by this one before it restarted. Tokens only work in the process that issued them.',
+    used: 'That confirmation token has already been used.',
+    malformed: 'That is not a confirmation token issued by this server.'
+};
+
+const REMEDY: Record<ConfirmFailure, string> = {
+    expired: `${CONFIRM_REASON.expired} Call this tool again without \`confirm\` to preview the operation and get a fresh token.`,
+    mismatch: `${CONFIRM_REASON.mismatch} Call this tool again without \`confirm\` to preview *this* operation and use the token it returns — do not reuse a token from an earlier preview.`,
+    foreign: `${CONFIRM_REASON.foreign} Call this tool again without \`confirm\` to preview the operation here and use the token it returns.`,
+    used: `${CONFIRM_REASON.used} Tokens are single-use so a write cannot be applied twice; call this tool again without \`confirm\` if you genuinely intend to repeat the operation.`,
+    malformed: `${CONFIRM_REASON.malformed} Call this tool again without \`confirm\` to preview the operation and use the token it returns verbatim.`
 };
 
 /**
