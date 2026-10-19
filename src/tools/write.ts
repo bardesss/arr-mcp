@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { BEARER_CALLER, type WriteAudit } from '../core/audit.ts';
-import type { ConfirmTokens, WriteIntent } from '../core/confirm.ts';
+import { CONFIRM_REASON, type ConfirmTokens, type WriteIntent } from '../core/confirm.ts';
 import { ServiceError } from '../core/errors.ts';
 import { checkPermission, type PermissionSource, type WriteTier } from '../core/permissions.ts';
 import { toolInput } from '../core/shape.ts';
@@ -354,7 +354,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                         // single next action, worded as the plain preview words it. The
                         // token goes last in both: a reader clipping the trailing word or
                         // the final backticked span gets it, and prose after it would not.
-                        `Not applied — the confirmation token was rejected (${check.failure}). ` +
+                        `Not applied — the confirmation token was rejected. ${CONFIRM_REASON[check.failure]} ` +
                             `Do not resend the rejected one. To apply this, call ${spec.name} again with ` +
                             `the same arguments plus \`confirm\` set to \`${fresh}\`.`
                     );
