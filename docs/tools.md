@@ -920,16 +920,19 @@ server both say season 0 are never a numbering finding, and an episode whose
 title belongs to the episode next to it is marked as shifted (Cowboy Bebop,
 TNG and 20 more series on that library). The rerun on 1.44.0 widened that to
 any episode in the same season, for shifts of two or more and reordered
-seasons (Goof Troop, Tales from the Crypt).
+seasons (Goof Troop, Tales from the Crypt). A file that names two segments,
+`Bats in the Basement (Mario and the Beanstalk)`, is checked on both halves.
 
 An episode whose filename and server title are in different languages is
 marked too (`El monstruo del mar` shown as "The Monster of the Sea"). The
 language is guessed from function words such as `el`, `the`, `der` or `het`,
 for English, Spanish, French, German, Italian, Portuguese and Dutch. A title
 gets a language only when at least two of its function words point at one
-language and it clearly wins, so short titles and ties make no claim at all.
-One word was not enough: "Coming of Age" read as English and a title with "as"
-in it as Portuguese.
+language, one of them a word no other language on the list uses, and it
+clearly wins. "Wrath as a Lightning" is not Portuguese: `as` and `a` are
+English too. A title too short to place on its own takes the series' language
+when it has a function word of that language, so a Spanish series of
+two-word titles still reads as Spanish.
 
 Shifted episodes, specials and language differences are real disagreements that
 a rematch does not fix, so they are counted in `shifted`, `specials` and
