@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.44.3](https://github.com/bardesss/arr-mcp/compare/v1.44.2...v1.44.3) (2026-10-20)
+
+
+### Bug Fixes
+
+* drop the ETA on paused SABnzbd slots ([#376](https://github.com/bardesss/arr-mcp/issues/376)) ([9e01db4](https://github.com/bardesss/arr-mcp/commit/9e01db4a458b097a97bb154718da5a57f08ad45e))
+* keep SABnzbd queue ETAs past 24 hours ([#374](https://github.com/bardesss/arr-mcp/issues/374)) ([fba60fc](https://github.com/bardesss/arr-mcp/commit/fba60fcfa0950adcc68e6915cdc5a961e38896b3)), closes [#371](https://github.com/bardesss/arr-mcp/issues/371)
+
 ## [1.44.2](https://github.com/bardesss/arr-mcp/compare/v1.44.1...v1.44.2) (2026-10-19)
 
 
