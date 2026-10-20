@@ -328,6 +328,16 @@ describe('get_queue', () => {
         });
     });
 
+    it('keeps a SABnzbd ETA once timeleft includes a day', async () => {
+        const queued = {
+            queue: {
+                slots: [{ ...SAB_QUEUE.queue.slots[0]!, nzo_id: 'SABnzbd_nzo_long', timeleft: '1:02:03:04' }]
+            }
+        };
+        const result = await buildGetQueue([new SabnzbdAdapter(keyed(8080), servingModes({ queue: queued }))], opts);
+        expect(result.items[0]?.etaSeconds).toBe(86_400 + 2 * 3600 + 3 * 60 + 4);
+    });
+
     it('translates Transmission numeric status codes into words', async () => {
         const result = await buildGetQueue([transmission()], opts);
         expect(result.items[0]).toMatchObject({ service: 'transmission', id: '7', status: 'downloading', etaSeconds: 900 });
