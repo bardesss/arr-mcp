@@ -71,12 +71,13 @@ const megabytesToBytes = (value: string | undefined): number | undefined => {
     return Number.isFinite(parsed) ? Math.round(parsed * BYTES_PER_MB) : undefined;
 };
 
-/** SABnzbd's timeleft is "H:MM:SS", with no leading zero on the hour. */
+/** SABnzbd's timeleft is "H:MM:SS", or "D:HH:MM:SS" once more than 24h remain. */
 const parseSabTimeleft = (value: string | undefined): number | undefined => {
     if (value === undefined) return undefined;
-    const parts = value.split(':').map(Number);
-    if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return undefined;
-    return parts[0]! * 3600 + parts[1]! * 60 + parts[2]!;
+    const parts = value.trim().split(':');
+    if (parts.length < 3 || parts.length > 4 || parts.some(p => !/^\d+$/.test(p))) return undefined;
+    const [d, h, m, s] = (parts.length === 4 ? parts : ['0', ...parts]).map(Number);
+    return d! * 86_400 + h! * 3600 + m! * 60 + s!;
 };
 
 const BYTES_PER_GB = 1024 ** 3;
