@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.44.4](https://github.com/bardesss/arr-mcp/compare/v1.44.3...v1.44.4) (2026-10-21)
+
+
+### Bug Fixes
+
+* **deps:** bump @modelcontextprotocol/server from 2.1.0 to 2.3.1 ([#377](https://github.com/bardesss/arr-mcp/issues/377)) ([96fc576](https://github.com/bardesss/arr-mcp/commit/96fc576179b2caf46cc1ed80fe4ef6d23d5d77fd))
+* **deps:** bump hono from 4.13.9 to 4.13.13 ([#380](https://github.com/bardesss/arr-mcp/issues/380)) ([3052018](https://github.com/bardesss/arr-mcp/commit/305201879ad7ca6fccc0d0b0daca5807c8828a63))
+
 ## [1.44.3](https://github.com/bardesss/arr-mcp/compare/v1.44.2...v1.44.3) (2026-10-20)
 
 
