@@ -1,6 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { findMismatches, findMovieMismatches, pinnedToProvider, type EpisodeRecord, type Mismatch, type MovieRecord } from '../core/episodeMismatch.ts';
+import {
+    findMismatches,
+    findMovieMismatches,
+    managedSeriesOf,
+    pinnedToProvider,
+    type EpisodeRecord,
+    type ManagedFolder,
+    type Mismatch,
+    type MovieRecord
+} from '../core/episodeMismatch.ts';
 import { ServiceError } from '../core/errors.ts';
 import type { PermissionSource } from '../core/permissions.ts';
 import { fenceText } from '../core/fence.ts';
@@ -83,6 +92,29 @@ export const unlockHow = (adapter: ServiceAdapter): string =>
     adapter.type === 'plex'
         ? 'Edit, then the lock icon beside the field'
         : 'Edit metadata, then clear "Lock this item to prevent future metadata changes", or tick the field under Enabled Fields';
+
+/** Sonarr's series folders, from the library index. Empty when no Sonarr is
+ *  configured or the index cannot be read. */
+export async function managedFolders(loader: LibraryLoader): Promise<ManagedFolder[]> {
+    try {
+        const { index } = await loader.load();
+        return index.all().flatMap(i => {
+            const path = i.acquisition?.path;
+            if (i.kind !== 'series' || i.acquisition === undefined || path === undefined) return [];
+            const key = i.ids.tvdb === undefined ? `${i.acquisition.service}:${i.acquisition.id ?? i.title}` : `tvdb:${i.ids.tvdb}`;
+            return [{ key, title: i.title, path }];
+        });
+    } catch (err) {
+        logger.warn({ err }, 'could not read Sonarr series folders');
+        return [];
+    }
+}
+
+/** What to do about one media-server item that holds several Sonarr series. */
+export const mergedHow = (adapter: ServiceAdapter, titles: readonly string[]): string =>
+    `This one ${serverName(adapter)} item holds the files of ${titles.length} Sonarr series (${titles.join(', ')}), so separate shows were merged into it. ` +
+    'fix_metadata would re-identify it against the id it already holds and change nothing. ' +
+    (adapter.type === 'plex' ? 'Use Split on the item in Plex so each show gets its own item.' : 'Separate them in Jellyfin so each folder is its own series.');
 
 /** How many examples ride along in the preview. Enough to recognise the
  *  pattern, few enough to read before confirming. */
@@ -331,6 +363,18 @@ export function registerFixMetadata(
                     effects: [],
                     noop: true
                 };
+            }
+
+            if (series.kind === 'series') {
+                const owners = managedSeriesOf(parts, await managedFolders(loader));
+                if (owners.length > 1) {
+                    return {
+                        target,
+                        summary: `${series.title} has ${mismatches.length} of ${comparable} episodes disagreeing with their files, but it is separate shows merged into one item, which a repair cannot fix.`,
+                        effects: [mergedHow(adapter, owners.map(o => o.title)), ...mismatches.slice(0, EXAMPLE_LIMIT).map(m => describe(m, adapter.id))],
+                        noop: true
+                    };
+                }
             }
 
             /**
