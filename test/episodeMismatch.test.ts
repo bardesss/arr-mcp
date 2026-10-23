@@ -8,6 +8,7 @@ import {
     extractFileTitle,
     movieRemedy,
     parseMovieFile,
+    managedSeriesOf,
     summariseSeries,
     type EpisodeRecord
 } from '../src/core/episodeMismatch.ts';
@@ -859,5 +860,42 @@ describe('titles in different languages', () => {
         const found = findMismatches([ep({ id: 'n', name: 'The Sea Monster', season: 1, episode: 2, path: '/tv/Show/Season 01/Show - S01E05 - El monstruo marino.mkv' })]);
         expect(found[0]?.reasons).toContain('numbering');
         expect(found[0]?.advisory).toBeUndefined();
+    });
+});
+
+/** #312: Plex merged two Sonarr series' folders into one item. */
+describe('managedSeriesOf', () => {
+    const older = { key: 'tvdb:1001', title: 'Some Show', path: '/tv/Some Show' };
+    const newer = { key: 'tvdb:1002', title: 'Some Show (2026)', path: '/tv/Some Show (2026)' };
+    const at = (id: string, folder: string, title: string) =>
+        ep({ id, name: title, season: 1, episode: 1, path: `/volume1/tv/${folder}/Season 01/Show - S01E01 - ${title}.mkv` });
+
+    it('names every managed series whose folder holds a file, across a different mount', () => {
+        const owners = managedSeriesOf([at('a', 'Some Show', 'Pilot Episode'), at('b', 'Some Show (2026)', 'Return Episode')], [older, newer]);
+        expect(owners.map(o => o.key)).toEqual(['tvdb:1001', 'tvdb:1002']);
+    });
+
+    it('prefers the folder whose parents also match when two share a name', () => {
+        const elsewhere = { key: 'tvdb:1003', title: 'Some Show', path: '/kids/Some Show' };
+        expect(managedSeriesOf([at('a', 'Some Show', 'Pilot Episode')], [elsewhere, older]).map(o => o.key)).toEqual(['tvdb:1001']);
+    });
+
+    it('sends a series spanning two managed folders to inspect', () => {
+        const verdict = summariseSeries(
+            [
+                at('a', 'Some Show', 'Pilot Episode'),
+                ep({ id: 'b', name: 'Some Show', season: 1, episode: 2, path: '/volume1/tv/Some Show (2026)/Season 01/Show - S01E02 - Missouri Mutual Life.mkv' })
+            ],
+            [older, newer]
+        );
+        expect(verdict).toMatchObject({ remedy: 'inspect', mergedFrom: ['Some Show', 'Some Show (2026)'] });
+    });
+
+    it('keeps the old remedy with no managed folders', () => {
+        const verdict = summariseSeries([
+            ep({ id: 'b', name: 'Some Show', season: 1, episode: 2, path: '/volume1/tv/Some Show (2026)/Season 01/Show - S01E02 - Missouri Mutual Life.mkv' })
+        ]);
+        expect(verdict?.remedy).toBe('refresh_metadata');
+        expect(verdict?.mergedFrom).toBeUndefined();
     });
 });

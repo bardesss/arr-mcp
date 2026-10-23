@@ -178,7 +178,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetPlayback(server, context.mediaServers);
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset, bothIds(context.mediaServers));
-    registerGetMetadataIssues(server, context.mediaServers, write.permissions);
+    registerGetMetadataIssues(server, context.mediaServers, write.permissions, library);
     registerGetLibrary(server, library, bothIds(context.mediaServers));
     registerGetProfileIssues(server, adapters, instances);
     registerSearchMedia(server, adapters, dataset);

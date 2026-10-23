@@ -81,6 +81,8 @@ function harness(
         /** No media-server adapter at all. */
         adapters?: 'none';
         degraded?: string[];
+        /** More series in the index, as a second Sonarr series would be. */
+        others?: MergedItem[];
     } = {}
 ) {
     const config = opts.config ?? jellyfinConfig();
@@ -138,7 +140,7 @@ function harness(
 
     const loader = {
         load: async () => ({
-            index: { search: () => [opts.item ?? seriesItem()], all: () => [opts.item ?? seriesItem()] },
+            index: { search: () => [opts.item ?? seriesItem()], all: () => [opts.item ?? seriesItem(), ...(opts.others ?? [])] },
             degraded: opts.degraded ?? []
         }),
         invalidate: vi.fn()
@@ -216,6 +218,39 @@ describe('fix_metadata', () => {
     it('refuses rather than reporting a clean result when no paths came back', async () => {
         const h = harness({ episodes: [{ Id: episodeId(1), Name: 'No path here', IndexNumber: 1, ParentIndexNumber: 1 }] });
         await expect(h.call({ query: 'Dragon Ball Kai' })).rejects.toThrow(/no file paths/i);
+    });
+
+    /** #312: one item holding two Sonarr series, where only a split helps. */
+    describe('one item holding two Sonarr series', () => {
+        const managed = (title: string, tvdb: number, path: string) =>
+            seriesItem({ title, ids: { tvdb }, acquisition: { service: 'sonarr', id: String(tvdb), monitored: true, hasFile: true, path } });
+        const newer = {
+            ...healthy(3),
+            Name: 'Some Show',
+            Path: '/storage/tv/Some Show (2026)/Season 01/Some Show - S01E03 - Missouri Mutual Life.mkv'
+        };
+
+        it('says to separate it and offers no re-identify', async () => {
+            const h = harness({
+                episodes: [healthy(1), newer],
+                item: managed('Some Show', TVDB, '/tv/Some Show'),
+                others: [managed('Some Show (2026)', 99001, '/tv/Some Show (2026)')]
+            });
+            const { structuredContent } = await h.call({ query: 'Some Show' });
+
+            expect(structuredContent.noop).toBe(true);
+            expect(structuredContent.confirm_token).toBeUndefined();
+            expect(structuredContent.summary).not.toContain('Re-identify');
+            expect(structuredContent.effects.join('\n')).toContain('2 Sonarr series (Some Show, Some Show (2026))');
+        });
+
+        it('offers the repair as before with no Sonarr', async () => {
+            const h = harness({ episodes: [healthy(1), newer] });
+            const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+
+            expect(structuredContent.summary).toContain('Re-identify');
+            expect(structuredContent.confirm_token).toBeDefined();
+        });
     });
 
     describe('films', () => {
