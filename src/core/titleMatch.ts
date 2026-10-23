@@ -27,13 +27,15 @@ const LEADING_ARTICLE = /^(the|a|an)\s+/;
  * Lowercase, punctuation removed, leading article dropped. The article matters:
  * people ask for "matrix" and the library holds "The Matrix".
  */
-export const normaliseTitle = (value: string): string =>
+export const normaliseTitle = (value: string): string => literalTitle(value).replace(LEADING_ARTICLE, '');
+
+/** As `normaliseTitle`, with the article kept. */
+export const literalTitle = (value: string): string =>
     unfenced(value)
         .toLowerCase()
         .replace(/[^\p{L}\p{N}\s]/gu, '')
         .replace(/\s+/g, ' ')
-        .trim()
-        .replace(LEADING_ARTICLE, '');
+        .trim();
 
 export const RANK_EXACT = 0;
 export const RANK_PREFIX = 1;

@@ -522,6 +522,15 @@ export function registerFixMetadata(
             };
         },
 
+        // The verdict, not just "Applied": a client that drops
+        // structuredContent (#234) could not tell a repair from a failure.
+        applied(outcome, plan) {
+            const note = (outcome as { note?: string } | undefined)?.note;
+            return note === undefined ? undefined : `Applied. ${plan.summary}
+
+${note}`;
+        },
+
         async apply(plan, { user }) {
             // From the plan the token was verified against, not a second
             // resolve. Re-resolving would let a concurrent write that
