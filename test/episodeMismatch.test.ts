@@ -797,6 +797,25 @@ describe('titles in different languages', () => {
         expect(found.map(m => m.advisory)).toEqual(['language', 'language', 'language', 'language']);
     });
 
+    /** #312 on 1.44.4: Los Espookys S02E04, "One Man's Many Faces", has no
+     *  function words for the series fallback to go on. */
+    it('places a title with no function words when the other side is clearly the other language', () => {
+        const found = findMismatches([
+            at(1, 'The Sea Monster', 'El monstruo marino'),
+            at(2, 'The Haunted Fixture', 'La casa embrujada'),
+            at(3, "One Fixture's Many Faces", 'Las muchas caras de un hombre')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual(['language', 'language', 'language']);
+    });
+
+    it('does not place a title with no function words against one that is only placed by its series', () => {
+        const found = findMismatches([
+            at(1, 'The Sea Monster of the Deep', 'El monstruo marino'),
+            at(2, 'Fixture Parade Night', 'Noche del desfile')
+        ]);
+        expect(found[1]?.advisory).toBeUndefined();
+    });
+
     it('does not mark short titles in a series whose two sides share a language', () => {
         const found = findMismatches([
             at(1, 'The Sea Monster', 'Asteroid Blues'),

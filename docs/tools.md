@@ -932,7 +932,9 @@ language, one of them a word no other language on the list uses, and it
 clearly wins. "Wrath as a Lightning" is not Portuguese: `as` and `a` are
 English too. A title too short to place on its own takes the series' language
 when it has a function word of that language, so a Spanish series of
-two-word titles still reads as Spanish.
+two-word titles still reads as Spanish. A title with no function words at all
+takes it only when the other side is clearly another language by its own
+words ("One Man's Many Faces" against "Las Muchas Caras de Un Hombre").
 
 Shifted episodes, specials and language differences are real disagreements that
 a rematch does not fix, so they are counted in `shifted`, `specials` and

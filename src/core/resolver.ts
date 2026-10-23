@@ -1,4 +1,4 @@
-import { RANK_NONE, rankTitle, unfenced } from './titleMatch.ts';
+import { RANK_NONE, literalTitle, rankTitle, unfenced } from './titleMatch.ts';
 
 export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string };
 
@@ -357,6 +357,20 @@ export class LibraryIndex {
 
     /** Ranked by relevance, non-matches excluded rather than ranked last. */
     search(query: string): MergedItem[] {
+        // "The Fall (2013)" names a year, and no title carries it in brackets.
+        const dated = /^(.*\S)\s*\((\d{4})\)\s*$/.exec(query);
+        if (dated?.[1] !== undefined) {
+            const year = Number(dated[2]);
+            const hits = this.#ranked(dated[1]).filter(i => i.year === year);
+            if (hits.length > 0) return hits;
+        }
+        return this.#ranked(query);
+    }
+
+    #ranked(query: string): MergedItem[] {
+        // Ranking drops the article, so "The Fall" and "Fall" tie; the one
+        // spelled as asked goes first (#312).
+        const spelled = (title: string): number => (literalTitle(title) === literalTitle(query) ? 0 : 1);
         return this.#items
             .map(item => ({ item, rank: rankTitle(item.title, query) }))
             .filter(({ rank }) => rank !== RANK_NONE)
@@ -366,7 +380,12 @@ export class LibraryIndex {
             // "all Jellyfin-sourced items, then all *arr-sourced items" — and
             // only alphabetically by title within each group. unfenced() is
             // what makes the tiebreak compare the title a person reads.
-            .sort((a, b) => a.rank - b.rank || unfenced(a.item.title).localeCompare(unfenced(b.item.title)))
+            .sort(
+                (a, b) =>
+                    a.rank - b.rank ||
+                    spelled(a.item.title) - spelled(b.item.title) ||
+                    unfenced(a.item.title).localeCompare(unfenced(b.item.title))
+            )
             .map(({ item }) => item);
     }
 

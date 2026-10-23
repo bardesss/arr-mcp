@@ -417,6 +417,29 @@ describe('LibraryIndex search', () => {
         expect(index.search('???')).toEqual([]);
     });
 
+    /** #312: "The Fall" resolved to the film *Fall*, and "The Fall (2013)" to nothing. */
+    describe('titles that differ only by an article', () => {
+        const fall = LibraryIndex.build([
+            arr({ title: 'Fall', year: 2022, ids: { tmdb: 10 } }),
+            arr({ kind: 'series', title: 'The Fall', year: 2013, ids: { tvdb: 11 } })
+        ]);
+
+        it('puts the one the caller spelled first', () => {
+            expect(unfenced(fall.search('The Fall')[0]?.title ?? '')).toBe('The Fall');
+            expect(unfenced(fall.search('Fall')[0]?.title ?? '')).toBe('Fall');
+        });
+
+        it('reads a trailing year as the year', () => {
+            expect(fall.search('The Fall (2013)').map(i => unfenced(i.title))).toEqual(['The Fall']);
+            expect(fall.search('Fall (2022)').map(i => unfenced(i.title))).toEqual(['Fall']);
+        });
+
+        it('still matches a title that has the year in it', () => {
+            const index = LibraryIndex.build([arr({ title: 'Blade Runner 2049', year: 2017, ids: { tmdb: 12 } })]);
+            expect(index.search('Blade Runner 2049')).toHaveLength(1);
+        });
+    });
+
     it('matches through a leading article the caller omitted', () => {
         expect(plainTitle(index.search('the matrix')[0])).toBe('The Matrix');
     });
