@@ -951,6 +951,14 @@ finding on Plex comes back as `refresh_metadata`. If the sweep flags something
 on a Plex library that is actually fine, please open an issue with the filename
 and the title Plex shows.
 
+A series item whose files sit in the folders of more than one Sonarr series
+gets `inspect` too, whatever its mismatches say. That is separate shows merged
+into one item (two folders, two TVDB ids), and a repair would re-identify it
+against the id it already holds. The row says to use Split on the item in Plex,
+and `fix_metadata` previews the same without offering a token. Folders are
+matched by name and parent folders, so Sonarr and the media server can mount
+the disk at different roots. With no Sonarr configured nothing changes.
+
 With two media servers it sweeps the primary; `service` picks the other.
 
 Each row prints its item as `service:itemId`. Pass that to `fix_metadata` as

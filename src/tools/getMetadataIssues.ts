@@ -5,6 +5,7 @@ import {
     movieRemedy,
     pinnedToProvider,
     summariseSeries,
+    type ManagedFolder,
     type Remedy
 } from '../core/episodeMismatch.ts';
 import { fenceText } from '../core/fence.ts';
@@ -15,7 +16,8 @@ import { unfenced } from '../core/titleMatch.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasMetadataInspect, hasUserLibrary, type ServiceAdapter } from '../services/types.ts';
 import { bothIds, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
-import { plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
+import { managedFolders, mergedHow, plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
+import type { LibraryLoader } from './library.ts';
 
 /**
  * The discovery half of `fix_metadata`.
@@ -150,7 +152,7 @@ export function metadataIssueLine(issue: MetadataIssue): string {
 export async function buildGetMetadataIssues(
     adapters: readonly ServiceAdapter[],
     identity: IdentityResolver | undefined,
-    opts: { detail: DetailLevel; limit: number; offset: number; user?: string; permissions?: PermissionSource }
+    opts: { detail: DetailLevel; limit: number; offset: number; user?: string; permissions?: PermissionSource; library?: LibraryLoader }
 ): Promise<GetMetadataIssuesResult> {
     const adapter = adapters.find(a => hasMetadataInspect(a) && hasUserLibrary(a));
     const empty = { items: [], total: 0, returned: 0, offset: 0, truncated: false, itemsScanned: 0 };
@@ -171,7 +173,10 @@ export async function buildGetMetadataIssues(
     const notComparable: string[] = [];
     let scanned = 0;
     let skipped = 0;
-
+    // Read once, and only when a series is flagged.
+    let folders: Promise<ManagedFolder[]> | undefined;
+    const sonarrFolders = (): Promise<ManagedFolder[]> =>
+        (folders ??= opts.library === undefined ? Promise.resolve([]) : managedFolders(opts.library));
 
     // Films first, and in one request: they need no per-title read, so the
     // whole film half of the library costs what a single series costs.
@@ -231,8 +236,9 @@ export async function buildGetMetadataIssues(
             }
 
             scanned += 1;
-            const { rows: episodes } = await withLocks(adapter, listed, findMismatches);
-            const verdict = summariseSeries(episodes);
+            const { rows: episodes, mismatches } = await withLocks(adapter, listed, findMismatches);
+            if (mismatches.length === 0) continue;
+            const verdict = summariseSeries(episodes, await sonarrFolders());
             if (verdict === undefined) continue;
 
             const examples = findMismatches(episodes)
@@ -254,7 +260,10 @@ export async function buildGetMetadataIssues(
                 languages: verdict.languages,
                 specials: verdict.specials,
                 remedy: verdict.remedy,
-                fix: fixFor(verdict.remedy, adapter, repairAllowed) + advisoryNote(verdict),
+                fix:
+                    verdict.mergedFrom === undefined
+                        ? fixFor(verdict.remedy, adapter, repairAllowed) + advisoryNote(verdict)
+                        : `Look before acting: ${mergedHow(adapter, verdict.mergedFrom)}`,
                 // Re-fenced after the basename split, for the reason
                 // fixMetadata's own formatter documents: the closing marker
                 // contains a slash, so splitting a fenced path on separators
@@ -288,7 +297,8 @@ export async function buildGetMetadataIssues(
 export function registerGetMetadataIssues(
     server: McpServer,
     servers: MediaServers,
-    permissions?: PermissionSource
+    permissions?: PermissionSource,
+    library?: LibraryLoader
 ): void {
     server.registerTool(
         'get_metadata_issues',
@@ -304,7 +314,7 @@ export function registerGetMetadataIssues(
         },
         async ({ detail, limit, offset, service }) => {
             const chosen = pickMediaServer(servers, service);
-            const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, ...(permissions === undefined ? {} : { permissions }) });
+            const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, ...(permissions === undefined ? {} : { permissions }), ...(library === undefined ? {} : { library }) });
 
             const rename = result.items.filter(i => i.remedy === 'rename_files').length;
             const look = result.items.filter(i => i.remedy === 'inspect').length;

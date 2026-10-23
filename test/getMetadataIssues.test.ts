@@ -9,6 +9,7 @@ import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { instancesOf } from './helpers/instances.ts';
 import { buildGetMetadataIssues, registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import type { LibraryLoader } from '../src/tools/library.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { serving } from './helpers/serve.ts';
 
@@ -160,6 +161,59 @@ describe('get_metadata_issues', () => {
     it('fences the examples, which are server-supplied paths and titles', async () => {
         const result = await sweep(adapterWith({ DTF: [unmatched(4)] }));
         expect(result.items[0]?.examples?.[0]).toContain('<<untrusted:');
+    });
+
+    /** #312: Plex merged two Sonarr series' folders into one item. */
+    describe('one item holding two Sonarr series', () => {
+        const at = (folder: string, e: EpisodeRecord): EpisodeRecord => ({ ...e, path: (e.path ?? '').replace('/tv/Some Show/', `/volume1/tv/${folder}/`) });
+        const merged = { Merged: [at('Some Show', healthy(1)), at('Some Show (2026)', unmatched(2))] };
+        const sonarr = (paths: string[]) =>
+            ({
+                load: async () => ({
+                    index: {
+                        all: () =>
+                            paths.map((path, n) => ({
+                                kind: 'series',
+                                title: path.split('/').at(-1),
+                                ids: { tvdb: 1000 + n },
+                                acquisition: { service: 'sonarr', id: String(n + 1), monitored: true, hasFile: true, path },
+                                presence: 'both'
+                            }))
+                    },
+                    degraded: []
+                })
+            }) as unknown as LibraryLoader;
+        const plex = () => ({ ...adapterWith(merged), id: 'plex', type: 'plex' }) as unknown as ServiceAdapter;
+
+        it('sends it to inspect and says to Split it in Plex', async () => {
+            const result = await buildGetMetadataIssues([plex()], identity, {
+                detail: 'full',
+                limit: 50,
+                offset: 0,
+                library: sonarr(['/tv/Some Show', '/tv/Some Show (2026)'])
+            });
+            expect(result.items[0]?.remedy).toBe('inspect');
+            expect(result.items[0]?.fix).toContain('2 Sonarr series (Some Show, Some Show (2026))');
+            expect(result.items[0]?.fix).toContain('Split');
+            expect(result.items[0]?.fix).not.toContain('allow_metadata_repair');
+        });
+
+        it('keeps refresh_metadata with no Sonarr', async () => {
+            for (const library of [undefined, sonarr([])]) {
+                const result = await buildGetMetadataIssues([plex()], identity, {
+                    detail: 'full',
+                    limit: 50,
+                    offset: 0,
+                    ...(library === undefined ? {} : { library })
+                });
+                expect(result.items[0]?.remedy).toBe('refresh_metadata');
+            }
+        });
+
+        it('keeps refresh_metadata when one Sonarr series holds every folder', async () => {
+            const result = await buildGetMetadataIssues([plex()], identity, { detail: 'full', limit: 50, offset: 0, library: sonarr(['/tv/Some Show']) });
+            expect(result.items[0]?.remedy).toBe('refresh_metadata');
+        });
     });
 
     /** No media server is a configuration, not a failure — `degraded` is for

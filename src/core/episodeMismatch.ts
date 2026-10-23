@@ -471,7 +471,38 @@ export type SeriesVerdict = {
     specials: number;
     languages: number;
     remedy: Remedy;
+    /** Titles of the managed series whose folders this one item holds. */
+    mergedFrom?: string[];
 };
+
+/** A series folder a Sonarr manages. `key` tells two series apart. */
+export type ManagedFolder = { key: string; title: string; path: string };
+
+/**
+ * The managed series whose folders hold these episodes' files. Matched on the
+ * folder name and as many parents as agree, because the media server and
+ * Sonarr often mount the same disk at different roots.
+ */
+export function managedSeriesOf(items: readonly EpisodeRecord[], folders: readonly ManagedFolder[]): ManagedFolder[] {
+    const owners = new Map<string, ManagedFolder>();
+    for (const item of items) {
+        if (item.path === undefined || item.path.trim() === '') continue;
+        const dirs = segments(item.path).slice(0, -1);
+        let best: { folder: ManagedFolder; score: number } | undefined;
+        let tied = false;
+        for (const folder of folders) {
+            const own = segments(folder.path);
+            const at = dirs.lastIndexOf(own.at(-1) ?? '');
+            if (at < 0) continue;
+            let score = 0;
+            while (score < own.length && score <= at && own[own.length - 1 - score] === dirs[at - score]) score += 1;
+            if (best === undefined || score > best.score) [best, tied] = [{ folder, score }, false];
+            else if (score === best.score && folder.key !== best.folder.key) tied = true;
+        }
+        if (best !== undefined && !tied && !owners.has(best.folder.key)) owners.set(best.folder.key, best.folder);
+    }
+    return [...owners.values()];
+}
 
 /**
  * Which way a *series* disagreement points.
@@ -517,7 +548,7 @@ export const movieRemedy = (
     return pinned ? 'inspect' : 'refresh_metadata';
 };
 
-export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict | undefined {
+export function summariseSeries(items: readonly EpisodeRecord[], folders: readonly ManagedFolder[] = []): SeriesVerdict | undefined {
     const compared = items.filter(i => i.path !== undefined && i.path.trim() !== '').length;
     const mismatches = findMismatches(items);
     if (mismatches.length === 0) return undefined;
@@ -535,6 +566,10 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         const record = byId.get(m.id);
         return m.advisory === undefined && !(record !== undefined && pinnedToProvider(record));
     }).length;
+    // Two shows in one item: a repair re-identifies against the id it already
+    // holds, and only splitting the item fixes it (#312).
+    const owners = managedSeriesOf(items, folders);
+    const merged = owners.length > 1;
 
     return {
         compared,
@@ -546,7 +581,8 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         shifted: mismatches.filter(m => m.advisory === 'shifted').length,
         specials: mismatches.filter(m => m.advisory === 'special').length,
         languages: mismatches.filter(m => m.advisory === 'language').length,
-        remedy: seriesRemedy(numbering, locked, repairable, mismatches.length)
+        remedy: merged ? 'inspect' : seriesRemedy(numbering, locked, repairable, mismatches.length),
+        ...(merged ? { mergedFrom: owners.map(o => o.title) } : {})
     };
 }
 
