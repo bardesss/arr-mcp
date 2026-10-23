@@ -400,6 +400,9 @@ const functionWords = (title: string): string[] =>
 const hasWordOf = (title: string, language: string): boolean =>
     functionWords(title).some(w => LANGUAGE_WORDS[language]?.has(w) === true);
 
+const hasAnyFunctionWord = (title: string): boolean =>
+    Object.keys(LANGUAGE_WORDS).some(language => hasWordOf(title, language));
+
 export function guessLanguage(title: string): string | undefined {
     const words = functionWords(title);
     const scores = Object.entries(LANGUAGE_WORDS)
@@ -656,11 +659,17 @@ export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
     // Los Espookys has one function word per title but is Spanish throughout (#312).
     const seriesFileLanguage = guessLanguage(others.flatMap(o => o.files.slice(0, 1)).join(' '));
     const seriesServerLanguage = guessLanguage(items.map(i => i.name).join(' '));
-    const placed = (title: string, series: string | undefined): string | undefined =>
-        guessLanguage(title) ?? (series !== undefined && hasWordOf(title, series) ? series : undefined);
+    // A title with no function words at all only takes it when the other side
+    // is placed by its own words in another language: "One Man's Many Faces"
+    // against "Las Muchas Caras de Un Hombre".
+    const placed = (title: string, series: string | undefined, other: string | undefined): string | undefined =>
+        guessLanguage(title) ??
+        (series !== undefined && (hasWordOf(title, series) || (other !== undefined && other !== series && !hasAnyFunctionWord(title)))
+            ? series
+            : undefined);
     const inDifferentLanguages = (serverTitle: string, fileTitle: string): boolean => {
-        const file = placed(fileTitle, seriesFileLanguage);
-        const server = placed(serverTitle, seriesServerLanguage);
+        const file = placed(fileTitle, seriesFileLanguage, guessLanguage(serverTitle));
+        const server = placed(serverTitle, seriesServerLanguage, guessLanguage(fileTitle));
         return file !== undefined && server !== undefined && file !== server;
     };
 

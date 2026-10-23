@@ -345,12 +345,12 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                     return respond(
                         preview({
                             audit_id: id,
-                            confirm_error: check.remedy,
+                            confirm_error: CONFIRM_REASON[check.failure],
                             confirm_token: fresh
                         }),
                         // `check.remedy` says to call again *without* `confirm`, which is
-                        // right when no token comes back and wrong here, because one does.
-                        // It stays in `confirm_error` as the diagnosis; the text gives the
+                        // right when no token comes back and wrong here, because one does,
+                        // so both fields carry the reason alone (#312). The text gives the
                         // single next action, worded as the plain preview words it. The
                         // token goes last in both: a reader clipping the trailing word or
                         // the final backticked span gets it, and prose after it would not.

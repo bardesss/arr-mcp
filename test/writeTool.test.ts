@@ -182,7 +182,9 @@ describe('write tool harness — preview and confirm', () => {
 
         expect(text).toContain(structuredContent.confirm_token);
         expect(text).not.toContain('without `confirm`');
-        expect(structuredContent.confirm_error).toContain('without `confirm`');
+        // #312: confirm_error said to call again without `confirm`, the text to
+        // use the fresh token. Both now carry the reason alone.
+        expect(structuredContent.confirm_error).toBe('That is not a confirmation token issued by this server.');
     });
 
     // The token is the last thing in both texts on purpose. A reader clipping

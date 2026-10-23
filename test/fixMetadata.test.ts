@@ -629,6 +629,15 @@ describe('fix_metadata on Plex', () => {
         expect(note).toMatch(/Matched to .*Fixture show 2.* \(2001\)\./);
     });
 
+    /** #312 on 1.44.4: only `structuredContent` said whether it worked (#234). */
+    it('puts the verdict in the text', async () => {
+        const fixed = { ...plexEpisode(1), title: 'Some other words' };
+        const result = await confirmed(plexHarness({ repaired: [fixed] }));
+        const { note } = result.structuredContent.result as { note: string };
+
+        expect(result.content[0]?.text).toContain(note);
+    });
+
     it('says a numbering mismatch on Plex usually needs a rename, not a rematch', async () => {
         const h = plexHarness({ episodes: [{ ...plexEpisode(1), index: 7 }] });
         const effects = (await h.call({ query: 'Fixture show 2' })).structuredContent.effects.join('\n');
