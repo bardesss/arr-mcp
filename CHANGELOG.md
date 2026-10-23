@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.44.5](https://github.com/bardesss/arr-mcp/compare/v1.44.4...v1.44.5) (2026-10-23)
+
+
+### Bug Fixes
+
+* fix_metadata verdict in the text, and three more gaps from the 1.44.4 rerun ([#381](https://github.com/bardesss/arr-mcp/issues/381)) ([c301c2a](https://github.com/bardesss/arr-mcp/commit/c301c2a15c7a919646283509088b5c982e686a2e)), closes [#312](https://github.com/bardesss/arr-mcp/issues/312)
+* **metadata:** send a Plex item merging two Sonarr series to inspect ([#382](https://github.com/bardesss/arr-mcp/issues/382)) ([b2a0620](https://github.com/bardesss/arr-mcp/commit/b2a06203233036f4d5afdcec683a6e762da7bcfb)), closes [#312](https://github.com/bardesss/arr-mcp/issues/312)
+
 ## [1.44.4](https://github.com/bardesss/arr-mcp/compare/v1.44.3...v1.44.4) (2026-10-21)
 
 
