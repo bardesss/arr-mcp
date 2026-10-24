@@ -611,7 +611,7 @@ function plexHarness(
 }
 
 const PLEX_OFF_REMEDY =
-    'Set services.plex.allow_metadata_repair: true in config.yaml to allow it. On a live Plex it has repaired films but not yet series, see docs/tools.md.';
+    'Set services.plex.allow_metadata_repair: true in config.yaml, or tick it on the Plex card, to allow it.';
 
 describe('fix_metadata on Plex', () => {
     const confirmed = async (h: ReturnType<typeof plexHarness>, query = 'Fixture show 2') => {

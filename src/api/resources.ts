@@ -55,7 +55,7 @@ export function appResource(instance: ServiceInstance): AppResource {
         ...(MULTI_USER.has(instance.type)
             ? { defaultUser: c.default_user ?? null, allowOtherUsers: c.allow_other_users ?? false }
             : {}),
-        ...(instance.type === 'plex' ? { allowMetadataRepair: c.allow_metadata_repair ?? false } : {})
+        ...(instance.type === 'plex' ? { allowMetadataRepair: c.allow_metadata_repair ?? true } : {})
     };
 }
 
