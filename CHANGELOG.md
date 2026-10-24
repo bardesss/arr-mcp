@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.45.0](https://github.com/bardesss/arr-mcp/compare/v1.44.5...v1.45.0) (2026-10-24)
+
+
+### Features
+
+* Plex metadata repair is on by default ([#386](https://github.com/bardesss/arr-mcp/issues/386)) ([ef75937](https://github.com/bardesss/arr-mcp/commit/ef7593737ab31a15aef2cae4ec6d6f9f0e94dec7))
+
+
+### Bug Fixes
+
+* **deps:** bump @vitest/mocker and vitest ([#384](https://github.com/bardesss/arr-mcp/issues/384)) ([2625fba](https://github.com/bardesss/arr-mcp/commit/2625fba1312e4a3048ebe618095403334aa2b118))
+
 ## [1.44.5](https://github.com/bardesss/arr-mcp/compare/v1.44.4...v1.44.5) (2026-10-23)
 
 
