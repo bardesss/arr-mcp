@@ -4,6 +4,8 @@ import { transmissionRpc } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import { hostPort } from '../core/hostPort.ts';
+import type { TorrentFacts } from '../core/cleanuparrRules.ts';
 import {
     diagnoseConnection,
     type ClientSeedLimits,
@@ -22,7 +24,8 @@ import {
     type MagnetAddCapable,
     type ServiceAdapter,
     type SpeedLimit,
-    type SpeedLimitCapable
+    type SpeedLimitCapable,
+    type TorrentEndpoint
 } from './types.ts';
 
 const RPC_PATH = '/transmission/rpc';
@@ -59,6 +62,10 @@ type RawTorrent = {
     seedRatioMode?: number;
     seedRatioLimit?: number;
     isPrivate?: boolean;
+    hashString?: string;
+    downloadDir?: string;
+    labels?: string[];
+    trackers?: Array<{ announce?: string }>;
 };
 
 const QUEUE_FIELDS = [
@@ -73,7 +80,11 @@ const QUEUE_FIELDS = [
     'secondsSeeding',
     'seedRatioMode',
     'seedRatioLimit',
-    'isPrivate'
+    'isPrivate',
+    'hashString',
+    'downloadDir',
+    'labels',
+    'trackers'
 ];
 
 /** Transmission has a ratio limit only; its idle limit is about inactivity,
@@ -96,6 +107,30 @@ function seedingOf(t: RawTorrent, session: RawSession): { seeding?: SeedingState
             ...(ratioLimit === undefined ? {} : { ratioLimit }),
             ...(t.seedRatioMode === 1 || t.seedRatioMode === 2 ? { ownLimit: true as const } : {}),
             ...(ratioLimit !== undefined && ratio !== undefined && ratio >= ratioLimit ? { overLimit: true as const } : {})
+        }
+    };
+}
+
+/** Cleanuparr takes a Transmission torrent's category from the last folder of its download dir. */
+function torrentOf(t: RawTorrent): { torrent?: TorrentFacts } {
+    if (t.hashString === undefined) return {};
+    const category = (t.downloadDir ?? '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? '';
+    const trackerDomains = (t.trackers ?? []).flatMap(tr => {
+        try {
+            return tr.announce === undefined ? [] : [new URL(tr.announce).hostname.toLowerCase()];
+        } catch {
+            return [];
+        }
+    });
+    return {
+        torrent: {
+            hash: t.hashString.toLowerCase(),
+            category,
+            tags: t.labels ?? [],
+            trackerDomains,
+            ...(typeof t.isPrivate === 'boolean' ? { private: t.isPrivate } : {}),
+            stopped: t.status === 0,
+            seeding: t.leftUntilDone === 0 && (t.status === 5 || t.status === 6 || t.status === 0)
         }
     };
 }
@@ -124,15 +159,18 @@ export class TransmissionAdapter
         PauseCapable,
         SpeedLimitCapable,
         MagnetAddCapable,
-        SeedLimitsCapable
+        SeedLimitsCapable,
+        TorrentEndpoint
 {
     readonly type: ServiceId = 'transmission';
+    readonly endpoint: string;
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
 
     constructor(config: ConfigByService['transmission'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
+        this.endpoint = hostPort(config.url) ?? config.url;
         this.id = instanceId('transmission', config.name);
         this.#http = new ServiceHttp(
             this.id,
@@ -199,7 +237,8 @@ export class TransmissionAdapter
                     ? { errorMessage: fenceText(t.errorString, { service: this.id, field: 'errorString' }) }
                     : {}),
                 ...(typeof t.isPrivate === 'boolean' ? { private: t.isPrivate } : {}),
-                ...seedingOf(t, session)
+                ...seedingOf(t, session),
+                ...torrentOf(t)
             }));
     }
 

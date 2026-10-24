@@ -45,7 +45,10 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     plex: '1.0.0',
     // 2.2.0 is the release this adapter's /api/v1 contract is written against,
     // and the tag the vendored spec is pinned to.
-    profilarr: '2.2.0'
+    profilarr: '2.2.0',
+    // 2.10.x is the line this adapter's reads are written against (tag v2.10.9).
+    // Minor releases may break the API by Cleanuparr's own policy.
+    cleanuparr: '2.10.0'
 };
 
 /** Digits only; a build suffix such as Transmission's "(838877323f)" is dropped. */

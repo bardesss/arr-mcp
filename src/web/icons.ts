@@ -70,7 +70,9 @@ export const ICONS: Record<ServiceId, string> = {
     // old mark (lines plus a jagged trend) read as analytics instead.
     profilarr: draw(
         '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="17" r="2"/>'
-    )
+    ),
+    // A broom: the category is cleanup.
+    cleanuparr: draw('<path d="M19 3 11 11"/><path d="M8 10.5 13.5 16l-2 5.5c-3-.5-6.5-2.5-8.5-6.5Z"/><path d="m8.5 16 2-2"/>')
 };
 
 /**

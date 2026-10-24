@@ -1,0 +1,1 @@
+{"Sonarr":[{"name":"Sonarr","url":"http://sonarr.example:8989","isConnected":true,"message":"Successfully connected"}],"Radarr":[{"name":"Radarr","url":"http://radarr.example:7878","isConnected":false,"message":"Connection refused"}],"Lidarr":[],"Readarr":[],"Whisparr":[],"Sportarr":[],"LazyLibrarian":[]}

@@ -43,6 +43,25 @@ describe('readArrHistory', () => {
         expect(rows.map(r => r.event)).toEqual(['grabbed', 'imported', 'failed']);
     });
 
+    it('lowercases downloadId when the record has one and omits it otherwise', async () => {
+        const [withId, without] = await history(
+            http(async () =>
+                json({
+                    records: [
+                        { id: 1, eventType: 'grabbed', date: '2026-08-01T10:00:00Z', sourceTitle: 'a', downloadId: 'ABCDEF' },
+                        { id: 2, eventType: 'grabbed', date: '2026-08-01T09:00:00Z', sourceTitle: 'b' }
+                    ],
+                    totalRecords: 2
+                })
+            ),
+            'radarr',
+            'movie',
+            {}
+        );
+        expect(withId?.downloadId).toBe('abcdef');
+        expect(without).not.toHaveProperty('downloadId');
+    });
+
     it('keeps the upstream spelling so a model is not lied to', async () => {
         const [row] = await history(
             http(async () =>

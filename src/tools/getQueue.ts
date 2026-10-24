@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { annotateCleanuparr } from './cleanuparrQueue.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 
 export type GetQueueResult = {
@@ -21,9 +22,10 @@ export type GetQueueResult = {
 };
 
 const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
-    if (detail === 'full') return q;
+    const { torrent: _t, ...visible } = q;
+    if (detail === 'full') return visible;
     if (detail === 'minimal') return { service: q.service, id: q.id, title: q.title, status: q.status };
-    const { errorMessage: _e, private: _p, seeding: _s, ...rest } = q;
+    const { errorMessage: _e, private: _p, seeding: _s, ...rest } = visible;
     return rest;
 };
 
@@ -40,7 +42,15 @@ export function queueLine(item: QueueItem): string {
     if (item.errorMessage !== undefined && item.errorMessage !== '') facts.push(item.errorMessage);
     if (item.statusMessages !== undefined) facts.push(...item.statusMessages);
     if (item.seeding?.overLimit === true && item.status.startsWith('seeding')) {
-        facts.push(item.seeding.forced === true ? 'past its seed limit (force-started, so exempt)' : 'past its seed limit');
+        const c = item.seeding.cleanuparr !== undefined && 'rule' in item.seeding.cleanuparr ? item.seeding.cleanuparr : undefined;
+        const marks = [...(c?.dryRun === true ? ['dry run'] : []), ...(c?.notEnforced === true ? ['not scheduled'] : [])];
+        facts.push(
+            item.seeding.forced === true
+                ? 'past its seed limit (force-started, so exempt)'
+                : c !== undefined && item.seeding.limitSource === 'cleanuparr'
+                  ? `past Cleanuparr rule "${c.rule}"${marks.length === 0 ? '' : ` (${marks.join(', ')})`}`
+                  : 'past its seed limit'
+        );
     }
 
     return `${item.title} — ${facts.join(', ')}`;
@@ -53,6 +63,11 @@ export async function buildGetQueue(
     const { items, degraded, counts } = await gather(
         adapters.filter(hasQueue).map(a => ({ id: a.id, fetch: () => a.getQueue() }))
     );
+    if (opts.detail === 'full') {
+        await annotateCleanuparr(items, adapters, id => {
+            if (!degraded.includes(id)) degraded.push(id);
+        });
+    }
 
     // Sorted before limiting. Concatenation order is adapter order, which is
     // alphabetical — so an unsorted limit would drop Transmission first, every
@@ -72,7 +87,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             title: 'Download queue',
             annotations: READ_ONLY,
             description:
-                'Everything currently downloading or stalled, merged across Radarr, Sonarr, SABnzbd, Transmission and qBittorrent. Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data. A Radarr or Sonarr row also carries `downloadId`, the download client\'s own id for that grab — pass it to `trigger_scan` with `action: "import"` when a finished download is sitting at `importState: "importBlocked"` and never got imported. Such a row also carries `statusMessages`, the service\'s own reasons, fenced: a title mismatch or an unknown episode fails the same way on every retry and has to be fixed in the service itself. At `detail: "full"`, a finished torrent carries `seeding`: its ratio, seconds seeded, the limit the client applies to it (absent means none), whether that limit is its own or the client default, and `overLimit`. Torrents also carry `private`. The rules themselves are in `stack_health` at `detail: "full"`.',
+                'Everything currently downloading or stalled, merged across Radarr, Sonarr, SABnzbd, Transmission and qBittorrent. Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data. A Radarr or Sonarr row also carries `downloadId`, the download client\'s own id for that grab — pass it to `trigger_scan` with `action: "import"` when a finished download is sitting at `importState: "importBlocked"` and never got imported. Such a row also carries `statusMessages`, the service\'s own reasons, fenced: a title mismatch or an unknown episode fails the same way on every retry and has to be fixed in the service itself. At `detail: "full"`, a finished torrent carries `seeding`: its ratio, seconds seeded, the limit the client applies to it (absent means none), whether that limit is its own or the client default, and `overLimit`. Torrents also carry `private`. The rules themselves are in `stack_health` at `detail: "full"`. When Cleanuparr is configured, a torrent it governs also carries `seeding.cleanuparr`: the rule that applies (matched the way Cleanuparr matches it), its limits, and whether Cleanuparr will act on it (`dryRun`, `notEnforced`), or why Cleanuparr skips it. `overLimit` is then judged against that rule and `limitSource` says so.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
         },

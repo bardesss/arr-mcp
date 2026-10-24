@@ -176,6 +176,15 @@ never as a blocking stage. A secondary that is down does not lower `certain`.
 `certain: false`, and the summary names what was missed: a confident verdict
 across a hole is worse than no verdict.
 
+When Cleanuparr removed or stopped the download and nothing is in the queue,
+the queue stage says so, with the date, its reason and its strike count, and
+`remedy` points at its rules. This only applies while the item has no file; a
+file on disk means the removal was since replaced. A dry run is shown as "would
+have removed or stopped it" and does not block the verdict. While a download
+client cannot be reached, the queue stage is unknown instead, since a new grab
+could be on that client. A download still in the queue that Cleanuparr has
+struck carries its strike count and kind in the queue stage.
+
 ## `stack_health`
 
 With more than one instance of a service, each is reported separately. With
@@ -227,6 +236,21 @@ what the app applies. The other is a torrent indexer with no criteria while no
 client has a default either, meaning its grabs seed until someone stops them.
 Which torrents are actually past their limit is `get_queue`'s answer, not this
 one. Absent when nothing configured seeds.
+
+### Cleanuparr
+
+With Cleanuparr configured, its health findings join the failing checks: an
+unhealthy entry, a disconnected *arr or download client, a Queue Cleaner that
+is not scheduled, dry run being on, and a Cleanuparr minor newer than 2.10
+(flagged as untested). A source it could not read is a warning of its own, and
+the rest still report.
+
+At `full`, `seedingRules.cleanuparr` lists the rule sets of each Cleanuparr
+download client. A set carries `service` when it maps to an arr-mcp torrent
+client, matched on client type and `host:port`. A set that matches none, or that
+shares a client with another set, has no `service` and `notes` says why.
+`notes` also says when a rule's ratio differs from the client's own, and when
+the Download Cleaner is not scheduled, which means none of the rules run.
 
 ### Did that command finish?
 
@@ -540,6 +564,26 @@ its session default here. qBittorrent skips share limits for force-started
 torrents, so those carry `forced` and the line says why the limit did nothing.
 Transmission has no seeding-time limit, only a ratio.
 
+### Cleanuparr rules, at `detail: "full"`
+
+A torrent that a Cleanuparr rule governs carries `seeding.cleanuparr`: `rule`
+(its name), `action` (`delete`, `stop` or `unknown`), the limits it sets
+(`ratioLimit`, `seedingLimitSeconds`, `minSeedSeconds`), and flags that only
+appear as `true` or text when relevant. `dryRun` means Cleanuparr only logs.
+`notEnforced` means its Download Cleaner is not scheduled. `uncertain` says why
+the rule cannot be judged from here, for example when it filters on seeder
+count or last activity.
+
+Instead of a rule it can carry `{ skipped: reason }`: the torrent is not
+seeding, is ignored in Cleanuparr, is still in an *arr queue, is already
+stopped, or the rule's action is unknown.
+
+When the rule applies and is certain, `overLimit` is judged against it, not the
+client's limit, and `limitSource: "cleanuparr"` says so. When it is uncertain,
+the client's own verdict stays. Rules only reach a client whose host, port and
+type match one of Cleanuparr's; see
+[Cleanuparr](configuration.md#cleanuparr).
+
 Neither client can express a rule like "public trackers stop now, private ones
 seed to 1.0". `private` is there so that question can still be asked of the
 queue. The qBittorrent side is written against its source at release-5.2.4 and
@@ -566,6 +610,21 @@ not yet recognise becomes `unknown` rather than being dropped.
 A failure's `reason` comes straight from the download client and is fenced
 like any other untrusted string — it is not translated, and on a non-English
 setup it will not read as English.
+
+### Cleanuparr
+
+Cleanuparr contributes what it did to downloads. Its event types are `strike`
+(a download was struck for stalling, being slow or failing to import), `stopped`,
+`deleted`, `imported` and `unknown`. Its rows carry `downloadId`, `strikeCount`
+where it has one, and `dryRun: true` when it only logged the action. A `reason`
+is fenced like any other upstream text.
+
+`downloadId` is lowercased and links a row to the *arr grab it belongs to.
+Radarr and Sonarr rows now carry the same `downloadId`, also lowercased.
+`get_queue`'s `downloadId` is as the *arr reports it, so compare the two
+case-insensitively. Passing `id` with
+`service: cleanuparr` is refused, because Cleanuparr does not keep history per
+movie or series.
 
 ### The two services below the *arrs
 
