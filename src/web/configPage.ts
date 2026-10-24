@@ -263,14 +263,10 @@ function instanceCard(
             ? html`${checkbox(
                   `${p}.allow_metadata_repair`,
                   'allow_metadata_repair',
-                  'allow_metadata_repair — let fix_metadata repair Plex metadata (experimental)',
-                  (service as { allow_metadata_repair?: boolean }).allow_metadata_repair ?? false
+                  'allow_metadata_repair — let fix_metadata repair Plex metadata',
+                  (service as { allow_metadata_repair?: boolean }).allow_metadata_repair ?? true
               )}
-              <p class="note">
-                  Experimental: this repair has not been run against a real Plex server yet, and needs destructive
-                  as well. Reports are welcome on
-                  <a href="https://github.com/bardesss/arr-mcp/issues/312">#312</a>.
-              </p>`
+              <p class="note">On by default. The repair also needs destructive.</p>`
             : raw('')}
 
         <div class="row" style="margin-top:1rem">

@@ -498,7 +498,7 @@ returns for it would help.
 
 `set_watched`, below, remains Jellyfin-only, whichever server is primary. The
 Plex adapter writes with `trigger_scan` and `fix_metadata`, and `fix_metadata`
-is off by default there, see [Repairing on Plex](#repairing-on-plex).
+has its own switch there, see [Repairing on Plex](#repairing-on-plex).
 
 ### When no media server is configured
 
@@ -1166,10 +1166,10 @@ read fails, the result is `NOT VERIFIED` and says so, rather than an error.
 
 ### Repairing on Plex
 
-Plex repair is **off by default**, because nobody has run it against a live
-Plex server yet. Turn it on with `services.plex.allow_metadata_repair: true`
-(the experimental checkbox on the Plex card in the config UI), plus
-`permissions.destructive: true` as for any destructive write. The two are
+Plex repair is on by default, behind `permissions.destructive: true` as for any
+destructive write. Film and series repairs have both been checked against a live
+Plex server. Switch it off with `services.plex.allow_metadata_repair: false` (the
+checkbox on the Plex card in the config UI). The two are
 separate switches: `stack_health` and `arr://instances` report
 `permissions.destructive` as `config.yaml` and your token allow, and know nothing of
 `allow_metadata_repair`, which `fix_metadata` checks on top of it. While it is

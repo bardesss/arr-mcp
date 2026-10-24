@@ -350,9 +350,9 @@ describe('plex', () => {
         expect(c.services.plex?.url).toBe('http://192.0.2.10:32400');
     });
 
-    it('defaults allow_metadata_repair to false', () => {
+    it('defaults allow_metadata_repair to true', () => {
         const c = ConfigSchema.parse({ auth: AUTH2, services: { plex: media('http://192.0.2.10:32400') } });
-        expect(c.services.plex?.allow_metadata_repair).toBe(false);
+        expect(c.services.plex?.allow_metadata_repair).toBe(true);
     });
 
     it('accepts allow_metadata_repair: true', () => {

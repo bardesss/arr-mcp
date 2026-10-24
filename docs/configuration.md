@@ -112,20 +112,21 @@ every other service here follows.
 `trigger_scan` refreshes every Plex library, the same `safe` tier as a
 Jellyfin scan. There is no Plex `set_watched`.
 
-`fix_metadata` can repair Plex metadata, but only once you opt in:
+`fix_metadata` can repair Plex metadata. Like any destructive write it needs
+`destructive`, and Plex has its own switch on top, on by default:
 
 ```yaml
 services:
   plex:
-    allow_metadata_repair: true   # default false
+    allow_metadata_repair: false   # default true; set false to keep the repair off
     permissions:
       destructive: true
 ```
 
-It is off by default because the first live test only half passed: films were
-repaired, series were not. Jellyfin needs no such setting, and `allow_metadata_repair` on any
-other service is refused at startup. The Plex card on the config page has a
-checkbox for it, marked experimental. See
+Film and series repairs have both been checked against a live Plex server, with
+the after-check reporting each one correctly. Jellyfin needs no such setting, and
+`allow_metadata_repair` on any other service is refused at startup. The Plex card
+on the config page has a checkbox for it. See
 [Repairing on Plex](tools.md#repairing-on-plex).
 
 `default_user` behaves differently here than on Jellyfin, and it is worth

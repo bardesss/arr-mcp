@@ -162,10 +162,10 @@ const MultiUserServiceSchema = z.strictObject({
 });
 export type MultiUserServiceConfig = z.infer<typeof MultiUserServiceSchema>;
 
-/** Plex alone gets the repair switch: its repair is unverified against a live server (#203). */
+/** Plex alone gets the repair switch; Jellyfin repairs without one. */
 const PlexServiceSchema = z.strictObject({
     ...MultiUserServiceSchema.shape,
-    allow_metadata_repair: z.boolean().default(false)
+    allow_metadata_repair: z.boolean().default(true)
 });
 export type PlexServiceConfig = z.infer<typeof PlexServiceSchema>;
 
