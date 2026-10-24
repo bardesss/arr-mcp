@@ -1075,8 +1075,8 @@ describe('the Plex repair switch', () => {
         const page = await (await call('/ui/config')).text();
 
         expect(page.match(/name="allow_metadata_repair"/g)).toHaveLength(1);
-        expect(page).toContain('experimental');
-        expect(page).toContain('issues/312');
+        expect(page).not.toContain('experimental');
+        expect(page).toContain('needs destructive');
     });
 
     it('turns the repair on and off from the card', async () => {
