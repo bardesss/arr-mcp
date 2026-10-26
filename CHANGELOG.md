@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.45.1](https://github.com/bardesss/arr-mcp/compare/v1.45.0...v1.45.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* **deps:** bump zod from 4.6.5 to 4.6.7 ([#387](https://github.com/bardesss/arr-mcp/issues/387)) ([cfc8026](https://github.com/bardesss/arr-mcp/commit/cfc8026a5015a2dd94124f00f483f836db8f1c06))
+
 ## [1.45.0](https://github.com/bardesss/arr-mcp/compare/v1.44.5...v1.45.0) (2026-10-24)
 
 
