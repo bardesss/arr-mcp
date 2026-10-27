@@ -10,7 +10,7 @@ off until you turn them on — see [writes](writes.md).
 | `search_media` | What do I have, what exists, what can I get? |
 | `get_media_details` | Everything about one item |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files |
-| `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
+| `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree; Lidarr albums are listed as their own kind |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across all four download paths |
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd and Bazarr did |
@@ -268,6 +268,10 @@ and, under `playback`, `itemId` — the media server's own id, which is what
 `media_servers.jellyfin.itemId` instead, as
 [below](#which-media-server-has-it).
 
+**An album's `acquisition.id` is Lidarr's album id, and no tool accepts it.**
+Lidarr is read-only here and cannot search releases, so an album id is for
+matching a row across calls, not for acting on anything.
+
 Before this, a caller had the external ids and nothing a write would accept,
 so answering "delete this" meant a second `search_media(source: "library")` hop
 to find the id for a title `get_library` had just returned.
@@ -297,6 +301,38 @@ asking for a series' IMDb rating with the dataset off finds nothing.
 Asking for a combination that cannot exist returns a refusal explaining why, not
 an empty list. Asking for one that needs the dataset says so in
 `ratingCoverage.note` rather than reporting a bare zero.
+
+### Music, from Lidarr
+
+Lidarr adds a third `kind`, `album`, and it is the only kind with no
+media-server half.
+
+| Field | Meaning for an album |
+| --- | --- |
+| `title` | The album title |
+| `artist` | The artist name, fenced like every other service string. Load-bearing: two artists can name an album the same thing |
+| `ids.mbid` | The album's MusicBrainz id, and the only external id Lidarr reports |
+| `acquisition.status` | Lidarr's album type — `Album`, `EP`, `Single` — passed through. Lidarr has no run status to report |
+| `acquisition.hasFile` | At least one track is on disk, the same meaning `has_file` has for a series. A half-imported album therefore reads as present; Lidarr's own `percentOfTracks` is the completeness figure, and this row does not carry it |
+| `acquisition.path` | The artist's folder. Every album by that artist reports the same one: Lidarr keeps the album one level below, and no field here carries that |
+| `presence` | Always `unknown`. No music read exists for Jellyfin or Plex, so `arr_only` would claim a server looked and did not find it |
+
+An album carries **no** `addedAt`, no rating and no per-album quality, so
+`sort: "added"`, `min_rating`, `rating_source`, `sort: "rating"`, `quality`
+and `watched` are refused when `kind: "album"` names the question. Without a
+kind they drop albums, which is what an absent field means everywhere else here
+— with one exception worth knowing: `watched: false` **keeps** them, because an
+album has no watch state and so counts as unwatched. `presence` refuses
+`both`/`arr_only`/`jellyfin_only`, and accepts `unknown`, the only value an
+album can hold.
+
+An artist-level question is a filter on `artist`, not a second kind: an artist
+row would duplicate the album counts and carry no file state of its own.
+
+`search_media` with `source: "library"` finds an album by **title or artist** —
+"do I have any Daft Punk" is a library question. `source: "discover"` returns
+nothing from Lidarr: its lookup endpoints answer with artists to add, and
+nothing here adds music.
 
 ### Sorting
 

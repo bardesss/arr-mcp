@@ -206,6 +206,10 @@ export function redact(node: unknown, secrets: string[], hosts: string[]): unkno
  *  capture-fixtures.ts works with. */
 export type Row = Record<string, unknown>;
 
+/** A response row, as opposed to an array, a scalar, null, or undefined. */
+export const isRow = (value: unknown): value is Row =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Keeps a field present and typed, but replaces a string value. Checks
  *  `typeof`, not truthiness, so an empty string is replaced too — Plex's
  *  `/accounts` can return rows with `name: ''`. */
@@ -232,8 +236,12 @@ export function anonymiseImages(images: unknown): unknown {
     return Array.isArray(images)
         ? (images as Row[]).map(image => ({
               ...image,
-              url: replaceIfString(image.url, '/MediaCover/1/poster.jpg'),
-              remoteUrl: replaceIfString(image.remoteUrl, ANONYMOUS_URL)
+              // Only where the entry carried the field: a key set to
+              // `undefined` survives in memory and vanishes in JSON, so an
+              // invented one would make a scrubber look like it had scrubbed
+              // something the service never sent.
+              ...(image.url === undefined ? {} : { url: replaceIfString(image.url, '/MediaCover/1/poster.jpg') }),
+              ...(image.remoteUrl === undefined ? {} : { remoteUrl: replaceIfString(image.remoteUrl, ANONYMOUS_URL) })
           }))
         : images;
 }

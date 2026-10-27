@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { MergedItem } from '../core/resolver.ts';
+import type { LibraryKind, MergedItem } from '../core/resolver.ts';
 import {
     DetailSchema,
     LimitSchema,
@@ -70,7 +70,8 @@ const toTenPointScale = (source: RatingSource, value: number): number => (value 
  *
  * `added` was absent through 0.8 because nothing carried an added date. 0.9
  * put one on `acquisition`, which is what makes "what arrived this week"
- * answerable rather than approximated.
+ * answerable rather than approximated. An album still carries none, so this
+ * excludes albums for the same reason it excludes media no *arr manages.
  */
 export const SORT_FIELDS = ['rating', 'year', 'title', 'added'] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
@@ -80,7 +81,7 @@ export type LibraryQuery = {
     limit: number;
     offset?: number;
     sort?: SortField;
-    kind?: 'movie' | 'series';
+    kind?: LibraryKind;
     year?: number;
     genre?: string;
     monitored?: boolean;
@@ -171,6 +172,49 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
             'rating_source "tvdb" applies to series only — Radarr does not report a TVDB rating, so this would match nothing. Drop it, or use one of the per-source film ratings.'
         );
     }
+    rejectFilmFiltersOnMusic(opts);
+}
+
+/**
+ * The same refusal for music, asked only when the caller named `kind: "album"`.
+ *
+ * With a kind, the caller has said the question is about albums, so a filter no
+ * album can satisfy is a stated gap rather than an answer — the lesson
+ * `rejectImpossibleFilters` exists for. Without a kind these filters drop
+ * albums through the normal absent-field path, except `watched: false`, which
+ * keeps them: an album has no watch state, so it reads as unwatched.
+ */
+function rejectFilmFiltersOnMusic(opts: LibraryQuery): void {
+    if (opts.kind !== 'album') return;
+
+    if (
+        opts.quality !== undefined ||
+        opts.rating_source !== undefined ||
+        opts.min_rating !== undefined ||
+        opts.sort === 'rating'
+    ) {
+        throw new Error(
+            'An album carries no rating here and no per-album quality. Lidarr does return a MusicBrainz album rating, but nothing in this tool reads it. Drop quality, min_rating, rating_source and sort: "rating".'
+        );
+    }
+    if (opts.watched !== undefined || opts.watched_by !== undefined) {
+        throw new Error(
+            'No watch state is read for music, so `watched` would report every album as unwatched. Drop it, or ask without kind: "album".'
+        );
+    }
+    // `unknown` is the only value an album can hold, so it is the one value
+    // that is worth accepting. The other three describe a media-server half
+    // that no music read produces.
+    if (opts.presence !== undefined && opts.presence !== 'unknown') {
+        throw new Error(
+            `Every album reports presence "unknown": no media server half is read for music, so "${opts.presence}" would match nothing. Use "unknown", or drop \`presence\`.`
+        );
+    }
+    if (opts.sort === 'added') {
+        throw new Error(
+            'Lidarr reports no added date for an album, so sort: "added" would return nothing. Sort by title or year instead.'
+        );
+    }
 }
 
 /**
@@ -216,6 +260,9 @@ const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
         return {
             kind: item.kind,
             title: item.title,
+            // The artist is not decoration on an album: a title alone does not
+            // identify one, and two artists can share an album title.
+            ...(item.artist === undefined ? {} : { artist: item.artist }),
             ...(item.year === undefined ? {} : { year: item.year }),
             ids: item.ids,
             presence: item.presence,
@@ -270,14 +317,17 @@ function imdbUnavailableNote(state: 'off' | 'ingesting' | 'ready'): string | und
 export function libraryLine(item: MergedItem): string {
     const facts: string[] = [item.kind];
     if (item.acquisition?.id !== undefined) facts.push(`${item.acquisition.service}:${item.acquisition.id}`);
-    for (const source of ['tmdb', 'tvdb', 'imdb'] as const) {
+    for (const source of ['tmdb', 'tvdb', 'imdb', 'mbid'] as const) {
         const id = item.ids[source];
         if (id !== undefined) facts.push(`${source}:${id}`);
     }
     if (item.acquisition?.hasFile === false) facts.push('no file');
     if (item.playback?.watched === true) facts.push('watched');
 
-    return `${item.title}${item.year === undefined ? '' : ` (${item.year})`} — ${facts.join(', ')}`;
+    // The artist sits beside the title rather than in the facts list: "Discovery"
+    // alone does not identify an album, and the reader scans the title first.
+    const artist = item.artist === undefined ? '' : ` — ${item.artist}`;
+    return `${item.title}${artist}${item.year === undefined ? '' : ` (${item.year})`} — ${facts.join(', ')}`;
 }
 
 export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery): Promise<GetLibraryResult> {
@@ -390,7 +440,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
             title: 'Library',
             annotations: READ_ONLY,
             description:
-                'Your library, joined across Radarr, Sonarr and your media server on shared external ids. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means the media server *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means the media server has it and no *arr manages it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. (The value is spelled `jellyfin_only` regardless of which media server is configured — it is a frozen output contract, not a claim about which one answered.) If the media server is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If no media server is configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — and the top-level `note` says so; report that reason rather than describing the library as unwatched. `has_file: false` with `monitored: true` is "what am I still waiting for". Two limits: `quality` applies to films only (a series’ quality is per-episode), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered. A series at `detail: "full"` also carries `seasons`: per season, how many episodes you have watched (`watched`), how many are on disk (`onDisk`), how many have aired (`aired`), and how many exist in total (`total`, which is TVDB\'s count via Sonarr). `complete` is true only when every episode of the season has been watched — and is **absent, not false**, when either half is unknown: a series no *arr manages has no `total`, and one the media server has never seen has no `watched`. Season 0 is specials and is reported like any other season. `seasons` is omitted below `detail: "full"`. Each season row also carries `monitored`, Sonarr’s own per-season flag — the same field `get_media_details` reports — absent rather than false when no Sonarr manages the series.' +
+                'Your library, joined across Radarr, Sonarr and your media server on shared external ids. Lidarr albums are listed as their own kind `album`, carrying `artist` and the album\'s MusicBrainz id; nothing joins them to a media server, so an album always reports presence `unknown` and there is no music watch state, rating or per-album quality to filter on. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means the media server *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means the media server has it and no *arr manages it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. (The value is spelled `jellyfin_only` regardless of which media server is configured — it is a frozen output contract, not a claim about which one answered.) If the media server is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If no media server is configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — and the top-level `note` says so; report that reason rather than describing the library as unwatched. `has_file: false` with `monitored: true` is "what am I still waiting for" — for an album, `has_file` means any track is on disk, so a half-imported album reads as present. Two limits: `quality` applies to films only (a series’ quality is per-episode, and Lidarr reports no album-level quality), and a series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered. A series at `detail: "full"` also carries `seasons`: per season, how many episodes you have watched (`watched`), how many are on disk (`onDisk`), how many have aired (`aired`), and how many exist in total (`total`, which is TVDB\'s count via Sonarr). `complete` is true only when every episode of the season has been watched — and is **absent, not false**, when either half is unknown: a series no *arr manages has no `total`, and one the media server has never seen has no `watched`. Season 0 is specials and is reported like any other season. `seasons` is omitted below `detail: "full"`. Each season row also carries `monitored`, Sonarr’s own per-season flag — the same field `get_media_details` reports — absent rather than false when no Sonarr manages the series.' +
                 withBoth(
                     mediaServerIds,
                     'With two media servers, `presence`, `playback` and `seasons` describe the primary, and `media_servers` says per server whether it has the item and under which `itemId`; a server missing from that map was not read. The non-primary server is matched on tmdb, tvdb or imdb ids, so an item it holds without any reads `present: false`. Items only the non-primary server has do not appear here; search_media finds them.'
@@ -405,7 +455,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     )
             }),
             inputSchema: toolInput({
-                kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.'),
+                kind: z.enum(['movie', 'series', 'album']).optional().describe('Films, series, or Lidarr albums. Omit for all three.'),
                 year: z.number().int().optional(),
                 genre: z.string().min(1).optional().describe('Matched case-insensitively against the *arr genres.'),
                 monitored: z.boolean().optional(),
@@ -413,7 +463,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     .boolean()
                     .optional()
                     .describe(
-                        'Whether a file is actually on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
+                        'Whether a file is actually on disk. For an album this means any track is on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
                     ),
                 watched: z.boolean().optional().describe('The media server\'s watch state. Items it has never seen count as unwatched. Pair with `user` to ask about someone else.'),
                 user: UserSchema,
@@ -440,7 +490,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     .enum(['both', 'arr_only', 'jellyfin_only', 'unknown'])
                     .optional()
                     .describe(
-                        'both / arr_only (possible broken import) / jellyfin_only (unmanaged media — the value keeps this name whichever media server is configured) / unknown (media server degraded or unconfigured — arr_only cannot be asserted).' +
+                        'both / arr_only (possible broken import) / jellyfin_only (unmanaged media — the value keeps this name whichever media server is configured) / unknown (media server degraded or unconfigured — arr_only cannot be asserted, and every album is unknown because no media server half is read for music).' +
                             withBoth(mediaServerIds, 'With two media servers, measured against the primary.')
                     ),
                 ...(mediaServerIds === undefined
@@ -457,7 +507,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     .enum(SORT_FIELDS)
                     .optional()
                     .describe(
-                        'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages, which has no added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
+                        'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages and every album, neither of which has an added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
                     ),
                 detail: DetailSchema,
                 limit: LimitSchema,

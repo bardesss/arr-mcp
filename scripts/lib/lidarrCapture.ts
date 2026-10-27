@@ -5,25 +5,31 @@
  *
  * Fixture policy is titles in, people out. Titles, mount paths and external ids
  * are published as the Radarr and Sonarr blocks publish theirs. The exceptions
- * are `artist.members[]`, which names real people, and cover-art URLs, which
- * resolve to the release and embed the slug.
+ * are `artist.members[]` and `overview`, which name real people, and cover-art
+ * URLs, which resolve to the release and embed the slug.
  */
-import { anonymiseImages, ANONYMOUS_URL, replaceIfString, type Row } from './redact.ts';
+import { anonymiseImages, ANONYMOUS_URL, isRow, replaceIfString, type Row } from './redact.ts';
 
 /** A band credits people, not characters. */
 export const anonymiseLidarrMembers = (members: unknown): unknown =>
     Array.isArray(members)
         ? (members as Row[]).map((member, i) => ({
               ...member,
-              name: replaceIfString(member.name, `Member ${i + 1}`),
-              instrument: replaceIfString(member.instrument, `Instrument ${i + 1}`),
-              images: anonymiseImages(member.images)
+              ...(member.name === undefined ? {} : { name: replaceIfString(member.name, `Member ${i + 1}`) }),
+              ...(member.instrument === undefined
+                  ? {}
+                  : { instrument: replaceIfString(member.instrument, `Instrument ${i + 1}`) }),
+              ...(member.images === undefined ? {} : { images: anonymiseImages(member.images) })
           }))
         : members;
 
-/** A nested resource arrives as a row, as null, or not at all. */
-const isRow = (value: unknown): value is Row =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
+/**
+ * A MusicBrainz biography names the band's members, their instruments and their
+ * home town. An empty one is left alone: most rows carry `""`, and filling that
+ * would invent text the service did not send.
+ */
+const scrubOverview = (row: Row, placeholder: string): Row =>
+    typeof row.overview === 'string' && row.overview !== '' ? { overview: placeholder } : {};
 
 /**
  * `ArtistResource`. `lastAlbum` and `nextAlbum` are whole albums, each carrying
@@ -32,6 +38,7 @@ const isRow = (value: unknown): value is Row =>
  */
 export const anonymiseLidarrArtist = (row: Row): Row => ({
     ...row,
+    ...scrubOverview(row, 'An artist.'),
     ...(row.images === undefined ? {} : { images: anonymiseImages(row.images) }),
     ...(row.remotePoster === undefined ? {} : { remotePoster: replaceIfString(row.remotePoster, ANONYMOUS_URL) }),
     ...(row.members === undefined ? {} : { members: anonymiseLidarrMembers(row.members) }),
@@ -42,6 +49,7 @@ export const anonymiseLidarrArtist = (row: Row): Row => ({
 /** `AlbumResource`, and the `artist` it nests, which carries its albums again. */
 export const anonymiseLidarrAlbum = (row: Row): Row => ({
     ...row,
+    ...scrubOverview(row, 'An album.'),
     ...(row.images === undefined ? {} : { images: anonymiseImages(row.images) }),
     ...(row.remoteCover === undefined ? {} : { remoteCover: replaceIfString(row.remoteCover, ANONYMOUS_URL) }),
     ...(isRow(row.artist) ? { artist: anonymiseLidarrArtist(row.artist) } : {})

@@ -50,9 +50,9 @@ const encodeBody = (body: RequestBody): { contentType: string; payload: string }
         : { contentType: 'application/json', payload: JSON.stringify(body.json) };
 
 /**
- * The one implementation of the resilience policy. Nine
- * adapters sharing this is what makes "the breaker opens after five failures"
- * a checkable property of the stack rather than a property of Radarr.
+ * The one implementation of the resilience policy. Every adapter sharing it is
+ * what makes "the breaker opens after five failures" a checkable property of
+ * the stack rather than a property of Radarr.
  */
 export class ServiceHttp {
     readonly #id: string;

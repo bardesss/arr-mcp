@@ -2,7 +2,7 @@ import type { ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
-import type { MergedItem } from '../../core/resolver.ts';
+import { filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../../core/resolver.ts';
 import {
     hasIndexers,
     hasMediaDetails,
@@ -51,7 +51,7 @@ async function resolveItem(
     target: DiagnoseTarget,
     degraded: string[],
     libraryDegraded: string[]
-): Promise<MergedItem | undefined> {
+): Promise<FilmOrSeries | undefined> {
     // the gate lives in the loader's identity resolver, and a refusal
     // propagates out of diagnose rather than becoming a degraded stage — this
     // call is deliberately not wrapped in `probe`.
@@ -114,7 +114,10 @@ async function resolveItem(
         // does for every caller that does not know the kind in advance.
         const searchKind = details.kind === 'item' ? undefined : details.kind;
         const joined = snapshot.index.find(details.ids, searchKind);
-        if (joined !== undefined) return joined;
+        // An album is indexed under its MusicBrainz GUID, so a media-server id
+        // can never reach one. The predicate is here to say that out loud to
+        // the compiler, not because the case is reachable.
+        if (joined !== undefined && isFilmOrSeries(joined)) return joined;
 
         // The id was valid and the index does not contain it — a real state,
         // not an error: the service holding it may be the one that failed to
@@ -156,7 +159,7 @@ async function resolveItem(
         };
     }
 
-    return target.query === undefined ? undefined : snapshot.index.search(target.query)[0];
+    return target.query === undefined ? undefined : filmOrSeriesMatch(snapshot.index.search(target.query), target.query);
 }
 
 export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget): Promise<Evidence> {

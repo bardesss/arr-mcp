@@ -365,6 +365,48 @@ const CONTRACTS: Record<string, ServiceContract> = {
             }
         ]
     },
+    // The one service here whose rows the adapter maps by hand from a local
+    // narrow type (`RawAlbum` in src/services/lidarr.ts), so the field names
+    // below are the adapter's only tie to upstream. Every one of them feeds a
+    // `get_library` field: rename `foreignAlbumId` and an album stops having an
+    // identity, rename `statistics.trackFileCount` and `has_file` becomes false
+    // for a library that is entirely on disk.
+    lidarr: {
+        spec: 'specs/lidarr.json',
+        dependencies: [
+            {
+                path: '/api/v1/system/status',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/system-status.json',
+                fields: ['version']
+            },
+            {
+                path: '/api/v1/album',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/album.json',
+                fields: [
+                    'id',
+                    'title',
+                    'foreignAlbumId',
+                    'releaseDate',
+                    'albumType',
+                    'monitored',
+                    'genres',
+                    'statistics.trackFileCount',
+                    'statistics.sizeOnDisk',
+                    'artist.artistName',
+                    'artist.qualityProfileId',
+                    'artist.path'
+                ]
+            },
+            {
+                path: '/api/v1/qualityprofile',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/qualityprofile.json',
+                fields: ['id', 'name']
+            }
+        ]
+    },
     prowlarr: {
         spec: 'specs/prowlarr.json',
         dependencies: [

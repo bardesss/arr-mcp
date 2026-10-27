@@ -210,28 +210,34 @@ small, shaped change, and a service in no slot at all is a different product.
 **Managed — what decides something should exist**
 
 - **Lidarr.** An adapter exists: the service id, the config block, the icon, the
-  vendored spec, and a connection probe on `/api/v1`. It claims no capability.
-  All 21 capture endpoints were exercised against a live Lidarr 3.1.6.5079 and
-  the fixtures are committed, but seven came back with no rows: queue, history,
-  blocklist, wanted cutoff, release, tag and indexer are empty on a fresh
-  instance. Those row shapes need a capture against a library with real
-  activity before a read adapter can claim them.
+  vendored spec, and `LibraryCapable` — `get_library` lists albums, which is the
+  first and currently only capability claimed. All 21 capture endpoints were
+  exercised against a live Lidarr 3.1.6.5079 and the fixtures are committed, but
+  seven came back with no rows: queue, history, blocklist, wanted cutoff,
+  release, tag and indexer are empty on a fresh instance. Those row shapes need a
+  capture against a library with real activity before a read adapter can claim
+  them, and `/wanted/missing` is the one populated paged route if one is wanted
+  next.
 
-  **The design constraint.** Lidarr stays out of the merged library. Its identity
-  is a MusicBrainz MBID, a GUID, where the resolver keys on integer TMDB, TVDB
-  and IMDb ids and a `kind` of `movie` or `series`. Putting music in the merged
-  index means teaching the resolver a fourth id namespace and the media servers'
-  music sections a join they have never done. Keep it per-service, which is what
-  every comparable tool does. Two consequences for a new tool: `get_library` and
-  `diagnose` refuse a Lidarr id rather than guessing a kind, and
-  `get_media_details` by query cannot reach music.
+  **The design constraint.** Music sits in the merged index as its own `kind`,
+  `album`, and is deliberately not joined to anything. Its identity is a
+  MusicBrainz MBID, a GUID, where the resolver keys films and series on integer
+  TMDB, TVDB and IMDb ids. Adding the id namespace was cheap, because the key
+  map is already namespaced by kind. Joining it would not be: that needs Jellyfin
+  and Plex music reads plus a `ProviderIds` mapping nobody has verified. So an
+  album reports `presence: unknown`, which is the one member of that enum that
+  asserts nothing, and `diagnose`, `get_media_details` and `fix_metadata` read
+  the film and series chain only. They say so when a query matches an album
+  rather than reporting it as absent.
 
   **What its API does not say out loud.** Three media levels, so `resource:
   'movie' | 'series'` in the shared `arr*.ts` helpers does not apply. Two
   profiles gate what gets monitored: quality and metadata. `RootFolderResource`
   carries no `unmappedFolders`, and it does carry default profile and monitor
   fields the shared `RootFolder` type has no room for. History ordinals move
-  too: `downloadIgnored` is 10, where Sonarr has it at 7.
+  too: `downloadIgnored` is 10, where Sonarr has it at 7. An album has no added
+  date and no per-album quality, so `sort: "added"` and the quality filter are
+  films-only by construction rather than by oversight.
 
 **Downloaded — where a grab actually lands**
 

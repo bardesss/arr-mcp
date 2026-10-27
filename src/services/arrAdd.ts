@@ -1,3 +1,4 @@
+import { LIBRARY_TTL_MS, type TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
@@ -104,6 +105,25 @@ export async function readQualityProfiles(http: ServiceHttp, service: string): P
             // Raw for matching, fenced for prose — see QualityProfile.
             return { id: p.id, name, display: fenceText(name, { service, field: 'name' }) };
         });
+}
+
+/**
+ * Profile id → fenced name, cached beside the library read so a build costs one
+ * extra call rather than one per item. An empty map on failure: a profile list
+ * that times out must not take the whole library with it, and the id alone is
+ * still worth reporting which profile an item grabs against.
+ */
+export async function readProfileNames(
+    http: ServiceHttp,
+    service: string,
+    cache: TtlCache
+): Promise<Map<number, string>> {
+    try {
+        const profiles = await cache.get('profiles', LIBRARY_TTL_MS, () => readQualityProfiles(http, service));
+        return new Map(profiles.map(p => [p.id, p.display]));
+    } catch {
+        return new Map();
+    }
 }
 
 export async function readRootFolders(http: ServiceHttp, service: string): Promise<RootFolder[]> {

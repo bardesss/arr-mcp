@@ -457,6 +457,36 @@ describe('a secondary media server', () => {
             { primaryId: 'jellyfin', secondary: { id: 'plex', identity: plexIdentity } }
         );
 
+    it('stamps no media_servers on an album, which no server was asked about', async () => {
+        // Albums carry a MusicBrainz id and never a playback half. Reporting
+        // `present: false` for one would be the same false claim `presence`
+        // refuses to make, and `get_library`'s `missing_from` reads it as
+        // "this server does not have it" — so the filter would list every
+        // album in the library.
+        const album = (mbid: string): IndexInput => ({
+            kind: 'album',
+            title: 'Random Access Memories',
+            artist: 'Daft Punk',
+            ids: { mbid },
+            acquisition: { service: 'lidarr', monitored: true, hasFile: false }
+        });
+        const withMusic = () =>
+            new LibraryLoader(
+                [stub('lidarr', { listLibrary: async () => [album('mb-1')] }), jellyfin({ Someone: [] }), plex([])],
+                identity(someone),
+                new TtlCache(),
+                undefined,
+                { primaryId: 'jellyfin', secondary: { id: 'plex', identity: identity(other) } }
+            );
+
+        const { index } = await withMusic().load();
+        const row = index.find({ mbid: 'mb-1' });
+
+        expect(row?.kind).toBe('album');
+        expect(row?.media_servers).toBeUndefined();
+        expect(row?.presence).toBe('unknown');
+    });
+
     it('marks what each server has, with its own item id', async () => {
         const { index } = await loader([onPlex(551, 'p551')]).load();
 

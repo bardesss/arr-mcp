@@ -10,7 +10,7 @@ import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
 
-const stub = (id: 'radarr' | 'sonarr', items: IndexInput[]): ServiceAdapter =>
+const stub = (id: 'radarr' | 'sonarr' | 'lidarr', items: IndexInput[]): ServiceAdapter =>
     ({
         id,
         testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
@@ -869,5 +869,81 @@ describe('missing_from', () => {
             limit: 50
         });
         expect(result.items[0]?.media_servers).toEqual({ plex: { present: false } });
+    });
+});
+describe('music from Lidarr', () => {
+    const album = (over: Partial<IndexInput> = {}): IndexInput => ({
+        kind: 'album',
+        title: 'Random Access Memories',
+        artist: 'Daft Punk',
+        year: 2013,
+        genres: ['Electronic'],
+        ids: { mbid: 'aa997ea0-2936-40bd-884d-3af8a0e064dc' },
+        acquisition: { service: 'lidarr', id: '4', monitored: true, hasFile: false, status: 'Album' },
+        ...over
+    });
+    const musicLoader = (items: IndexInput[]) =>
+        new LibraryLoader([stub('lidarr', items), jellyfinStub()], healthyJellyfinIdentity);
+
+    it('lists albums beside films, as their own kind', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), album()]), base);
+
+        expect(result.total).toBe(2);
+        expect(result.items.map(i => i.kind).sort()).toEqual(['album', 'movie']);
+    });
+
+    it('reports an album as presence unknown, never arr_only', async () => {
+        // The claim `arr_only` makes is that a media server looked and did not
+        // find it. No music read exists, so that claim would be false.
+        const result = await buildGetLibrary(musicLoader([album()]), base);
+
+        expect(result.items[0]?.presence).toBe('unknown');
+    });
+
+    it('filters to albums, and keeps the artist at minimal detail', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), album()]), { detail: 'minimal', limit: 50, kind: 'album' });
+
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0]).toMatchObject({ kind: 'album', title: 'Random Access Memories', artist: 'Daft Punk' });
+    });
+
+    it('filters an album by year', async () => {
+        const result = await buildGetLibrary(musicLoader([album()]), { ...base, kind: 'album', year: 2013 });
+
+        expect(result.items).toHaveLength(1);
+    });
+
+    it.each([
+        ['quality', { quality: 'Lossless' }],
+        ['min_rating', { min_rating: 8 }],
+        ['rating_source', { rating_source: 'imdb' as const }],
+        ['sort: rating', { sort: 'rating' as const }],
+        ['watched', { watched: true }],
+        ['presence: arr_only', { presence: 'arr_only' as const }],
+        ['sort: added', { sort: 'added' as const }]
+    ])('refuses %s for albums rather than matching nothing', async (_label, filter) => {
+        await expect(buildGetLibrary(musicLoader([album()]), { ...base, kind: 'album', ...filter })).rejects.toThrow(
+            /album/i
+        );
+    });
+
+    it('still lets those filters run when no kind is named, by excluding albums', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), album()]), { ...base, quality: 'Bluray-1080p' });
+
+        expect(result.items.map(i => i.kind)).toEqual(['movie']);
+    });
+
+    it('accepts presence unknown for albums, which is the only value they hold', async () => {
+        const result = await buildGetLibrary(musicLoader([album()]), { ...base, kind: 'album', presence: 'unknown' });
+
+        expect(result.items.map(i => i.kind)).toEqual(['album']);
+    });
+
+    it('reports an album under watched: false, because it has no watch state', async () => {
+        // Documented, not accidental: an album has no playback half, and this
+        // filter treats absent playback as unwatched for films too.
+        const result = await buildGetLibrary(musicLoader([album()]), { ...base, watched: false });
+
+        expect(result.items.map(i => i.kind)).toEqual(['album']);
     });
 });

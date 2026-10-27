@@ -14,7 +14,7 @@ import {
     lidarrReleasePath,
     LIDARR_STATIC_PATHS
 } from '../scripts/lib/lidarrCapture.ts';
-import { ANONYMOUS_URL } from '../scripts/lib/redact.ts';
+import { anonymiseImages, ANONYMOUS_URL } from '../scripts/lib/redact.ts';
 
 /**
  * Lidarr capture paths and scrubbers, checked against the vendored OpenAPI
@@ -186,6 +186,17 @@ describe('Lidarr scrubbers only touch fields the spec has', () => {
         expect(members.map(urls)).toEqual([['/MediaCover/1/poster.jpg'], []]);
     });
 
+    it('invents no key the response did not carry', () => {
+        // `anonymiseImages` used to write `remoteUrl` unconditionally, which
+        // left an `undefined` in memory and nothing in JSON — a scrubber that
+        // looks like it replaced a field the service never sent.
+        const images = anonymiseImages([{ url: '/MediaCover/1/poster.jpg' }]) as Record<string, unknown>[];
+        const members = anonymiseLidarrMembers([{ name: 'A Real Person' }]) as Record<string, unknown>[];
+
+        expect(Object.keys(images[0] ?? {}).sort()).toEqual(['url']);
+        expect(Object.keys(members[0] ?? {}).sort()).toEqual(['name']);
+    });
+
     it('leaves statistics alone, because Lidarr has no releaseGroups to scrub', () => {
         expect(propsOf('ArtistStatisticsResource')).not.toHaveProperty('releaseGroups');
         expect(anonymiseLidarrArtist(ARTIST).statistics).toEqual(ARTIST.statistics);
@@ -283,19 +294,37 @@ describe('Lidarr scrubbers only touch fields the spec has', () => {
 });
 
 /**
- * The fixture policy, read back off what was committed. A cover field is either
- * the placeholder or absent, at every depth — which is what a scrub that missed
- * a nesting level broke.
+ * The fixture policy, read back off what was committed.
+ *
+ * Two rounds of leak are what this exists for. A cover field is either the
+ * placeholder or absent, at every depth, which a scrub that missed a nesting
+ * level broke. And an overview is either empty or the placeholder, because a
+ * MusicBrainz biography names the band's members, which no field-name-checking
+ * scrubber caught.
  */
 describe('the committed Lidarr fixtures', () => {
     const COVER_FIELD = /"(?:remoteUrl|remotePoster|remoteCover)":\s*"([^"]*)"/g;
+    const OVERVIEW = /"overview":\s*"([^"]*)"/g;
+    const OVERVIEW_PLACEHOLDERS = new Set(['', 'An artist.', 'An album.']);
+
+    const files = () => readdirSync(join(ROOT, 'test/fixtures/lidarr'));
+    const bodyOf = (file: string) => readFileSync(join(ROOT, 'test/fixtures/lidarr', file), 'utf8');
 
     it('hold no cover URL that is not the placeholder', () => {
         const offenders: string[] = [];
-        for (const file of readdirSync(join(ROOT, 'test/fixtures/lidarr'))) {
-            const body = readFileSync(join(ROOT, 'test/fixtures/lidarr', file), 'utf8');
-            for (const [, url] of body.matchAll(COVER_FIELD)) {
+        for (const file of files()) {
+            for (const [, url] of bodyOf(file).matchAll(COVER_FIELD)) {
                 if (url !== ANONYMOUS_URL) offenders.push(`${file}: ${url}`);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('hold no biography that names anyone', () => {
+        const offenders: string[] = [];
+        for (const file of files()) {
+            for (const [, text] of bodyOf(file).matchAll(OVERVIEW)) {
+                if (!OVERVIEW_PLACEHOLDERS.has(text ?? '')) offenders.push(`${file}: ${text ?? ''}`);
             }
         }
         expect(offenders).toEqual([]);

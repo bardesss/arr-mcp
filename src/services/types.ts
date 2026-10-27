@@ -782,11 +782,12 @@ export type SearchSource = 'library' | 'discover' | 'indexers';
 export type SearchHit = {
     service: string;
     source: SearchSource;
-    kind: 'movie' | 'series' | 'item' | 'release';
+    /** `album` is Lidarr's, and it appears for `source: 'library'` only. */
+    kind: 'movie' | 'series' | 'item' | 'release' | 'album';
     id: string;
     title: string;
     year?: number;
-    ids: { tmdb?: number; tvdb?: number; imdb?: string };
+    ids: { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
     /**
      * Ratings by source, on each source's native scale — same shape as
      * `MediaDetails.ratings`, which this is the not-yet-owned counterpart to.

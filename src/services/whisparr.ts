@@ -11,7 +11,15 @@ import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
-import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, WHISPARR_ADD } from './arrAdd.ts';
+import {
+    addArrMedia,
+    lookupArrForAdd,
+    readProfileNames,
+    readQualityProfiles,
+    readRootFolders,
+    readTags,
+    WHISPARR_ADD
+} from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
@@ -509,21 +517,8 @@ export class WhisparrAdapter
         this.#libraryCache.clear();
     }
 
-    /** Profile id → fenced name, cached beside the library read. Empty on
-     *  failure, as in Radarr and Sonarr: a missing label must not fail a read. */
-    async #profileNames(): Promise<Map<number, string>> {
-        try {
-            const profiles = await this.#libraryCache.get('profiles', LIBRARY_TTL_MS, () =>
-                readQualityProfiles(this.#http, this.id)
-            );
-            return new Map(profiles.map(p => [p.id, p.display]));
-        } catch {
-            return new Map();
-        }
-    }
-
     async listLibrary(): Promise<IndexInput[]> {
-        const [series, profileNames] = await Promise.all([this.#allSeries(), this.#profileNames()]);
+        const [series, profileNames] = await Promise.all([this.#allSeries(), readProfileNames(this.#http, this.id, this.#libraryCache)]);
 
         return series.map(s => {
             const seasons = this.#seasonsOf(s);

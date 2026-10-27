@@ -195,16 +195,20 @@ services:
 Single instance only. Lidarr answers on `/api/v1`, where Radarr and Sonarr
 answer on `/api/v3`.
 
-A configured Lidarr connects, appears in `stack_health`, and reports its
-version. Nothing else: no queue, no calendar, no wanted list, no writes. The
-capture is done and the fixtures are committed, so what is left is the read
-adapters. `CONTRIBUTING.md` lists the endpoints that need a library with real
-activity before their row shapes are proven.
+A configured Lidarr connects, appears in `stack_health`, reports its version,
+and lists its albums in `get_library` as `kind: "album"` — with the artist name,
+monitoring, quality profile, file state and the album's MusicBrainz id. Read-only:
+no queue, no calendar, no wanted list, no writes.
 
-Music stays out of the merged library, so `get_library` and `diagnose` do not
-answer about an artist or an album. Lidarr identifies releases by MusicBrainz
-id, and the join that merges an *arr with a media server keys on TMDB, TVDB and
-IMDb ids.
+No music half is read from a media server, so an album reports `presence:
+unknown` and there is no watch state, rating or per-album quality to filter on.
+Music therefore stays out of the merged library's joins, and `diagnose` does not
+follow an album: it reads the film and series chain. Lidarr identifies releases
+by MusicBrainz id, and the join that merges an *arr with a media server keys on
+TMDB, TVDB and IMDb ids.
+
+`CONTRIBUTING.md` lists the endpoints that still need a capture against a library
+with real activity before their row shapes are proven.
 
 ## Profilarr
 

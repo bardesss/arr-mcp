@@ -51,6 +51,7 @@ import {
     redactHosts,
     redactPlexLibraryListing,
     redactPlexSessions,
+    isRow,
     replaceIfString,
     secretsOf,
     synthesisePlexFilePaths,
@@ -354,8 +355,6 @@ function anonymiseSeerrUser(row: Row, index: number): Row {
  * Internal `id`s and their types stay — the id type is precisely what these
  * fixtures exist to prove.
  */
-const isRow = (value: unknown): value is Row =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Maps the `records` array of a paged *arr response, leaving the page counters
  *  alone — they are shape the adapter reads and say nothing about the library. */
@@ -659,26 +658,26 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     // vendored spec and this file cannot be imported by a test.
     lidarr: [
         { name: 'system-status', path: LIDARR_STATIC_PATHS['system-status'] },
-        { name: 'diskspace', path: LIDARR_STATIC_PATHS.diskspace },
-        { name: 'health', path: LIDARR_STATIC_PATHS.health },
+        { name: 'diskspace', path: LIDARR_STATIC_PATHS['diskspace'] },
+        { name: 'health', path: LIDARR_STATIC_PATHS['health'] },
         { name: 'system-task', path: LIDARR_STATIC_PATHS['system-task'] },
-        { name: 'command', path: LIDARR_STATIC_PATHS.command },
+        { name: 'command', path: LIDARR_STATIC_PATHS['command'] },
         {
             // `includeUnknownArtistItems` is off upstream by default, which
             // hides records whose artist was deleted. Same trap as the Radarr
             // and Sonarr queue reads.
             name: 'queue',
-            path: LIDARR_STATIC_PATHS.queue,
+            path: LIDARR_STATIC_PATHS['queue'],
             anonymise: mapRecords(anonymiseLidarrQueueRow)
         },
         {
             name: 'blocklist',
-            path: LIDARR_STATIC_PATHS.blocklist,
+            path: LIDARR_STATIC_PATHS['blocklist'],
             anonymise: mapRecords(anonymiseLidarrBlocklistRow)
         },
         {
             name: 'artist',
-            path: LIDARR_STATIC_PATHS.artist,
+            path: LIDARR_STATIC_PATHS['artist'],
             // The first forty rows, for the reason the Whisparr `series` entry
             // gives: a live library runs to thousands and the contract test
             // needs the shape, not the census.
@@ -728,7 +727,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: LIDARR_STATIC_PATHS['wanted-cutoff'],
             anonymise: mapRecords(anonymiseLidarrAlbum)
         },
-        { name: 'history', path: LIDARR_STATIC_PATHS.history, anonymise: mapRecords(anonymiseLidarrHistoryRow) },
+        { name: 'history', path: LIDARR_STATIC_PATHS['history'], anonymise: mapRecords(anonymiseLidarrHistoryRow) },
         {
             name: 'release',
             path: captured => {
@@ -736,11 +735,11 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                 return id === undefined ? undefined : lidarrReleasePath(id);
             }
         },
-        { name: 'rootfolder', path: LIDARR_STATIC_PATHS.rootfolder },
-        { name: 'qualityprofile', path: LIDARR_STATIC_PATHS.qualityprofile },
-        { name: 'metadataprofile', path: LIDARR_STATIC_PATHS.metadataprofile },
-        { name: 'tag', path: LIDARR_STATIC_PATHS.tag },
-        { name: 'indexer', path: LIDARR_STATIC_PATHS.indexer }
+        { name: 'rootfolder', path: LIDARR_STATIC_PATHS['rootfolder'] },
+        { name: 'qualityprofile', path: LIDARR_STATIC_PATHS['qualityprofile'] },
+        { name: 'metadataprofile', path: LIDARR_STATIC_PATHS['metadataprofile'] },
+        { name: 'tag', path: LIDARR_STATIC_PATHS['tag'] },
+        { name: 'indexer', path: LIDARR_STATIC_PATHS['indexer'] }
     ],
     prowlarr: [
         { name: 'system-status', path: '/api/v1/system/status' },

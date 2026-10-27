@@ -312,6 +312,11 @@ export class LibraryLoader {
         if (secondary !== undefined) {
             const secondaryIndex = secondaryRead ? LibraryIndex.build(secondaryRows) : undefined;
             for (const item of index.all()) {
+                // An album has no media-server half at all, so asking either
+                // server about it would stamp `present: false` on media nobody
+                // looked for — and `missing_from` reads exactly that as "this
+                // server does not have it", which would list every album.
+                if (item.kind === 'album') continue;
                 const servers: Record<string, MediaServerPresence> = {};
                 if (playbackGathered) servers[mediaServer.id] = item.playback === undefined ? { present: false } : presenceOf(item);
                 if (secondaryIndex !== undefined && secondaryAdapter !== undefined) {
