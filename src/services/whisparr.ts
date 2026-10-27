@@ -284,7 +284,7 @@ export class WhisparrAdapter
      *  missing the field it is told to date by, so the default would return an
      *  empty calendar here rather than an error. */
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(range));
+        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(this.#http.apiRoot, range));
         return readSonarrCalendar(episodes, this.id, 'releaseDate');
     }
 

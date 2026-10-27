@@ -121,7 +121,7 @@ async function readHistoryPages(
     const since = opts.since;
     const want = since === undefined && (opts.eventType === undefined || code !== undefined) ? opts.want : undefined;
 
-    const read = await readArrPages<RawHistory>(http, '/api/v3/history', query, {
+    const read = await readArrPages<RawHistory>(http, `${http.apiRoot}/history`, query, {
         ...(want === undefined ? {} : { pageSize: pageSizeFor(want) }),
         stopWhen: (page, kept) => {
             // Trust an early exit only when this page is actually newest-first,

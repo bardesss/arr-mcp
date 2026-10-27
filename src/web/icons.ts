@@ -31,6 +31,12 @@ export const ICONS: Record<ServiceId, string> = {
             '<path d="M2.5 9.5v-4a1 1 0 0 1 1-1h17a1 1 0 0 1 1 1v4"/>' +
             '<path d="m8 4.5-3 5M14 4.5l-3 5M20 4.5l-3 5"/>'
     ),
+    // A beamed pair of notes: audio is the category, and at 20px a note head is
+    // the only audio glyph that survives. Not Lidarr's own mark, which is a brand.
+    lidarr: draw(
+        '<circle cx="7" cy="17" r="2.5"/><circle cx="17" cy="14.5" r="2.5"/>' +
+            '<path d="M9.5 17V6M19.5 14.5V3.5"/><path d="m9.5 6 10-2.5"/>'
+    ),
     prowlarr: draw('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="m12 12 6-6"/>'),
     // A bubble rather than a captions screen: the tail is the one thing here
     // that breaks a rectangle's outline, and Sonarr and Jellyfin are already

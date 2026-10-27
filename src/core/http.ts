@@ -62,16 +62,39 @@ export class ServiceHttp {
     readonly #auth: AuthStrategy;
     readonly #fetch: typeof fetch;
 
+    /**
+     * The API version segment this service's resources live under, `/api/v3`
+     * for Radarr, Sonarr and Whisparr and `/api/v1` for Lidarr.
+     *
+     * It sits here rather than in `BaseServiceConfig` because it belongs to the
+     * service, not to the operator: nobody chooses a different root for the
+     * same product, and a config field would widen the user-facing schema for
+     * something that is always wrong to set. Every shared `arr*.ts` helper
+     * already receives an `http` instance, so the root travels with the
+     * adapter instead of with each call site.
+     *
+     * The value means nothing to the other nine services: they each spell their
+     * own prefix, and none of them should start reading this one.
+     */
+    readonly apiRoot: string;
+
     #consecutiveFailures = 0;
     #openedAt: number | undefined;
 
-    constructor(id: string, config: BaseServiceConfig, auth: AuthStrategy, fetchImpl: typeof fetch = fetch) {
+    constructor(
+        id: string,
+        config: BaseServiceConfig,
+        auth: AuthStrategy,
+        fetchImpl: typeof fetch = fetch,
+        apiRoot = '/api/v3'
+    ) {
         this.#id = id;
         this.#baseUrl = config.url;
         this.#basePath = new URL(config.url).pathname.replace(/\/+$/, '');
         this.#timeoutMs = config.timeout_ms;
         this.#auth = auth;
         this.#fetch = fetchImpl;
+        this.apiRoot = apiRoot;
     }
 
     /**

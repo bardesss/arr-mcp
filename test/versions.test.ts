@@ -144,6 +144,7 @@ describe('assertVersionSupported against captured evidence', () => {
         transmission: (read('test/fixtures/transmission/session-get.json') as { arguments: { version: string } }).arguments.version,
         qbittorrent: (read('test/fixtures/qbittorrent/version.json') as { version: string }).version,
         plex: '1.0.0',
+        lidarr: (read('test/fixtures/lidarr/system-status.json') as { version: string }).version,
         whisparr: (read('test/fixtures/whisparr/system-status.json') as { version: string }).version,
         profilarr: (read('test/fixtures/profilarr/status.json') as { version: string }).version
     };

@@ -24,7 +24,7 @@ services:
     password: "…"
 ```
 
-All twelve service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
+All thirteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`, `jellyfin`,
 `seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`, `profilarr`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
@@ -182,6 +182,29 @@ user. A Plex secondary with none is read as the token's owner. A Jellyfin
 secondary with none, or either one with a `default_user` that matches nobody, is
 not read, and `get_library` says so in its `note`. Jellyfin's
 `allow_other_users` and Plex's `allow_metadata_repair` stay on their own blocks.
+
+## Lidarr
+
+```yaml
+services:
+  lidarr:
+    url: http://192.168.1.20:8686
+    api_key: "…"
+```
+
+Single instance only. Lidarr answers on `/api/v1`, where Radarr and Sonarr
+answer on `/api/v3`.
+
+A configured Lidarr connects, appears in `stack_health`, and reports its
+version. Nothing else: no queue, no calendar, no wanted list, no writes. The
+capture is done and the fixtures are committed, so what is left is the read
+adapters. `CONTRIBUTING.md` lists the endpoints that need a library with real
+activity before their row shapes are proven.
+
+Music stays out of the merged library, so `get_library` and `diagnose` do not
+answer about an artist or an album. Lidarr identifies releases by MusicBrainz
+id, and the join that merges an *arr with a media server keys on TMDB, TVDB and
+IMDb ids.
 
 ## Profilarr
 

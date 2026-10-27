@@ -19,6 +19,12 @@ export type ArrAddShape = {
     idField: 'tmdbId' | 'tvdbId';
     /** For error prose: which provider's id this service speaks. */
     idLabel: 'tmdb' | 'tvdb';
+    /**
+     * The lookup URL, built in full. This is the one path in this file that
+     * spells out its own `/api/v3` rather than reading `http.apiRoot`: a shape
+     * is a module-level constant, so no `http` instance exists to read from.
+     * A service on a different root brings its own shape and its own root.
+     */
     lookupPath: (id: number) => string;
     /**
      * Radarr's by-id lookup answers a single object; Sonarr's term search
@@ -90,7 +96,7 @@ type RawRootFolder = { path?: string; freeSpace?: number; unmappedFolders?: { na
 type RawLookup = { id?: number; title?: string; year?: number; tmdbId?: number; tvdbId?: number };
 
 export async function readQualityProfiles(http: ServiceHttp, service: string): Promise<QualityProfile[]> {
-    const rows = await http.get<RawProfile[]>('/api/v3/qualityprofile');
+    const rows = await http.get<RawProfile[]>(`${http.apiRoot}/qualityprofile`);
     return rows
         .filter((p): p is RawProfile & { id: number } => typeof p.id === 'number')
         .map(p => {
@@ -101,7 +107,7 @@ export async function readQualityProfiles(http: ServiceHttp, service: string): P
 }
 
 export async function readRootFolders(http: ServiceHttp, service: string): Promise<RootFolder[]> {
-    const rows = await http.get<RawRootFolder[]>('/api/v3/rootfolder');
+    const rows = await http.get<RawRootFolder[]>(`${http.apiRoot}/rootfolder`);
     return rows
         .filter((r): r is RawRootFolder & { path: string } => typeof r.path === 'string' && r.path !== '')
         .map(r => {
@@ -125,7 +131,7 @@ export async function readRootFolders(http: ServiceHttp, service: string): Promi
 }
 
 export async function readTags(http: ServiceHttp, service: string): Promise<Tag[]> {
-    const rows = await http.get<{ id?: number; label?: string }[]>('/api/v3/tag');
+    const rows = await http.get<{ id?: number; label?: string }[]>(`${http.apiRoot}/tag`);
     return rows
         .filter((t): t is { id: number; label: string } => typeof t.id === 'number' && typeof t.label === 'string')
         .map(t => ({ id: t.id, label: t.label, display: fenceText(t.label, { service, field: 'label' }) }));
@@ -231,7 +237,7 @@ export async function addArrMedia(
     if (shape.resource === 'movie') body.minimumAvailability = opts.minimumAvailability ?? 'released';
     if (opts.tagIds !== undefined && opts.tagIds.length > 0) body.tags = opts.tagIds;
 
-    const created = await http.post<RawLookup>(`/api/v3/${shape.resource}`, body);
+    const created = await http.post<RawLookup>(`${http.apiRoot}/${shape.resource}`, body);
     if (typeof created.id !== 'number' || created.id <= 0) {
         throw new ServiceError('UpstreamError', service, `${service} returned no id for the added ${shape.resource}`, {
             remedy: 'It may still have been added — check with get_media_details before trying again.'

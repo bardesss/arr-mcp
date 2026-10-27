@@ -26,6 +26,19 @@ import {
 import { ServiceHttp } from '../src/core/http.ts';
 import { parseServiceFilter } from './lib/captureArgs.ts';
 import {
+    anonymiseLidarrAlbum,
+    anonymiseLidarrArtist,
+    anonymiseLidarrBlocklistRow,
+    anonymiseLidarrHistoryRow,
+    anonymiseLidarrQueueRow,
+    lidarrAlbumPath,
+    lidarrArtistDetailPath,
+    lidarrCalendarPath,
+    lidarrReleasePath,
+    LIDARR_STATIC_PATHS
+} from './lib/lidarrCapture.ts';
+import {
+    anonymiseImages,
     anonymisePlexAccounts,
     anonymisePlexHistory,
     anonymisePlexIdentity,
@@ -41,6 +54,7 @@ import {
     replaceIfString,
     secretsOf,
     synthesisePlexFilePaths,
+    ANONYMOUS_URL,
     type Row
 } from './lib/redact.ts';
 import {
@@ -141,10 +155,9 @@ const richestSeriesId = (body: unknown): string | undefined => {
  * blanket rule on the key would destroy the fixture that tells us which task
  * scans the library.
  */
-const anonymousUrl = 'https://indexer.example.test/';
 
 /** Replaces any absolute URL, leaving surrounding text intact. */
-const scrubUrls = (value: string): string => value.replace(/https?:\/\/[^\s"',\]]+/gi, anonymousUrl);
+const scrubUrls = (value: string): string => value.replace(/https?:\/\/[^\s"',\]]+/gi, ANONYMOUS_URL);
 
 /**
  * Watch history is the one genuinely personal thing in the fixture set — the
@@ -233,7 +246,7 @@ function anonymiseIndexer(row: Row, index: number): Row {
         name: replaceIfString(row.name, `Indexer ${index + 1}`),
         description: replaceIfString(row.description, 'An indexer.'),
         definitionName: replaceIfString(row.definitionName, 'Definition'),
-        indexerUrls: Array.isArray(row.indexerUrls) ? [anonymousUrl] : row.indexerUrls,
+        indexerUrls: Array.isArray(row.indexerUrls) ? [ANONYMOUS_URL] : row.indexerUrls,
         legacyUrls: Array.isArray(row.legacyUrls) ? [] : row.legacyUrls,
         fields
     };
@@ -354,15 +367,6 @@ const mapRecords = (fn: (row: Row, index: number) => Row) => (body: unknown) =>
 const mapRows = (fn: (row: Row, index: number) => Row) => (body: unknown) =>
     Array.isArray(body) ? (body as Row[]).map(fn) : body;
 
-const anonymiseImages = (images: unknown): unknown =>
-    Array.isArray(images)
-        ? (images as Row[]).map(image => ({
-              ...image,
-              url: replaceIfString(image.url, '/MediaCover/1/poster.jpg'),
-              remoteUrl: replaceIfString(image.remoteUrl, anonymousUrl)
-          }))
-        : images;
-
 /**
  * `actors` names real people.
  *
@@ -423,7 +427,7 @@ function anonymiseWhisparrSeries(row: Row, index: number): Row {
         images: anonymiseImages(row.images),
         // Separate from `images[]`, and only present on lookup responses, so it
         // survived the first pass: a lookup poster URL embeds the site's slug.
-        remotePoster: replaceIfString(row.remotePoster, anonymousUrl),
+        remotePoster: replaceIfString(row.remotePoster, ANONYMOUS_URL),
         statistics: anonymiseStatistics(row.statistics),
         seasons: Array.isArray(row.seasons)
             ? (row.seasons as Row[]).map(season => ({ ...season, statistics: anonymiseStatistics(season.statistics) }))
@@ -647,6 +651,96 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: '/api/v3/series/lookup?term=studio',
             anonymise: mapRows(anonymiseWhisparrSeries)
         }
+    ],
+    // Lidarr answers on `/api/v1`, not `/api/v3` — the one *arr here that does.
+    //
+    // The scrubbing hooks and the path list live in `lib/lidarrCapture.ts`,
+    // because `test/scriptsLidarrCapture.test.ts` checks both against the
+    // vendored spec and this file cannot be imported by a test.
+    lidarr: [
+        { name: 'system-status', path: LIDARR_STATIC_PATHS['system-status'] },
+        { name: 'diskspace', path: LIDARR_STATIC_PATHS.diskspace },
+        { name: 'health', path: LIDARR_STATIC_PATHS.health },
+        { name: 'system-task', path: LIDARR_STATIC_PATHS['system-task'] },
+        { name: 'command', path: LIDARR_STATIC_PATHS.command },
+        {
+            // `includeUnknownArtistItems` is off upstream by default, which
+            // hides records whose artist was deleted. Same trap as the Radarr
+            // and Sonarr queue reads.
+            name: 'queue',
+            path: LIDARR_STATIC_PATHS.queue,
+            anonymise: mapRecords(anonymiseLidarrQueueRow)
+        },
+        {
+            name: 'blocklist',
+            path: LIDARR_STATIC_PATHS.blocklist,
+            anonymise: mapRecords(anonymiseLidarrBlocklistRow)
+        },
+        {
+            name: 'artist',
+            path: LIDARR_STATIC_PATHS.artist,
+            // The first forty rows, for the reason the Whisparr `series` entry
+            // gives: a live library runs to thousands and the contract test
+            // needs the shape, not the census.
+            anonymise: body => (Array.isArray(body) ? (body as Row[]).slice(0, 40).map(anonymiseLidarrArtist) : body)
+        },
+        {
+            name: 'artist-detail',
+            path: captured => {
+                const id = firstId(captured.get('artist'));
+                return id === undefined ? undefined : lidarrArtistDetailPath(id);
+            },
+            anonymise: body => (isRow(body) ? anonymiseLidarrArtist(body) : body)
+        },
+        {
+            // A neutral term. `artist/lookup` also falls through to a ranked
+            // text search on anything it cannot parse as an id prefix.
+            name: 'artist-lookup',
+            path: LIDARR_STATIC_PATHS['artist-lookup'],
+            anonymise: mapRows(anonymiseLidarrArtist)
+        },
+        {
+            name: 'album',
+            path: captured => {
+                const id = firstId(captured.get('artist'));
+                return id === undefined ? undefined : lidarrAlbumPath(id);
+            },
+            anonymise: mapRows(anonymiseLidarrAlbum)
+        },
+        {
+            // After `album`, because the window comes from the albums. A fixed
+            // forward-looking window captured nothing on a real instance: see
+            // lidarrCalendarPath.
+            name: 'calendar',
+            path: captured => {
+                const albums = captured.get('album');
+                return lidarrCalendarPath(Array.isArray(albums) ? (albums as Row[]) : []);
+            },
+            anonymise: mapRows(anonymiseLidarrAlbum)
+        },
+        {
+            name: 'wanted-missing',
+            path: LIDARR_STATIC_PATHS['wanted-missing'],
+            anonymise: mapRecords(anonymiseLidarrAlbum)
+        },
+        {
+            name: 'wanted-cutoff',
+            path: LIDARR_STATIC_PATHS['wanted-cutoff'],
+            anonymise: mapRecords(anonymiseLidarrAlbum)
+        },
+        { name: 'history', path: LIDARR_STATIC_PATHS.history, anonymise: mapRecords(anonymiseLidarrHistoryRow) },
+        {
+            name: 'release',
+            path: captured => {
+                const id = firstId(captured.get('album'));
+                return id === undefined ? undefined : lidarrReleasePath(id);
+            }
+        },
+        { name: 'rootfolder', path: LIDARR_STATIC_PATHS.rootfolder },
+        { name: 'qualityprofile', path: LIDARR_STATIC_PATHS.qualityprofile },
+        { name: 'metadataprofile', path: LIDARR_STATIC_PATHS.metadataprofile },
+        { name: 'tag', path: LIDARR_STATIC_PATHS.tag },
+        { name: 'indexer', path: LIDARR_STATIC_PATHS.indexer }
     ],
     prowlarr: [
         { name: 'system-status', path: '/api/v1/system/status' },

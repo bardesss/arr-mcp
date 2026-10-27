@@ -213,6 +213,31 @@ export function replaceIfString(value: unknown, replacement: string): unknown {
     return typeof value === 'string' ? replacement : value;
 }
 
+/**
+ * The placeholder a scrubbed URL becomes. A fixture must still show that the
+ * field *is* a URL, so a bare empty string would lose the shape the contract
+ * test reads.
+ */
+export const ANONYMOUS_URL = 'https://indexer.example.test/';
+
+/**
+ * Cover-art entries: the local `/MediaCover/…` path and the upstream CDN URL,
+ * both of which embed a slug that resolves back to the real item.
+ *
+ * Shared because a nested `images[]` appears at several depths — an artist, an
+ * album, and each entry of a band's `members[]` — and every one of them needs
+ * the same two fields replaced.
+ */
+export function anonymiseImages(images: unknown): unknown {
+    return Array.isArray(images)
+        ? (images as Row[]).map(image => ({
+              ...image,
+              url: replaceIfString(image.url, '/MediaCover/1/poster.jpg'),
+              remoteUrl: replaceIfString(image.remoteUrl, ANONYMOUS_URL)
+          }))
+        : images;
+}
+
 type MetadataContainer = { MediaContainer?: { Metadata?: Row[] } };
 
 /**

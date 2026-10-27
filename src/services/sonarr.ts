@@ -380,7 +380,7 @@ export class SonarrAdapter
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(range));
+        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(this.#http.apiRoot, range));
         return readSonarrCalendar(episodes, this.id);
     }
 

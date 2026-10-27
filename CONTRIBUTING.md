@@ -209,10 +209,29 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr.** The clearest yes on this page. Servarr family, the same API shape
-  Radarr and Sonarr are already written against, on the chain by construction,
-  and it very likely spends no new tool: music maps onto `get_library`,
-  `get_queue`, `get_calendar` and the existing writes.
+- **Lidarr.** An adapter exists: the service id, the config block, the icon, the
+  vendored spec, and a connection probe on `/api/v1`. It claims no capability.
+  All 21 capture endpoints were exercised against a live Lidarr 3.1.6.5079 and
+  the fixtures are committed, but seven came back with no rows: queue, history,
+  blocklist, wanted cutoff, release, tag and indexer are empty on a fresh
+  instance. Those row shapes need a capture against a library with real
+  activity before a read adapter can claim them.
+
+  **The design constraint.** Lidarr stays out of the merged library. Its identity
+  is a MusicBrainz MBID, a GUID, where the resolver keys on integer TMDB, TVDB
+  and IMDb ids and a `kind` of `movie` or `series`. Putting music in the merged
+  index means teaching the resolver a fourth id namespace and the media servers'
+  music sections a join they have never done. Keep it per-service, which is what
+  every comparable tool does. Two consequences for a new tool: `get_library` and
+  `diagnose` refuse a Lidarr id rather than guessing a kind, and
+  `get_media_details` by query cannot reach music.
+
+  **What its API does not say out loud.** Three media levels, so `resource:
+  'movie' | 'series'` in the shared `arr*.ts` helpers does not apply. Two
+  profiles gate what gets monitored: quality and metadata. `RootFolderResource`
+  carries no `unmappedFolders`, and it does carry default profile and monitor
+  fields the shared `RootFolder` type has no room for. History ordinals move
+  too: `downloadIgnored` is 10, where Sonarr has it at 7.
 
 **Downloaded — where a grab actually lands**
 
@@ -263,7 +282,9 @@ gets held against the four checks above, which is cheaper for everyone than
 finding out afterwards.
 
 **You will have to test it yourself, properly.** The maintainer runs neither
-Lidarr, Plex nor qBittorrent. Lidarr has no adapter yet. Plex has an adapter
+Lidarr, Plex nor qBittorrent. Lidarr's fixtures came from a temporary instance
+rather than a working library, so a capture against real activity is still
+outstanding. Plex has an adapter
 and, as of a volunteer tester's report on [issue #180](../../issues/180), has
 been exercised against a real instance. [qBittorrent](../../issues/147) has an
 adapter too, exercised against a real 5.2.3 server in [#195](../../issues/195)
