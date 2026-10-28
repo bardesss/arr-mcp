@@ -226,13 +226,15 @@ absent.
 
 The artist flag is not the album flag. A live library held an artist reading
 `monitored: false` while an album under it stayed `monitored: true`, so the two
-are separate flags. The write side agrees on 2.1.3.3927: four editor writes, of
-`monitored` and `monitorNewItems` separately and together, left the artist's two
-albums with exactly the flags they had. Not checked on 3.x. `level: "artist"`
-writes the artist's own flag, and `level: "album"` writes the album's. `monitor_new_items` is the standing rule
-Lidarr applies to albums it discovers later, and `none` is the only value that
-stops the wanted list growing by itself. Both levels are written with Lidarr's
-bulk endpoints, which queued no `MoveArtist` job in the runs that were captured.
+are separate flags. The write side agrees on both supported versions. Four
+editor writes on 2.1.3.3927, of `monitored` and `monitorNewItems` separately
+and together, left the artist's two albums with exactly the flags they had, and
+the same four on 3.1.6.5079 left that artist's four albums as they were.
+`level: "artist"` writes the artist's own flag, and `level: "album"` writes the
+album's. `monitor_new_items` is the standing rule Lidarr applies to albums it
+discovers later, and `none` is the only value that stops the wanted list growing
+by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
+`MoveArtist` job in the runs that were captured.
 
 Everything else is still out of reach: no queue, no calendar, no wanted list,
 no release search, no delete. All 21 capture endpoints were exercised against a
