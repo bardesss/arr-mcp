@@ -61,6 +61,18 @@ export function apiKeyHeader(header: string, key: string): AuthStrategy {
     };
 }
 
+/** HTTP Basic authentication for services that do not have a session login. */
+export function basicAuth(creds: { username?: string | undefined; password?: string | undefined }): AuthStrategy {
+    return {
+        id: 'basic-auth',
+        apply(ctx) {
+            if (creds.username === undefined) return;
+            const basic = Buffer.from(`${creds.username}:${creds.password ?? ''}`).toString('base64');
+            ctx.headers.set('Authorization', `Basic ${basic}`);
+        }
+    };
+}
+
 /** Jellyfin. The quoted form is what the server parses; bare tokens are rejected. */
 export function embyToken(key: string): AuthStrategy {
     return {

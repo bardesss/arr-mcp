@@ -73,8 +73,9 @@ another tab or a hand edit), the save is refused and the page asks you to make
 your edit again on the fresh copy.
 
 **Add a service** opens a dialog that only asks what the service needs: pick
-Transmission or qBittorrent and it wants a username and password, pick anything
-else and it wants an API key. Services that can only have one instance drop out of the list
+Transmission or qBittorrent and it wants a username and password, pick NZBGet and
+it wants the control username and password (left blank when NZBGet has none), pick
+anything else and it wants an API key. Services that can only have one instance drop out of the list
 once you have that one, so the picker never offers a choice that ends in
 "already configured". With scripting off the dialog is the plain form it used to
 be, every field showing, and the server still refuses what does not make sense.

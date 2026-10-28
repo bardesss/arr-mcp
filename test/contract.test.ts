@@ -519,6 +519,72 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { fixture: 'test/fixtures/sabnzbd/pause.json', fields: ['status'] }
         ]
     },
+    // Captured live from NZBGet 26.3. JSON-RPC with no published schema.
+    // Disk sizes are split into Hi/Lo 32-bit halves; the adapter reads both.
+    nzbget: {
+        dependencies: [
+            { fixture: 'test/fixtures/nzbget/version.json', fields: ['result'] },
+            {
+                fixture: 'test/fixtures/nzbget/status.json',
+                fields: [
+                    'result.DownloadRate',
+                    'result.DownloadRateLo',
+                    'result.DownloadRateHi',
+                    'result.DownloadLimit',
+                    'result.ServerPaused',
+                    'result.DownloadPaused',
+                    'result.Download2Paused',
+                    'result.FreeDiskSpaceLo',
+                    'result.FreeDiskSpaceHi',
+                    'result.TotalDiskSpaceLo',
+                    'result.TotalDiskSpaceHi'
+                ]
+            },
+            {
+                fixture: 'test/fixtures/nzbget/queue.json',
+                fields: [
+                    'result.NZBID',
+                    'result.NZBName',
+                    'result.NZBNicename',
+                    'result.NZBFilename',
+                    'result.Status',
+                    'result.FileSizeLo',
+                    'result.FileSizeHi',
+                    'result.RemainingSizeLo',
+                    'result.RemainingSizeHi',
+                    'result.PausedSizeLo',
+                    'result.PausedSizeHi',
+                    'result.Parameters.Name',
+                    'result.Parameters.Value'
+                ]
+            },
+            {
+                fixture: 'test/fixtures/nzbget/history.json',
+                fields: [
+                    'result.ID',
+                    'result.NZBID',
+                    'result.Name',
+                    'result.NZBNicename',
+                    'result.HistoryTime',
+                    'result.Status',
+                    'result.ParStatus',
+                    'result.UnpackStatus',
+                    'result.MoveStatus',
+                    'result.ScriptStatus',
+                    'result.DeleteStatus',
+                    'result.MarkStatus',
+                    'result.UrlStatus',
+                    'result.Parameters.Name',
+                    'result.Parameters.Value'
+                ]
+            },
+            {
+                // Most sections send empty lists, so option fields are checked in nzbget.test.ts.
+                fixture: 'test/fixtures/nzbget/systemhealth.json',
+                fields: ['result.Alerts', 'result.Sections.Name', 'result.Sections.Issues', 'result.Sections.Options', 'result.Sections.Subsections']
+            }
+        ]
+    },
     transmission: {
         dependencies: [
             {

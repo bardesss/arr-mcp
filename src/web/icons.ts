@@ -57,6 +57,7 @@ export const ICONS: Record<ServiceId, string> = {
         '<path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284"/>' +
             '<path d="M12 13v8"/><path d="m8 17 4 4 4-4"/>'
     ),
+    nzbget: draw('<path d="M5 4h14v5H5zM5 15h14v5H5z"/><path d="M8 9v6M12 9v6M16 9v6"/>'),
     transmission: draw(
         '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>'
     ),

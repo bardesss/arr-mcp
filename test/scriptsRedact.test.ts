@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
 import {
+    anonymiseNzbgetHealth,
+    anonymiseNzbgetRows,
+    anonymiseNzbgetStatus,
     anonymisePlexAccounts,
     anonymisePlexHistory,
     anonymisePlexIdentity,
@@ -43,6 +46,178 @@ const multiInstanceConfig = () =>
             sabnzbd: { url: 'http://192.168.1.30:8080', api_key: 'sabkey' }
         }
     });
+
+describe('NZBGet fixture anonymisers', () => {
+    it('scrubs NZBGet filenames, titles, post-processing text, and URLs', () => {
+        const input = {
+            jsonrpc: '2.0',
+            id: 3,
+            result: [
+                {
+                    NZBID: 7,
+                    NZBFilename: '/home/alice/downloads/private.nzb',
+                    NZBName: 'Real Release Name',
+                    NZBNicename: 'Real.Release.Name',
+                    Status: 'DOWNLOADING',
+                    PostInfoText: 'post-processing failed for alice',
+                    URL: 'https://private-tracker.example/user/42'
+                }
+            ]
+        };
+
+        const output = anonymiseNzbgetRows(input) as { result: Record<string, unknown>[] };
+        expect(output.result[0]).toMatchObject({
+            NZBID: 7,
+            NZBFilename: '/media/nzbget/Item 1/File 1.bin',
+            NZBName: 'nzbget item 1',
+            NZBNicename: 'nzbget item 1',
+            Status: 'DOWNLOADING',
+            PostInfoText: 'Fixture message 1',
+            URL: 'https://indexer.example.test/'
+        });
+        expect(JSON.stringify(output)).not.toContain('alice');
+        expect(JSON.stringify(output)).not.toContain('private-tracker');
+    });
+
+    // A live NZBGet 26.3 capture leaked the release name through `DestDir`,
+    // which no key in the allowlist covered.
+    it('scrubs NZBGet directories, dupe keys and log text, keeping the keys', () => {
+        const input = {
+            version: '1.1',
+            result: [
+                {
+                    NZBID: 4521,
+                    DestDir: '/data/usenet//incomplete/Real.Release.2017.REMUX-GRP.#4521',
+                    FinalDir: '',
+                    DupeKey: 'imdb=tt0000001',
+                    Log: [{ ID: 1, Kind: 'INFO', Text: 'Downloading Real.Release.2017.REMUX-GRP' }]
+                }
+            ]
+        };
+
+        const output = anonymiseNzbgetRows(input) as { result: Record<string, unknown>[] };
+        expect(output.result[0]).toMatchObject({
+            NZBID: 121,
+            DestDir: '/media/nzbget/Item 1/File 1.bin',
+            FinalDir: '/media/nzbget/Item 1/File 1.bin',
+            DupeKey: 'nzbget item 1',
+            Log: [{ ID: 1, Kind: 'INFO', Text: 'Fixture message 1' }]
+        });
+        expect(JSON.stringify(output)).not.toMatch(/Real\.Release|tt0000001|\/data\//);
+    });
+
+    type NzbgetNumbers = {
+        NZBID: number;
+        FileSizeLo: number;
+        FileSizeHi: number;
+        FileSizeMB: number;
+        RemainingSizeMB: number;
+        DownloadedSizeMB: number;
+        MinPostTime: number;
+        TotalArticles: number;
+        SuccessArticles: number;
+        FailedArticles: number;
+    };
+
+    // Sizes, post times and article counts together fingerprint a release,
+    // and status numbers describe the operator's disks and usage.
+    it('replaces NZBGet numbers with synthetic ones that keep their shape', () => {
+        const big = 9330 * 2 ** 20 + 12345;
+        const output = anonymiseNzbgetRows({
+            result: [
+                {
+                    NZBID: 4533,
+                    FileSizeLo: big % 2 ** 32,
+                    FileSizeHi: Math.floor(big / 2 ** 32),
+                    FileSizeMB: 9330,
+                    RemainingSizeLo: big % 2 ** 32,
+                    RemainingSizeHi: Math.floor(big / 2 ** 32),
+                    RemainingSizeMB: 9330,
+                    DownloadedSizeLo: 0,
+                    DownloadedSizeHi: 0,
+                    DownloadedSizeMB: 0,
+                    MinPostTime: 1791292090,
+                    TotalArticles: 13686,
+                    SuccessArticles: 12957,
+                    FailedArticles: 0,
+                    Status: 'QUEUED'
+                },
+                { NZBID: 4534, FileSizeLo: 5, FileSizeHi: 0, FileSizeMB: 0, MinPostTime: 1791242252, Status: 'PAUSED' }
+            ]
+        }) as { result: [NzbgetNumbers, NzbgetNumbers] };
+        const [first, second] = output.result;
+        const bytes = (row: NzbgetNumbers): number => row.FileSizeHi * 2 ** 32 + row.FileSizeLo;
+
+        expect(first.NZBID).toBe(133);
+        expect(second.NZBID).toBe(134);
+        expect(first.FileSizeMB).toBe(first.RemainingSizeMB);
+        expect(bytes(first)).toBe(first.FileSizeMB * 2 ** 20);
+        expect(first.DownloadedSizeMB).toBe(0);
+        expect(first.MinPostTime).toBeGreaterThan(second.MinPostTime);
+        expect(first.SuccessArticles).toBeLessThan(first.TotalArticles);
+        expect(first.FailedArticles).toBe(0);
+        expect(JSON.stringify(output)).not.toMatch(/9330|1791292090|13686|12957/);
+
+        const status = anonymiseNzbgetStatus({
+            result: {
+                FreeDiskSpaceLo: 299737088,
+                FreeDiskSpaceHi: 8065,
+                FreeDiskSpaceMB: 33034525,
+                FreeInterDiskSpaceLo: 4294967295,
+                FreeInterDiskSpaceHi: 4294967295,
+                FreeInterDiskSpaceMB: -1,
+                AverageDownloadRate: 87749352,
+                ServerTime: 1791208940,
+                UpTimeSec: 20345,
+                DownloadPaused: true,
+                DownloadLimit: 5120000,
+                NewsServers: [{ ID: 1, Active: true }]
+            }
+        }) as { result: Record<string, unknown> };
+        expect(status.result).toMatchObject({
+            FreeInterDiskSpaceHi: 4294967295,
+            DownloadPaused: true,
+            DownloadLimit: 5120000,
+            NewsServers: [{ ID: 1, Active: true }]
+        });
+        expect(JSON.stringify(status)).not.toMatch(/33034525|87749352|1791208940|20345/);
+    });
+
+    it('scrubs every NZBGet systemhealth message, keeping names and severities', () => {
+        const output = anonymiseNzbgetHealth({
+            result: {
+                Alerts: [{ Category: 'Section', Source: 'Paths', Severity: 'Error', Message: 'MainDir /home/alice missing' }],
+                Sections: [
+                    {
+                        Name: 'News-Servers',
+                        Issues: [],
+                        Options: [],
+                        Subsections: [
+                            {
+                                Name: 'Server1',
+                                Options: [{ Name: 'Host', Severity: 'Warning', Message: 'news.private.example unreachable' }]
+                            }
+                        ]
+                    }
+                ]
+            }
+        });
+
+        expect(output).toEqual({
+            result: {
+                Alerts: [{ Category: 'Section', Source: 'Paths', Severity: 'Error', Message: 'Fixture message 1' }],
+                Sections: [
+                    {
+                        Name: 'News-Servers',
+                        Issues: [],
+                        Options: [],
+                        Subsections: [{ Name: 'Server1', Options: [{ Name: 'Host', Severity: 'Warning', Message: 'Fixture message 2' }] }]
+                    }
+                ]
+            }
+        });
+    });
+});
 
 describe('hostsOf', () => {
     it('extracts both the host and the bare hostname of every configured service', () => {
