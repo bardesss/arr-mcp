@@ -810,14 +810,14 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             name: 'album-artists',
             /**
              * The music half of a library build, and the only Jellyfin read that
-             * publishes `ProviderIds.MusicBrainzArtist` for an album artist —
-             * which is what joins music to Lidarr.
+             * publishes a MusicBrainz id for an artist, which is what joins
+             * music to Lidarr.
              *
-             * **Not captured yet.** No machine this was written on has a
-             * Jellyfin music library, so `test/fixtures/jellyfin/album-artists.json`
-             * does not exist. Run `npm run capture -- jellyfin` on a server with
-             * music, then add the fixture and a contract entry. Until then the
-             * read is unexercised against a real service, which the PR says.
+             * Captured by @ghostintherack from Jellyfin 12.4.0 and anonymised by
+             * hand: no anonymiser here covers an artist list, and one is
+             * personal. Five rows, placeholder names and ids, MusicBrainz ids
+             * as `00000000-0000-4000-8000-00000000000N`. The adapter reads none
+             * of the image fields, so they are constant placeholders.
              */
             path: captured => {
                 const users = captured.get('users');
@@ -1046,10 +1046,10 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
              * Artists from a music section, the read that joins a Plex library to
              * Lidarr on `mbid://`.
              *
-             * **Not captured yet**, for the same reason as Jellyfin's
-             * `album-artists`: no music library was available here. Run
-             * `npm run capture -- plex` on a server with a music section, then
-             * add `test/fixtures/plex/section-artists.json` and a contract entry.
+             * Captured by @ghostintherack from Plex Media Server 1.43.5 and
+             * anonymised by hand, like Jellyfin's `album-artists`. Five rows, and
+             * the last has no `mbid://` guid — real, and worth keeping: not every
+             * artist carries one.
              */
             fetch: async http => {
                 const sections = await http.get<unknown>('/library/sections');

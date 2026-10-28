@@ -235,10 +235,11 @@ Three things the preview says, because each one was found rather than assumed:
 
 - **The artist flag is not the album flag.** A live library had an artist
   reading `monitored: false` with an album under it still `monitored: true`,
-  so the two are read as separate flags. An album's own flag is what decides
-  whether that album is searched for, and `level: "album"` is how it is set.
-  Whether a write to the artist flag also changes album flags is **not
-  verified**: the capture returned the artist rows only.
+  and the write side agrees: on 2.1.3.3927 an artist was set to
+  `monitored: false`, to `true`, to `monitorNewItems: "none"`, and to both, and
+  in every case its two albums kept exactly the flags they had. Not checked on
+  3.x. An album's own flag is what decides whether that album is searched for,
+  and `level: "album"` is how it is set.
 - **`monitor_new_items` decides the future.** It is `all`, `new` or `none`, and
   `none` is the only value under which the wanted list cannot grow by itself.
   An artist added later carries Lidarr's own default, which this tool does not

@@ -485,6 +485,21 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 ]
             },
             {
+                // listUserMusic. `/Artists/AlbumArtists` is the only Jellyfin
+                // read that publishes a MusicBrainz id for an artist, and that
+                // GUID is the join to Lidarr.
+                //
+                // Declared as `Items.ProviderIds` and not the `MusicBrainzArtist`
+                // key inside it: the spec types ProviderIds as a free-form map,
+                // so the key cannot be checked against it. The fixture carries
+                // the real key and `test/fixtures.test.ts` would keep it, while
+                // the adapter test asserts it is read.
+                path: '/Artists/AlbumArtists',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/album-artists.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.Type', 'Items.ProviderIds']
+            },
+            {
                 // getPlayback's resumable half, which went uncontracted while it
                 // called `/Users/{userId}/Items/Resume`: that route is absent
                 // from the spec (obsolete since 10.9, undocumented in 12), so
@@ -693,6 +708,18 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'MediaContainer.Metadata.Guid',
                     'MediaContainer.Metadata.Guid.id',
                     'MediaContainer.Metadata.Media.Part.file'
+                ]
+            },
+            {
+                // listUserMusic. `type=8` is Plex's artist type, and the join
+                // reads `Guid` for the mbid:// entry. One captured row has no
+                // such guid, which is the real case: not every artist has one.
+                fixture: 'test/fixtures/plex/section-artists.json',
+                fields: [
+                    'MediaContainer.Metadata.ratingKey',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.Genre.tag',
+                    'MediaContainer.Metadata.Guid.id'
                 ]
             },
             {

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
@@ -286,39 +288,29 @@ describe('Sonarr library cache', () => {
 });
 
 /**
- * The music half, exercised against an inline body rather than a committed
- * fixture: no music library was available to capture from, so
- * `test/fixtures/jellyfin/album-artists.json` does not exist yet. These tests
- * pin the mapping — the MusicBrainz id and the absence of a watch state — which
- * is what the join and `presence` rest on.
+ * The music half, against the capture @ghostintherack took from Jellyfin 12.4.0
+ * and anonymised. Five artists, each with a MusicBrainz id, which is the join.
  */
 describe('Jellyfin.listUserMusic', () => {
     const path = '/Artists/AlbumArtists?userId=u1&Recursive=true&Fields=ProviderIds&Limit=500&StartIndex=0';
-    const ARTISTS = {
-        Items: [
-            { Id: 'j-artist-1', Name: 'Daft Punk', ProviderIds: { MusicBrainzArtist: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' } },
-            { Id: 'j-artist-2', Name: 'No Tag', ProviderIds: {} }
-        ]
-    };
-    const adapter = () => new JellyfinAdapter(multi, serving({ [path]: ARTISTS }));
+    const adapter = () =>
+        new JellyfinAdapter(multi, serving({ [path]: JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/jellyfin/album-artists.json'), 'utf8')) }));
     const user = { id: 'u1', name: 'Someone' };
 
     it('is discoverable through its own capability guard', () => {
         expect(hasUserMusic(adapter())).toBe(true);
     });
 
-    it('maps the MusicBrainz artist id, which is the whole point of the read', async () => {
+    it('maps every captured artist, with the MusicBrainz id the join needs', async () => {
         const items = await adapter().listUserMusic(user);
-        expect(items[0]).toMatchObject({
-            kind: 'artist',
-            ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' },
-            playback: { user: 'Someone', itemId: 'j-artist-1' }
-        });
-    });
 
-    it('invents no id when Jellyfin has no MusicBrainz tag', async () => {
-        const items = await adapter().listUserMusic(user);
-        expect(items[1]?.ids).toEqual({});
+        expect(items).toHaveLength(5);
+        expect(items.map(i => i.kind)).toEqual(Array(5).fill('artist'));
+        expect(items[0]).toMatchObject({
+            ids: { mbid: '00000000-0000-4000-8000-000000000001' },
+            playback: { user: 'Someone', itemId: '00000000000000000000000000000001' }
+        });
+        for (const item of items) expect(item.ids.mbid).toBeDefined();
     });
 
     it('claims no watch state, because this read does not ask for one', async () => {

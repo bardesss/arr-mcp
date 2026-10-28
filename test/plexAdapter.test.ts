@@ -422,36 +422,28 @@ describe('PlexAdapter', () => {
         const withPaging = (start: number, extra = '') => `?${extra}includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=500`;
 
         /**
-         * The music half, against an inline body: no Plex music section was
-         * available to capture from, so `test/fixtures/plex/section-artists.json`
-         * does not exist yet. What is pinned here is the guid mapping the join
-         * rests on, and the absence of a watch state for an artist.
+         * The music half, against the capture @ghostintherack took from Plex
+         * 1.43.5 and anonymised. Five artists, and the last has no `mbid://`
+         * guid, which is the real case: not every artist carries one.
          */
         it('reads artists from a music section, joined on the mbid guid', async () => {
-            const withMusic = {
-                MediaContainer: {
-                    Directory: [{ key: '1', type: 'movie' }, { key: '3', type: 'artist' }]
-                }
-            };
+            const music = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/plex/section-artists.json'), 'utf8'));
             const { adapter } = plex({
-                '/library/sections': withMusic,
-                [`/library/sections/3/all?type=8&includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=500`]: page([
-                    {
-                        ratingKey: 'a1',
-                        title: 'Daft Punk',
-                        Guid: [{ id: 'mbid://056e4f3e-d505-4dad-8ec1-d04f521cbb56' }]
-                    },
-                    { ratingKey: 'a2', title: 'No Tag' }
-                ])
+                '/library/sections': {
+                    MediaContainer: { Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'artist' }] }
+                },
+                [`/library/sections/2/all?type=8&includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=500`]: music
             });
 
             const items = await adapter.listUserMusic({ id: '1', name: 'Bartus' });
 
-            expect(items.map(i => i.kind)).toEqual(['artist', 'artist']);
-            expect(items[0]?.ids).toEqual({ mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' });
-            expect(items[1]?.ids).toEqual({});
-            expect(items[0]?.playback).toEqual({ user: 'Bartus', itemId: 'a1' });
+            expect(items).toHaveLength(5);
+            expect(items.map(i => i.kind)).toEqual(Array(5).fill('artist'));
+            expect(items[0]).toMatchObject({ ids: { mbid: '00000000-0000-4000-8000-000000000001' } });
+            expect(items[0]?.playback).toEqual({ user: 'Bartus', itemId: '1001' });
             expect(items[0]?.playback).not.toHaveProperty('watched');
+            // The captured artist with no mbid guid: no id invented for it.
+            expect(items[4]?.ids).toEqual({});
         });
 
         it('reads no artists when Plex has no music section', async () => {
