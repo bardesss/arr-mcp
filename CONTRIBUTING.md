@@ -210,34 +210,43 @@ small, shaped change, and a service in no slot at all is a different product.
 **Managed — what decides something should exist**
 
 - **Lidarr.** An adapter exists: the service id, the config block, the icon, the
-  vendored spec, and `LibraryCapable` — `get_library` lists albums, which is the
-  first and currently only capability claimed. All 21 capture endpoints were
-  exercised against a live Lidarr 3.1.6.5079 and the fixtures are committed, but
-  seven came back with no rows: queue, history, blocklist, wanted cutoff,
-  release, tag and indexer are empty on a fresh instance. Those row shapes need a
-  capture against a library with real activity before a read adapter can claim
-  them, and `/wanted/missing` is the one populated paged route if one is wanted
-  next.
+  vendored spec, and six capabilities. `LibraryCapable` and `SearchCapable`, so
+  `get_library` lists artists and `search_media` finds them.
+  `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
+  album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
+  album's flag. `MonitorStateCapable`, so that flag is read before it is changed
+  and a no-op is reported as one. `ArtistMonitorCapable`, so an artist's standing
+  policy is read and written as a set. All 21 capture endpoints were exercised
+  against a
+  live Lidarr 3.1.6.5079 and the fixtures are committed, but seven came back
+  with no rows: queue, history, blocklist, wanted cutoff, release, tag and
+  indexer are empty on a fresh instance. Those row shapes need a capture against
+  a library with real activity before a read adapter can claim them, and
+  `/wanted/missing` is the one populated paged route if one is wanted next. The
+  two write responses were captured separately, on a throwaway 2.1.3.3927
+  instance.
 
   **The design constraint.** Music sits in the merged index as its own `kind`,
-  `album`, and is deliberately not joined to anything. Its identity is a
-  MusicBrainz MBID, a GUID, where the resolver keys films and series on integer
-  TMDB, TVDB and IMDb ids. Adding the id namespace was cheap, because the key
-  map is already namespaced by kind. Joining it would not be: that needs Jellyfin
-  and Plex music reads plus a `ProviderIds` mapping nobody has verified. So an
-  album reports `presence: unknown`, which is the one member of that enum that
-  asserts nothing, and `diagnose`, `get_media_details` and `fix_metadata` read
-  the film and series chain only. They say so when a query matches an album
-  rather than reporting it as absent.
+  `artist`, and joins because its identity is a MusicBrainz MBID: a GUID, where
+  films and series key on integer TMDB, TVDB and IMDb ids. Jellyfin publishes the
+  same GUID on an album artist and Plex on an artist in a music section, so the
+  join works — and it is namespaced by kind, so an MBID can never collide with
+  the integer spaces. `get_media_details` answers for an artist. `diagnose` and
+  `fix_metadata` still read the film and series chain, and name
+  `get_library`'s `kind: "artist"` when a query matches an artist rather than
+  reporting it as absent. The music read is its own source in a
+  library build, so a failed or absent one reports `unknown` presence rather than
+  claiming every artist is `arr_only`.
 
   **What its API does not say out loud.** Three media levels, so `resource:
   'movie' | 'series'` in the shared `arr*.ts` helpers does not apply. Two
   profiles gate what gets monitored: quality and metadata. `RootFolderResource`
   carries no `unmappedFolders`, and it does carry default profile and monitor
   fields the shared `RootFolder` type has no room for. History ordinals move
-  too: `downloadIgnored` is 10, where Sonarr has it at 7. An album has no added
-  date and no per-album quality, so `sort: "added"` and the quality filter are
-  films-only by construction rather than by oversight.
+  too: `downloadIgnored` is 10, where Sonarr has it at 7. An *artist* carries an
+  added date, so `sort: "added"` works for music; an *album* has no added date
+  and no per-album quality, which is why the library rows on artists and albums
+  live under `get_media_details`.
 
 **Downloaded — where a grab actually lands**
 
@@ -288,9 +297,10 @@ gets held against the four checks above, which is cheaper for everyone than
 finding out afterwards.
 
 **You will have to test it yourself, properly.** The maintainer runs neither
-Lidarr, Plex nor qBittorrent. Lidarr's fixtures came from a temporary instance
-rather than a working library, so a capture against real activity is still
-outstanding. Plex has an adapter
+Lidarr, Plex nor qBittorrent. Lidarr's read fixtures came from a live 3.1.6
+library with 1,578 artists and no download activity, and its two write fixtures
+from a temporary 2.1.3.3927 instance, so a capture against real download
+activity is still outstanding. Plex has an adapter
 and, as of a volunteer tester's report on [issue #180](../../issues/180), has
 been exercised against a real instance. [qBittorrent](../../issues/147) has an
 adapter too, exercised against a real 5.2.3 server in [#195](../../issues/195)

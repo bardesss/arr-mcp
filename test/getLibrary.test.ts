@@ -32,7 +32,10 @@ const jellyfinStub = (): ServiceAdapter =>
         id: 'jellyfin',
         testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
         getVersion: async () => '10.0.0',
-        listUserLibrary: async () => []
+        listUserLibrary: async () => [],
+        // A real media server answers both halves. The separate read is what
+        // `musicGathered` reports on, so a stub without it is a test of that.
+        listUserMusic: async () => []
     }) as unknown as ServiceAdapter;
 
 const healthyJellyfinIdentity = { resolve: async () => ({ id: 'u1', name: 'Someone' }) } as unknown as IdentityResolver;
@@ -872,43 +875,38 @@ describe('missing_from', () => {
     });
 });
 describe('music from Lidarr', () => {
-    const album = (over: Partial<IndexInput> = {}): IndexInput => ({
-        kind: 'album',
-        title: 'Random Access Memories',
-        artist: 'Daft Punk',
-        year: 2013,
+    const artist = (over: Partial<IndexInput> = {}): IndexInput => ({
+        kind: 'artist',
+        title: 'Daft Punk',
+        albumCount: 4,
         genres: ['Electronic'],
-        ids: { mbid: 'aa997ea0-2936-40bd-884d-3af8a0e064dc' },
-        acquisition: { service: 'lidarr', id: '4', monitored: true, hasFile: false, status: 'Album' },
+        ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' },
+        acquisition: { service: 'lidarr', id: '4', monitored: true, hasFile: false, status: 'ended' },
         ...over
     });
     const musicLoader = (items: IndexInput[]) =>
         new LibraryLoader([stub('lidarr', items), jellyfinStub()], healthyJellyfinIdentity);
 
-    it('lists albums beside films, as their own kind', async () => {
-        const result = await buildGetLibrary(musicLoader([film(), album()]), base);
+    it('lists artists beside films, as their own kind', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), base);
 
         expect(result.total).toBe(2);
-        expect(result.items.map(i => i.kind).sort()).toEqual(['album', 'movie']);
+        expect(result.items.map(i => i.kind).sort()).toEqual(['artist', 'movie']);
     });
 
-    it('reports an album as presence unknown, never arr_only', async () => {
-        // The claim `arr_only` makes is that a media server looked and did not
-        // find it. No music read exists, so that claim would be false.
-        const result = await buildGetLibrary(musicLoader([album()]), base);
-
-        expect(result.items[0]?.presence).toBe('unknown');
-    });
-
-    it('filters to albums, and keeps the artist at minimal detail', async () => {
-        const result = await buildGetLibrary(musicLoader([film(), album()]), { detail: 'minimal', limit: 50, kind: 'album' });
+    it('filters to artists, and keeps the album count at minimal detail', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), {
+            detail: 'minimal',
+            limit: 50,
+            kind: 'artist'
+        });
 
         expect(result.items).toHaveLength(1);
-        expect(result.items[0]).toMatchObject({ kind: 'album', title: 'Random Access Memories', artist: 'Daft Punk' });
+        expect(result.items[0]).toMatchObject({ kind: 'artist', title: 'Daft Punk', albumCount: 4 });
     });
 
-    it('filters an album by year', async () => {
-        const result = await buildGetLibrary(musicLoader([album()]), { ...base, kind: 'album', year: 2013 });
+    it('filters an artist by genre', async () => {
+        const result = await buildGetLibrary(musicLoader([artist()]), { ...base, kind: 'artist', genre: 'electronic' });
 
         expect(result.items).toHaveLength(1);
     });
@@ -918,32 +916,55 @@ describe('music from Lidarr', () => {
         ['min_rating', { min_rating: 8 }],
         ['rating_source', { rating_source: 'imdb' as const }],
         ['sort: rating', { sort: 'rating' as const }],
-        ['watched', { watched: true }],
-        ['presence: arr_only', { presence: 'arr_only' as const }],
-        ['sort: added', { sort: 'added' as const }]
-    ])('refuses %s for albums rather than matching nothing', async (_label, filter) => {
-        await expect(buildGetLibrary(musicLoader([album()]), { ...base, kind: 'album', ...filter })).rejects.toThrow(
-            /album/i
+        ['watched', { watched: true }]
+    ])('refuses %s for artists rather than matching nothing', async (_label, filter) => {
+        await expect(buildGetLibrary(musicLoader([artist()]), { ...base, kind: 'artist', ...filter })).rejects.toThrow(
+            /artist/i
         );
     });
 
-    it('still lets those filters run when no kind is named, by excluding albums', async () => {
-        const result = await buildGetLibrary(musicLoader([film(), album()]), { ...base, quality: 'Bluray-1080p' });
+    it('still lets those filters run when no kind is named, by excluding artists', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), { ...base, quality: 'Bluray-1080p' });
 
         expect(result.items.map(i => i.kind)).toEqual(['movie']);
     });
 
-    it('accepts presence unknown for albums, which is the only value they hold', async () => {
-        const result = await buildGetLibrary(musicLoader([album()]), { ...base, kind: 'album', presence: 'unknown' });
+    /**
+     * `presence` used to be refused for music, because no media-server music
+     * read existed. An artist joins on the MusicBrainz artist id, so it holds a
+     * real answer now, and the filter has to accept it.
+     */
+    it('filters an artist by presence, which it holds like a film', async () => {
+        const result = await buildGetLibrary(musicLoader([artist()]), { ...base, kind: 'artist', presence: 'arr_only' });
 
-        expect(result.items.map(i => i.kind)).toEqual(['album']);
+        expect(result.items.map(i => i.kind)).toEqual(['artist']);
     });
 
-    it('reports an album under watched: false, because it has no watch state', async () => {
-        // Documented, not accidental: an album has no playback half, and this
-        // filter treats absent playback as unwatched for films too.
-        const result = await buildGetLibrary(musicLoader([album()]), { ...base, watched: false });
+    /**
+     * The subtle half of the join: a media server that cannot answer for music
+     * must not let `arr_only` stand. That value claims the server looked and
+     * found nothing, and this server was never asked.
+     */
+    it('reports unknown, not arr_only, when no music read exists to ask', async () => {
+        const noMusic = { ...jellyfinStub(), listUserMusic: undefined } as unknown as ServiceAdapter;
+        const loader = new LibraryLoader([stub('lidarr', [artist()]), noMusic], healthyJellyfinIdentity);
 
-        expect(result.items.map(i => i.kind)).toEqual(['album']);
+        const result = await buildGetLibrary(loader, base);
+
+        expect(result.items[0]?.presence).toBe('unknown');
+    });
+
+    it('reports arr_only when the music read ran and did not have the artist', async () => {
+        const result = await buildGetLibrary(musicLoader([artist()]), base);
+
+        expect(result.items[0]?.presence).toBe('arr_only');
+    });
+
+    it('reports an artist under watched: false, because it has no watch state', async () => {
+        // Documented, not accidental: an artist has no playback watch state, and
+        // this filter treats absent playback as unwatched for films too.
+        const result = await buildGetLibrary(musicLoader([artist()]), { ...base, watched: false });
+
+        expect(result.items.map(i => i.kind)).toEqual(['artist']);
     });
 });

@@ -39,7 +39,28 @@ const tally = (policies: readonly ArtistMonitorPolicy[]): string => {
     const group = (counts: Map<string, number>) =>
         [...counts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([value, count]) => `${count} ${value}`).join(', ');
 
-    return `new-album policy ${group(items)}; albums ${group(flags)}`;
+    // `artists`, not `albums`: the counts come from each artist's own monitor
+    // flag, and printing them as albums is the exact mix-up the tool description
+    // warns about. "new-album policy" stays, because `monitorNewItems` is an
+    // album policy that an artist holds.
+    return `new-album policy ${group(items)}; artists ${group(flags)}`;
+};
+
+/**
+ * The artist ids the preview named, read back off the plan it signed.
+ *
+ * `apply` writes this list and does not read the library again: a second read
+ * resolves "all artists" against a set that may have grown since the preview,
+ * which is exactly the write this exists to prevent. The value is always there
+ * — `plan` puts it in `args`, and the token is checked against those same args —
+ * so a plan without it is a bug here rather than a caller mistake.
+ */
+const previewedArtistIds = (plan: WritePlan): string[] => {
+    const ids = plan.args?.artist_ids;
+    if (!Array.isArray(ids) || !ids.every(id => typeof id === 'string')) {
+        throw new Error('The artist-level plan carried no artist list, so nothing was written.');
+    }
+    return ids;
 };
 
 export function registerSetMonitoring(
@@ -51,7 +72,7 @@ export function registerSetMonitoring(
         name: 'set_monitoring',
         title: 'Start or stop monitoring',
         description:
-            'Turns monitoring on or off. Sonarr and Whisparr: a whole series, one season, or specific episodes. Lidarr takes `level` — `album` monitors or unmonitors one whole album, and `artist` sets the artist-level policy: `monitor_new_items` is the rule Lidarr applies to albums it discovers later, and `none` is the only value that stops the wanted list growing by itself. Omit `artists` on the artist level to reach every artist in Lidarr. **The artist flag is not the album flag.** An artist can read `monitored: false` while an album under it stays `monitored: true`, so setting the artist flag does not empty a wanted list — write the album flag with `level: "album"` for that. Safe tier — nothing is deleted and the service can undo it, so `safe_write` is enough. `season` and `episodes` are mutually exclusive and refused on any Lidarr level, because an album is monitored whole. Unmonitoring **before** deleting files is what stops Sonarr immediately re-downloading them — see delete_episode_files. Takes ids, never a title: take them from `acquisition.id` on a get_library or get_media_details record, or an album row\'s `artistId` for the artist level. Previews by default and the preview reports the state it found — new-album policy and monitor flag across the artists it would touch — so the current policy is read before it is changed rather than assumed; call again with the returned `confirm` token to apply. A season this series does not have, an episode id that cannot be resolved, or an artist id Lidarr does not have is refused rather than written: those endpoints accept a write matching nothing and report success, and you would go on believing the item was unmonitored. The refusal names the seasons that do exist, so retry with one of those rather than assuming the series is unreachable.',
+            'Turns monitoring on or off. Sonarr and Whisparr: a whole series, one season, or specific episodes. Lidarr takes `level` — `album` monitors or unmonitors one whole album, and `artist` sets the artist-level policy: `monitor_new_items` is the rule Lidarr applies to albums it discovers later, and `none` is the only value that stops the wanted list growing by itself. Omit `artists` on the artist level to reach every artist in Lidarr. **The artist flag is not the album flag.** An artist can read `monitored: false` while an album under it stays `monitored: true`, so setting the artist flag does not empty a wanted list — write the album flag with `level: "album"` for that. Safe tier — nothing is deleted and the service can undo it, so `safe_write` is enough. `season` and `episodes` are mutually exclusive and refused on any Lidarr level, because an album is monitored whole. Unmonitoring **before** deleting files is what stops Sonarr immediately re-downloading them — see delete_episode_files. Takes ids, never a title: take them from `acquisition.id` on a get_library or get_media_details record. An album id for `level: "album"` comes from `get_media_details` on the artist, which lists them, because the library rows on artists. Previews by default and the preview reports the state it found — new-album policy and monitor flag across the artists it would touch — so the current policy is read before it is changed rather than assumed; call again with the returned `confirm` token to apply. A season this series does not have, an episode id that cannot be resolved, or an artist id Lidarr does not have is refused rather than written: those endpoints accept a write matching nothing and report success, and you would go on believing the item was unmonitored. The refusal names the seasons that do exist, so retry with one of those rather than assuming the series is unreachable.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('sonarr, whisparr or lidarr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
@@ -109,16 +130,23 @@ export function registerSetMonitoring(
             const adapter = findAdapter(adapters, service, instance);
 
             // ---- Lidarr's artist level: a policy over a set, not a flag on one item.
+            //
+            // Every refusal below is about the arguments, not about the service.
+            // A ServiceError here would read as "sonarr has no such item" and send
+            // the caller looking for a missing series when the gap was a missing
+            // parameter.
             if (level === 'artist') {
                 if (service !== 'lidarr') {
-                    throw new ServiceError('NotFound', service, '`level` is a lidarr parameter; only Lidarr has an artist policy', {
-                        remedy: 'Drop `level`. A series is monitored whole, per season, or per episode.'
-                    });
+                    throw new Error(
+                        '`level` is a lidarr parameter, and only Lidarr has an artist policy. ' +
+                            'Drop it: a series is monitored whole, per season, or per episode.'
+                    );
                 }
                 if (id !== undefined || season !== undefined || episodes !== undefined) {
-                    throw new ServiceError('NotFound', service, 'The artist level takes `artists`, not `id`, `season` or `episodes`', {
-                        remedy: 'An artist is not one item: name artists, or omit `artists` for all of them.'
-                    });
+                    throw new Error(
+                        'The artist level takes `artists`, not `id`, `season` or `episodes`. ' +
+                            'An artist is not one item: name artists, or omit `artists` for all of them.'
+                    );
                 }
                 if (monitored === undefined && monitor_new_items === undefined) {
                     throw new Error('Give `monitored`, `monitor_new_items`, or both. With neither there is nothing to change.');
@@ -140,7 +168,7 @@ export function registerSetMonitoring(
                     const missing = artists.filter(aid => !byId.has(aid));
                     if (missing.length > 0) {
                         throw new ServiceError('NotFound', service, `Lidarr has no artist with id ${missing.join(', ')}`, {
-                            remedy: `Lidarr holds ${all.length} artists. Take ids from an album row's artistId.`
+                            remedy: `Lidarr holds ${all.length} artists. Take an id from acquisition.id on a get_library artist row.`
                         });
                     }
                     targets = artists.map(aid => byId.get(aid)!);
@@ -199,7 +227,15 @@ export function registerSetMonitoring(
                         service,
                         ...(instance === undefined ? {} : { instance }),
                         level,
-                        ...(artists === undefined ? {} : { artists }),
+                        // The resolved set, never the word "all". The token is
+                        // signed over `args`, so an artist added between the
+                        // preview and the confirmation changes this list and the
+                        // token stops matching. That refuses a write into an
+                        // artist nobody was shown, instead of the apply re-reading
+                        // "all" and reaching it. It is also the record of which
+                        // artists the write named, which is the part an audit row
+                        // cannot reconstruct later.
+                        artist_ids: targets.map(p => p.artistId).sort(),
                         ...(monitored === undefined ? {} : { monitored }),
                         ...(monitor_new_items === undefined ? {} : { monitor_new_items })
                     },
@@ -210,30 +246,26 @@ export function registerSetMonitoring(
             // The artist-only parameters have no meaning on any other level, and
             // Lidarr would ignore them while doing something else entirely.
             if (artists !== undefined || monitor_new_items !== undefined) {
-                throw new ServiceError('NotFound', service, '`artists` and `monitor_new_items` need `level: "artist"`', {
-                    remedy: 'Give `level: "artist"`, or drop them: an album has no new-item policy of its own.'
-                });
+                throw new Error(
+                    '`artists` and `monitor_new_items` need `level: "artist"`. ' +
+                        'Give `level: "artist"`, or drop them: an album has no new-item policy of its own.'
+                );
             }
             if (service === 'lidarr' && level !== 'album') {
-                throw new ServiceError('NotFound', service, 'lidarr needs `level`: "album" or "artist"', {
-                    remedy:
-                        'An album id and an artist id are two different namespaces and Lidarr cannot tell them apart. Say which one `id` is.'
-                });
+                throw new Error(
+                    'lidarr needs `level`: "album" or "artist". ' +
+                        'An album id and an artist id are two different namespaces and Lidarr cannot tell them apart. ' +
+                        'Say which one `id` is.'
+                );
             }
             if (level !== undefined && service !== 'lidarr') {
-                throw new ServiceError('NotFound', service, '`level` is a lidarr parameter', {
-                    remedy: 'Drop it. A series is monitored whole, per season, or per episode.'
-                });
+                throw new Error('`level` is a lidarr parameter. Drop it. A series is monitored whole, per season, or per episode.');
             }
             if (id === undefined) {
-                throw new ServiceError('NotFound', service, '`id` is required', {
-                    remedy: 'Take it from `acquisition.id` on a get_library or get_media_details record.'
-                });
+                throw new Error('`id` is required. Take it from `acquisition.id` on a get_library or get_media_details record.');
             }
             if (monitored === undefined) {
-                throw new ServiceError('NotFound', service, '`monitored` is required', {
-                    remedy: 'Say which way: true to monitor, false to stop.'
-                });
+                throw new Error('`monitored` is required. Say which way: true to monitor, false to stop.');
             }
             if (season !== undefined && episodes !== undefined) {
                 throw new Error(
@@ -250,10 +282,24 @@ export function registerSetMonitoring(
 
             // Two services hold "what is monitored right now" in two places, so
             // the preview read differs. Sonarr and Whisparr answer through the
-            // full item description; a Lidarr album cannot go that way —
-            // `get_media_details` walks the film and series chain and refuses an
-            // album on purpose — so it answers through the narrower monitor read.
-            if (hasMediaDetails(adapter)) {
+            // full item description; a Lidarr album cannot go that way, because
+            // Lidarr's details read takes an *artist* id, so it answers through
+            // the narrower monitor read. That branch is checked first for it.
+            if (hasMonitorState(adapter)) {
+                // Lidarr's album level, checked before `hasMediaDetails`: an
+                // album id is not an artist id, so the details read would fetch
+                // the wrong resource and 404 on a valid album.
+                // The rule and its message belong to the adapter, which applies
+                // the same one to a direct `setMonitoring` call.
+                adapter.refusePartialSelection({ season, episodeIds: episodes });
+
+                const state = await adapter.getMonitorState(id);
+                label = state.label;
+                scope = label;
+                // The album flag is one value Lidarr actually holds, so `noop`
+                // is honest here the way it is for a whole series.
+                current = state.monitored;
+            } else if (hasMediaDetails(adapter)) {
                 // The read that makes the preview approvable and fails legibly on a
                 // bad id, rather than issuing a PUT into the dark. The episode form
                 // asks for the episode list and then *uses* it, below: paying for
@@ -330,23 +376,6 @@ export function registerSetMonitoring(
                 // working write into a failed one. One redundant confirmation is
                 // the cheaper mistake.
                 current = season === undefined && episodes === undefined ? details.monitored : undefined;
-            } else if (hasMonitorState(adapter)) {
-                // An album is monitored whole. A season or an episode list means
-                // the caller is holding the wrong model of the service, and
-                // Lidarr would accept the call and monitor the entire album
-                // regardless — a success report for something else entirely.
-                if (season !== undefined || episodes !== undefined) {
-                    throw new ServiceError('NotFound', service, `A ${service} album has no seasons and no episode ids.`, {
-                        remedy: 'Send only `monitored`. Track-level monitoring is not a Lidarr concept.'
-                    });
-                }
-
-                const state = await adapter.getMonitorState(id);
-                label = state.label;
-                scope = label;
-                // The album flag is one value Lidarr actually holds, so `noop`
-                // is honest here the way it is for a whole series.
-                current = state.monitored;
             } else {
                 throw new ServiceError('NotFound', service, `${service} cannot describe its own items`);
             }
@@ -373,12 +402,11 @@ export function registerSetMonitoring(
             };
         },
 
-        async apply(_plan, { service, instance, id, monitored, season, episodes, level, artists, monitor_new_items }) {
+        async apply(plan, { service, instance, id, monitored, season, episodes, level, monitor_new_items }) {
             const adapter = findAdapter(adapters, service, instance);
 
             if (level === 'artist' && hasArtistMonitor(adapter)) {
-                const all = await adapter.listArtistMonitorPolicies();
-                const ids = artists === undefined ? all.map(p => p.artistId) : artists;
+                const ids = previewedArtistIds(plan);
                 await adapter.setArtistMonitorPolicy(ids, {
                     ...(monitored === undefined ? {} : { monitored }),
                     ...(monitor_new_items === undefined ? {} : { monitorNewItems: monitor_new_items })
@@ -391,7 +419,7 @@ export function registerSetMonitoring(
             }
 
             if (id === undefined || monitored === undefined) {
-                throw new ServiceError('NotFound', service, '`id` and `monitored` are required for this write');
+                throw new Error('This write needs `id` and `monitored`. Check the arguments before confirming it.');
             }
 
             await adapter.setMonitoring(id, {

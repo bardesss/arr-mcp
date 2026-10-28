@@ -14,6 +14,7 @@ import {
     type ArtistMonitorPolicy,
     type ConnectionDiagnosis,
     type LibraryCapable,
+    type MediaDetails,
     type MonitoringCapable,
     type MonitoringTarget,
     type MonitorState,
@@ -47,11 +48,24 @@ type RawAlbum = {
     artist?: { id?: number; artistName?: string; qualityProfileId?: number; path?: string };
 };
 
+/**
+ * The fields `listLibrary` reads, named after `ArtistResource` in
+ * `specs/lidarr.json`. An artist is the row because it is the level the
+ * MusicBrainz artist id lives at, and that id is what joins music to a media
+ * server. Albums are one call below it — see `getMediaDetails`.
+ */
 type RawArtist = {
     id?: number;
     artistName?: string;
+    foreignArtistId?: string;
+    status?: string;
     monitored?: boolean;
     monitorNewItems?: string;
+    added?: string;
+    genres?: string[];
+    path?: string;
+    qualityProfileId?: number;
+    statistics?: { trackFileCount?: number; sizeOnDisk?: number; albumCount?: number };
 };
 
 const yearOf = (releaseDate: string | null | undefined): number | undefined => {
@@ -66,14 +80,23 @@ const yearOf = (releaseDate: string | null | undefined): number | undefined => {
  * publishing it as an external id would let an album fuse with a film that
  * happens to carry the same integer.
  */
-const albumIds = (album: RawAlbum): IndexInput['ids'] =>
-    album.foreignAlbumId === undefined || album.foreignAlbumId === '' ? {} : { mbid: album.foreignAlbumId };
+/**
+ * The artist's MusicBrainz id, which `ArtistResource.foreignArtistId` holds.
+ *
+ * This is the whole reason an artist is the row: Jellyfin and Plex both expose
+ * the same id for an album artist, so the join that merges a *arr with a media
+ * server finally has a key for music. Nothing is invented when it is absent — a
+ * row with no MBID simply does not join.
+ */
+const artistIds = (artist: RawArtist): IndexInput['ids'] =>
+    artist.foreignArtistId === undefined || artist.foreignArtistId === '' ? {} : { mbid: artist.foreignArtistId };
 
 /** Any track on disk, which is what `has_file` means for a series too. */
 const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCount ?? 0) > 0;
 
 /**
- * Lidarr. It claims `LibraryCapable`, `SearchCapable` and `MonitoringCapable`.
+ * Lidarr. It claims `LibraryCapable`, `SearchCapable`, `MonitoringCapable`,
+ * `MonitorStateCapable` and `ArtistMonitorCapable`.
  * `CONTRIBUTING.md` lists the API traps for the adapter that adds the next
  * write, and the endpoints still waiting on a library with real activity.
  *
@@ -103,12 +126,16 @@ export class LidarrAdapter
         return arrVersion(this.#http, this.id);
     }
 
-    /**
-     * Every album in the library, unfiltered. `artistId` would narrow it to one
-     * artist and was for the capture, not for this.
-     */
-    #allAlbums(): Promise<RawAlbum[]> {
-        return this.#libraryCache.get('albums', LIBRARY_TTL_MS, () => this.#http.get<RawAlbum[]>('/api/v1/album'));
+    /** Every album, used by `getMediaDetails` for one artist's discography. */
+    #albumsOf(artistId: number): Promise<RawAlbum[]> {
+        return this.#libraryCache.get(`albums:${artistId}`, LIBRARY_TTL_MS, () =>
+            this.#http.get<RawAlbum[]>(`/api/v1/album?artistId=${artistId}`)
+        );
+    }
+
+    /** Every artist in the library, unfiltered. */
+    #allArtists(): Promise<RawArtist[]> {
+        return this.#libraryCache.get('artists', LIBRARY_TTL_MS, () => this.#http.get<RawArtist[]>('/api/v1/artist'));
     }
 
     invalidateLibrary(): void {
@@ -116,52 +143,50 @@ export class LidarrAdapter
     }
 
     async listLibrary(): Promise<IndexInput[]> {
-        const [albums, profileNames] = await Promise.all([this.#allAlbums(), readProfileNames(this.#http, this.id, this.#libraryCache)]);
+        const [artists, profileNames] = await Promise.all([
+            this.#allArtists(),
+            readProfileNames(this.#http, this.id, this.#libraryCache)
+        ]);
 
-        return albums.map(album => {
-            const artist = album.artist;
-            const qualityProfileId = artist?.qualityProfileId;
-            return {
-                kind: 'album' as const,
-                title: fenceText(album.title ?? '', { service: this.id, field: 'title' }),
-                ...(artist?.artistName === undefined
-                    ? {}
-                    : { artist: fenceText(artist.artistName, { service: this.id, field: 'artist' }) }),
-                // Lidarr's internal artist id, so an artist-level write has an
-                // address to take. Omitted, not zeroed, when the row has none.
-                ...(artist?.id === undefined || artist.id <= 0 ? {} : { artistId: String(artist.id) }),
-                ...((year => (year === undefined ? {} : { year }))(yearOf(album.releaseDate))),
-                ...(album.genres === undefined
-                    ? {}
-                    : { genres: album.genres.map(g => fenceText(g, { service: this.id, field: 'genre' })) }),
-                ids: albumIds(album),
-                acquisition: {
-                    service: this.id,
-                    ...(album.id === undefined || album.id <= 0 ? {} : { id: String(album.id) }),
-                    // Lidarr has no run status. `albumType` is the service's own
-                    // word for what this is, passed through unnormalised.
-                    ...(album.albumType === undefined ? {} : { status: album.albumType }),
-                    monitored: album.monitored ?? false,
-                    // An album with only some tracks imported reads as present,
-                    // as a part-downloaded series does; `statistics` carries
-                    // `percentOfTracks` for how complete it is. There is no
-                    // album-level quality, which is why that filter stays
-                    // films-only.
-                    hasFile: hasAnyTrack(album),
-                    ...(qualityProfileId === undefined ? {} : { qualityProfileId }),
-                    ...((name => (name === undefined ? {} : { qualityProfile: name }))(
-                        qualityProfileId === undefined ? undefined : profileNames.get(qualityProfileId)
-                    )),
-                    // The artist's folder, which every album by that artist
-                    // shares. Lidarr keeps the album one level below, and
-                    // `AlbumResource` carries no path of its own.
-                    ...(artist?.path === undefined ? {} : { path: fenceText(artist.path, { service: this.id, field: 'path' }) }),
-                    ...(album.statistics?.sizeOnDisk === undefined
+        return artists
+            // A row with no usable id is one nothing can be asked about, so it
+            // is not a row — every other field on it would still be right.
+            .filter((a): a is RawArtist & { id: number } => (a.id ?? 0) > 0)
+            .map(artist => {
+                const qualityProfileId = artist.qualityProfileId;
+                return {
+                    kind: 'artist' as const,
+                    title: fenceText(artist.artistName ?? '', { service: this.id, field: 'title' }),
+                    ids: artistIds(artist),
+                    acquisition: {
+                        service: this.id,
+                        id: String(artist.id),
+                        // Lidarr's own artist status: `continuing` or `ended`,
+                        // passed through as Sonarr's is.
+                        ...(artist.status === undefined ? {} : { status: artist.status }),
+                        monitored: artist.monitored ?? false,
+                        // Any track on disk, which is what `has_file` means for
+                        // a series too.
+                        hasFile: (artist.statistics?.trackFileCount ?? 0) > 0,
+                        ...(qualityProfileId === undefined ? {} : { qualityProfileId }),
+                        ...((name => (name === undefined ? {} : { qualityProfile: name }))(
+                            qualityProfileId === undefined ? undefined : profileNames.get(qualityProfileId)
+                        )),
+                        ...(artist.path === undefined ? {} : { path: fenceText(artist.path, { service: this.id, field: 'path' }) }),
+                        ...(artist.added === undefined ? {} : { addedAt: artist.added }),
+                        ...(artist.statistics?.sizeOnDisk === undefined
+                            ? {}
+                            : { sizeBytes: artist.statistics.sizeOnDisk })
+                    },
+                    ...(artist.genres === undefined
                         ? {}
-                        : { sizeBytes: album.statistics.sizeOnDisk })
-                }
-            };
-        });
+                        : { genres: artist.genres.map(g => fenceText(g, { service: this.id, field: 'genre' })) }),
+                    // Album count is the one number an artist row owes a reader:
+                    // "do I have their discography" is the music question, and
+                    // `get_media_details` is where the albums themselves live.
+                    ...(artist.statistics?.albumCount === undefined ? {} : { albumCount: artist.statistics.albumCount })
+                };
+            });
     }
 
     /**
@@ -169,36 +194,79 @@ export class LidarrAdapter
      * nothing here adds music, so a discover search has no honest answer and
      * returns none.
      *
-     * Matched on the artist as well as the title, unlike Radarr and Sonarr.
-     * "Do I have any Daft Punk" is a library question, and an album row is
-     * where the answer lives.
+     * Matched on the artist name. Unlike Radarr and Sonarr there is no second
+     * field to try: "Do I have any Daft Punk" is a library question and the
+     * artist row is the answer. An album title is `get_media_details`'s read.
      */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'library') return [];
 
         const term = query.toLowerCase();
-        const albums = await this.#allAlbums();
+        const artists = await this.#allArtists();
 
-        return albums
-            // A row with no usable id is one nothing can be asked about, so it
-            // is not a hit — every other field on it would still be right.
-            .filter(album => (album.id ?? 0) > 0)
-            .filter(album => {
-                const title = (album.title ?? '').toLowerCase();
-                const artist = (album.artist?.artistName ?? '').toLowerCase();
-                return title.includes(term) || artist.includes(term);
-            })
-            .map(album => ({
+        return artists
+            .filter((a): a is RawArtist & { id: number } => (a.id ?? 0) > 0)
+            .filter(a => (a.artistName ?? '').toLowerCase().includes(term))
+            .map(a => ({
                 service: this.id,
                 source,
-                kind: 'album' as const,
-                id: String(album.id),
-                title: fenceText(album.title ?? '', { service: this.id, field: 'title' }),
-                ...((year => (year === undefined ? {} : { year }))(yearOf(album.releaseDate))),
-                ids: albumIds(album),
-                hasFile: hasAnyTrack(album),
-                monitored: album.monitored ?? false
+                kind: 'artist' as const,
+                id: String(a.id),
+                title: fenceText(a.artistName ?? '', { service: this.id, field: 'title' }),
+                ids: artistIds(a),
+                hasFile: (a.statistics?.trackFileCount ?? 0) > 0,
+                monitored: a.monitored ?? false
             }));
+    }
+
+    /**
+     * One artist, with the albums under it.
+     *
+     * The library rows on artists, so this is where an album id comes from —
+     * `set_monitoring` needs one for `level: "album"`, and nothing else in the
+     * tool surface returns an album id once the library stopped rowing on
+     * albums. Albums are only read at `detail: "full"`, matching episodes on a
+     * series, and capped by the same limit.
+     */
+    async getMediaDetails(
+        id: string,
+        opts: { includeEpisodes: boolean; episodeLimit: number }
+    ): Promise<MediaDetails> {
+        const artistId = this.#numericId(id, 'artist');
+        const artist = await this.#http.get<RawArtist>(`/api/v1/artist/${artistId}`);
+        const title = fenceText(artist.artistName ?? '', { service: this.id, field: 'title' });
+
+        const albums = opts.includeEpisodes ? (await this.#albumsOf(artistId)).filter(a => (a.id ?? 0) > 0) : [];
+
+        return {
+            service: this.id,
+            kind: 'artist',
+            id: String(artist.id ?? artistId),
+            title,
+            ...(artist.status === undefined ? {} : { status: artist.status }),
+            monitored: artist.monitored ?? false,
+            hasFile: (artist.statistics?.trackFileCount ?? 0) > 0,
+            ...(artist.statistics?.sizeOnDisk === undefined ? {} : { sizeBytes: artist.statistics.sizeOnDisk }),
+            ...(artist.path === undefined ? {} : { path: fenceText(artist.path, { service: this.id, field: 'path' }) }),
+            ids: artistIds(artist),
+            ...(artist.statistics?.albumCount === undefined ? {} : { albumCount: artist.statistics.albumCount }),
+            ...(opts.includeEpisodes
+                ? {
+                      albums: albums.slice(0, opts.episodeLimit).map(album => ({
+                          id: String(album.id),
+                          title: fenceText(album.title ?? '', { service: this.id, field: 'title' }),
+                          ...((year => (year === undefined ? {} : { year }))(yearOf(album.releaseDate))),
+                          ...(album.albumType === undefined ? {} : { albumType: album.albumType }),
+                          monitored: album.monitored ?? false,
+                          hasFile: hasAnyTrack(album),
+                          ...(album.foreignAlbumId === undefined || album.foreignAlbumId === ''
+                              ? {}
+                              : { mbid: album.foreignAlbumId })
+                      })),
+                      albumsTruncated: albums.length > opts.episodeLimit
+                  }
+                : {})
+        };
     }
 
     /**
@@ -226,21 +294,30 @@ export class LidarrAdapter
      * One album's own flag, via the endpoint built for it. Lidarr's album monitor
      * route takes a list; a single id is the one-element case rather than a
      * special one, so the bulk form stays available without a second path.
-     *
-     * `season` and `episodeIds` are refused rather than ignored: an album has
-     * neither, and a write that accepted them would report success while having
-     * monitored the whole album the caller meant to leave alone.
      */
     async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
-        if (opts.season !== undefined || opts.episodeIds !== undefined) {
-            throw new ServiceError('NotFound', this.id, 'A Lidarr album has no seasons and no episode ids', {
-                remedy: 'An album is monitored whole: send only `monitored`. Track-level selection is not a Lidarr concept.'
-            });
-        }
+        this.refusePartialSelection({ season: opts.season, episodeIds: opts.episodeIds });
 
         const albumId = this.#numericId(id, 'album');
         await this.#http.put('/api/v1/album/monitor', { albumIds: [albumId], monitored: opts.monitored }, true);
         this.#libraryCache.clear();
+    }
+
+    /**
+     * `season` and `episodeIds` are refused rather than ignored: an album has
+     * neither, and a write that accepted them would report success while having
+     * monitored the whole album the caller meant to leave alone.
+     */
+    refusePartialSelection(selection: { season?: number | undefined; episodeIds?: readonly string[] | undefined }): void {
+        if (selection.season === undefined && selection.episodeIds === undefined) return;
+        // A plain Error, like every other argument refusal in `set_monitoring`.
+        // A `ServiceError` would prefix the service and read as "lidarr not
+        // found", which is the confusion this whole class of refusal exists to
+        // avoid.
+        throw new Error(
+            'A Lidarr album has no seasons and no episode ids. An album is monitored whole: send only `monitored`. ' +
+                'Track-level selection is not a Lidarr concept.'
+        );
     }
 
     /**

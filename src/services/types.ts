@@ -745,7 +745,7 @@ export type SeasonMonitoring = { season: number; monitored: boolean };
 
 export type MediaDetails = {
     service: string;
-    kind: 'movie' | 'series' | 'item';
+    kind: 'movie' | 'series' | 'item' | 'artist';
     id: string;
     title: string;
     year?: number;
@@ -760,14 +760,35 @@ export type MediaDetails = {
     sizeBytes?: number;
     quality?: string;
     path?: string;
-    ids: { tmdb?: number; tvdb?: number; imdb?: string };
+    ids: { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
     /** Flattened from each service's nested shape to `source → value`. */
     ratings?: Record<string, number>;
     episodes?: EpisodeSummary[];
     episodeCount?: number;
     episodesTruncated?: boolean;
+    /** Artists only. The albums under the artist, and the count of them. */
+    albums?: AlbumSummary[];
+    albumCount?: number;
+    albumsTruncated?: boolean;
     /** Series only. Sonarr's per-season monitoring, as reported by Sonarr. */
     seasons?: SeasonMonitoring[];
+};
+
+/**
+ * One album under an artist, as `get_media_details` reports it.
+ *
+ * `id` is Lidarr's album id, which is what `set_monitoring` takes with `level:
+ * "album"`. That is the whole point of reading an artist this way: the library
+ * lists artists, so the album ids a write needs are one call down.
+ */
+export type AlbumSummary = {
+    id: string;
+    title: string;
+    year?: number;
+    albumType?: string;
+    monitored: boolean;
+    hasFile: boolean;
+    mbid?: string;
 };
 
 export interface MediaDetailCapable {
@@ -782,8 +803,8 @@ export type SearchSource = 'library' | 'discover' | 'indexers';
 export type SearchHit = {
     service: string;
     source: SearchSource;
-    /** `album` is Lidarr's, and it appears for `source: 'library'` only. */
-    kind: 'movie' | 'series' | 'item' | 'release' | 'album';
+    /** `artist` is Lidarr's, and it appears for `source: 'library'` only. */
+    kind: 'movie' | 'series' | 'item' | 'release' | 'artist';
     id: string;
     title: string;
     year?: number;
@@ -1074,10 +1095,28 @@ export type MonitorState = { label: string; monitored: boolean };
 
 export interface MonitorStateCapable {
     getMonitorState(id: string): Promise<MonitorState>;
+    /**
+     * Refuses a season or an episode list on an item this service monitors
+     * whole.
+     *
+     * Two callers need the same rule. `set_monitoring` calls it during `plan`,
+     * before a confirmation token is issued, so a caller never approves a write
+     * that can only fail. `setMonitoring` calls it again, so a direct caller
+     * meets the rule too. The message lives in the adapter that owns it.
+     */
+    refusePartialSelection(selection: {
+        readonly season?: number | undefined;
+        readonly episodeIds?: readonly string[] | undefined;
+    }): void;
 }
 
 export const hasMonitorState = (a: ServiceAdapter): a is ServiceAdapter & MonitorStateCapable =>
-    typeof (a as Partial<MonitorStateCapable>).getMonitorState === 'function';
+    typeof (a as Partial<MonitorStateCapable>).getMonitorState === 'function' &&
+    // Both members, as `hasArtistMonitor` does: the tool calls the guard, not
+    // just the read, and a double that claims only the read would otherwise
+    // reach a `TypeError` at plan time instead of a clean "cannot describe its
+    // own items" refusal.
+    typeof (a as Partial<MonitorStateCapable>).refusePartialSelection === 'function';
 
 /** Lidarr's `NewItemMonitorTypes`. `none` is the only value that does not grow
  *  the wanted list on its own as Lidarr discovers new albums. */
@@ -1087,10 +1126,12 @@ export type ArtistMonitorNewItems = 'all' | 'none' | 'new';
  * An artist's standing monitoring policy: the half of Lidarr's monitoring that
  * decides the *future* rather than the present.
  *
- * `monitored` is a bulk setter over the artist's albums, not a switch with
- * effects of its own. `monitorNewItems` is the rule Lidarr applies to albums it
- * discovers later, so a library is not stable while any artist carries anything
- * other than `none` — unmonitoring albums under such an artist is a treadmill.
+ * `monitored` is each artist's own flag. It does not stand in for the albums
+ * under it: a live library held an artist reading `monitored: false` with an
+ * album beneath it still `monitored: true`. `monitorNewItems` is the rule Lidarr
+ * applies to albums it discovers later, so a library is not stable while any
+ * artist carries anything other than `none` — unmonitoring albums under such an
+ * artist is a treadmill.
  */
 export type ArtistMonitorPolicy = {
     artistId: string;
@@ -1405,6 +1446,20 @@ export const hasLibrary = (a: ServiceAdapter): a is ServiceAdapter & LibraryCapa
  * watch state does not exist without a user, and a shared signature would let
  * a caller forget to supply one.
  */
+/**
+ * A media server's music half.
+ *
+ * Separate from `UserLibraryCapable` so one failing read degrades by name in a
+ * library build. Films and series must not disappear because a music library
+ * was slow or broken, and `musicGathered` cannot name a half it cannot isolate.
+ */
+export interface UserMusicCapable {
+    listUserMusic(user: ServiceUser): Promise<IndexInput[]>;
+}
+
+export const hasUserMusic = (a: ServiceAdapter): a is ServiceAdapter & UserMusicCapable =>
+    typeof (a as Partial<UserMusicCapable>).listUserMusic === 'function';
+
 export interface UserLibraryCapable {
     listUserLibrary(user: ServiceUser): Promise<IndexInput[]>;
 }

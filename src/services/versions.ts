@@ -22,11 +22,13 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // and answers on the same path with the same header, so anything below 2 or
     // at 3 and above is a different application rather than an old one.
     whisparr: '2.0.0',
-    // 3.0.0 is where Lidarr moved to .NET 8 and dropped Basic Auth. The API
-    // surface this adapter reads is the same across 2.x and 3.x, so a lower
-    // floor would admit more installs — but nothing here has read a 2.x
-    // instance, and a floor cannot exceed what a capture can prove.
-    lidarr: '3.0.0',
+    // 2.1.3 is the oldest release this adapter was exercised against: both
+    // write endpoints were captured on 2.1.3.3927, the read fixtures come from
+    // 3.1.6.5079, and a volunteer ran the reads and writes on 2.1.3.3927 and
+    // 3.1.0.4875. 2.1.3 is also where `/history` stops ignoring `artistIds`,
+    // which a per-artist history read will need. Nothing older was tested, and
+    // a floor cannot exceed what a capture can prove.
+    lidarr: '2.1.3',
     // v1 API; Prowlarr never had a v3.
     prowlarr: '1.0.0',
     // `{ data: … }` envelope on /api/system/status.

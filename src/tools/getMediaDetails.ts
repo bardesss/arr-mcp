@@ -27,7 +27,7 @@ export async function buildGetMediaDetails(
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
     if (!hasMediaDetails(adapter)) {
         throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no media details to return`, {
-            remedy: 'Only radarr, sonarr and jellyfin can answer get_media_details.'
+            remedy: 'Only radarr, sonarr, lidarr and jellyfin can answer get_media_details.'
         });
     }
 

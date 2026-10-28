@@ -112,9 +112,9 @@ async function resolveItem(
         // the other (a series id would scan only movie keys and never find
         // it). `undefined` here makes `find` scan both, exactly as it already
         // does for every caller that does not know the kind in advance.
-        const searchKind = details.kind === 'item' ? undefined : details.kind;
+        const searchKind = details.kind === 'movie' || details.kind === 'series' ? details.kind : undefined;
         const joined = snapshot.index.find(details.ids, searchKind);
-        // An album is indexed under its MusicBrainz GUID, so a media-server id
+        // An artist is indexed under its MusicBrainz GUID, so a media-server id
         // can never reach one. The predicate is here to say that out loud to
         // the compiler, not because the case is reachable.
         if (joined !== undefined && isFilmOrSeries(joined)) return joined;
@@ -125,11 +125,10 @@ async function resolveItem(
         // when the caller just handed us its id.
         //
         // `searchKind` (not a fresh coercion) decides the synthesised kind
-        // too: for Radarr/Sonarr it is the kind they actually reported: for
-        // Jellyfin's ambiguous 'item' — reachable only when *no* index entry
-        // matched under either kind — there is no signal left to disambiguate,
-        // so 'movie' is the least-committal default already implied by
-        // `MergedItem.kind` having no third option.
+        // too: for Radarr/Sonarr it is the kind they actually reported. A
+        // media-server 'item' and a Lidarr 'artist' both leave no signal to
+        // disambiguate, and this chain reads films and series, so 'movie' is
+        // the least-committal default.
         //
         // A media server contributes watch state and never acquisition, so it
         // is the capability that decides the shape, not the service's name —

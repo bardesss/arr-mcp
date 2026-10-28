@@ -626,6 +626,25 @@ export function logTable(rows: LogRow[]): SafeHtml {
  * A row that does not parse is shown verbatim rather than dropped. This is a
  * log: something unexpected in it is a reason to display it, not to hide it.
  */
+/**
+ * One recorded argument, kept short enough to read.
+ *
+ * A bulk write names every id it touched: `set_monitoring` on all artists of a
+ * 1,578-artist Lidarr carries about 11 KB of ids, and this page renders 300
+ * rows at once. Printing them made one row push the page into megabytes, which
+ * is the same failure mode the field-per-argument split was introduced to fix.
+ * The row keeps the full list; only this rendering is bounded.
+ */
+const ARG_TEXT_LIMIT = 160;
+
+function argValue(value: unknown): string {
+    if (typeof value === 'string') return value;
+    const text = JSON.stringify(value) ?? String(value);
+    if (text.length <= ARG_TEXT_LIMIT) return text;
+    if (Array.isArray(value)) return `[${value.length} items] ${JSON.stringify(value.slice(0, 3)).slice(0, ARG_TEXT_LIMIT)}…`;
+    return `${text.slice(0, ARG_TEXT_LIMIT)}…`;
+}
+
 function argFields(args: string): SafeHtml {
     let parsed: unknown;
     try {
@@ -642,9 +661,8 @@ function argFields(args: string): SafeHtml {
     if (entries.length === 0) return html`<dt>Arguments</dt><dd class="dim">none</dd>`;
 
     return html`${entries.map(
-        ([key, value]) =>
-            html`<dt class="mono">${key}</dt>
-                <dd class="mono">${typeof value === 'string' ? value : JSON.stringify(value)}</dd>`
+        ([key, value]) => html`<dt class="mono">${key}</dt>
+                <dd class="mono">${argValue(value)}</dd>`
     )}`;
 }
 

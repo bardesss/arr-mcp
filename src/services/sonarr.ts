@@ -508,8 +508,6 @@ export class SonarrAdapter
         this.#libraryCache.clear();
     }
 
-    /** Profile id → fenced name, cached beside the library read. Empty on
-     *  failure — see Radarr's copy of this. */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 

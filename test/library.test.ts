@@ -457,34 +457,41 @@ describe('a secondary media server', () => {
             { primaryId: 'jellyfin', secondary: { id: 'plex', identity: plexIdentity } }
         );
 
-    it('stamps no media_servers on an album, which no server was asked about', async () => {
-        // Albums carry a MusicBrainz id and never a playback half. Reporting
-        // `present: false` for one would be the same false claim `presence`
-        // refuses to make, and `get_library`'s `missing_from` reads it as
-        // "this server does not have it" — so the filter would list every
-        // album in the library.
-        const album = (mbid: string): IndexInput => ({
-            kind: 'album',
-            title: 'Random Access Memories',
-            artist: 'Daft Punk',
+    /**
+     * Music reads separately from films, and the secondary's music is not read
+     * at all. Stamping `present: false` from a read that never ran is the false
+     * claim `missing_from` would read as "this server does not have it".
+     */
+    it('stamps an artist from the music read only, and only when it ran', async () => {
+        const artist = (mbid: string): IndexInput => ({
+            kind: 'artist',
+            title: 'Daft Punk',
             ids: { mbid },
             acquisition: { service: 'lidarr', monitored: true, hasFile: false }
         });
-        const withMusic = () =>
+        const load = (music: IndexInput[] | undefined) =>
             new LibraryLoader(
-                [stub('lidarr', { listLibrary: async () => [album('mb-1')] }), jellyfin({ Someone: [] }), plex([])],
+                [
+                    stub('lidarr', { listLibrary: async () => [artist('mb-1')] }),
+                    stub('jellyfin', {
+                        listUserLibrary: async () => [],
+                        ...(music === undefined ? {} : { listUserMusic: async () => music })
+                    }),
+                    plex([])
+                ],
                 identity(someone),
                 new TtlCache(),
                 undefined,
                 { primaryId: 'jellyfin', secondary: { id: 'plex', identity: identity(other) } }
-            );
+            ).load();
 
-        const { index } = await withMusic().load();
-        const row = index.find({ mbid: 'mb-1' });
+        const asked = await load([]);
+        expect(asked.index.find({ mbid: 'mb-1' })?.media_servers).toEqual({ jellyfin: { present: false } });
+        expect(asked.index.find({ mbid: 'mb-1' })?.presence).toBe('arr_only');
 
-        expect(row?.kind).toBe('album');
-        expect(row?.media_servers).toBeUndefined();
-        expect(row?.presence).toBe('unknown');
+        const neverAsked = await load(undefined);
+        expect(neverAsked.index.find({ mbid: 'mb-1' })?.media_servers).toEqual({});
+        expect(neverAsked.index.find({ mbid: 'mb-1' })?.presence).toBe('unknown');
     });
 
     it('marks what each server has, with its own item id', async () => {

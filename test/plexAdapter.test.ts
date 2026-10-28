@@ -421,6 +421,45 @@ describe('PlexAdapter', () => {
         const page = (items: unknown[]) => ({ MediaContainer: { Metadata: items } });
         const withPaging = (start: number, extra = '') => `?${extra}includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=500`;
 
+        /**
+         * The music half, against an inline body: no Plex music section was
+         * available to capture from, so `test/fixtures/plex/section-artists.json`
+         * does not exist yet. What is pinned here is the guid mapping the join
+         * rests on, and the absence of a watch state for an artist.
+         */
+        it('reads artists from a music section, joined on the mbid guid', async () => {
+            const withMusic = {
+                MediaContainer: {
+                    Directory: [{ key: '1', type: 'movie' }, { key: '3', type: 'artist' }]
+                }
+            };
+            const { adapter } = plex({
+                '/library/sections': withMusic,
+                [`/library/sections/3/all?type=8&includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=500`]: page([
+                    {
+                        ratingKey: 'a1',
+                        title: 'Daft Punk',
+                        Guid: [{ id: 'mbid://056e4f3e-d505-4dad-8ec1-d04f521cbb56' }]
+                    },
+                    { ratingKey: 'a2', title: 'No Tag' }
+                ])
+            });
+
+            const items = await adapter.listUserMusic({ id: '1', name: 'Bartus' });
+
+            expect(items.map(i => i.kind)).toEqual(['artist', 'artist']);
+            expect(items[0]?.ids).toEqual({ mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' });
+            expect(items[1]?.ids).toEqual({});
+            expect(items[0]?.playback).toEqual({ user: 'Bartus', itemId: 'a1' });
+            expect(items[0]?.playback).not.toHaveProperty('watched');
+        });
+
+        it('reads no artists when Plex has no music section', async () => {
+            const { adapter } = plex({ '/library/sections': SECTIONS });
+
+            expect(await adapter.listUserMusic({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+
         it('contributes items from both a movie section and a show section', async () => {
             const { adapter } = plex({
                 '/library/sections': SECTIONS,

@@ -176,16 +176,19 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
 }
 
 /**
- * The same refusal for music, asked only when the caller named `kind: "album"`.
+ * The same refusal for music, asked only when the caller named `kind: "artist"`.
  *
- * With a kind, the caller has said the question is about albums, so a filter no
- * album can satisfy is a stated gap rather than an answer — the lesson
- * `rejectImpossibleFilters` exists for. Without a kind these filters drop
- * albums through the normal absent-field path, except `watched: false`, which
- * keeps them: an album has no watch state, so it reads as unwatched.
+ * With a kind, the caller has said the question is about artists, so a filter no
+ * artist can satisfy is a stated gap rather than an answer — the lesson
+ * `rejectImpossibleFilters` exists for. Without a kind these filters drop music
+ * through the normal absent-field path, except `watched: false`, which keeps it:
+ * an artist has no watch state, so it reads as unwatched.
+ *
+ * `presence` is deliberately absent from this list. An artist joins to a media
+ * server on the MusicBrainz artist id, so it holds a real presence value.
  */
 function rejectFilmFiltersOnMusic(opts: LibraryQuery): void {
-    if (opts.kind !== 'album') return;
+    if (opts.kind !== 'artist') return;
 
     if (
         opts.quality !== undefined ||
@@ -194,25 +197,12 @@ function rejectFilmFiltersOnMusic(opts: LibraryQuery): void {
         opts.sort === 'rating'
     ) {
         throw new Error(
-            'An album carries no rating here and no per-album quality. Lidarr does return a MusicBrainz album rating, but nothing in this tool reads it. Drop quality, min_rating, rating_source and sort: "rating".'
+            'An artist carries no rating here and no item-level quality, only the quality profile Lidarr grabs against. Drop quality, min_rating, rating_source and sort: "rating".'
         );
     }
     if (opts.watched !== undefined || opts.watched_by !== undefined) {
         throw new Error(
-            'No watch state is read for music, so `watched` would report every album as unwatched. Drop it, or ask without kind: "album".'
-        );
-    }
-    // `unknown` is the only value an album can hold, so it is the one value
-    // that is worth accepting. The other three describe a media-server half
-    // that no music read produces.
-    if (opts.presence !== undefined && opts.presence !== 'unknown') {
-        throw new Error(
-            `Every album reports presence "unknown": no media server half is read for music, so "${opts.presence}" would match nothing. Use "unknown", or drop \`presence\`.`
-        );
-    }
-    if (opts.sort === 'added') {
-        throw new Error(
-            'Lidarr reports no added date for an album, so sort: "added" would return nothing. Sort by title or year instead.'
+            'No watch state is read for music, so `watched` would report every artist as unwatched. Drop it, or ask without kind: "artist".'
         );
     }
 }
@@ -260,11 +250,8 @@ const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
         return {
             kind: item.kind,
             title: item.title,
-            // The artist is not decoration on an album: a title alone does not
-            // identify one, and two artists can share an album title.
-            ...(item.artist === undefined ? {} : { artist: item.artist }),
-            ...(item.artistId === undefined ? {} : { artistId: item.artistId }),
             ...(item.year === undefined ? {} : { year: item.year }),
+            ...(item.albumCount === undefined ? {} : { albumCount: item.albumCount }),
             ids: item.ids,
             presence: item.presence,
             ...(item.media_servers === undefined ? {} : { media_servers: item.media_servers })
@@ -325,10 +312,8 @@ export function libraryLine(item: MergedItem): string {
     if (item.acquisition?.hasFile === false) facts.push('no file');
     if (item.playback?.watched === true) facts.push('watched');
 
-    // The artist sits beside the title rather than in the facts list: "Discovery"
-    // alone does not identify an album, and the reader scans the title first.
-    const artist = item.artist === undefined ? '' : ` — ${item.artist}`;
-    return `${item.title}${artist}${item.year === undefined ? '' : ` (${item.year})`} — ${facts.join(', ')}`;
+    if (item.albumCount !== undefined) facts.push(`${item.albumCount} albums`);
+    return `${item.title}${item.year === undefined ? '' : ` (${item.year})`} — ${facts.join(', ')}`;
 }
 
 export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery): Promise<GetLibraryResult> {
@@ -456,7 +441,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     )
             }),
             inputSchema: toolInput({
-                kind: z.enum(['movie', 'series', 'album']).optional().describe('Films, series, or Lidarr albums. Omit for all three.'),
+                kind: z.enum(['movie', 'series', 'artist']).optional().describe('Films, series, or Lidarr artists. Omit for all three.'),
                 year: z.number().int().optional(),
                 genre: z.string().min(1).optional().describe('Matched case-insensitively against the *arr genres.'),
                 monitored: z.boolean().optional(),
@@ -464,7 +449,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     .boolean()
                     .optional()
                     .describe(
-                        'Whether a file is actually on disk. For an album this means any track is on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
+                        'Whether a file is actually on disk. For an artist this means any track of any of its albums is on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
                     ),
                 watched: z.boolean().optional().describe('The media server\'s watch state. Items it has never seen count as unwatched. Pair with `user` to ask about someone else.'),
                 user: UserSchema,
@@ -491,7 +476,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     .enum(['both', 'arr_only', 'jellyfin_only', 'unknown'])
                     .optional()
                     .describe(
-                        'both / arr_only (possible broken import) / jellyfin_only (unmanaged media — the value keeps this name whichever media server is configured) / unknown (media server degraded or unconfigured — arr_only cannot be asserted, and every album is unknown because no media server half is read for music).' +
+                        'both / arr_only (possible broken import) / jellyfin_only (unmanaged media — the value keeps this name whichever media server is configured) / unknown (media server degraded or unconfigured, so arr_only cannot be asserted; for an artist it also means the music read did not run).' +
                             withBoth(mediaServerIds, 'With two media servers, measured against the primary.')
                     ),
                 ...(mediaServerIds === undefined
@@ -508,7 +493,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     .enum(SORT_FIELDS)
                     .optional()
                     .describe(
-                        'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages and every album, neither of which has an added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
+                        'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages, which has no added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
                     ),
                 detail: DetailSchema,
                 limit: LimitSchema,

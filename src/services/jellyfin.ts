@@ -88,9 +88,15 @@ type RawSession = {
     PlayState?: { PositionTicks?: number };
 };
 type RawItemsPage = { Items?: RawItem[] };
+/** The paged shape when `Fields=` are requested: those attach to the detail type. */
+type RawDetailPage = { Items?: RawItemDetail[] };
 
 /** Jellyfin measures time in 100-nanosecond ticks. Nothing else in the stack does. */
 const TICKS_PER_SECOND = 10_000_000;
+
+/** Album artists are paged: a large music library has thousands, and one
+ *  unpaged read would be the slowest call in a library build. */
+const MUSIC_PAGE_SIZE = 500;
 const ticksToSeconds = (ticks: number | undefined): number | undefined =>
     typeof ticks === 'number' ? Math.round(ticks / TICKS_PER_SECOND) : undefined;
 
@@ -101,7 +107,8 @@ type RawItemDetail = {
     Overview?: string;
     Path?: string;
     Type?: string;
-    ProviderIds?: { Tmdb?: string; Tvdb?: string; Imdb?: string };
+    /** `MusicBrainzArtist` is what joins an album artist to Lidarr. */
+    ProviderIds?: { Tmdb?: string; Tvdb?: string; Imdb?: string; MusicBrainzArtist?: string };
     MediaSources?: { Size?: number }[];
     Genres?: string[];
     UserData?: { Played?: boolean; PlayCount?: number; LastPlayedDate?: string };
@@ -460,6 +467,49 @@ export class JellyfinAdapter
                 }
             };
         });
+    }
+
+    /**
+     * The user's album artists, one row each, joined to Lidarr on the
+     * MusicBrainz artist id.
+     *
+     * Its own read, and its own source in a library build, so a Jellyfin whose
+     * music half fails does not take films and series down with it — and so
+     * `musicGathered` can say which half was missing rather than claiming
+     * every artist is `arr_only`.
+     *
+     * `/Artists/AlbumArtists` rather than `/Items?IncludeItemTypes=...`,
+     * because an album artist is not a library item type: it is the set
+     * Jellyfin derives from the albums it holds, and it is the only read that
+     * exposes `ProviderIds.MusicBrainzArtist` for one. `playback` carries the
+     * server's own id and no watch state — music watch state is not read here,
+     * and a `watched: false` invented from that silence would be a claim
+     * nobody made.
+     */
+    async listUserMusic(user: ServiceUser): Promise<IndexInput[]> {
+        const out: IndexInput[] = [];
+        for (let start = 0; ; start += MUSIC_PAGE_SIZE) {
+            const page = await this.#http.get<RawDetailPage>(
+                `/Artists/AlbumArtists?userId=${encodeURIComponent(user.id)}&Recursive=true` +
+                    `&Fields=ProviderIds&Limit=${MUSIC_PAGE_SIZE}&StartIndex=${start}`
+            );
+            const items = page.Items ?? [];
+            out.push(
+                ...items.map(i => {
+                    const mbid = i.ProviderIds?.MusicBrainzArtist;
+                    return {
+                        kind: 'artist' as const,
+                        title: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
+                        ids: mbid === undefined || mbid === '' ? {} : { mbid },
+                        playback: {
+                            user: user.name,
+                            ...(i.Id === undefined ? {} : { itemId: i.Id })
+                        }
+                    };
+                })
+            );
+            if (items.length < MUSIC_PAGE_SIZE) return out;
+        }
     }
 
     /**

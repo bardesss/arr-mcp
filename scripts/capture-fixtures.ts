@@ -807,6 +807,27 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: neutraliseWatchState
         },
         {
+            name: 'album-artists',
+            /**
+             * The music half of a library build, and the only Jellyfin read that
+             * publishes `ProviderIds.MusicBrainzArtist` for an album artist —
+             * which is what joins music to Lidarr.
+             *
+             * **Not captured yet.** No machine this was written on has a
+             * Jellyfin music library, so `test/fixtures/jellyfin/album-artists.json`
+             * does not exist. Run `npm run capture -- jellyfin` on a server with
+             * music, then add the fixture and a contract entry. Until then the
+             * read is unexercised against a real service, which the PR says.
+             */
+            path: captured => {
+                const users = captured.get('users');
+                const id = Array.isArray(users) ? (users[0] as { Id?: string } | undefined)?.Id : undefined;
+                return id === undefined
+                    ? undefined
+                    : `/Artists/AlbumArtists?userId=${id}&Recursive=true&Fields=ProviderIds&Limit=20&StartIndex=0`;
+            }
+        },
+        {
             name: 'resume',
             // getPlayback's resumable half. Per-user like items-library, and
             // from the same users[0] — if that user happens to have nothing in
@@ -1019,6 +1040,31 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         //
         // Show sections only. A movie section holds no episodes, and the walk
         // would skip with "needs an id" on a server full of TV.
+        {
+            name: 'section-artists',
+            /**
+             * Artists from a music section, the read that joins a Plex library to
+             * Lidarr on `mbid://`.
+             *
+             * **Not captured yet**, for the same reason as Jellyfin's
+             * `album-artists`: no music library was available here. Run
+             * `npm run capture -- plex` on a server with a music section, then
+             * add `test/fixtures/plex/section-artists.json` and a contract entry.
+             */
+            fetch: async http => {
+                const sections = await http.get<unknown>('/library/sections');
+                const dirs = (sections as { MediaContainer?: { Directory?: { key?: unknown; type?: unknown }[] } })
+                    .MediaContainer?.Directory;
+                const music = (Array.isArray(dirs) ? dirs : []).find(
+                    (d): d is { key: string; type?: unknown } => d.type === 'artist' && typeof d.key === 'string'
+                );
+                if (music === undefined) return undefined;
+                const path =
+                    `/library/sections/${music.key}/all?type=8&includeGuids=1` +
+                    '&X-Plex-Container-Start=0&X-Plex-Container-Size=20';
+                return { path, body: await http.get<unknown>(path) };
+            }
+        },
         {
             name: 'section-episodes',
             fetch: async (http, captured) => {

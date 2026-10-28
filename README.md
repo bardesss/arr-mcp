@@ -178,8 +178,11 @@ Thirty-eight tools, but you never name them — you ask, and the model picks:
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server 1.32+,
   Seerr 1.0+, SABnzbd 3.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+
-- Lidarr 3.0+ is read-only: `get_library` lists its albums with their artist,
-  monitoring and file state, and nothing writes to it.
+- Lidarr 2.1.3+ for reading and for monitoring: `get_library` lists its artists
+  with their album count, monitoring and file state, `get_media_details` lists an
+  artist's albums, and `set_monitoring` writes one album's flag or an artist's
+  policy. Artists join to Jellyfin and Plex on the MusicBrainz artist id. No
+  queue, history, wanted list or release search.
 - Docker, or Node 24+ to run from source
 - An MCP client speaking protocol revision `2026-07-28`
 
@@ -200,9 +203,11 @@ request — [which services qualify](CONTRIBUTING.md#which-services-qualify). An
 it against your own live instance and the PR says what you tested and against
 which version.
 
-**One adapter remains unverified: qBittorrent.** The maintainer runs neither
-Plex nor qBittorrent — testing means running a build against your own server
-and reporting what worked. [Plex](../../issues/180) has since been verified
+**Two things remain unverified: qBittorrent, and Lidarr's music reads.** The
+maintainer runs neither Plex nor qBittorrent, and has no Jellyfin or Plex music
+library to capture against, so the album-artist read is written from a tested
+endpoint shape and no capture. Testing means running a build against your own
+server and reporting what worked. [Plex](../../issues/180) has since been verified
 against two live Plex Media Servers by two volunteer testers, its first write
 included, and its metadata repair has since repaired both films and series on a
 live server ([#312](../../issues/312)); [qBittorrent](../../issues/147) has shipped but still waits on the

@@ -8,9 +8,9 @@ off until you turn them on — see [writes](writes.md).
 | `diagnose` | Why is this not playable? |
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
 | `search_media` | What do I have, what exists, what can I get? |
-| `get_media_details` | Everything about one item |
+| `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files |
-| `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree; Lidarr albums are listed as their own kind |
+| `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across all four download paths |
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd and Bazarr did |
@@ -26,7 +26,7 @@ off until you turn them on — see [writes](writes.md).
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
 | `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, or put a mislabeled Sonarr file on the right episode |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
-| `set_monitoring` | Turn Sonarr or Whisparr monitoring on or off — a whole series, one season, or specific episodes |
+| `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `clean_queue` | Clear out completed downloads whose film or series no longer exists |
 | `delete_media` | Remove this film or series, optionally from disk |
@@ -126,7 +126,7 @@ revision every list result carries a `ttlMs`, and `tools/list`,
 are static by construction: every tool, prompt and resource is registered
 unconditionally, so nothing a configuration edit does can change what is in
 them. A client that honours the hint stops reloading the whole surface every
-session. The three resources are different — each carries its own hint, and
+session. The four resources are different, each carries its own hint, and
 `arr://health`'s is deliberately zero, because a pinned health snapshot
 saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
@@ -268,9 +268,11 @@ and, under `playback`, `itemId` — the media server's own id, which is what
 `media_servers.jellyfin.itemId` instead, as
 [below](#which-media-server-has-it).
 
-**An album's `acquisition.id` is Lidarr's album id, and no tool accepts it.**
-Lidarr is read-only here and cannot search releases, so an album id is for
-matching a row across calls, not for acting on anything.
+**An artist's `acquisition.id` is Lidarr's artist id**, which `set_monitoring`
+takes with `level: "artist"`. An album id is not on a library row at all: take it
+from `get_media_details` on the artist, and pass it with `level: "album"`. Lidarr
+cannot search releases here, so neither id works with `get_releases` or
+`grab_release`.
 
 Before this, a caller had the external ids and nothing a write would accept,
 so answering "delete this" meant a second `search_media(source: "library")` hop
@@ -304,35 +306,38 @@ an empty list. Asking for one that needs the dataset says so in
 
 ### Music, from Lidarr
 
-Lidarr adds a third `kind`, `album`, and it is the only kind with no
-media-server half.
+Lidarr adds a third `kind`, `artist`, and it joins to a media server on the
+MusicBrainz artist id — the one id both Jellyfin and Plex publish for an artist.
 
-| Field | Meaning for an album |
+| Field | Meaning for an artist |
 | --- | --- |
-| `title` | The album title |
-| `artist` | The artist name, fenced like every other service string. Load-bearing: two artists can name an album the same thing |
-| `ids.mbid` | The album's MusicBrainz id, and the only external id Lidarr reports |
-| `acquisition.status` | Lidarr's album type — `Album`, `EP`, `Single` — passed through. Lidarr has no run status to report |
-| `acquisition.hasFile` | At least one track is on disk, the same meaning `has_file` has for a series. A half-imported album therefore reads as present; Lidarr's own `percentOfTracks` is the completeness figure, and this row does not carry it |
-| `acquisition.path` | The artist's folder. Every album by that artist reports the same one: Lidarr keeps the album one level below, and no field here carries that |
-| `presence` | Always `unknown`. No music read exists for Jellyfin or Plex, so `arr_only` would claim a server looked and did not find it |
+| `title` | The artist name, fenced like every other service string |
+| `ids.mbid` | The artist's MusicBrainz id: Lidarr's `foreignArtistId`, Jellyfin's `ProviderIds.MusicBrainzArtist`, Plex's `mbid://` guid. Matched case-insensitively |
+| `albumCount` | How many albums Lidarr holds for the artist. The albums themselves are in `get_media_details` |
+| `acquisition.id` | Lidarr's artist id, which `set_monitoring` takes with `level: "artist"` |
+| `acquisition.status` | Lidarr's own artist status — `continuing` or `ended` — passed through |
+| `acquisition.addedAt` | When Lidarr added the artist, so `sort: "added"` works |
+| `acquisition.hasFile` | At least one track of any album is on disk, the same meaning `has_file` has for a series |
+| `acquisition.path` | The artist's folder |
+| `presence` | `both`, `arr_only`, `jellyfin_only` or `unknown`, read exactly as for a film. A media server whose music read did not run reports `unknown`, never `arr_only` |
 
-An album carries **no** `addedAt`, no rating and no per-album quality, so
-`sort: "added"`, `min_rating`, `rating_source`, `sort: "rating"`, `quality`
-and `watched` are refused when `kind: "album"` names the question. Without a
-kind they drop albums, which is what an absent field means everywhere else here
-— with one exception worth knowing: `watched: false` **keeps** them, because an
-album has no watch state and so counts as unwatched. `presence` refuses
-`both`/`arr_only`/`jellyfin_only`, and accepts `unknown`, the only value an
-album can hold.
+An artist carries **no** rating and no item-level quality, so `min_rating`,
+`rating_source`, `sort: "rating"` and `quality` are refused when `kind:
+"artist"` names the question. Without a kind they drop artists, which is what an
+absent field means everywhere else here. Two exceptions are worth knowing:
+`watched: false` **keeps** them, because an artist has no watch state and so
+counts as unwatched, and `sort: "added"` works, because Lidarr reports an added
+date for an artist where it reports none for an album.
 
-An artist-level question is a filter on `artist`, not a second kind: an artist
-row would duplicate the album counts and carry no file state of its own.
+**Album ids are one call down.** `get_media_details` on an artist returns its
+`albums`, each with the Lidarr album `id` that `set_monitoring` takes with `level:
+"album"`. Nothing in `get_library` returns an album id, because the library does
+not row on albums.
 
-`search_media` with `source: "library"` finds an album by **title or artist** —
-"do I have any Daft Punk" is a library question. `source: "discover"` returns
-nothing from Lidarr: its lookup endpoints answer with artists to add, and
-nothing here adds music.
+`search_media` with `source: "library"` finds an artist by **name** — "do I have
+any Daft Punk" is a library question, and the artist row answers it.
+`source: "discover"` returns nothing from Lidarr: its lookup endpoints answer
+with artists to add, and nothing here adds music.
 
 ### Sorting
 
@@ -1593,7 +1598,8 @@ is set to — `quality_profile`, `root_folder`, `monitored`, `tags`, Radarr's
 `minimum_availability`, Sonarr's `series_type`.
 
 It is also **the only way to change a Radarr item's monitoring**.
-`set_monitoring` is Sonarr's per-season tool and has never covered films.
+`set_monitoring` is Sonarr's per-season tool and has never covered films. It
+refuses Lidarr too, where monitoring is set through `set_monitoring` itself.
 
 Takes `service` and `id`, never a title — `acquisition.id` on a `get_library`
 or `get_media_details` record. `stack_health` at `detail: "full"` lists the
@@ -1629,13 +1635,14 @@ people actually ask are rarely one call.
 | `best_in_library` | What's the best thing I own? |
 | `whats_new` | What happened this week? |
 
-**Three resources**, which a client can attach once rather than re-fetch:
+**Four resources**, which a client can attach once rather than re-fetch:
 
 | Resource | Holds |
 | --- | --- |
 | `arr://instances` | Every instance id and what it may do — the values other tools accept as `instance` |
 | `arr://health` | A stack verdict, stamped with when it was taken |
 | `arr://library/summary` | Total, on disk, still wanted |
+| `arr://lidarr/monitoring` | Every Lidarr artist's monitoring policy: who will keep discovering albums, and who carries the artist flag |
 
 **Client support for both is uneven, so nothing is reachable only through
 them.** A prompt is a sequence of tool calls the model could have made anyway,

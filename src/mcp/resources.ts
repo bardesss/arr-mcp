@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { logger } from '../core/logger.ts';
 import { hasArtistMonitor } from '../services/types.ts';
+import type { ArtistMonitorCapable, ServiceAdapter } from '../services/types.ts';
 import type { ToolContext } from '../tools/register.ts';
 import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
@@ -58,6 +59,17 @@ const stamped = (body: Record<string, unknown>): string =>
 const json = (uri: URL, body: Record<string, unknown>) => ({
     contents: [{ uri: uri.href, mimeType: 'application/json', text: stamped(body) }]
 });
+
+/** The Lidarr adapter, and only when it can answer for artist policies.
+ *
+ * Both branches below ask whether Lidarr can explain music, not merely whether
+ * a `lidarr` entry exists: an adapter that cannot list artist policies has no
+ * music rows to account for and no policy to report. Keeping one predicate
+ * stops the summary and the monitoring resource disagreeing about what
+ * "configured" means.
+ */
+const lidarrWithPolicies = (adapters: readonly ServiceAdapter[]): (ServiceAdapter & ArtistMonitorCapable) | undefined =>
+    adapters.find((a): a is ServiceAdapter & ArtistMonitorCapable => a.type === 'lidarr' && hasArtistMonitor(a));
 
 export function registerAllResources(server: McpServer, context: ToolContext): void {
     const { adapters, instances, library } = context;
@@ -151,7 +163,13 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
                 // will be. Read as a library size that is a number no owner would
                 // recognise as theirs, so `monitored` sits beside it and the note
                 // says which of the two is the library.
+                //
+                // The Lidarr sentence is conditional. Unmonitored rows with no
+                // Lidarr configured came from somewhere else, and naming Lidarr
+                // as the usual source would send the reader to a service they do
+                // not run.
                 const unmonitored = all.total - monitored.total;
+                const lidarrConfigured = lidarrWithPolicies(adapters) !== undefined;
                 return json(uri, {
                     total: all.total,
                     monitored: monitored.total,
@@ -164,9 +182,12 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
                         : {
                               note:
                                   `total counts every row the services hold, and ${unmonitored} of them are unmonitored: ` +
-                                  'nothing is pending on those and nothing will be. Lidarr is the usual source — it imports ' +
-                                  "an artist's whole discography as catalog and monitors only part of it. `monitored` is " +
-                                  'what the services are actually watching.'
+                                  'nothing is pending on those and nothing will be. ' +
+                                  (lidarrConfigured
+                                      ? 'Lidarr is the usual source — it imports '
+                                          + "an artist's whole discography as catalog and monitors only part of it. "
+                                      : '') +
+                                  '`monitored` is what the services are actually watching.'
                           })
                 });
             } catch (err) {
@@ -212,13 +233,14 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
             cacheHint: { ttlMs: MONITORING_TTL_MS, cacheScope: 'private' }
         },
         async uri => {
-            const lidarr = adapters.find(a => a.type === 'lidarr');
-            if (lidarr === undefined || !hasArtistMonitor(lidarr)) {
+            const lidarr = lidarrWithPolicies(adapters);
+            if (lidarr === undefined) {
                 // Absent, not zero: holding no artists and having no Lidarr at all
                 // are different facts, and only one of them is a config problem.
                 return json(uri, {
                     configured: false,
-                    note: 'No Lidarr instance is configured, so there is no music monitoring policy to read.'
+                    note:
+                        'No Lidarr with artist monitoring is configured, so there is no music monitoring policy to read.'
                 });
             }
 
@@ -236,21 +258,28 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
                 // settled is the confidently-wrong answer this file keeps
                 // refusing to give.
                 const autoMonitoring = (byPolicy['all'] ?? 0) + (byPolicy['new'] ?? 0) + (byPolicy['unknown'] ?? 0);
+                const empty = policies.length === 0;
 
                 return json(uri, {
                     configured: true,
                     artists: policies.length,
                     monitor_new_items: byPolicy,
                     artist_flag: { monitored: flagged, unmonitored: policies.length - flagged },
-                    stable: policies.length > 0 && autoMonitoring === 0,
-                    note:
-                        autoMonitoring === 0
-                            ? "No artist will monitor an album it discovers later, so the wanted list cannot grow by itself. " +
-                              "The artist-level flag is separate from an album's own: read arr://library/summary for what is " +
-                              'still pending.'
-                            : `${autoMonitoring} artist(s) will keep monitoring albums they discover later, or report no `
-                              + 'readable policy. Unmonitoring albums under those artists is a treadmill until the policy '
-                              + 'changes — set_monitoring with level: "artist" does it.'
+                    // An empty artist list is stable in the only sense this field
+                    // reports: nothing in it can grow the wanted list by itself.
+                    // `false` beside a note saying nothing will grow was the one
+                    // pair a reader could not reconcile.
+                    stable: empty || autoMonitoring === 0,
+                    note: empty
+                        ? 'This Lidarr holds no artists, so it reports no monitoring policy and nothing here can grow ' +
+                          'the wanted list by itself. Check that it holds the artists you expect.'
+                        : autoMonitoring === 0
+                          ? "No artist will monitor an album it discovers later, so the wanted list cannot grow by itself. " +
+                            "The artist-level flag is separate from an album's own: read arr://library/summary for what is " +
+                            'still pending.'
+                          : `${autoMonitoring} artist(s) will keep monitoring albums they discover later, or report no `
+                            + 'readable policy. Unmonitoring albums under those artists is a treadmill until the policy '
+                            + 'changes — set_monitoring with level: "artist" does it.'
                 });
             } catch (err) {
                 logger.warn({ err }, 'lidarr monitoring policy resource degraded');

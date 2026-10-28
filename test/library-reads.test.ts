@@ -3,7 +3,7 @@ import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/s
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
-import { hasLibrary, hasUserLibrary, hasUserSeasons } from '../src/services/types.ts';
+import { hasLibrary, hasUserLibrary, hasUserMusic, hasUserSeasons } from '../src/services/types.ts';
 import { jsonResponse, serving } from './helpers/serve.ts';
 
 const keyed: KeyedServiceConfig = {
@@ -282,6 +282,48 @@ describe('Sonarr library cache', () => {
         await sonarr.search('some', 'discover');
 
         expect(fetches()).toBe(2);
+    });
+});
+
+/**
+ * The music half, exercised against an inline body rather than a committed
+ * fixture: no music library was available to capture from, so
+ * `test/fixtures/jellyfin/album-artists.json` does not exist yet. These tests
+ * pin the mapping — the MusicBrainz id and the absence of a watch state — which
+ * is what the join and `presence` rest on.
+ */
+describe('Jellyfin.listUserMusic', () => {
+    const path = '/Artists/AlbumArtists?userId=u1&Recursive=true&Fields=ProviderIds&Limit=500&StartIndex=0';
+    const ARTISTS = {
+        Items: [
+            { Id: 'j-artist-1', Name: 'Daft Punk', ProviderIds: { MusicBrainzArtist: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' } },
+            { Id: 'j-artist-2', Name: 'No Tag', ProviderIds: {} }
+        ]
+    };
+    const adapter = () => new JellyfinAdapter(multi, serving({ [path]: ARTISTS }));
+    const user = { id: 'u1', name: 'Someone' };
+
+    it('is discoverable through its own capability guard', () => {
+        expect(hasUserMusic(adapter())).toBe(true);
+    });
+
+    it('maps the MusicBrainz artist id, which is the whole point of the read', async () => {
+        const items = await adapter().listUserMusic(user);
+        expect(items[0]).toMatchObject({
+            kind: 'artist',
+            ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' },
+            playback: { user: 'Someone', itemId: 'j-artist-1' }
+        });
+    });
+
+    it('invents no id when Jellyfin has no MusicBrainz tag', async () => {
+        const items = await adapter().listUserMusic(user);
+        expect(items[1]?.ids).toEqual({});
+    });
+
+    it('claims no watch state, because this read does not ask for one', async () => {
+        const items = await adapter().listUserMusic(user);
+        for (const item of items) expect(item.playback).not.toHaveProperty('watched');
     });
 });
 

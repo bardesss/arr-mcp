@@ -23,13 +23,13 @@ const film = (title: string, tmdb: number, hasFile: boolean): IndexInput => ({
 
 const LIBRARY: IndexInput[] = [film('Have it', 1, true), film('Waiting', 2, false)];
 
-const radarr = (): ServiceAdapter =>
+const radarr = (library: IndexInput[] = LIBRARY): ServiceAdapter =>
     ({
         id: 'radarr/4k',
         type: 'radarr',
         testConnection: async () => ({ ok: true, service: 'radarr/4k', latency_ms: 1, version: '5.0.0' }),
         getVersion: async () => '5.0.0',
-        listLibrary: async () => LIBRARY
+        listLibrary: async () => library
     }) as unknown as ServiceAdapter;
 
 const instance = (id: string, safe_write: boolean, destructive: boolean): ServiceInstance =>
@@ -62,11 +62,11 @@ const lidarrOn = (policies = POLICIES): ServiceAdapter =>
         setArtistMonitorPolicy: async () => {}
     }) as unknown as ServiceAdapter;
 
-const context = (extra: ServiceAdapter[] = []): ToolContext =>
+const context = (extra: ServiceAdapter[] = [], library: IndexInput[] = LIBRARY): ToolContext =>
     ({
-        adapters: [radarr(), ...extra],
+        adapters: [radarr(library), ...extra],
         instances: INSTANCES,
-        library: new LibraryLoader([radarr(), ...extra], undefined)
+        library: new LibraryLoader([radarr(library), ...extra], undefined)
     }) as unknown as ToolContext;
 
 /** The registry the SDK builds, which is what a client actually sees. */
@@ -83,6 +83,13 @@ const read = async (uri: string, ctx?: ToolContext): Promise<Record<string, unkn
     const result = (await entry.readCallback(new URL(uri))) as { contents: { text: string }[] };
     return JSON.parse(result.contents[0]!.text) as Record<string, unknown>;
 };
+
+/** A library with one row the service is not watching, which is what the
+ *  summary note explains. */
+const CATALOGUE: IndexInput[] = [
+    film('Have it', 1, true),
+    { kind: 'movie', title: 'Catalog', ids: { tmdb: 2 }, acquisition: { service: 'radarr', monitored: false, hasFile: false } }
+];
 
 const ALL = ['arr://instances', 'arr://health', 'arr://library/summary', 'arr://lidarr/monitoring'];
 
@@ -114,6 +121,25 @@ describe('the resources a client sees', () => {
         expect(body.note).toBeUndefined();
     });
 
+    /**
+     * Unmonitored rows are not evidence of Lidarr. Without one configured, the
+     * cause is whichever service holds them, and naming a service the reader
+     * does not run sends them to the wrong config file.
+     */
+    it('names no service as the cause when no Lidarr is configured', async () => {
+        const body = await read('arr://library/summary', context([], CATALOGUE));
+
+        expect(body).toMatchObject({ total: 2, monitored: 1, unmonitored: 1 });
+        expect(String(body.note)).toContain('nothing is pending on those');
+        expect(String(body.note)).not.toContain('Lidarr');
+    });
+
+    it('names Lidarr as the usual source when Lidarr is configured', async () => {
+        const body = await read('arr://library/summary', context([lidarrOn()], CATALOGUE));
+
+        expect(String(body.note)).toContain('Lidarr is the usual source');
+    });
+
     describe('lidarr monitoring policy', () => {
         it('says absent rather than zero when no Lidarr is configured', async () => {
             const body = await read('arr://lidarr/monitoring');
@@ -140,6 +166,19 @@ describe('the resources a client sees', () => {
             const body = await read('arr://lidarr/monitoring', context([lidarrOn(settled)]));
 
             expect(body).toMatchObject({ stable: true });
+        });
+
+        /**
+         * Zero artists used to report `stable: false` beside a note saying
+         * nothing could grow, which a reader cannot reconcile. Nothing in an
+         * empty list can grow the wanted list, so the flag follows the note.
+         */
+        it('calls an empty artist list stable, and says why', async () => {
+            const body = await read('arr://lidarr/monitoring', context([lidarrOn([])]));
+
+            expect(body).toMatchObject({ configured: true, artists: 0, stable: true });
+            expect(String(body.note)).toContain('holds no artists');
+            expect(String(body.note)).not.toContain('treadmill');
         });
 
         /**

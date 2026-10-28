@@ -381,23 +381,32 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fields: ['version']
             },
             {
+                path: '/api/v1/artist',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/artist.json',
+                fields: [
+                    'id',
+                    'artistName',
+                    'foreignArtistId',
+                    'status',
+                    'monitored',
+                    'monitorNewItems',
+                    'added',
+                    'genres',
+                    'path',
+                    'qualityProfileId',
+                    'statistics.albumCount',
+                    'statistics.trackFileCount',
+                    'statistics.sizeOnDisk'
+                ]
+            },
+            {
+                // `get_media_details` on an artist. The library rows on artists,
+                // so this is the only read that carries an album id.
                 path: '/api/v1/album',
                 method: 'get',
                 fixture: 'test/fixtures/lidarr/album.json',
-                fields: [
-                    'id',
-                    'title',
-                    'foreignAlbumId',
-                    'releaseDate',
-                    'albumType',
-                    'monitored',
-                    'genres',
-                    'statistics.trackFileCount',
-                    'statistics.sizeOnDisk',
-                    'artist.artistName',
-                    'artist.qualityProfileId',
-                    'artist.path'
-                ]
+                fields: ['id', 'title', 'foreignAlbumId', 'releaseDate', 'albumType', 'monitored', 'statistics.trackFileCount']
             },
             {
                 path: '/api/v1/qualityprofile',

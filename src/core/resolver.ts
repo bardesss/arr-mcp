@@ -3,10 +3,11 @@ import { RANK_NONE, literalTitle, rankTitle, unfenced } from './titleMatch.ts';
 export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
 
 /**
- * What a merged row can be. `album` is Lidarr's and is the only kind with no
- * media-server half — see `presence`.
+ * What a merged row can be. `artist` is Lidarr's, and it joins to a media server
+ * on the MusicBrainz artist id, which is why a music row can carry `presence`
+ * like a film or a series.
  */
-export type LibraryKind = 'movie' | 'series' | 'album';
+export type LibraryKind = 'movie' | 'series' | 'artist';
 
 /**
  * A merged row with a kind the film-and-series readers accept. Narrower than
@@ -71,19 +72,15 @@ export type SeasonSummary = {
 export type MergedItem = {
     kind: LibraryKind;
     title: string;
-    /**
-     * Albums only, and never merged into `title`: a song title and an artist
-     * name rank differently, and fusing them would make `sort: 'title'`
-     * compare two things at once. Fenced like every other service string.
-     */
-    artist?: string;
-    /**
-     * Albums only: Lidarr's own id for the artist, not an external id. The
-     * artist-level monitoring policy is addressed by it and by nothing else, and
-     * an album row is the only place a caller can pick one up.
-     */
-    artistId?: string;
     year?: number;
+    /**
+     * Artists only: how many albums Lidarr holds for it.
+     *
+     * An artist row cannot carry its albums — that is what makes the library
+     * 1,600 rows rather than 36,000 — so this one count is what a caller gets
+     * instead, and `get_media_details` is where the albums themselves are.
+     */
+    albumCount?: number;
     /**
      * Absent from the record and required because `genre` is a `get_library`
      * filter, and no other field in the merged shape could answer one.
@@ -153,10 +150,9 @@ export type MergedItem = {
      * A degraded or unconfigured media server gets `unknown`, never
      * `arr_only` — that claim asserts the server looked and did not find it.
      *
-     * **An album is `unknown` for a third reason**: nothing here reads music
-     * from a media server, so there is no half to compare against and no
-     * reachable `both`. The value is shared because the field is a frozen
-     * output contract, and `unknown` is the only member that asserts nothing.
+     * An artist reads like a film or a series: Jellyfin and Plex both publish
+     * the MusicBrainz artist id, so music joins on it. An artist found on both
+     * sides is `both`, and one the server never saw is `arr_only`.
      *
      * Named for Jellyfin from when it was the only media server. Now that
      * Plex is a second one, the literal stays `jellyfin_only` regardless —
@@ -187,6 +183,16 @@ export type BuildOptions = {
      * owns the fetch, so it passes in which one this was.
      */
     playbackGathered?: boolean;
+    /**
+     * Whether the media server's *music* half was gathered.
+     *
+     * Separate from `playbackGathered` because the two reads fail separately. A
+     * music read that failed while films succeeded would otherwise let every
+     * artist read `arr_only` — a claim that the server looked and found nothing,
+     * which nobody made. Absent means the same as `playbackGathered`: assume the
+     * half was read.
+     */
+    musicGathered?: boolean;
 };
 
 /**
@@ -233,7 +239,6 @@ function mergeInto(target: MergedItem, input: IndexInput): void {
     // into an optional field, so the incoming value must be known-present.
     if (target.year === undefined && input.year !== undefined) target.year = input.year;
     if (target.genres === undefined && input.genres !== undefined) target.genres = input.genres;
-    if (target.artist === undefined && input.artist !== undefined) target.artist = input.artist;
 
     target.ids = { ...target.ids, ...input.ids };
     if (input.acquisition !== undefined) target.acquisition = input.acquisition;
@@ -242,24 +247,25 @@ function mergeInto(target: MergedItem, input: IndexInput): void {
     if (input.ratings !== undefined) target.ratings = { ...target.ratings, ...input.ratings };
 }
 
-export const isFilmOrSeries = (item: MergedItem): item is FilmOrSeries => item.kind !== 'album';
+export const isFilmOrSeries = (item: MergedItem): item is FilmOrSeries =>
+    item.kind === 'movie' || item.kind === 'series';
 
 /**
  * The best match among films and series, for the readers whose question is
  * about that chain: `get_media_details`, `fix_metadata` and `diagnose`.
  *
- * An album must not shadow a film that happens to share its title, which the
- * ranking alone cannot prevent. And when an album is the only thing that
+ * An artist must not shadow a film that happens to share its title, which the
+ * ranking alone cannot prevent. And when an artist is the only thing that
  * matched, this throws rather than letting the caller answer "nothing in your
  * library matches" — that sentence would be false about a library this server
- * has just read the album from.
+ * has just read the artist from.
  */
 export function filmOrSeriesMatch(hits: readonly MergedItem[], query: string): FilmOrSeries | undefined {
     const best = hits.find(isFilmOrSeries) ?? hits[0];
     if (best === undefined) return undefined;
     if (!isFilmOrSeries(best)) {
         throw new Error(
-            `"${query}" matched a Lidarr album, and this tool reads the film and series chain. Use get_library with kind: "album" — it lists albums with their artist, profile and file state.`
+            `"${query}" matched a Lidarr artist, and this tool reads the film and series chain. Use get_library with kind: "artist" — it lists artists with their album count, profile and file state.`
         );
     }
     return best;
@@ -272,13 +278,14 @@ export function filmOrSeriesMatch(hits: readonly MergedItem[], query: string): F
  * outcomes and one of them is reached from two directions, which is exactly the
  * shape a conditional chain hides.
  */
-const presenceVerdict = (item: MergedItem, playbackGathered: boolean): MergedItem['presence'] => {
-    // Music first: this server reads no music from a media server, so there is
-    // no playback half to be missing and `arr_only` would report a lookup
-    // nobody can make.
-    if (item.kind === 'album') return 'unknown';
-
+const presenceVerdict = (
+    item: MergedItem,
+    playbackGathered: boolean,
+    musicGathered: boolean
+): MergedItem['presence'] => {
     const managed = item.acquisition !== undefined;
+    // An artist's server half is the music read, not the film one.
+    const serverGathered = item.kind === 'artist' ? musicGathered : playbackGathered;
     const played = item.playback !== undefined;
 
     if (managed && played) return 'both';
@@ -287,7 +294,7 @@ const presenceVerdict = (item: MergedItem, playbackGathered: boolean): MergedIte
     if (!managed) return 'unknown';
     // `arr_only` claims the media server looked and found nothing — not a claim
     // to make when it was never read.
-    return playbackGathered ? 'arr_only' : 'unknown';
+    return serverGathered ? 'arr_only' : 'unknown';
 };
 
 /**
@@ -309,6 +316,7 @@ export class LibraryIndex {
 
     static build(inputs: readonly IndexInput[], opts: BuildOptions = {}): LibraryIndex {
         const playbackGathered = opts.playbackGathered ?? true;
+        const musicGathered = opts.musicGathered ?? playbackGathered;
         const byKey = new Map<string, MergedItem>();
         const items: MergedItem[] = [];
 
@@ -387,7 +395,7 @@ export class LibraryIndex {
 
         const finalByKey = new Map<string, MergedItem>();
         for (const item of merged) {
-            item.presence = presenceVerdict(item, playbackGathered);
+            item.presence = presenceVerdict(item, playbackGathered, musicGathered);
             // Here rather than in `absorb` for the reason `presence` is here:
             // this is the first point at which an item is fully merged, and a
             // verdict computed mid-merge would be computed against half the
@@ -418,7 +426,7 @@ export class LibraryIndex {
      * hiding the other.
      */
     find(ids: ExternalIds, kind?: LibraryKind): MergedItem | undefined {
-        const kinds = kind !== undefined ? [kind] : (['movie', 'series', 'album'] as const);
+        const kinds = kind !== undefined ? [kind] : (['movie', 'series', 'artist'] as const);
         for (const k of kinds) {
             for (const key of keysOf(k, ids)) {
                 const hit = this.#byKey.get(key);

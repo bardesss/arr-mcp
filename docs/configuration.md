@@ -196,16 +196,50 @@ Single instance only. Lidarr answers on `/api/v1`, where Radarr and Sonarr
 answer on `/api/v3`.
 
 A configured Lidarr connects, appears in `stack_health`, reports its version,
-and lists its albums in `get_library` as `kind: "album"` — with the artist name,
-monitoring, quality profile, file state and the album's MusicBrainz id. Read-only:
-no queue, no calendar, no wanted list, no writes.
+and lists its **artists** in `get_library` as `kind: "artist"`, with the album
+count, genres, monitoring, quality profile, file state and the artist's
+MusicBrainz id. One row per artist, the way Sonarr rows on a series: a library of
+1,578 artists is 1,578 rows rather than 36,170 album rows.
 
-No music half is read from a media server, so an album reports `presence:
-unknown` and there is no watch state, rating or per-album quality to filter on.
-Music therefore stays out of the merged library's joins, and `diagnose` does not
-follow an album: it reads the film and series chain. Lidarr identifies releases
-by MusicBrainz id, and the join that merges an *arr with a media server keys on
-TMDB, TVDB and IMDb ids.
+`get_media_details` on an artist lists the albums under it, each with its Lidarr
+album id, type, year, monitoring and file state. That is where the id for
+`set_monitoring` with `level: "album"` comes from.
+
+**An artist joins to a media server.** Lidarr's `foreignArtistId`, Jellyfin's
+`ProviderIds.MusicBrainzArtist` on an album artist, and Plex's `mbid://` guid on
+an artist in a music section are the same value, matched case-insensitively, so
+an artist reports a real `presence`. A media server with no music library, or a
+music read that failed, reports `unknown`, never `arr_only`, which would claim
+the server looked and found nothing.
+
+`diagnose` does not follow music: it reads the film and series chain, and refuses
+an artist by naming `get_library` with `kind: "artist"` rather than reporting it
+absent.
+
+**It is not read-only.** `set_monitoring` writes two different things, and
+`level` says which one:
+
+| `level` | Addresses | Writes |
+| --- | --- | --- |
+| `album` | one album, by `id` from `get_media_details` | that album's own monitor flag |
+| `artist` | `artists` (one id, a list, or omit for every artist) | `monitored`, `monitor_new_items`, or both, across those artists |
+
+The artist flag is not the album flag. A live library held an artist reading
+`monitored: false` while an album under it stayed `monitored: true`, so the two
+are separate flags. `level: "artist"` writes the artist's own, and
+`level: "album"` writes the album's. `monitor_new_items` is the standing rule
+Lidarr applies to albums it discovers later, and `none` is the only value that
+stops the wanted list growing by itself. Both levels are written with Lidarr's
+bulk endpoints, which queued no `MoveArtist` job in the runs that were captured.
+
+Everything else is still out of reach: no queue, no calendar, no wanted list,
+no release search, no delete. All 21 capture endpoints were exercised against a
+live Lidarr 3.1.6.5079, but seven came back empty on a library with no download
+activity, so nothing claims them.
+
+The version floor is 2.1.3. The two write endpoints were captured on 2.1.3.3927,
+and the read fixtures come from 3.1.6.5079. A volunteer exercised the adapter's
+reads and writes on 2.1.3.3927 and 3.1.0.4875.
 
 `CONTRIBUTING.md` lists the endpoints that still need a capture against a library
 with real activity before their row shapes are proven.
@@ -268,9 +302,10 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Five services stay single.** Jellyfin and Plex because each is one server,
+**Six services stay single.** Jellyfin and Plex because each is one server,
 and [running both](#plex-and-jellyfin-together) is a different thing from
-running two of one. Seerr because a
+running two of one. Lidarr because music libraries are rarely split, so a
+second instance would merge silently into every read. Seerr because a
 request carries the identity of the person who made it, and a second Seerr makes
 "which one do I ask" a guess with an approver on the other end of it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a

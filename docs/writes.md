@@ -221,6 +221,41 @@ Episode ids for both tools come from `get_media_details`, whose `episodes` also
 carry `episodeFileId` — the file each episode is on, when it has one — which is
 how `delete_episode_files` resolves a target without a second read.
 
+### Lidarr: the artist flag is not the album flag
+
+On Lidarr, `set_monitoring` takes `level`, because an album id and an artist id
+are different namespaces and Lidarr cannot tell them apart.
+
+`level: "album"` writes one album's own flag, and takes `id` from the `albums` of
+a `get_media_details` read on the artist. `level: "artist"` takes `artists` (one
+id, a list, or omit for every artist) or an artist row's `acquisition.id`, and
+writes the artist-level policy: `monitored`, `monitor_new_items`, or both.
+
+Three things the preview says, because each one was found rather than assumed:
+
+- **The artist flag is not the album flag.** A live library had an artist
+  reading `monitored: false` with an album under it still `monitored: true`,
+  so the two are read as separate flags. An album's own flag is what decides
+  whether that album is searched for, and `level: "album"` is how it is set.
+  Whether a write to the artist flag also changes album flags is **not
+  verified**: the capture returned the artist rows only.
+- **`monitor_new_items` decides the future.** It is `all`, `new` or `none`, and
+  `none` is the only value under which the wanted list cannot grow by itself.
+  An artist added later carries Lidarr's own default, which this tool does not
+  read or set.
+- **The write names the artists the preview showed.** The confirmation token is
+  signed over the resolved id list, so an artist added between the preview and
+  the confirmation changes the signature and the old token is refused. The
+  alternative was a write that reached an artist nobody was shown.
+
+`arr://lidarr/monitoring` reports the same distribution without a write.
+
+At the artist level the adapter writes the bulk editor endpoint only. The
+single-artist `PUT /api/v1/artist/{id}` queues a `MoveArtist` job on every call,
+even with `moveFiles=false` and an unchanged path, which is a library move
+nobody asked for. The editor endpoint queued none in three runs against
+2.1.3.3927, and the album monitor endpoint queued none either.
+
 ## The audit trail
 
 Every attempt — applied, previewed, refused, dry run, or failed mid-flight — is
