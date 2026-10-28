@@ -147,7 +147,7 @@ describe('NzbgetAdapter', () => {
         expect(queue[0]).toMatchObject({
             service: 'nzbget',
             id: '7',
-            status: 'DOWNLOADING',
+            status: 'downloading',
             protocol: 'usenet',
             sizeBytes: 10 * 1024 ** 2,
             remainingBytes: 2 * 1024 ** 2,
@@ -159,6 +159,134 @@ describe('NzbgetAdapter', () => {
             method: 'editqueue',
             params: ['GroupFinalDelete', 0, '', [7]]
         });
+    });
+
+    describe('queue ETA', () => {
+        const MB = 1024 ** 2;
+        const queueWith = (status: Record<string, unknown>, groups: unknown[]) => {
+            const { fetchImpl } = rpcRecording(request =>
+                json({ jsonrpc: '2.0', result: request.method === 'status' ? status : groups, id: request.id })
+            );
+            return new NzbgetAdapter(config, fetchImpl);
+        };
+        const groups = [
+            { NZBID: 1, Status: 'DOWNLOADING', FileSizeMB: 10, RemainingSizeMB: 10, PausedSizeMB: 0 },
+            // Partly paused: only its unpaused 15 MB is counted, for it and for everything after it.
+            { NZBID: 2, Status: 'QUEUED', FileSizeMB: 20, RemainingSizeMB: 20, PausedSizeMB: 5 },
+            // Every remaining byte paused: no ETA, and it adds nothing to the items behind it.
+            { NZBID: 3, Status: 'PAUSED', FileSizeMB: 4, RemainingSizeMB: 4, PausedSizeMB: 4 },
+            { NZBID: 4, Status: 'QUEUED', FileSizeMB: 5, RemainingSizeMB: 5, PausedSizeMB: 0 }
+        ];
+
+        it('counts everything ahead of an item, skipping paused bytes', async () => {
+            const items = await queueWith({ DownloadRate: MB }, groups).getQueue();
+
+            expect(items.map(i => [i.id, i.etaSeconds])).toEqual([
+                ['1', 10],
+                ['2', 25],
+                ['3', undefined],
+                ['4', 30]
+            ]);
+        });
+
+        it('gives no ETA while the whole queue is paused, or when nothing is downloading', async () => {
+            const paused = await queueWith({ DownloadRate: MB, DownloadPaused: true }, groups).getQueue();
+            const idle = await queueWith({ DownloadRate: 0 }, groups).getQueue();
+
+            expect(paused.every(i => i.etaSeconds === undefined)).toBe(true);
+            expect(idle.every(i => i.etaSeconds === undefined)).toBe(true);
+        });
+    });
+
+    it('parks the item with GroupParkDelete when its files are to be kept', async () => {
+        const { fetchImpl, requests } = rpcRecording(request => json({ jsonrpc: '2.0', result: true, id: request.id }));
+
+        await new NzbgetAdapter(config, fetchImpl).removeQueueItem('7', { removeFromClient: false, blocklist: false });
+
+        expect(requests[0]?.rpc).toMatchObject({ method: 'editqueue', params: ['GroupParkDelete', 0, '', [7]] });
+    });
+
+    it.each(['0x10', '1e2', ' 7 ', '7.0', '-7', ''])('refuses the non-canonical id %j before asking NZBGet', async id => {
+        const { fetchImpl, requests } = rpcRecording(request => json({ jsonrpc: '2.0', result: true, id: request.id }));
+
+        await expect(
+            new NzbgetAdapter(config, fetchImpl).removeQueueItem(id, { removeFromClient: true, blocklist: false })
+        ).rejects.toMatchObject({ kind: 'NotFound' });
+        expect(requests).toHaveLength(0);
+    });
+
+    it('maps every NZBGet group status to the shared lowercase words', async () => {
+        const statuses = {
+            QUEUED: 'queued',
+            PAUSED: 'paused',
+            DOWNLOADING: 'downloading',
+            FETCHING: 'fetching',
+            PP_QUEUED: 'verifying',
+            LOADING_PARS: 'verifying',
+            VERIFYING_SOURCES: 'verifying',
+            REPAIRING: 'repairing',
+            VERIFYING_REPAIRED: 'verifying',
+            RENAMING: 'moving',
+            UNPACKING: 'extracting',
+            MOVING: 'moving',
+            EXECUTING_SCRIPT: 'moving',
+            PP_FINISHED: 'completed',
+            SOMETHING_NEW: 'something_new'
+        };
+        const { fetchImpl } = rpcRecording(request =>
+            json({
+                jsonrpc: '2.0',
+                result:
+                    request.method === 'status'
+                        ? { DownloadRate: 0 }
+                        : Object.keys(statuses).map((Status, i) => ({ NZBID: i + 1, Status, FileSizeMB: 1, RemainingSizeMB: 1 })),
+                id: request.id
+            })
+        );
+
+        const items = await new NzbgetAdapter(config, fetchImpl).getQueue();
+
+        expect(items.map(i => i.status)).toEqual(Object.values(statuses));
+    });
+
+    it('skips queue and history elements that are not objects instead of throwing', async () => {
+        const { fetchImpl } = rpcRecording(request =>
+            json({
+                jsonrpc: '2.0',
+                result:
+                    request.method === 'status'
+                        ? { DownloadRate: 0 }
+                        : request.method === 'history'
+                          ? [null, 5, 'x', { NZBID: 8, HistoryTime: 1_786_000_000, Status: 'SUCCESS/ALL' }]
+                          : [null, 5, 'x', { NZBID: 7, Status: 'QUEUED', FileSizeMB: 1, RemainingSizeMB: 1 }],
+                id: request.id
+            })
+        );
+        const adapter = new NzbgetAdapter(config, fetchImpl);
+
+        await expect(adapter.getQueue()).resolves.toMatchObject([{ id: '7' }]);
+        await expect(adapter.readHistory({ want: 10 })).resolves.toMatchObject([{ id: '8' }]);
+        await expect(adapter.readPauseState('7')).resolves.toMatchObject({ paused: false });
+    });
+
+    it('treats "error": null as success', async () => {
+        const { fetchImpl } = rpcRecording(request => json({ jsonrpc: '2.0', result: '26.3', error: null, id: request.id }));
+
+        await expect(new NzbgetAdapter(config, fetchImpl).getVersion()).resolves.toBe('26.3');
+    });
+
+    // With no username, Basic auth sends nothing, and NZBGet's answer would
+    // blame the password.
+    it('refuses a password without a username, naming the missing username', async () => {
+        const { fetchImpl, requests } = rpcRecording(request => json({ jsonrpc: '2.0', result: '26.3', id: request.id }));
+        const { username: _username, ...passwordOnly } = config;
+
+        const diagnosis = await new NzbgetAdapter(passwordOnly, fetchImpl).testConnection();
+
+        expect(diagnosis).toMatchObject({ ok: false, error: { kind: 'AuthFailed' } });
+        expect(diagnosis.error?.remedy).toMatch(/username/);
+        expect(diagnosis.error?.remedy).toMatch(/nzbget/);
+        expect(requests).toHaveLength(0);
     });
 
     it('reads disk space from a v21-shaped status, which has no total or Hi/Lo rate', async () => {
@@ -266,7 +394,16 @@ describe('NzbgetAdapter', () => {
                 jsonrpc: '2.0',
                 result: [
                     { ID: 91, NZBID: 7, NZBNicename: 'Album.Release', HistoryTime: 1_786_000_000, Status: 'SUCCESS/GOOD' },
-                    { ID: 92, NZBID: 8, Name: 'Failed.Release', HistoryTime: 1_786_000_100, Status: 'FAILURE' }
+                    { ID: 92, NZBID: 8, Name: 'Failed.Release', HistoryTime: 1_786_000_100, Status: 'FAILURE' },
+                    // Damaged or password-protected, waiting on a human.
+                    {
+                        ID: 93,
+                        NZBID: 9,
+                        Name: 'Warned.Release',
+                        HistoryTime: 1_786_000_200,
+                        Status: 'WARNING/PASSWORD',
+                        UnpackStatus: 'PASSWORD'
+                    }
                 ],
                 id: request.id
             })
@@ -277,8 +414,10 @@ describe('NzbgetAdapter', () => {
 
         expect(result).toMatchObject([
             { id: '7', event: 'imported', rawEvent: 'SUCCESS/GOOD', title: expect.any(String) },
-            { id: '8', event: 'failed', rawEvent: 'FAILURE', title: expect.any(String) }
+            { id: '8', event: 'failed', rawEvent: 'FAILURE', title: expect.any(String) },
+            { id: '9', event: 'unknown', rawEvent: 'WARNING/PASSWORD', title: expect.any(String) }
         ]);
+        expect(result[2]?.reason).toEqual(expect.stringContaining('UnpackStatus PASSWORD'));
         expect(result[0]?.reason).toBeUndefined();
         expect(result[1]?.reason).toEqual(expect.stringContaining('FAILURE'));
         expect(requests[0]?.rpc).toMatchObject({ method: 'history', params: [false] });
@@ -297,11 +436,18 @@ describe('NzbgetAdapter', () => {
             return { adapter: new NzbgetAdapter(config, recorded.fetchImpl), requests: recorded.requests };
         };
 
-        it('does not ask a server older than v26, which has no systemhealth', async () => {
-            const { adapter, requests } = healthAdapter('25.4', { result: {} });
+        // XmlRpc.cpp answers an unknown method with code 1 "Invalid procedure".
+        it('reads an older server\'s unknown-method answer as no report, in one call', async () => {
+            const { adapter, requests } = healthAdapter('21.0', { error: { code: 1, message: 'Invalid procedure' } });
 
             await expect(adapter.getFailedHealthChecks()).resolves.toEqual([]);
-            expect(requests.map(r => r.rpc.method)).toEqual(['version']);
+            expect(requests.map(r => r.rpc.method)).toEqual(['systemhealth']);
+        });
+
+        it('treats "error": null as success', async () => {
+            const { adapter } = healthAdapter('26.3', { error: null, result: { Alerts: [] } });
+
+            await expect(adapter.getFailedHealthChecks()).resolves.toEqual([]);
         });
 
         it('reports nothing when the health check is switched off', async () => {
@@ -385,7 +531,9 @@ describe('NzbgetAdapter', () => {
             const history = fixture('history').result as { NZBID: number; Status: string }[];
 
             const items = await adapter.getQueue();
-            expect(items.map(i => [i.id, i.status, i.protocol])).toEqual(queue.map(g => [String(g.NZBID), g.Status, 'usenet']));
+            expect(items.map(i => [i.id, i.status, i.protocol])).toEqual(
+                queue.map(g => [String(g.NZBID), g.Status.toLowerCase(), 'usenet'])
+            );
             const entries = await adapter.readHistory({ want: 50 });
             expect(entries.map(e => `${e.rawEvent}:${e.event}`)).toEqual(
                 history.map(row => `${row.Status}:${row.Status.startsWith('SUCCESS') ? 'imported' : 'deleted'}`)

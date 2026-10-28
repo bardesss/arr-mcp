@@ -132,6 +132,35 @@ const historyEvent = (status: string): HistoryEventType => {
     return 'unknown';
 };
 
+/**
+ * NZBGet's group `Status` (listgroups, QueueCoordinator/NzbInfo) mapped onto
+ * the lowercase words the other download clients emit, which is what
+ * `get_queue` merges and `diagnose` classifies. Post-processing stages are
+ * healthy progress, and `PP_FINISHED` is a finished download waiting to be
+ * imported. Anything not listed is passed through lowercased.
+ */
+const QUEUE_STATUS: Readonly<Record<string, string>> = {
+    QUEUED: 'queued',
+    PAUSED: 'paused',
+    DOWNLOADING: 'downloading',
+    FETCHING: 'fetching',
+    PP_QUEUED: 'verifying',
+    LOADING_PARS: 'verifying',
+    VERIFYING_SOURCES: 'verifying',
+    VERIFYING_REPAIRED: 'verifying',
+    REPAIRING: 'repairing',
+    UNPACKING: 'extracting',
+    RENAMING: 'moving',
+    MOVING: 'moving',
+    EXECUTING_SCRIPT: 'moving',
+    PP_FINISHED: 'completed'
+};
+
+const queueStatus = (raw: string | undefined): string => {
+    if (raw === undefined || raw.length === 0) return 'unknown';
+    return QUEUE_STATUS[raw.toUpperCase()] ?? raw.toLowerCase();
+};
+
 const STAGE_FIELDS = ['ParStatus', 'UnpackStatus', 'MoveStatus', 'ScriptStatus', 'DeleteStatus', 'MarkStatus', 'UrlStatus'] as const;
 const UNREMARKABLE = new Set(['NONE', 'SUCCESS', 'SKIPPED', 'GOOD']);
 
@@ -148,10 +177,9 @@ const historyReason = (row: RawHistory, status: string): string => {
     return stages.length === 0 ? status : `${status} (${stages.join(', ')})`;
 };
 
-/** `systemhealth` arrived in NZBGet v26.0 (ChangeLog, nzbget-v26.0). */
-const SYSTEMHEALTH_SINCE_MAJOR = 26;
-/** XmlRpc.cpp answers code 1 for an unknown method and for `systemhealth`
- *  with `SystemHealthCheck=no`; either way there is no report. */
+/** XmlRpc.cpp answers code 1 ("Invalid procedure") for an unknown method,
+ *  which is what a server older than v26 says to `systemhealth`, and for
+ *  `systemhealth` with `SystemHealthCheck=no`. Either way there is no report. */
 const RPC_NO_REPORT = 1;
 /** XmlRpc.cpp answers code 401 "Access denied" (inside an HTTP 200) when an
  *  add-user calls anything but append, appendurl or version. */
@@ -161,9 +189,11 @@ const RPC_ACCESS_DENIED = 401;
 const LOGIN_REMEDY =
     'The username or password is wrong. Use the ControlUsername/ControlPassword or RestrictedUsername/RestrictedPassword login from NZBGet Settings → Security.';
 
+/** Exactly what `get_queue` emits. `Number()` would also accept `0x10`,
+ *  `1e2` and ` 7 `, and send a destructive edit to a different NZBID. */
 const asIntegerId = (value: string, service: string): number => {
-    const id = Number(value);
-    if (!Number.isInteger(id)) {
+    const id = /^\d+$/.test(value) ? Number(value) : Number.NaN;
+    if (!Number.isSafeInteger(id)) {
         throw new ServiceError('NotFound', service, `"${value}" is not an NZBGet queue id`, {
             remedy: 'Queue ids are integers on NZBGet. Take one from get_queue.'
         });
@@ -195,9 +225,18 @@ export class NzbgetAdapter
         // the connection open, so the next request on it fails. Without
         // keep-alive NZBGet closes after each reply.
         this.#http = new ServiceHttp(this.id, config, basicAuth(config), fetchImpl, { closeConnection: true });
+        this.#passwordOnly = config.password !== undefined && config.password !== '' && (config.username ?? '') === '';
     }
 
+    /** Basic auth needs a username; without one nothing is sent at all. */
+    readonly #passwordOnly: boolean;
+
     async #call<T>(method: string, params: unknown[]): Promise<RpcResponse<T>> {
+        if (this.#passwordOnly) {
+            throw new ServiceError('AuthFailed', this.id, 'a password is configured without a username', {
+                remedy: `NZBGet logs in with a username and password. Add the username to this ${this.id} entry: the ControlUsername (default "nzbget") or RestrictedUsername from NZBGet Settings → Security.`
+            });
+        }
         let body: RpcResponse<T>;
         try {
             body = await this.#http.post<RpcResponse<T>>('/jsonrpc', {
@@ -237,11 +276,18 @@ export class NzbgetAdapter
         isValid: (value: unknown) => value is T
     ): Promise<T> {
         const body = await this.#call<T>(method, params);
-        if (body.error !== undefined) throw this.#rpcError(method, body.error);
+        // `"error": null` is success in JSON-RPC 1.x style and from some proxies.
+        if (body.error != null) throw this.#rpcError(method, body.error);
         if (!Object.prototype.hasOwnProperty.call(body, 'result') || !isValid(body.result)) {
             throw new ServiceError('UpstreamError', this.id, `JSON-RPC ${method} returned an invalid result`);
         }
         return body.result;
+    }
+
+    /** Queue groups, skipping any element that is not an object, so one bad
+     *  row cannot turn into a TypeError. */
+    async #groups(): Promise<RawGroup[]> {
+        return (await this.#rpc<unknown[]>('listgroups', [0], isArray)).filter(group => isObject<RawGroup>(group));
     }
 
     #status(): Promise<RawStatus> {
@@ -276,10 +322,8 @@ export class NzbgetAdapter
      * than a broken health endpoint.
      */
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        const major = Number.parseInt(await this.getVersion(), 10);
-        if (Number.isInteger(major) && major < SYSTEMHEALTH_SINCE_MAJOR) return [];
         const body = await this.#call<RawHealthReport>('systemhealth', []);
-        if (body.error !== undefined) {
+        if (body.error != null) {
             if (body.error?.code === RPC_NO_REPORT) return [];
             throw this.#rpcError('systemhealth', body.error);
         }
@@ -331,7 +375,7 @@ export class NzbgetAdapter
      * item (or a paused queue) has no ETA.
      */
     async getQueue(): Promise<QueueItem[]> {
-        const [status, groups] = await Promise.all([this.#status(), this.#rpc<RawGroup[]>('listgroups', [0], isArray)]);
+        const [status, groups] = await Promise.all([this.#status(), this.#groups()]);
         const rate = int64(status.DownloadRateHi, status.DownloadRateLo) ?? status.DownloadRate ?? 0;
         let ahead = 0;
         return groups
@@ -358,7 +402,7 @@ export class NzbgetAdapter
                         service: this.id,
                         field: 'NZBNicename'
                     }),
-                    status: group.Status ?? 'unknown',
+                    status: queueStatus(group.Status),
                     protocol: 'usenet',
                     ...(size === undefined ? {} : { sizeBytes: size }),
                     ...(remaining === undefined ? {} : { remainingBytes: remaining }),
@@ -390,7 +434,7 @@ export class NzbgetAdapter
     async readPauseState(id?: string): Promise<PauseState> {
         if (id !== undefined) {
             const numericId = asIntegerId(id, this.id);
-            const groups = await this.#rpc<RawGroup[]>('listgroups', [0], isArray);
+            const groups = await this.#groups();
             const group = groups.find(row => row.NZBID === numericId);
             if (group === undefined) {
                 throw new ServiceError('NotFound', this.id, `nothing in the queue has id "${id}"`, {
@@ -460,7 +504,7 @@ export class NzbgetAdapter
             });
         }
 
-        const rows = await this.#rpc<RawHistory[]>('history', [false], isArray);
+        const rows = (await this.#rpc<unknown[]>('history', [false], isArray)).filter(row => isObject<RawHistory>(row));
         return rows.flatMap(row => {
             // A row that cannot be dated is dropped rather than stamped with
             // the epoch, as for SABnzbd.
