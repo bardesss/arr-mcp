@@ -96,6 +96,9 @@ const TWO_POW_32 = 2 ** 32;
 
 const isArray = <T>(value: unknown): value is T[] => Array.isArray(value);
 const isObject = <T>(value: unknown): value is T => value !== null && typeof value === 'object';
+/** The object elements of a list, or none: a `null` or primitive element is
+ *  skipped rather than read as a row. */
+const objectsIn = <T>(value: unknown): T[] => (Array.isArray(value) ? value.filter((v): v is T => isObject<T>(v)) : []);
 
 /**
  * NZBGet reports 64-bit sizes as a Hi/Lo pair of unsigned 32-bit halves, plus
@@ -113,8 +116,8 @@ const int64 = (hi: number | undefined, lo: number | undefined, mb?: number): num
 
 /** The `drone` post-processing parameter is the id an *arr stamps on the NZB
  *  it sends; it is what the *arr's own queue calls the downloadId. */
-const droneParameter = (parameters: RawParameter[] | undefined): string | undefined => {
-    const drone = parameters?.find(p => p.Name === 'drone');
+const droneParameter = (parameters: unknown): string | undefined => {
+    const drone = objectsIn<RawParameter>(parameters).find(p => p.Name === 'drone');
     return typeof drone?.Value === 'string' && drone.Value.length > 0 ? drone.Value : undefined;
 };
 
@@ -287,7 +290,7 @@ export class NzbgetAdapter
     /** Queue groups, skipping any element that is not an object, so one bad
      *  row cannot turn into a TypeError. */
     async #groups(): Promise<RawGroup[]> {
-        return (await this.#rpc<unknown[]>('listgroups', [0], isArray)).filter(group => isObject<RawGroup>(group));
+        return objectsIn<RawGroup>(await this.#rpc<unknown[]>('listgroups', [0], isArray));
     }
 
     #status(): Promise<RawStatus> {
@@ -348,19 +351,19 @@ export class NzbgetAdapter
         };
         const name = (value: unknown): string => (typeof value === 'string' ? value : '');
 
-        for (const alert of isArray<NonNullable<RawHealthReport['Alerts']>[number]>(report.Alerts) ? report.Alerts : []) {
+        for (const alert of objectsIn<NonNullable<RawHealthReport['Alerts']>[number]>(report.Alerts)) {
             push([name(alert.Category), name(alert.Source)].filter(Boolean).join('/'), alert.Severity, alert.Message);
         }
-        for (const section of isArray<RawHealthSection>(report.Sections) ? report.Sections : []) {
+        for (const section of objectsIn<RawHealthSection>(report.Sections)) {
             const sectionName = name(section.Name);
-            for (const issue of isArray<RawHealthStatus>(section.Issues) ? section.Issues : []) {
+            for (const issue of objectsIn<RawHealthStatus>(section.Issues)) {
                 push(sectionName, issue.Severity, issue.Message);
             }
-            for (const option of isArray<RawHealthStatus>(section.Options) ? section.Options : []) {
+            for (const option of objectsIn<RawHealthStatus>(section.Options)) {
                 push(`${sectionName}.${name(option.Name)}`, option.Severity, option.Message);
             }
-            for (const sub of isArray<NonNullable<RawHealthSection['Subsections']>[number]>(section.Subsections) ? section.Subsections : []) {
-                for (const option of isArray<RawHealthStatus>(sub.Options) ? sub.Options : []) {
+            for (const sub of objectsIn<NonNullable<RawHealthSection['Subsections']>[number]>(section.Subsections)) {
+                for (const option of objectsIn<RawHealthStatus>(sub.Options)) {
                     push(`${sectionName}.${name(sub.Name)}.${name(option.Name)}`, option.Severity, option.Message);
                 }
             }
@@ -504,7 +507,7 @@ export class NzbgetAdapter
             });
         }
 
-        const rows = (await this.#rpc<unknown[]>('history', [false], isArray)).filter(row => isObject<RawHistory>(row));
+        const rows = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray));
         return rows.flatMap(row => {
             // A row that cannot be dated is dropped rather than stamped with
             // the epoch, as for SABnzbd.

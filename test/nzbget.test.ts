@@ -258,13 +258,24 @@ describe('NzbgetAdapter', () => {
                         ? { DownloadRate: 0 }
                         : request.method === 'history'
                           ? [null, 5, 'x', { NZBID: 8, HistoryTime: 1_786_000_000, Status: 'SUCCESS/ALL' }]
-                          : [null, 5, 'x', { NZBID: 7, Status: 'QUEUED', FileSizeMB: 1, RemainingSizeMB: 1 }],
+                          : [
+                                null,
+                                5,
+                                'x',
+                                {
+                                    NZBID: 7,
+                                    Status: 'QUEUED',
+                                    FileSizeMB: 1,
+                                    RemainingSizeMB: 1,
+                                    Parameters: [null, 'x', { Name: 'drone', Value: 'drone-7' }]
+                                }
+                            ],
                 id: request.id
             })
         );
         const adapter = new NzbgetAdapter(config, fetchImpl);
 
-        await expect(adapter.getQueue()).resolves.toMatchObject([{ id: '7' }]);
+        await expect(adapter.getQueue()).resolves.toMatchObject([{ id: '7', downloadId: 'drone-7' }]);
         await expect(adapter.readHistory({ want: 10 })).resolves.toMatchObject([{ id: '8' }]);
         await expect(adapter.readPauseState('7')).resolves.toMatchObject({ paused: false });
     });
@@ -456,6 +467,27 @@ describe('NzbgetAdapter', () => {
             });
 
             await expect(adapter.getFailedHealthChecks()).resolves.toEqual([]);
+        });
+
+        it('skips null and primitive entries in the report instead of throwing', async () => {
+            const { adapter } = healthAdapter('26.3', {
+                result: {
+                    Alerts: [null, 5, { Source: 'Disk', Severity: 'Warning', Message: 'low space' }],
+                    Sections: [
+                        null,
+                        {
+                            Name: 'Paths',
+                            Issues: [null, { Severity: 'Error', Message: 'missing' }],
+                            Options: ['x', { Name: 'MainDir', Severity: 'Warning', Message: 'slow' }],
+                            Subsections: [null, { Name: 'Sub', Options: [null, { Name: 'Opt', Severity: 'Error', Message: 'bad' }] }]
+                        }
+                    ]
+                }
+            });
+
+            const checks = await adapter.getFailedHealthChecks();
+
+            expect(checks.map(c => c.type)).toEqual(['warning', 'error', 'warning', 'error']);
         });
 
         it('fails on any other systemhealth error', async () => {
