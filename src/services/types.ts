@@ -1060,6 +1060,60 @@ export interface MonitoringCapable {
 export const hasMonitoring = (a: ServiceAdapter): a is ServiceAdapter & MonitoringCapable =>
     typeof (a as Partial<MonitoringCapable>).setMonitoring === 'function';
 
+/**
+ * What one item currently reports for its own monitoring, read back so a
+ * monitoring write previews against what the service holds instead of issuing a
+ * PUT into the dark, and so a bad id fails here rather than as a silent success.
+ *
+ * Sonarr and Whisparr already answer this through `MediaDetailsCapable`. Lidarr
+ * albums cannot: `get_media_details` walks the film and series chain and
+ * refuses an album on purpose, so an album needs a narrower read that returns
+ * the two facts `set_monitoring` actually consumes and nothing else.
+ */
+export type MonitorState = { label: string; monitored: boolean };
+
+export interface MonitorStateCapable {
+    getMonitorState(id: string): Promise<MonitorState>;
+}
+
+export const hasMonitorState = (a: ServiceAdapter): a is ServiceAdapter & MonitorStateCapable =>
+    typeof (a as Partial<MonitorStateCapable>).getMonitorState === 'function';
+
+/** Lidarr's `NewItemMonitorTypes`. `none` is the only value that does not grow
+ *  the wanted list on its own as Lidarr discovers new albums. */
+export type ArtistMonitorNewItems = 'all' | 'none' | 'new';
+
+/**
+ * An artist's standing monitoring policy: the half of Lidarr's monitoring that
+ * decides the *future* rather than the present.
+ *
+ * `monitored` is a bulk setter over the artist's albums, not a switch with
+ * effects of its own. `monitorNewItems` is the rule Lidarr applies to albums it
+ * discovers later, so a library is not stable while any artist carries anything
+ * other than `none` — unmonitoring albums under such an artist is a treadmill.
+ */
+export type ArtistMonitorPolicy = {
+    artistId: string;
+    artistName: string;
+    monitored: boolean;
+    /** `unknown` when Lidarr reported a value outside its own enum, or none at
+     *  all. Reported rather than defaulted to `none`: a policy that cannot be
+     *  read is not a policy that is off. */
+    monitorNewItems: ArtistMonitorNewItems | 'unknown';
+};
+
+export interface ArtistMonitorCapable {
+    listArtistMonitorPolicies(): Promise<ArtistMonitorPolicy[]>;
+    setArtistMonitorPolicy(
+        artistIds: string[],
+        policy: { monitored?: boolean; monitorNewItems?: ArtistMonitorNewItems }
+    ): Promise<void>;
+}
+
+export const hasArtistMonitor = (a: ServiceAdapter): a is ServiceAdapter & ArtistMonitorCapable =>
+    typeof (a as Partial<ArtistMonitorCapable>).listArtistMonitorPolicies === 'function' &&
+    typeof (a as Partial<ArtistMonitorCapable>).setArtistMonitorPolicy === 'function';
+
 /** One file on disk. `sizeBytes` is omitted when Sonarr did not report one —
  *  a preview saying "0 bytes" would read as "nothing to lose". */
 export type EpisodeFile = { id: number; season: number; sizeBytes?: number };

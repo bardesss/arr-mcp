@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { unfenced } from '../src/core/titleMatch.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
-import { hasDiskSpace, hasLibrary, hasQueue, hasSearch, hasWanted } from '../src/services/types.ts';
+import { hasDiskSpace, hasLibrary, hasMonitorState, hasMonitoring, hasQueue, hasSearch, hasWanted } from '../src/services/types.ts';
 
 const config: KeyedServiceConfig = {
     url: 'http://192.168.1.20:8686',
@@ -70,16 +70,74 @@ describe('LidarrAdapter', () => {
      * Listing the prototype covers all 46 guards; sampling a few of them stays
      * green when someone adds the one that was not sampled.
      */
-    it('claims library reads and nothing else', () => {
+    it('claims library reads, search and monitoring, and nothing else', () => {
         const a = adapter({});
         const own = Object.getOwnPropertyNames(LidarrAdapter.prototype).filter(name => name !== 'constructor');
 
-        expect(own.sort()).toEqual(['getVersion', 'invalidateLibrary', 'listLibrary', 'search', 'testConnection']);
+        expect(own.sort()).toEqual([
+            'getMonitorState',
+            'getVersion',
+            'invalidateLibrary',
+            'listArtistMonitorPolicies',
+            'listLibrary',
+            'search',
+            'setArtistMonitorPolicy',
+            'setMonitoring',
+            'testConnection'
+        ]);
         expect(hasLibrary(a)).toBe(true);
         expect(hasSearch(a)).toBe(true);
+        expect(hasMonitoring(a)).toBe(true);
+        expect(hasMonitorState(a)).toBe(true);
         expect(hasQueue(a)).toBe(false);
         expect(hasDiskSpace(a)).toBe(false);
         expect(hasWanted(a)).toBe(false);
+    });
+
+    describe('monitoring', () => {
+        const ALBUM = { id: 7, title: 'House of Sugar', releaseDate: '2019-09-13', monitored: true, artist: { artistName: 'Alex G' } };
+
+        it('reads back the album it is about to write, not the cached library', async () => {
+            const seen: string[] = [];
+            const state = await adapter({ '/api/v1/album/7': ALBUM }, seen).getMonitorState('7');
+
+            expect(state).toEqual({
+                label: '<<untrusted:lidarr.title>>House of Sugar<</untrusted>> — <<untrusted:lidarr.artist>>Alex G<</untrusted>> (2019)',
+                monitored: true
+            });
+            expect(seen).toEqual(['/api/v1/album/7']);
+        });
+
+        it('refuses a non-integer album id rather than sending it on', async () => {
+            const seen: string[] = [];
+            await expect(adapter({ '/api/v1/album/7': ALBUM }, seen).getMonitorState('not-a-number')).rejects.toThrow(
+                /is not a Lidarr album id/
+            );
+            expect(seen).toEqual([]);
+        });
+
+        it('writes the album monitor endpoint with a one-element list', async () => {
+            const seen: string[] = [];
+            const routes: Record<string, unknown> = { '/api/v1/album/monitor': { albumIds: [7], monitored: false } };
+
+            await adapter(routes, seen).setMonitoring('7', { monitored: false });
+
+            expect(seen).toEqual(['/api/v1/album/monitor']);
+        });
+
+        /**
+         * Lidarr ignores a body field it has no use for and answers 200, so a
+         * season sent to an album would report success for a write that monitored
+         * the whole album instead. Refused before anything is sent.
+         */
+        it('refuses a season or episode id on an album', async () => {
+            const seen: string[] = [];
+            const a = adapter({ '/api/v1/album/monitor': {} }, seen);
+
+            await expect(a.setMonitoring('7', { monitored: false, season: 1 })).rejects.toThrow(/no seasons/);
+            await expect(a.setMonitoring('7', { monitored: false, episodeIds: ['3'] })).rejects.toThrow(/no seasons/);
+            expect(seen).toEqual([]);
+        });
     });
 
     describe('search', () => {

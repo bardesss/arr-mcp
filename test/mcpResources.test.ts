@@ -44,32 +44,50 @@ const instance = (id: string, safe_write: boolean, destructive: boolean): Servic
 
 const INSTANCES = [instance('radarr/4k', true, false), instance('sonarr', false, false)];
 
-const context = (): ToolContext =>
+/**
+ * A Lidarr whose artist policies are the interesting shape: one that will keep
+ * discovering new albums, one that will not.
+ */
+const POLICIES = [
+    { artistId: '1', artistName: 'Auto', monitored: true, monitorNewItems: 'all' },
+    { artistId: '2', artistName: 'Settled', monitored: false, monitorNewItems: 'none' }
+];
+
+const lidarrOn = (policies = POLICIES): ServiceAdapter =>
     ({
-        adapters: [radarr()],
+        id: 'lidarr',
+        type: 'lidarr',
+        getVersion: async () => '3.1.6.5078',
+        listArtistMonitorPolicies: async () => policies,
+        setArtistMonitorPolicy: async () => {}
+    }) as unknown as ServiceAdapter;
+
+const context = (extra: ServiceAdapter[] = []): ToolContext =>
+    ({
+        adapters: [radarr(), ...extra],
         instances: INSTANCES,
-        library: new LibraryLoader([radarr()], undefined)
+        library: new LibraryLoader([radarr(), ...extra], undefined)
     }) as unknown as ToolContext;
 
 /** The registry the SDK builds, which is what a client actually sees. */
-const registered = () => {
+const registered = (ctx: ToolContext = context()) => {
     const server = new McpServer({ name: 'test', version: '0' });
-    registerAllResources(server, context());
+    registerAllResources(server, ctx);
     return (server as unknown as { _registeredResources: Record<string, Record<string, unknown>> })
         ._registeredResources;
 };
 
-const read = async (uri: string): Promise<Record<string, unknown>> => {
-    const entry = registered()[uri] as { readCallback: (u: URL) => unknown } | undefined;
+const read = async (uri: string, ctx?: ToolContext): Promise<Record<string, unknown>> => {
+    const entry = registered(ctx)[uri] as { readCallback: (u: URL) => unknown } | undefined;
     if (entry === undefined) throw new Error(`${uri} is not registered`);
     const result = (await entry.readCallback(new URL(uri))) as { contents: { text: string }[] };
     return JSON.parse(result.contents[0]!.text) as Record<string, unknown>;
 };
 
-const ALL = ['arr://instances', 'arr://health', 'arr://library/summary'];
+const ALL = ['arr://instances', 'arr://health', 'arr://library/summary', 'arr://lidarr/monitoring'];
 
 describe('the resources a client sees', () => {
-    it('registers all three', () => {
+    it('registers all four', () => {
         expect(Object.keys(registered()).sort()).toEqual([...ALL].sort());
     });
 
@@ -81,6 +99,59 @@ describe('the resources a client sees', () => {
 
     it('summarises the library as total, on disk and still wanted', async () => {
         expect(await read('arr://library/summary')).toMatchObject({ total: 2, on_disk: 1, wanted: 1 });
+    });
+
+    /**
+     * The trap this closes: a Lidarr library that is finished reads as tens of
+     * thousands of items because the whole discography sits in it unmonitored.
+     * `total` alone made that look like a library size, so `monitored` and the
+     * note have to say which number is the library.
+     */
+    it('separates what is watched from what is only catalog', async () => {
+        const body = await read('arr://library/summary');
+
+        expect(body).toMatchObject({ total: 2, monitored: 2, unmonitored: 0 });
+        expect(body.note).toBeUndefined();
+    });
+
+    describe('lidarr monitoring policy', () => {
+        it('says absent rather than zero when no Lidarr is configured', async () => {
+            const body = await read('arr://lidarr/monitoring');
+
+            expect(body).toMatchObject({ configured: false });
+            expect(body.artists).toBeUndefined();
+        });
+
+        it('counts who will keep discovering albums, and calls that unstable', async () => {
+            const body = await read('arr://lidarr/monitoring', context([lidarrOn()]));
+
+            expect(body).toMatchObject({
+                configured: true,
+                artists: 2,
+                monitor_new_items: { all: 1, none: 1 },
+                artist_flag: { monitored: 1, unmonitored: 1 },
+                stable: false
+            });
+            expect(String(body.note)).toContain('treadmill');
+        });
+
+        it('calls a library stable only when no artist will auto-monitor', async () => {
+            const settled = [{ artistId: '1', artistName: 'Settled', monitored: false, monitorNewItems: 'none' }];
+            const body = await read('arr://lidarr/monitoring', context([lidarrOn(settled)]));
+
+            expect(body).toMatchObject({ stable: true });
+        });
+
+        /**
+         * A policy that could not be read is not a policy that is off, so it
+         * counts against stability rather than being defaulted to the safe value.
+         */
+        it('counts an unreadable policy against stability, not for it', async () => {
+            const odd = [{ artistId: '1', artistName: 'Odd', monitored: false, monitorNewItems: 'unknown' }];
+            const body = await read('arr://lidarr/monitoring', context([lidarrOn(odd)]));
+
+            expect(body).toMatchObject({ stable: false, monitor_new_items: { unknown: 1 } });
+        });
     });
 });
 

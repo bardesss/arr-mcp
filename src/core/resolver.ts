@@ -77,6 +77,12 @@ export type MergedItem = {
      * compare two things at once. Fenced like every other service string.
      */
     artist?: string;
+    /**
+     * Albums only: Lidarr's own id for the artist, not an external id. The
+     * artist-level monitoring policy is addressed by it and by nothing else, and
+     * an album row is the only place a caller can pick one up.
+     */
+    artistId?: string;
     year?: number;
     /**
      * Absent from the record and required because `genre` is a `get_library`

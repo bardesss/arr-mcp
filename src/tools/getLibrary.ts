@@ -263,6 +263,7 @@ const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
             // The artist is not decoration on an album: a title alone does not
             // identify one, and two artists can share an album title.
             ...(item.artist === undefined ? {} : { artist: item.artist }),
+            ...(item.artistId === undefined ? {} : { artistId: item.artistId }),
             ...(item.year === undefined ? {} : { year: item.year }),
             ids: item.ids,
             presence: item.presence,

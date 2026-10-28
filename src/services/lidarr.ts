@@ -1,6 +1,7 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
+import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput } from '../core/resolver.ts';
@@ -8,13 +9,27 @@ import { readProfileNames } from './arrAdd.ts';
 import { arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
+    type ArtistMonitorCapable,
+    type ArtistMonitorNewItems,
+    type ArtistMonitorPolicy,
     type ConnectionDiagnosis,
     type LibraryCapable,
+    type MonitoringCapable,
+    type MonitoringTarget,
+    type MonitorState,
+    type MonitorStateCapable,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
     type ServiceAdapter
 } from './types.ts';
+
+/**
+ * Whether Lidarr named a policy this code knows. Anything else stays `unknown`
+ * rather than being read as the safe value.
+ */
+const isKnownNewItems = (value: string | undefined): value is ArtistMonitorNewItems =>
+    value === 'all' || value === 'none' || value === 'new';
 
 /**
  * The fields `listLibrary` reads. Named after `AlbumResource` in
@@ -29,7 +44,14 @@ type RawAlbum = {
     monitored?: boolean;
     genres?: string[];
     statistics?: { trackFileCount?: number; sizeOnDisk?: number };
-    artist?: { artistName?: string; qualityProfileId?: number; path?: string };
+    artist?: { id?: number; artistName?: string; qualityProfileId?: number; path?: string };
+};
+
+type RawArtist = {
+    id?: number;
+    artistName?: string;
+    monitored?: boolean;
+    monitorNewItems?: string;
 };
 
 const yearOf = (releaseDate: string | null | undefined): number | undefined => {
@@ -51,10 +73,9 @@ const albumIds = (album: RawAlbum): IndexInput['ids'] =>
 const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCount ?? 0) > 0;
 
 /**
- * Lidarr. It claims `LibraryCapable` and nothing else, so `get_library` lists
- * albums and no tool writes to it. `CONTRIBUTING.md` lists the API traps for the
- * adapter that adds a write, and the endpoints still waiting on a library with
- * real activity.
+ * Lidarr. It claims `LibraryCapable`, `SearchCapable` and `MonitoringCapable`.
+ * `CONTRIBUTING.md` lists the API traps for the adapter that adds the next
+ * write, and the endpoints still waiting on a library with real activity.
  *
  * An album is the row rather than a track or an artist, for the reason Radarr
  * and Sonarr row on a film and a series: it is the level Lidarr reports
@@ -62,7 +83,9 @@ const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCo
  * asks about. The artist name rides along on the row, so an artist-level
  * question is a filter rather than a second kind.
  */
-export class LidarrAdapter implements ServiceAdapter, LibraryCapable, SearchCapable {
+export class LidarrAdapter
+    implements ServiceAdapter, LibraryCapable, SearchCapable, MonitoringCapable, MonitorStateCapable, ArtistMonitorCapable
+{
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined = undefined;
     readonly id: string = 'lidarr';
@@ -104,6 +127,9 @@ export class LidarrAdapter implements ServiceAdapter, LibraryCapable, SearchCapa
                 ...(artist?.artistName === undefined
                     ? {}
                     : { artist: fenceText(artist.artistName, { service: this.id, field: 'artist' }) }),
+                // Lidarr's internal artist id, so an artist-level write has an
+                // address to take. Omitted, not zeroed, when the row has none.
+                ...(artist?.id === undefined || artist.id <= 0 ? {} : { artistId: String(artist.id) }),
                 ...((year => (year === undefined ? {} : { year }))(yearOf(album.releaseDate))),
                 ...(album.genres === undefined
                     ? {}
@@ -175,7 +201,105 @@ export class LidarrAdapter implements ServiceAdapter, LibraryCapable, SearchCapa
             }));
     }
 
+    /**
+     * The two facts `set_monitoring` needs about one album, read from the album
+     * itself rather than from the whole-library cache: a write must preview
+     * against what Lidarr holds *now*, and a stale TTL row would let a stale
+     * `monitored` stand in for the truth and report a real change as a no-op.
+     */
+    async getMonitorState(id: string): Promise<MonitorState> {
+        const albumId = this.#numericId(id, 'album');
+        const album = await this.#http.get<RawAlbum>(`/api/v1/album/${albumId}`);
+        const title = fenceText(album.title ?? '', { service: this.id, field: 'title' });
+        const artist = album.artist?.artistName;
+        const year = yearOf(album.releaseDate);
+
+        return {
+            label: `${title}${artist === undefined ? '' : ` — ${fenceText(artist, { service: this.id, field: 'artist' })}`}${
+                year === undefined ? '' : ` (${year})`
+            }`,
+            monitored: album.monitored ?? false
+        };
+    }
+
+    /**
+     * One album's own flag, via the endpoint built for it. Lidarr's album monitor
+     * route takes a list; a single id is the one-element case rather than a
+     * special one, so the bulk form stays available without a second path.
+     *
+     * `season` and `episodeIds` are refused rather than ignored: an album has
+     * neither, and a write that accepted them would report success while having
+     * monitored the whole album the caller meant to leave alone.
+     */
+    async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
+        if (opts.season !== undefined || opts.episodeIds !== undefined) {
+            throw new ServiceError('NotFound', this.id, 'A Lidarr album has no seasons and no episode ids', {
+                remedy: 'An album is monitored whole: send only `monitored`. Track-level selection is not a Lidarr concept.'
+            });
+        }
+
+        const albumId = this.#numericId(id, 'album');
+        await this.#http.put('/api/v1/album/monitor', { albumIds: [albumId], monitored: opts.monitored }, true);
+        this.#libraryCache.clear();
+    }
+
+    /**
+     * Every artist's standing policy. Read whole rather than one at a time: the
+     * question is always "is anything still set to auto-monitor", which is a
+     * question about the set, and Lidarr has no filtered artist read.
+     */
+    async listArtistMonitorPolicies(): Promise<ArtistMonitorPolicy[]> {
+        const artists = await this.#http.get<RawArtist[]>('/api/v1/artist');
+
+        return artists
+            .filter((a): a is RawArtist & { id: number } => typeof a.id === 'number' && a.id > 0)
+            .map(a => ({
+                artistId: String(a.id),
+                artistName: fenceText(a.artistName ?? '', { service: this.id, field: 'artist' }),
+                monitored: a.monitored ?? false,
+                monitorNewItems: isKnownNewItems(a.monitorNewItems) ? a.monitorNewItems : 'unknown'
+            }));
+    }
+
+    /**
+     * Lidarr's Artist Editor, which is the bulk path: one call reaches every
+     * artist named, which is the only way a library of a thousand artists reaches
+     * a stable policy without a thousand writes.
+     *
+     * An empty list issues nothing, for the same reason `deleteEpisodeFiles`
+     * gives: an editor call naming no artist is a request with no purpose, and
+     * Lidarr's behaviour for it is not worth discovering against a live library.
+     */
+    async setArtistMonitorPolicy(
+        artistIds: string[],
+        policy: { monitored?: boolean; monitorNewItems?: ArtistMonitorNewItems }
+    ): Promise<void> {
+        if (artistIds.length === 0) return;
+
+        const ids = artistIds.map(id => this.#numericId(id, 'artist'));
+        await this.#http.put(
+            '/api/v1/artist/editor',
+            {
+                artistIds: ids,
+                ...(policy.monitored === undefined ? {} : { monitored: policy.monitored }),
+                ...(policy.monitorNewItems === undefined ? {} : { monitorNewItems: policy.monitorNewItems })
+            },
+            true
+        );
+        this.#libraryCache.clear();
+    }
+
     async testConnection(): Promise<ConnectionDiagnosis> {
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
+    }
+
+    #numericId(value: string, what: string): number {
+        const id = Number(value);
+        if (!Number.isInteger(id)) {
+            throw new ServiceError('NotFound', this.id, `"${value}" is not a Lidarr ${what} id`, {
+                remedy: `Lidarr ${what} ids are integers. Take one from \`acquisition.id\` on get_library.`
+            });
+        }
+        return id;
     }
 }
