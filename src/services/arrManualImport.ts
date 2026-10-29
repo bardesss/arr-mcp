@@ -5,6 +5,7 @@ import type { ArrKind } from '../core/resolver.ts';
 import { arrItemId, awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
 import { renameThroughTemporaryFormat } from './arrRename.ts';
 import { readArrQueue } from './arrQueue.ts';
+import { usenetRerun } from './arrRecord.ts';
 import type {
     CommandHandle,
     EpisodeReassignment,
@@ -130,12 +131,14 @@ async function unfinishedRow(
 }
 
 /**
- * The *arrs' `QueueStatus`: `unknown`, `queued`, `paused`, `downloading`,
- * `completed`, `failed`, `warning`, `delay`, `downloadClientUnavailable` and
- * `fallback` (the generated specs). These are a download on its way to
- * `completed`.
+ * A download on its way to `completed`. The row is found by download id, so it
+ * is one the *arr tracks, whose status is the client's: `queued`, `paused`,
+ * `downloading`, `completed`, `failed` or `warning` (`DownloadItemStatus`,
+ * mapped in `QueueService`). A release the *arr holds back (`PENDING_STATUSES`)
+ * has been sent to no client and has no download id (`PendingReleaseService`),
+ * so it never gets here.
  */
-const IN_PROGRESS = new Set(['queued', 'paused', 'delay', 'downloading']);
+const IN_PROGRESS = new Set(['queued', 'paused', 'downloading']);
 
 /**
  * Worded by state: a download that is still on its way "has not finished", and
@@ -148,9 +151,11 @@ const IN_PROGRESS = new Set(['queued', 'paused', 'delay', 'downloading']);
  * often finishes later. Not every warning will: a qBittorrent magnet with DHT
  * off waits there for good. So it is named as a warning, and the remedy points
  * at the row's own reason, which the client gives in the queue row's
- * `errorMessage` (`QueueService`) and `get_queue` shows at `detail: "full"`.
- * Anything else (`unknown`, `downloadClientUnavailable`, `fallback`) says only
- * what is known: the queue does not report it completed.
+ * `errorMessage` (`QueueService`) and `get_queue` shows at `detail: "full"`. A
+ * usenet warning with nothing left is different: the client filed the download
+ * in its history with a problem, which waiting does not clear, so the remedy
+ * says how to run it again (`usenetRerun`). Any other status says only what is
+ * known: the queue does not report it completed.
  */
 function notFinished(service: string, downloadId: string, row: QueueItem, why: string, cause?: unknown): ServiceError {
     const status = row.status.toLowerCase();
@@ -159,6 +164,12 @@ function notFinished(service: string, downloadId: string, row: QueueItem, why: s
     if (IN_PROGRESS.has(status)) {
         return new ServiceError('UpstreamError', service, `download ${downloadId} has not finished downloading`, {
             remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete — ${why}. Wait for it to finish, then try again.`,
+            ...opts
+        });
+    }
+    if (status === 'warning' && row.protocol === 'usenet' && row.remainingBytes === 0 && (row.sizeBytes ?? 0) > 0) {
+        return new ServiceError('UpstreamError', service, `download ${downloadId} has a warning in the download client`, {
+            remedy: `get_queue reports it as ${state}: the client finished with it but reports a problem, which waiting does not clear, so there is nothing to import. ${usenetRerun(row, 'Its `errorMessage`, which get_queue shows at `detail: "full"`,')}`,
             ...opts
         });
     }

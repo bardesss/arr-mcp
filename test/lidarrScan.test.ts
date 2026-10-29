@@ -266,6 +266,19 @@ describe('Lidarr import by download id', () => {
         expect(sent.map(s => s.path)).toEqual(['/api/v1/queue', '/api/v1/queue']);
     });
 
+    // Lidarr reads its queue first, so every usenet warning reaches the refusal.
+    it('names the call that runs a finished NZBGet download again on Lidarr, and how to remove a deleted one', async () => {
+        const warned = { totalRecords: 1, records: [{ id: 7, status: 'warning', downloadId: 'aaaabbbbccccddddeeeeffff00001111', artistId: 3, trackedDownloadState: 'downloading', protocol: 'usenet', size: 1000, sizeleft: 0 }] };
+        const { adapter, sent } = lidarr(s => (s.path === '/api/v1/queue' ? warned : ROWS));
+
+        await expect(adapter.listImportCandidates('aaaabbbbccccddddeeeeffff00001111')).rejects.toMatchObject({
+            remedy: expect.stringContaining(
+                'On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111". If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "7", with `blocklist: true` if it was bad. Its `errorMessage`, which get_queue shows at `detail: "full"`, says which.'
+            )
+        });
+        expect(sent.map(s => s.path)).toEqual(['/api/v1/queue']);
+    });
+
     it('names a warning as a warning on Lidarr too, and still reads no files', async () => {
         const { adapter, sent } = lidarr(s => (s.path === '/api/v1/queue' ? QUEUE('warning') : ROWS));
 

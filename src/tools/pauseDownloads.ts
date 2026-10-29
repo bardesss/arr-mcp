@@ -26,7 +26,7 @@ const TARGET = serviceTarget({
     services: DOWNLOAD_CLIENTS,
     can: hasPause,
     cannot: 'cannot be paused',
-    hint: 'Radarr and Sonarr have no pause — they keep grabbing, and the grabs queue up in whichever client is configured.'
+    hint: 'The *arrs have no pause — they keep grabbing, and the grabs queue up in whichever client is configured.'
 });
 
 /** A speed cap is its own capability: a client can pause without having one,
@@ -58,7 +58,7 @@ const PauseDownloadsInput = z.object({
         .string()
         .optional()
         .describe(
-            'One queue item to pause, exactly as get_queue reported its id. Omit to pause the whole client. Refused with action "limit".'
+            'One queue item to pause or resume, exactly as get_queue reported its id. Omit for the whole client. Refused with action "limit".'
         )
 });
 
@@ -71,7 +71,7 @@ export function registerPauseDownloads(
         name: 'pause_downloads',
         title: 'Pause, resume or throttle a download client',
         description:
-            'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
+            'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop the *arrs grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
         inputSchema: PauseDownloadsInput,
         // The resolved instance id, not the bare type — permissions are
         // granted per instance.
@@ -117,7 +117,7 @@ export function registerPauseDownloads(
                         wanted === undefined
                             ? `${client.id} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KiB/s`}.`
                             : `Caps ${client.id} at ${wanted} KiB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KiB/s`}. Client-wide, not per item.`,
-                        'Does NOT stop Radarr or Sonarr grabbing. They keep sending releases; they just arrive more slowly.',
+                        'Does NOT stop the *arrs grabbing. They keep sending releases; they just arrive more slowly.',
                         'Undo it by calling this tool again with action: "limit" and a different value — 0 removes the cap.'
                     ],
                     args: { action, kbps: speed_limit_kbps }
@@ -139,16 +139,19 @@ export function registerPauseDownloads(
                 };
             }
 
+            // One item paused or resumed leaves the rest of the client as it
+            // was, so what the *arrs grab meanwhile neither piles up nor starts.
+            const whole = id === undefined;
             const effects = paused
                 ? [
                       `Stops ${state.scope} on ${adapter.id}. Nothing already downloaded is lost, and partial downloads resume where they left off.`,
                       // The thing a bare "paused" would let someone believe.
-                      'Does NOT stop Radarr or Sonarr searching and grabbing. They keep sending releases, which pile up in this client until it is resumed.',
-                      `Undo it by calling this tool again with action: "resume".`
+                      ...(whole ? ['Does NOT stop the *arrs searching and grabbing. They keep sending releases, which pile up in this client until it is resumed.'] : []),
+                      `Undo it by calling this tool again with action: "resume"${whole ? '' : ` and the same \`id\``}.`
                   ]
                 : [
                       `Restarts ${state.scope} on ${adapter.id}. Downloading resumes immediately and uses bandwidth.`,
-                      'Anything Radarr or Sonarr grabbed while it was paused starts downloading too.'
+                      ...(whole ? ['Anything the *arrs grabbed while it was paused starts downloading too.'] : [])
                   ];
 
             return {

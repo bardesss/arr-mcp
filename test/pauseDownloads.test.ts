@@ -285,7 +285,24 @@ describe('pause_downloads', () => {
         const h = harness();
         const { structuredContent } = await h.call({ service: 'sabnzbd', action: 'pause' });
 
-        expect(structuredContent.effects.join(' ')).toMatch(/radarr|sonarr/i);
+        expect(structuredContent.effects.join(' ')).toContain('Does NOT stop the *arrs searching and grabbing.');
+        expect(structuredContent.effects).toContain('Undo it by calling this tool again with action: "resume".');
+    });
+
+    // One item paused or resumed leaves the rest of the client as it was, so
+    // nothing the *arrs grab meanwhile piles up behind it or starts with it.
+    it.each([
+        ['pause', 'Queued', /pile up/],
+        ['resume', 'Paused', /starts downloading too/]
+    ])('leaves the whole-client lines out of a one-item %s', async (action, status, wholeClient) => {
+        const slot = { nzo_id: 'SABnzbd_nzo_ab12', filename: 'Some.Film.2026', status };
+        const sab = new SabnzbdAdapter(keyed(8080), (async () => jsonResponse({ queue: { paused: false, slots: [slot] } })) as unknown as typeof fetch);
+        const { structuredContent } = await harness({ adapters: [sab] }).call({ service: 'sabnzbd', action, id: slot.nzo_id });
+
+        expect(structuredContent.summary).toContain('queue item SABnzbd_nzo_ab12');
+        expect(structuredContent.effects.join(' ')).not.toMatch(wholeClient);
+        expect(structuredContent.effects.join(' ')).not.toMatch(/\*arrs/);
+        if (action === 'pause') expect(structuredContent.effects.join(' ')).toContain('Undo it by calling this tool again with action: "resume" and the same `id`.');
     });
 
     it('is a no-op when the client is already paused', async () => {
