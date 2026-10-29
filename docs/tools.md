@@ -834,14 +834,13 @@ join rather than a finding about the library.
 
 ## `get_queue`
 
-Each Radarr or Sonarr row carries `downloadId`, the download client's own id
-for that grab. It is what `trigger_scan`'s `import` action takes, and it is the
-link between "this is stuck at `importBlocked`" and doing something about it.
+Each Radarr, Sonarr or Lidarr row carries `downloadId`, the download client's
+own id for that grab. It is what `trigger_scan`'s `import` action takes, and
+it is the link between "this is stuck at `importBlocked`" and doing something
+about it.
 
-Lidarr rows carry `downloadId` and `statusMessages` the same way, and
-`orphaned` when the artist they were grabbed for has been deleted. Lidarr has
-no `trigger_scan` import yet, so a blocked album import is fixed in Lidarr
-itself.
+Lidarr rows carry `statusMessages` the same way, and `orphaned` when the
+artist they were grabbed for has been deleted.
 
 NZBGet rows come from its own queue (`listgroups`). Sizes arrive in megabytes
 and are converted to bytes. The ETA is worked out from the current download
@@ -1921,7 +1920,7 @@ Five actions, one idea: make a service reconcile itself with what is on disk.
 | Call | What it does |
 | --- | --- |
 | `service` alone | Rescans that service's whole library. On Prowlarr, which has no library, it syncs the indexer list to Radarr and Sonarr instead. |
-| `service` + `id` | Rescans just that Radarr/Sonarr item — far cheaper on a large library. |
+| `service` + `id` | Rescans just that Radarr/Sonarr/Whisparr item or Lidarr artist — far cheaper on a large library. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
 | `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
@@ -1930,6 +1929,29 @@ Five actions, one idea: make a service reconcile itself with what is on disk.
 Everything here queues a command and returns, except `remap` and `postprocess` — see below.
 `stack_health`'s `commands` list says whether it has finished; do not assume it
 has.
+
+### On Lidarr
+
+A scan is Lidarr's `RefreshArtist`, for the whole library or with `id` for one
+artist. It refreshes the artist's metadata, then rescans the artist folders
+unless Lidarr's "rescan artist folder after refresh" is set to Never.
+`rename` is `RenameArtist`, every file of that artist. Both appear in
+`stack_health`'s `commands`.
+
+`import` reads Lidarr's queue first and refuses a download that has not
+finished. Lidarr's candidate read for one fails, as Radarr's and Sonarr's does,
+when it comes from NZBGet, but from a torrent client it lists the partial files
+and judges them as they stand. It then reads the candidates with
+`replaceExistingFiles=false`, because Lidarr's own default for that read is
+true: it would judge every file as if it may overwrite the library's copy. Each
+file is named in the preview by artist and album. A file Lidarr matched to no
+album, no release or no tracks is not importable, the way a Sonarr file with no
+episode is not: `ManualImport` looks up the album, the release and the tracks by
+id for every file. `mapping` is refused on Lidarr rather than ignored, since it
+names movies and episodes, and a Lidarr file belongs to an album and its tracks.
+A wrong album match is fixed in Lidarr itself.
+
+There is no Lidarr `remap`.
 
 ### On Plex
 
@@ -2015,8 +2037,8 @@ grabbed again, the token is rejected and nothing runs. A download already in
 NZBGet's queue is refused, so a rerun never starts on top of another.
 
 Once confirmed, NZBGet repeats repair and unpack as it is configured, then those
-scripts. Radarr or Sonarr still imports the result: on its next queue check, or
-straight away with `action: "import"`.
+scripts. Radarr, Sonarr or Lidarr still imports the result: on its next queue
+check, or straight away with `action: "import"`.
 
 It only works while the download's folder still exists. When the folder has
 been moved or deleted, NZBGet still answers the request with success and logs

@@ -46,7 +46,7 @@ const findAdapter = (
         // has no library to scan, and reporting success for an action that
         // could never happen is how a model concludes the scan is done.
         throw new ServiceError('NotFound', service, `${service} has no library to scan`, {
-            remedy: 'Only radarr, sonarr, jellyfin and plex manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server — jellyfin or plex — is almost always the one you want.'
+            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin and plex manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server — jellyfin or plex — is almost always the one you want.'
         });
     }
 
@@ -64,15 +64,15 @@ const findItemAdapter = (
 
     if (!hasLibraryMaintenance(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot refresh or rename one item`, {
-            remedy: 'Only radarr and sonarr manage individual items. For a media server, scan the whole library — omit `id`.'
+            remedy: 'Only radarr, sonarr, whisparr and lidarr manage individual items. For a media server, scan the whole library — omit `id`.'
         });
     }
 
     return adapter;
 };
 
-/** Importing a finished download is Radarr's and Sonarr's alone: a media
- *  server never had the file in a download folder to begin with. */
+/** Importing a finished download is Radarr's, Sonarr's and Lidarr's alone: a
+ *  media server never had the file in a download folder to begin with. */
 const findImportAdapter = (
     adapters: readonly ServiceAdapter[],
     service: ServiceId,
@@ -82,7 +82,7 @@ const findImportAdapter = (
 
     if (!hasManualImport(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot import a download`, {
-            remedy: 'Only radarr and sonarr import downloads. Pick the one that was supposed to manage the item.'
+            remedy: 'Only radarr, sonarr and lidarr import downloads. Pick the one that was supposed to manage the item.'
         });
     }
 
@@ -99,7 +99,7 @@ const findPostProcessAdapter = (
 
     if (!hasPostProcess(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot run post-processing again`, {
-            remedy: 'postprocess is for nzbget: it reruns NZBGet\'s post-processing on a finished download. For a download Radarr or Sonarr never took, use action "import" on that *arr instead.'
+            remedy: 'postprocess is for nzbget: it reruns NZBGet\'s post-processing on a finished download. For a download Radarr, Sonarr or Lidarr never took, use action "import" on that *arr instead.'
         });
     }
 
@@ -151,10 +151,10 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Scan for new files',
         description:
-            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again. `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr/Whisparr item or Lidarr artist, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again (not on Lidarr, whose files belong to albums and tracks: fix a wrong album match in Lidarr itself). `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe(
-                'radarr, sonarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps, or nzbget for action: "postprocess".'
+                'radarr, sonarr, whisparr, lidarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps, or nzbget for action: "postprocess".'
             ),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z
@@ -168,7 +168,7 @@ export function registerTriggerScan(
                 .min(1)
                 .optional()
                 .describe(
-                    'One movie or series id — `acquisition.id` on a get_library record. Omit with action: "scan" to rescan the whole library.'
+                    'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to rescan the whole library.'
                 ),
             download_id: z
                 .string()
@@ -298,7 +298,7 @@ export function registerTriggerScan(
                         ...(target.finalFolder === undefined
                             ? []
                             : [`The finished files were moved on to ${target.finalFolder}; post-processing does not run there.`]),
-                        'Radarr or Sonarr still has to import the result: on its next queue check, or straight away with action "import" on it.'
+                        'Radarr, Sonarr or Lidarr still has to import the result: on its next queue check, or straight away with action "import" on it.'
                     ],
                     args: {
                         service,
@@ -462,13 +462,13 @@ export function registerTriggerScan(
                 const outcome = await processor.runPostProcess(download_id, String(plan.args?.historyId));
                 const { title } = outcome.target;
                 if (outcome.state === 'running') {
-                    return `${processor.id} is post-processing ${title} again, now ${outcome.status}. It keeps running in the background: get_queue shows it until it is back in history, and get_history then says how it finished. Radarr or Sonarr imports the result on its next queue check, or use action "import" on it then.`;
+                    return `${processor.id} is post-processing ${title} again, now ${outcome.status}. It keeps running in the background: get_queue shows it until it is back in history, and get_history then says how it finished. Radarr, Sonarr or Lidarr imports the result on its next queue check, or use action "import" on it then.`;
                 }
                 if (outcome.state === 'removed') {
-                    return `${processor.id} ran post-processing again on ${title}, and it is no longer in ${processor.id}'s queue or history: Radarr or Sonarr usually imports a finished download and removes it from the client. Check get_queue and get_history on the *arr to see whether it was imported.`;
+                    return `${processor.id} ran post-processing again on ${title}, and it is no longer in ${processor.id}'s queue or history: Radarr, Sonarr or Lidarr usually imports a finished download and removes it from the client. Check get_queue and get_history on the *arr to see whether it was imported.`;
                 }
                 if (outcome.event === 'imported') {
-                    return `${processor.id} ran post-processing again on ${title}, and it finished as ${outcome.status}. Radarr or Sonarr imports the result on its next queue check, or use action "import" on it now.`;
+                    return `${processor.id} ran post-processing again on ${title}, and it finished as ${outcome.status}. Radarr, Sonarr or Lidarr imports the result on its next queue check, or use action "import" on it now.`;
                 }
                 return `${processor.id} ran post-processing again on ${title}, and it finished as ${outcome.status}: it did not succeed this time either, so whatever broke it before still does. Nothing new is there to import. get_history has the stages that failed.`;
             }
