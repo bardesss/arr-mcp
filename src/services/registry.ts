@@ -2,6 +2,7 @@ import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import type { Config } from '../config/schema.ts';
 import { BazarrAdapter } from './bazarr.ts';
 import { JellyfinAdapter } from './jellyfin.ts';
+import { LidarrAdapter } from './lidarr.ts';
 import { NzbgetAdapter } from './nzbget.ts';
 import { PlexAdapter } from './plex.ts';
 import { ProfilarrAdapter } from './profilarr.ts';
@@ -51,6 +52,8 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
             return new BazarrAdapter(instance.config);
         case 'jellyfin':
             return new JellyfinAdapter(instance.config);
+        case 'lidarr':
+            return new LidarrAdapter(instance.config);
         case 'nzbget':
             return new NzbgetAdapter(instance.config);
         case 'profilarr':

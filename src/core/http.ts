@@ -50,9 +50,9 @@ const encodeBody = (body: RequestBody): { contentType: string; payload: string }
         : { contentType: 'application/json', payload: JSON.stringify(body.json) };
 
 /**
- * The one implementation of the resilience policy. Nine
- * adapters sharing this is what makes "the breaker opens after five failures"
- * a checkable property of the stack rather than a property of Radarr.
+ * The one implementation of the resilience policy. Every adapter sharing it is
+ * what makes "the breaker opens after five failures" a checkable property of
+ * the stack rather than a property of Radarr.
  */
 export class ServiceHttp {
     readonly #id: string;
@@ -63,21 +63,39 @@ export class ServiceHttp {
     readonly #fetch: typeof fetch;
     readonly #closeConnection: boolean;
 
+    /**
+     * The API version segment this service's resources live under, `/api/v3`
+     * for Radarr, Sonarr and Whisparr and `/api/v1` for Lidarr.
+     *
+     * It sits here rather than in `BaseServiceConfig` because it belongs to the
+     * service, not to the operator: nobody chooses a different root for the
+     * same product, and a config field would widen the user-facing schema for
+     * something that is always wrong to set. Every shared `arr*.ts` helper
+     * already receives an `http` instance, so the root travels with the
+     * adapter instead of with each call site.
+     *
+     * The value means nothing to the other services: they each spell their
+     * own prefix, and none of them should start reading this one.
+     */
+    readonly apiRoot: string;
+
     #consecutiveFailures = 0;
     #openedAt: number | undefined;
 
     /**
-     * `closeConnection` sends `Connection: close` on every request, for a
+     * `opts.closeConnection` sends `Connection: close` on every request, for a
      * server that cannot be trusted with a reused socket. NZBGet's
      * WebServer.cpp answers a 401 before reading the POST body but keeps the
      * connection open, so the next request on that socket fails.
+     *
+     * `opts.apiRoot` overrides the API version segment above; see `apiRoot`.
      */
     constructor(
         id: string,
         config: BaseServiceConfig,
         auth: AuthStrategy,
         fetchImpl: typeof fetch = fetch,
-        opts: { closeConnection?: boolean } = {}
+        opts: { apiRoot?: string; closeConnection?: boolean } = {}
     ) {
         this.#id = id;
         this.#baseUrl = config.url;
@@ -85,6 +103,7 @@ export class ServiceHttp {
         this.#timeoutMs = config.timeout_ms;
         this.#auth = auth;
         this.#fetch = fetchImpl;
+        this.apiRoot = opts.apiRoot ?? '/api/v3';
         this.#closeConnection = opts.closeConnection === true;
     }
 

@@ -1,0 +1,20 @@
+[
+  {
+    "source": "IndexerRssCheck",
+    "type": "error",
+    "message": "No indexers available with RSS sync enabled, Lidarr will not grab new releases automatically",
+    "wikiUrl": "https://wiki.servarr.com/lidarr/system#no-indexers-available-with-rss-sync-enabled-lidarr-will-not-grab-new-releases-automatically"
+  },
+  {
+    "source": "DownloadClientCheck",
+    "type": "warning",
+    "message": "No download client is available",
+    "wikiUrl": "https://wiki.servarr.com/lidarr/system#no-download-client-is-available"
+  },
+  {
+    "source": "IndexerSearchCheck",
+    "type": "warning",
+    "message": "No indexers available with Automatic Search enabled, Lidarr will not provide any automatic search results",
+    "wikiUrl": "https://wiki.servarr.com/lidarr/system#no-indexers-available-with-automatic-search-enabled-lidarr-will-not-provide-any-automatic-search-results"
+  }
+]

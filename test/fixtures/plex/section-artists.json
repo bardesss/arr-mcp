@@ -1,0 +1,237 @@
+{
+  "MediaContainer": {
+    "size": 5,
+    "totalSize": 15,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/artist-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Music",
+    "librarySectionUUID": "00000000-0000-4000-8000-000000000000",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1700000000,
+    "nocache": true,
+    "thumb": "/:/resources/artist.png",
+    "title1": "Music",
+    "title2": "All Artists",
+    "viewGroup": "artist",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "1001",
+        "key": "/library/metadata/1001/children",
+        "guid": "plex://artist/ccccccccccccccccccccccc1",
+        "type": "artist",
+        "title": "Artist 1",
+        "summary": "Fixture text",
+        "index": 1,
+        "skipCount": 0,
+        "thumb": "/library/metadata/1001/thumb/1700000001",
+        "art": "/library/metadata/1001/art/1700000001",
+        "addedAt": 1700003600,
+        "updatedAt": 1700003600,
+        "Image": [
+          {
+            "alt": "Artist 1",
+            "type": "coverPoster",
+            "url": "/library/metadata/1001/thumb/1700000001"
+          },
+          {
+            "alt": "Artist 1",
+            "type": "background",
+            "url": "/library/metadata/1001/art/1700000001"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "000000",
+          "topRight": "000000",
+          "bottomRight": "000000",
+          "bottomLeft": "000000"
+        },
+        "Guid": [
+          {
+            "id": "mbid://00000000-0000-4000-8000-000000000001"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Genre 1"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Country 1"
+          }
+        ]
+      },
+      {
+        "ratingKey": "1002",
+        "key": "/library/metadata/1002/children",
+        "guid": "plex://artist/ccccccccccccccccccccccc2",
+        "type": "artist",
+        "title": "Artist 2",
+        "summary": "Fixture text",
+        "index": 1,
+        "thumb": "/library/metadata/1002/thumb/1700000002",
+        "art": "/library/metadata/1002/art/1700000002",
+        "addedAt": 1700007200,
+        "updatedAt": 1700007200,
+        "Image": [
+          {
+            "alt": "Artist 2",
+            "type": "coverPoster",
+            "url": "/library/metadata/1002/thumb/1700000002"
+          },
+          {
+            "alt": "Artist 2",
+            "type": "background",
+            "url": "/library/metadata/1002/art/1700000002"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "000000",
+          "topRight": "000000",
+          "bottomRight": "000000",
+          "bottomLeft": "000000"
+        },
+        "Guid": [
+          {
+            "id": "mbid://00000000-0000-4000-8000-000000000002"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Genre 1"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Country 1"
+          }
+        ]
+      },
+      {
+        "ratingKey": "1003",
+        "key": "/library/metadata/1003/children",
+        "guid": "plex://artist/ccccccccccccccccccccccc3",
+        "type": "artist",
+        "title": "Artist 3",
+        "summary": "Fixture text",
+        "index": 1,
+        "skipCount": 0,
+        "lastViewedAt": 1700010800,
+        "thumb": "/library/metadata/1003/thumb/1700000003",
+        "art": "/library/metadata/1003/art/1700000003",
+        "addedAt": 1700010800,
+        "updatedAt": 1700010800,
+        "Image": [
+          {
+            "alt": "Artist 3",
+            "type": "coverPoster",
+            "url": "/library/metadata/1003/thumb/1700000003"
+          },
+          {
+            "alt": "Artist 3",
+            "type": "background",
+            "url": "/library/metadata/1003/art/1700000003"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "000000",
+          "topRight": "000000",
+          "bottomRight": "000000",
+          "bottomLeft": "000000"
+        },
+        "Guid": [
+          {
+            "id": "mbid://00000000-0000-4000-8000-000000000003"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Genre 1"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Country 1"
+          }
+        ]
+      },
+      {
+        "ratingKey": "1004",
+        "key": "/library/metadata/1004/children",
+        "guid": "plex://artist/ccccccccccccccccccccccc4",
+        "type": "artist",
+        "title": "Artist 4",
+        "summary": "Fixture text",
+        "index": 1,
+        "thumb": "/library/metadata/1004/thumb/1700000004",
+        "art": "/library/metadata/1004/art/1700000004",
+        "addedAt": 1700014400,
+        "updatedAt": 1700014400,
+        "Image": [
+          {
+            "alt": "Artist 4",
+            "type": "coverPoster",
+            "url": "/library/metadata/1004/thumb/1700000004"
+          },
+          {
+            "alt": "Artist 4",
+            "type": "background",
+            "url": "/library/metadata/1004/art/1700000004"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "000000",
+          "topRight": "000000",
+          "bottomRight": "000000",
+          "bottomLeft": "000000"
+        },
+        "Guid": [
+          {
+            "id": "mbid://00000000-0000-4000-8000-000000000004"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Genre 1"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Country 1"
+          }
+        ]
+      },
+      {
+        "ratingKey": "1005",
+        "key": "/library/metadata/1005/children",
+        "guid": "plex://artist/ccccccccccccccccccccccc5",
+        "type": "artist",
+        "title": "Artist 5",
+        "summary": "",
+        "index": 1,
+        "skipCount": 0,
+        "lastViewedAt": 1700018000,
+        "thumb": "/library/metadata/1005/thumb/1700000005",
+        "addedAt": 1700018000,
+        "updatedAt": 1700018000,
+        "Image": [
+          {
+            "alt": "Artist 5",
+            "type": "coverPoster",
+            "url": "/library/metadata/1005/thumb/1700000005"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "000000",
+          "topRight": "000000",
+          "bottomRight": "000000",
+          "bottomLeft": "000000"
+        }
+      }
+    ]
+  }
+}

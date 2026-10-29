@@ -8,10 +8,13 @@ type RawIndexer = { name?: string; protocol?: string; privacy?: string; fields?:
  * The *arrs nest seed settings under `seedCriteria.`, Prowlarr under
  * `torrentBaseSettings.`, and name the pack field differently. Unset values
  * come back absent rather than null.
+ *
+ * Prowlarr is the one service here that never had a v3, so it keeps its own
+ * literal rather than reading `http.apiRoot`.
  */
 const LAYOUT = {
-    arr: { path: '/api/v3/indexer', prefix: 'seedCriteria.', pack: 'seasonPackSeedTime' },
-    prowlarr: { path: '/api/v1/indexer', prefix: 'torrentBaseSettings.', pack: 'packSeedTime' }
+    arr: { path: (apiRoot: string) => `${apiRoot}/indexer`, prefix: 'seedCriteria.', pack: 'seasonPackSeedTime' },
+    prowlarr: { path: () => '/api/v1/indexer', prefix: 'torrentBaseSettings.', pack: 'packSeedTime' }
 } as const;
 
 export async function readSeedCriteria(
@@ -20,7 +23,7 @@ export async function readSeedCriteria(
     kind: keyof typeof LAYOUT
 ): Promise<IndexerSeedCriteria[]> {
     const { path, prefix, pack } = LAYOUT[kind];
-    const indexers = await http.get<RawIndexer[]>(path);
+    const indexers = await http.get<RawIndexer[]>(path(http.apiRoot));
 
     return (Array.isArray(indexers) ? indexers : [])
         .filter(i => i.protocol === 'torrent')

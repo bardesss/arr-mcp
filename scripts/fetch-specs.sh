@@ -18,6 +18,7 @@ SERVICES="
 radarr https://raw.githubusercontent.com/Radarr/Radarr/develop/src/Radarr.Api.V3/openapi.json
 sonarr https://raw.githubusercontent.com/Sonarr/Sonarr/develop/src/Sonarr.Api.V3/openapi.json
 whisparr https://raw.githubusercontent.com/Whisparr/Whisparr/v2-develop/src/Whisparr.Api.V3/openapi.json
+lidarr https://raw.githubusercontent.com/Lidarr/Lidarr/develop/src/Lidarr.Api.V1/openapi.json
 prowlarr https://raw.githubusercontent.com/Prowlarr/Prowlarr/develop/src/Prowlarr.Api.V1/openapi.json
 jellyfin https://api.jellyfin.org/openapi/jellyfin-openapi-stable.json
 seerr https://raw.githubusercontent.com/seerr-team/seerr/develop/seerr-api.yml
