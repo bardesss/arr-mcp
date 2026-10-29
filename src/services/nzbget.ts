@@ -16,6 +16,9 @@ import {
     type HistoryEventType,
     type HistoryQuery,
     type PauseCapable,
+    type PostProcessCapable,
+    type PostProcessOutcome,
+    type PostProcessTarget,
     type PauseState,
     type QueueCapable,
     type QueueItem,
@@ -65,9 +68,13 @@ type RawGroup = {
 type RawHistory = {
     NZBID?: number;
     ID?: number;
+    Kind?: string;
     NZBFilename?: string;
     Name?: string;
+    NZBName?: string;
     NZBNicename?: string;
+    DestDir?: string;
+    FinalDir?: string;
     HistoryTime?: number;
     Status?: string;
     ParStatus?: string;
@@ -79,6 +86,7 @@ type RawHistory = {
     UrlStatus?: string;
     Parameters?: RawParameter[];
 };
+type RawLogMessage = { ID?: unknown; Kind?: unknown; Text?: unknown };
 type RawHealthStatus = { Name?: unknown; Severity?: unknown; Message?: unknown };
 type RawHealthSection = {
     Name?: unknown;
@@ -164,6 +172,50 @@ const queueStatus = (raw: string | undefined): string => {
     return QUEUE_STATUS[raw.toUpperCase()] ?? raw.toLowerCase();
 };
 
+/**
+ * The scripts enabled for one download. NZBGet records each as a
+ * post-processing parameter named `<script>:` with the value `yes`; the
+ * built-in options it stores the same way start with `*` (`*Unpack:`).
+ */
+const enabledScripts = (parameters: unknown): string[] =>
+    objectsIn<RawParameter>(parameters).flatMap(p =>
+        typeof p.Name === 'string' &&
+        p.Name.endsWith(':') &&
+        p.Name.length > 1 &&
+        !p.Name.startsWith('*') &&
+        typeof p.Value === 'string' &&
+        p.Value.toLowerCase() === 'yes'
+            ? [p.Name.slice(0, -1)]
+            : []
+    );
+
+/** How often, and for how long, a rerun is watched for a sign that it started.
+ *  A download with nothing left to do is back in history within about a
+ *  second on 21.0; a real unpack or script shows in the queue at once. */
+/** A non-NZB history record in fixed words, never NZBGet's own text. */
+const describeKind = (kind: string | undefined): string =>
+    kind === 'URL' ? 'a URL fetch' : kind === 'DUP' ? 'a duplicate record' : 'an unrecognised record';
+
+/** What a `drone` id looks like when an *arr set it. Anything else is
+ *  someone's free text, and is not passed on as an id. */
+const DOWNLOAD_ID_SHAPE = /^[A-Za-z0-9._-]{1,128}$/;
+
+const POST_PROCESS_POLL_MS = 250;
+const POST_PROCESS_POLLS = 20;
+const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+/** PrePostProcessor.cpp's refusal when the download's folder is gone. NZBGet
+ *  still answers `true` to the editqueue call, so the log is the only place
+ *  the refusal shows. */
+const POST_PROCESS_REFUSED = 'Could not post-process again';
+
+/** The id get_queue and the *arrs use for a history row, when it has one
+ *  of the expected shape. */
+const historyDownloadId = (row: RawHistory): { downloadId?: string } => {
+    const id = droneParameter(row.Parameters) ?? (typeof row.NZBID === 'number' ? String(row.NZBID) : undefined);
+    return id !== undefined && DOWNLOAD_ID_SHAPE.test(id) ? { downloadId: id } : {};
+};
+
 const STAGE_FIELDS = ['ParStatus', 'UnpackStatus', 'MoveStatus', 'ScriptStatus', 'DeleteStatus', 'MarkStatus', 'UrlStatus'] as const;
 const UNREMARKABLE = new Set(['NONE', 'SUCCESS', 'SKIPPED', 'GOOD']);
 
@@ -213,7 +265,8 @@ export class NzbgetAdapter
         QueueRemoveCapable,
         PauseCapable,
         SpeedLimitCapable,
-        HistoryCapable
+        HistoryCapable,
+        PostProcessCapable
 {
     readonly type: ServiceId = 'nzbget';
     readonly instance: string | undefined;
@@ -529,9 +582,165 @@ export class NzbgetAdapter
                 }),
                 ...(event === 'imported'
                     ? {}
-                    : { reason: fenceText(historyReason(row, status), { service: this.id, field: 'Status' }) })
+                    : { reason: fenceText(historyReason(row, status), { service: this.id, field: 'Status' }) }),
+                ...historyDownloadId(row)
             };
             return [entry];
+        });
+    }
+
+    /** Whether a queue group or history row is the download this id names:
+     *  by its `drone` parameter (what an *arr's queue shows) or, for an NZB
+     *  added by hand, by its NZBID (what get_queue falls back to). */
+    #isDownload(row: { NZBID?: number; Parameters?: RawParameter[] }, downloadId: string): boolean {
+        const drone = droneParameter(row.Parameters);
+        if (drone !== undefined) return drone === downloadId;
+        return /^\d+$/.test(downloadId) && typeof row.NZBID === 'number' && String(row.NZBID) === downloadId;
+    }
+
+    /** A rerun of a download already in the queue would run twice on one
+     *  folder, so it is refused while one is in progress. */
+    async #refuseIfQueued(downloadId: string): Promise<void> {
+        const queued = (await this.#groups()).find(group => this.#isDownload(group, downloadId));
+        if (queued !== undefined) {
+            throw new ServiceError(
+                'UpstreamError',
+                this.id,
+                `download ${downloadId} is already in NZBGet's queue, as ${fenceText(queueStatus(queued.Status), { service: this.id, field: 'Status' })}`,
+                { remedy: 'Wait until it has finished and is back in history (get_queue shows it until then), then try again.' }
+            );
+        }
+    }
+
+    /**
+     * The history row a download id names. Only downloaded NZBs have files: a
+     * URL fetch an *arr sent leaves its own row with the same drone id, and is
+     * set aside before choosing. The same NZB grabbed twice leaves two rows,
+     * and the newest is the one whose folder can still exist.
+     */
+    async #historyRow(downloadId: string): Promise<RawHistory & { ID: number }> {
+        const rows = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray)).filter(
+            (row): row is RawHistory & { ID: number } => typeof row.ID === 'number' && this.#isDownload(row, downloadId)
+        );
+        const row = rows
+            .filter(r => r.Kind === undefined || r.Kind === 'NZB')
+            .sort((a, b) => (b.HistoryTime ?? 0) - (a.HistoryTime ?? 0))[0];
+        if (row !== undefined) return row;
+        if (rows.length > 0) {
+            throw new ServiceError('NotFound', this.id, `download "${downloadId}" has no downloaded files in NZBGet's history, only ${describeKind(rows[0]?.Kind)}`, {
+                remedy: 'Post-processing runs on downloaded files. Use the download\'s own row, once NZBGet has fetched and downloaded it.'
+            });
+        }
+        throw new ServiceError('NotFound', this.id, `nothing in NZBGet's history has download id "${downloadId}"`, {
+            remedy: 'Take the id from `downloadId` on a get_queue or get_history row. Post-processing can only be run again while NZBGet still has the download in its history.'
+        });
+    }
+
+    #postProcessTarget(row: RawHistory & { ID: number }): PostProcessTarget {
+        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        // Post-processing runs in DestDir, and NZBGet refuses when it is gone;
+        // FinalDir is only where a finished download was moved to afterwards.
+        const destDir = row.DestDir ?? '';
+        const finalDir = row.FinalDir ?? '';
+        return {
+            historyId: String(row.ID),
+            ...(typeof row.HistoryTime === 'number' ? { historyTime: row.HistoryTime } : {}),
+            title: fence(row.NZBNicename ?? row.Name ?? row.NZBName ?? '', 'NZBNicename'),
+            status: fence(row.Status ?? 'unknown', 'Status'),
+            ...(destDir === '' ? {} : { folder: fence(destDir, 'DestDir') }),
+            ...(finalDir === '' || finalDir === destDir ? {} : { finalFolder: fence(finalDir, 'FinalDir') }),
+            scripts: enabledScripts(row.Parameters).map(script => fence(script, 'Parameters'))
+        };
+    }
+
+    async findPostProcessTarget(downloadId: string): Promise<PostProcessTarget> {
+        await this.#refuseIfQueued(downloadId);
+        return this.#postProcessTarget(await this.#historyRow(downloadId));
+    }
+
+    /** The id of the newest message in NZBGet's log, or 0 when it is empty. */
+    async #lastLogId(): Promise<number> {
+        const [last] = objectsIn<RawLogMessage>(await this.#rpc<unknown[]>('log', [0, 1], isArray));
+        return typeof last?.ID === 'number' ? last.ID : 0;
+    }
+
+    /**
+     * "Post-process again" on the exact history row the preview showed.
+     *
+     * NZBGet answers `true` even when it then refuses because the download's
+     * folder is gone, and logs the refusal instead, so the answer alone proves
+     * nothing. After sending, the item is watched until one of these happens:
+     * it is in the queue (running), it has left history and come back
+     * (finished, with whatever status it finished on), or the log records the
+     * refusal. Nothing within the time allowed is an error, never a success.
+     */
+    async runPostProcess(downloadId: string, historyId: string): Promise<PostProcessOutcome> {
+        await this.#refuseIfQueued(downloadId);
+        const row = await this.#historyRow(downloadId);
+        if (String(row.ID) !== historyId) {
+            throw new ServiceError('NotFound', this.id, `download ${downloadId} no longer resolves to the history item the preview showed`, {
+                remedy: 'Preview it again: NZBGet\'s history changed in between.'
+            });
+        }
+        const target = this.#postProcessTarget(row);
+        const mark = await this.#lastLogId();
+
+        const ok = await this.#rpc<boolean>('editqueue', ['HistoryProcess', 0, '', [row.ID]], (value): value is boolean => typeof value === 'boolean');
+        if (!ok) {
+            throw new ServiceError('UpstreamError', this.id, `NZBGet refused to post-process download ${downloadId} again`, {
+                remedy: 'Check that the download is still in NZBGet\'s history — take a current id from get_history.'
+            });
+        }
+
+        // PrePostProcessor.cpp writes "Could not post-process again <NZBName>: …".
+        // Matching the whole prefix keeps `Some.Release.REPACK`'s refusal, or
+        // one whose path merely contains this name, from reading as this one's.
+        const name = row.NZBName ?? row.Name;
+        const refusalPrefix = name === undefined || name === '' ? undefined : `${POST_PROCESS_REFUSED} ${name}:`;
+        const isThisRow = (r: { NZBID?: number }) => typeof r.NZBID === 'number' && r.NZBID === (row.NZBID ?? row.ID);
+        let leftHistory = false;
+
+        for (let poll = 0; poll < POST_PROCESS_POLLS; poll++) {
+            if (poll > 0) await delay(POST_PROCESS_POLL_MS);
+
+            // Only the messages logged since the request: a short read.
+            const refusal = objectsIn<RawLogMessage>(await this.#rpc<unknown[]>('log', [mark + 1, 0], isArray)).find(
+                m => m.Kind === 'ERROR' && refusalPrefix !== undefined && typeof m.Text === 'string' && m.Text.startsWith(refusalPrefix)
+            );
+            if (refusal !== undefined) {
+                throw new ServiceError('UpstreamError', this.id, fenceText(refusal.Text as string, { service: this.id, field: 'log' }), {
+                    remedy: "NZBGet only post-processes files still in the download's folder, and that folder has been moved or deleted — usually by an *arr's import or a cleanup. Nothing was changed. If the files are gone, grab the release again instead."
+                });
+            }
+
+            const queued = (await this.#groups()).find(isThisRow);
+            // PP_FINISHED is done but not yet filed: wait for history, which
+            // says whether it succeeded, rather than calling it running.
+            if (queued !== undefined && (queued.Status ?? '').toUpperCase() === 'PP_FINISHED') {
+                leftHistory = true;
+                continue;
+            }
+            if (queued !== undefined) {
+                return { target, state: 'running', status: fenceText(queueStatus(queued.Status), { service: this.id, field: 'Status' }) };
+            }
+
+            // Not in the queue, so look in history: gone means it is on its
+            // way through; back again (or refiled with a new time) means done.
+            const filed = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray)).find(r => r.ID === row.ID);
+            if (filed === undefined) {
+                leftHistory = true;
+                continue;
+            }
+            const refiled =
+                leftHistory || (typeof filed.HistoryTime === 'number' && typeof row.HistoryTime === 'number' && filed.HistoryTime > row.HistoryTime);
+            if (refiled) {
+                const status = filed.Status ?? 'unknown';
+                return { target, state: 'finished', event: historyEvent(status), status: fenceText(status, { service: this.id, field: 'Status' }) };
+            }
+        }
+
+        throw new ServiceError('UpstreamError', this.id, `NZBGet accepted the request for download ${downloadId} but showed no sign of post-processing it`, {
+            remedy: "It was not reported as done, because it may not have run. The usual cause is that the download's folder no longer exists; NZBGet's Messages page says for certain."
         });
     }
 

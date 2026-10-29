@@ -316,6 +316,41 @@ function anonymiseNzbgetRow(row: unknown, index: number): unknown {
     return out;
 }
 
+/**
+ * NZBGet's refusal of "post-process again" keeps its wording, because
+ * trigger_scan's postprocess matches on it; only the release name and the
+ * folder are replaced. Every other line is replaced whole.
+ */
+const NZBGET_REFUSAL = /^Could not post-process again (.+?): destination directory (.+) doesn't exist$/;
+function anonymiseNzbgetLogText(text: string, n: number): string {
+    return NZBGET_REFUSAL.test(text)
+        ? `Could not post-process again nzbget item ${n}: destination directory /media/nzbget/Item ${n} doesn't exist`
+        : `Fixture message ${n}`;
+}
+
+/**
+ * NZBGet's message log (`log`). Every `Text` can name a release, a path or a
+ * news server, so each is replaced (a refusal keeps its wording); ids and times are renumbered in order, so
+ * nothing says how long the log is or when it ran. `Kind` (INFO, WARNING,
+ * ERROR) stays: it is NZBGet's own vocabulary.
+ */
+export function anonymiseNzbgetLog(body: unknown): unknown {
+    if (!isFixtureRow(body) || !Array.isArray(body.result)) return body;
+    return {
+        ...body,
+        result: body.result.map((row: unknown, index) =>
+            isFixtureRow(row)
+                ? {
+                      ...row,
+                      ...(typeof row.ID === 'number' ? { ID: index + 1 } : {}),
+                      ...(typeof row.Time === 'number' ? { Time: 1_700_000_000 + 60 * index } : {}),
+                      ...(typeof row.Text === 'string' ? { Text: anonymiseNzbgetLogText(row.Text, index + 1) } : {})
+                  }
+                : row
+        )
+    };
+}
+
 /** Anonymises queue/history rows inside an NZBGet JSON-RPC response. */
 export function anonymiseNzbgetRows(body: unknown): unknown {
     if (Array.isArray(body)) return syntheticNzbgetNumbers(body.map((row, index) => anonymiseNzbgetRow(row, index)));

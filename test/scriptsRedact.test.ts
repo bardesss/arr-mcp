@@ -3,6 +3,7 @@ import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
 import {
     anonymiseNzbgetHealth,
+    anonymiseNzbgetLog,
     anonymiseNzbgetRows,
     anonymiseNzbgetStatus,
     anonymisePlexAccounts,
@@ -181,6 +182,31 @@ describe('NZBGet fixture anonymisers', () => {
             NewsServers: [{ ID: 1, Active: true }]
         });
         expect(JSON.stringify(status)).not.toMatch(/33034525|87749352|1791208940|20345/);
+    });
+
+    // A log line can name a release, a download folder or a news server.
+    it('replaces NZBGet log text, keeping only the post-process refusal\'s wording, and renumbers ids and times', () => {
+        const output = anonymiseNzbgetLog({
+            result: [
+                { ID: 8812, Kind: 'INFO', Time: 1_791_208_940, Text: 'Collection Real.Release.2017 added to history' },
+                { ID: 8813, Kind: 'ERROR', Time: 1_791_209_000, Text: "Could not post-process again Real.Release: destination directory /downloads/Real.Release doesn't exist" }
+            ]
+        });
+
+        expect(output).toEqual({
+            result: [
+                { ID: 1, Kind: 'INFO', Time: 1_700_000_000, Text: 'Fixture message 1' },
+                // trigger_scan's postprocess matches this wording, so it stays;
+                // only the release name and the folder are replaced.
+                {
+                    ID: 2,
+                    Kind: 'ERROR',
+                    Time: 1_700_000_060,
+                    Text: "Could not post-process again nzbget item 2: destination directory /media/nzbget/Item 2 doesn't exist"
+                }
+            ]
+        });
+        expect(JSON.stringify(output)).not.toMatch(/Real\.Release|\/downloads\//);
     });
 
     it('scrubs every NZBGet systemhealth message, keeping names and severities', () => {
