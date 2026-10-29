@@ -1,4 +1,4 @@
-import type { ServiceId } from '../../config/schema.ts';
+import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
@@ -32,7 +32,7 @@ import type { WebhookEvents } from '../../core/webhookEvents.ts';
 import { EVENT_LOG_SOURCE } from '../getHistory.ts';
 import { RECENT_REJECTION_WINDOW } from '../getIndexers.ts';
 import { resolveInstance } from '../resolveInstance.ts';
-import { DOWNLOAD_CLIENTS, queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
+import { queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
 export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; instance?: string; user?: string };
 

@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import { SERVICES_KEY, type ServiceId } from '../config/schema.ts';
+import { DOWNLOAD_CLIENTS, SERVICES_KEY, type ServiceId } from '../config/schema.ts';
 
 /**
  * Shapes what `tools/list` sends, at registration time (#518).
@@ -54,7 +54,7 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     delete_request: ['seerr'],
     blocklist_media: ['seerr', 'radarr', 'sonarr', 'lidarr'],
     request_media: ['seerr'],
-    pause_downloads: ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'],
+    pause_downloads: DOWNLOAD_CLIENTS,
     retry_download: ['sabnzbd', 'nzbget', 'shelfmark'],
     get_playback: ['jellyfin', 'plex'],
     set_watched: ['jellyfin', 'grimmory'],

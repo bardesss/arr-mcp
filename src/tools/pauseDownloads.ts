@@ -1,7 +1,7 @@
 import { resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId } from '../config/schema.ts';
+import { DOWNLOAD_CLIENTS, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasPause, hasSpeedLimit, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -23,7 +23,7 @@ import { targetInput, serviceTarget } from './serviceTarget.ts';
  */
 
 const TARGET = serviceTarget({
-    services: ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'],
+    services: DOWNLOAD_CLIENTS,
     can: hasPause,
     cannot: 'cannot be paused',
     hint: 'Radarr and Sonarr have no pause — they keep grabbing, and the grabs queue up in whichever client is configured.'

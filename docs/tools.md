@@ -305,25 +305,44 @@ The queue stage words each state for what it is. Three block with a remedy and
 the removal step: a `failed` download; one with a warning (the *arrs' `warning`
 status, qBittorrent's `stalled`, `error` and `missing files`, or a download
 client's row with its own error message, which Transmission sends); and a state
-`diagnose_media` does not know. A warning's remedy says a stalled torrent often
-finishes later, and that a bad release is blocklisted from the *arr's queue.
-Where an *arr's row and a client's are in the same state, the *arr's is the one
-named and removed. Short of a failure, a finished download is never offered for
-removal: a torrent seeding or stopped with nothing left, or a row with nothing
-left to download, such as one whose disk filled while unpacking, holds the only
-copy of the files, and its remedy says to fix what the client reports, after
-which the *arr imports it. A torrent the client says is missing its files is no
-such copy. A download paused or stopped before it finished asks you to resume
-it, and offers `pause_downloads` to do it when the client's own row is in the
-queue, and a torrent stopped with nothing left to download has finished: it
-waits on the import like a seeding one. A release the *arr holds back and has
-sent to no client (`delay`: a delay profile, a usenet minimum age, an indexer
-disabled after failures or another release already pending, among others) blocks
-with no remedy, like a download in progress, and `downloadClientUnavailable`, a
-release the *arr could not send, asks you to check its download clients. A
-message on an *arr's row that is not in trouble (NZBGet's PAR status on a
-finished download, "qBittorrent is downloading metadata") is not read as a
-fault; a row still on its way shows it after "Still downloading".
+`diagnose_media` does not know. A warning that may be a stall (qBittorrent's
+`stalled`, or the *arrs' `warning` when the client's own row is not in the grab
+to say otherwise) is told that a stalled torrent often finishes later. On the
+*arr's own row, the removal step says to add `blocklist: true` if the release
+itself is bad; on a client's row whose grab the *arr's queue lists too, the
+remedy says a bad release is blocklisted from there, since a download client
+keeps no blocklist. Where an *arr's row and a client's are in the same state,
+the *arr's is the one named and removed. Short of a failure, a finished download
+is never offered for removal: a torrent seeding or stopped with nothing left, or
+a row with nothing left to download, such as one whose disk filled while
+unpacking, holds the only copy of the files, and its remedy says to fix what the
+client reports, after which the *arr imports it; one whose import is pending on
+another row of the same grab gets the import's remedy. A torrent qBittorrent
+says is missing its files is no such copy. A download paused or stopped before
+it finished asks you to resume it, and offers `pause_downloads` to do it when
+the client's own row is in the queue and paused too. The *arrs read every
+SABnzbd or NZBGet download as paused while that client's whole queue is, and the
+client's row then keeps the download's own status, so a row the client does not
+report paused gets a remedy to resume its whole queue, and no step. A torrent
+stopped with nothing left to download has finished: it waits on the import like
+a seeding one. A release the *arr holds back and has sent to no client (`delay`:
+a delay profile, a usenet minimum age, an indexer disabled after failures or
+another release already pending, among others) blocks with no remedy, like a
+download in progress, and `downloadClientUnavailable`, a release the *arr could
+not send, asks you to check its download clients. A message on an *arr's row
+that is not in trouble (NZBGet's PAR status on a finished download, "qBittorrent
+is downloading metadata") is not read as a fault; a row still on its way shows
+it after "Still downloading".
+
+With no row from the client in the grab, only the *arr's row says whether a
+torrent has finished, and it cannot tell one missing its files from a finished
+one with a problem: the *arrs read both as a warning with nothing left, and only
+the message tells them apart, which Radarr and Sonarr word in their UI language.
+The removal stays back, since it may be the only copy, and the remedy says to
+remove the download if the *arr's message says the files are missing, and
+otherwise to fix what it reports. A usenet download with nothing left has
+finished, and a state `diagnose_media` does not know, with nothing left, is only
+to be checked.
 
 When Cleanuparr removed or stopped the download and nothing is in the queue, the
 queue stage says so, with the date, its reason and its strike count, and
@@ -446,12 +465,12 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
 | `queue`, import pending, including a torrent stopped after it finished | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
-| `queue`, failed, a warning or a state it does not know | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
-| `queue`, paused or stopped before it finished, with the client's own row in the queue | `pause_downloads` with `action: "resume"` and that row's service and id |
-| `queue`, failed, a warning or a state it does not know, whose import is pending on another row of the same grab, or, short of a failure, whose download is complete in the client | the import above when there is one, never the removal |
+| `queue`, failed, a warning or a state it does not know | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist, and for a warning on the *arr's own row its `why` says to add `blocklist: true` if the release itself is bad |
+| `queue`, paused or stopped before it finished, with the client's own row in the queue, paused too | `pause_downloads` with `action: "resume"` and that row's service and id |
+| `queue`, failed, a warning or a state it does not know, whose import is pending on another row of the same grab, or, short of a failure, whose download is complete in the client, or has nothing left by the *arr's row when no row from the client is in the grab | the import above when there is one, never the removal |
 | `library` | `trigger_scan` with `action: "scan"` on the media server |
 | playable, one film or episode missing a subtitle | `trigger_subtitle_search` with the first missing language, only when Bazarr gave it a code |
-| `scan`, `indexers`, playable otherwise, still downloading, paused with no client row in the queue, or a release the *arr holds back (`downloadClientUnavailable` too) | none |
+| `scan`, `indexers`, playable otherwise, still downloading, paused with no client row in the queue or one the client does not report paused, or a release the *arr holds back (`downloadClientUnavailable` too) | none |
 
 A step is left out when its tool would refuse it or when it cannot be built:
 no id to search for, a Whisparr download (which has no manual import), or an
@@ -1342,6 +1361,10 @@ rate and everything ahead in the queue, and a paused item gets none. A row's
 `downloadId` is the `drone` post-processing parameter Radarr and Sonarr attach
 to their grabs, so it matches the *arr row for the same download; a grab
 added by hand falls back to NZBGet's own `NZBID`.
+
+SABnzbd rows carry `downloadId` too: the job's `nzo_id`, which Radarr, Sonarr
+and Lidarr take as their download id unchanged, so it matches the *arr row for
+the same download.
 
 A blocked row also carries `statusMessages`, the service's own reasons, one per
 line and fenced. A file the service rejected leads with its filename. They

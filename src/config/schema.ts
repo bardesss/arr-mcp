@@ -24,6 +24,12 @@ export const ServiceIdSchema = z.enum([
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
+/**
+ * The download clients, as against the *arrs that send them releases: the
+ * services pause_downloads takes, and the ones diagnose_media reads as a client.
+ */
+export const DOWNLOAD_CLIENTS: readonly ServiceId[] = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
+
 /** Marks which services a `service` field takes; read and removed by `mcp/leanSchema.ts`. */
 export const SERVICES_KEY = 'x-arr-services';
 

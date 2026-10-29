@@ -273,7 +273,10 @@ export class SabnzbdAdapter
                     protocol: 'usenet',
                     ...(size === undefined ? {} : { sizeBytes: size }),
                     ...(remaining === undefined ? {} : { remainingBytes: remaining }),
-                    ...(eta === undefined ? {} : { etaSeconds: eta })
+                    ...(eta === undefined ? {} : { etaSeconds: eta }),
+                    // Radarr, Sonarr and Lidarr take the nzo_id as their download
+                    // id unchanged (`Sabnzbd`), so this ties the row to theirs.
+                    downloadId: s.nzo_id
                 };
             });
     }
