@@ -1748,7 +1748,7 @@ describe('buildChain — each queue state is worded for what it is', () => {
         ['a paused queue', { DownloadPaused: true }, 0, 'UNPACKING', 'extracting']
     ])('asks to wait, with no resume, while NZBGet is post-processing it (%s, %s)', async (_case, status, pausedMB, group, stage) => {
         const d = run(pausedFor(DRONE), await nzbgetClient(status, { Status: group, RemainingSizeMB: pausedMB, PausedSizeMB: pausedMB }));
-        expect(d.verdict.remedy).toBe(`nzbget is post-processing it (${stage}), and the *arr reads it as paused meanwhile: wait for it.`);
+        expect(d.verdict.remedy).toBe(`nzbget reports it as ${stage}, a post-processing stage, and the *arr reads it as paused meanwhile: wait for it.`);
         expect(d.verdict.next_steps).toBeUndefined();
     });
 
@@ -1757,6 +1757,32 @@ describe('buildChain — each queue state is worded for what it is', () => {
         const d = run(pausedFor(DRONE), await nzbgetClient({ PostPaused: true }, { Status: 'PP_QUEUED', RemainingSizeMB: 2, PausedSizeMB: 2 }));
         expect(d.verdict.remedy).toBe("nzbget's post-processing is paused, so it waits there: resume post-processing in nzbget.");
         expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // `DetectStatus`: a queue script's stages and the rename after an unpack are post-processing too,
+    // so none of them is offered for removal as a state the chain does not know.
+    it.each([
+        ['QS_QUEUED', 'verifying'],
+        ['QS_EXECUTING', 'moving'],
+        ['POST_UNPACK_RENAMING', 'moving']
+    ])('asks to wait, with no removal, while NZBGet is at %s', async (group, stage) => {
+        const d = run(pausedFor(DRONE), await nzbgetClient({}, { Status: group, RemainingSizeMB: 2, PausedSizeMB: 2 }));
+        expect(d.verdict.remedy).toBe(`nzbget reports it as ${stage}, a post-processing stage, and the *arr reads it as paused meanwhile: wait for it.`);
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // A repair can ask for repair files a paused queue then holds (`QueueCoordinator`): resume the queue, not wait.
+    it('asks to resume the queue that holds the repair files a repair still fetches', async () => {
+        const d = run(pausedFor(DRONE), await nzbgetClient({ DownloadPaused: true }, { Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25 }));
+        expect(d.verdict.next_steps).toEqual([{ tool: 'pause_downloads', arguments: { service: 'nzbget', action: 'resume' }, why: "Resumes nzbget's whole queue." }]);
+    });
+
+    // After GroupPause, NZBGet reads the group DOWNLOADING while in-flight articles drain, every byte left already paused.
+    it('resumes a download NZBGet has just paused, before its status catches up', async () => {
+        const d = run(pausedFor(DRONE), await nzbgetClient({}, { Status: 'DOWNLOADING', RemainingSizeMB: 6, PausedSizeMB: 6 }));
+        expect(d.verdict.next_steps).toEqual([
+            { tool: 'pause_downloads', arguments: { service: 'nzbget', action: 'resume', id: '7' }, why: 'Resumes this one download in nzbget.' }
+        ]);
     });
 
     // Two clients can carry the same grab: the row paused itself is resumed first, then one a queue holds.

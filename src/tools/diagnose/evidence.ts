@@ -4,7 +4,7 @@ import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
 import { deadline, TIMED_OUT, type Deadline } from '../../core/timeout.ts';
 import { rankTitle, RANK_NONE } from '../../core/titleMatch.ts';
-import { ARR_KIND, isArrItem, isFilmOrSeries, type ArrItem, type ExternalIds, type LibraryKind } from '../../core/resolver.ts';
+import { ARR_KIND, isArrItem, isFilmOrSeries, seerrMediaType, type ArrItem, type ExternalIds, type LibraryKind } from '../../core/resolver.ts';
 import {
     hasCleanup,
     hasCleanuparr,
@@ -259,7 +259,7 @@ async function resolveItem(
  * title was requested.
  */
 export function requestsFor(requests: readonly MediaRequest[], ids: ExternalIds, kind: 'movie' | 'series'): MediaRequest[] {
-    const mediaType = kind === 'movie' ? 'movie' : 'tv';
+    const mediaType = seerrMediaType(kind);
     return requests.filter(
         r =>
             (r.mediaType === 'unknown' || r.mediaType === mediaType) &&
@@ -282,7 +282,7 @@ export async function readTitleRequests(
 ): Promise<MediaRequest[]> {
     if (!hasRequestLookup(seerr) || ids.tmdb === undefined) return seerr.getRequests({});
     try {
-        return (await seerr.getMediaRequests(kind === 'movie' ? 'movie' : 'tv', ids.tmdb)).requests;
+        return (await seerr.getMediaRequests(seerrMediaType(kind), ids.tmdb)).requests;
     } catch (err) {
         if (!(err instanceof ServiceError) || (err.kind !== 'NotFound' && err.kind !== 'UpstreamError')) throw err;
         return seerr.getRequests({});

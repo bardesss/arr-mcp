@@ -2,7 +2,7 @@ import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
-import { ARR_KIND, ARR_NAMES, type MergedItem } from '../../core/resolver.ts';
+import { ARR_KIND, ARR_NAMES, SEERR_ARR, seerrMediaType, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
 import { isLidarrRow, PENDING_STATUSES, usenetRerun } from '../../services/arrRecord.ts';
 import type {
@@ -558,8 +558,9 @@ function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: Next
     if (client.heldBy === 'postPaused') {
         return { remedy: `${service}'s post-processing is paused, so it waits there: resume post-processing in ${service}.` };
     }
-    if (instanceArgs(service).service === 'nzbget' && NZBGET_POST_PROCESSING.has(client.status)) {
-        return { remedy: `${service} is post-processing it (${client.status}), and the *arr reads it as paused meanwhile: wait for it.` };
+    // A paused queue can hold the repair files a post-processing group still fetches (`queueHeld`).
+    if (client.heldBy === undefined && instanceArgs(service).service === 'nzbget' && NZBGET_POST_PROCESSING.has(client.status)) {
+        return { remedy: `${service} reports it as ${client.status}, a post-processing stage, and the *arr reads it as paused meanwhile: wait for it.` };
     }
     // SABnzbd's queue flag is also set while its "Pause Downloading During Post-Processing" switch waits on
     // post-processing, which a resume does not end (`Downloader.resume`) and its rows do not always show (`sabHolds`).
@@ -1617,8 +1618,7 @@ function nextStepsFor(
                       {
                           tool: 'respond_to_request',
                           arguments: { id: String(ev.request.id), verdict: 'approve' },
-                          // Seerr hands a film to Radarr and a series to Sonarr, whatever else the stack runs.
-                          why: `Approving hands the request to ${item?.kind === 'movie' ? 'Radarr' : 'Sonarr'} to search for it.`
+                          why: `Approving hands the request to ${SEERR_ARR[seerrMediaType(item?.kind)]} to search for it.`
                       }
                   ]
                 : [];

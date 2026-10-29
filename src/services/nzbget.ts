@@ -143,21 +143,81 @@ const FORCE_PRIORITY = 900;
 const DOWNLOAD_STAGES = new Set(['QUEUED', 'PAUSED', 'DOWNLOADING', 'FETCHING']);
 /**
  * The group statuses paused post-processing holds: waiting for it
- * (`PickNextJob`), a par check or repair (`RepairController::CheckPauseState`),
- * and a script, at its next message (`PostScriptController::AddMessage`).
+ * (`PickNextJob`), after a queue script too, a par check or repair
+ * (`RepairController::CheckPauseState`), and a script, at its next message
+ * (`PostScriptController::AddMessage`).
  */
-const POST_PAUSE_STAGES = new Set(['PP_QUEUED', 'LOADING_PARS', 'VERIFYING_SOURCES', 'REPAIRING', 'VERIFYING_REPAIRED', 'EXECUTING_SCRIPT']);
+const POST_PAUSE_STAGES = new Set([
+    'QS_QUEUED',
+    'QS_EXECUTING',
+    'PP_QUEUED',
+    'LOADING_PARS',
+    'VERIFYING_SOURCES',
+    'REPAIRING',
+    'VERIFYING_REPAIRED',
+    'EXECUTING_SCRIPT'
+]);
+
+/** A group's status as NZBGet spells it, upper case, as `queueStatus` reads it. */
+const stageOf = (group: RawGroup): string => (group.Status ?? '').toUpperCase();
+/** A post-processing stage: one `QUEUE_STATUS` names that is not a download stage. */
+const inPostProcessing = (group: RawGroup): boolean => QUEUE_STATUS[stageOf(group)] !== undefined && !DOWNLOAD_STAGES.has(stageOf(group));
+/** What is left of the group, and how much of that NZBGet holds paused. */
+const sizesOf = (group: RawGroup): { remaining: number | undefined; paused: number } => ({
+    remaining: int64(group.RemainingSizeHi, group.RemainingSizeLo, group.RemainingSizeMB),
+    paused: int64(group.PausedSizeHi, group.PausedSizeLo, group.PausedSizeMB) ?? 0
+});
+/**
+ * Whether bytes of the group are still to be fetched, not held paused. A par
+ * check or repair can ask for more repair files, which download in its own
+ * stage (`PrePostProcessor` hands them to `RepairController::AddPar`, and
+ * `IsDownloadCompleted` waits for them).
+ */
+const fetching = (group: RawGroup): boolean => {
+    const { remaining, paused } = sizesOf(group);
+    return remaining !== undefined && remaining - paused > 0;
+};
+
+/** A Force priority group goes through a paused queue and paused post-processing (`QueueCoordinator`, `PrePostProcessor`). */
+const forced = (group: RawGroup): boolean => (group.MaxPriority ?? 0) >= FORCE_PRIORITY;
+/**
+ * A paused queue holds the group: one before post-processing, or one whose
+ * post-processing still fetches repair files, not at Force priority
+ * (`QueueCoordinator`).
+ */
+const queueHeld = (status: RawStatus, group: RawGroup): boolean =>
+    !forced(group) && downloadPaused(status) && (DOWNLOAD_STAGES.has(stageOf(group)) || (inPostProcessing(group) && fetching(group)));
+/** Paused post-processing holds the group: one in the stages above, not at Force priority. */
+const postHeld = (status: RawStatus, group: RawGroup): boolean => !forced(group) && POST_PAUSE_STAGES.has(stageOf(group)) && status.PostPaused === true;
+
+/** What holds a group: a paused queue, or paused post-processing. */
+const nzbgetHold = (status: RawStatus, group: RawGroup): QueueHold | undefined => {
+    if (queueHeld(status, group)) return 'queue';
+    return postHeld(status, group) ? 'postPaused' : undefined;
+};
 
 /**
- * What holds a group: a paused queue, before post-processing, or paused
- * post-processing, in the stages above. A Force priority group goes through
- * both (`QueueCoordinator`, `PrePostProcessor`).
+ * Whether NZBGet pauses the group itself. `Status` stays DOWNLOADING after
+ * GroupPause until in-flight articles drain, though every remaining byte is
+ * already paused, which is the state the pause set. In post-processing, the
+ * paused bytes are repair files, which NZBGet pauses on add
+ * (`PrePostProcessor`) and unpauses as a repair asks for them
+ * (`RepairController::RequestMorePars`), not a pause of the download.
  */
-const nzbgetHold = (status: RawStatus, group: RawGroup): QueueHold | undefined => {
-    if ((group.MaxPriority ?? 0) >= FORCE_PRIORITY) return undefined;
-    if (POST_PAUSE_STAGES.has(group.Status ?? '')) return status.PostPaused === true ? 'postPaused' : undefined;
-    return DOWNLOAD_STAGES.has(group.Status ?? '') && downloadPaused(status) ? 'queue' : undefined;
+const pausedItself = (group: RawGroup): boolean => {
+    if (stageOf(group) === 'PAUSED') return true;
+    if (inPostProcessing(group)) return false;
+    const { remaining, paused } = sizesOf(group);
+    return remaining !== undefined && remaining > 0 && paused >= remaining;
 };
+
+/** Where a one-item read finds a group in post-processing, in words: not `verifying` for one only queued. */
+const STAGE_PHRASE: Readonly<Record<string, string>> = {
+    QS_QUEUED: 'queued for post-processing',
+    PP_QUEUED: 'queued for post-processing',
+    PP_FINISHED: 'done with post-processing'
+};
+const stagePhrase = (group: RawGroup): string => STAGE_PHRASE[stageOf(group)] ?? `in post-processing (${queueStatus(group.Status)})`;
 
 /** The `drone` post-processing parameter is the id an *arr stamps on the NZB
  *  it sends; it is what the *arr's own queue calls the downloadId. */
@@ -192,14 +252,17 @@ const historyEvent = (status: string): HistoryEventType => {
  * NZBGet's group `Status` (listgroups, QueueCoordinator/NzbInfo) mapped onto
  * the lowercase words the other download clients emit, which is what
  * `get_queue` merges and `diagnose_media` classifies. Post-processing stages are
- * healthy progress, and `PP_FINISHED` is a finished download waiting to be
- * imported. Anything not listed is passed through lowercased.
+ * healthy progress, a queue script's (`QS_QUEUED`, `QS_EXECUTING`) taking the
+ * word of the stage beside it (`DetectStatus`), and `PP_FINISHED` is a
+ * finished download waiting to be imported. Anything else is passed through
+ * lowercased.
  */
 const QUEUE_STATUS: Readonly<Record<string, string>> = {
     QUEUED: 'queued',
     PAUSED: 'paused',
     DOWNLOADING: 'downloading',
     FETCHING: 'fetching',
+    QS_QUEUED: 'verifying',
     PP_QUEUED: 'verifying',
     LOADING_PARS: 'verifying',
     VERIFYING_SOURCES: 'verifying',
@@ -208,6 +271,8 @@ const QUEUE_STATUS: Readonly<Record<string, string>> = {
     UNPACKING: 'extracting',
     RENAMING: 'moving',
     MOVING: 'moving',
+    POST_UNPACK_RENAMING: 'moving',
+    QS_EXECUTING: 'moving',
     EXECUTING_SCRIPT: 'moving',
     PP_FINISHED: 'completed'
 };
@@ -535,8 +600,7 @@ export class NzbgetAdapter
             .filter((group): group is RawGroup & { NZBID: number } => typeof group.NZBID === 'number')
             .map(group => {
                 const size = int64(group.FileSizeHi, group.FileSizeLo, group.FileSizeMB);
-                const remaining = int64(group.RemainingSizeHi, group.RemainingSizeLo, group.RemainingSizeMB);
-                const paused = int64(group.PausedSizeHi, group.PausedSizeLo, group.PausedSizeMB) ?? 0;
+                const { remaining, paused } = sizesOf(group);
                 const own = remaining === undefined ? 0 : remaining - paused;
                 let eta: number | undefined;
                 if (!queuePaused && own > 0 && rate > 0) {
@@ -550,7 +614,7 @@ export class NzbgetAdapter
                         service: this.id,
                         field: 'NZBNicename'
                     }),
-                    status: queueStatus(group.Status),
+                    status: pausedItself(group) ? 'paused' : queueStatus(group.Status),
                     protocol: 'usenet',
                     ...(size === undefined ? {} : { sizeBytes: size }),
                     ...(remaining === undefined ? {} : { remainingBytes: remaining }),
@@ -590,18 +654,17 @@ export class NzbgetAdapter
                     remedy: 'Take a current NZBGet id from get_queue.'
                 });
             }
-            // `Status` stays DOWNLOADING after GroupPause until in-flight
-            // articles drain; every remaining byte being paused is the state
-            // the pause actually set.
-            const remaining = int64(group.RemainingSizeHi, group.RemainingSizeLo, group.RemainingSizeMB);
-            const pausedBytes = int64(group.PausedSizeHi, group.PausedSizeLo, group.PausedSizeMB) ?? 0;
-            return {
-                paused:
-                    (group.Status ?? '').toLowerCase().includes('paused') ||
-                    (remaining !== undefined && remaining > 0 && pausedBytes >= remaining),
-                scope: `queue item ${id}`,
-                ...withHold(nzbgetHold(status, group))
-            };
+            const scope = `queue item ${id}`;
+            // In post-processing, NZBGet pauses and unpauses the group's repair files itself.
+            if (inPostProcessing(group)) {
+                return {
+                    paused: false,
+                    scope,
+                    ...withHold(queueHeld(status, group) ? 'queue' : undefined),
+                    postProcessing: { stage: stagePhrase(group), paused: postHeld(status, group) }
+                };
+            }
+            return { paused: pausedItself(group), scope, ...withHold(queueHeld(status, group) ? 'queue' : undefined) };
         }
 
         return { paused: downloadPaused(await this.#status()), scope: 'the NZBGet download queue' };
@@ -1044,7 +1107,15 @@ export class NzbgetAdapter
                 if (m.Text === `${RETRY_STARTED} ${name}`) started = true;
             }
             const queued = groups.find(group => group.NZBID === nzbId);
-            if (queued !== undefined) return { target, id: target.id, state: 'downloading', status: status(queueStatus(queued.Status)) };
+            if (queued !== undefined) {
+                // One more read, once: whether the paused queue holds it. The retry
+                // has landed, so a failed read only leaves that unsaid.
+                const held = await this.#status().then(
+                    read => queueHeld(read, queued),
+                    () => false
+                );
+                return { target, id: target.id, state: 'downloading', status: status(queueStatus(queued.Status)), ...(held ? { queuePaused: true as const } : {}) };
+            }
         }
 
         // With nothing left to fetch it can be filed again between polls.

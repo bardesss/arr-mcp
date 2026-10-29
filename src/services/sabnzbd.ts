@@ -6,6 +6,7 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
+    RESUME_HELD_QUEUE,
     withHold,
     type ConnectionDiagnosis,
     type DiskSpace,
@@ -82,25 +83,29 @@ type RawSlot = {
 };
 
 /**
- * What holds the slots while the queue's `paused` flag is set: a manual pause,
- * which a resume ends, or the wait for post-processing, which a resume does not
- * (`Downloader`). Under a manual pause a slot shows its job's own status
- * (`build_queue`): Queued for one waiting its turn, and Downloading for a Force
- * job, which downloads through the pause (`NzbQueue`), and for one forced
- * during a pause, which keeps that status after its priority drops
- * (`set_priority`). During the wait alone no slot reads Queued, every one not
- * paused, fetching, grabbing or checking reads Downloading or Propagating, and
- * nothing downloads, Force included (`Downloader.run`). So the wait is read
- * from such a slot not at Force priority, with none reading Queued, and then
- * holds every slot; the remedies built on it still say to resume the queue if
- * it stays paused.
+ * Whether the queue's `paused` flag is the wait for post-processing, which a
+ * resume does not end (`Downloader`), rather than a manual pause, which it
+ * does. Under a manual pause a slot shows its job's own status (`build_queue`):
+ * Queued for one waiting its turn, and Downloading for a Force job, which
+ * downloads through the pause (`NzbQueue`), and for one forced during a pause,
+ * which keeps that status after its priority drops (`set_priority`). During the
+ * wait alone no slot reads Queued, every one not paused, fetching, grabbing or
+ * checking reads Downloading or Propagating, and nothing downloads, Force
+ * included (`Downloader.run`). So the wait is read from such a slot not at
+ * Force priority, with none reading Queued, and then holds every slot; the
+ * remedies built on it still say to resume the queue if it stays paused.
  */
-const sabHolds = (queue: RawQueue['queue']): ((slot: RawSlot) => PauseState['heldBy']) => {
-    if (queue?.paused !== true) return () => undefined;
+const sabWaiting = (queue: RawQueue['queue']): boolean => {
+    if (queue?.paused !== true) return false;
     const slots = queue.slots ?? [];
     const status = (slot: RawSlot): string => (slot.status ?? '').toLowerCase();
-    const waiting = !slots.some(s => status(s) === 'queued') && slots.some(s => s.priority !== 'Force' && ['downloading', 'propagating'].includes(status(s)));
-    if (waiting) return () => 'postProcessing';
+    return !slots.some(s => status(s) === 'queued') && slots.some(s => s.priority !== 'Force' && ['downloading', 'propagating'].includes(status(s)));
+};
+
+/** What holds each slot while the queue's `paused` flag is set (`sabWaiting`). */
+const sabHolds = (queue: RawQueue['queue']): ((slot: RawSlot) => PauseState['heldBy']) => {
+    if (queue?.paused !== true) return () => undefined;
+    if (sabWaiting(queue)) return () => 'postProcessing';
     return slot => (slot.priority === 'Force' ? undefined : 'queue');
 };
 
@@ -338,7 +343,9 @@ export class SabnzbdAdapter
     }
 
     /**
-     * The queue-wide paused flag is read directly, not inferred from the items.
+     * The queue-wide paused flag is read directly, unless the rows show the
+     * wait for post-processing (`sabWaiting`): the queue then reads as not
+     * paused by hand, and held by that wait.
      *
      * With an id, the answer comes from that slot's own status, and a slot
      * that is no longer in the queue is refused, not reported as paused. The
@@ -348,7 +355,8 @@ export class SabnzbdAdapter
         const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
 
         if (id === undefined) {
-            return { paused: body.queue?.paused === true, scope: 'the SABnzbd queue' };
+            const scope = 'the SABnzbd queue';
+            return sabWaiting(body.queue) ? { paused: false, scope, heldBy: 'postProcessing' } : { paused: body.queue?.paused === true, scope };
         }
 
         const slot = (body.queue?.slots ?? []).find(s => s.nzo_id === id);
@@ -468,13 +476,15 @@ export class SabnzbdAdapter
     }
 
     /**
-     * One queue slot by id. `nzo_ids` filters server-side from 4.x on, but
-     * 3.0.0's `_api_queue_default` ignores it and answers the whole queue, so
-     * the match is always made here.
+     * One queue slot by id, and whether the queue's `paused` flag holds it
+     * (`sabHolds`). `nzo_ids` filters server-side from 4.x on, but 3.0.0's
+     * `_api_queue_default` ignores it and answers the whole queue, so the match
+     * is always made here.
      */
-    async #queueSlot(id: string): Promise<RawSlot | undefined> {
+    async #queueSlot(id: string): Promise<{ slot?: RawSlot; held: boolean }> {
         const body = await this.#http.get<RawQueue>(`/api?mode=queue&nzo_ids=${encodeURIComponent(id)}&output=json`);
-        return (body.queue?.slots ?? []).find(s => s.nzo_id === id);
+        const slot = (body.queue?.slots ?? []).find(s => s.nzo_id === id);
+        return slot === undefined ? { held: false } : { slot, held: sabHolds(body.queue)(slot) !== undefined };
     }
 
     /**
@@ -496,7 +506,7 @@ export class SabnzbdAdapter
      * password (`unlock`). Anything else is refused before a write is offered.
      */
     async findRetryTarget(id: string, opts: { hasPassword: boolean }): Promise<RetryTarget> {
-        const queued = await this.#queueSlot(id);
+        const { slot: queued, held } = await this.#queueSlot(id);
         if (queued !== undefined) {
             const base = {
                 id,
@@ -513,7 +523,9 @@ export class SabnzbdAdapter
                 // and a watch on it would "succeed" without any write landing.
                 if (!paused) {
                     throw new ServiceError('NotFound', this.id, `download ${id} is encrypted but not paused`, {
-                        remedy: 'It is already running in SABnzbd, so there is nothing to unlock. Check its progress with get_queue.'
+                        remedy: held
+                            ? `It is not paused itself, so there is nothing to unlock, but SABnzbd's whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`
+                            : 'It is already running in SABnzbd, so there is nothing to unlock. Check its progress with get_queue.'
                     });
                 }
                 if (!opts.hasPassword) {
@@ -628,7 +640,7 @@ export class SabnzbdAdapter
      */
     async #unlock(target: RetryTarget, password: string): Promise<RetryOutcome> {
         // Read again for the raw name: the target only carries it fenced.
-        const slot = await this.#queueSlot(target.id);
+        const { slot } = await this.#queueSlot(target.id);
         if (slot === undefined) {
             throw new ServiceError('NotFound', this.id, `download ${target.id} left the queue`, { remedy: MISSING_REMEDY });
         }
@@ -672,7 +684,7 @@ export class SabnzbdAdapter
      * an unlock, a slot still `Paused` is not proof.
      */
     async #whereNow(target: RetryTarget, id: string, pausedIsPending = false): Promise<RetryOutcome | undefined> {
-        const queued = await this.#queueSlot(id);
+        const { slot: queued, held } = await this.#queueSlot(id);
         if (queued !== undefined) {
             const raw = queued.status ?? 'unknown';
             if (pausedIsPending && raw.toLowerCase() === 'paused') return undefined;
@@ -680,7 +692,8 @@ export class SabnzbdAdapter
                 target,
                 id,
                 state: PROCESSING_STATUSES.has(raw.toLowerCase()) ? 'processing' : 'downloading',
-                status: this.#fence(raw, 'status')
+                status: this.#fence(raw, 'status'),
+                ...(held ? { queuePaused: true as const } : {})
             };
         }
 

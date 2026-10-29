@@ -327,6 +327,21 @@ describe('retry_download', () => {
         expect(text).toContain('download_id: "SABnzbd_nzo_new"');
     });
 
+    // A job back in a paused queue waits there, so "downloading again" would be false.
+    it.each<[true | undefined, string]>([
+        [true, "It is in sabnzbd's queue (Queued), but the whole queue is paused, so it waits there: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."],
+        [undefined, 'It is downloading again (Queued).']
+    ])('words a job back in the queue by whether the paused queue holds it (%s)', async (queuePaused, sentence) => {
+        const h = harness();
+        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_new', state: 'downloading', status: 'Queued', ...(queuePaused === undefined ? {} : { queuePaused }) });
+        const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
+        const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
+
+        expect(applied.content[0]?.text ?? '').toContain(sentence);
+        expect(applied.structuredContent.result).toMatchObject({ state: 'downloading' });
+        expect((applied.structuredContent.result as Record<string, unknown>).queue_paused).toBe(queuePaused);
+    });
+
     it('says no *arr recorded the download when none traced it', async () => {
         const h = harness();
         const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });

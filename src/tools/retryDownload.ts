@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import {
     hasDownloadTrace,
     hasRetry,
+    RESUME_HELD_QUEUE,
     type DownloadTrace,
     type RetryMethod,
     type RetryOutcome,
@@ -124,8 +125,12 @@ const describeTarget = (target: RetryTarget, client: string) =>
 
 /** Where it ended up, in words. A finished rerun with no event is one an *arr
  *  already took out of the client's history, not a failure. */
-const describeOutcome = (outcome: Pick<RetryOutcome, 'state' | 'status' | 'event'>, client: string) => {
-    if (outcome.state === 'downloading') return `It is downloading again (${outcome.status}).`;
+const describeOutcome = (outcome: Pick<RetryOutcome, 'state' | 'status' | 'event'>, client: string, queuePaused: boolean) => {
+    if (outcome.state === 'downloading') {
+        return queuePaused
+            ? `It is in ${client}'s queue (${outcome.status}), but the whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`
+            : `It is downloading again (${outcome.status}).`;
+    }
     if (outcome.state === 'processing') return `It is being processed (${outcome.status}).`;
     if (outcome.event === undefined) {
         return `It ran and is no longer in ${client}'s history; an *arr usually imported it and removed it there.`;
@@ -208,6 +213,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 state: outcome.state,
                 status: outcome.status,
                 ...(outcome.event === undefined ? {} : { event: outcome.event }),
+                ...(outcome.queuePaused === true ? { queue_paused: true } : {}),
                 ...(view === undefined ? {} : { tracked_by: view.traces.map(t => t.service) })
             };
         },
@@ -217,11 +223,12 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 service: string;
                 previous_id?: string;
                 download_id: string;
+                queue_paused?: true;
             };
             const view = views.get(plan);
             const lines = [`Applied. ${plan.summary}`];
             if (r.previous_id !== undefined) lines.push(`Its id is now ${r.id}.`);
-            lines.push(describeOutcome(r, r.service));
+            lines.push(describeOutcome(r, r.service, r.queue_paused === true));
             if (view !== undefined) lines.push(...arrLines(view, r.previous_id !== undefined));
             // No view means no *arr knows this download's id, as on Shelfmark, so no import to offer.
             if (view !== undefined && importable(r)) {
