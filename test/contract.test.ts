@@ -365,6 +365,57 @@ const CONTRACTS: Record<string, ServiceContract> = {
             }
         ]
     },
+    // The one service here whose rows the adapter maps by hand from a local
+    // narrow type (`RawAlbum` in src/services/lidarr.ts), so the field names
+    // below are the adapter's only tie to upstream. Every one of them feeds a
+    // `get_library` field: rename `foreignAlbumId` and an album stops having an
+    // identity, rename `statistics.trackFileCount` and `has_file` becomes false
+    // for a library that is entirely on disk.
+    lidarr: {
+        spec: 'specs/lidarr.json',
+        dependencies: [
+            {
+                path: '/api/v1/system/status',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/system-status.json',
+                fields: ['version']
+            },
+            {
+                path: '/api/v1/artist',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/artist.json',
+                fields: [
+                    'id',
+                    'artistName',
+                    'foreignArtistId',
+                    'status',
+                    'monitored',
+                    'monitorNewItems',
+                    'added',
+                    'genres',
+                    'path',
+                    'qualityProfileId',
+                    'statistics.albumCount',
+                    'statistics.trackFileCount',
+                    'statistics.sizeOnDisk'
+                ]
+            },
+            {
+                // `get_media_details` on an artist. The library rows on artists,
+                // so this is the only read that carries an album id.
+                path: '/api/v1/album',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/album.json',
+                fields: ['id', 'title', 'foreignAlbumId', 'releaseDate', 'albumType', 'monitored', 'statistics.trackFileCount']
+            },
+            {
+                path: '/api/v1/qualityprofile',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/qualityprofile.json',
+                fields: ['id', 'name']
+            }
+        ]
+    },
     prowlarr: {
         spec: 'specs/prowlarr.json',
         dependencies: [
@@ -432,6 +483,21 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'Items.UserData.PlayCount',
                     'Items.Genres'
                 ]
+            },
+            {
+                // listUserMusic. `/Artists/AlbumArtists` is the only Jellyfin
+                // read that publishes a MusicBrainz id for an artist, and that
+                // GUID is the join to Lidarr.
+                //
+                // Declared as `Items.ProviderIds` and not the `MusicBrainzArtist`
+                // key inside it: the spec types ProviderIds as a free-form map,
+                // so the key cannot be checked against it. The fixture carries
+                // the real key and `test/fixtures.test.ts` would keep it, while
+                // the adapter test asserts it is read.
+                path: '/Artists/AlbumArtists',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/album-artists.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.Type', 'Items.ProviderIds']
             },
             {
                 // getPlayback's resumable half, which went uncontracted while it
@@ -708,6 +774,18 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'MediaContainer.Metadata.Guid',
                     'MediaContainer.Metadata.Guid.id',
                     'MediaContainer.Metadata.Media.Part.file'
+                ]
+            },
+            {
+                // listUserMusic. `type=8` is Plex's artist type, and the join
+                // reads `Guid` for the mbid:// entry. One captured row has no
+                // such guid, which is the real case: not every artist has one.
+                fixture: 'test/fixtures/plex/section-artists.json',
+                fields: [
+                    'MediaContainer.Metadata.ratingKey',
+                    'MediaContainer.Metadata.title',
+                    'MediaContainer.Metadata.Genre.tag',
+                    'MediaContainer.Metadata.Guid.id'
                 ]
             },
             {

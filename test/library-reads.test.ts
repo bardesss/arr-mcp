@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
-import { hasLibrary, hasUserLibrary, hasUserSeasons } from '../src/services/types.ts';
+import { hasLibrary, hasUserLibrary, hasUserMusic, hasUserSeasons } from '../src/services/types.ts';
 import { jsonResponse, serving } from './helpers/serve.ts';
 
 const keyed: KeyedServiceConfig = {
@@ -282,6 +284,38 @@ describe('Sonarr library cache', () => {
         await sonarr.search('some', 'discover');
 
         expect(fetches()).toBe(2);
+    });
+});
+
+/**
+ * The music half, against the capture @ghostintherack took from Jellyfin 12.4.0
+ * and anonymised. Five artists, each with a MusicBrainz id, which is the join.
+ */
+describe('Jellyfin.listUserMusic', () => {
+    const path = '/Artists/AlbumArtists?userId=u1&Recursive=true&Fields=ProviderIds&Limit=500&StartIndex=0';
+    const adapter = () =>
+        new JellyfinAdapter(multi, serving({ [path]: JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/jellyfin/album-artists.json'), 'utf8')) }));
+    const user = { id: 'u1', name: 'Someone' };
+
+    it('is discoverable through its own capability guard', () => {
+        expect(hasUserMusic(adapter())).toBe(true);
+    });
+
+    it('maps every captured artist, with the MusicBrainz id the join needs', async () => {
+        const items = await adapter().listUserMusic(user);
+
+        expect(items).toHaveLength(5);
+        expect(items.map(i => i.kind)).toEqual(Array(5).fill('artist'));
+        expect(items[0]).toMatchObject({
+            ids: { mbid: '00000000-0000-4000-8000-000000000001' },
+            playback: { user: 'Someone', itemId: '00000000000000000000000000000001' }
+        });
+        for (const item of items) expect(item.ids.mbid).toBeDefined();
+    });
+
+    it('claims no watch state, because this read does not ask for one', async () => {
+        const items = await adapter().listUserMusic(user);
+        for (const item of items) expect(item.playback).not.toHaveProperty('watched');
     });
 });
 

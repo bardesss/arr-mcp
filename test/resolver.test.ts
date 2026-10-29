@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { fenceText } from '../src/core/fence.ts';
-import { LibraryIndex, type ExternalIds, type IndexInput, type MergedItem } from '../src/core/resolver.ts';
+import {
+    LibraryIndex,
+    filmOrSeriesMatch,
+    type ExternalIds,
+    type IndexInput,
+    type MergedItem
+} from '../src/core/resolver.ts';
 import { unfenced } from '../src/core/titleMatch.ts';
 
 // Production adapters fence every title before it reaches the resolver
@@ -581,3 +587,83 @@ function assertAllIsReadonlyAtCompileTime(items: readonly MergedItem[]): void {
     items[0] = {} as never;
 }
 void assertAllIsReadonlyAtCompileTime;
+
+describe('LibraryIndex and music', () => {
+    const artist = (over: Partial<IndexInput> = {}): IndexInput => ({
+        kind: 'artist',
+        title: fenceText('Daft Punk', { service: 'lidarr', field: 'title' }),
+        ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' },
+        acquisition: { service: 'lidarr', monitored: true, hasFile: false },
+        ...over
+    });
+
+    it('keys an artist on its MusicBrainz id, case-insensitively', () => {
+        const upper = '056E4F3E-D505-4DAD-8EC1-D04F521CBB56';
+        const index = LibraryIndex.build([artist(), artist({ ids: { mbid: upper } })]);
+
+        expect(index.size()).toBe(1);
+        expect(index.find({ mbid: upper })?.kind).toBe('artist');
+    });
+
+    it('keeps an artist and a film apart under their own keys', () => {
+        // Namespacing by kind is what makes a shared index safe: Lidarr's
+        // MusicBrainz GUID and a TMDB integer are unrelated spaces. Asserted
+        // through `find` on each key, because a size check would pass even if
+        // `keysOf` dropped the kind prefix — no key is shared to begin with.
+        const index = LibraryIndex.build([arr({ ids: { tmdb: 4 } }), artist()]);
+
+        expect(index.size()).toBe(2);
+        expect(index.find({ tmdb: 4 })?.kind).toBe('movie');
+        expect(index.find({ mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' })?.kind).toBe('artist');
+    });
+
+    /**
+     * Music reads separately from films, so `playbackGathered` says nothing
+     * about an artist. Running the two together would report `arr_only` for
+     * every artist of a server whose music half never answered, which claims a
+     * lookup nobody made.
+     */
+    it('reports an artist as unknown when only the film half was gathered', () => {
+        const index = LibraryIndex.build([artist()], { playbackGathered: true, musicGathered: false });
+
+        expect(index.all()[0]?.presence).toBe('unknown');
+    });
+
+    it('reports an artist as arr_only once the music half was gathered', () => {
+        const index = LibraryIndex.build([artist()], { playbackGathered: true, musicGathered: true });
+
+        expect(index.all()[0]?.presence).toBe('arr_only');
+    });
+
+    it('leaves a film next to it on arr_only', () => {
+        const index = LibraryIndex.build([arr(), artist()], { playbackGathered: true });
+
+        expect(index.find({ tmdb: 550 })?.presence).toBe('arr_only');
+    });
+
+    describe('filmOrSeriesMatch', () => {
+        // `arr` fences `title` itself, so passing a fenced string here would
+        // fence it twice and land the film on a weaker rank than the artist —
+        // which would make the preference below pass for the wrong reason.
+        const film = arr({ title: 'Discovery' });
+        const artistNamedDiscovery = artist({
+            title: fenceText('Discovery', { service: 'lidarr', field: 'title' })
+        });
+        // Artist first, so the film is not simply the earlier row.
+        const index = LibraryIndex.build([artistNamedDiscovery, film]);
+
+        it('prefers the film when an artist shares its title', () => {
+            expect(index.search('Discovery').map(i => i.kind)).toEqual(['artist', 'movie']);
+            expect(filmOrSeriesMatch(index.search('Discovery'), 'Discovery')?.kind).toBe('movie');
+        });
+
+        it('refuses rather than reporting a music-only match as absent', () => {
+            const musicOnly = LibraryIndex.build([artist()]);
+            expect(() => filmOrSeriesMatch(musicOnly.search('Daft Punk'), 'Daft Punk')).toThrow(/artist/i);
+        });
+
+        it('returns nothing when nothing matches at all', () => {
+            expect(filmOrSeriesMatch(index.search('Nothing At All'), 'Nothing At All')).toBeUndefined();
+        });
+    });
+});
