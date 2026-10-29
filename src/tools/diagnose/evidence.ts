@@ -379,7 +379,29 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                   gaps === undefined ? undefined : { gaps, service: subtitlesAdapter.id }
               );
 
-    const [requests, queueGathered, rejections, scan, subtitles] = await Promise.all([requestsP, queueP, rejectionsP, scanP, subtitlesP]);
+    // An artist with no track on disk is searched for next, and a Lidarr search
+    // grabs only releases of a monitored album (`ReleaseSearchService.ArtistSearch`
+    // asks for those alone, and `AlbumRequestedSpecification` rejects the rest),
+    // so the chain needs to know whether any album is. Two requests (the artist
+    // and its album list), for an artist with no tracks only. Source-scoped when
+    // it fails, like the history read: it shapes the next step, not the verdict.
+    const albumsId = isArtist && item?.acquisition?.hasFile === false ? item.acquisition.id : undefined;
+    const albumsAdapter = albumsId === undefined ? undefined : deps.adapters.find(a => a.id === item?.acquisition?.service);
+    const albumsP: Promise<Evidence['albums']> =
+        albumsId === undefined || albumsAdapter === undefined || !hasMediaDetails(albumsAdapter)
+            ? Promise.resolve(undefined)
+            : probe(`${albumsAdapter.id}:albums`, degraded, () =>
+                  albumsAdapter.getMediaDetails(albumsId, { includeEpisodes: true, episodeLimit: 500 })
+              ).then(details => (details?.albums === undefined ? undefined : { list: details.albums, truncated: details.albumsTruncated === true }));
+
+    const [requests, queueGathered, rejections, scan, subtitles, albums] = await Promise.all([
+        requestsP,
+        queueP,
+        rejectionsP,
+        scanP,
+        subtitlesP,
+        albumsP
+    ]);
 
     let queue: Evidence['queue'];
     if (queueGathered === undefined) {
@@ -513,6 +535,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         cleanup,
         ...(cleanupAdapter !== undefined && cleanup === undefined ? { cleanupUnread: cleanupAdapter.id } : {}),
         ...(lastImportAt === undefined ? {} : { lastImportAt }),
+        ...(albums === undefined ? {} : { albums }),
         libraryDegraded,
         degraded
     };

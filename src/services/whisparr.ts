@@ -60,6 +60,7 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type ReleaseCandidate,
+    type ReleaseScope,
     type ReleaseGrabCapable,
     type ReleaseSearchCapable,
     type RemoveQueueOptions,
@@ -385,7 +386,7 @@ export class WhisparrAdapter
         return renameArrItem(this.#http, this.id, 'series', id);
     }
 
-    async findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]> {
+    async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
         return findArrReleases(this.#http, this.id, 'series', opts);
     }
 

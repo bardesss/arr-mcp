@@ -320,9 +320,16 @@ every track is on disk. Both leave out every album of an unmonitored artist, as
 Lidarr's own lists do. The wanted cutoff fixture was captured from Lidarr
 3.1.0.4875.
 
-Everything else is still out of reach: no release search, no delete. Of the 21
-capture endpoints exercised against a live Lidarr 3.1.6.5079, three still have
-no rows behind them (release, tag and indexer), so nothing claims them.
+`trigger_search` searches the indexers for an artist, or for albums of it named
+in `albums`, and `get_releases` and `grab_release` list and grab the releases
+for the artist or one `album`. The release fixture was captured from an album
+search on a 3.1.6.5079 test instance. The `trigger_search` previews, the album
+release search and a grab were exercised against 2.1.3.3927, and the previews
+and the album release search against 3.1.6.5079.
+
+Everything else is still out of reach: no delete. Of the 21 capture endpoints
+exercised against a live Lidarr 3.1.6.5079, two still have no rows behind them
+(tag and indexer), so nothing claims them.
 
 The version floor is 2.1.3. The two write endpoints were captured on 2.1.3.3927,
 and the read fixtures come from 3.1.6.5079, except the queue, history,

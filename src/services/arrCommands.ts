@@ -61,6 +61,9 @@ const FOLLOWABLE = new Set([
     'SeriesSearch',
     'SeasonSearch',
     'EpisodeSearch',
+    // Lidarr's two, which `trigger_search` posts.
+    'ArtistSearch',
+    'AlbumSearch',
     'RefreshMovie',
     'RefreshSeries',
     'RenameMovie',

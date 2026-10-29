@@ -8,10 +8,11 @@ import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readProfileNames } from './arrAdd.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
-import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
+import { findLidarrReleases, grabLidarrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import { readArrWanted } from './arrWanted.ts';
 import {
@@ -49,12 +50,18 @@ import {
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
+    type ReleaseCandidate,
+    type ReleaseGrabCapable,
+    type ReleaseScope,
+    type ReleaseSearchCapable,
     type RemoveQueueOptions,
     type ScanState,
     type ScanStateCapable,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
+    type SearchTarget,
+    type SearchTriggerCapable,
     type ServiceAdapter,
     type WantedCapable,
     type WantedItem,
@@ -75,6 +82,7 @@ const isKnownNewItems = (value: string | undefined): value is ArtistMonitorNewIt
  */
 type RawAlbum = {
     id?: number;
+    artistId?: number;
     title?: string;
     foreignAlbumId?: string;
     releaseDate?: string | null;
@@ -203,6 +211,11 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * `kind: 'artist'`, and through `readLidarrCalendar`, next to the Radarr and
  * Sonarr calendar readers in `arrQueue.ts`.
  *
+ * `SearchTriggerCapable`, `ReleaseSearchCapable` and `ReleaseGrabCapable` are
+ * `trigger_search`'s, `get_releases`' and `grab_release`'s: `ArtistSearch` or
+ * `AlbumSearch`, and the release search and grab for the artist or one album,
+ * through the shared `postArrCommand` and `arrRelease.ts`.
+ *
  * An artist is the row rather than a track or an album, for the reason Radarr
  * and Sonarr row on a film and a series: it is the level a person asks about,
  * it is what joins to a media server on the MusicBrainz artist id, and Lidarr
@@ -235,7 +248,10 @@ export class LidarrAdapter
         HealthCheckCapable,
         ScanStateCapable,
         WantedCapable,
-        CalendarCapable
+        CalendarCapable,
+        SearchTriggerCapable,
+        ReleaseSearchCapable,
+        ReleaseGrabCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined;
@@ -596,15 +612,68 @@ export class LidarrAdapter
         return readLidarrCalendar(albums, this.id);
     }
 
+    /**
+     * `ArtistSearch` takes a bare `artistId` and `AlbumSearch` an `albumIds`
+     * array, the same asymmetry as Sonarr's `SeriesSearch` and `EpisodeSearch`.
+     * `trigger_search` checks the albums belong to the artist before this runs.
+     */
+    async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
+        this.#refuseSeasons(target?.season !== undefined || target?.episodes !== undefined);
+        const artistId = this.#numericId(id, 'artist');
+        if (target?.albums === undefined) return postArrCommand(this.#http, this.id, { name: 'ArtistSearch', artistId });
+        // An album named twice is searched once: Lidarr would search it twice.
+        const albumIds = [...new Set(target.albums)].map(album => this.#numericId(album, 'album'));
+        return postArrCommand(this.#http, this.id, { name: 'AlbumSearch', albumIds });
+    }
+
+    /**
+     * The whole artist, or one album when `album` is given. Lidarr searches an
+     * album by its id alone, so the album is read first and must be the
+     * artist's: a mismatched pair would list releases for, and `grab_release`
+     * would then grab for, an artist the caller never named.
+     */
+    async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
+        this.#refuseSeasons(opts.season !== undefined || opts.episode !== undefined);
+        const artistId = this.#numericId(opts.id, 'artist');
+        if (opts.album === undefined) return findLidarrReleases(this.#http, this.id, { artistId });
+
+        const albumId = this.#numericId(opts.album, 'album');
+        const album = await this.#http.get<RawAlbum>(`/api/v1/album/${albumId}`);
+        if (album.artistId !== artistId) {
+            throw new ServiceError('NotFound', this.id, `album ${albumId} is not one of artist ${artistId}'s albums`, {
+                remedy: 'Take the album id from get_media_details on that artist, at detail: "full".'
+            });
+        }
+        return findLidarrReleases(this.#http, this.id, { artistId, albumId });
+    }
+
+    /** Given the release-search timeout: see `grabLidarrRelease`. */
+    async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
+        await grabLidarrRelease(this.#http, this.id, opts);
+    }
+
     async testConnection(): Promise<ConnectionDiagnosis> {
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 
-    #numericId(value: string, what: string): number {
+    /** An artist has albums, not seasons or episodes. Refused rather than
+     *  widened, which would search the whole artist instead. */
+    #refuseSeasons(given: boolean): void {
+        if (!given) return;
+        throw new ServiceError('NotFound', this.id, 'a Lidarr artist has no seasons or episodes', {
+            remedy: 'Drop `season` and `episode`. To search specific albums, pass their ids: `albums` on trigger_search, `album` on get_releases and grab_release.'
+        });
+    }
+
+    /** An album id is not on a library row, so its remedy points where album ids are listed. */
+    #numericId(value: string, what: 'artist' | 'album'): number {
         const id = Number(value);
         if (!Number.isInteger(id)) {
             throw new ServiceError('NotFound', this.id, `"${value}" is not a Lidarr ${what} id`, {
-                remedy: `Lidarr ${what} ids are integers. Take one from \`acquisition.id\` on get_library.`
+                remedy:
+                    what === 'artist'
+                        ? 'Lidarr artist ids are integers. Take one from `acquisition.id` on get_library.'
+                        : 'Lidarr album ids are integers. Take one from get_media_details on the artist, at `detail: "full"`.'
             });
         }
         return id;
