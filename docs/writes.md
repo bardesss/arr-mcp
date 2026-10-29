@@ -411,9 +411,9 @@ until it gets another profile, whose albums `monitor_new_items` flags, or an
 album added in Lidarr, which a refresh keeps. With `all` or `new` (which has no
 album to compare with), a later profile change monitors every album it brings,
 and Lidarr then searches the released ones while the artist is monitored. In
-Lidarr newer than 3.2.0.5144 (nightly builds so far) that search covers only
-albums released in the last 180 days, and older ones wait for RSS sync or
-`trigger_search`. The preview says this too when `monitor_new_items` is given.
+Lidarr newer than 3.2.0.5144 that search covers only albums released in the
+last 180 days, and older ones wait for RSS sync or `trigger_search`. The preview
+says this too when `monitor_new_items` is given.
 
 `monitor_new_items` also sets the albums an artist is added with: Lidarr's first
 refresh flags every album by that rule, and `monitor` then overrides it. So with
