@@ -6,6 +6,7 @@ import type {
     DiskSpaceCapable,
     HealthCheck,
     HealthCheckCapable,
+    LogCapable,
     RecentLogs,
     ScanState,
     ServiceAdapter
@@ -208,6 +209,83 @@ describe('get_stack_health logs', () => {
         }));
         const full = await buildStackHealth([adapter], { detail: 'full', limit: 50 });
         expect(full.logs?.items.map(l => l.lastSeen)).toEqual(['2026-11-05T10:00:00.500Z', '2026-11-05T10:00:00Z', '2026-11-05T09:59:59.999+00:00']);
+    });
+
+    describe('one limit shared between the instances', () => {
+        /** An instance whose log folds to `n` rows a second apart, the newest at `newest`. */
+        const at = (id: string, n: number, newest: string): ServiceAdapter & LogCapable => {
+            const entries = Array.from({ length: n }, (_, i) => ({
+                ...line,
+                service: id,
+                message: `${id} ${i}`,
+                lastSeen: new Date(Date.parse(newest) - i * 1000).toISOString()
+            }));
+            return {
+                ...fakeArr({ diagnosis: { ...healthy, service: id } }),
+                id,
+                type: id.split('/')[0] as ServiceAdapter['type'],
+                getRecentLogs: async () => ({ entries, read: n, total: n })
+            };
+        };
+        const perInstance = (items: readonly { service: string }[] = []) =>
+            items.reduce<Record<string, number>>((acc, row) => ({ ...acc, [row.service]: (acc[row.service] ?? 0) + 1 }), {});
+
+        it('keeps the only row of a quiet instance that a busy one of the same type would have cut', async () => {
+            const result = await buildStackHealth([at('sonarr/busy', 60, '2026-11-05T10:00:00Z'), at('sonarr/quiet', 1, '2026-11-01T00:00:00Z')], full);
+            expect(perInstance(result.logs?.items)).toEqual({ 'sonarr/busy': 49, 'sonarr/quiet': 1 });
+            expect(result.logs).toMatchObject({ total: 61, returned: 50, offset: 0, truncated: true });
+        });
+
+        it('passes the share an instance does not use on to the others', async () => {
+            const result = await buildStackHealth([at('radarr', 40, '2026-11-05T10:00:00Z'), at('sonarr', 5, '2026-11-05T09:00:00Z')], { detail: 'full', limit: 30 });
+            expect(perInstance(result.logs?.items)).toEqual({ radarr: 25, sonarr: 5 });
+            expect(result.logs).toMatchObject({ total: 45, returned: 30, truncated: true });
+        });
+
+        it('hands the rows a share leaves over to the newest, whatever order the instances answer in', async () => {
+            // A limit of 10 between three instances: 3 each, and one more. Radarr's
+            // and Sonarr's rows are a second apart at the same moments, so the spare
+            // row is a tie, which goes by instance id.
+            const three = () => [at('radarr', 5, '2026-11-05T10:00:00Z'), at('sonarr', 5, '2026-11-05T10:00:00Z'), at('lidarr', 5, '2026-11-05T09:00:00Z')];
+            const forward = await buildStackHealth(three(), { detail: 'full', limit: 10 });
+            const backward = await buildStackHealth(three().reverse(), { detail: 'full', limit: 10 });
+            expect(perInstance(forward.logs?.items)).toEqual({ radarr: 4, sonarr: 3, lidarr: 3 });
+            expect(backward.logs?.items).toEqual(forward.logs?.items);
+            const times = (forward.logs?.items ?? []).map(row => Date.parse(row.lastSeen));
+            expect(times).toEqual([...times].sort((a, b) => b - a));
+        });
+
+        it('splits evenly when every instance has its share', async () => {
+            const result = await buildStackHealth([at('radarr', 50, '2026-11-05T10:00:00Z'), at('sonarr', 50, '2026-11-05T09:00:00Z')], full);
+            expect(perInstance(result.logs?.items)).toEqual({ radarr: 25, sonarr: 25 });
+        });
+
+        it('keeps one row of each when the limit equals the number of instances', async () => {
+            const result = await buildStackHealth(
+                [at('radarr', 3, '2026-11-05T10:00:00Z'), at('sonarr', 3, '2026-11-05T09:00:00Z'), at('lidarr', 3, '2026-11-05T08:00:00Z')],
+                { detail: 'full', limit: 3 }
+            );
+            expect(result.logs?.items.map(row => row.message)).toEqual(['radarr 0', 'sonarr 0', 'lidarr 0']);
+        });
+
+        it('keeps every row, untruncated, when the limit is above them all', async () => {
+            const result = await buildStackHealth([at('radarr', 3, '2026-11-05T10:00:00Z'), at('sonarr', 3, '2026-11-05T09:00:00Z')], full);
+            expect(result.logs).toMatchObject({ total: 6, returned: 6, offset: 0, truncated: false });
+        });
+
+        it('keeps the newest rows overall when the limit is below the number of instances', async () => {
+            const result = await buildStackHealth(
+                [at('radarr', 3, '2026-11-05T10:00:00Z'), at('sonarr', 3, '2026-11-05T09:00:00Z'), at('lidarr', 3, '2026-11-05T08:00:00Z')],
+                { detail: 'full', limit: 2 }
+            );
+            expect(result.logs?.items.map(row => row.message)).toEqual(['radarr 0', 'radarr 1']);
+            expect(result.logs).toMatchObject({ total: 9, returned: 2, truncated: true });
+        });
+
+        it('orders rows from the same moment by instance id, not by which instance answered first', async () => {
+            const result = await buildStackHealth([at('sonarr/b', 1, '2026-11-05T10:00:00Z'), at('sonarr/a', 1, '2026-11-05T10:00:00Z')], full);
+            expect(result.logs?.items.map(row => row.service)).toEqual(['sonarr/a', 'sonarr/b']);
+        });
     });
 });
 

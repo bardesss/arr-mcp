@@ -1013,16 +1013,26 @@ log database is turned off (its `LogDbEnabled` setting) serves no log lines over
 its API, though it still writes its log files: its row in `logs.lines` says
 `logDbEnabled: false`, with both 0, and it is not `degraded`.
 
-The services differ in a few ways. Seerr's `errorMessage` is appended to `message`,
-because that is where it says why, and the rest of what a Seerr line was logged
-with is dropped. Bazarr has no logger name, so `logger` is `bazarr`; its times are
-local with no offset, so its rows sort as if in this server's time zone. It answers
-with its whole current log, so its `total` counts the warnings and worse in that.
-A value that looks like an API key, token or password, an `Authorization` header's
-value and any credentials inside a URL are replaced with `(removed)` in every
-service's lines. SABnzbd's warnings are in `failures` rather than here.
-Jellyfin's real log is plain-text files, and Dispatcharr and Profilarr have no log
-to read, so none of the three appears here.
+The `logs` budget is shared between the instances that have rows, so a busy
+instance cannot take a quieter one's share. Each keeps up to an equal share of
+its own newest rows, and what the shares leave (the remainder, or the unused
+share of an instance with fewer rows) goes to the newest rows still left out.
+With a `limit` below the number of instances that have rows, the rows are the
+newest overall. Rows from the same moment are ordered by instance id.
+`logs.total` and `logs.truncated` describe the whole list, so a caller can tell
+when rows were left out.
+
+The services differ in a few ways. Seerr's `errorMessage` is appended to
+`message`, because that is where it says why, and the rest of what a Seerr line
+was logged with is dropped. Bazarr has no logger name, so `logger` is `bazarr`;
+its times are local, read in Bazarr's own time zone, or as this server's when
+that zone is unknown. It answers with its whole current log, so its `total`
+counts the warnings and worse in that. A value that looks like an API key, token
+or password, an `Authorization` header's value and any credentials inside a URL
+are replaced with `(removed)` in every service's lines. SABnzbd's warnings are
+in `failures` rather than here. Jellyfin's real log is plain-text files, and
+Dispatcharr and Profilarr have no log to read, so none of the three appears
+here.
 
 ## `get_library`
 
