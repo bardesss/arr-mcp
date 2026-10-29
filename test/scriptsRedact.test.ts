@@ -87,8 +87,8 @@ describe('NZBGet fixture anonymisers', () => {
             version: '1.1',
             result: [
                 {
-                    NZBID: 4521,
-                    DestDir: '/data/usenet//incomplete/Real.Release.2017.REMUX-GRP.#4521',
+                    NZBID: 7721,
+                    DestDir: '/downloads/incomplete/Real.Release.2017.REMUX-GRP.#7721',
                     FinalDir: '',
                     DupeKey: 'imdb=tt0000001',
                     Log: [{ ID: 1, Kind: 'INFO', Text: 'Downloading Real.Release.2017.REMUX-GRP' }]
@@ -123,27 +123,27 @@ describe('NZBGet fixture anonymisers', () => {
     // Sizes, post times and article counts together fingerprint a release,
     // and status numbers describe the operator's disks and usage.
     it('replaces NZBGet numbers with synthetic ones that keep their shape', () => {
-        const big = 9330 * 2 ** 20 + 12345;
+        const big = 6543 * 2 ** 20 + 12345;
         const output = anonymiseNzbgetRows({
             result: [
                 {
-                    NZBID: 4533,
+                    NZBID: 7733,
                     FileSizeLo: big % 2 ** 32,
                     FileSizeHi: Math.floor(big / 2 ** 32),
-                    FileSizeMB: 9330,
+                    FileSizeMB: 6543,
                     RemainingSizeLo: big % 2 ** 32,
                     RemainingSizeHi: Math.floor(big / 2 ** 32),
-                    RemainingSizeMB: 9330,
+                    RemainingSizeMB: 6543,
                     DownloadedSizeLo: 0,
                     DownloadedSizeHi: 0,
                     DownloadedSizeMB: 0,
-                    MinPostTime: 1791292090,
-                    TotalArticles: 13686,
-                    SuccessArticles: 12957,
+                    MinPostTime: 1786000000,
+                    TotalArticles: 11111,
+                    SuccessArticles: 9876,
                     FailedArticles: 0,
                     Status: 'QUEUED'
                 },
-                { NZBID: 4534, FileSizeLo: 5, FileSizeHi: 0, FileSizeMB: 0, MinPostTime: 1791242252, Status: 'PAUSED' }
+                { NZBID: 7734, FileSizeLo: 5, FileSizeHi: 0, FileSizeMB: 0, MinPostTime: 1785000000, Status: 'PAUSED' }
             ]
         }) as { result: [NzbgetNumbers, NzbgetNumbers] };
         const [first, second] = output.result;
@@ -157,19 +157,19 @@ describe('NZBGet fixture anonymisers', () => {
         expect(first.MinPostTime).toBeGreaterThan(second.MinPostTime);
         expect(first.SuccessArticles).toBeLessThan(first.TotalArticles);
         expect(first.FailedArticles).toBe(0);
-        expect(JSON.stringify(output)).not.toMatch(/9330|1791292090|13686|12957/);
+        expect(JSON.stringify(output)).not.toMatch(/6543|1786000000|11111|9876/);
 
         const status = anonymiseNzbgetStatus({
             result: {
-                FreeDiskSpaceLo: 299737088,
-                FreeDiskSpaceHi: 8065,
-                FreeDiskSpaceMB: 33034525,
+                FreeDiskSpaceLo: 1234567,
+                FreeDiskSpaceHi: 2943,
+                FreeDiskSpaceMB: 12345678,
                 FreeInterDiskSpaceLo: 4294967295,
                 FreeInterDiskSpaceHi: 4294967295,
                 FreeInterDiskSpaceMB: -1,
-                AverageDownloadRate: 87749352,
-                ServerTime: 1791208940,
-                UpTimeSec: 20345,
+                AverageDownloadRate: 5555555,
+                ServerTime: 1786000100,
+                UpTimeSec: 4321,
                 DownloadPaused: true,
                 DownloadLimit: 5120000,
                 NewsServers: [{ ID: 1, Active: true }]
@@ -181,15 +181,15 @@ describe('NZBGet fixture anonymisers', () => {
             DownloadLimit: 5120000,
             NewsServers: [{ ID: 1, Active: true }]
         });
-        expect(JSON.stringify(status)).not.toMatch(/33034525|87749352|1791208940|20345/);
+        expect(JSON.stringify(status)).not.toMatch(/12345678|5555555|1786000100|4321/);
     });
 
     // A log line can name a release, a download folder or a news server.
     it('replaces NZBGet log text, keeping only the post-process refusal\'s wording, and renumbers ids and times', () => {
         const output = anonymiseNzbgetLog({
             result: [
-                { ID: 8812, Kind: 'INFO', Time: 1_791_208_940, Text: 'Collection Real.Release.2017 added to history' },
-                { ID: 8813, Kind: 'ERROR', Time: 1_791_209_000, Text: "Could not post-process again Real.Release: destination directory /downloads/Real.Release doesn't exist" }
+                { ID: 8812, Kind: 'INFO', Time: 1_786_000_200, Text: 'Collection Real.Release.2017 added to history' },
+                { ID: 8813, Kind: 'ERROR', Time: 1_786_000_260, Text: "Could not post-process again Real.Release: destination directory /downloads/Real.Release doesn't exist" }
             ]
         });
 
