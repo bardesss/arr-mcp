@@ -1810,6 +1810,9 @@ export type RootFolder = {
      * say" stay distinguishable.
      */
     unmappedFolders?: string[];
+    /** Lidarr only: the metadata profile this root folder names as its
+     *  default, which `add_media` uses when none is named. */
+    defaultMetadataProfileId?: number;
 };
 
 /** What an external id resolves to, and whether the service already has it. */
@@ -1834,15 +1837,20 @@ export type AddMediaOptions = {
     rootFolderPath: string;
     monitored: boolean;
     searchNow: boolean;
-    /** Sonarr's `MonitorTypes` — which seasons to monitor on add. Sonarr
-     *  computes the per-season flags itself, which is why this is passed
-     *  through rather than turned into a season list here. */
+    /** Sonarr's `MonitorTypes` — which seasons to monitor on add — or
+     *  Lidarr's, which albums. The service computes the flags itself, which
+     *  is why this is passed through rather than turned into a list here. */
     monitor?: string;
     /** Radarr's `MovieStatusType` threshold. Defaults to `released`. */
     minimumAvailability?: string;
     /** Sonarr's `SeriesTypes` — the numbering scheme. */
     seriesType?: string;
     tagIds?: number[];
+    /** Lidarr only, and required there: its second profile, which decides
+     *  which album types and release statuses an artist gets at all. */
+    metadataProfileId?: number;
+    /** Lidarr only: the standing rule for albums it discovers later. */
+    monitorNewItems?: ArtistMonitorNewItems;
 };
 
 export interface MediaAddCapable {
@@ -1851,13 +1859,26 @@ export interface MediaAddCapable {
     /** The tags the instance already has. Nothing here ever creates one — an
      *  unknown label is a refusal listing these. */
     listTags(): Promise<Tag[]>;
-    /** Resolves the external id — TMDB for Radarr, TVDB for Sonarr. */
+    /** Resolves the external id — TMDB for Radarr, TVDB for Sonarr, the
+     *  MusicBrainz artist id for Lidarr. */
     lookupForAdd(externalId: string): Promise<AddCandidate>;
     addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }>;
 }
 
 export const hasMediaAdd = (a: ServiceAdapter): a is ServiceAdapter & MediaAddCapable =>
     typeof (a as Partial<MediaAddCapable>).addMedia === 'function';
+
+/**
+ * Lidarr's second profile type, beside the quality profile: it decides which
+ * album types and release statuses an artist gets at all. The same shape as a
+ * quality profile, so `chooseOne` resolves a name or id against it the same way.
+ */
+export interface MetadataProfileCapable {
+    listMetadataProfiles(): Promise<QualityProfile[]>;
+}
+
+export const hasMetadataProfiles = (a: ServiceAdapter): a is ServiceAdapter & MetadataProfileCapable =>
+    typeof (a as Partial<MetadataProfileCapable>).listMetadataProfiles === 'function';
 
 /**
  * Changing something already in the library. Every field is optional and

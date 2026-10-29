@@ -1,0 +1,39 @@
+[
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "Artist 1",
+    "foreignArtistId": "00000000-0000-4000-8000-000000000101",
+    "tadbId": 0,
+    "discogsId": 0,
+    "overview": "An artist.",
+    "artistType": "Group",
+    "disambiguation": "",
+    "links": [
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-1"
+      }
+    ],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [],
+    "remotePoster": "https://indexer.example.test/",
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "Artist 1",
+    "genres": [
+      "Genre 1"
+    ],
+    "cleanName": "artist1",
+    "sortName": "artist 1",
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  }
+]

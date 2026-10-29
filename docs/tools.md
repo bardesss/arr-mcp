@@ -22,7 +22,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_playback` | What am I watching, and what can I continue |
 | `get_indexers` | Which indexers are healthy, and what they recently rejected |
 | `get_requests` | What has been requested, and what is still pending |
-| `lookup_media` | Tell me about this, without adding it; books too, with Shelfmark |
+| `lookup_media` | Tell me about this, without adding it; artists too, with Lidarr, and books, with Shelfmark |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes; on Lidarr, an artist or some of its albums |
 | `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or rescan a Grimmory library or its Bookdrop |
@@ -39,7 +39,7 @@ off until you turn them on — see [writes](writes.md).
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
-| `add_media` | Add this film or series and start looking for it |
+| `add_media` | Add this film or series and start looking for it; on Lidarr, an artist |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there; on Grimmory, a book's title, authors, series and categories |
 | `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers |
 | `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
@@ -327,7 +327,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
 | `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
 | `managed`, in Lidarr | `set_monitoring` with `level: "artist"`, `artists: [id]` and `monitored: true`, never `id`: the artist flag only, each album keeps its own |
-| `managed` or `resolve`, nothing manages it | `lookup_media` with your `query`, only when you diagnosed by title; none for an artist, since nothing here adds music |
+| `managed` or `resolve`, nothing manages it | `lookup_media` with your `query`, only when you diagnosed by title; none for an artist, whose remedy says to add it to Lidarr; `add_media` takes the MusicBrainz id `lookup_media` returns |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
 | `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
 | `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
@@ -388,13 +388,15 @@ in `degraded` rather than in `failures`.
 
 ### What each instance will accept, at `detail: "full"`
 
-`options` lists, per Radarr/Sonarr instance, the `qualityProfiles`,
-`rootFolders` and `tags` it actually has. These are the values `add_media` and
-`update_media` refuse to guess at: with more than one profile they insist you
-name which, and this is where the names come from. Only at `full`, because it
-is three extra calls per instance and it answers "what may I choose", not "is
-anything broken". An instance whose profile list cannot be read is named in
-`degraded` and left out of `options` — the rest of the answer stands.
+`options` lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
+`qualityProfiles`, `rootFolders` and `tags` it actually has. Lidarr's metadata
+profiles are not listed here: `add_media` names them when it needs one chosen.
+These are the values `add_media` and `update_media` refuse to guess at: with
+more than one profile they insist you name which, and this is where the names
+come from. Only at `full`, because it is three extra calls per instance and it
+answers "what may I choose", not "is anything broken". An instance whose profile
+list cannot be read is named in `degraded` and left out of `options` — the rest
+of the answer stands.
 
 Each root folder also carries `unmappedFolders` when the instance reports any:
 the folder names under that root it associates with no item. It rides along on
@@ -817,8 +819,10 @@ not row on albums.
 
 `search_media` with `source: "library"` finds an artist by **name** — "do I have
 any Daft Punk" is a library question, and the artist row answers it.
-`source: "discover"` returns nothing from Lidarr: its lookup endpoints answer
-with artists to add, and nothing here adds music.
+`source: "discover"`, which is what `lookup_media` runs, answers with Lidarr's
+artist lookup: artists to add, each with its MusicBrainz id under `ids.mbid`
+and, for one not yet in Lidarr, as `id` too. That id is what `add_media` takes
+as `external_id` for Lidarr.
 
 ### Books, from Grimmory
 

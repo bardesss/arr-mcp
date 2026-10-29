@@ -512,6 +512,33 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 method: 'get',
                 fixture: 'test/fixtures/lidarr/album.json',
                 fields: ['id', 'artistId']
+            },
+            {
+                // `lookup_media` and `add_media`. An artist not yet added carries
+                // no `id`, which is how "already there" is told apart.
+                path: '/api/v1/artist/lookup',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/artist-lookup-mbid.json',
+                fields: ['artistName', 'foreignArtistId']
+            },
+            {
+                path: '/api/v1/artist',
+                method: 'post',
+                fixture: 'test/fixtures/lidarr/artist-add.json',
+                fields: ['id', 'artistName']
+            },
+            {
+                // `defaultMetadataProfileId` is what `add_media` falls back to.
+                path: '/api/v1/rootfolder',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/rootfolder.json',
+                fields: ['path', 'freeSpace', 'defaultMetadataProfileId']
+            },
+            {
+                path: '/api/v1/metadataprofile',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/metadataprofile.json',
+                fields: ['id', 'name']
             }
         ]
     },

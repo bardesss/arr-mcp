@@ -1992,7 +1992,7 @@ describe('buildChain — a Lidarr artist', () => {
         expect(d.verdict.next_steps?.[0]?.arguments).toEqual({ service: 'lidarr', instance: 'hd', level: 'artist', artists: ['1'], monitored: true });
     });
 
-    it('offers no lookup for an artist nothing manages, since nothing here adds music', () => {
+    it('offers no lookup for an artist nothing manages, and says to add it to Lidarr', () => {
         const d = buildChain('daft punk', healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) }));
         expect(d.verdict.stage).toBe('managed');
         expect(d.verdict.next_steps).toBeUndefined();

@@ -5,12 +5,14 @@ import type { ServiceHttp } from '../core/http.ts';
 import type { AddCandidate, AddMediaOptions, QualityProfile, RootFolder, Tag } from './types.ts';
 
 /**
- * Adding to Radarr and Sonarr, shared for the same reason the queue read is:
- * the two differ only in which noun and which external id they use. The
+ * Adding to Radarr, Sonarr and Whisparr, shared for the same reason the queue
+ * read is: they differ only in which noun and which external id they use. The
  * differences are the four values in `ArrAddShape`; everything else — the
  * profile and root-folder lookups, the "is it already there" check, the
- * argument validation — is identical, and writing it twice is how the two
- * drift into disagreeing about what adding means.
+ * argument validation — is identical, and writing it twice is how they drift
+ * into disagreeing about what adding means. Lidarr adds an artist by its
+ * MusicBrainz id with its own lookup and body (`LidarrAdapter.addMedia`), and
+ * reads its profiles, root folders and tags here.
  */
 
 export type ArrAddShape = {
@@ -93,11 +95,26 @@ export const WHISPARR_ADD: ArrAddShape = {
 };
 
 type RawProfile = { id?: number; name?: string };
-type RawRootFolder = { path?: string; freeSpace?: number; unmappedFolders?: { name?: string }[] };
+type RawRootFolder = {
+    path?: string;
+    freeSpace?: number;
+    unmappedFolders?: { name?: string }[];
+    /** Lidarr only. */
+    defaultMetadataProfileId?: number;
+};
 type RawLookup = { id?: number; title?: string; year?: number; tmdbId?: number; tvdbId?: number };
 
 export async function readQualityProfiles(http: ServiceHttp, service: string): Promise<QualityProfile[]> {
-    const rows = await http.get<RawProfile[]>(`${http.apiRoot}/qualityprofile`);
+    return readProfiles(http, service, 'qualityprofile');
+}
+
+/** Lidarr's second profile type, in the same id-and-name shape. */
+export async function readMetadataProfiles(http: ServiceHttp, service: string): Promise<QualityProfile[]> {
+    return readProfiles(http, service, 'metadataprofile');
+}
+
+async function readProfiles(http: ServiceHttp, service: string, resource: string): Promise<QualityProfile[]> {
+    const rows = await http.get<RawProfile[]>(`${http.apiRoot}/${resource}`);
     return rows
         .filter((p): p is RawProfile & { id: number } => typeof p.id === 'number')
         .map(p => {
@@ -145,7 +162,11 @@ export async function readRootFolders(http: ServiceHttp, service: string): Promi
                 // Fenced, because this is what reaches model context as prose.
                 display: fenceText(r.path, { service, field: 'path' }),
                 ...(typeof r.freeSpace === 'number' ? { freeSpaceBytes: r.freeSpace } : {}),
-                ...(unmapped.length === 0 ? {} : { unmappedFolders: unmapped })
+                ...(unmapped.length === 0 ? {} : { unmappedFolders: unmapped }),
+                // An id of 0 names no profile.
+                ...(typeof r.defaultMetadataProfileId === 'number' && r.defaultMetadataProfileId > 0
+                    ? { defaultMetadataProfileId: r.defaultMetadataProfileId }
+                    : {})
             };
         });
 }
