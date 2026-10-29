@@ -327,19 +327,52 @@ describe('retry_download', () => {
         expect(text).toContain('download_id: "SABnzbd_nzo_new"');
     });
 
-    // A job back in a paused queue waits there, so "downloading again" would be false.
-    it.each<[true | undefined, string]>([
-        [true, "It is in sabnzbd's queue (Queued), but the whole queue is paused, so it waits there: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."],
-        [undefined, 'It is downloading again (Queued).']
-    ])('words a job back in the queue by whether the paused queue holds it (%s)', async (queuePaused, sentence) => {
+    // A job back in a paused queue waits there, and one paused itself waits for its own resume, so
+    // "downloading again" would be false for either.
+    it.each<[true | undefined, true | undefined, string, string]>([
+        [true, undefined, 'Queued', "It is in sabnzbd's queue (Queued), but the whole queue is paused, so it waits there: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."],
+        [undefined, undefined, 'Queued', 'It is downloading again (Queued).'],
+        [undefined, true, 'Paused', "It is in sabnzbd's queue (Paused), but paused itself: resume it with pause_downloads (`action: \"resume\"` and `id` \"SABnzbd_nzo_new\")."],
+        [
+            true,
+            true,
+            'Paused',
+            "It is in sabnzbd's queue (Paused), but paused itself, and the whole queue is paused too: resume it with pause_downloads (`action: \"resume\"` and `id` \"SABnzbd_nzo_new\"), and resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."
+        ]
+    ])('words a job back in the queue by what holds it (queue %s, itself %s)', async (queuePaused, pausedItself, status, sentence) => {
         const h = harness();
-        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_new', state: 'downloading', status: 'Queued', ...(queuePaused === undefined ? {} : { queuePaused }) });
+        h.run.mockResolvedValue({
+            target: FAILED,
+            id: 'SABnzbd_nzo_new',
+            state: 'downloading',
+            status,
+            ...(queuePaused === undefined ? {} : { queuePaused }),
+            ...(pausedItself === undefined ? {} : { pausedItself })
+        });
         const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
         const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
 
         expect(applied.content[0]?.text ?? '').toContain(sentence);
         expect(applied.structuredContent.result).toMatchObject({ state: 'downloading' });
-        expect((applied.structuredContent.result as Record<string, unknown>).queue_paused).toBe(queuePaused);
+        const result = applied.structuredContent.result as Record<string, unknown>;
+        expect(result.queue_paused).toBe(queuePaused);
+        expect(result.paused_itself).toBe(pausedItself);
+    });
+
+    // Only a job back in the queue waits on what holds it, so a processing one carries neither mark.
+    it('leaves the queue marks off a job being processed', async () => {
+        const h = harness();
+        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_new', state: 'processing', status: 'Extracting', queuePaused: true, pausedItself: true });
+        const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
+        const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
+
+        const text = applied.content[0]?.text ?? '';
+        expect(text).toContain('It is being processed (Extracting).');
+        expect(text).not.toMatch(/whole queue is paused|paused itself/);
+        const result = applied.structuredContent.result as Record<string, unknown>;
+        expect(result).toMatchObject({ state: 'processing' });
+        expect(result).not.toHaveProperty('queue_paused');
+        expect(result).not.toHaveProperty('paused_itself');
     });
 
     it('says no *arr recorded the download when none traced it', async () => {

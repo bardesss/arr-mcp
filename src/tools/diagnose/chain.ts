@@ -541,9 +541,11 @@ const NZBGET_POST_PROCESSING = new Set(['verifying', 'repairing', 'extracting', 
  * of the grab (the one paused itself, then one held, when there are two): the
  * download itself, the client's whole queue, both (the queue first, as the
  * step), or nothing, while the client post-processes it or another download,
- * waits on its own paused post-processing, or holds nothing back. A
- * whole-queue resume is offered only where the client says its queue holds the
- * download, since qBittorrent's resume without an id restarts every torrent.
+ * waits on its own paused post-processing, or holds nothing back. A repair
+ * NZBGet's paused queue and paused post-processing both hold gets the queue
+ * step, and the remedy names post-processing too. A whole-queue resume is
+ * offered only where the client says its queue holds the download, since
+ * qBittorrent's resume without an id restarts every torrent.
  */
 function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: NextStep } {
     const clients = grab.filter(isClientRow);
@@ -555,8 +557,15 @@ function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: Next
         arguments: { ...instanceArgs(service), action: 'resume', ...(id === undefined ? {} : { id }) },
         why
     });
+    const queueResume = `pause_downloads (\`action: "resume"\` without an \`id\`) on ${service}`;
     if (client.heldBy === 'postPaused') {
         return { remedy: `${service}'s post-processing is paused, so it waits there: resume post-processing in ${service}.` };
+    }
+    if (client.heldBy === 'queueAndPostPaused') {
+        return {
+            remedy: `${service}'s whole queue is paused and holds the repair files it asked for, and its post-processing is paused too: resume the queue with ${queueResume}, and post-processing in ${service} itself.`,
+            next: resume(undefined, `Resumes ${service}'s whole queue; post-processing stays paused until it is resumed in ${service}.`)
+        };
     }
     // A paused queue can hold the repair files a post-processing group still fetches (`queueHeld`).
     if (client.heldBy === undefined && instanceArgs(service).service === 'nzbget' && NZBGET_POST_PROCESSING.has(client.status)) {
@@ -568,7 +577,6 @@ function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: Next
         instanceArgs(service).service === 'sabnzbd'
             ? ' (With its "Pause Downloading During Post-Processing" switch on, SABnzbd also pauses while it post-processes, and resumes by itself.)'
             : '';
-    const queueResume = `pause_downloads (\`action: "resume"\` without an \`id\`) on ${service}`;
     if (pausedInClient(client)) {
         return client.heldBy === 'queue'
             ? {

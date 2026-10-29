@@ -123,14 +123,21 @@ const importable = (outcome: Pick<RetryOutcome, 'state' | 'event'>) =>
 const describeTarget = (target: RetryTarget, client: string) =>
     `${target.title} is ${target.status} in ${client}'s ${target.where}${target.reason === undefined ? '' : `: ${target.reason}`}.`;
 
+/** A job back in the queue that something still holds: the client paused it itself, its whole queue, or both. */
+function heldText(outcome: Pick<RetryOutcome, 'id' | 'status' | 'queuePaused' | 'pausedItself'>, client: string): string | undefined {
+    const resumeIt = `pause_downloads (\`action: "resume"\` and \`id\` "${outcome.id}")`;
+    if (outcome.pausedItself === true && outcome.queuePaused === true) {
+        return `It is in ${client}'s queue (${outcome.status}), but paused itself, and the whole queue is paused too: resume it with ${resumeIt}, and ${RESUME_HELD_QUEUE}`;
+    }
+    if (outcome.pausedItself === true) return `It is in ${client}'s queue (${outcome.status}), but paused itself: resume it with ${resumeIt}.`;
+    if (outcome.queuePaused === true) return `It is in ${client}'s queue (${outcome.status}), but the whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`;
+    return undefined;
+}
+
 /** Where it ended up, in words. A finished rerun with no event is one an *arr
  *  already took out of the client's history, not a failure. */
-const describeOutcome = (outcome: Pick<RetryOutcome, 'state' | 'status' | 'event'>, client: string, queuePaused: boolean) => {
-    if (outcome.state === 'downloading') {
-        return queuePaused
-            ? `It is in ${client}'s queue (${outcome.status}), but the whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`
-            : `It is downloading again (${outcome.status}).`;
-    }
+const describeOutcome = (outcome: Pick<RetryOutcome, 'id' | 'state' | 'status' | 'event' | 'queuePaused' | 'pausedItself'>, client: string) => {
+    if (outcome.state === 'downloading') return heldText(outcome, client) ?? `It is downloading again (${outcome.status}).`;
     if (outcome.state === 'processing') return `It is being processed (${outcome.status}).`;
     if (outcome.event === undefined) {
         return `It ran and is no longer in ${client}'s history; an *arr usually imported it and removed it there.`;
@@ -213,7 +220,9 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 state: outcome.state,
                 status: outcome.status,
                 ...(outcome.event === undefined ? {} : { event: outcome.event }),
-                ...(outcome.queuePaused === true ? { queue_paused: true } : {}),
+                // Only a job back in the queue waits on what holds it; the outcome text reads these for that state alone.
+                ...(outcome.state === 'downloading' && outcome.queuePaused === true ? { queue_paused: true } : {}),
+                ...(outcome.state === 'downloading' && outcome.pausedItself === true ? { paused_itself: true } : {}),
                 ...(view === undefined ? {} : { tracked_by: view.traces.map(t => t.service) })
             };
         },
@@ -224,11 +233,17 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 previous_id?: string;
                 download_id: string;
                 queue_paused?: true;
+                paused_itself?: true;
             };
             const view = views.get(plan);
             const lines = [`Applied. ${plan.summary}`];
             if (r.previous_id !== undefined) lines.push(`Its id is now ${r.id}.`);
-            lines.push(describeOutcome(r, r.service, r.queue_paused === true));
+            lines.push(
+                describeOutcome(
+                    { ...r, ...(r.queue_paused === true ? { queuePaused: true } : {}), ...(r.paused_itself === true ? { pausedItself: true } : {}) },
+                    r.service
+                )
+            );
             if (view !== undefined) lines.push(...arrLines(view, r.previous_id !== undefined));
             // No view means no *arr knows this download's id, as on Shelfmark, so no import to offer.
             if (view !== undefined && importable(r)) {

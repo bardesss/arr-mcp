@@ -446,6 +446,19 @@ describe('NzbgetAdapter', () => {
         expect(read.postProcessing?.paused).toBe(fetching || groupStatus === 'PAUSED' ? undefined : held === 'postPaused');
     });
 
+    // A repair still fetching the repair files it asked for is held by a paused queue and by paused
+    // post-processing at once, and a row names both; Force priority goes through either.
+    it.each<[Record<string, boolean>, number, string | undefined]>([
+        [{ DownloadPaused: true, PostPaused: true }, 0, 'queueAndPostPaused'],
+        [{ DownloadPaused: true }, 0, 'queue'],
+        [{ PostPaused: true }, 0, 'postPaused'],
+        [{ DownloadPaused: true, PostPaused: true }, 900, undefined]
+    ])('marks what holds a repair still fetching (status %j, priority %i)', async (status, priority, held) => {
+        const groups = [{ NZBID: 7, Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25, MaxPriority: priority }];
+        const { fetchImpl } = rpcRecording(request => json({ jsonrpc: '2.0', result: request.method === 'status' ? status : groups, id: request.id }));
+        expect((await new NzbgetAdapter(config, fetchImpl).getQueue())[0]?.heldBy).toBe(held);
+    });
+
     // `DetectStatus` names a queue script's stages and the rename after an unpack; each takes the word of the stage beside it.
     it.each([
         ['QS_QUEUED', 'verifying'],
@@ -485,6 +498,11 @@ describe('NzbgetAdapter', () => {
             { DownloadPaused: true },
             { Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25 },
             { heldBy: 'queue', postProcessing: { stage: 'in post-processing (repairing)', paused: false } }
+        ],
+        [
+            { DownloadPaused: true, PostPaused: true },
+            { Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25 },
+            { heldBy: 'queue', postProcessing: { stage: 'in post-processing (repairing)', paused: true } }
         ],
         [{}, { Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25 }, { postProcessing: { stage: 'in post-processing (repairing)', paused: false } }],
         [{}, { Status: 'PP_FINISHED', RemainingSizeMB: 0, PausedSizeMB: 0 }, { postProcessing: { stage: 'done with post-processing', paused: false } }],
@@ -1361,17 +1379,24 @@ describe('NzbgetAdapter', () => {
         });
 
         // A retried download goes back to a queue that may be paused; one at Force priority goes through it.
-        it.each<[Row | 'invalid', Row, true | undefined]>([
-            [{ DownloadPaused: true }, {}, true],
-            [{ DownloadPaused: true }, { MaxPriority: 900 }, undefined],
-            [{ DownloadPaused: false }, {}, undefined],
+        // One NZBGet pauses itself waits for its own resume, with the queue paused or not.
+        it.each<[Row | 'invalid', Row, true | undefined, true | undefined]>([
+            [{ DownloadPaused: true }, {}, true, undefined],
+            [{ DownloadPaused: true }, { MaxPriority: 900 }, undefined, undefined],
+            [{ DownloadPaused: false }, {}, undefined, undefined],
             // A status read that fails after the retry landed leaves the mark out.
-            ['invalid', {}, undefined]
-        ])('marks a retried download its paused queue holds (status %j, group %j)', async (status, group, queuePaused) => {
+            ['invalid', {}, undefined, undefined],
+            [{ DownloadPaused: false }, { Status: 'PAUSED' }, undefined, true],
+            [{ DownloadPaused: true }, { Status: 'PAUSED' }, true, true],
+            // Status stays DOWNLOADING while in-flight articles drain after a pause, every byte left paused.
+            [{ DownloadPaused: false }, { RemainingSizeMB: 6, PausedSizeMB: 6 }, undefined, true]
+        ])('marks a retried download its paused queue holds (status %j, group %j)', async (status, group, queuePaused, pausedItself) => {
             const { adapter } = fake({ history: [missing()], retriedGroup: group, status });
             const outcome = await adapter.runRetry('4', { method: 'retry-failed' });
             expect(outcome).toMatchObject({ state: 'downloading' });
             expect(outcome.queuePaused).toBe(queuePaused);
+            expect(outcome.pausedItself).toBe(pausedItself);
+            expect(outcome.status).toContain(pausedItself === true ? 'paused' : 'downloading');
         });
 
         it('picks retry-failed when the par check failed, even for an unpack failure', async () => {

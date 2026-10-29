@@ -693,7 +693,8 @@ export class SabnzbdAdapter
                 id,
                 state: PROCESSING_STATUSES.has(raw.toLowerCase()) ? 'processing' : 'downloading',
                 status: this.#fence(raw, 'status'),
-                ...(held ? { queuePaused: true as const } : {})
+                ...(held ? { queuePaused: true as const } : {}),
+                ...(raw.toLowerCase() === 'paused' ? { pausedItself: true as const } : {})
             };
         }
 

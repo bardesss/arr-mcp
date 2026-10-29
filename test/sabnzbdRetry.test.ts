@@ -230,11 +230,14 @@ describe('sabnzbd runRetry', () => {
 
     // A retried job goes back to a queue that may be paused; one at Force priority downloads through a manual pause.
     // Under a manual pause SABnzbd shows a Force job as Downloading (`build_queue`).
-    it.each<[boolean, string, string, true | undefined]>([
-        [true, 'Normal', 'Queued', true],
-        [true, 'Force', 'Downloading', undefined],
-        [false, 'Normal', 'Queued', undefined]
-    ])('marks a retried job the paused queue holds (queue paused %s, priority %s, %s)', async (queuePaused, priority, status, held) => {
+    // A job paused itself needs its own resume as well.
+    it.each<[boolean, string, string, true | undefined, true | undefined]>([
+        [true, 'Normal', 'Queued', true, undefined],
+        [true, 'Force', 'Downloading', undefined, undefined],
+        [false, 'Normal', 'Queued', undefined, undefined],
+        [false, 'Normal', 'Paused', undefined, true],
+        [true, 'Normal', 'Paused', true, true]
+    ])('marks a retried job the paused queue holds (queue paused %s, priority %s, %s)', async (queuePaused, priority, status, held, pausedItself) => {
         let retried = false;
         const { adapter } = recording(params => {
             const mode = params.get('mode');
@@ -251,6 +254,7 @@ describe('sabnzbd runRetry', () => {
         const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
         expect(outcome.state).toBe('downloading');
         expect(outcome.queuePaused).toBe(held);
+        expect(outcome.pausedItself).toBe(pausedItself);
     });
 
     it('refuses an answer with no nzo_id, even one that says status: true', async () => {

@@ -357,9 +357,11 @@ export const hasSubtitleSearch = (a: ServiceAdapter): a is ServiceAdapter & Subt
  * the client's whole queue is paused, which a resume ends. On SABnzbd,
  * `postProcessing`: the wait its "Pause Downloading During Post-Processing"
  * switch adds, which a resume does not end. On NZBGet, `postPaused`: its
- * post-processing is paused, which holds a download waiting for it or in it.
+ * post-processing is paused, which holds a download waiting for it or in it;
+ * `queueAndPostPaused`: both hold a repair, the queue the repair files it
+ * asked for.
  */
-export type QueueHold = 'queue' | 'postProcessing' | 'postPaused';
+export type QueueHold = 'queue' | 'postProcessing' | 'postPaused' | 'queueAndPostPaused';
 
 /** `heldBy` to spread into a row or a pause state, when something holds it. */
 export const withHold = <H extends QueueHold>(hold: H | undefined): { heldBy?: H } => (hold === undefined ? {} : { heldBy: hold });
@@ -1597,6 +1599,8 @@ export type RetryOutcome = {
     event?: HistoryEventType; // when state is 'finished'
     /** A job in the queue that the client's paused queue holds, so it is not downloading yet. */
     queuePaused?: true;
+    /** A job in the queue that the client pauses itself, which needs its own resume. */
+    pausedItself?: true;
 };
 
 /**
@@ -1878,7 +1882,7 @@ export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRe
 export type PauseState = {
     paused: boolean;
     scope: string;
-    heldBy?: Exclude<QueueHold, 'postPaused'>;
+    heldBy?: 'queue' | 'postProcessing';
     postProcessing?: { stage: string; paused: boolean };
 };
 

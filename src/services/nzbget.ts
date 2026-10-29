@@ -190,10 +190,13 @@ const queueHeld = (status: RawStatus, group: RawGroup): boolean =>
 /** Paused post-processing holds the group: one in the stages above, not at Force priority. */
 const postHeld = (status: RawStatus, group: RawGroup): boolean => !forced(group) && POST_PAUSE_STAGES.has(stageOf(group)) && status.PostPaused === true;
 
-/** What holds a group: a paused queue, or paused post-processing. */
+/** What holds a group: a paused queue, paused post-processing, or both, for a repair. */
 const nzbgetHold = (status: RawStatus, group: RawGroup): QueueHold | undefined => {
-    if (queueHeld(status, group)) return 'queue';
-    return postHeld(status, group) ? 'postPaused' : undefined;
+    const queue = queueHeld(status, group);
+    const post = postHeld(status, group);
+    if (queue && post) return 'queueAndPostPaused';
+    if (queue) return 'queue';
+    return post ? 'postPaused' : undefined;
 };
 
 /**
@@ -1114,7 +1117,15 @@ export class NzbgetAdapter
                     read => queueHeld(read, queued),
                     () => false
                 );
-                return { target, id: target.id, state: 'downloading', status: status(queueStatus(queued.Status)), ...(held ? { queuePaused: true as const } : {}) };
+                const itself = pausedItself(queued);
+                return {
+                    target,
+                    id: target.id,
+                    state: 'downloading',
+                    status: status(itself ? 'paused' : queueStatus(queued.Status)),
+                    ...(held ? { queuePaused: true as const } : {}),
+                    ...(itself ? { pausedItself: true as const } : {})
+                };
             }
         }
 

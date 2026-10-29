@@ -1777,6 +1777,17 @@ describe('buildChain — each queue state is worded for what it is', () => {
         expect(d.verdict.next_steps).toEqual([{ tool: 'pause_downloads', arguments: { service: 'nzbget', action: 'resume' }, why: "Resumes nzbget's whole queue." }]);
     });
 
+    // With post-processing paused too, the queue's resume alone leaves the repair waiting there.
+    it('asks to resume the queue and post-processing when both hold a repair still fetching', async () => {
+        const d = run(pausedFor(DRONE), await nzbgetClient({ DownloadPaused: true, PostPaused: true }, { Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25 }));
+        expect(d.verdict.remedy).toBe(
+            "nzbget's whole queue is paused and holds the repair files it asked for, and its post-processing is paused too: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) on nzbget, and post-processing in nzbget itself."
+        );
+        expect(d.verdict.next_steps).toEqual([
+            { tool: 'pause_downloads', arguments: { service: 'nzbget', action: 'resume' }, why: "Resumes nzbget's whole queue; post-processing stays paused until it is resumed in nzbget." }
+        ]);
+    });
+
     // After GroupPause, NZBGet reads the group DOWNLOADING while in-flight articles drain, every byte left already paused.
     it('resumes a download NZBGet has just paused, before its status catches up', async () => {
         const d = run(pausedFor(DRONE), await nzbgetClient({}, { Status: 'DOWNLOADING', RemainingSizeMB: 6, PausedSizeMB: 6 }));
