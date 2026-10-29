@@ -159,7 +159,8 @@ describe('assertVersionSupported against captured evidence', () => {
         whisparr: (read('test/fixtures/whisparr/system-status.json') as { version: string }).version,
         profilarr: (read('test/fixtures/profilarr/status.json') as { version: string }).version,
         cleanuparr: (read('test/fixtures/cleanuparr/status.json') as { application: { version: string } }).application.version,
-        reclaimerr: (read('test/fixtures/reclaimerr/system.json') as { version: string }).version
+        reclaimerr: (read('test/fixtures/reclaimerr/system.json') as { version: string }).version,
+        dispatcharr: (read('test/fixtures/dispatcharr/version.json') as { version: string }).version
     };
 
     for (const [service, version] of Object.entries(captured)) {

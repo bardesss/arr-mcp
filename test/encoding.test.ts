@@ -39,7 +39,8 @@ const isStrictJson = (name: string) => !name.startsWith('tsconfig');
  * did exactly this to a source file, and nothing caught it: the code still
  * compiled, the tests still passed, and only the comments were wrong.
  */
-const MOJIBAKE = /Ã.|â€|Â[^\s]/;
+// `â†` is an arrow (U+2192) read as cp1252: it starts with E2 86, so `â€` misses it.
+const MOJIBAKE = /Ã.|â€|â†|Â[^\s]/;
 
 /**
  * This file is skipped by the mojibake scan below: it has to contain the

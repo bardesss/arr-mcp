@@ -292,6 +292,20 @@ small, shaped change, and a service in no slot at all is a different product.
   configured local server, never plex.tv. That constraint holds for any future
   change here, not just this one.
 
+**Beside the chain — the live TV the same media servers play**
+
+- **Dispatcharr — writes.** The adapter has shipped, read-only, by maintainer
+  waiver on 2026-11-03. It missed three checks above: it is pre-1.0, only the
+  maintainer asked for it, and live TV never passes through the chain `diagnose`
+  walks. The waiver rests on one thing: Dispatcharr is where the Plex and
+  Jellyfin servers arr-mcp already watches get their live TV, so a failing
+  playlist or guide is a fault in the stack `stack_health` is asked about. That
+  is the whole precedent. It does not extend to analytics or other services that
+  merely sit near a media server, which is why Tautulli stays below. Building
+  playlists, that is channel profiles, needs its own case: it spends at least
+  one new tool against the ceiling, and its writes change what every client of
+  that playlist sees.
+
 Named and **not** accepted, so nobody spends a weekend finding out:
 
 - **Readarr.** Archived upstream. Nothing to track.
@@ -324,7 +338,9 @@ for login and health only. Cleanuparr was tested by its requester on a live
 are its fixtures; its Transmission path has not met a real instance. Reclaimerr
 was tested by its requester on a live 0.6.5 in [#402](../../issues/402), and
 those captures are its fixtures; it has not yet deleted anything there, so its
-deletion events are tested on a captured candidate inside a constructed event. Whichever you take on, your testing is the only
+deletion events are tested on a captured candidate inside a constructed event.
+Dispatcharr is the exception: the maintainer runs it, and its fixtures were
+captured from a live 0.33.0. Whichever you take on, your testing is the only
 testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
@@ -350,7 +366,7 @@ around them.
    `KeyedServiceSchema` unless the service authenticates differently. A
    single-instance service is wrapped in `singleOnly(...)`; a read-only one uses
    `ReadOnlyKeyedServiceSchema` and joins `READ_ONLY_SERVICES`, which forces its
-   write permissions off, as Cleanuparr and Reclaimerr do. `test/config.test.ts`
+   write permissions off, as Cleanuparr, Reclaimerr and Dispatcharr do. `test/config.test.ts`
    is where the config cases go.
 2. **Set its minimum version** in `MINIMUM_VERSIONS` in
    `src/services/versions.ts`, with a comment saying what the floor rests on.
@@ -376,7 +392,7 @@ around them.
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
-   Eight of the sixteen services can be, so this is the common case rather than the
+   Eight of the seventeen services can be, so this is the common case rather than the
    exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
    '<type>'`, which is the *single*-instance shape. That is the safe default
    (a service that simply cannot be configured twice, rather than two adapters
@@ -438,8 +454,8 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Seven of the sixteen services publish no usable OpenAPI spec, and an eighth's
-adapter is hand-written anyway, so the adapter
+Seven of the seventeen services publish no usable OpenAPI spec, and two more
+have hand-written adapters anyway, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
@@ -537,7 +553,10 @@ Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Jellyfin, Seerr and Profilarr are ge
 Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent, Plex and Cleanuparr publish no usable spec
 and are hand-written against recorded fixtures. Reclaimerr publishes OpenAPI at
 `/api/v1/openapi.json`, but its adapter reads seven endpoints and is
-hand-written too, against fixtures captured from 0.6.5.
+hand-written too, against fixtures captured from 0.6.5. Dispatcharr serves
+OpenAPI only at runtime (`/api/swagger.json`), with nothing committed for the
+nightly check to fetch, so its adapter is hand-written against fixtures
+captured from 0.33.0 and pins the minor it was written for instead.
 
 ### The nightly compatibility check
 

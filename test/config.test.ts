@@ -508,6 +508,25 @@ describe('cleanuparr', () => {
     });
 });
 
+describe('dispatcharr', () => {
+    it('reads write permissions on dispatcharr as off, since nothing writes to it', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { dispatcharr: { url: 'http://dispatcharr:9191', api_key: 'k', permissions: { safe_write: true, destructive: true } } }
+        });
+        expect(parsed.services.dispatcharr?.permissions).toEqual({ safe_write: false, destructive: false });
+    });
+
+    it('refuses a list of dispatcharr instances', () => {
+        expect(() =>
+            ConfigSchema.parse({
+                auth: AUTH,
+                services: { dispatcharr: [{ url: 'http://a:9191', api_key: 'k' }] }
+            })
+        ).toThrow(/single block/);
+    });
+});
+
 describe('reclaimerr', () => {
     it('reads write permissions on reclaimerr as off, since nothing writes to it', () => {
         const parsed = ConfigSchema.parse({

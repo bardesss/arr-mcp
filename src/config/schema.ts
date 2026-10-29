@@ -17,7 +17,8 @@ export const ServiceIdSchema = z.enum([
     'plex',
     'profilarr',
     'cleanuparr',
-    'reclaimerr'
+    'reclaimerr',
+    'dispatcharr'
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
@@ -54,7 +55,7 @@ const ApiKeyShape = { api_key: z.string().min(1, 'api_key must not be empty') };
 const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape });
 
 /** Services arr-mcp never writes to. */
-export const READ_ONLY_SERVICES: ReadonlySet<string> = new Set(['cleanuparr', 'reclaimerr']);
+export const READ_ONLY_SERVICES: ReadonlySet<string> = new Set(['cleanuparr', 'reclaimerr', 'dispatcharr']);
 
 /**
  * Write flags on a service nothing writes to would be reported as granted
@@ -260,6 +261,7 @@ export type ConfigByService = {
     profilarr: For<'profilarr', KeyedServiceConfig>;
     cleanuparr: For<'cleanuparr', KeyedServiceConfig>;
     reclaimerr: For<'reclaimerr', KeyedServiceConfig>;
+    dispatcharr: For<'dispatcharr', KeyedServiceConfig>;
 };
 
 /**
@@ -312,7 +314,9 @@ const ServicesSchema = z
         // Single only: one Cleanuparr cleans one stack.
         cleanuparr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
         // Single only: one Reclaimerr owns one library's cleanup rules.
-        reclaimerr: singleOnly(ReadOnlyKeyedServiceSchema).optional()
+        reclaimerr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
+        // Single only: one Dispatcharr serves one set of playlists.
+        dispatcharr: singleOnly(ReadOnlyKeyedServiceSchema).optional()
     })
     .superRefine((services, ctx) => {
         /**
