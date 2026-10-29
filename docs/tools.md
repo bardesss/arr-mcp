@@ -10,7 +10,7 @@ off until you turn them on — see [writes](writes.md).
 | `search_media` | What do I have, what exists, what can I get? |
 | `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files |
-| `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
+| `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client |
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet and Bazarr did |
