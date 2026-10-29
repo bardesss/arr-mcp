@@ -1,9 +1,9 @@
 import type { Theme } from '../config/schema.ts';
 import { BEARER_CALLER, BEARER_CALLER_PREFIX, NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type AuditRow } from '../core/audit.ts';
+import { unfence } from '../core/fence.ts';
 import { logFields, type LogRow } from '../core/logs.ts';
 import { expiringSoon, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
-import { unfenced } from '../core/titleMatch.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
 import { LOGO, serviceIcon } from './icons.ts';
@@ -343,8 +343,8 @@ export function dashboardPage(opts: {
                           ${d.ok || d.error === undefined
                               ? raw('')
                               : html`<div class="remedy">
-                                    <strong>${d.error.detail}</strong>
-                                    ${d.error.remedy === undefined ? raw('') : html`<br>${d.error.remedy}`}
+                                    <strong>${unfence(d.error.detail)}</strong>
+                                    ${d.error.remedy === undefined ? raw('') : html`<br>${unfence(d.error.remedy)}`}
                                 </div>`}
                       </div>`
                   )}
@@ -368,7 +368,7 @@ export function dashboardPage(opts: {
                               <td>${f.service}</td>
                               <td>${f.source}</td>
                               <td>${f.type}</td>
-                              <td>${f.message}</td>
+                              <td>${unfence(f.message)}</td>
                           </tr>`
                       )}
                   </tbody>
@@ -452,8 +452,8 @@ export function dashboardPage(opts: {
                       <button class="ghost" type="button" data-copy="mcp-url">Copy</button>
                   </div>`}
             ${opts.tokens.length === 0
-                ? html`<p><strong>No MCP tokens yet. Create one to connect a client.</strong> <a class="button" href="/ui/config#tokens">Create a token</a></p>`
-                : html`<p>${opts.tokens.length} ${opts.tokens.length === 1 ? 'token' : 'tokens'} · <a href="/ui/config#tokens">Manage</a></p>`}
+                ? html`<p><strong>No MCP tokens yet. Create one to connect a client.</strong> <a class="button" href="/ui/config?tab=access#tokens">Create a token</a></p>`
+                : html`<p>${opts.tokens.length} ${opts.tokens.length === 1 ? 'token' : 'tokens'} · <a href="/ui/config?tab=access#tokens">Manage</a></p>`}
             ${opts.tokens
                 .filter(t => isExpired(t.expires, opts.now) || expiringSoon(t.expires, opts.now))
                 .map(
@@ -511,21 +511,28 @@ export const LOG_STREAMS = [
 
 export type LogStreamKey = (typeof LOG_STREAMS)[number]['key'];
 
+/**
+ * The tabs inside a page, for every page that has them. Each one is a link to a
+ * server-rendered page, so they work without scripting and read as the same
+ * control wherever they appear.
+ */
+export const tabBar = (tabs: readonly { href: string; label: string; on: boolean }[]): SafeHtml =>
+    html`<nav style="margin-bottom:.75rem">
+        ${tabs.map(
+            t => html`<a href="${t.href}" class="${t.on ? 'on' : ''}"${t.on ? raw(' aria-current="page"') : raw('')}>${t.label}</a>`
+        )}
+    </nav>`;
+
 /** The event log's tab is not in `LOG_STREAMS`, because those are filters over log lines. */
 const logTabs = (stream: LogStreamKey | 'events', selectedService: string): SafeHtml =>
-    html`<nav style="margin-bottom:.75rem">
-        ${LOG_STREAMS.map(
-            s =>
-                html`<a
-                    href="/ui/logs?stream=${s.key}${s.key === 'service' && selectedService !== ''
-                        ? raw(`&service=${encodeURIComponent(selectedService)}`)
-                        : raw('')}"
-                    class="${s.key === stream ? 'on' : ''}"
-                    >${s.label}</a
-                >`
-        )}
-        <a href="/ui/logs?stream=events" class="${stream === 'events' ? 'on' : ''}">Library events</a>
-    </nav>`;
+    tabBar([
+        ...LOG_STREAMS.map(s => ({
+            href: `/ui/logs?stream=${s.key}${s.key === 'service' && selectedService !== '' ? `&service=${encodeURIComponent(selectedService)}` : ''}`,
+            label: s.label,
+            on: s.key === stream
+        })),
+        { href: '/ui/logs?stream=events', label: 'Library events', on: stream === 'events' }
+    ]);
 
 /**
  * Stored events rather than log lines, so its own columns and none of the log
@@ -542,7 +549,7 @@ export function eventLogPage(opts: {
     theme?: Theme | undefined;
 }): string {
     const rows = opts.read?.items ?? [];
-    const plain = (value: string | undefined): string => (value === undefined ? '' : unfenced(value));
+    const plain = (value: string | undefined): string => (value === undefined ? '' : unfence(value));
 
     const status =
         opts.read === undefined
@@ -550,12 +557,12 @@ export function eventLogPage(opts: {
             : !opts.enabled
               ? html`<p class="note">
                     The library event log is off, so nothing new is being recorded. Turn it on under
-                    <a href="/ui/config#webhooks">Library event log</a> on the Configuration page.
+                    <a href="/ui/config?tab=settings#webhooks">Library event log</a> on the Configuration page.
                 </p>`
               : rows.length === 0
                 ? html`<p class="note">
                       Nothing has arrived yet. Each Radarr and Sonarr instance needs a webhook connection, and
-                      <a href="/ui/config#webhooks">the Configuration page</a> has the details.
+                      <a href="/ui/config?tab=settings#webhooks">the Configuration page</a> has the details.
                   </p>`
                 : raw('');
 
@@ -565,7 +572,7 @@ export function eventLogPage(opts: {
             : html`<div class="scroll">
                   <table class="stacked">
                       <thead>
-                          <tr><th>Time</th><th>Event</th><th>Service</th><th>Title</th><th>Details</th></tr>
+                          <tr><th>Time</th><th>Event</th><th>Service</th><th class="prose">Title</th><th>Details</th></tr>
                       </thead>
                       <tbody>
                           ${rows.map(
@@ -573,7 +580,7 @@ export function eventLogPage(opts: {
                                   <td class="mono">${shortTime(r.at)}</td>
                                   <td>${r.event === 'unknown' ? (r.rawEvent ?? r.event) : r.event}</td>
                                   <td>${r.service}</td>
-                                  <td>${plain(r.title)}</td>
+                                  <td class="prose">${plain(r.title)}</td>
                                   <td>${[r.quality, r.indexer, r.reason].map(plain).filter(v => v !== '').join(', ')}</td>
                               </tr>`
                           )}
@@ -653,6 +660,20 @@ export function logsPage(opts: {
 
 /** The no-JavaScript rendering. The live one is rebuilt client-side from JSON
  *  with textContent — see assets.ts for why that one is not HTML. */
+/**
+ * A log row as the page shows it. The first render and the polled refresh both
+ * go through this, so a row cannot change its wording or its time format when
+ * the first refresh replaces the table.
+ */
+export function logRowView(r: LogRow): LogRow & { time: string; detail: [string, string][] } {
+    return {
+        ...r,
+        time: shortTime(r.at),
+        msg: unfence(r.msg),
+        detail: logFields(r.fields).map(([key, value]): [string, string] => [key, unfence(value)])
+    };
+}
+
 export function logTable(rows: LogRow[]): SafeHtml {
     if (rows.length === 0) return html`<p class="note">Nothing logged yet for this filter.</p>`;
 
@@ -661,14 +682,14 @@ export function logTable(rows: LogRow[]): SafeHtml {
             <tr><th>Time</th><th>Level</th><th>Service</th><th>Message</th></tr>
         </thead>
         <tbody>
-            ${rows.map(r => {
+            ${rows.map(logRowView).map(r => {
                 // Under the message rather than in a fifth column: these are
                 // the fields that answer "which client, which endpoint, what
                 // did the service say" — useless if the column holding them is
                 // squeezed to nothing, and there is no fixed set of them.
-                const detail = logFields(r.fields);
+                const detail = r.detail;
                 return html`<tr class="lvl-${r.level}">
-                    <td class="mono">${shortTime(r.at)}</td>
+                    <td class="mono">${r.time}</td>
                     <td>${r.levelName}</td>
                     <td>${r.service ?? '—'}</td>
                     <td>
@@ -782,7 +803,7 @@ function auditEntry(r: AuditRow): SafeHtml {
             ${callerField(r.caller)}
             ${argFields(r.args)}
         </dl>
-        ${r.detail === null || r.detail === '' ? raw('') : html`<div class="remedy">${r.detail}</div>`}
+        ${r.detail === null || r.detail === '' ? raw('') : html`<div class="remedy">${unfence(r.detail)}</div>`}
     </article>`;
 }
 

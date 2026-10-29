@@ -1,3 +1,4 @@
+import { CONFIG_TABS } from '../src/web/configPage.ts';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -369,6 +370,9 @@ describe('the webhook route', () => {
             if (set !== null) cookie = set.split(';')[0] ?? '';
             return res;
         };
+        /** Across the tabs, so "does not contain" cannot pass on the wrong tab. */
+        const everyConfigTab = async (): Promise<string> =>
+            (await Promise.all(CONFIG_TABS.map(async t => (await call(`/ui/config?tab=${t.key}`)).text()))).join('\n');
         const form = (body: Record<string, string>): RequestInit => ({
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -379,7 +383,7 @@ describe('the webhook route', () => {
             etag: (/name="etag" value="([^"]+)"/.exec(page)?.[1] ?? '').replaceAll('&quot;', '"')
         });
         const save = async (fields: Record<string, string>) => {
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             return call('/ui/config/webhooks', form({ ...keys(page), ...fields }));
         };
         const saved = () => readFile(join(dir, 'config.yaml'), 'utf8');
@@ -391,7 +395,7 @@ describe('the webhook route', () => {
         });
 
         it('is off until someone turns it on, and says what it is for', async () => {
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             expect(page).toContain('Library event log');
             expect(page).toContain('what happened to it');
             expect(/name="webhooks\.enabled"[^>]*checked/.test(page)).toBe(false);
@@ -408,27 +412,38 @@ describe('the webhook route', () => {
 
         it('shows what to paste into each service it accepts, and no others', async () => {
             await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30' });
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             expect(page).toContain('/webhooks/radarr');
             expect(page).toContain('/webhooks/sonarr');
             expect(page).not.toContain('/webhooks/prowlarr');
             expect(page).toContain('arr-mcp');
+            for (const trigger of ['On Grab', 'On File Import', 'On Movie Delete', 'On Series Delete', 'On Episode File Delete', 'On Import Complete']) {
+                expect(page).toContain(trigger);
+            }
         });
 
         it('masks the password, with a button to show it that does not submit the form', async () => {
             await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30' });
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             expect(page).toMatch(/<input id="webhooks\.secret" class="secret"/);
             const button = /<button[^>]*data-reveal="webhooks\.secret"[^>]*>/.exec(page)?.[0] ?? '';
             expect(button).toContain('type="button"');
             expect(button).toContain('aria-label="Show password"');
         });
 
+        it('has a button to copy the password that does not submit the form', async () => {
+            await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30' });
+            const page = await everyConfigTab();
+            const button = /<button[^>]*data-copy="webhooks\.secret"[^>]*>/.exec(page)?.[0] ?? '';
+            expect(button).toContain('type="button"');
+            expect(button).toContain('aria-label="Copy password"');
+        });
+
         // Inside the card's form it would be the button Enter presses.
         it('generates a new password from a form of its own, leaving the card form to Save', async () => {
             await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '45' });
             const secret = /secret: (\S+)/.exec(await saved())?.[1] ?? '';
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
 
             const card = /<form[^>]*action="\/ui\/config\/webhooks" class="panel"[\s\S]*?<\/form>/.exec(page)?.[0] ?? '';
             expect(card).toContain('form="webhooks-new-secret"');
@@ -458,7 +473,7 @@ describe('the webhook route', () => {
         it('keeps the secret through an unrelated save and through off and on again', async () => {
             await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30' });
             const secret = /secret: (\S+)/.exec(await saved())?.[1];
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             await call('/ui/config/appearance', form({ ...keys(page), 'ui.theme': 'dark' }));
             expect(/secret: (\S+)/.exec(await saved())?.[1]).toBe(secret);
 
@@ -493,7 +508,7 @@ describe('the webhook route', () => {
         });
 
         it('requires a session and a CSRF token', async () => {
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             const refused = await call('/ui/config/webhooks', form({ ...keys(page), csrf: 'wrong', 'webhooks.enabled': 'on' }));
             expect(refused.status).toBe(403);
             cookie = '';

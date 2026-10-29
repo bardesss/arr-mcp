@@ -61,6 +61,7 @@ const PAGES: { name: string; html: string }[] = [
     {
         name: 'config',
         html: configPage({
+            tab: 'services',
             version: fixture.VERSION,
             config: fixture.CONFIG,
             csrf: 'fixture-csrf',

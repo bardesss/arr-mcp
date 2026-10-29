@@ -298,7 +298,7 @@ describe('the events tab on the Logs page', () => {
         await seed('');
         const html = await page('/ui/logs?stream=events');
         expect(html).toMatch(/is off/);
-        expect(html).toContain('href="/ui/config#webhooks"');
+        expect(html).toContain('href="/ui/config?tab=settings#webhooks"');
     });
 
     it('says when nothing has arrived yet', async () => {
