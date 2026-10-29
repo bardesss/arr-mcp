@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.47.0](https://github.com/bardesss/arr-mcp/compare/v1.46.0...v1.47.0) (2026-10-29)
+
+
+### Features
+
+* add Lidarr as a managed service ([#397](https://github.com/bardesss/arr-mcp/issues/397)) ([86c3d1a](https://github.com/bardesss/arr-mcp/commit/86c3d1af5ef602836a570650b2571204de6f3b23))
+
 ## [1.46.0](https://github.com/bardesss/arr-mcp/compare/v1.45.1...v1.46.0) (2026-10-29)
 
 
