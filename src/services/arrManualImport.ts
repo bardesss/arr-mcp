@@ -170,7 +170,7 @@ function notFinished(service: string, downloadId: string, row: QueueItem, why: s
     }
     if (status === 'failed') {
         return new ServiceError('UpstreamError', service, `download ${downloadId} is ${row.status} in the download client`, {
-            remedy: `get_queue reports it as ${state}, not completed, so there is nothing to import. remove_queue_item removes it, with \`blocklist: true\` to have ${service} look for another release; or fix it in the download client and try again.`,
+            remedy: `get_queue reports it as ${state}, not completed, so there is nothing to import. remove_queue_item removes it; or fix it in the download client and try again.`,
             ...opts
         });
     }

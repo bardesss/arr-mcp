@@ -75,7 +75,10 @@ does nothing. On Shelfmark it only cancels a queued or running book, and refuses
 `remove_from_client: false`, because Shelfmark has no way to leave the download
 alone. On Grimmory it discards a file waiting in the Bookdrop, which deletes the
 file from disk with no undo. It refuses `remove_from_client: false`, since
-Grimmory cannot discard a file and keep it, and `blocklist` is ignored there.
+Grimmory cannot discard a file and keep it, and `blocklist` is ignored there. On
+Radarr, Sonarr, Whisparr and Lidarr it refuses `remove_from_client: false` for a
+row `get_queue` marks `orphaned`: with no film, series or artist to record an
+ignore against, the service would list the download again at the next refresh.
 
 `delete_media` on a Grimmory book always deletes the files. Grimmory has no
 keep-files option, so the call needs `delete_files: true` and is refused

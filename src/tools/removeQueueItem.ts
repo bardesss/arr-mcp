@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
-import { hasQueue, hasQueueRemove, type ServiceAdapter } from '../services/types.ts';
+import { hasQueue, hasQueueRemove, type QueueItem, type QueueRemoveCapable, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
@@ -40,6 +40,59 @@ const RemoveQueueItemInput = z.object({
         )
 });
 
+/**
+ * Why `blocklist: true` blocklists one row and not another, read in Radarr
+ * 6.4.4, Sonarr 4.0.20, Whisparr 2.2.0 and Lidarr 3.1.6.
+ *
+ * A row the service is only holding back (`delay`, `downloadClientUnavailable`,
+ * `fallback`) is a pending release: the queue's DELETE drops it, ignoring
+ * `removeFromClient`, and blocklists it directly (`BlocklistService.Block`),
+ * with no download behind it and no search after. It always has its media.
+ *
+ * Any other row goes through `FailedDownloadService.MarkAsFailed`, which acts
+ * only through the service's `grabbed` history for the download id. Its
+ * `DownloadFailedEvent` is what `BlocklistService` blocklists from, and what
+ * `RedownloadFailedDownloadService` searches again from when Redownload Failed
+ * is on (`autoRedownloadFailed`, the default; for a grab from an interactive
+ * search, Redownload Failed from Interactive Search too). A download the
+ * service did not grab has no such history. `HistoryService` deletes that
+ * history with the film, series or artist, and housekeeping drops it when an
+ * episode or album is gone though its series or artist is not. Without it
+ * nothing is blocklisted, and from Sonarr 5.0.0.2569 the DELETE fails instead,
+ * after removing the download if `removeFromClient` asked for that. An orphaned
+ * row never has it, so its request is sent with `blocklist=false`. With it, the
+ * failed event also has the *arr delete the download from the client when that
+ * client's Remove Failed setting is on (`DownloadEventHub`, the default), so a
+ * blocklisted download is not reliably kept.
+ */
+const PENDING = new Set(['delay', 'downloadclientunavailable', 'fallback']);
+
+const isPending = (item: QueueItem): boolean => PENDING.has(item.status.toLowerCase());
+
+const canBlocklist = (adapter: QueueRemoveCapable, item: QueueItem): boolean => adapter.supportsBlocklist && item.orphaned !== true;
+
+const blocklistEffect = (adapter: ServiceAdapter & QueueRemoveCapable, item: QueueItem, removeFromClient: boolean): string => {
+    if (!adapter.supportsBlocklist) {
+        return `Ignored: ${adapter.id} has no blocklist of its own. To blocklist a release, remove it from the Radarr, Sonarr, Whisparr or Lidarr queue instead.`;
+    }
+    if (!canBlocklist(adapter, item)) return `Not blocklisted: ${adapter.id} has no record of this grab.`;
+    if (isPending(item)) return 'Blocklists this release so it will not be grabbed again. remove_blocklist_item undoes the blocklist.';
+    const kept = removeFromClient
+        ? ''
+        : ` With the record, ${adapter.id} also deletes it from the download client if that client's Remove Failed setting is on (the default); without one, nothing is blocklisted and the row is back at the next refresh.`;
+    return `Blocklists this release if ${adapter.id} has its record of the grab; with its Redownload Failed setting on (the default) it also searches for a replacement.${kept} remove_blocklist_item undoes the blocklist.`;
+};
+
+/** What happens to the row and the download itself, before any blocklist. */
+const removalEffect = (adapter: ServiceAdapter & QueueRemoveCapable, item: QueueItem, removeFromClient: boolean, blocklist: boolean): string => {
+    if (adapter.discardsFile === true) return `Discards ${item.title} from Grimmory's Bookdrop, which deletes the file from disk. It is not imported, and this cannot be undone.`;
+    if (adapter.cancelOnly === true) return `Cancels it in ${adapter.id}, stopping it if it has started. get_history then shows it as stopped, and retry_download can usually start it again.`;
+    if (isPending(item)) return `Drops this pending release from ${adapter.id}; nothing has gone to a download client yet.`;
+    if (removeFromClient) return `Removes it from ${adapter.id} and deletes any partial data already downloaded.`;
+    if (blocklist && canBlocklist(adapter, item)) return `Removes it from ${adapter.id}'s queue without asking the download client to delete it.`;
+    return `Removes it from ${adapter.id}'s queue but leaves the download itself alone.`;
+};
+
 export function registerRemoveQueueItem(
     server: McpServer,
     context: WriteContext,
@@ -58,7 +111,7 @@ export function registerRemoveQueueItem(
         operation: 'remove_queue_item',
         tier: 'destructive',
 
-        async plan({ id, remove_from_client, blocklist }, adapter): Promise<WritePlan> {
+        async plan({ id, remove_from_client, blocklist }, adapter): Promise<WritePlan<{ service: string; id: string; removeFromClient: boolean; blocklist: boolean }>> {
 
             // Read the live queue so the preview names the release rather than
             // an opaque id, and so an id that has already finished downloading
@@ -91,25 +144,22 @@ export function registerRemoveQueueItem(
                 });
             }
 
-            const effects = [
-                adapter.discardsFile === true
-                    ? `Discards ${item.title} from Grimmory's Bookdrop, which deletes the file from disk. It is not imported, and this cannot be undone.`
-                    : adapter.cancelOnly === true
-                    ? `Cancels it in ${adapter.id}, stopping it if it has started. get_history then shows it as stopped, and retry_download can usually start it again.`
-                    : remove_from_client
-                      ? `Removes it from ${adapter.id} and deletes any partial data already downloaded.`
-                      : `Removes it from ${adapter.id}'s queue but leaves the download itself alone.`
-            ];
+            // The *arr ignores a download only with a film, series or artist (on
+            // Lidarr, also its albums) to record it against (`IgnoredDownloadService`):
+            // without one it stops tracking the download, which is back at the next
+            // refresh. `orphaned` catches the missing media only, not a Lidarr row
+            // with an artist and no album.
+            if (item.orphaned === true && !remove_from_client) {
+                throw new ServiceError('NotFound', adapter.id, `nothing in ${adapter.id} is behind this download, so it cannot leave the download alone: the row would be back at the next refresh`, {
+                    remedy: 'Leave out remove_from_client, or remove it in the download client.'
+                });
+            }
+
+            const effects = [removalEffect(adapter, item, remove_from_client, blocklist)];
 
             // Accepting a flag that silently does nothing is how someone
             // believes a release is blocklisted for a year. Say it plainly.
-            if (blocklist) {
-                effects.push(
-                    adapter.supportsBlocklist
-                        ? 'Blocklists this release, so it will not be grabbed again. Undoing this means finding it in the service\'s blocklist by hand.'
-                        : `Ignored: ${adapter.id} has no blocklist of its own. To blocklist a release, remove it from the Radarr, Sonarr, Whisparr or Lidarr queue instead.`
-                );
-            }
+            if (blocklist) effects.push(blocklistEffect(adapter, item, remove_from_client));
 
             return {
                 target: `${adapter.id}:${id}`,
@@ -121,17 +171,18 @@ export function registerRemoveQueueItem(
                     removeFromClient: remove_from_client,
                     // The *effective* value, not the requested one, so the
                     // token and the audit row record what will actually happen
-                    // rather than what was asked for on a service that cannot
-                    // do it.
-                    blocklist: blocklist && adapter.supportsBlocklist
+                    // rather than what was asked for on a service, or a row,
+                    // that cannot do it. `apply` sends this one.
+                    blocklist: blocklist && canBlocklist(adapter, item)
                 }
             };
         },
 
-        async apply(_plan, { id, remove_from_client, blocklist }, adapter) {
+        // What the plan resolved and the token is bound to, not the raw flags.
+        async apply(plan, { id, remove_from_client }, adapter) {
             await adapter.removeQueueItem(id, {
-                removeFromClient: remove_from_client,
-                blocklist: blocklist && adapter.supportsBlocklist
+                removeFromClient: plan.args?.removeFromClient ?? remove_from_client,
+                blocklist: plan.args?.blocklist ?? false
             });
             return { removed: `${adapter.id}:${id}` };
         }
