@@ -1404,11 +1404,11 @@ describe('buildChain — each queue state is worded for what it is', () => {
     // failed unpack and a failed move hold every byte; a duplicate NZBGet deleted
     // for a good copy holds none, and only the *arr's message says which.
     const SAB_FINISHED_REMEDY =
-        'The client reports a problem, and radarr imports nothing while it stands. SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download on SABnzbd and `id` "SABnzbd_nzo_1".';
+        'The client reports a problem, and Radarr/Sonarr imports nothing while it stands. SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download and `id` "SABnzbd_nzo_1" on the SABnzbd that holds it.';
     // The *arrs give an NZB they send NZBGet a GUID without its dashes as its `drone` id (`NzbgetProxy`).
     const DRONE = 'aaaabbbbccccddddeeeeffff00001111';
     const NZBGET_FINISHED_REMEDY =
-        `The client reports a problem, and radarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, \`action: "postprocess"\` and \`download_id\` "${DRONE}". If NZBGet deleted it as a duplicate, remove it from radarr’s queue with remove_queue_item and \`id\` "q1". The message says which.`;
+        `The client reports a problem, and Radarr/Sonarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, \`action: "postprocess"\` and \`download_id\` "${DRONE}", on the NZBGet that holds it. If NZBGet deleted it as a duplicate, remove it from radarr’s queue with remove_queue_item and \`id\` "q1". The message says which.`;
     const nzbgetMessage = (unpack: string, move: string, del: string): string =>
         `PAR Status: SUCCESS - Unpack Status: ${unpack} - Move Status: ${move} - Script Status: NONE - Delete Status: ${del} - Mark Status: NONE`;
     it.each([
@@ -1432,10 +1432,51 @@ describe('buildChain — each queue state is worded for what it is', () => {
             const full = message('radarr', 'Download contains multiple files and is not in a job folder');
             const d = run(radarrRow({ status: 'warning', protocol: 'usenet', downloadId, errorMessage: full, remainingBytes: 0 }));
             expect(d.verdict.remedy).toBe(
-                'The client reports a problem, and radarr imports nothing while it stands. Fix what the client reports, or, if the client deleted the download, remove it from radarr’s queue with remove_queue_item and `id` "q1".'
+                'The client reports a problem, and Radarr/Sonarr imports nothing while it stands. Fix what the client reports, or, if the client deleted the download, remove it from radarr’s queue with remove_queue_item and `id` "q1".'
             );
         }
     );
+
+    // The opening names the *arr as the remedies beside it do; the removal
+    // names the row's own instance, since this state offers no next step.
+    it('names the *arr in the opening and the named instance in the removal', () => {
+        const hd = item({ acquisition: { service: 'radarr/hd', id: '5', monitored: true, hasFile: false } });
+        const row = radarrRow({ service: 'radarr/hd', status: 'warning', protocol: 'usenet', downloadId: DRONE, errorMessage: message('radarr', nzbgetMessage('NONE', 'NONE', 'GOOD')), remainingBytes: 0 });
+        const d = buildChain('some film', { ...healthy(), item: hd, queue: { items: [row], partial: [] } });
+        expect(d.verdict.remedy).toBe(
+            `The client reports a problem, and Radarr/Sonarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, \`action: "postprocess"\` and \`download_id\` "${DRONE}", on the NZBGet that holds it. If NZBGet deleted it as a duplicate, remove it from radarr/hd’s queue with remove_queue_item and \`id\` "q1". The message says which.`
+        );
+    });
+
+    // A stack running only Whisparr is not told Radarr or Sonarr, here or in
+    // the remedies beside it that name the *arr the same way.
+    describe('on an item Whisparr manages', () => {
+        const site = (service: string) =>
+            item({
+                kind: 'series',
+                title: fenceText('Some Site', { service: 'whisparr', field: 'title' }),
+                ids: { tvdb: 1 },
+                acquisition: { service, id: '5', monitored: true, hasFile: false }
+            });
+        // Whisparr names a scene's release by its date.
+        const whisparrRow = (service: string, over: Partial<QueueItem>): QueueItem => radarrRow({ service, title: queueTitle('whisparr', 'Some.Site.24.01.01.Example.Title'), ...over });
+        const runOn = (service: string, over: Partial<QueueItem>) =>
+            buildChain('some site', { ...healthy(), item: site(service), queue: { items: [whisparrRow(service, over)], partial: [] } });
+
+        it('names Whisparr in the opening, and the named instance in the removal', () => {
+            const d = runOn('whisparr/main', { status: 'warning', protocol: 'usenet', downloadId: 'drone-1', errorMessage: message('whisparr', 'Download contains multiple files and is not in a job folder'), remainingBytes: 0 });
+            expect(d.verdict.remedy).toBe(
+                'The client reports a problem, and Whisparr imports nothing while it stands. Fix what the client reports, or, if the client deleted the download, remove it from whisparr/main’s queue with remove_queue_item and `id` "q1".'
+            );
+        });
+
+        it('names Whisparr in the remedy for a failed grab', () => {
+            const d = runOn('whisparr', { status: 'failed', errorMessage: message('whisparr', 'news server refused') });
+            expect(d.verdict.remedy).toBe(
+                'Check the download client for the failed grab — retry it, remove it, or fix what it reports (e.g. connectivity to the indexer or news server), then let Whisparr search again.'
+            );
+        });
+    });
 
     it("does not offer another download's import for a finished warning", () => {
         const full = message('radarr', 'Unpacking failed, write error or disk is full?');
@@ -2504,7 +2545,7 @@ describe('buildChain — a Lidarr artist', () => {
         const row = lidarrRow({ status: 'warning', protocol: 'usenet', downloadId: 'aaaabbbbccccddddeeeeffff00001111', errorMessage: bad, sizeBytes: 1000, remainingBytes: 0 });
         const d = buildChain('daft punk', healthy({ item: noTracks(), queue: { items: [row], partial: [] } }));
         expect(d.verdict.remedy).toBe(
-            'The client reports a problem, and lidarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111". If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "103", with `blocklist: true` if it was bad. The message says which.'
+            'The client reports a problem, and Lidarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111", on the NZBGet that holds it. If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "103", with `blocklist: true` if it was bad. The message says which.'
         );
         expect(d.verdict.next_steps).toBeUndefined();
     });

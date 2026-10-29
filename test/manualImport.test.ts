@@ -283,7 +283,7 @@ describe('a download that has not finished', () => {
         const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('SABnzbd_nzo_abc').catch((e: unknown) => e)) as { message: string; remedy: string };
         expect(err.message).toMatch(/SABnzbd_nzo_abc has a warning in the download client/);
         expect(err.remedy).toBe(
-            'get_queue reports it as warning/downloading: the client finished with it but reports a problem, which waiting does not clear, so there is nothing to import. SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download on SABnzbd and `id` "SABnzbd_nzo_abc".'
+            'get_queue reports it as warning/downloading: the client finished with it but reports a problem, which waiting does not clear, so there is nothing to import. SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download and `id` "SABnzbd_nzo_abc" on the SABnzbd that holds it.'
         );
         expect(s.sent.some(x => x.method === 'POST')).toBe(false);
     });
@@ -292,7 +292,7 @@ describe('a download that has not finished', () => {
     it('names the id as the *arr reports it, not as it was typed', async () => {
         const s = stack(500, [{ ...RUNNING_ROW, downloadId: 'SABnzbd_nzo_abc', status: 'warning', protocol: 'usenet', size: 1000, sizeleft: 0 }]);
         const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('sabnzbd_nzo_abc').catch((e: unknown) => e)) as { remedy: string };
-        expect(err.remedy).toContain('with retry_download on SABnzbd and `id` "SABnzbd_nzo_abc".');
+        expect(err.remedy).toContain('with retry_download and `id` "SABnzbd_nzo_abc" on the SABnzbd that holds it.');
     });
 
     // `QBittorrent`: a torrent can be a warning with nothing left too, and may still clear.

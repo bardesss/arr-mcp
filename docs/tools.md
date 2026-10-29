@@ -451,7 +451,10 @@ as a warning rather than a failure, a download a script marked bad. Only the
 again with `import_download`'s `postprocess` and that id, or to remove a deleted
 one from the *arr's queue, with `blocklist: true` on Lidarr if it was bad.
 `retry_download` on NZBGet wants its own history id, which the *arr's row does
-not carry. Any other id is only told to fix what the client reports.
+not carry. The *arr's id names the client, not the instance, so the remedy says
+to make the call on the SABnzbd or NZBGet that holds it, rather than guessing
+one where there are two. Any other id is told to fix what the client reports, or
+to remove the *arr's queue row if the client deleted the download.
 `import_download` says the same when it meets such a download. A state
 `diagnose_media` does not know, with nothing left, is only to be checked.
 
