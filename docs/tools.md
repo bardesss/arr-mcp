@@ -2717,15 +2717,18 @@ and a download SABnzbd's post-processor is working on (`loaded` in the history)
 is the wait, which holds a Force job too. They are read too for a Force job
 beside a `queued` row, and for the whole queue, which a `queued` row shows
 paused by hand, since the wait can hold it as well. The switch takes one read,
-shared for ten seconds, and the history one more when it is on. A pause is sent,
-and keeps the queue paused once the wait ends, unless a `queued` row shows it
-paused by hand already; a resume is sent too, since a manual pause can lie
-behind the wait, and its preview says that downloading starts once the wait
-ends. A pause by hand with no `queued` row that leaves the rows looking like
-the wait, or that comes while the switch is on and a download is in
-post-processing, reads the same way, since neither tells the two apart: a second pause is then offered, and
-`diagnose_media` still says SABnzbd resumes by itself. An `id` the client does
-not have is refused as not found.
+shared for ten seconds, and the history one more when it is on. A history read
+that shows a download in post-processing is shared the same way, so for up to
+ten seconds after the wait ends the queue can still read as held by it; one that
+shows none is not kept, since post-processing can start at any moment. A pause
+is sent, and keeps the queue paused once the wait ends, unless a `queued` row
+shows it paused by hand already; a resume is sent too, since a manual pause can
+lie behind the wait, and its preview says that downloading starts once the wait
+ends. A pause by hand with no `queued` row that leaves the rows looking like the
+wait, or that comes while the switch is on and a download is in post-processing,
+reads the same way, since neither tells the two apart: a second pause is then
+offered, and `diagnose_media` still says SABnzbd resumes by itself. An `id` the
+client does not have is refused as not found.
 
 **Unverified live** (qBittorrent): pause, resume and the speed limit.
 

@@ -108,7 +108,10 @@ export class TtlCache {
     }
 }
 
-/** How long a read shared inside one get_stack_health pass stays fresh. */
+/**
+ * How long a short shared read stays fresh: inside one get_stack_health
+ * pass, and SABnzbd's switch and history reads for its post-processing wait.
+ */
 export const SHORT_READ_TTL_MS = 10_000;
 
 type Cached<T> = (() => Promise<T>) & { clear(): void };
@@ -117,18 +120,34 @@ type Cached<T> = (() => Promise<T>) & { clear(): void };
  * One in-flight or recent read, shared by every caller until `ttlMs` passes.
  * The ttl counts from the start of a load, so a load slower than `ttlMs`
  * is already stale when it resolves and shares nothing.
- * A failed read is dropped at once, so the next caller retries. `clear()`
- * forgets the current read, for a caller that must see fresh data.
+ * A failed read is dropped at once, so the next caller retries, and so is
+ * one that `keep`, when given, refuses or throws on: the callers sharing it
+ * still get its value, and a throw from `keep` is not passed on. Either is
+ * dropped only if no newer read has taken its place, for the reason
+ * `TtlCache.get` gives for `ttlFor`. `clear()` forgets the current read, for
+ * a caller that must see fresh data.
  */
-export function cached<T>(ttlMs: number, load: () => Promise<T>): Cached<T> {
+export function cached<T>(ttlMs: number, load: () => Promise<T>, keep?: (value: T) => boolean): Cached<T> {
     let entry: { at: number; value: Promise<T> } | undefined;
     const read = (): Promise<T> => {
         if (entry === undefined || Date.now() - entry.at > ttlMs) {
             const value = load();
             const current = { at: Date.now(), value };
-            value.catch(() => {
-                if (entry === current) entry = undefined;
-            });
+            value.then(
+                resolved => {
+                    if (keep === undefined || entry !== current) return;
+                    let kept: boolean;
+                    try {
+                        kept = keep(resolved);
+                    } catch {
+                        kept = false;
+                    }
+                    if (!kept) entry = undefined;
+                },
+                () => {
+                    if (entry === current) entry = undefined;
+                }
+            );
             entry = current;
         }
         return entry.value;
