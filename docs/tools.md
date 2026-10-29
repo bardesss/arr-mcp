@@ -2898,8 +2898,10 @@ With `delete_files: true` Lidarr deletes the artist's folder, through its
 recycle bin when one is set, unless that folder holds another artist's or is the
 same as one, when it deletes no files at all. The artist's history goes with it,
 and Lidarr's events are not in arr-mcp's event log, so only arr-mcp's audit
-trail keeps a record of the delete. The preview runs none of the cross-checks
-(see [writes](writes.md)).
+trail keeps a record of the delete. `add_import_exclusion` keeps Lidarr's import
+lists from adding the artist again until one of its albums is added, by hand or
+through Lidarr's API, which deletes the exclusion. The preview runs none of the
+cross-checks (see [writes](writes.md)).
 
 ### Grimmory
 

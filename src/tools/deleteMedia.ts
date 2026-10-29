@@ -151,12 +151,14 @@ export function registerDeleteMedia(
 
             effects.push(`Removes ${label} from ${service}, along with its monitoring and history.`);
 
-            // Lidarr's exclusion stops only its import lists: an artist added through
-            // the API is not checked against it (`ImportListSyncService`).
+            // Lidarr's exclusion keeps its import lists from adding the artist
+            // (`ImportListSyncService`); nothing checks it when an artist is added
+            // through the API. Adding one of the artist's albums, by hand or
+            // through the API, deletes it (`AddAlbumService`).
             if (add_import_exclusion) {
                 effects.push(
                     service === 'lidarr'
-                        ? "Adds an import list exclusion, so Lidarr's import lists will not add it again."
+                        ? "Adds an import list exclusion, so Lidarr's import lists will not add it again until one of its albums is added, by hand or through Lidarr's API."
                         : 'Adds an import exclusion, so it will not be re-added automatically by a list or request.'
                 );
             }
