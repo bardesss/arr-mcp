@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { QUEUE_KEYS } from '../src/services/deluge.ts';
 import { GRIMMORY_HISTORY_ACTIONS } from '../src/services/grimmory.ts';
 
 /**
@@ -1000,6 +1001,44 @@ const CONTRACTS: Record<string, ServiceContract> = {
             },
             { fixture: 'test/fixtures/qbittorrent/maindata.json', fields: ['server_state.free_space_on_disk'] },
             { fixture: 'test/fixtures/qbittorrent/preferences.json', fields: ['save_path'] }
+        ]
+    },
+    // Captured live from Deluge 2.2.0 with `npm run capture -- deluge`, run
+    // once each with the daemon connected, the session paused, the Web UI
+    // disconnected and the daemon stopped. Every answer is HTTP 200, so the
+    // envelope's `result` and `error` are what the adapter reads first.
+    // `not-authenticated.json` is hand-written from a live call: the capture
+    // logs in before its first request.
+    deluge: {
+        dependencies: [
+            { fixture: 'test/fixtures/deluge/web-connected.json', fields: ['result', 'error'] },
+            { fixture: 'test/fixtures/deluge/web-disconnected.json', fields: ['result'] },
+            { fixture: 'test/fixtures/deluge/not-authenticated.json', fields: ['error.code', 'error.message'] },
+            { fixture: 'test/fixtures/deluge/login-refused.json', fields: ['result', 'error'] },
+            { fixture: 'test/fixtures/deluge/unknown-method.json', fields: ['error.code', 'error.message'] },
+            { fixture: 'test/fixtures/deluge/daemon-version.json', fields: ['result'] },
+            { fixture: 'test/fixtures/deluge/hosts.json', fields: ['result'] },
+            { fixture: 'test/fixtures/deluge/host-status-online.json', fields: ['result'] },
+            { fixture: 'test/fixtures/deluge/host-status-offline.json', fields: ['result'] },
+            {
+                fixture: 'test/fixtures/deluge/config-values.json',
+                fields: [
+                    'result.download_location',
+                    'result.max_download_speed',
+                    'result.stop_seed_at_ratio',
+                    'result.stop_seed_ratio',
+                    'result.remove_seed_at_ratio'
+                ]
+            },
+            { fixture: 'test/fixtures/deluge/free-space.json', fields: ['result'] },
+            { fixture: 'test/fixtures/deluge/session-paused.json', fields: ['result'] },
+            { fixture: 'test/fixtures/deluge/torrent-status-unknown.json', fields: ['result'] },
+            // Every key the queue read asks for. Keyed by info hash, which the
+            // capture numbers, so the first torrent stands for every row.
+            {
+                fixture: 'test/fixtures/deluge/torrents-status.json',
+                fields: QUEUE_KEYS.map(key => `result.${'1'.repeat(40)}.${key === 'trackers' ? 'trackers.url' : key}`)
+            }
         ]
     },
     // Captured live from Plex Media Server 1.43.3.10896 (issue #180) with

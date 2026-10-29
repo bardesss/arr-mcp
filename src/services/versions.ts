@@ -60,6 +60,16 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     transmission: '3.0.0',
     // The v2 WebUI API, which 4.1.0 introduced and nothing before it has.
     qbittorrent: '4.1.0',
+    // 2.0.3 is the oldest Deluge this adapter was exercised against: the
+    // fixtures come from 2.2.0 and every call was run live on both. The calls
+    // used here answer alike on the two. A queue read just after a pause or
+    // resume can show the torrent as it was until Deluge has handled
+    // libtorrent's alert, and for longer on 2.0.3, which polls the alerts every
+    // 0.3 seconds where 2.2.0 waits on them, and updates its cached torrent
+    // status only on a status request. 2.0.3 is what Debian 12 and Ubuntu 22.04
+    // still ship. Its version string
+    // (2.0.3-2-201906121747-ubuntu18.04.1) parses to 2.0.3.
+    deluge: '2.0.3',
     // Plex has not pinned a minimum; 1.0.0 is a placeholder. The one version
     // this has actually been verified against is 1.43.3.10896 (issue #180):
     // a single data point, not enough to raise the floor from.

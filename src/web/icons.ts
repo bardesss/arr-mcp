@@ -77,6 +77,8 @@ export const ICONS: Record<ServiceId, string> = {
         '<rect x="3" y="3" width="18" height="18" rx="3"/>' +
             '<path d="M9 7.5v9m0 0-2.5-2.5M9 16.5l2.5-2.5"/><path d="M15 16.5v-9m0 0-2.5 2.5M15 7.5l2.5 2.5"/>'
     ),
+    // A drop, for the flood in Deluge's name, with a download arrow inside it.
+    deluge: draw('<path d="M12 2.5c-3 4-6.5 7.5-6.5 11.5a6.5 6.5 0 0 0 13 0c0-4-3.5-7.5-6.5-11.5Z"/><path d="M12 9v7.5"/><path d="m9 13.5 3 3 3-3"/>'),
     // Sliders, not a chart: Profilarr's category is config management, and the
     // old mark (lines plus a jagged trend) read as analytics instead.
     profilarr: draw(

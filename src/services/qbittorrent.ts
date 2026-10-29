@@ -6,6 +6,7 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { hostPort } from '../core/hostPort.ts';
 import { logger } from '../core/logger.ts';
+import { magnetHash } from '../core/magnet.ts';
 import type { TorrentFacts } from '../core/cleanuparrRules.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
@@ -85,21 +86,6 @@ const SHARE_LIMIT_ACTION: Record<number, ClientSeedLimits['action']> = {
     2: 'super seeding',
     3: 'remove with content'
 };
-
-const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
-
-/**
- * A magnet's `btih` is 40 hex characters or, per BEP 9, 32 base32 ones.
- * `torrents/info?hashes=` takes hex only, so a base32 hash never matches and
- * the duplicate check silently passes. A 32-character value with a character
- * outside the base32 alphabet is left as given.
- */
-export function btihToHex(btih: string): string {
-    const lower = btih.toLowerCase();
-    if (lower.length !== 32 || [...lower].some(c => !BASE32.includes(c))) return lower;
-    const bits = [...lower].map(c => BASE32.indexOf(c).toString(2).padStart(5, '0')).join('');
-    return Array.from({ length: 40 }, (_, i) => parseInt(bits.slice(i * 4, i * 4 + 4), 2).toString(16)).join('');
-}
 
 /** qBittorrent's own state vocabulary, mapped onto readable words. 5.0 renamed
  *  the paused states to stopped; both spellings are kept so one adapter serves
@@ -520,8 +506,7 @@ export class QbittorrentAdapter
      * Spec-derived, like the pause paths above.
      */
     async addMagnet(uri: string): Promise<MagnetAdded> {
-        const btih = /xt=urn:btih:([0-9a-zA-Z]+)/.exec(uri)?.[1];
-        const hash = btih === undefined ? undefined : btihToHex(btih);
+        const hash = magnetHash(uri);
         const existing =
             hash === undefined
                 ? []

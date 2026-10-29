@@ -12,14 +12,14 @@ import { targetInput, serviceTarget } from './serviceTarget.ts';
  * people actually want to write.
  *
  * Destructive tier rather than safe, even though a removed download can be
- * searched for again: `remove_from_client` deletes partial data, and
+ * searched for again: `remove_from_client` deletes its files, and
  * `blocklist` durably teaches the *arr to refuse a release, which is
  * genuinely hard to notice and hard to undo months later when the same film
  * mysteriously never grabs.
  */
 
 const TARGET = serviceTarget({
-    services: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark', 'grimmory'],
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'deluge', 'shelfmark', 'grimmory'],
     can: hasQueueRemove,
     cannot: 'has no download queue',
     hint: 'Take a service and id from get_queue.'
@@ -38,7 +38,7 @@ const RemoveQueueItemInput = z.object({
         .boolean()
         .optional()
         .describe(
-            'Also drop it from the download client and delete partial data. Defaults to true, which is what "get rid of it" normally means.'
+            'Also drop it from the download client and delete its files. Defaults to true, which is what "get rid of it" normally means.'
         ),
     blocklist: z
         .boolean()
@@ -101,7 +101,7 @@ const removalEffect = (adapter: ServiceAdapter & QueueRemoveCapable, item: Queue
     if (adapter.discardsFile === true) return `Discards ${item.title} from Grimmory's Bookdrop, which deletes the file from disk. It is not imported, and this cannot be undone.`;
     if (adapter.cancelOnly === true) return `Cancels it in ${adapter.id}, stopping it if it has started. get_history then shows it as stopped, and retry_download can usually start it again.`;
     if (isPending(item)) return `Drops this pending release from ${adapter.id}; nothing has gone to a download client yet.`;
-    if (removeFromClient) return `Removes it from ${adapter.id} and deletes any partial data already downloaded.`;
+    if (removeFromClient) return `Removes it from ${adapter.id} and deletes the files it downloaded.`;
     return `Removes it from ${adapter.id}'s queue but leaves the download itself alone.`;
 };
 
@@ -114,7 +114,7 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue: the stuck-at-0%, wrong-release, or stalled download. Take `service` and `id` from get_queue. Optionally deletes partial data and, on an *arr, blocklists the release so it will not be grabbed again. [[nzbget: On NZBGet, keeping the data parks the download in its history rather than deleting it.]] [[shelfmark: On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel.]] [[grimmory: On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused).]] [[radarr|sonarr|whisparr|lidarr: `orphaned: true` in place of `id` lists the finished downloads at importBlocked that matched no library item, with next steps, and removes nothing.]] Previews first; confirm to remove it.',
+            'Removes one item from a download queue: the stuck-at-0%, wrong-release, or stalled download. Take `service` and `id` from get_queue. Optionally deletes its files and, on an *arr, blocklists the release so it will not be grabbed again. [[nzbget: On NZBGet, keeping the data parks the download in its history rather than deleting it.]] [[shelfmark: On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel.]] [[grimmory: On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused).]] [[radarr|sonarr|whisparr|lidarr: `orphaned: true` in place of `id` lists the finished downloads at importBlocked that matched no library item, with next steps, and removes nothing.]] Previews first; confirm to remove it.',
         inputSchema: RemoveQueueItemInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants

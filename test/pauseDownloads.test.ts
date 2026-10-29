@@ -4,6 +4,7 @@ import type * as z from 'zod/v4';
 import type { AnyServiceConfig, CredentialServiceConfig, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
+import { DelugeAdapter } from '../src/services/deluge.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
@@ -698,7 +699,7 @@ describe('pause_downloads', () => {
         it('says the queue holds it after the resume', async () => {
             const { structuredContent } = await run('Paused', 'Normal');
             expect(structuredContent.effects).toEqual([
-                "Restarts queue item SABnzbd_nzo_ab12 on sabnzbd. sabnzbd's whole queue is paused too, so it starts downloading only once that is resumed, with this tool and no `id`."
+                "Restarts queue item SABnzbd_nzo_ab12 on sabnzbd. sabnzbd's whole queue is paused too, so it starts only once that is resumed, with this tool and no `id`."
             ]);
         });
 
@@ -994,6 +995,216 @@ describe('pause_downloads', () => {
 
         await expect(h.call({ service: 'transmission', action: 'limit', speed_limit_kbps: 500 })).rejects.toThrow(/turtle mode/);
         expect(writes).toEqual([]);
+    });
+
+    // Deluge's whole-client pause is its session pause, which it does not
+    // save; a torrent's own pause it does save, so only the whole-client
+    // preview says a restart ends it.
+    describe('Deluge', () => {
+        const deluge = { url: 'http://192.0.2.10:8112', timeout_ms: 10_000, permissions: { safe_write: true, destructive: false }, password: 'p' };
+        const RESTART = "It lasts only until deluge's daemon restarts, since the daemon does not save it.";
+        const run = (args: Record<string, unknown>, state: { sessionPaused?: boolean; torrent?: Record<string, unknown>; maxSpeed?: number } = {}) => {
+            const sent: [string, unknown[]][] = [];
+            const fetchImpl = (async (_i: unknown, init?: RequestInit) => {
+                const { method, params } = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
+                sent.push([method, params]);
+                const result =
+                    method === 'web.connected'
+                        ? true
+                        : method === 'core.is_session_paused'
+                          ? (state.sessionPaused ?? false)
+                          : method === 'core.get_torrent_status'
+                            ? (state.torrent ?? {})
+                            : method === 'core.get_config_values'
+                              ? { max_download_speed: state.maxSpeed ?? -1 }
+                              : null;
+                return jsonResponse({ result, error: null, id: 1 });
+            }) as unknown as typeof fetch;
+            const h = harness({
+                adapters: [new DelugeAdapter(deluge, fetchImpl)],
+                permissions: { deluge: deluge as unknown as AnyServiceConfig }
+            });
+            const writes = () => sent.filter(([m]) => !['web.connected', 'core.is_session_paused', 'core.get_torrent_status', 'core.get_config_values'].includes(m));
+            return { h, call: () => h.call({ service: 'deluge', ...args }), writes };
+        };
+
+        it('pauses the session, and says a restart of Deluge ends that pause', async () => {
+            const { h, call, writes } = run({ action: 'pause' });
+            const preview = await call();
+            expect(preview.structuredContent.summary).toBe('Pause the Deluge session on deluge.');
+            expect(preview.structuredContent.effects).toEqual([
+                'Stops the Deluge session on deluge. Nothing already downloaded is lost, and partial downloads resume where they left off.',
+                'Does NOT stop the *arrs searching and grabbing. They keep sending releases, which pile up in this client until it is resumed.',
+                RESTART,
+                'Undo it by calling this tool again with action: "resume".'
+            ]);
+            await h.call({ service: 'deluge', action: 'pause', confirm: preview.structuredContent.confirm_token });
+            expect(writes()).toEqual([['core.pause_session', []]]);
+        });
+
+        it('keeps the restart line out of a resume, and out of one torrent\'s pause', async () => {
+            const resume = await run({ action: 'resume' }, { sessionPaused: true }).call();
+            expect(resume.structuredContent.effects[0]).toBe(
+                "Resumes the Deluge session on deluge. Every torrent not paused on its own starts again, as Deluge's Queue settings allow, and uses bandwidth."
+            );
+            const one = await run({ action: 'pause', id: HASH }, { torrent: { state: 'Downloading', paused: false } }).call();
+            expect(one.structuredContent.summary).toBe(`Pause torrent ${HASH} on deluge.`);
+            for (const { structuredContent } of [resume, one]) expect(structuredContent.effects).not.toContain(RESTART);
+        });
+
+        it('sends no resume for a torrent Deluge would not resume', async () => {
+            const queued = await run({ action: 'resume', id: HASH }, { torrent: { state: 'Queued', paused: true } }).call();
+            expect(queued.structuredContent).toMatchObject({
+                noop: true,
+                summary: `torrent ${HASH} on deluge is queued: Deluge starts it by itself as its Queue settings allow.`
+            });
+            const held = await run({ action: 'resume', id: HASH }, { sessionPaused: true, torrent: { state: 'Paused', paused: false } }).call();
+            expect(held.structuredContent).toMatchObject({
+                noop: true,
+                summary: `torrent ${HASH} on deluge is not paused itself, but deluge's whole queue is: resume that with this tool and no \`id\`.`
+            });
+        });
+
+        it('says what a resume leaves on a torrent in error, and names the session pause beside it unless it is at its stop ratio', async () => {
+            const error = { state: 'Error', paused: true, message: 'Permission denied' };
+            const note = `It is in Error (<<untrusted:deluge.message>>Permission denied<</>>). A resume clears an error libtorrent raised, but not one Deluge raised itself, such as missing data or a failed move, which a Force Recheck in Deluge clears and which can keep the torrent from restarting.`;
+            const alone = await run({ action: 'resume', id: HASH }, { torrent: error }).call();
+            expect(alone.structuredContent.effects).toEqual([`Resumes torrent ${HASH} on deluge. ${note}`]);
+            const held = await run({ action: 'resume', id: HASH }, { sessionPaused: true, torrent: error }).call();
+            expect(held.structuredContent.effects).toEqual([
+                `Resumes torrent ${HASH} on deluge. ${note} deluge's whole queue is paused too, so it starts only once that is resumed, with this tool and no \`id\`.`
+            ]);
+            // Deluge leaves one at its stop ratio paused, so resuming the session would not start it either.
+            const atRatio = { ...error, is_finished: true, stop_at_ratio: true, stop_ratio: 2, ratio: 2.1 };
+            const stays = await run({ action: 'resume', id: HASH }, { sessionPaused: true, torrent: atRatio }).call();
+            expect(stays.structuredContent.effects).toEqual([
+                `Resumes torrent ${HASH} on deluge. ${note} It has reached its stop ratio of 2, so Deluge leaves it paused even once the error is cleared.`
+            ]);
+        });
+
+        it("refuses what the Scheduler's state for the hour would undo, before any token", async () => {
+            const sent: string[] = [];
+            const withSlot = (slot: string, sessionPaused: boolean, torrent: Record<string, unknown> = { state: 'Paused', paused: false }) => {
+                const answers: Record<string, unknown> = {
+                    'web.connected': true,
+                    'core.get_config_values': { enabled_plugins: ['Scheduler'], max_download_speed: -1 },
+                    'core.is_session_paused': sessionPaused,
+                    'core.get_torrent_status': torrent,
+                    'scheduler.get_state': slot,
+                    'scheduler.get_config': { low_down: 300 }
+                };
+                const fetchImpl = (async (_i: unknown, init?: RequestInit) => {
+                    const { method } = JSON.parse(String(init?.body)) as { method: string };
+                    sent.push(method);
+                    return jsonResponse({ result: answers[method] ?? null, error: null, id: 1 });
+                }) as unknown as typeof fetch;
+                return harness({ adapters: [new DelugeAdapter(deluge, fetchImpl)], permissions: { deluge: deluge as unknown as AnyServiceConfig } });
+            };
+            await expect(withSlot('Green', false).call({ service: 'deluge', action: 'pause' })).rejects.toThrow(
+                /^Deluge's Scheduler plugin is on at deluge, and its Schedule runs the session this hour/
+            );
+            await expect(withSlot('Red', true).call({ service: 'deluge', action: 'resume' })).rejects.toThrow(
+                /^Deluge's Scheduler plugin is on at deluge, and its Schedule marks this hour Paused/
+            );
+            await expect(withSlot('Yellow', false).call({ service: 'deluge', action: 'limit', speed_limit_kbps: 100 })).rejects.toThrow(
+                /^Deluge's Scheduler plugin is on at deluge, and its Schedule marks this hour Throttled, so the download limit in its Throttled Settings \(300 KiB\/s\)/
+            );
+            // The Scheduler would undo a state the session is in already too, as
+            // in the first minute of an hour, so that is refused, not a no-op.
+            await expect(withSlot('Green', true).call({ service: 'deluge', action: 'pause' })).rejects.toThrow(
+                /^Deluge's Scheduler plugin is on at deluge, and its Schedule runs the session this hour/
+            );
+            await expect(withSlot('Red', false).call({ service: 'deluge', action: 'resume' })).rejects.toThrow(
+                /^Deluge's Scheduler plugin is on at deluge, and its Schedule marks this hour Paused/
+            );
+            // What the hour would put back anyway is a no-op, and the rest goes through.
+            expect((await withSlot('Red', true).call({ service: 'deluge', action: 'pause' })).structuredContent).toMatchObject({ noop: true });
+            expect((await withSlot('Green', false).call({ service: 'deluge', action: 'resume' })).structuredContent).toMatchObject({ noop: true });
+            expect((await withSlot('Green', true).call({ service: 'deluge', action: 'resume' })).structuredContent.summary).toBe('Resume the Deluge session on deluge.');
+            expect((await withSlot('Green', false).call({ service: 'deluge', action: 'limit', speed_limit_kbps: 100 })).structuredContent.summary).toBe('Limit deluge to 100 KiB/s.');
+            expect(sent.filter(m => /_session$|set_config/.test(m))).toEqual([]);
+        });
+
+        it('says when a Paused hour holds one torrent, rather than pointing at the refused resume', async () => {
+            const withHour = (slot: string, sessionPaused: boolean, torrent: Record<string, unknown>) => {
+                const answers: Record<string, unknown> = {
+                    'web.connected': true,
+                    'core.get_config_values': { enabled_plugins: ['Scheduler'], max_download_speed: -1 },
+                    'core.is_session_paused': sessionPaused,
+                    'core.get_torrent_status': torrent,
+                    'scheduler.get_state': slot
+                };
+                const fetchImpl = (async (_i: unknown, init?: RequestInit) => {
+                    const { method } = JSON.parse(String(init?.body)) as { method: string };
+                    return jsonResponse({ result: answers[method] ?? null, error: null, id: 1 });
+                }) as unknown as typeof fetch;
+                return harness({ adapters: [new DelugeAdapter(deluge, fetchImpl)], permissions: { deluge: deluge as unknown as AnyServiceConfig } });
+            };
+            const hour =
+                "deluge's Scheduler plugin pauses its whole session this hour, as its Schedule says, until the plugin next runs in an hour the Schedule marks Normal or Throttled, or this hour is changed there, or the plugin is turned off";
+            const held = await withHour('Red', true, { state: 'Paused', paused: false }).call({ service: 'deluge', action: 'resume', id: HASH });
+            expect(held.structuredContent).toMatchObject({ noop: true, summary: `torrent ${HASH} on deluge is not paused itself, but ${hour}.` });
+            const own = await withHour('Red', true, { state: 'Paused', paused: true }).call({ service: 'deluge', action: 'resume', id: HASH });
+            expect(own.structuredContent.effects).toEqual([`Restarts torrent ${HASH} on deluge. ${hour}, so it starts only then.`]);
+            // Outside a Paused hour, a session paused by hand still points at the whole-client resume.
+            const byHand = await withHour('Green', true, { state: 'Paused', paused: false }).call({ service: 'deluge', action: 'resume', id: HASH });
+            expect(byHand.structuredContent.summary).toBe(`torrent ${HASH} on deluge is not paused itself, but deluge's whole queue is: resume that with this tool and no \`id\`.`);
+        });
+
+        it('says what a new limit does to the session, as the Scheduler applies the hour again', async () => {
+            const withHour = (slot: string, sessionPaused: boolean) => {
+                const answers: Record<string, unknown> = {
+                    'web.connected': true,
+                    'core.get_config_values': { enabled_plugins: ['Scheduler'], max_download_speed: -1 },
+                    'core.is_session_paused': sessionPaused,
+                    'scheduler.get_state': slot
+                };
+                const fetchImpl = (async (_i: unknown, init?: RequestInit) => {
+                    const { method } = JSON.parse(String(init?.body)) as { method: string };
+                    return jsonResponse({ result: answers[method] ?? null, error: null, id: 1 });
+                }) as unknown as typeof fetch;
+                return harness({ adapters: [new DelugeAdapter(deluge, fetchImpl)], permissions: { deluge: deluge as unknown as AnyServiceConfig } });
+            };
+            const effects = async (slot: string, paused: boolean) =>
+                (await withHour(slot, paused).call({ service: 'deluge', action: 'limit', speed_limit_kbps: 100 })).structuredContent.effects as string[];
+            const RESUMES =
+                "Also resumes deluge's paused session, which undoing the limit does not pause again: its Scheduler plugin applies this hour's Normal state again whenever the limit changes.";
+            const PAUSES =
+                "Also pauses deluge's session, which undoing the limit does not resume: its Scheduler plugin applies this hour's Paused state again whenever the limit changes.";
+            expect(await effects('Green', true)).toContain(RESUMES);
+            expect(await effects('Red', false)).toContain(PAUSES);
+            for (const [slot, paused] of [['Green', false], ['Red', true]] as const) {
+                expect((await effects(slot, paused)).filter(e => e.startsWith('Also '))).toEqual([]);
+            }
+        });
+
+        it('says in a Paused hour that the Scheduler holds a whole-client pause, rather than how to undo it', async () => {
+            const answers: Record<string, unknown> = {
+                'web.connected': true,
+                'core.get_config_values': { enabled_plugins: ['Scheduler'], max_download_speed: -1 },
+                'core.is_session_paused': false,
+                'scheduler.get_state': 'Red'
+            };
+            const fetchImpl = (async (_i: unknown, init?: RequestInit) => {
+                const { method } = JSON.parse(String(init?.body)) as { method: string };
+                return jsonResponse({ result: answers[method] ?? null, error: null, id: 1 });
+            }) as unknown as typeof fetch;
+            const h = harness({ adapters: [new DelugeAdapter(deluge, fetchImpl)], permissions: { deluge: deluge as unknown as AnyServiceConfig } });
+            const preview = await h.call({ service: 'deluge', action: 'pause' });
+            expect(preview.structuredContent.effects).toEqual([
+                'Stops the Deluge session on deluge. Nothing already downloaded is lost, and partial downloads resume where they left off.',
+                'Does NOT stop the *arrs searching and grabbing. They keep sending releases, which pile up in this client until it is resumed.',
+                "deluge's Scheduler plugin keeps its whole session paused this hour, as its Schedule says, and resumes it the next time the plugin runs in an hour the Schedule marks Normal or Throttled, or once this hour is changed there or the plugin is turned off; a resume is refused while the Schedule marks the hour Paused."
+            ]);
+        });
+
+        it('limits the download speed in KiB/s', async () => {
+            const { h, call, writes } = run({ action: 'limit', speed_limit_kbps: 500 });
+            const preview = await call();
+            expect(preview.structuredContent.summary).toBe('Limit deluge to 500 KiB/s.');
+            await h.call({ service: 'deluge', action: 'limit', speed_limit_kbps: 500, confirm: preview.structuredContent.confirm_token });
+            expect(writes()).toEqual([['core.set_config', [{ max_download_speed: 500 }]]]);
+        });
     });
 
     it('refuses an empty id', async () => {

@@ -780,7 +780,7 @@ describe('remove_queue_item', () => {
         const { h, radarr, reads } = radarrWith({ '/api/v3/queue': { records: [ORPHAN] }, '/api/v3/history': { records: [] } });
         const first = await h.call({ service: 'radarr', id: '91', blocklist: true });
         expect(first.structuredContent.effects).toEqual([
-            'Removes it from radarr and deletes any partial data already downloaded.',
+            'Removes it from radarr and deletes the files it downloaded.',
             'Not blocklisted: radarr lists no grab of this download.'
         ]);
         await h.call({ service: 'radarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });

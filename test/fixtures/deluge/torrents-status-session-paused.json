@@ -1,0 +1,87 @@
+{
+  "result": {
+    "1111111111111111111111111111111111111111": {
+      "state": "Paused",
+      "paused": false,
+      "name": "Release.Name.1.1080p.WEB-DL.x264-GROUP",
+      "private": false,
+      "stop_at_ratio": false,
+      "total_remaining": 0,
+      "eta": 0,
+      "seeding_time": 0,
+      "ratio": 0.25,
+      "download_location": "/data/torrents",
+      "stop_ratio": 2,
+      "total_size": 4294967296,
+      "is_finished": true,
+      "trackers": [
+        {
+          "url": "https://tracker-1.example.test/announce",
+          "tier": 0
+        },
+        {
+          "url": "https://tracker-2.example.test/announce",
+          "tier": 1
+        }
+      ],
+      "message": "OK",
+      "label": "category"
+    },
+    "2222222222222222222222222222222222222222": {
+      "state": "Paused",
+      "paused": true,
+      "name": "Release.Name.2.1080p.WEB-DL.x264-GROUP",
+      "private": false,
+      "stop_at_ratio": false,
+      "total_remaining": 0,
+      "eta": 0,
+      "seeding_time": 0,
+      "ratio": 0,
+      "download_location": "/data/torrents",
+      "stop_ratio": 2,
+      "total_size": 2147483648,
+      "is_finished": true,
+      "trackers": [
+        {
+          "url": "https://tracker-1.example.test/announce",
+          "tier": 0
+        },
+        {
+          "url": "https://tracker-2.example.test/announce",
+          "tier": 1
+        }
+      ],
+      "message": "OK",
+      "label": "category"
+    },
+    "3333333333333333333333333333333333333333": {
+      "state": "Paused",
+      "paused": false,
+      "name": "Release.Name.3.1080p.WEB-DL.x264-GROUP",
+      "private": false,
+      "stop_at_ratio": false,
+      "total_remaining": 1073741824,
+      "eta": 0,
+      "seeding_time": 0,
+      "ratio": 0,
+      "download_location": "/data/torrents",
+      "stop_ratio": 2,
+      "total_size": 3221225472,
+      "is_finished": false,
+      "trackers": [
+        {
+          "url": "https://tracker-1.example.test/announce",
+          "tier": 0
+        },
+        {
+          "url": "https://tracker-2.example.test/announce",
+          "tier": 1
+        }
+      ],
+      "message": "OK",
+      "label": "category"
+    }
+  },
+  "error": null,
+  "id": 1
+}

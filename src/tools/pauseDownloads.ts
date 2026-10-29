@@ -4,7 +4,8 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasPause, hasSpeedLimit, NZBGET_POST_HOLDS, SAB_WAIT_SWITCH, sabWaits, type PauseState, type ServiceAdapter } from '../services/types.ts';
+import { hasPause, hasSpeedLimit, NZBGET_POST_HOLDS, SAB_WAIT_SWITCH, sabWaits, schedulerHolds, type PauseState, type ServiceAdapter, type SpeedLimit } from '../services/types.ts';
+import { schedulerLimitRefusal, schedulerPauseRefusal, schedulerResumeRefusal } from '../services/deluge.ts';
 import { turtleModeRefusal } from '../services/transmission.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
@@ -37,7 +38,7 @@ const findLimitAdapter = (adapters: readonly ServiceAdapter[], service: ServiceI
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasSpeedLimit(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no download speed limit to set`, {
-            remedy: 'Only the download clients throttle: sabnzbd, nzbget, transmission and qbittorrent.'
+            remedy: 'Only the download clients throttle: sabnzbd, nzbget, transmission, qbittorrent and deluge.'
         });
     }
     return adapter;
@@ -66,20 +67,25 @@ const PauseDownloadsInput = z.object({
 });
 
 /**
- * What else holds one SABnzbd or NZBGet item, for its resume preview and for
- * the no-op of an item not paused itself: its client's paused queue, which this
- * tool resumes without an `id`, or SABnzbd's wait for post-processing, which
- * ends by itself, though a manual pause can read like it (`sabWaiting`,
- * `#waitOn`).
+ * What else holds one SABnzbd, NZBGet or Deluge item, for its resume preview
+ * and for the no-op of an item not paused itself: its client's paused queue,
+ * which this tool resumes without an `id`; SABnzbd's wait for
+ * post-processing, which ends by itself, though a manual pause can read like
+ * it (`sabWaiting`, `#waitOn`); or an hour Deluge's Scheduler marks Paused,
+ * whose resume this tool refuses (`schedulerResumeRefusal`).
  */
 const HOLD_TEXT: Readonly<Record<NonNullable<PauseState['heldBy']>, (client: string) => { noop: string; effect: string }>> = {
     queue: client => ({
         noop: `${client}'s whole queue is: resume that with this tool and no \`id\`.`,
-        effect: `${client}'s whole queue is paused too, so it starts downloading only once that is resumed, with this tool and no \`id\`.`
+        effect: `${client}'s whole queue is paused too, so it starts only once that is resumed, with this tool and no \`id\`.`
     }),
     postProcessing: client => ({
         noop: `${sabWaits(client)}, and resumes by itself; if it stays paused, resume it with this tool and no \`id\`.`,
         effect: `${sabWaits(client)}, so it starts downloading once that ends; if the queue stays paused, resume it with this tool and no \`id\`.`
+    }),
+    scheduler: client => ({
+        noop: `${schedulerHolds(client)}.`,
+        effect: `${schedulerHolds(client)}, so it starts only then.`
     })
 };
 
@@ -98,11 +104,22 @@ const WAIT_TEXT = {
         `If ${client} is waiting on post-processing (${SAB_WAIT_SWITCH}), this does not end that, and downloading starts once it ends.`
 };
 
-/** The first line of a resume preview: what restarts, and what still holds it. */
+/** What a new limit also does to Deluge's session, as its Scheduler applies the hour again (`SpeedLimit.sessionChange`). */
+const SESSION_CHANGE: Readonly<Record<NonNullable<SpeedLimit['sessionChange']>, (client: string) => string>> = {
+    resume: client =>
+        `Also resumes ${client}'s paused session, which undoing the limit does not pause again: its Scheduler plugin applies this hour's Normal state again whenever the limit changes.`,
+    pause: client =>
+        `Also pauses ${client}'s session, which undoing the limit does not resume: its Scheduler plugin applies this hour's Paused state again whenever the limit changes.`
+};
+
+/** The first line of a resume preview: what restarts, and what still holds it or may stop it again. */
 function resumeLine(state: PauseState, client: string, waiting: boolean): string {
     if (waiting) return `Restarts ${state.scope} on ${client} if it is paused by hand. ${WAIT_TEXT.resume(client)}`;
-    const after = state.heldBy === undefined ? 'Downloading resumes immediately and uses bandwidth.' : HOLD_TEXT[state.heldBy](client).effect;
-    return `Restarts ${state.scope} on ${client}. ${after}`;
+    // The client's note on what a resume leaves (`resumeNote`) and what else
+    // holds the item, both when both apply. With a note the line opens
+    // "Resumes", naming the call, since the note says what restarts.
+    const notes = [state.resumeNote, state.heldBy === undefined ? undefined : HOLD_TEXT[state.heldBy](client).effect].filter((s): s is string => s !== undefined);
+    return `${state.resumeNote === undefined ? 'Restarts' : 'Resumes'} ${state.scope} on ${client}. ${notes.length === 0 ? 'Downloading resumes immediately and uses bandwidth.' : notes.join(' ')}`;
 }
 
 /** The exact torrents a whole-client plan read, for its apply. Kept off `args`,
@@ -188,7 +205,7 @@ export function registerPauseDownloads(
         name: 'pause_downloads',
         title: 'Pause, resume or throttle a download client',
         description:
-            'Pauses, resumes or throttles one download client ({{or: sabnzbd=SABnzbd; nzbget=NZBGet; transmission=Transmission; qbittorrent=qBittorrent}}) or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead (0 removes the cap). A limit is client-wide. Safe tier: the undo is the other action. [[transmission|qbittorrent: On a torrent client, pause tags the running torrents and resume starts only those.]] It does NOT stop the *arrs grabbing: releases still reach the client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
+            'Pauses, resumes or throttles one download client ({{or: sabnzbd=SABnzbd; nzbget=NZBGet; transmission=Transmission; qbittorrent=qBittorrent; deluge=Deluge}}) or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead (0 removes the cap). A limit is client-wide. Safe tier: the undo is the other action. [[transmission|qbittorrent: On {{or: transmission=Transmission; qbittorrent=qBittorrent}}, pause tags the running torrents and resume starts only those.]] It does NOT stop the *arrs grabbing: releases still reach the client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
         inputSchema: PauseDownloadsInput,
         // The resolved instance id, not the bare type: permissions are
         // granted per instance.
@@ -225,6 +242,7 @@ export function registerPauseDownloads(
                 }
                 // The adapter refuses this write too; refusing here means no token is issued for it.
                 if (current.alternative) throw turtleModeRefusal(client.id, current.kbps);
+                if (current.scheduled) throw schedulerLimitRefusal(client.id, current.kbps);
 
                 return {
                     target,
@@ -236,6 +254,7 @@ export function registerPauseDownloads(
                         wanted === undefined
                             ? `${client.id} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KiB/s`}.`
                             : `Caps ${client.id} at ${wanted} KiB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KiB/s`}. Client-wide, not per item.`,
+                        ...(current.sessionChange === undefined ? [] : [SESSION_CHANGE[current.sessionChange](client.id)]),
                         'Does NOT stop the *arrs grabbing. They keep sending releases; they just arrive more slowly.',
                         'Undo it by calling this tool again with action: "limit" and a different value; 0 removes the cap.'
                     ],
@@ -270,6 +289,19 @@ export function registerPauseDownloads(
 
             if (id === undefined && state.torrents !== undefined) return torrentPlan(adapter.id, target, paused, state.torrents);
 
+            // Deluge's resume leaves alone a torrent its queue holds back and
+            // one at its stop ratio, whether or not it reads as paused.
+            if (!paused && state.resumeNoop !== undefined) {
+                return { target, summary: `${state.scope} on ${adapter.id} ${state.resumeNoop}`, effects: [], noop: true };
+            }
+
+            // A pause while Deluge's Scheduler runs the session this hour, and
+            // a resume while it pauses it, are refused even where the session
+            // already is as asked, which the Scheduler would undo all the same;
+            // the adapter refuses them too.
+            if (whole && paused && state.scheduler === 'run') throw schedulerPauseRefusal(adapter.id);
+            if (whole && !paused && state.scheduler === 'stop') throw schedulerResumeRefusal(adapter.id);
+
             // Asking someone to confirm a no-op teaches them to confirm
             // without reading.
             // A queue paused by hand that the wait also holds: a second pause does nothing, a resume ends one of the two.
@@ -290,6 +322,9 @@ export function registerPauseDownloads(
             const grabbed = `Anything the *arrs grabbed while it was paused starts downloading ${waiting ? 'with it' : 'too'}.`;
             // One item paused or resumed leaves the rest of the client as it
             // was, so what the *arrs grab meanwhile neither piles up nor starts.
+            // While Deluge's Scheduler marks the hour Paused, the session stays
+            // paused through a restart, and a resume is refused.
+            const stopHour = whole && state.scheduler === 'stop';
             const effects = paused
                 ? [
                       waiting
@@ -297,7 +332,14 @@ export function registerPauseDownloads(
                           : `Stops ${state.scope} on ${adapter.id}. Nothing already downloaded is lost, and partial downloads resume where they left off.`,
                       // The thing a bare "paused" would let someone believe.
                       ...(whole ? ['Does NOT stop the *arrs searching and grabbing. They keep sending releases, which pile up in this client until it is resumed.'] : []),
-                      `Undo it by calling this tool again with action: "resume"${whole ? '' : ` and the same \`id\``}.`
+                      ...(stopHour
+                          ? [
+                                `${adapter.id}'s Scheduler plugin keeps its whole session paused this hour, as its Schedule says, and resumes it the next time the plugin runs in an hour the Schedule marks Normal or Throttled, or once this hour is changed there or the plugin is turned off; a resume is refused while the Schedule marks the hour Paused.`
+                            ]
+                          : [
+                                ...(whole && state.endsOnRestart === true ? [`It lasts only until ${adapter.id}'s daemon restarts, since the daemon does not save it.`] : []),
+                                `Undo it by calling this tool again with action: "resume"${whole ? '' : ` and the same \`id\``}.`
+                            ])
                   ]
                 : [
                       resumeLine(state, adapter.id, waiting),

@@ -52,15 +52,16 @@ export function appResource(instance: ServiceInstance): AppResource {
     };
     const source = secretSource(c, secretFieldOf(instance.type));
     const from = source === undefined ? undefined : source.kind === 'file' ? 'file' : 'environment';
+    const { fields } = serviceTraits(instance.type);
     if (secretFieldOf(instance.type) === 'password') {
         return {
             ...base,
-            username: c.username ?? null,
+            // Deluge's Web UI takes a password alone.
+            ...(fields.has('username') ? { username: c.username ?? null } : {}),
             passwordSet: source !== undefined || (c.password ?? '') !== '',
             ...(from === undefined ? {} : { passwordFrom: from })
         };
     }
-    const { fields } = serviceTraits(instance.type);
     return {
         ...base,
         apiKeySet: source !== undefined || (c.api_key ?? '') !== '',

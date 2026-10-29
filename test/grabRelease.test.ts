@@ -6,6 +6,7 @@ import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/con
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { DelugeAdapter } from '../src/services/deluge.ts';
 import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
@@ -308,6 +309,18 @@ describe('grab_release with a magnet', () => {
                 return jsonResponse({ result: 'success', arguments: {} });
             }
 
+            if (url.pathname === '/json') {
+                const rpc = JSON.parse(body ?? '{}') as { method?: string };
+                const result =
+                    rpc.method === 'web.connected'
+                        ? true
+                        : rpc.method === 'core.get_torrent_status'
+                          ? opts.existing
+                              ? { name: 'Some.Release' }
+                              : {}
+                          : 'c12fe1c06bba254a9dc9f519b335aa7c1367a88a';
+                return jsonResponse({ result, error: null, id: 1 });
+            }
             if (url.pathname === '/api/v2/torrents/info') return jsonResponse(opts.existing ?? []);
             if (url.pathname === '/api/v2/torrents/add') return new Response('Ok.', { status: 200 });
             return jsonResponse({ message: 'not found' }, 404);
@@ -332,7 +345,8 @@ describe('grab_release with a magnet', () => {
                 permissions: permissionSourceFrom(
                     instancesOf({
                         transmission: clientConfig as AnyServiceConfig,
-                        qbittorrent: clientConfig as AnyServiceConfig
+                        qbittorrent: clientConfig as AnyServiceConfig,
+                        deluge: { ...clientConfig, password: 'p' } as AnyServiceConfig
                     })
                 ),
                 confirm: new ConfirmTokens(),
@@ -340,7 +354,7 @@ describe('grab_release with a magnet', () => {
                 library: { invalidate: vi.fn() } as unknown as LibraryLoader,
                 ...(opts.crossChecks === undefined ? {} : { crossChecks: opts.crossChecks })
             },
-            [new TransmissionAdapter(clientConfig, impl), new QbittorrentAdapter(clientConfig, impl)]
+            [new TransmissionAdapter(clientConfig, impl), new QbittorrentAdapter(clientConfig, impl), new DelugeAdapter({ ...clientConfig, password: 'p' }, impl)]
         );
 
         return { call: (a: Record<string, unknown>) => call(a), sent };
@@ -351,7 +365,11 @@ describe('grab_release with a magnet', () => {
         const { structuredContent } = await h.call({ service: 'transmission', magnet: MAGNET, dry_run: true });
 
         expect(structuredContent.summary).toContain('c12fe1c06bba254a9dc9f519b335aa7c1367a88a');
-        expect(structuredContent.effects.join(' ')).toMatch(/nothing vetted it/i);
+        // Where the link goes, not that it starts: a client set to add
+        // torrents paused, or a paused Deluge session, holds it.
+        expect(structuredContent.effects[0]).toBe(
+            'Sends whatever that link points at straight to transmission to download. Nothing vetted it: no indexer, no quality profile, no *arr.'
+        );
         expect(structuredContent.effects.join(' ')).toMatch(/will not be imported/i);
     });
 
@@ -400,6 +418,21 @@ describe('grab_release with a magnet', () => {
             confirm: first.structuredContent.confirm_token
         });
         expect(h.sent.find(s => s.path === '/api/v2/torrents/add')?.body).toContain('urls=magnet');
+    });
+
+    it('adds the magnet to Deluge with its own defaults, and finds a duplicate before sending it', async () => {
+        const confirmed = async (existing?: unknown[]) => {
+            const h = clientHarness(existing === undefined ? {} : { existing });
+            const first = await h.call({ service: 'deluge', magnet: MAGNET });
+            const second = await h.call({ service: 'deluge', magnet: MAGNET, confirm: first.structuredContent.confirm_token });
+            const added = h.sent.filter(s => s.body?.includes('core.add_torrent_magnet')).map(s => JSON.parse(s.body ?? '{}') as { params: unknown });
+            return { result: second.structuredContent.result, added };
+        };
+        expect(await confirmed()).toEqual({ result: { added: 'deluge:c12fe1c06bba254a9dc9f519b335aa7c1367a88a' }, added: [{ method: 'core.add_torrent_magnet', params: [MAGNET, {}], id: 1 }] });
+        expect(await confirmed([{}])).toEqual({
+            result: { alreadyPresent: 'deluge:c12fe1c06bba254a9dc9f519b335aa7c1367a88a', title: '<<untrusted:deluge.name>>Some.Release<</>>' },
+            added: []
+        });
     });
 
     it('reports a base32 magnet under the hex hash the client keys on', async () => {

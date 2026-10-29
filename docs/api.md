@@ -249,13 +249,14 @@ Every configured instance, in alphabetical order.
 ]
 ```
 
-Fields depend on the type. Transmission, qBittorrent and NZBGet have `username`
-and `passwordSet`. Everything else has `apiKeySet`. Jellyfin, Emby, Plex and
-Seerr add `defaultUser` and `allowOtherUsers`, and Plex alone adds
-`allowMetadataRepair`. Cleanuparr, Reclaimerr and Dispatcharr are read-only, so
-their `safeWrite` and `destructive` are always `false`, whatever was sent.
-Shelfmark alone can be added with no `apiKey`, for an install with no
-authentication. Any credentials in the URL are stripped.
+Fields depend on the type. Transmission, qBittorrent, NZBGet and Grimmory have
+`username` and `passwordSet`, and Deluge `passwordSet` alone. Everything else
+has `apiKeySet`. Jellyfin, Emby, Plex and Seerr add `defaultUser` and
+`allowOtherUsers`, and Plex alone adds `allowMetadataRepair`. Cleanuparr,
+Reclaimerr and Dispatcharr are read-only, so their `safeWrite` and `destructive`
+are always `false`, whatever was sent. Of the types with `apiKeySet`, Shelfmark
+alone can be added with no `apiKey`, for an install with no authentication. Any
+credentials in the URL are stripped.
 
 ### `GET /app/{type}` and `GET /app/{type}/{name}`
 
@@ -327,10 +328,10 @@ apart.
 ### `POST /app`
 
 Adds an app. `type` and `url` are required, and so is `apiKey` for every type
-except Transmission, qBittorrent and NZBGet. The other fields are the ones in the
-[update list](#updating-an-app): `username`, `password`,
-`defaultUser`, `allowOtherUsers`, `timeoutMs`, `safeWrite`, `destructive` and
-`allowMetadataRepair`.
+except Transmission, qBittorrent, Deluge, NZBGet, Grimmory and Shelfmark. The
+other fields are the ones in the [update list](#updating-an-app): `username`,
+`password`, `defaultUser`, `allowOtherUsers`, `timeoutMs`, `safeWrite`,
+`destructive` and `allowMetadataRepair`.
 
 A second instance of a type that allows several needs a `name`. If the first
 one has no name yet, also send `renameExistingTo` to name it, because its id

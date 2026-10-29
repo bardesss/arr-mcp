@@ -620,6 +620,35 @@ describe('grimmory', () => {
     });
 });
 
+describe('deluge', () => {
+    const url = 'http://192.0.2.10:8112';
+
+    it('takes the Web UI password alone', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: { deluge: { url, password: 'pw' } } });
+        expect(parsed.services.deluge).toMatchObject({ url, password: 'pw' });
+    });
+
+    it('refuses a deluge block without a password', () => {
+        const result = ConfigSchema.safeParse({ auth: AUTH, services: { deluge: { url } } });
+        expect(result.error?.issues.map(i => `${i.path.join('.')}: ${i.message}`)).toEqual([
+            'services.deluge.password: is required (or name a file with password_file)'
+        ]);
+    });
+
+    it('refuses a username, which its Web UI has no use for', () => {
+        const result = ConfigSchema.safeParse({ auth: AUTH, services: { deluge: { url, username: 'u', password: 'pw' } } });
+        expect(result.error?.issues.map(i => i.message)).toEqual(['Unrecognized key: "username"']);
+    });
+
+    it('reports passwordSet and no username, and never the password', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: { deluge: { url, password: 'hunter2' } } });
+        const resource = appResource(listInstances(parsed).find(i => i.type === 'deluge')!);
+        expect(resource).toMatchObject({ passwordSet: true });
+        expect(resource).not.toHaveProperty('username');
+        expect(JSON.stringify(resource)).not.toContain('hunter2');
+    });
+});
+
 describe('dispatcharr', () => {
     it('reads write permissions on dispatcharr as off, since nothing writes to it', () => {
         const parsed = ConfigSchema.parse({

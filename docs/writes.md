@@ -72,15 +72,15 @@ deleting its record of the title, with every request and issue for it, so
 `remove` needs `destructive`. An *arr's import exclusion takes nothing with it,
 so both directions there need only `safe_write`.
 
-`remove_queue_item` is destructive because it deletes partial data, and because
-`blocklist: true` durably teaches Radarr, Sonarr, Whisparr or Lidarr to refuse a
-release, which is hard to notice and hard to undo months later. SABnzbd, NZBGet,
-the torrent clients and Shelfmark have no blocklist of their own; ask for one
-there and the preview says it is ignored. On Shelfmark it only cancels a queued
-or running book. On Grimmory it discards a file waiting in the Bookdrop, which
-deletes the file from disk with no undo, and `blocklist` is ignored. Both refuse
-`remove_from_client: false`. The other cases it refuses, and when `blocklist: true`
-would blocklist nothing, are in
+`remove_queue_item` is destructive because it deletes downloaded files, and
+because `blocklist: true` durably teaches Radarr, Sonarr, Whisparr or Lidarr to
+refuse a release, which is hard to notice and hard to undo months later.
+SABnzbd, NZBGet, the torrent clients and Shelfmark have no blocklist of their
+own; ask for one there and the preview says it is ignored. On Shelfmark it only
+cancels a queued or running book. On Grimmory it discards a file waiting in the
+Bookdrop, which deletes the file from disk with no undo, and `blocklist` is
+ignored. Both refuse `remove_from_client: false`. The other cases it refuses,
+and when `blocklist: true` would blocklist nothing, are in
 [`remove_queue_item`](tools.md#remove_queue_item).
 
 `fix_profile` is destructive because the profile decides what an instance
@@ -387,7 +387,7 @@ exercise. Where the tool has its own section, the same path carries an
 | `get_queue` | `qbittorrent` | The torrent list, the seed limits and `by_tracker`; only login and health have met a real server | No qBittorrent on the maintainer's stack; the fixtures were written from the WebUI API description |
 | `get_queue` | `grimmory` | A file waiting in the Bookdrop | The live Bookdrop was empty at capture; the row is tested on a constructed file |
 | `get_stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
-| `get_queue` | `cleanuparr` | Seeding rules for a Transmission client | Only hand-written fixtures; the one tester runs qBittorrent |
+| `get_queue` | `cleanuparr` | Seeding rules for a Transmission or Deluge client | Only hand-written fixtures; the one tester runs qBittorrent |
 | `grab_release` | `shelfmark` | The default grab, with no release named | Mock-only; the live Shelfmark has not been asked for one |
 | `retry_download` | `shelfmark` | Retrying a failed book, or a Prowlarr row | Every failed row on the live Shelfmark is marked not retryable |
 | `trigger_search` | `sonarr` | `SeasonSearch` and `EpisodeSearch` payloads | Posting one runs a real search on the stack, and Sonarr reports success for a command that matches nothing |

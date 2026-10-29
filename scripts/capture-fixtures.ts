@@ -17,6 +17,7 @@ import type { Config, ServiceId } from '../src/config/schema.ts';
 import {
     apiKeyHeader,
     basicAuth,
+    delugeSession,
     embyToken,
     plexToken,
     grimmorySession,
@@ -31,6 +32,7 @@ import { ServiceHttp } from '../src/core/http.ts';
 import { EMBY } from '../src/services/emby.ts';
 import { JELLYFIN } from '../src/services/jellyfin.ts';
 import { parseServiceFilter } from './lib/captureArgs.ts';
+import { DELUGE_ENDPOINTS } from './lib/delugeCapture.ts';
 import { anonymiseActivityLog, anonymiseLogUser, EmbyScrubber } from './lib/embyCapture.ts';
 import {
     anonymiseLidarrAlbum,
@@ -61,6 +63,7 @@ import {
     anonymiseNzbgetRows,
     anonymiseNzbgetStatus,
     createAccountIdMapper,
+    fakeTrackerHosts,
     hostsInAuthorityPosition,
     hostsOf,
     neutralisePlexWatchState,
@@ -369,17 +372,7 @@ const anonymiseTorrents = (body: unknown): unknown => {
     if (!Array.isArray(body)) return body;
     const seen = new Set<unknown>();
     const kept = (body as Row[]).filter(row => !seen.has(row.state) && seen.add(row.state));
-    const hosts = new Map<string, string>();
-    const trackerHost = (url: unknown): string => {
-        let host = '';
-        try {
-            host = new URL(String(url)).hostname;
-        } catch {
-            /* an unparseable tracker still gets a host of its own */
-        }
-        if (!hosts.has(host)) hosts.set(host, `tracker-${hosts.size + 1}.example.test`);
-        return hosts.get(host)!;
-    };
+    const trackerHost = fakeTrackerHosts();
     return kept.slice(0, 5).map((row, i) => anonymiseTorrent(row, i, trackerHost));
 };
 
@@ -1331,6 +1324,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: body => ({ save_path: (body as { save_path?: unknown }).save_path ?? '' })
         }
     ],
+    deluge: DELUGE_ENDPOINTS,
     plex: [
         // machineIdentifier is the server's own real, stable 40-hex id —
         // getVersion reads only `version` from this endpoint.
@@ -1776,6 +1770,10 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
             ...(q.username === undefined ? {} : { username: q.username }),
             ...(q.password === undefined ? {} : { password: q.password })
         });
+    }
+    if (id === 'deluge') {
+        const d = service as { url: string; timeout_ms: number; password: string };
+        return delugeSession({ id, url: d.url, timeoutMs: d.timeout_ms, password: d.password });
     }
     if (id === 'grimmory') {
         const g = service as { url: string; timeout_ms: number; username: string; password: string };

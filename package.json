@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "One MCP server for the whole self-hosted media stack: Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Bazarr, Jellyfin, Emby, Plex, Seerr, SABnzbd, NZBGet, Transmission, qBittorrent, Profilarr, Cleanuparr, Reclaimerr, Dispatcharr, Shelfmark, Grimmory.",
+  "description": "One MCP server for the whole self-hosted media stack: Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Bazarr, Jellyfin, Emby, Plex, Seerr, SABnzbd, NZBGet, Transmission, qBittorrent, Deluge, Profilarr, Cleanuparr, Reclaimerr, Dispatcharr, Shelfmark, Grimmory.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bardesss/arr-mcp.git"

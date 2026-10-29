@@ -79,8 +79,11 @@ export function offerableTypes(config: Config): ServiceId[] {
     return SERVICE_IDS_ALPHABETICAL.filter(id => isMultiInstance(id) || !(configured.has(id) || (mediaServersFull && isMediaServer(id))));
 }
 
-/** The services that sign in with a username and password rather than an API key. */
+/** The services that sign in with a password rather than an API key. */
 const PASSWORD_SERVICES: readonly ServiceId[] = SERVICE_IDS.filter(id => secretFieldOf(id) === 'password');
+
+/** The password services that take a username with it: all but Deluge, whose Web UI has a password alone. */
+const USERNAME_SERVICES: readonly ServiceId[] = PASSWORD_SERVICES.filter(id => serviceTraits(id).fields.has('username'));
 
 type AnyService = {
     url: string;
@@ -205,7 +208,9 @@ function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
               });
 
     return html`${secret === 'password'
-        ? html`${field({ id: `${prefix}.username`, name: 'username', label: required.has('username') ? 'Username' : 'Username (optional)', value: service.username ?? '' })}
+        ? html`${fields.has('username')
+              ? field({ id: `${prefix}.username`, name: 'username', label: required.has('username') ? 'Username' : 'Username (optional)', value: service.username ?? '' })
+              : raw('')}
           ${secretInput('Password', 'password')}`
         : secretInput('API key', 'key')}
     ${fields.has('default_user')
@@ -637,7 +642,7 @@ function addDialog(
                       name: 'username',
                       label: 'Username',
                       note: 'Optional for Transmission, qBittorrent and NZBGet. Grimmory needs one.',
-                      only: PASSWORD_SERVICES
+                      only: USERNAME_SERVICES
                   })}
                   ${field({
                       id: 'add.password',

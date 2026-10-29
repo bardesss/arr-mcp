@@ -105,6 +105,7 @@ const ROLES: readonly (readonly [ServiceId, string])[] = [
     ['nzbget', 'NZBGet downloads'],
     ['transmission', 'Transmission downloads'],
     ['qbittorrent', 'qBittorrent downloads'],
+    ['deluge', 'Deluge downloads'],
     ['cleanuparr', 'Cleanuparr cleanup'],
     ['reclaimerr', 'Reclaimerr cleanup'],
     ['dispatcharr', 'Dispatcharr live TV']

@@ -28,7 +28,8 @@ the test.
 - **Plex.** Other versions and library layouts, especially managed user tokens.
 - **Whisparr V2.** History, wanted, manual import and a few others are missing
   because they need captures from a live instance.
-- **Cleanuparr with Transmission.** Only tested with qBittorrent so far.
+- **Cleanuparr with Transmission or Deluge.** Only tested with qBittorrent so
+  far.
 - **Proxmox installer.** One person has reported a working install, and arm64
   is untested.
 
@@ -38,11 +39,9 @@ test a branch, ask for a preview image (see
 [Adding a service adapter](#adding-a-service-adapter)).
 
 Adapters I would accept but will not build myself, because I don't run them:
-Emby ([#500](../../issues/500)), Deluge ([#499](../../issues/499)),
-Maintainerr ([#441](../../issues/441)), Sportarr
-([#431](../../issues/431)) and Listenarr ([#432](../../issues/432)). Listenarr
-also needs an argument for a stability waiver, since every release so far is
-beta or canary.
+Maintainerr ([#441](../../issues/441)), Sportarr ([#431](../../issues/431)) and
+Listenarr ([#432](../../issues/432)). Listenarr also needs an argument for a
+stability waiver, since every release so far is beta or canary.
 
 ## The three gates
 
@@ -299,15 +298,6 @@ service in no slot at all is a different product.
   and no per-album quality, which is why the library rows on artists and albums
   live under `get_media_details`.
 
-**Downloaded: where a grab actually lands**
-
-- **Deluge** ([#499](../../issues/499)). The last mainstream client this server cannot talk to. Same slot
-  as SABnzbd, NZBGet, Transmission and qBittorrent, documented JSON-RPC, no new
-  tool.
-  Its one wrinkle is that the Web UI talks to a separate daemon, so a reachable
-  Web UI with a disconnected daemon is a failure mode `testConnection` has to
-  report as itself rather than as a generic upstream error.
-
 **Imported and played: the library a person opens**
 
 - **Plex: more testers.** The adapter has shipped. Its nine read endpoints
@@ -440,7 +430,7 @@ around them.
    `get_library`'s `presence` join reads, because that join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
-   Nine of the twenty services can be. Copying `plex.ts` gets you
+   Ten of the twenty-one services can be. Copying `plex.ts` gets you
    `readonly id: string = '<type>'`, the *single*-instance shape, which fails
    closed if wrong. Making it multi-instance is four moves:
 
@@ -498,9 +488,9 @@ tasks whose names contain "Refresh", only one of which is the library scan, and
 Jellyfin's task names are localised (a Dutch server returns "Mediabibliotheek
 scannen").
 
-Eight of the twenty services publish no usable OpenAPI spec, and three more have
-hand-written adapters anyway, so the adapter interface is defined by us and must
-stay hand-writable. Code generation is an implementation detail inside an
+Nine of the twenty-one services publish no usable OpenAPI spec, and three more
+have hand-written adapters anyway, so the adapter interface is defined by us and
+must stay hand-writable. Code generation is an implementation detail inside an
 adapter, never the shape of the contract.
 
 A spec-less service has nothing for the nightly drift job to fetch: its
@@ -592,17 +582,17 @@ when either changes, so **review `specs/` in that diff**; the generated files
 are output, not meant to be read by hand.
 
 Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Jellyfin, Seerr, Profilarr and Grimmory are generated.
-Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent, Plex and Cleanuparr publish no usable spec
-and are hand-written against recorded fixtures. Reclaimerr publishes OpenAPI at
-`/api/v1/openapi.json`, but its adapter reads seven endpoints and is
-hand-written too, against fixtures captured from 0.6.5. Dispatcharr serves
-OpenAPI only at runtime (`/api/swagger.json`), with nothing committed for the
-nightly check to fetch, so its adapter is hand-written against fixtures
-captured from 0.33.0 and pins the minor it was written for instead. Shelfmark
-publishes no spec, only a written API page, and is hand-written against fixtures
-captured from v1.6.1. Emby serves its swagger only from the running server, so
-its dialect of the Jellyfin adapter is contracted against fixtures captured
-from 4.10.2.0.
+Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent, Deluge, Plex and Cleanuparr
+publish no usable spec and are hand-written against recorded fixtures.
+Reclaimerr publishes OpenAPI at `/api/v1/openapi.json`, but its adapter reads
+seven endpoints and is hand-written too, against fixtures captured from 0.6.5.
+Dispatcharr serves OpenAPI only at runtime (`/api/swagger.json`), with nothing
+committed for the nightly check to fetch, so its adapter is hand-written against
+fixtures captured from 0.33.0 and pins the minor it was written for instead.
+Shelfmark publishes no spec, only a written API page, and is hand-written
+against fixtures captured from v1.6.1. Emby serves its swagger only from the
+running server, so its dialect of the Jellyfin adapter is contracted against
+fixtures captured from 4.10.2.0.
 
 ### The nightly compatibility check
 
@@ -615,7 +605,7 @@ mapper. A red run means either; the PR body names the failing entries.
 
 The PR is opened with the default `GITHUB_TOKEN`, which GitHub refuses to let
 trigger other workflows, so it arrives with no status checks. Close and reopen
-it to run CI. The eleven hand-written services are invisible to this check: only
+it to run CI. The twelve hand-written services are invisible to this check: only
 a live call catches their drift.
 
 Two things worth knowing before you touch this:
