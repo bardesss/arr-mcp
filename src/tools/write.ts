@@ -511,8 +511,12 @@ export function registerWriteTool<
                         // single next action, worded as the plain preview words it. The
                         // token goes last in both: a reader clipping the trailing word or
                         // the final backticked span gets it, and prose after it would not.
-                        `Not applied — the confirmation token was rejected. ${CONFIRM_REASON[check.failure]}` +
-                            (advice.block === '' ? ' ' : `\n\n${advice.block}\n\n`) +
+                        // The fresh preview is in the text too, as in a plain preview: a
+                        // client that drops structuredContent (#234) would otherwise apply
+                        // the new token without seeing what changed since the old one.
+                        `Not applied — the confirmation token was rejected. ${CONFIRM_REASON[check.failure]} ${plan.summary}\n\n` +
+                            (advice.block === '' ? '' : `${advice.block}\n\n`) +
+                            (plan.effects.length === 0 ? '' : `${plan.effects.map(e => `- ${e}`).join('\n')}\n\n`) +
                             `Do not resend the rejected one. To apply this, call ${spec.name} again with ` +
                             `the same arguments plus \`confirm\` set to \`${fresh}\`.`
                     );

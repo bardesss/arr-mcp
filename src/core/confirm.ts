@@ -57,7 +57,8 @@ export type ConfirmResult = { ok: true } | { ok: false; failure: ConfirmFailure;
  *  must not repeat the "call again without `confirm`" half of the remedy. */
 export const CONFIRM_REASON: Record<ConfirmFailure, string> = {
     expired: `The confirmation token has expired (they last ${CONFIRM_TTL_MS / 1000}s).`,
-    mismatch: 'That confirmation token was issued for a different operation or different arguments.',
+    mismatch:
+        'That confirmation token was issued for a different operation or different arguments, or what this call acts on has changed since that preview.',
     foreign:
         'That confirmation token was issued by another arr-mcp process, or by this one before it restarted. Tokens only work in the process that issued them.',
     used: 'That confirmation token has already been used.',

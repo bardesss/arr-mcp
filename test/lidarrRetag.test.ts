@@ -344,7 +344,9 @@ describe('fix_metadata on a Lidarr artist', () => {
         const second = await call({ id: 'lidarr:101', confirm: first.structuredContent.confirm_token });
 
         expect(second.structuredContent.applied).toBe(false);
-        expect(second.structuredContent.confirm_error).toContain('different operation or different arguments');
+        expect(second.structuredContent.confirm_error).toContain('or what this call acts on has changed since that preview');
+        // The new warning reaches a client that reads the text alone.
+        expect(second.content[0]?.text).toContain('Scrub Existing Tags setting is on');
         expect(sent.some(s => s.method === 'POST')).toBe(false);
     });
 
