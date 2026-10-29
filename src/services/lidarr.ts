@@ -1,3 +1,4 @@
+import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
@@ -197,6 +198,10 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * reports its monitoring, file state and add date. The albums are one call
  * down, under `getMediaDetails`, so the library stays 1,600 rows rather than
  * 36,000.
+ *
+ * It can be configured more than once, as `lidarr/<name>`. The id reaches
+ * `ServiceHttp` and every error below, so a failure blames the instance that
+ * failed rather than a bare `lidarr`.
  */
 export class LidarrAdapter
     implements
@@ -220,8 +225,8 @@ export class LidarrAdapter
         ScanStateCapable
 {
     readonly type: ServiceId = 'lidarr';
-    readonly instance: string | undefined = undefined;
-    readonly id: string = 'lidarr';
+    readonly instance: string | undefined;
+    readonly id: string;
 
     readonly #http: ServiceHttp;
 
@@ -229,6 +234,8 @@ export class LidarrAdapter
     readonly #libraryCache = new TtlCache();
 
     constructor(config: ConfigByService['lidarr'], fetchImpl: typeof fetch = fetch) {
+        this.instance = config.name;
+        this.id = instanceId('lidarr', config.name);
         this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl, {
             apiRoot: '/api/v1'
         });

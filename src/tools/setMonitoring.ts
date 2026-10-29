@@ -100,7 +100,7 @@ export function registerSetMonitoring(
                 .min(1)
                 .optional()
                 .describe(
-                    'lidarr artist level only: artist ids, as integer strings. Omit to apply to every artist in Lidarr.'
+                    'lidarr artist level only: artist ids, as integer strings. Omit to apply to every artist in that Lidarr.'
                 ),
             monitor_new_items: z
                 .enum(['all', 'none', 'new'])
@@ -153,7 +153,7 @@ export function registerSetMonitoring(
                 }
 
                 if (!hasArtistMonitor(adapter)) {
-                    throw new ServiceError('NotFound', service, `${service} cannot read or set an artist monitoring policy`);
+                    throw new ServiceError('NotFound', adapter.id, `${adapter.id} cannot read or set an artist monitoring policy`);
                 }
 
                 const all = await adapter.listArtistMonitorPolicies();
@@ -167,15 +167,21 @@ export function registerSetMonitoring(
                     // would go on believing that artist had been settled.
                     const missing = artists.filter(aid => !byId.has(aid));
                     if (missing.length > 0) {
-                        throw new ServiceError('NotFound', service, `Lidarr has no artist with id ${missing.join(', ')}`, {
-                            remedy: `Lidarr holds ${all.length} artists. Take an id from acquisition.id on a get_library artist row.`
+                        // Ids are per instance, and a get_library row for an
+                        // artist two Lidarrs hold carries one instance's id.
+                        const row =
+                            adapter.instance === undefined
+                                ? 'a get_library artist row'
+                                : `a get_library artist row whose acquisition.service is ${adapter.id}: ids are per instance, and a row for an artist two Lidarrs hold carries one instance's id`;
+                        throw new ServiceError('NotFound', adapter.id, `Lidarr has no artist with id ${missing.join(', ')}`, {
+                            remedy: `Lidarr holds ${all.length} artists. Take an id from acquisition.id on ${row}.`
                         });
                     }
                     targets = artists.map(aid => byId.get(aid)!);
                 }
 
                 if (targets.length === 0) {
-                    throw new ServiceError('NotFound', service, 'Lidarr reported no artists at all, so there is no policy to set', {
+                    throw new ServiceError('NotFound', adapter.id, 'Lidarr reported no artists at all, so there is no policy to set', {
                         remedy: 'Nothing was written. Check that this Lidarr actually holds artists.'
                     });
                 }
@@ -221,7 +227,7 @@ export function registerSetMonitoring(
 
                 return {
                     target: `${adapter.id}:artists:${artists === undefined ? 'all' : [...artists].sort().join(',')}`,
-                    summary: `${summary} for ${scope} in ${service}.`,
+                    summary: `${summary} for ${scope} in ${adapter.id}.`,
                     effects,
                     args: {
                         service,

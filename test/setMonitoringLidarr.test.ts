@@ -10,7 +10,7 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { registerSetMonitoring } from '../src/tools/setMonitoring.ts';
-import { instancesOf } from './helpers/instances.ts';
+import { instancesOf, namedInstances } from './helpers/instances.ts';
 
 const lidarrConfig: KeyedServiceConfig = {
     url: 'http://192.0.2.10:8686',
@@ -305,5 +305,97 @@ describe('set_monitoring on lidarr', () => {
             expect(err).not.toBeInstanceOf(ServiceError);
             expect((err as Error).message).toMatch(/need `level: "artist"`/);
         });
+    });
+});
+
+/**
+ * Two Lidarrs, the way a lossless library sits beside a lossy one. A write names
+ * one: the artist editor would otherwise settle a policy on a library nobody
+ * meant, and the two hold different artists under the same ids.
+ */
+describe('set_monitoring with two lidarrs', () => {
+    const FLAC_ARTISTS = [{ id: 1, artistName: 'Artist One', monitored: true, monitorNewItems: 'all' }];
+    const MP3_ARTISTS = [
+        { id: 1, artistName: 'Artist Two', monitored: true, monitorNewItems: 'all' },
+        { id: 2, artistName: 'Artist Three', monitored: false, monitorNewItems: 'none' }
+    ];
+
+    function twoLidarrs() {
+        const routes = (artists: unknown) => ({
+            '/api/v1/artist': artists,
+            '/api/v1/artist/editor': fixture('artist-editor.json')
+        });
+        const flac = recordingFetch(routes(FLAC_ARTISTS));
+        const mp3 = recordingFetch(routes(MP3_ARTISTS));
+        const configs = [
+            { ...lidarrConfig, name: 'flac', url: 'http://192.0.2.10:8686' },
+            { ...lidarrConfig, name: 'mp3', url: 'http://192.0.2.11:8686' }
+        ];
+        const adapters: ServiceAdapter[] = [
+            new LidarrAdapter(configs[0] as never, flac.impl),
+            new LidarrAdapter(configs[1] as never, mp3.impl)
+        ];
+
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        const server = {
+            registerTool(_n: string, config: { inputSchema: z.ZodObject }, handler: Call) {
+                call = args => handler(config.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        registerSetMonitoring(
+            server as never,
+            {
+                permissions: permissionSourceFrom(namedInstances('lidarr', configs as AnyServiceConfig[])),
+                confirm: new ConfirmTokens(),
+                audit: WriteAudit.ephemeral(),
+                library: { invalidate: vi.fn() } as never
+            } as never,
+            adapters
+        );
+
+        return { call: (a: Record<string, unknown>) => call(a), flac: flac.sent, mp3: mp3.sent };
+    }
+
+    it('refuses to guess which Lidarr, and names both', async () => {
+        const h = twoLidarrs();
+        const err = await h.call({ service: 'lidarr', level: 'artist', monitor_new_items: 'none' }).catch((e: unknown) => e);
+
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as Error).message).toMatch(/2 instances configured/);
+        expect((err as ServiceError).remedy).toMatch(/"flac", "mp3"/);
+        expect([...h.flac, ...h.mp3]).toEqual([]);
+    });
+
+    it('previews and writes only the named instance', async () => {
+        const h = twoLidarrs();
+        const preview = await h.call({ service: 'lidarr', instance: 'mp3', level: 'artist', monitor_new_items: 'none' });
+
+        expect(preview.structuredContent.target).toBe('lidarr/mp3:artists:all');
+        expect(preview.structuredContent.summary).toMatch(/all 2 artists in lidarr\/mp3\./);
+
+        await h.call({
+            service: 'lidarr',
+            instance: 'mp3',
+            level: 'artist',
+            monitor_new_items: 'none',
+            confirm: tokenOf(preview)
+        });
+
+        expect(h.mp3.filter(s => s.path === '/api/v1/artist/editor')).toEqual([
+            { path: '/api/v1/artist/editor', method: 'PUT', body: { artistIds: [1, 2], monitorNewItems: 'none' } }
+        ]);
+        expect(h.flac).toEqual([]);
+    });
+
+    it('blames the named instance for an artist id it does not hold', async () => {
+        const h = twoLidarrs();
+        const err = await h
+            .call({ service: 'lidarr', instance: 'flac', level: 'artist', artists: ['2'], monitored: false })
+            .catch((e: unknown) => e);
+
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).service).toBe('lidarr/flac');
+        expect((err as Error).message).toMatch(/no artist with id 2/);
+        expect((err as ServiceError).remedy).toMatch(/acquisition\.service is lidarr\/flac: ids are per instance/);
     });
 });

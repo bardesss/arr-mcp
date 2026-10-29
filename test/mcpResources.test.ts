@@ -62,6 +62,21 @@ const lidarrOn = (policies = POLICIES): ServiceAdapter =>
         setArtistMonitorPolicy: async () => {}
     }) as unknown as ServiceAdapter;
 
+/** One of several Lidarrs, which is how a lossless library beside a lossy one
+ *  is configured. `down` stands for an instance that does not answer. */
+const lidarrNamed = (name: string, policies: typeof POLICIES | 'down'): ServiceAdapter =>
+    ({
+        id: `lidarr/${name}`,
+        type: 'lidarr',
+        instance: name,
+        getVersion: async () => '3.1.6.5078',
+        listArtistMonitorPolicies: async () => {
+            if (policies === 'down') throw new Error('connect ECONNREFUSED');
+            return policies;
+        },
+        setArtistMonitorPolicy: async () => {}
+    }) as unknown as ServiceAdapter;
+
 const context = (extra: ServiceAdapter[] = [], library: IndexInput[] = LIBRARY): ToolContext =>
     ({
         adapters: [radarr(library), ...extra],
@@ -159,6 +174,74 @@ describe('the resources a client sees', () => {
                 stable: false
             });
             expect(String(body.note)).toContain('treadmill');
+            // One Lidarr keeps the shape it had before a second one could exist.
+            expect(body.instances).toBeUndefined();
+            expect(body.degraded).toBeUndefined();
+        });
+
+        /**
+         * Reading only the first would report one instance's policy as if it
+         * were the whole music library's, and a settled lossless library would
+         * hide a lossy one still discovering albums.
+         */
+        it('reads every Lidarr, and reports each one beside the totals', async () => {
+            const settled = [{ artistId: '1', artistName: 'Settled', monitored: false, monitorNewItems: 'none' }];
+            const body = await read(
+                'arr://lidarr/monitoring',
+                context([lidarrNamed('flac', settled), lidarrNamed('mp3', POLICIES)])
+            );
+
+            expect(body).toMatchObject({
+                configured: true,
+                artists: 3,
+                monitor_new_items: { all: 1, none: 2 },
+                artist_flag: { monitored: 1, unmonitored: 2 },
+                stable: false,
+                instances: [
+                    { service: 'lidarr/flac', artists: 1, stable: true },
+                    { service: 'lidarr/mp3', artists: 2, stable: false, monitor_new_items: { all: 1, none: 1 } }
+                ]
+            });
+            expect(body.degraded).toBeUndefined();
+            // With two Lidarrs, set_monitoring without `instance` is refused.
+            expect(String(body.note)).toMatch(/set_monitoring with level: "artist" and `instance` does it\.$/);
+        });
+
+        it('says so in the plural when none of several Lidarrs holds an artist', async () => {
+            const body = await read('arr://lidarr/monitoring', context([lidarrNamed('flac', []), lidarrNamed('mp3', [])]));
+
+            expect(body).toMatchObject({ artists: 0, stable: true });
+            expect(String(body.note)).toMatch(/^None of these Lidarrs holds any artists, so they report no monitoring policy/);
+        });
+
+        it('names a Lidarr that did not answer, and does not call the rest stable', async () => {
+            const settled = [{ artistId: '1', artistName: 'Settled', monitored: false, monitorNewItems: 'none' }];
+            const body = await read(
+                'arr://lidarr/monitoring',
+                context([lidarrNamed('flac', settled), lidarrNamed('mp3', 'down')])
+            );
+
+            expect(body).toMatchObject({
+                configured: true,
+                artists: 1,
+                stable: false,
+                degraded: ['lidarr/mp3'],
+                instances: [{ service: 'lidarr/flac', artists: 1, stable: true }]
+            });
+            // The instance that answered is settled, but the one that did not may
+            // be growing the wanted list, so the note must not say it cannot grow.
+            expect(body.note).toBe(
+                'lidarr/mp3 could not be read, which is not the same as its policy being off, so the counts cover ' +
+                    'only the rest and cannot say the wanted list will not grow.'
+            );
+        });
+
+        it('says the policy could not be read when no Lidarr answered', async () => {
+            const body = await read('arr://lidarr/monitoring', context([lidarrNamed('flac', 'down'), lidarrNamed('mp3', 'down')]));
+
+            expect(body).toMatchObject({ configured: true, stable: false, degraded: ['lidarr/flac', 'lidarr/mp3'] });
+            expect(String(body.note)).toContain('could not be read');
+            expect(String(body.note)).toContain('level: "artist" and `instance`');
         });
 
         it('calls a library stable only when no artist will auto-monitor', async () => {

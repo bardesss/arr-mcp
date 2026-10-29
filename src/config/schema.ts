@@ -76,18 +76,20 @@ export type OptionalKeyServiceConfig = z.infer<typeof OptionalKeyServiceSchema>;
  * Which services may appear more than once.
  *
  * Quality tiers are the reason anyone runs two *arrs, and a Bazarr follows each
- * pair because it connects to exactly one of each. The download clients and
+ * pair because it connects to exactly one of each. A Lidarr tier can be, for
+ * example, a lossless library beside a lossy one. The download clients and
  * Prowlarr are here for a different reason: nothing selects them by anything but
  * capability, so a second one is merged into reads and named on writes with no
  * special case.
  *
- * The three left out are refusals, not omissions. `get_library`'s `presence`
- * asks whether the media server can see a file, which has no answer with two of
- * them; and a Seerr request carries a user identity that a second instance
- * makes ambiguous.
+ * The ones left out are refusals, not omissions, and each says why beside its
+ * key in `ServicesSchema`. `get_library`'s `presence` asks whether the media
+ * server can see a file, which has no answer with two of them; and a Seerr
+ * request carries a user identity that a second instance makes ambiguous.
  */
 export const MULTI_INSTANCE: readonly ServiceId[] = [
     'bazarr',
+    'lidarr',
     'nzbget',
     'prowlarr',
     'qbittorrent',
@@ -304,10 +306,11 @@ const ServicesSchema = z
         // Single only: the one deployment that wants two Whisparrs is V2
         // beside V3 (Eros), and Eros is a different API with no adapter.
         whisparr: singleOnly(KeyedServiceSchema).optional(),
-        // Single only: a second Radarr is a quality tier, and music libraries
-        // are rarely split that way. Refusing it fails closed rather than
-        // letting a second instance merge silently into every read.
-        lidarr: singleOnly(KeyedServiceSchema).optional(),
+        // A list, like Radarr: a second Lidarr can be a quality tier too, for
+        // example lossless beside lossy. Reads name the instance a row came
+        // from (`lidarr/flac`), an artist both hold is one row as a film two
+        // Radarrs hold is, and writes refuse to guess between them.
+        lidarr: MultiInstanceServiceSchema.optional(),
         bazarr: MultiInstanceServiceSchema.optional(),
         prowlarr: MultiInstanceServiceSchema.optional(),
         sabnzbd: MultiInstanceServiceSchema.optional(),
