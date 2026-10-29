@@ -63,6 +63,32 @@ describe('ServiceHttp request shaping', () => {
         });
         await client.post('/transmission/rpc', { method: 'session-get' });
     });
+
+    it('leaves the connection header to the runtime by default', async () => {
+        const client = http(async (_input: string, init?: RequestInit) => {
+            expect(new Headers(init?.headers).get('Connection')).toBeNull();
+            return json({});
+        });
+        await client.get('/api/v3/system/status');
+    });
+
+    it('asks for Connection: close on every request when told to, after a failure too', async () => {
+        const seen: (string | null)[] = [];
+        let calls = 0;
+        const client = new ServiceHttp(
+            'nzbget',
+            config,
+            apiKeyHeader('X-Api-Key', 'secret'),
+            (async (_input: string, init?: RequestInit) => {
+                seen.push(new Headers(init?.headers).get('Connection'));
+                return ++calls === 1 ? new Response('', { status: 401 }) : json({});
+            }) as unknown as typeof fetch,
+            { closeConnection: true }
+        );
+        await expect(client.post('/jsonrpc', {})).rejects.toMatchObject({ kind: 'AuthFailed' });
+        await client.get('/jsonrpc');
+        expect(seen).toEqual(['close', 'close']);
+    });
 });
 
 /**
@@ -82,7 +108,7 @@ describe('ServiceHttp api root', () => {
             config,
             apiKeyHeader('X-Api-Key', 'k'),
             (async () => json({})) as typeof fetch,
-            '/api/v1'
+            { apiRoot: '/api/v1' }
         );
         expect(client.apiRoot).toBe('/api/v1');
     });
@@ -99,7 +125,7 @@ describe('ServiceHttp api root', () => {
             config,
             apiKeyHeader('X-Api-Key', 'k'),
             fetchImpl as typeof fetch,
-            '/api/v1'
+            { apiRoot: '/api/v1' }
         );
 
         await readQualityProfiles(v3, 'sonarr');
@@ -121,7 +147,7 @@ describe('ServiceHttp api root', () => {
                 seen.push(String(input));
                 return json({});
             }) as typeof fetch,
-            '/api/v1'
+            { apiRoot: '/api/v1' }
         );
         await client.get('/api/v1/system/status');
         expect(seen[0]).toBe('http://192.168.1.20:7878/api/v1/system/status');

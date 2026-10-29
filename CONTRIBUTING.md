@@ -347,7 +347,7 @@ around them.
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
 5. **Decide whether it can be configured twice**, and say so in the adapter.
-   Seven of the eleven services can be, so this is the common case rather than the
+   Eight of the thirteen services can be, so this is the common case rather than the
    exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
    '<type>'`, which is the *single*-instance shape. That is the safe default
    (a service that simply cannot be configured twice, rather than two adapters
@@ -405,16 +405,16 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Five of the eleven services publish no usable OpenAPI spec, so the adapter
+Six of the thirteen services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
 That also decides what the nightly drift job can watch. `openapi-drift.yml`
-re-fetches the six published specs and regenerates types from them, so it
+re-fetches the seven published specs and regenerates types from them, so it
 catches an upstream change before a user does. A spec-less service has nothing
 to fetch: its contract is the fields declared in `test/contract.test.ts`,
 checked against committed fixtures. That catches us breaking our own adapter,
-and it cannot catch the service changing underneath it. For those five, the
+and it cannot catch the service changing underneath it. For those six, the
 only real drift detector is somebody recapturing fixtures against a live
 instance.
 
@@ -499,9 +499,9 @@ does both and opens a PR when either changes, so **review `specs/` in that
 diff** — the generated files are output, not source, and are not meant to be
 read by hand.
 
-Radarr, Sonarr, Whisparr, Prowlarr, Jellyfin and Seerr are generated. Bazarr, SABnzbd,
-Transmission and qBittorrent publish no usable spec and are hand-written against
-recorded fixtures.
+Radarr, Sonarr, Whisparr, Prowlarr, Jellyfin, Seerr and Profilarr are generated.
+Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent and Plex publish no usable spec
+and are hand-written against recorded fixtures.
 
 ### The nightly compatibility check
 
@@ -514,7 +514,7 @@ mapper. A red run means either; the PR body names the failing entries.
 
 The PR is opened with the default `GITHUB_TOKEN`, which GitHub refuses to let
 trigger other workflows, so it arrives with no status checks. Close and reopen
-it to run CI. The three spec-less services are invisible to this check — only a
+it to run CI. The six spec-less services are invisible to this check — only a
 live call catches their drift.
 
 Two things worth knowing before you touch this:

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "One MCP server for the whole self-hosted media stack: Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Bazarr, Jellyfin, Plex, Seerr, SABnzbd, Transmission, qBittorrent, Profilarr.",
+  "description": "One MCP server for the whole self-hosted media stack: Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Bazarr, Jellyfin, Plex, Seerr, SABnzbd, NZBGet, Transmission, qBittorrent, Profilarr.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bardesss/arr-mcp.git"
@@ -28,7 +28,7 @@
     "screenshots": "node scripts/screenshots.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "^2.1.3",
     "@modelcontextprotocol/hono": "^2.0.1",
     "@modelcontextprotocol/server": "^2.3.1",
     "better-sqlite3": "^13.0.3",

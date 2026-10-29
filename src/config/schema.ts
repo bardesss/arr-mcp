@@ -11,6 +11,7 @@ export const ServiceIdSchema = z.enum([
     'jellyfin',
     'seerr',
     'sabnzbd',
+    'nzbget',
     'transmission',
     'qbittorrent',
     'plex',
@@ -67,6 +68,7 @@ export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
  */
 export const MULTI_INSTANCE: readonly ServiceId[] = [
     'bazarr',
+    'nzbget',
     'prowlarr',
     'qbittorrent',
     'radarr',
@@ -171,10 +173,10 @@ const PlexServiceSchema = z.strictObject({
 export type PlexServiceConfig = z.infer<typeof PlexServiceSchema>;
 
 /**
- * The two torrent clients, neither of which has an API key: Transmission takes
- * HTTP Basic, qBittorrent a login that returns a cookie. Both credential parts
- * are optional because a LAN Transmission is commonly unauthenticated and
- * qBittorrent can bypass auth for localhost.
+ * The services without an API key: Transmission and NZBGet take HTTP Basic,
+ * qBittorrent a login that returns a cookie. Both credential parts are optional
+ * because a LAN Transmission is commonly unauthenticated and qBittorrent can
+ * bypass auth for localhost.
  */
 const CredentialServiceSchema = z.strictObject({
     ...BaseServiceShape,
@@ -238,6 +240,7 @@ export type ConfigByService = {
     bazarr: For<'bazarr', Instanced<KeyedServiceConfig>>;
     prowlarr: For<'prowlarr', Instanced<KeyedServiceConfig>>;
     sabnzbd: For<'sabnzbd', Instanced<KeyedServiceConfig>>;
+    nzbget: For<'nzbget', Instanced<CredentialServiceConfig>>;
     jellyfin: For<'jellyfin', MultiUserServiceConfig>;
     seerr: For<'seerr', MultiUserServiceConfig>;
     plex: For<'plex', PlexServiceConfig>;
@@ -284,6 +287,7 @@ const ServicesSchema = z
         bazarr: MultiInstanceServiceSchema.optional(),
         prowlarr: MultiInstanceServiceSchema.optional(),
         sabnzbd: MultiInstanceServiceSchema.optional(),
+        nzbget: MultiInstanceCredentialSchema.optional(),
         jellyfin: singleOnly(MultiUserServiceSchema).optional(),
         seerr: singleOnly(MultiUserServiceSchema).optional(),
         transmission: MultiInstanceCredentialSchema.optional(),

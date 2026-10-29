@@ -567,16 +567,17 @@ describe('the add dialog', () => {
         await signIn();
         const page = await (await call('/ui/config')).text();
 
-        // The two torrent clients are the services with no API key, and the
-        // only ones with a username and password.
+        // The two torrent clients and NZBGet are the services with no API key,
+        // and the only ones with a username and password.
         const apiKey = /data-only="([^"]*)"[^>]*>\s*<label for="add\.api_key"/.exec(page)?.[1] ?? '';
+        expect(apiKey.split(' ')).not.toContain('nzbget');
         expect(apiKey.split(' ')).not.toContain('transmission');
         expect(apiKey.split(' ')).not.toContain('qbittorrent');
         expect(apiKey.split(' ')).toContain('radarr');
 
         for (const field of ['username', 'password']) {
             const only = new RegExp(`data-only="([^"]*)"[^>]*>\\s*<label for="add\\.${field}"`).exec(page)?.[1];
-            expect(only?.split(' ').sort()).toEqual(['qbittorrent', 'transmission']);
+            expect(only?.split(' ').sort()).toEqual(['nzbget', 'qbittorrent', 'transmission']);
         }
     });
 

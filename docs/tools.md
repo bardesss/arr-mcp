@@ -12,8 +12,8 @@ off until you turn them on — see [writes](writes.md).
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files |
 | `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
-| `get_queue` | What is downloading, across all four download paths |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd and Bazarr did |
+| `get_queue` | What is downloading, across the *arr queues and every download client |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet and Bazarr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included |
 | `get_calendar` | What is due, and what just aired |
@@ -565,6 +565,13 @@ Each Radarr or Sonarr row carries `downloadId`, the download client's own id
 for that grab. It is what `trigger_scan`'s `import` action takes, and it is the
 link between "this is stuck at `importBlocked`" and doing something about it.
 
+NZBGet rows come from its own queue (`listgroups`). Sizes arrive in megabytes
+and are converted to bytes. The ETA is worked out from the current download
+rate and everything ahead in the queue, and a paused item gets none. A row's
+`downloadId` is the `drone` post-processing parameter Radarr and Sonarr attach
+to their grabs, so it matches the *arr row for the same download; a grab
+added by hand falls back to NZBGet's own `NZBID`.
+
 A blocked row also carries `statusMessages`, the service's own reasons, one per
 line and fenced. A file the service rejected leads with its filename. They
 tell a retry apart from a dead end: "Series title mismatch" or an unknown
@@ -597,9 +604,9 @@ has not been run against a live instance; `private` needs 5.0 or later.
 imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
-through it. `get_history` merges Radarr's and Sonarr's own history logs with SABnzbd's and
-Bazarr's, and is the only tool that can answer "why did last night's download
-fail".
+through it. `get_history` merges Radarr's and Sonarr's own history logs with SABnzbd's,
+NZBGet's and Bazarr's, and is the only tool that can answer "why did last
+night's download fail".
 
 Both services' events are normalised to one vocabulary — `grabbed`,
 `imported`, `failed`, `deleted`, `renamed`, `ignored` — because they mostly
@@ -613,7 +620,7 @@ A failure's `reason` comes straight from the download client and is fenced
 like any other untrusted string — it is not translated, and on a non-English
 setup it will not read as English.
 
-### The two services below the *arrs
+### The services below the *arrs
 
 **SABnzbd** contributes its own history: what happened to a download after it
 left the queue, one layer below the *arr that asked for it. When Radarr says it
@@ -622,13 +629,20 @@ the answer, and it is here. Its rows map onto the same vocabulary — `Completed
 becomes `imported`, `Failed` becomes `failed` — and carry the `fail_message`
 as `reason`.
 
+**NZBGet** contributes its history in the same role. Its `Status` is
+`<KIND>/<DETAIL>`: `SUCCESS/*` becomes `imported`, `FAILURE/*` becomes
+`failed` and `DELETED/*` becomes `deleted`. NZBGet keeps no failure message,
+only a status code per post-processing stage, so `reason` is the status plus
+the stages that did not succeed, for example
+`FAILURE/PAR (ParStatus FAILURE)`.
+
 **Bazarr** contributes `subtitle` rows: what it actually downloaded, and from
 which provider (in `quality`, as `language · provider`). It is its own event
 type on purpose — a downloaded subtitle is not an `imported` grab, and calling
 it one would put it in the answer to "what did Radarr import last night".
 
-Both refuse a `service` + `id` scope rather than answering an empty list:
-neither knows what a Radarr movie id or a Sonarr series id means, and an empty
+All three refuse a `service` + `id` scope rather than answering an empty list:
+none of them knows what a Radarr movie id or a Sonarr series id means, and an empty
 answer would read as "nothing ever happened to that film". Bazarr's rows are
 also dropped rather than dated when its timestamp cannot be read — it has
 shipped two different shapes and neither is ISO 8601, and this list is sorted
@@ -1329,7 +1343,7 @@ says plainly that nothing was pulled rather than reporting a completed sync.
 ## `pause_downloads`
 
 The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
-download client — SABnzbd, Transmission or qBittorrent — or one item in its
+download client — SABnzbd, NZBGet, Transmission or qBittorrent — or one item in its
 queue when `id` is given.
 
 `action: "limit"` throttles instead of stopping: `speed_limit_kbps` is the cap
@@ -1338,7 +1352,8 @@ in KB/s, and `0` removes it. Always client-wide, never per item.
 Each client speaks a different unit, and the wrong one throttles a stack to
 nothing — SABnzbd reads a bare number as a *percentage* of the configured line
 speed, qBittorrent wants bytes per second, Transmission wants KB/s behind an
-enable flag it keeps separately. The tool boundary is KB/s and each adapter
+enable flag it keeps separately, and NZBGet's `rate` takes KB/s while its
+`status` reports the limit in bytes per second. The tool boundary is KB/s and each adapter
 converts at its own edge. Clearing on Transmission zeroes the number as well as
 the flag, so a stale cap cannot come back the next time anything enables it.
 
@@ -1357,7 +1372,7 @@ enabling `safe_write` on SABnzbd quietly enabled it on Transmission too.
 Pausing everything is one call per client.
 
 Already-paused is a no-op, with no token and no confirmation prompt. Only
-SABnzbd publishes a client-wide paused flag; for the two torrent clients
+SABnzbd and NZBGet publish a client-wide paused flag; for the two torrent clients
 "paused" means every torrent is stopped, and a client holding no torrents at
 all reads as *not* paused — nothing to pause is a different state from
 everything paused, and treating them alike would refuse a legitimate call.

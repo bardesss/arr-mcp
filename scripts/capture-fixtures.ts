@@ -16,6 +16,7 @@ import { loadConfig } from '../src/config/load.ts';
 import type { Config, ServiceId } from '../src/config/schema.ts';
 import {
     apiKeyHeader,
+    basicAuth,
     embyToken,
     plexToken,
     qbittorrentSession,
@@ -43,6 +44,9 @@ import {
     anonymisePlexHistory,
     anonymisePlexIdentity,
     anonymisePlexSections,
+    anonymiseNzbgetHealth,
+    anonymiseNzbgetRows,
+    anonymiseNzbgetStatus,
     createAccountIdMapper,
     hostsInAuthorityPosition,
     hostsOf,
@@ -900,6 +904,33 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'queue', path: '/api?mode=queue&output=json' },
         { name: 'server-stats', path: '/api?mode=server_stats&output=json' }
     ],
+    nzbget: [
+        { name: 'version', path: '/jsonrpc', body: { jsonrpc: '2.0', method: 'version', params: [], id: 1 } },
+        {
+            name: 'status',
+            path: '/jsonrpc',
+            body: { jsonrpc: '2.0', method: 'status', params: [], id: 2 },
+            anonymise: anonymiseNzbgetStatus
+        },
+        {
+            name: 'queue',
+            path: '/jsonrpc',
+            body: { jsonrpc: '2.0', method: 'listgroups', params: [0], id: 3 },
+            anonymise: anonymiseNzbgetRows
+        },
+        {
+            name: 'history',
+            path: '/jsonrpc',
+            body: { jsonrpc: '2.0', method: 'history', params: [false], id: 4 },
+            anonymise: anonymiseNzbgetRows
+        },
+        {
+            name: 'systemhealth',
+            path: '/jsonrpc',
+            body: { jsonrpc: '2.0', method: 'systemhealth', params: [], id: 5 },
+            anonymise: anonymiseNzbgetHealth
+        }
+    ],
     transmission: [{ name: 'session-get', path: '/transmission/rpc', body: { method: 'session-get' } }],
     qbittorrent: [
         { name: 'version', path: '/api/v2/app/version', text: true, anonymise: body => ({ version: body }) },
@@ -1101,6 +1132,13 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
 };
 
 function strategyFor(id: ServiceId, service: NonNullable<Config['services'][ServiceId]>): AuthStrategy {
+    if (id === 'nzbget') {
+        const n = service as { username?: string; password?: string };
+        return basicAuth({
+            ...(n.username === undefined ? {} : { username: n.username }),
+            ...(n.password === undefined ? {} : { password: n.password })
+        });
+    }
     if (id === 'transmission') {
         const t = service as { username?: string; password?: string };
         return transmissionRpc({

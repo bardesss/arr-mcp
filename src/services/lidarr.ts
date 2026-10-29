@@ -123,7 +123,9 @@ export class LidarrAdapter
     readonly #libraryCache = new TtlCache();
 
     constructor(config: ConfigByService['lidarr'], fetchImpl: typeof fetch = fetch) {
-        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl, '/api/v1');
+        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl, {
+            apiRoot: '/api/v1'
+        });
     }
 
     async getVersion(): Promise<string> {

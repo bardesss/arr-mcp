@@ -6,7 +6,7 @@
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-**Radarr · Sonarr · Whisparr · Lidarr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · Transmission · qBittorrent · Profilarr**
+**Radarr · Sonarr · Whisparr · Lidarr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · NZBGet · Transmission · qBittorrent · Profilarr**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
@@ -108,7 +108,7 @@ username and a password of at least 12 characters.
 > page first owns the instance — and it holds every service's API key.
 
 **3. Add your services** — **Add a service**, paste its URL and API key (for Plex,
-its `X-Plex-Token`; for Transmission and qBittorrent, its username and password), save. It applies immediately; there is
+its `X-Plex-Token`; for NZBGet, Transmission and qBittorrent, its username and password), save. It applies immediately; there is
 no restart. Configure only what you run. A config file that will not parse no
 longer takes the container down: arr-mcp serves a repair page with the error and
 an editor instead.
@@ -166,7 +166,7 @@ Thirty-eight tools, but you never name them — you ask, and the model picks:
 | --- | --- |
 | **[Tools](docs/tools.md)** | All thirty-nine, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
-| **[Configuration](docs/configuration.md)** | `config.yaml`, the seven services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
+| **[Configuration](docs/configuration.md)** | `config.yaml`, the eight services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
 | **[Management API](docs/api.md)** | JSON API for companion apps to see and manage services, settings and tokens, with a key you generate on the config page |
 | **[IMDb ratings](docs/imdb.md)** | The only way to get an IMDb score for a series, and what it costs |
@@ -177,7 +177,7 @@ Thirty-eight tools, but you never name them — you ask, and the model picks:
 
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server 1.32+,
-  Seerr 1.0+, SABnzbd 3.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+
+  Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+
 - Lidarr 2.1.3+ for reading and for monitoring: `get_library` lists its artists
   with their album count, monitoring and file state, `get_media_details` lists an
   artist's albums, and `set_monitoring` writes one album's flag or an artist's
@@ -211,7 +211,9 @@ included, and its metadata repair has since repaired both films and series on a
 live server ([#312](../../issues/312)); Lidarr's media-server music reads were
 captured by a volunteer against Jellyfin 12.4.0 and Plex Media Server 1.43.5;
 [qBittorrent](../../issues/147) has shipped but still waits on the same kind of
-report. [The design behind Plex, and what else is on the
+report. The maintainer does not run NZBGet either: its adapter was tested by its
+contributor against live NZBGet 21.0 and 26.3 ([#391](../../pull/391)). [The
+design behind Plex, and what else is on the
 list](CONTRIBUTING.md#what-would-be-accepted-today).
 
 **AI-assisted contributions are welcome**, held to the same bar and no other;
@@ -246,7 +248,7 @@ speaks to is free software maintained largely by volunteers — [Radarr](https:/
 [Prowlarr](https://prowlarr.com),
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
-[Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
+[NZBGet](https://nzbget.com), [Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
 [Profilarr](https://github.com/Dictionarry-Hub/profilarr) — as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),

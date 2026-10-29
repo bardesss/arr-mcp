@@ -61,6 +61,7 @@ export class ServiceHttp {
     readonly #timeoutMs: number;
     readonly #auth: AuthStrategy;
     readonly #fetch: typeof fetch;
+    readonly #closeConnection: boolean;
 
     /**
      * The API version segment this service's resources live under, `/api/v3`
@@ -81,12 +82,20 @@ export class ServiceHttp {
     #consecutiveFailures = 0;
     #openedAt: number | undefined;
 
+    /**
+     * `opts.closeConnection` sends `Connection: close` on every request, for a
+     * server that cannot be trusted with a reused socket. NZBGet's
+     * WebServer.cpp answers a 401 before reading the POST body but keeps the
+     * connection open, so the next request on that socket fails.
+     *
+     * `opts.apiRoot` overrides the API version segment above; see `apiRoot`.
+     */
     constructor(
         id: string,
         config: BaseServiceConfig,
         auth: AuthStrategy,
         fetchImpl: typeof fetch = fetch,
-        apiRoot = '/api/v3'
+        opts: { apiRoot?: string; closeConnection?: boolean } = {}
     ) {
         this.#id = id;
         this.#baseUrl = config.url;
@@ -94,7 +103,8 @@ export class ServiceHttp {
         this.#timeoutMs = config.timeout_ms;
         this.#auth = auth;
         this.#fetch = fetchImpl;
-        this.apiRoot = apiRoot;
+        this.apiRoot = opts.apiRoot ?? '/api/v3';
+        this.#closeConnection = opts.closeConnection === true;
     }
 
     /**
@@ -282,6 +292,7 @@ export class ServiceHttp {
         const headers = new Headers({ Accept: read === 'text' ? '*/*' : 'application/json' });
         const encoded = body === undefined ? undefined : encodeBody(body);
         if (encoded !== undefined) headers.set('content-type', encoded.contentType);
+        if (this.#closeConnection) headers.set('Connection', 'close');
 
         // Before the strategy, so a service's own Authorization header wins.
         const basic = takeUserinfo(url);
