@@ -204,7 +204,9 @@ and reporting what worked. [Plex](../../issues/180) has since been verified
 against two live Plex Media Servers by two volunteer testers, its first write
 included, and its metadata repair has since repaired both films and series on a
 live server ([#312](../../issues/312)); [qBittorrent](../../issues/147) has shipped but still waits on the
-same kind of report. [The design behind Plex, and what else is on the
+same kind of report. The maintainer does not run NZBGet either: its adapter was
+tested by its contributor against live NZBGet 21.0 and 26.3
+([#391](../../pull/391)). [The design behind Plex, and what else is on the
 list](CONTRIBUTING.md#what-would-be-accepted-today).
 
 **AI-assisted contributions are welcome**, held to the same bar and no other;
@@ -239,7 +241,7 @@ speaks to is free software maintained largely by volunteers — [Radarr](https:/
 [Prowlarr](https://prowlarr.com),
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
-[Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
+[NZBGet](https://nzbget.com), [Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
 [Profilarr](https://github.com/Dictionarry-Hub/profilarr) — as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),
