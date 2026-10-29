@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import type { ServiceInstance } from '../../config/instances.ts';
 import { logger } from '../../core/logger.ts';
 import { nextStepLine, stepsField, type NextStep } from '../../core/nextStep.ts';
+import { ARR_NAMES } from '../../core/resolver.ts';
 import { fixableOn } from '../fixProfile.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 import {
@@ -84,12 +85,10 @@ function profileIssueLine(issue: ProfileIssue): string {
     return `${where}${profile} — ${issue.kind} (${issue.confidence}): ${issue.detail}`;
 }
 
-const ARR_NAMES: Record<ArrServiceType, string> = { radarr: 'Radarr', sonarr: 'Sonarr', whisparr: 'Whisparr' };
-
 /** Profilarr's API reports how many profiles it syncs per arr, not which, so
  *  a remedy cannot tell a synced profile from one made in the arr. */
 const profileOwner = (service: ArrServiceType): string =>
-    `In Profilarr if it syncs this profile, otherwise in ${ARR_NAMES[service]}`;
+    `In Profilarr if it syncs this profile, otherwise in ${ARR_NAMES[service] ?? service}`;
 
 const isArrAdapter =(a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
     (a.type === 'radarr' || a.type === 'sonarr' || a.type === 'whisparr') && hasProfileDiagnostics(a);
