@@ -74,8 +74,9 @@ const BROUGHT_IN: Readonly<Record<ArtistMonitorNewItems, string>> = {
  * marked limited, or was not asked for because the previous run started over
  * 14 days ago. Before 3.1.5.5066 it goes by age only when the list is marked
  * limited, and after such a gap refreshes no artist at all
- * (`RefreshArtistService`). So the preview says so, and an applied switch
- * offers `trigger_scan` on the artist, which refreshes it now.
+ * (`RefreshArtistService`). The preview gives only the outcome (the rules are
+ * in `docs/tools.md`), and an applied switch offers `trigger_scan` on the
+ * artist, which refreshes it now.
  */
 function metadataProfileEffect(
     from: string,
@@ -83,7 +84,7 @@ function metadataProfileEffect(
     rule: ArtistMonitorNewItems | undefined,
     offered: boolean
 ): string {
-    const head = `Switches the metadata profile from ${from} to ${to.display} (id ${to.id}). Lidarr applies it at the artist's next refresh, which this does not start and which may not come until the artist changes upstream: Lidarr's daily refresh takes only the artists its metadata server lists as changed, and goes by age (an active artist two days after its last refresh, an ended one 30 days after, or 12 hours after when its newest album came out in the last 30 days or is still to come) only when that list is empty or marked limited, or the previous run started over 14 days ago (before Lidarr 3.1.5.5066, only when the list is marked limited). trigger_scan with the artist's \`id\` refreshes it now${offered ? ', and is offered once this is applied' : '; it is not offered here, since it also rescans the root folders: run it once the files are in the new root folder'}.`;
+    const head = `Switches the metadata profile from ${from} to ${to.display} (id ${to.id}). Lidarr applies it at the artist's next refresh, which this does not start and which may not come until the artist changes upstream; trigger_scan with its \`id\` refreshes it now${offered ? ', and is offered once this is applied' : ', but is not offered here, since it also rescans the root folders: run it once the files are in the new root folder'}.`;
     if (to.name === NO_ALBUMS_PROFILE) {
         return `${head} None lists no albums for the artist, so that refresh removes every album without files that was not added by hand, and switching back later brings them in again as new albums, flagged by \`monitor_new_items\` rather than as they are now.`;
     }
@@ -320,7 +321,7 @@ export function registerUpdateMedia(
                 .string()
                 .optional()
                 .describe(
-                    'Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start and which may not come until the artist changes upstream; trigger_scan with the artist’s `id` refreshes it now. A name that matches none is refused, listing the ones the instance has.'
+                    'Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.'
                 ),
             tags: z
                 .array(z.string())

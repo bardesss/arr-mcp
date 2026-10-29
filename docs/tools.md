@@ -2891,8 +2891,9 @@ flagged by the artist's `monitor_new_items` rule, and Lidarr then searches the
 released ones while the artist is monitored (in Lidarr newer than 3.2.0.5144,
 only those released in the last 180 days). It searches at the rescan after that
 refresh, or at the next disk scan when Lidarr's "Rescan Artist Folder after
-Refresh" setting skips that rescan. The preview says all of this. An unknown
-name is refused, listing the instance's metadata profiles.
+Refresh" setting skips that rescan. The preview says all of this, apart from how
+Lidarr picks the artists its daily refresh takes. An unknown name is refused,
+listing the instance's metadata profiles.
 
 `monitored` is the artist's own flag: the albums keep theirs, which
 `set_monitoring` with `level: "album"` changes, and the rule for new albums,

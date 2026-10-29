@@ -270,12 +270,11 @@ describe('update_media on Lidarr', () => {
         const first = await call({ service: 'lidarr', id: '101', metadata_profile: 'None' });
         const said = first.structuredContent.effects.join(' ');
         expect(said).toContain(
-            "which this does not start and which may not come until the artist changes upstream: Lidarr's daily refresh takes only the artists its metadata server lists as changed"
+            "Lidarr applies it at the artist's next refresh, which this does not start and which may not come until the artist changes upstream; trigger_scan with its `id` refreshes it now, and is offered once this is applied."
         );
-        expect(said).toContain(
-            'or 12 hours after when its newest album came out in the last 30 days or is still to come) only when that list is empty or marked limited, or the previous run started over 14 days ago (before Lidarr 3.1.5.5066, only when the list is marked limited).'
-        );
-        expect(said).toContain("trigger_scan with the artist's `id` refreshes it now, and is offered once this is applied.");
+        // The outcome only: how Lidarr picks the artists is in docs/tools.md.
+        expect(said).not.toContain('metadata server');
+        expect(said).not.toContain('3.1.5.5066');
 
         const done = await call({ service: 'lidarr', id: '101', metadata_profile: 'None', confirm: first.structuredContent.confirm_token });
         expect(done.structuredContent.next_steps).toEqual([
@@ -311,7 +310,7 @@ describe('update_media on Lidarr', () => {
         const args = { service: 'lidarr', id: '101', metadata_profile: 'None', root_folder: '/data/music', move_files: false };
         const first = await call(args);
         expect(first.structuredContent.effects.join(' ')).toContain(
-            "trigger_scan with the artist's `id` refreshes it now; it is not offered here, since it also rescans the root folders: run it once the files are in the new root folder."
+            "trigger_scan with its `id` refreshes it now, but is not offered here, since it also rescans the root folders: run it once the files are in the new root folder."
         );
         const done = await call({ ...args, confirm: first.structuredContent.confirm_token });
         expect(done.structuredContent.next_steps).toBeUndefined();
