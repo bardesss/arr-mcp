@@ -240,7 +240,7 @@ describe('a download that has not finished', () => {
         const err = await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc').catch((e: unknown) => e);
         expect(err).toMatchObject({
             message: expect.stringMatching(/has a warning in the download client/),
-            remedy: expect.stringMatching(/`errorMessage`, and any `statusMessages`, say why.*often finishes later/)
+            remedy: expect.stringMatching(/get_queue at `detail: "full"` shows that row's `errorMessage`, and any `statusMessages`, which say why.*often finishes later/)
         });
         expect((err as { remedy: string }).remedy).not.toMatch(/remove_queue_item/);
         expect(s.sent.some(x => x.method === 'POST')).toBe(false);

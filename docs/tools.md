@@ -2018,7 +2018,8 @@ Outcomes that look alike and are not:
   torrent often finishes later, though not every warning will (a qBittorrent
   magnet with DHT off waits there for good), so it is named as a warning and the
   remedy points at the row's `errorMessage`, the client's own reason, and any
-  `statusMessages` in `get_queue`.
+  `statusMessages`, in `get_queue` at `detail: "full"` (`standard` leaves
+  `errorMessage` out).
 - **Anything else** that is not `completed` (`unknown`,
   `downloadClientUnavailable`, `fallback`) is reported only as not completed,
   with no claim about what the client is doing.

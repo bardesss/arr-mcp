@@ -148,10 +148,11 @@ const IN_PROGRESS = new Set(['queued', 'paused', 'delay', 'downloading']);
  * stopped: the clients map a stalled torrent and missing files to it
  * (`QBittorrent`, `TransmissionBase`, Lidarr 3.1.0), and a stalled torrent
  * often finishes later. Not every warning will: a qBittorrent magnet with DHT
- * off waits there for good. So it is named as a warning, and the remedy is the
- * row's own reason, which the client gives in the queue row's `errorMessage`
- * (`QueueService`). Anything else (`unknown`, `downloadClientUnavailable`,
- * `fallback`) says only what is known: the queue does not report it completed.
+ * off waits there for good. So it is named as a warning, and the remedy points
+ * at the row's own reason, which the client gives in the queue row's
+ * `errorMessage` (`QueueService`) and `get_queue` shows at `detail: "full"`.
+ * Anything else (`unknown`, `downloadClientUnavailable`, `fallback`) says only
+ * what is known: the queue does not report it completed.
  */
 function notFinished(service: string, downloadId: string, row: QueueItem, why: string, cause?: unknown): ServiceError {
     const status = row.status.toLowerCase();
@@ -165,7 +166,7 @@ function notFinished(service: string, downloadId: string, row: QueueItem, why: s
     }
     if (status === 'warning') {
         return new ServiceError('UpstreamError', service, `download ${downloadId} has a warning in the download client`, {
-            remedy: `get_queue reports it as ${state}, not completed, so there is nothing to import yet. That row's \`errorMessage\`, and any \`statusMessages\`, say why when the client gave a reason. A stalled torrent often finishes later, so waiting may be enough; otherwise fix it in the download client and try again.`,
+            remedy: `get_queue reports it as ${state}, not completed, so there is nothing to import yet. get_queue at \`detail: "full"\` shows that row's \`errorMessage\`, and any \`statusMessages\`, which say why when the client gave a reason. A stalled torrent often finishes later, so waiting may be enough; otherwise fix it in the download client and try again.`,
             ...opts
         });
     }
