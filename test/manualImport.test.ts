@@ -249,20 +249,19 @@ describe('a download that has not finished', () => {
         const s = stack(500, [{ ...RUNNING_ROW, status: 'failed', trackedDownloadState: 'downloading' }]);
         await expect(new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc')).rejects.toMatchObject({
             message: expect.stringMatching(/is failed in the download client/),
-            remedy: expect.stringMatching(/remove_queue_item removes it; or fix it in the download client/)
+            remedy: expect.stringMatching(/remove_queue_item/)
         });
         expect(s.sent.some(x => x.method === 'POST')).toBe(false);
     });
 
-    // A failed download with a grab record is failed, blocklisted and dropped
-    // from the queue by the service itself; one still listed has no record, so
-    // `blocklist: true` would do nothing (and fail from Sonarr 5.0.0.2569).
-    it('offers no blocklist for a failed download, with or without a film behind it', async () => {
-        for (const movieId of [15, undefined]) {
-            const s = stack(500, [{ ...RUNNING_ROW, status: 'failed', movieId }]);
-            const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc').catch((e: unknown) => e)) as { remedy?: string };
-            expect(err.remedy).not.toContain('blocklist');
-        }
+    // Until the service's next queue refresh (about a minute) a failed row with a
+    // grab record is still listed, and blocklisting it is right; without a record
+    // remove_queue_item's preview says it blocklists nothing. So the hint stays,
+    // without promising a replacement.
+    it('offers a blocklist for a bad release without promising another one', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'failed' }]);
+        const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc').catch((e: unknown) => e)) as { remedy?: string };
+        expect(err.remedy).toContain('remove_queue_item removes it, with `blocklist: true` if the release itself is bad; or fix it in the download client and try again.');
     });
 
     /** `warning` is usually a stalled torrent, which often finishes later: stuck, not stopped. */

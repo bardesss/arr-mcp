@@ -97,7 +97,8 @@ const LIDARR_QUEUE = {
             downloadId: 'nzo-91',
             size: 1000,
             sizeleft: 900,
-            artistId: 3
+            artistId: 3,
+            albumId: 5
         }
     ]
 };
@@ -473,7 +474,7 @@ function harness(
     const radarr = recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE });
     const sonarr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
     const whisparr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
-    const lidarr = recordingFetch({ '/api/v1/queue': LIDARR_QUEUE });
+    const lidarr = recordingFetch({ '/api/v1/queue': LIDARR_QUEUE, '/api/v1/history': { records: [{ eventType: 'grabbed', downloadId: 'nzo-91' }] } });
 
     const adapters = opts.adapters ?? [
         new RadarrAdapter(keyed(7878), radarr.impl),
@@ -751,17 +752,44 @@ describe('remove_queue_item', () => {
         expect(structuredContent.effects.join(' ')).toContain('has no blocklist of its own');
     });
 
-    // The four blocklist a grab through its history, which goes with the film,
-    // series or artist: an orphaned row blocklists nothing, so its request says
-    // `blocklist=false`.
-    it('blocklists nothing for an orphaned row, and sends blocklist=false', async () => {
-        const h = harness(registerRemoveQueueItem);
+    // A row Radarr still has its film for, and the grab record its blocklist goes through.
+    const KNOWN = { ...ARR_QUEUE.records[0], movieId: 412, downloadId: 'nzo-91' };
+    const GRABBED = { records: [{ eventType: 'grabbed', downloadId: 'nzo-91' }] };
+    const HISTORY_READ = '?downloadId=nzo-91&eventType=1&page=1&pageSize=50&sortKey=date&sortDirection=descending';
+    const radarrWith = (routes: Record<string, unknown>) => {
+        const radarr = recordingFetch(routes);
+        const h = harness(registerRemoveQueueItem, { adapters: [new RadarrAdapter(keyed(7878), radarr.impl)], permissions: { radarr: tiered(false, true) } });
+        return { h, radarr, reads: () => radarr.sent.filter(s => s.path === '/api/v3/history') };
+    };
+    const KEPT_ALONE = 'Nothing was changed: a torrent keeps seeding, and the row stays. To delete the download too, leave out remove_from_client.';
+    const ORPHAN_REFUSAL = `radarr not found: radarr matched nothing in its library to this download, so it cannot leave the download alone and drop the row — ${KEPT_ALONE}`;
+    const ORPHAN = { ...KNOWN, movieId: undefined };
+
+    // The four blocklist a download through its grab record, which usually goes
+    // with the film, series or artist. An orphaned row is read all the same.
+    it('reads an orphaned row\'s grab record too, and sends blocklist=false without one', async () => {
+        const { h, radarr, reads } = radarrWith({ '/api/v3/queue': { records: [ORPHAN] }, '/api/v3/history': { records: [] } });
         const first = await h.call({ service: 'radarr', id: '91', blocklist: true });
-        const said = first.structuredContent.effects.join(' ');
-        expect(said).toContain('Not blocklisted: radarr has no record of this grab.');
-        expect(said).not.toContain('Blocklists this release');
+        expect(first.structuredContent.effects).toEqual([
+            'Removes it from radarr and deletes any partial data already downloaded.',
+            'Not blocklisted: radarr lists no grab of this download.'
+        ]);
         await h.call({ service: 'radarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
-        expect(h.radarr.sent.filter(s => s.method === 'DELETE').map(s => s.search)).toEqual(['?removeFromClient=true&blocklist=false']);
+        expect(reads().map(s => s.search)).toEqual([HISTORY_READ, HISTORY_READ]);
+        expect(radarr.sent.filter(s => s.method === 'DELETE').map(s => s.search)).toEqual(['?removeFromClient=true&blocklist=false']);
+    });
+
+    // A grab the service could not map back to its film keeps its record. Failed
+    // by the blocklist, the download is not tracked again, so it can stay.
+    it('blocklists an orphaned row that still has its grab record, and keeps its download when asked', async () => {
+        const { h, radarr } = radarrWith({ '/api/v3/queue': { records: [ORPHAN] }, '/api/v3/history': GRABBED });
+        const first = await h.call({ service: 'radarr', id: '91', blocklist: true, remove_from_client: false });
+        expect(first.structuredContent.effects).toEqual([
+            "Removes it from radarr's queue but leaves the download itself alone.",
+            'Blocklists this release (remove_blocklist_item undoes it); radarr may still delete it from the client, and search for a replacement.'
+        ]);
+        await h.call({ service: 'radarr', id: '91', blocklist: true, remove_from_client: false, confirm: first.structuredContent.confirm_token });
+        expect(radarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=false&blocklist=true');
     });
 
     // With nothing to record an ignore against, the row would only be untracked until the next refresh.
@@ -771,68 +799,208 @@ describe('remove_queue_item', () => {
             for (const dry_run of [false, true]) {
                 await expect(h.call({ service: 'radarr', id: '91', remove_from_client: false, blocklist, dry_run })).rejects.toMatchObject({
                     kind: 'NotFound',
-                    message:
-                        'radarr not found: nothing in radarr is behind this download, so it cannot leave the download alone: the row would be back at the next refresh — Leave out remove_from_client, or remove it in the download client.'
+                    message: ORPHAN_REFUSAL
                 });
             }
         }
         expect(h.radarr.sent.filter(s => s.method === 'DELETE')).toEqual([]);
+        // With a download id the record is read first; without one there is nothing to blocklist.
+        const { h: read, radarr, reads } = radarrWith({ '/api/v3/queue': { records: [ORPHAN] }, '/api/v3/history': { records: [] } });
+        await expect(read.call({ service: 'radarr', id: '91', remove_from_client: false, blocklist: true })).rejects.toMatchObject({ message: ORPHAN_REFUSAL });
+        expect(reads().map(s => s.search)).toEqual([HISTORY_READ]);
+        expect(radarr.sent.filter(s => s.method === 'DELETE')).toEqual([]);
     });
 
-    it('blocklists nothing for a Lidarr row whose artist is gone', async () => {
-        const lidarr = recordingFetch({ '/api/v1/queue': { records: [{ ...LIDARR_QUEUE.records[0], artistId: undefined }] } });
+    // Lidarr also needs the row's albums to ignore a download (`IgnoredDownloadService`).
+    it('refuses to keep a Lidarr download whose row names no album, and keeps one that does', async () => {
+        for (const albumId of [null, undefined]) {
+            const lidarr = recordingFetch({ '/api/v1/queue': { records: [{ ...LIDARR_QUEUE.records[0], albumId }] } });
+            const h = harness(registerRemoveQueueItem, { adapters: [new LidarrAdapter(keyed(8686), lidarr.impl)], permissions: { lidarr: tiered(false, true) } });
+            await expect(h.call({ service: 'lidarr', id: '91', remove_from_client: false, dry_run: true })).rejects.toMatchObject({
+                kind: 'NotFound',
+                message: `lidarr not found: lidarr matched no album to this download, so it cannot leave the download alone and drop the row — ${KEPT_ALONE}`
+            });
+            expect(lidarr.sent.filter(s => s.method === 'DELETE')).toEqual([]);
+        }
+        const h = harness(registerRemoveQueueItem);
+        const first = await h.call({ service: 'lidarr', id: '91', remove_from_client: false });
+        expect(first.structuredContent.effects).toEqual(["Removes it from lidarr's queue but leaves the download itself alone."]);
+        await h.call({ service: 'lidarr', id: '91', remove_from_client: false, confirm: first.structuredContent.confirm_token });
+        expect(h.lidarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=false&blocklist=false');
+        // Blocklisted, a row with no album is failed rather than ignored, so it can be kept.
+        const lidarr = recordingFetch({ '/api/v1/queue': { records: [{ ...LIDARR_QUEUE.records[0], albumId: null }] }, '/api/v1/history': GRABBED });
+        const hb = harness(registerRemoveQueueItem, { adapters: [new LidarrAdapter(keyed(8686), lidarr.impl)], permissions: { lidarr: tiered(false, true) } });
+        const kept = await hb.call({ service: 'lidarr', id: '91', remove_from_client: false, blocklist: true });
+        expect(kept.structuredContent.effects[1]).toBe('Blocklists this release (remove_blocklist_item undoes it); lidarr may still delete it from the client, and search for a replacement.');
+        await hb.call({ service: 'lidarr', id: '91', remove_from_client: false, blocklist: true, confirm: kept.structuredContent.confirm_token });
+        expect(lidarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=false&blocklist=true');
+    });
+
+    it('blocklists nothing for a Lidarr row whose artist is gone and whose grab record went with it', async () => {
+        const lidarr = recordingFetch({ '/api/v1/queue': { records: [{ ...LIDARR_QUEUE.records[0], artistId: undefined }] }, '/api/v1/history': { records: [] } });
         const h = harness(registerRemoveQueueItem, { adapters: [new LidarrAdapter(keyed(8686), lidarr.impl)], permissions: { lidarr: tiered(false, true) } });
         const first = await h.call({ service: 'lidarr', id: '91', blocklist: true });
-        expect(first.structuredContent.effects.join(' ')).toContain('Not blocklisted: lidarr has no record of this grab.');
+        expect(first.structuredContent.effects.join(' ')).toContain('Not blocklisted: lidarr lists no grab of this download.');
         await h.call({ service: 'lidarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
         expect(lidarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=true&blocklist=false');
+        expect(lidarr.sent.filter(s => s.path === '/api/v1/history').map(s => s.search)).toEqual([HISTORY_READ, HISTORY_READ]);
     });
 
-    it('says a blocklist needs the record of the grab, and that it can start a search for a replacement', async () => {
-        const radarr = recordingFetch({ '/api/v3/queue': { records: [{ ...ARR_QUEUE.records[0], movieId: 412 }] } });
-        const h = harness(registerRemoveQueueItem, { adapters: [new RadarrAdapter(keyed(7878), radarr.impl)], permissions: { radarr: tiered(false, true) } });
+    // Without the record Radarr blocklists nothing, and from Sonarr 5.0.0.2569 the
+    // DELETE fails after removing the download. Each plan reads the record once.
+    it('blocklists a tracked row only when its service has the grab record, on all four', async () => {
+        const cases = [
+            { service: 'radarr', root: '/api/v3', make: (f: typeof fetch) => new RadarrAdapter(keyed(7878), f), row: KNOWN },
+            {
+                service: 'sonarr',
+                root: '/api/v3',
+                make: (f: typeof fetch) => new SonarrAdapter(keyed(8989), f),
+                row: { id: 91, title: 'Some.Show.S01E01-GROUP', status: 'downloading', seriesId: 7, downloadId: 'nzo-91' }
+            },
+            {
+                service: 'whisparr',
+                root: '/api/v3',
+                make: (f: typeof fetch) => new WhisparrAdapter(keyed(6969), f),
+                row: { id: 91, title: 'Scene.1.1080p.WEB-DL.x264-GROUP', status: 'downloading', seriesId: 7, downloadId: 'nzo-91' }
+            },
+            { service: 'lidarr', root: '/api/v1', make: (f: typeof fetch) => new LidarrAdapter(keyed(8686), f), row: LIDARR_QUEUE.records[0] }
+        ];
+        for (const c of cases) {
+            for (const recorded of [true, false]) {
+                const service = recordingFetch({ [`${c.root}/queue`]: { records: [c.row] }, [`${c.root}/history`]: recorded ? GRABBED : { records: [] } });
+                const h = harness(registerRemoveQueueItem, { adapters: [c.make(service.impl)], permissions: { [c.service]: tiered(false, true) } });
+                const first = await h.call({ service: c.service, id: '91', blocklist: true });
+                expect(first.structuredContent.effects[1]).toBe(
+                    recorded
+                        ? `Blocklists this release (remove_blocklist_item undoes it); ${c.service} may also search for a replacement.`
+                        : `Not blocklisted: ${c.service} lists no grab of this download.`
+                );
+                await h.call({ service: c.service, id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
+                expect(service.sent.filter(s => s.path === `${c.root}/history`).map(s => s.search)).toEqual([HISTORY_READ, HISTORY_READ]);
+                expect(service.sent.find(s => s.method === 'DELETE')?.search).toBe(`?removeFromClient=true&blocklist=${String(recorded)}`);
+            }
+        }
+    });
+
+    // Only a grab of this very download counts. An answer that lists other
+    // downloads was not filtered, so it is not read as no record.
+    it('counts only a grab of this very download, and refuses an answer that lists other downloads', async () => {
+        const same = [{ eventType: 'downloadFailed', downloadId: 'nzo-91' }, null];
+        const without = recordingFetch({ '/api/v3/history': { records: same } });
+        expect(await new RadarrAdapter(keyed(7878), without.impl).grabRecorded('nzo-91')).toBe(false);
+        const withIt = recordingFetch({ '/api/v1/history': { records: [...same, ...GRABBED.records] } });
+        expect(await new LidarrAdapter(keyed(8686), withIt.impl).grabRecorded('nzo-91')).toBe(true);
+        for (const other of [{ eventType: 'grabbed', downloadId: 'nzo-9' }, { eventType: 'grabbed' }]) {
+            const unfiltered = recordingFetch({ '/api/v3/history': { records: [other, ...GRABBED.records] } });
+            await expect(new SonarrAdapter(keyed(8989), unfiltered.impl).grabRecorded('nzo-91')).rejects.toMatchObject({
+                kind: 'UpstreamError',
+                message:
+                    'sonarr upstream error: its history was not filtered to download nzo-91, so whether that grab is recorded is unknown — Leave out blocklist to remove it without one.'
+            });
+        }
+    });
+
+    // The token covers the blocklist the preview resolved: a record that has gone since needs a new preview.
+    it('rejects a confirm once the grab record has changed since the preview', async () => {
+        const routes: Record<string, unknown> = { '/api/v3/queue': { records: [KNOWN] }, '/api/v3/history': GRABBED };
+        const { h, radarr } = radarrWith(routes);
         const first = await h.call({ service: 'radarr', id: '91', blocklist: true });
-        expect(first.structuredContent.effects.join(' ')).toContain(
-            'Blocklists this release if radarr has its record of the grab; with its Redownload Failed setting on (the default) it also searches for a replacement. remove_blocklist_item undoes the blocklist.'
-        );
-        await h.call({ service: 'radarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
-        expect(radarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=true&blocklist=true');
+        routes['/api/v3/history'] = { records: [] };
+        const again = await h.call({ service: 'radarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
+        expect(again.structuredContent.confirm_error).toBeDefined();
+        expect(again.structuredContent.effects[1]).toBe('Not blocklisted: radarr lists no grab of this download.');
+        expect(radarr.sent.filter(s => s.method === 'DELETE')).toEqual([]);
     });
 
-    // A row with its film can be kept in the client, but a blocklist marks it failed, and Radarr's
-    // Remove Failed then deletes it; without the grab record the row comes back instead.
-    it('keeps a known row\'s download when asked, saying what a blocklist does to it either way', async () => {
-        const radarr = recordingFetch({ '/api/v3/queue': { records: [{ ...ARR_QUEUE.records[0], movieId: 412 }] } });
-        const h = harness(registerRemoveQueueItem, { adapters: [new RadarrAdapter(keyed(7878), radarr.impl)], permissions: { radarr: tiered(false, true) } });
+    // The service skips the filter for an empty id, so there is nothing to ask it.
+    it('blocklists nothing for a row with no download id, or an empty one, reading no history', async () => {
+        for (const downloadId of [undefined, ' ']) {
+            const { h, radarr, reads } = radarrWith({ '/api/v3/queue': { records: [{ ...ARR_QUEUE.records[0], movieId: 412, downloadId }] } });
+            const first = await h.call({ service: 'radarr', id: '91', blocklist: true });
+            expect(first.structuredContent.effects[1]).toBe('Not blocklisted: radarr lists no grab of this download.');
+            await h.call({ service: 'radarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
+            expect(radarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=true&blocklist=false');
+            expect(reads()).toEqual([]);
+        }
+    });
+
+    // The read comes before the refusal, so an unfiltered answer is what an orphaned row kept with a blocklist meets first.
+    it('fails the preview on an unfiltered answer before refusing to keep an orphaned row', async () => {
+        const { h, radarr } = radarrWith({ '/api/v3/queue': { records: [ORPHAN] }, '/api/v3/history': { records: [{ eventType: 'grabbed', downloadId: 'nzo-9' }] } });
+        await expect(h.call({ service: 'radarr', id: '91', blocklist: true, remove_from_client: false })).rejects.toMatchObject({
+            kind: 'UpstreamError',
+            message: expect.stringContaining('radarr upstream error: its history was not filtered to download nzo-91')
+        });
+        expect(radarr.sent.filter(s => s.method === 'DELETE')).toEqual([]);
+    });
+
+    it('fails the preview when the grab record cannot be read, rather than guess either way', async () => {
+        const { h, radarr } = radarrWith({ '/api/v3/queue': { records: [KNOWN] } });
+        await expect(h.call({ service: 'radarr', id: '91', blocklist: true })).rejects.toMatchObject({ kind: 'NotFound', message: expect.stringContaining('radarr not found: HTTP 404 at /api/v3/history') });
+        expect(radarr.sent.map(s => s.path)).toEqual(['/api/v3/queue', '/api/v3/history']);
+    });
+
+    // A blocklist marks the download failed, and Radarr's Remove Failed may then delete it after all.
+    it('keeps a known row\'s download when asked, and says a blocklist may delete it after all', async () => {
+        const { h, radarr } = radarrWith({ '/api/v3/queue': { records: [KNOWN] }, '/api/v3/history': GRABBED });
         const first = await h.call({ service: 'radarr', id: '91', blocklist: true, remove_from_client: false });
-        const said = first.structuredContent.effects.join(' ');
-        expect(said).toContain("Removes it from radarr's queue without asking the download client to delete it.");
-        expect(said).not.toContain('leaves the download itself alone');
-        expect(said).toContain(
-            "With the record, radarr also deletes it from the download client if that client's Remove Failed setting is on (the default); without one, nothing is blocklisted and the row is back at the next refresh."
-        );
+        expect(first.structuredContent.effects).toEqual([
+            "Removes it from radarr's queue but leaves the download itself alone.",
+            'Blocklists this release (remove_blocklist_item undoes it); radarr may still delete it from the client, and search for a replacement.'
+        ]);
         await h.call({ service: 'radarr', id: '91', blocklist: true, remove_from_client: false, confirm: first.structuredContent.confirm_token });
         expect(radarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=false&blocklist=true');
     });
 
+    // Sent with `blocklist=false`, the DELETE ignores the download instead, which keeps it out of the queue.
+    it('keeps a known row without its grab record by ignoring it, not blocklisting it', async () => {
+        const { h, radarr } = radarrWith({ '/api/v3/queue': { records: [KNOWN] }, '/api/v3/history': { records: [] } });
+        const first = await h.call({ service: 'radarr', id: '91', blocklist: true, remove_from_client: false });
+        expect(first.structuredContent.effects).toEqual([
+            "Removes it from radarr's queue but leaves the download itself alone.",
+            'Not blocklisted: radarr lists no grab of this download.'
+        ]);
+        await h.call({ service: 'radarr', id: '91', blocklist: true, remove_from_client: false, confirm: first.structuredContent.confirm_token });
+        expect(radarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=false&blocklist=false');
+    });
+
+    it('reads no history when no blocklist is asked for', async () => {
+        const { h, radarr, reads } = radarrWith({ '/api/v3/queue': { records: [KNOWN] }, '/api/v3/history': GRABBED });
+        for (const remove_from_client of [true, false]) {
+            const first = await h.call({ service: 'radarr', id: '91', remove_from_client });
+            await h.call({ service: 'radarr', id: '91', remove_from_client, confirm: first.structuredContent.confirm_token });
+        }
+        expect(reads()).toEqual([]);
+        expect(radarr.sent.filter(s => s.method === 'DELETE').map(s => s.search)).toEqual([
+            '?removeFromClient=true&blocklist=false',
+            '?removeFromClient=false&blocklist=false'
+        ]);
+    });
+
     // A release the service is holding back is blocklisted directly: no grab yet, and no search after.
-    it('blocklists a pending release without the grab or replacement caveats, and says nothing was sent to a client', async () => {
+    it('blocklists a pending release without reading history, and says nothing was sent to a client', async () => {
         for (const status of ['delay', 'downloadClientUnavailable', 'fallback']) {
-            const radarr = recordingFetch({ '/api/v3/queue': { records: [{ ...ARR_QUEUE.records[0], status, movieId: 412 }] } });
-            const h = harness(registerRemoveQueueItem, { adapters: [new RadarrAdapter(keyed(7878), radarr.impl)], permissions: { radarr: tiered(false, true) } });
+            const { h, radarr, reads } = radarrWith({ '/api/v3/queue': { records: [{ ...ARR_QUEUE.records[0], status, movieId: 412 }] } });
             const first = await h.call({ service: 'radarr', id: '91', blocklist: true });
             expect(first.structuredContent.effects).toEqual([
                 'Drops this pending release from radarr; nothing has gone to a download client yet.',
-                'Blocklists this release so it will not be grabbed again. remove_blocklist_item undoes the blocklist.'
+                'Blocklists this release (remove_blocklist_item undoes it).'
             ]);
             await h.call({ service: 'radarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
             expect(radarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=true&blocklist=true');
+            expect(reads()).toEqual([]);
         }
         // Lidarr sends the reason through FirstCharToLower, an album row as its own shape.
         const lidarr = recordingFetch({ '/api/v1/queue': { records: [{ ...LIDARR_QUEUE.records[0], status: 'delay' }] } });
         const h = harness(registerRemoveQueueItem, { adapters: [new LidarrAdapter(keyed(8686), lidarr.impl)], permissions: { lidarr: tiered(false, true) } });
         const first = await h.call({ service: 'lidarr', id: '91', blocklist: true });
-        expect(first.structuredContent.effects[0]).toBe('Drops this pending release from lidarr; nothing has gone to a download client yet.');
+        expect(first.structuredContent.effects).toEqual([
+            'Drops this pending release from lidarr; nothing has gone to a download client yet.',
+            'Blocklists this release (remove_blocklist_item undoes it).'
+        ]);
+        await h.call({ service: 'lidarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
+        expect(lidarr.sent.find(s => s.method === 'DELETE')?.search).toBe('?removeFromClient=true&blocklist=true');
+        expect(lidarr.sent.filter(s => s.path === '/api/v1/history')).toEqual([]);
     });
 
     it('records the instance in the audit target, not the bare service', async () => {

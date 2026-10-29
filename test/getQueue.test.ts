@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, CredentialServiceConfig } from '../src/config/schema.ts';
 import { parseTimeleft } from '../src/services/arrQueue.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { parseSabTimeleft, SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
@@ -227,6 +228,25 @@ describe('unknown queue items', () => {
         expect(item).not.toHaveProperty('mediaId');
     });
 
+    // Lidarr ignores a download only with its albums, so remove_queue_item has to know a row names none.
+    it('marks a Lidarr row that names an artist and no album, and no other row', async () => {
+        const { impl } = recording([
+            { id: 1, title: 'Some.Artist-First-FLAC-2024-GROUP', status: 'completed', artistId: 3, albumId: 5 },
+            { id: 2, title: 'Some.Artist-First-FLAC-2024-GROUP', status: 'completed', artistId: 3, albumId: null },
+            { id: 3, title: 'Some.Artist-First-FLAC-2024-GROUP', status: 'completed', artistId: 3 },
+            { id: 4, title: 'Some.Artist-First-FLAC-2024-GROUP', status: 'completed' }
+        ]);
+        const items = await new LidarrAdapter(keyed(8686), impl).getQueue();
+        expect(items.map(i => [i.noAlbum, i.orphaned])).toEqual([
+            [undefined, undefined],
+            [true, undefined],
+            [true, undefined],
+            [undefined, true]
+        ]);
+        const [film] = await new RadarrAdapter(keyed(7878), recording([{ id: 1, title: 'Heat', status: 'completed', movieId: 15 }]).impl).getQueue();
+        expect(film).not.toHaveProperty('noAlbum');
+    });
+
     // Shapes from Sonarr's CompletedDownloadService: a whole-download warning
     // titled with the release, per-file rejections titled with the filename,
     // and a bare title with no messages.
@@ -328,6 +348,15 @@ describe('get_queue', () => {
             const { items } = await buildGetQueue([adapter], { detail, limit: 50 });
             expect(items).toHaveLength(1);
             for (const item of items) expect(item).not.toHaveProperty('torrent');
+        }
+    });
+
+    it('never returns the internal no-album mark, at any detail level', async () => {
+        const impl = (async () => jsonResponse({ records: [{ id: 2, title: 'Some.Artist-First-FLAC-2024-GROUP', status: 'completed', artistId: 3 }], totalRecords: 1 })) as unknown as typeof fetch;
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const { items } = await buildGetQueue([new LidarrAdapter(keyed(8686), impl)], { detail, limit: 50 });
+            expect(items).toHaveLength(1);
+            for (const item of items) expect(item).not.toHaveProperty('noAlbum');
         }
     });
 

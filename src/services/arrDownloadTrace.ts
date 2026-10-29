@@ -1,3 +1,4 @@
+import { ServiceError } from '../core/errors.ts';
 import { fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrHistoryScope } from './arrRecord.ts';
@@ -16,7 +17,7 @@ type RawTraceRecord = {
 type Page = { records?: RawTraceRecord[] };
 
 const PAGE = 'page=1&pageSize=50&sortKey=date&sortDirection=descending';
-// The `eventType` filter value for a grab, the same in both services.
+// The `eventType` filter value for a grab, the same in Radarr, Sonarr, Whisparr and Lidarr.
 const GRABBED_CODE = 1;
 
 const time = (date: string | undefined): number => (date === undefined ? Number.NaN : Date.parse(date));
@@ -100,4 +101,29 @@ export async function traceArrDownload(
             imported
         }
     };
+}
+
+/**
+ * Whether the service has a `grabbed` record for this download id: what
+ * `FailedDownloadService.MarkAsFailed` looks up (`Find(downloadId, Grabbed)`)
+ * before it blocklists a download, in Radarr 6.4.4, Sonarr 4.0.20, Whisparr
+ * 2.2.0 and Lidarr 3.1.6 alike. One request, filtered by the service on both
+ * the id and the event (Radarr 4.0 reads the two as `key=value` filters), and
+ * both checked again here. A row for another download means the filter was not
+ * applied, so the newest page says nothing about this one: that is refused
+ * rather than read as no record. Sonarr's and Whisparr's history list also
+ * joins the episode, which `Find` does not, so a grab whose episode was deleted
+ * reads as none until housekeeping drops it.
+ */
+export async function arrGrabRecorded(http: ServiceHttp, service: string, downloadId: string): Promise<boolean> {
+    const page = await http.get<{ records?: (RawTraceRecord | null)[] }>(
+        `${http.apiRoot}/history?downloadId=${encodeURIComponent(downloadId)}&eventType=${GRABBED_CODE}&${PAGE}`
+    );
+    const records = (page.records ?? []).filter((r): r is RawTraceRecord => r !== null);
+    if (records.some(r => r.downloadId !== downloadId)) {
+        throw new ServiceError('UpstreamError', service, `its history was not filtered to download ${downloadId}, so whether that grab is recorded is unknown`, {
+            remedy: 'Leave out blocklist to remove it without one.'
+        });
+    }
+    return records.some(r => r.eventType === 'grabbed');
 }

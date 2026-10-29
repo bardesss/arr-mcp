@@ -137,6 +137,7 @@ describe('LidarrAdapter', () => {
             'getQueue',
             'getScanState',
             'getVersion',
+            'grabRecorded',
             'grabRelease',
             'invalidateLibrary',
             'listArtistMonitorPolicies',

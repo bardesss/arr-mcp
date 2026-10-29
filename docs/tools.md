@@ -1823,7 +1823,8 @@ When the service sorts newest first, it reads only the newest rows the window ne
 `remove_blocklist_item` withdraws one refusal, so the release can be grabbed
 again. Safe tier: nothing on disk changes, and the inverse already exists —
 `remove_queue_item`'s `blocklist: true` puts a release back on the list, on
-Radarr, Sonarr, Whisparr and Lidarr alike.
+Radarr, Sonarr, Whisparr and Lidarr alike. [`remove_queue_item`](#remove_queue_item)
+says when it does not.
 
 Its preview reads the live blocklist first, and that is not a courtesy. Both
 services answer a `DELETE` of a blocklist id that **does not exist** with
@@ -1831,34 +1832,56 @@ success — probed against a live Radarr and a live Sonarr — so a stale id
 would otherwise be reported as removed when nothing had happened. It is the
 same trap `remove_queue_item` documents, and it is checked the same way.
 
-`remove_queue_item` blocklists on Radarr, Sonarr, Whisparr and Lidarr in one of
-two ways. A release the service is only holding back (status `delay`,
-`downloadClientUnavailable` or `fallback`) has not gone to a download client:
-the service drops it, whatever `remove_from_client` says, and blocklists it
-directly (`BlocklistService.Block`). Any other row is marked failed
-(`FailedDownloadService.MarkAsFailed`), which works only from the service's
-`grabbed` history for that download. A download the service did not grab has
-none. `HistoryService` deletes that history with the film, series or artist, and
-housekeeping drops it when an episode or album is gone though its series or
-artist is not. Without it nothing is blocklisted, and a download kept in the
-client with `remove_from_client: false` is back in the queue at the next
-refresh; from Sonarr 5.0.0.2569 the request fails instead, after removing the
-download if `remove_from_client` asked for that. With it, the download is marked
-failed, and the service then also deletes it from the client when that client's
-Remove Failed setting is on (`DownloadEventHub`; on by default), so
-`remove_from_client: false` does not reliably keep a blocklisted download. A row
-`get_queue` marks `orphaned` never has that history, so its preview says it is
-not blocklisted and its request sends `blocklist=false`. Its download cannot be
-kept in the client either: the service ignores a download only with a film,
-series or artist (on Lidarr, also its albums) to record it against
-(`IgnoredDownloadService`), so `remove_from_client: false` is refused there. A
-Lidarr row with an artist but no album cannot be ignored either, and is not
-refused. With the service's Redownload Failed setting on
-(`autoRedownloadFailed`, on by default; "Redownload" in Radarr 4.0), marking a
-download failed also starts a search for a replacement, unless the grab came
-from an interactive search and Redownload Failed from Interactive Search is off
-(`RedownloadFailedDownloadService`; Radarr 6.4.4, Sonarr 4.0.20, Whisparr 2.2.0,
-Lidarr 3.1.6).
+## `remove_queue_item`
+
+On Radarr, Sonarr, Whisparr and Lidarr, `blocklist: true` works in one of two
+ways (Radarr 6.4.4, Sonarr 4.0.20, Whisparr 2.2.0, Lidarr 3.1.6). A release the
+service is only holding back (status `delay`, `downloadClientUnavailable` or
+`fallback`) has not gone to a download client: the service drops it, whatever
+`remove_from_client` says, and blocklists it directly
+(`BlocklistService.Block`), with no search after.
+
+Any other row is marked failed (`FailedDownloadService.MarkAsFailed`), which
+works only from the service's `grabbed` history for that download. A download
+added to the client by hand has none. `HistoryService` (`EntityHistoryService`
+on Lidarr) deletes it with the film, series or artist, and housekeeping drops it
+when an episode or album is gone though its series or artist is not. Without it
+nothing is blocklisted, and from Sonarr 5.0.0.2569 the request fails, after
+removing the download if `remove_from_client` asked for that. So for
+`blocklist: true` the preview first reads that history, one request. Sonarr's
+and Whisparr's history list also joins the episode, which their own lookup does
+not, so a grab whose episode was deleted reads as none there until housekeeping
+drops it. With no record the preview says the release is not blocklisted, and
+the request sends `blocklist=false`. With one, marking the download failed also
+has the service delete it from the client when that client's Remove Failed
+setting is on (`DownloadEventHub`; on by default), so
+`remove_from_client: false` does not reliably keep a blocklisted download. With
+the service's Redownload Failed setting on (`autoRedownloadFailed`, on by
+default; "Redownload" in Radarr 4.0), it also starts a search for a replacement,
+unless the grab came from an interactive search and Redownload Failed from
+Interactive Search is off (`RedownloadFailedDownloadService`).
+
+Without a blocklist, `remove_from_client: false` keeps a download only if the
+service can ignore it, and it ignores a download only with a film, series or
+artist to record that against, on Lidarr also an album
+(`IgnoredDownloadService`). Otherwise it only stops tracking the download, which
+is back in the queue at the next refresh. A blocklisted download is marked
+failed instead, and not tracked again. So `remove_from_client: false` is refused
+for a row `get_queue` marks `orphaned`, and for a Lidarr row with no album,
+unless the release is blocklisted. The refusal changes nothing, so a torrent
+keeps seeding.
+
+**Unverified live** (Radarr): the grab-record read behind `blocklist: true`, read from Radarr's source.
+
+**Unverified live** (Sonarr): the same read, from Sonarr's source.
+
+**Unverified live** (Whisparr): the same read, from Whisparr's source.
+
+**Unverified live** (qBittorrent): removing a torrent, with or without its files.
+
+**Unverified live** (Shelfmark): cancelling a Prowlarr row.
+
+**Unverified live** (Grimmory): discarding a Bookdrop file.
 
 ## `manage_indexer`
 
