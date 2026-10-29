@@ -1442,11 +1442,6 @@ export const hasLibrary = (a: ServiceAdapter): a is ServiceAdapter & LibraryCapa
     typeof (a as Partial<LibraryCapable>).listLibrary === 'function';
 
 /**
- * Separate from LibraryCapable because Jellyfin's half is per-user:
- * watch state does not exist without a user, and a shared signature would let
- * a caller forget to supply one.
- */
-/**
  * A media server's music half.
  *
  * Separate from `UserLibraryCapable` so one failing read degrades by name in a
@@ -1460,6 +1455,11 @@ export interface UserMusicCapable {
 export const hasUserMusic = (a: ServiceAdapter): a is ServiceAdapter & UserMusicCapable =>
     typeof (a as Partial<UserMusicCapable>).listUserMusic === 'function';
 
+/**
+ * Separate from LibraryCapable because Jellyfin's half is per-user:
+ * watch state does not exist without a user, and a shared signature would let
+ * a caller forget to supply one.
+ */
 export interface UserLibraryCapable {
     listUserLibrary(user: ServiceUser): Promise<IndexInput[]>;
 }

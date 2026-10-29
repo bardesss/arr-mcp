@@ -2,7 +2,8 @@ import type { ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
-import { filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../../core/resolver.ts';
+import { artistRefusal, filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../../core/resolver.ts';
+import { unfenced } from '../../core/titleMatch.ts';
 import {
     hasIndexers,
     hasMediaDetails,
@@ -105,6 +106,13 @@ async function resolveItem(
             return undefined;
         }
 
+        // An artist reached by id, which the film chain has no answer for.
+        // Without this the artist row failed `isFilmOrSeries` and fell through
+        // to a synthesised `kind: 'movie'` item carrying Lidarr acquisition,
+        // which the chain then checked against Radarr's queue and indexers.
+        // The query path refuses the same case in `filmOrSeriesMatch`.
+        if (details.kind === 'artist') throw artistRefusal(unfenced(details.title));
+
         // Jellyfin's MediaDetails never says 'movie' or 'series' — it is the
         // one adapter that reports `kind: 'item'` for everything. Passing a
         // *wrong* kind to `find` is worse than passing none: it restricts the
@@ -114,9 +122,6 @@ async function resolveItem(
         // does for every caller that does not know the kind in advance.
         const searchKind = details.kind === 'movie' || details.kind === 'series' ? details.kind : undefined;
         const joined = snapshot.index.find(details.ids, searchKind);
-        // An artist is indexed under its MusicBrainz GUID, so a media-server id
-        // can never reach one. The predicate is here to say that out loud to
-        // the compiler, not because the case is reachable.
         if (joined !== undefined && isFilmOrSeries(joined)) return joined;
 
         // The id was valid and the index does not contain it — a real state,
@@ -126,9 +131,9 @@ async function resolveItem(
         //
         // `searchKind` (not a fresh coercion) decides the synthesised kind
         // too: for Radarr/Sonarr it is the kind they actually reported. A
-        // media-server 'item' and a Lidarr 'artist' both leave no signal to
-        // disambiguate, and this chain reads films and series, so 'movie' is
-        // the least-committal default.
+        // media-server 'item' leaves no signal to disambiguate, and this chain
+        // reads films and series, so 'movie' is the least-committal default.
+        // An 'artist' never reaches here — it was refused above.
         //
         // A media server contributes watch state and never acquisition, so it
         // is the capability that decides the shape, not the service's name —

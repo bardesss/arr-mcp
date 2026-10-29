@@ -324,10 +324,15 @@ MusicBrainz artist id — the one id both Jellyfin and Plex publish for an artis
 An artist carries **no** rating and no item-level quality, so `min_rating`,
 `rating_source`, `sort: "rating"` and `quality` are refused when `kind:
 "artist"` names the question. Without a kind they drop artists, which is what an
-absent field means everywhere else here. Two exceptions are worth knowing:
-`watched: false` **keeps** them, because an artist has no watch state and so
-counts as unwatched, and `sort: "added"` works, because Lidarr reports an added
-date for an artist where it reports none for an album.
+absent field means everywhere else here. `watched` and `watched_by` drop
+artists the same way, because no music watch state is read: left in, an artist
+counts as unwatched and `watched: false` answers with the whole music
+collection. With `kind: "artist"` named, they are refused instead. `sort:
+"added"` works, because Lidarr reports an added date for an artist.
+
+The media server's music read runs only when a Lidarr is configured. With no
+Lidarr there is no artist row to join to, so the read would only add every
+artist the server holds as `jellyfin_only`.
 
 **Album ids are one call down.** `get_media_details` on an artist returns its
 `albums`, each with the Lidarr album `id` that `set_monitoring` takes with `level:

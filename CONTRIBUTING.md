@@ -232,11 +232,14 @@ small, shaped change, and a service in no slot at all is a different product.
   same GUID on an album artist and Plex on an artist in a music section, so the
   join works — and it is namespaced by kind, so an MBID can never collide with
   the integer spaces. `get_media_details` answers for an artist. `diagnose` and
-  `fix_metadata` still read the film and series chain, and name
-  `get_library`'s `kind: "artist"` when a query matches an artist rather than
-  reporting it as absent. The music read is its own source in a
+  `fix_metadata` still read the film and series chain, and refuse an artist —
+  by query or by Lidarr id — naming `get_media_details` with `detail: "full"`
+  for the albums and `get_library`'s `kind: "artist"` for the artist list,
+  rather than reporting it as absent. The music read is its own source in a
   library build, so a failed or absent one reports `unknown` presence rather than
-  claiming every artist is `arr_only`.
+  claiming every artist is `arr_only`. It runs only when a Lidarr is configured:
+  with no artist row to join to, it would add the whole music collection as
+  `jellyfin_only`.
 
   **What its API does not say out loud.** Three media levels, so `resource:
   'movie' | 'series'` in the shared `arr*.ts` helpers does not apply. Two

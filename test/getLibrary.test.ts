@@ -13,6 +13,10 @@ import { serving } from './helpers/serve.ts';
 const stub = (id: 'radarr' | 'sonarr' | 'lidarr', items: IndexInput[]): ServiceAdapter =>
     ({
         id,
+        // Real adapters set `type` alongside `id`, and the music read is gated
+        // on a configured Lidarr, so a double without one is a double of
+        // nothing this code runs against.
+        type: id,
         testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
         getVersion: async () => '1.0.0',
         listLibrary: async () => items
@@ -960,11 +964,18 @@ describe('music from Lidarr', () => {
         expect(result.items[0]?.presence).toBe('arr_only');
     });
 
-    it('reports an artist under watched: false, because it has no watch state', async () => {
-        // Documented, not accidental: an artist has no playback watch state, and
-        // this filter treats absent playback as unwatched for films too.
-        const result = await buildGetLibrary(musicLoader([artist()]), { ...base, watched: false });
+    it('leaves an artist out of watched: false, because it has no watch state', async () => {
+        // Left in, every artist counts as unwatched and the answer to "what
+        // have I not watched" becomes the whole music collection. The film
+        // stays, which is what makes this a filter rather than an empty list.
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), { ...base, watched: false });
 
-        expect(result.items.map(i => i.kind)).toEqual(['artist']);
+        expect(result.items.map(i => i.kind)).toEqual(['movie']);
+    });
+
+    it('leaves an artist out of watched_by too, since no music watch state is read', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), { ...base, watched_by: 'Someone' });
+
+        expect(result.items.map(i => i.kind)).toEqual(['movie']);
     });
 });

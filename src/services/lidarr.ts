@@ -75,12 +75,6 @@ const yearOf = (releaseDate: string | null | undefined): number | undefined => {
 };
 
 /**
- * The album's own MusicBrainz id, and the only external id Lidarr reports.
- * Nothing is invented as a fallback: the internal `id` is Lidarr's, and
- * publishing it as an external id would let an album fuse with a film that
- * happens to carry the same integer.
- */
-/**
  * The artist's MusicBrainz id, which `ArtistResource.foreignArtistId` holds.
  *
  * This is the whole reason an artist is the row: Jellyfin and Plex both expose
@@ -91,6 +85,15 @@ const yearOf = (releaseDate: string | null | undefined): number | undefined => {
 const artistIds = (artist: RawArtist): IndexInput['ids'] =>
     artist.foreignArtistId === undefined || artist.foreignArtistId === '' ? {} : { mbid: artist.foreignArtistId };
 
+/**
+ * The album's own MusicBrainz id, and the only external id Lidarr reports.
+ * Nothing is invented as a fallback: the internal `id` is Lidarr's, and
+ * publishing it as an external id would let an album fuse with a film that
+ * happens to carry the same integer.
+ */
+const albumMbId = (album: RawAlbum): { mbid?: string } =>
+    album.foreignAlbumId === undefined || album.foreignAlbumId === '' ? {} : { mbid: album.foreignAlbumId };
+
 /** Any track on disk, which is what `has_file` means for a series too. */
 const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCount ?? 0) > 0;
 
@@ -100,11 +103,12 @@ const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCo
  * `CONTRIBUTING.md` lists the API traps for the adapter that adds the next
  * write, and the endpoints still waiting on a library with real activity.
  *
- * An album is the row rather than a track or an artist, for the reason Radarr
- * and Sonarr row on a film and a series: it is the level Lidarr reports
- * monitoring, file state and a release date at, and it is the level a person
- * asks about. The artist name rides along on the row, so an artist-level
- * question is a filter rather than a second kind.
+ * An artist is the row rather than a track or an album, for the reason Radarr
+ * and Sonarr row on a film and a series: it is the level a person asks about,
+ * it is what joins to a media server on the MusicBrainz artist id, and Lidarr
+ * reports its monitoring, file state and add date. The albums are one call
+ * down, under `getMediaDetails`, so the library stays 1,600 rows rather than
+ * 36,000.
  */
 export class LidarrAdapter
     implements ServiceAdapter, LibraryCapable, SearchCapable, MonitoringCapable, MonitorStateCapable, ArtistMonitorCapable
@@ -259,9 +263,7 @@ export class LidarrAdapter
                           ...(album.albumType === undefined ? {} : { albumType: album.albumType }),
                           monitored: album.monitored ?? false,
                           hasFile: hasAnyTrack(album),
-                          ...(album.foreignAlbumId === undefined || album.foreignAlbumId === ''
-                              ? {}
-                              : { mbid: album.foreignAlbumId })
+                          ...albumMbId(album)
                       })),
                       albumsTruncated: albums.length > opts.episodeLimit
                   }

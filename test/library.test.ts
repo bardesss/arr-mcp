@@ -31,6 +31,9 @@ const watched = (tmdb: number, user: string): IndexInput => ({
 const stub = (id: ServiceAdapter['id'], extra: Record<string, unknown>): ServiceAdapter =>
     ({
         id,
+        // As every real adapter does; the music read is gated on a configured
+        // Lidarr, which this is how the loader recognises.
+        type: id.split('/')[0],
         testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
         getVersion: async () => '1.0.0',
         ...extra
@@ -492,6 +495,21 @@ describe('a secondary media server', () => {
         const neverAsked = await load(undefined);
         expect(neverAsked.index.find({ mbid: 'mb-1' })?.media_servers).toEqual({});
         expect(neverAsked.index.find({ mbid: 'mb-1' })?.presence).toBe('unknown');
+    });
+
+    it('does not read the media server music half without a Lidarr', async () => {
+        // With no Lidarr there is no artist row to join to, so the music read
+        // would only add every artist the server holds as `jellyfin_only` —
+        // the whole music collection answering "what does no *arr manage?".
+        const listUserMusic = vi.fn(async () => []);
+        const snapshot = await new LibraryLoader(
+            [radarr(), stub('jellyfin', { listUserLibrary: async () => [], listUserMusic })],
+            identity(someone)
+        ).load();
+
+        expect(listUserMusic).not.toHaveBeenCalled();
+        expect(snapshot.counts['jellyfin:music']).toBeUndefined();
+        expect(snapshot.degraded).toEqual([]);
     });
 
     it('marks what each server has, with its own item id', async () => {

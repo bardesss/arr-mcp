@@ -251,6 +251,18 @@ export const isFilmOrSeries = (item: MergedItem): item is FilmOrSeries =>
     item.kind === 'movie' || item.kind === 'series';
 
 /**
+ * The refusal for an artist that reached a film-and-series reader.
+ *
+ * Names the route that holds the albums: `get_media_details` on the Lidarr
+ * artist, which is where an album id comes from. A pointer to `get_library`
+ * alone sent a caller after an album id no library row carries.
+ */
+export const artistRefusal = (name: string): Error =>
+    new Error(
+        `"${name}" is a Lidarr artist, and this tool reads the film and series chain. For its albums and their ids, use get_media_details with service: "lidarr", the artist id and detail: "full". get_library with kind: "artist" lists artists with their album count, profile and file state.`
+    );
+
+/**
  * The best match among films and series, for the readers whose question is
  * about that chain: `get_media_details`, `fix_metadata` and `diagnose`.
  *
@@ -263,11 +275,7 @@ export const isFilmOrSeries = (item: MergedItem): item is FilmOrSeries =>
 export function filmOrSeriesMatch(hits: readonly MergedItem[], query: string): FilmOrSeries | undefined {
     const best = hits.find(isFilmOrSeries) ?? hits[0];
     if (best === undefined) return undefined;
-    if (!isFilmOrSeries(best)) {
-        throw new Error(
-            `"${query}" matched a Lidarr artist, and this tool reads the film and series chain. Use get_library with kind: "artist" — it lists artists with their album count, profile and file state.`
-        );
-    }
+    if (!isFilmOrSeries(best)) throw artistRefusal(query);
     return best;
 }
 

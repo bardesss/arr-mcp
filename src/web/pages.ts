@@ -617,16 +617,6 @@ export function logTable(rows: LogRow[]): SafeHtml {
 }
 
 /**
- * The recorded arguments, as fields rather than as the blob they are stored as.
- *
- * `args` is JSON in one database column, and printing it into a cell put a
- * whole object on one line beside six other columns — the single thing that
- * made this page unreadable at any width.
- *
- * A row that does not parse is shown verbatim rather than dropped. This is a
- * log: something unexpected in it is a reason to display it, not to hide it.
- */
-/**
  * One recorded argument, kept short enough to read.
  *
  * A bulk write names every id it touched: `set_monitoring` on all artists of a
@@ -645,6 +635,16 @@ function argValue(value: unknown): string {
     return `${text.slice(0, ARG_TEXT_LIMIT)}…`;
 }
 
+/**
+ * The recorded arguments, as fields rather than as the blob they are stored as.
+ *
+ * `args` is JSON in one database column, and printing it into a cell put a
+ * whole object on one line beside six other columns — the single thing that
+ * made this page unreadable at any width.
+ *
+ * A row that does not parse is shown verbatim rather than dropped. This is a
+ * log: something unexpected in it is a reason to display it, not to hide it.
+ */
 function argFields(args: string): SafeHtml {
     let parsed: unknown;
     try {

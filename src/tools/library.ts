@@ -226,7 +226,14 @@ export class LibraryLoader {
         // Music is its own source for the same reason, and one more: a failed
         // music read must not report every artist as `arr_only`, which is what
         // sharing `playbackGathered` would do.
-        const music = this.#adapters.filter(hasUserMusic).find(isPrimary);
+        //
+        // Only with a Lidarr: without one there is no artist row to join to,
+        // so the media server's whole music collection would arrive as
+        // `jellyfin_only`. That inflates the summary and answers "what does no
+        // *arr manage?" with every artist the server holds.
+        const music = this.#adapters.some(a => a.type === 'lidarr')
+            ? this.#adapters.filter(hasUserMusic).find(isPrimary)
+            : undefined;
         if (music !== undefined) {
             sources.push({
                 id: `${music.id}:music`,
