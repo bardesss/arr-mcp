@@ -79,7 +79,7 @@ describe('get_media_details on a title the library lacks', () => {
         const s = stack(async () => {
             throw new Error('radarr down');
         });
-        expect(await ask(s, 'The Matrix')).toBe('Nothing in your library matches "The Matrix". The metadata lookup could not reach radarr; lookup_media can try again.');
+        expect(await ask(s, 'The Matrix')).toBe('Nothing in your library matches "The Matrix". The metadata lookup could not reach radarr; search_media `source: "discover"` can try again.');
     });
 
     it('does not look anything up when the title is in the library', async () => {

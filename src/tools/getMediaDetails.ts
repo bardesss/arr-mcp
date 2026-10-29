@@ -13,8 +13,7 @@ import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasMediaDetails, type CleanupStatus, type EpisodeSummary, type MediaDetails, type SearchHit, type ServiceAdapter } from '../services/types.ts';
 import { removalSentence, upcomingSentence, withCleanup } from './cleanupStatus.ts';
 import type { LibraryLoader } from './library.ts';
-import { buildLookupMedia } from './lookupMedia.ts';
-import { searchLine } from './searchMedia.ts';
+import { buildSearchMedia, searchLine } from './searchMedia.ts';
 import { withBoth } from './mediaServers.ts';
 import { withoutDisplay } from '../core/display.ts';
 import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
@@ -54,7 +53,7 @@ export async function buildGetMediaDetails(
  *
  * Only here, on both forms, and only for one item. It costs an HTTP call per
  * title, so it has no business on a path that returns a page of them —
- * `lookup_media` uses the `voteAverage` Seerr already puts in its search
+ * `search_media` with `source: "discover"` uses the `voteAverage` Seerr already puts in its search
  * payload instead.
  *
  * Worth the call here because this is the "tell me everything about this one
@@ -65,16 +64,33 @@ export async function buildGetMediaDetails(
 async function withSeerrRatings<T extends { kind: string; ids: { tmdb?: number }; ratings?: Record<string, number> }>(
     adapters: readonly ServiceAdapter[],
     details: T
-): Promise<T> {
+): Promise<T & { seerrBlocklisted?: true }> {
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
     const tmdb = details.ids.tmdb;
     if (seerr === undefined || tmdb === undefined) return details;
 
     const kind = details.kind === 'series' ? 'series' : 'movie';
-    const extra = await seerr.getRatings(tmdb, kind);
+    const [extra, blocklisted] = await Promise.all([seerr.getRatings(tmdb, kind), blocklistedIn(seerr, tmdb, details.kind)]);
 
     const merged = { ...extra, ...details.ratings };
-    return Object.keys(merged).length === 0 ? details : { ...details, ratings: merged };
+    const rated = Object.keys(merged).length === 0 ? details : { ...details, ratings: merged };
+    return blocklisted ? { ...rated, seerrBlocklisted: true } : rated;
+}
+
+/**
+ * Whether Seerr refuses requests for this film or series (#602), so a caller
+ * deciding whether to delete or re-add it knows. Only ever `true`: absent
+ * covers "not blocklisted" and "could not tell", and the second degrades
+ * rather than failing the details it decorates, as the ratings do.
+ */
+async function blocklistedIn(seerr: SeerrAdapter, tmdb: number, kind: string): Promise<boolean> {
+    if (kind !== 'movie' && kind !== 'series') return false;
+    try {
+        return await seerr.isBlocklisted(tmdb, kind === 'series' ? 'tv' : 'movie');
+    } catch (err) {
+        logger.warn({ service: seerr.id, tmdb, err }, 'seerr blocklist lookup failed; continuing without it');
+        return false;
+    }
 }
 
 type MediaDetailsQuery = {
@@ -130,10 +146,10 @@ export class NotInLibrary extends Error {
 const MAX_LOOKUP_HITS = 5;
 
 /**
- * The miss, finished: what `lookup_media` would have said, in the same answer.
+ * The miss, finished: what a discover search would have said, in the same answer.
  *
  * Without it a model that asked for a title the library lacks went on to
- * `search_media`, `get_library` and `lookup_media` in turn, three to five calls
+ * `search_media`, `get_library` and a discover search in turn, three to five calls
  * to learn what this one lookup says (#518's eval). The lookup is a read, and
  * a failing one only drops the extra: the miss itself is still the answer.
  */
@@ -144,16 +160,16 @@ export async function explainMiss(adapters: readonly ServiceAdapter[], miss: Not
         // `standard`, not `minimal`: the year is what tells a remake from the original.
         // Films and series only, asked for before the limit: five artists and
         // books ranked first would leave the filter below nothing to keep.
-        const lookup = await buildLookupMedia(
+        const lookup = await buildSearchMedia(
             adapters,
-            { query: miss.query, detail: 'standard', limit: MAX_LOOKUP_HITS, kinds: ['movie', 'series'] },
+            { query: miss.query, source: 'discover', detail: 'standard', limit: MAX_LOOKUP_HITS, kinds: ['movie', 'series'] },
             dataset
         );
         found = lookup.items;
         unreachable = lookup.degraded;
     } catch (err) {
         logger.warn({ err }, 'lookup after a library miss failed; answering with the miss alone');
-        return new Error(`${miss.message} lookup_media says what it is and how to add it.`, { cause: miss });
+        return new Error(`${miss.message} search_media \`source: "discover"\` says what it is and how to add it.`, { cause: miss });
     }
     const films = found.filter(h => h.kind === 'movie' || h.kind === 'series');
     if (films.length === 0) {
@@ -161,7 +177,7 @@ export async function explainMiss(adapters: readonly ServiceAdapter[], miss: Not
         return new Error(
             unreachable.length === 0
                 ? `${miss.message} No metadata lookup knows that title either, so check the spelling.`
-                : `${miss.message} The metadata lookup could not reach ${unreachable.join(', ')}; lookup_media can try again.`,
+                : `${miss.message} The metadata lookup could not reach ${unreachable.join(', ')}; search_media \`source: "discover"\` can try again.`,
             { cause: miss }
         );
     }

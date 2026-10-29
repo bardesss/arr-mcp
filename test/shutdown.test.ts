@@ -125,25 +125,30 @@ afterEach(async () => {
     for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true }).catch(() => {});
 });
 
+// Startup takes about two seconds alone, but a full parallel run on a loaded
+// Windows machine has pushed it past 15 s. Neither test measures startup, so
+// the banner wait is generous; only the shutdown is held to a time.
+const BANNER_MS = 60_000;
+
 describe('the server process', () => {
     it.skipIf(process.platform === 'win32')('exits 0 promptly on SIGTERM', async () => {
         const child = await start([]);
-        await waitFor(child.stdout, 'arr-mcp listening', 15_000);
+        await waitFor(child.stdout, 'arr-mcp listening', BANNER_MS);
         const sent = Date.now();
         child.kill('SIGTERM');
         const [code] = await once(child, 'exit');
         expect(code).toBe(0);
         expect(Date.now() - sent).toBeLessThan(3000);
         expect(out(child)).toContain('shut down cleanly');
-    }, 30_000);
+    }, BANNER_MS + 15_000);
 
     // Runs on Windows too: closing stdin goes through the same shutdown.
     it('exits 0 promptly when a stdio client closes stdin', async () => {
         const child = await start(['--stdio']);
-        await waitFor(child.stderr, 'arr-mcp serving MCP over stdio', 15_000);
+        await waitFor(child.stderr, 'arr-mcp serving MCP over stdio', BANNER_MS);
         child.stdin.end();
         const [code] = await once(child, 'exit');
         expect(code).toBe(0);
         expect(err(child)).toContain('shut down cleanly');
-    }, 30_000);
+    }, BANNER_MS + 15_000);
 });

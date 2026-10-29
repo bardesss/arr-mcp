@@ -177,7 +177,7 @@ describe('update_media on Lidarr', () => {
         const on = (...types: ServiceId[]) => scopeText(description, { configured: new Set(types), hideUnusable: false });
         expect(on('radarr')).not.toContain('Lidarr');
         expect(on('lidarr')).toContain("Radarr, Lidarr or Sonarr (quality profile, root folder, monitoring, tags, Radarr's minimum availability, Sonarr's series type, Lidarr's metadata profile)");
-        expect(on('lidarr')).toContain('On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring');
+        expect(on('lidarr')).toContain('On Lidarr, `id` is an artist; omit it with `monitored` or `monitor_new_items` to set every artist');
     });
 
     // The editor publishes no ArtistEditedEvent, so no refresh follows.

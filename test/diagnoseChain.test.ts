@@ -1976,13 +1976,12 @@ describe('buildChain — a Lidarr artist', () => {
         expect(d.verdict.remedy).toMatch(/no download client is configured and no indexer manager is configured/);
     });
 
-    it('turns monitoring on with the artist level and the artist id, never `id`', () => {
+    it('turns monitoring on through update_media with the artist id', () => {
         const d = buildChain('daft punk', healthy({ item: artist({ acquisition: { service: 'lidarr', id: '1', monitored: false, hasFile: true } }) }));
         expect(d.verdict.stage).toBe('managed');
         expect(d.verdict.next_steps).toEqual([
-            expect.objectContaining({ tool: 'set_monitoring', arguments: { service: 'lidarr', level: 'artist', artists: ['1'], monitored: true } })
+            expect.objectContaining({ tool: 'update_media', arguments: { service: 'lidarr', id: '1', monitored: true } })
         ]);
-        expect(d.verdict.next_steps?.[0]?.arguments).not.toHaveProperty('id');
         expect(d.verdict.remedy).toMatch(/Lidarr/);
         expect(d.verdict.summary).toMatch(/albums you do not have yet/);
         expect(d.verdict.summary).not.toMatch(/episodes/);
@@ -1993,7 +1992,7 @@ describe('buildChain — a Lidarr artist', () => {
             'daft punk',
             healthy({ item: artist({ acquisition: { service: 'lidarr/hd', id: '1', monitored: false, hasFile: false } }) })
         );
-        expect(d.verdict.next_steps?.[0]?.arguments).toEqual({ service: 'lidarr', instance: 'hd', level: 'artist', artists: ['1'], monitored: true });
+        expect(d.verdict.next_steps?.[0]?.arguments).toEqual({ service: 'lidarr', instance: 'hd', id: '1', monitored: true });
     });
 
     // lookup_media answers with Lidarr's artists, each with the MusicBrainz id
@@ -2001,7 +2000,7 @@ describe('buildChain — a Lidarr artist', () => {
     it('offers the lookup for an artist nothing manages, as for a film, and says to add it to Lidarr', () => {
         const d = buildChain('daft punk', healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) }));
         expect(d.verdict.stage).toBe('managed');
-        expect(d.verdict.next_steps?.map(s => [s.tool, s.arguments])).toEqual([['lookup_media', { query: 'daft punk' }]]);
+        expect(d.verdict.next_steps?.map(s => [s.tool, s.arguments])).toEqual([['search_media', { query: 'daft punk', source: 'discover' }]]);
         expect(d.verdict.remedy).toMatch(/Lidarr/);
 
         // Asked for by id, there is no query worth looking up, as for a film.
@@ -2090,7 +2089,7 @@ describe('buildChain — a Lidarr artist', () => {
         const d = buildChain('daft punk', healthy({ item: noTracks(), queue: { items: [lidarrRow()], partial: [] } }));
         expect(d.verdict.stage).toBe('queue');
         expect(d.verdict.next_steps).toEqual([
-            expect.objectContaining({ tool: 'trigger_scan', arguments: { service: 'lidarr', action: 'import', download_id: 'lidarr-download-1' } })
+            expect.objectContaining({ tool: 'import_download', arguments: { service: 'lidarr', action: 'import', download_id: 'lidarr-download-1' } })
         ]);
         expect(d.verdict.remedy).toMatch(/Lidarr/);
         expect(d.verdict.remedy).not.toMatch(/Radarr/);

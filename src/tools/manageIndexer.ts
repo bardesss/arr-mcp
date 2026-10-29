@@ -194,7 +194,7 @@ const needsBulk = (adapter: Adapter, view: IndexerSyncView, action: Action) => {
         'VersionUnsupported',
         adapter.id,
         `${adapter.id} is older than 1.8 and cannot ${action} an indexer through its API`,
-        { remedy: `Upgrade Prowlarr, or ${action} ${view.indexer.name} in Prowlarr's UI. delete still works on this version.` }
+        { remedy: `Upgrade Prowlarr, or ${action} ${view.indexer.name} in Prowlarr's UI. delete_indexer still works on this version.` }
     );
 };
 
@@ -344,10 +344,31 @@ async function planAdd(adapter: Adapter, definition: string | undefined, args: S
                     ? `${app.name}: Prowlarr adds it straight away, and ${app.name} starts searching it.`
                     : unreached(app, found.name, reach);
             }),
-            'Then queues Application Indexer Sync in Prowlarr. Undo with action "delete" on the new id.'
+            'Then queues Application Indexer Sync in Prowlarr. Undo with delete_indexer on the new id.'
         ],
         args: { action: 'add', definition: found.definitionName, settings: resolved }
     };
+}
+
+/** The delete preview. `delete_indexer` and manage_indexer's deprecated `delete` both build it, so the two show the same text. */
+async function planDelete(adapter: Adapter, id: number | undefined): Promise<WritePlan> {
+    const { indexer, apps } = await readView(adapter, id);
+    return {
+        target: `${adapter.id}:${indexer.id}`,
+        summary: `Delete ${indexer.name} from ${adapter.id}.`,
+        effects: [
+            `Deletes ${indexer.name} and its settings from Prowlarr. Re-adding it means configuring it again from scratch.`,
+            ...apps.map(app => toggleEffect('delete', app, indexer.name, reachOf(app, indexer.tags, indexer.categories))),
+            'Then queues Application Indexer Sync, which also clears a copy an unreachable app missed.'
+        ],
+        // The name too, so a token cannot carry over to another indexer that reuses the id.
+        args: { action: 'delete', name: indexer.name }
+    };
+}
+
+async function applyDelete(adapter: Adapter, id: number) {
+    await adapter.deleteIndexer(id);
+    return { deleted: `${adapter.id}:${id}`, sync: await adapter.syncIndexers() };
 }
 
 const ManageIndexerInput = z.object({
@@ -355,7 +376,7 @@ const ManageIndexerInput = z.object({
     action: z
         .enum(['add', 'edit', 'disable', 'enable', 'delete'])
         .describe(
-            'add a new public indexer; edit its settings; disable stops grabs and is reversible; enable undoes a disable; delete removes it for good.'
+            'add a new public indexer; edit its settings; disable stops grabs and is reversible; enable undoes a disable, all safe tier. delete: Deprecated: use delete_indexer.'
         ),
     id: z.coerce
         .number()
@@ -386,12 +407,13 @@ export function registerManageIndexer(
 ): void {
     registerWriteTool(server, context, {
         name: 'manage_indexer',
-        title: 'Add, edit, disable or delete an indexer',
+        title: 'Add, edit, disable or enable an indexer',
         description:
-            'Adds, edits, disables, re-enables or deletes one Prowlarr indexer, then syncs Prowlarr to Radarr and Sonarr. `add` takes a `definition` name and only adds public indexers that need no login; anything private or semi-private is refused, because arr-mcp never handles indexer credentials. `edit` changes priority, app profile, tags and torrent seed settings, nothing else. `disable` stops every grab through that indexer in every app, whatever its sync level, and `enable` undoes it. All of those are safe tier. `delete` removes the indexer from Prowlarr and from each app Prowlarr syncs to, needs the destructive tier, and cannot be undone here. Every action but add takes `id` from get_indexers. The preview says what each app will see, since apps at Add and Remove Only do not receive edits. Previews first; confirm to apply it.',
+            'Adds, edits, disables or re-enables one Prowlarr indexer, then syncs Prowlarr to Radarr and Sonarr. `add` takes a `definition` name and only adds public indexers that need no login; anything private or semi-private is refused, because arr-mcp never handles indexer credentials. `edit` changes priority, app profile, tags and torrent seed settings, nothing else. `disable` stops every grab through that indexer in every app, whatever its sync level, and `enable` undoes it. Deleting is delete_indexer; `delete` here still works but is deprecated. Every action but add takes `id` from get_indexers. The preview says what each app will see, since apps at Add and Remove Only do not receive edits. Previews first; confirm to apply it.',
         inputSchema: ManageIndexerInput,
         service: ({ instance }) => findAdapter(adapters, instance).id,
         operation: 'manage_indexer',
+        // Stays destructive while the deprecated `delete` is accepted; it is safe once that is removed.
         tier: ({ action }) => (action === 'delete' ? 'destructive' : 'safe'),
 
         async plan(args): Promise<WritePlan> {
@@ -413,25 +435,13 @@ export function registerManageIndexer(
                     remedy: 'Settings only apply to edit and add.'
                 });
             }
+            if (action === 'delete') return planDelete(adapter, id);
             const view = await readView(adapter, id);
             const { indexer, apps } = view;
-            if (action !== 'delete') needsBulk(adapter, view, action);
+            needsBulk(adapter, view, action);
             const effects = apps.map(app =>
                 toggleEffect(action, app, indexer.name, reachOf(app, indexer.tags, indexer.categories))
             );
-
-            if (action === 'delete') {
-                return {
-                    target: `${adapter.id}:${indexer.id}`,
-                    summary: `Delete ${indexer.name} from ${adapter.id}.`,
-                    effects: [
-                        `Deletes ${indexer.name} and its settings from Prowlarr. Re-adding it means configuring it again from scratch.`,
-                        ...effects,
-                        'Then queues Application Indexer Sync, which also clears a copy an unreachable app missed.'
-                    ],
-                    args: { action }
-                };
-            }
 
             return {
                 target: `${adapter.id}:${indexer.id}`,
@@ -453,10 +463,39 @@ export function registerManageIndexer(
             // Every other action was refused in plan without an id.
             const target = id ?? 0;
             if (action === 'edit') await adapter.editIndexer(target, planned.settings ?? {});
-            else if (action === 'delete') await adapter.deleteIndexer(target);
+            else if (action === 'delete') return applyDelete(adapter, target);
             else await adapter.setIndexerEnabled(target, action === 'enable');
-            const done = { edit: 'edited', delete: 'deleted', disable: 'disabled', enable: 'enabled' }[action];
+            const done = { edit: 'edited', disable: 'disabled', enable: 'enabled' }[action];
             return { [done]: `${adapter.id}:${target}`, sync: await adapter.syncIndexers() };
         }
+    });
+}
+
+const DeleteIndexerInput = z.object({
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+    id: z.coerce
+        .number()
+        .int()
+        .positive()
+        .describe('The indexer id from get_indexers: 21 for a row shown as prowlarr:21.')
+});
+
+export function registerDeleteIndexer(
+    server: McpServer,
+    context: WriteContext,
+    adapters: readonly ServiceAdapter[]
+): void {
+    registerWriteTool(server, context, {
+        name: 'delete_indexer',
+        title: 'Delete an indexer',
+        description:
+            'Deletes one Prowlarr indexer and its settings, and its copy in each app Prowlarr syncs to; apps with sync off keep a failing copy, and the preview names them. Not undoable; to stop grabs reversibly, use manage_indexer `disable`. Fails on an unknown `id`. Previews first; confirm to apply it.',
+        inputSchema: DeleteIndexerInput,
+        service: ({ instance }) => findAdapter(adapters, instance).id,
+        operation: 'delete_indexer',
+        tier: 'destructive',
+
+        plan: ({ instance, id }) => planDelete(findAdapter(adapters, instance), id),
+        apply: (_plan, { instance, id }) => applyDelete(findAdapter(adapters, instance), id)
     });
 }

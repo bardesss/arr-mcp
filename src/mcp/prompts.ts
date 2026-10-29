@@ -70,7 +70,7 @@ export function registerAllPrompts(server: McpServer, surface: SurfaceOptions): 
 1. Call \`diagnose\` with \`query: "${title}"\`. It walks the whole chain and names the first step that explains the absence, rather than listing everything it checked.
 2. If the verdict has \`certain: false\`, say plainly which step could not be checked and why — a confident answer across a hole is worse than an uncertain one.
 3. If the verdict has \`next_steps\`, it names the call that acts on the remedy. **Offer** it and say what it would do. Do not call it. A write previews first and returns a token for a reason: the user decides whether to act.
-4. If \`diagnose\` reports the item is missing entirely, use \`lookup_media\` to check it exists at all before suggesting anything be added.
+4. If \`diagnose\` reports the item is missing entirely, use \`search_media\` with \`source: "discover"\` to check it exists at all before suggesting anything be added.
 
 Answer with the cause and the next action, not a transcript of the checks.`
             )
@@ -100,7 +100,7 @@ ${numbered(
 
 ${toolUsable('get_indexers', surface, WRITE_TOOLS.has('get_indexers')) ? 'Then reconcile: a stalled download and an unhealthy indexer are usually one problem, not two. Say so rather than listing both.\n\n' : ''}Report only what needs action, most urgent first, with what to do about each. If nothing does, say that in one line — do not pad it with everything that is fine.
 
-One thing you cannot see, so do not claim to: the write audit is not exposed as a tool and lives in the config UI at /ui/audit. ${toolUsable('trigger_scan', surface, true) ? ' If a stale scan is the problem, offer `trigger_scan` and say what it would do.' : ''}`
+One thing you cannot see, so do not claim to: the write audit is not exposed as a tool and lives in the config UI at /ui/audit.${toolUsable('trigger_scan', surface, true) ? ' If a stale scan is the problem, offer `trigger_scan` and say what it would do.' : ''}`
             )
     );
 

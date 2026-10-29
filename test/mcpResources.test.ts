@@ -214,10 +214,10 @@ describe('the resources a client sees', () => {
                 ]
             });
             expect(body.degraded).toBeUndefined();
-            // With two Lidarrs, set_monitoring without `instance` is refused, and
+            // With two Lidarrs, update_media without `instance` is refused, and
             // the totals add the instances up rather than merging artists.
             expect(String(body.note)).toMatch(/^1 artist\(s\) \(counted once per instance\) will keep monitoring/);
-            expect(String(body.note)).toMatch(/set_monitoring with level: "artist" and `instance` does it\.$/);
+            expect(String(body.note)).toMatch(/update_media with no `id` and `instance` does it\.$/);
         });
 
         it('says so in the plural when none of several Lidarrs holds an artist', async () => {
@@ -268,7 +268,7 @@ describe('the resources a client sees', () => {
                 'lidarr/mp3 could not be read, which is not the same as its policy being off, so the counts cover only the rest ' +
                     'and cannot say the wanted list will not grow. 1 artist(s) (counted once per instance) will keep monitoring ' +
                     'albums they discover later, or report no readable policy. Unmonitoring albums under those artists is a ' +
-                    'treadmill until the policy changes — set_monitoring with level: "artist" and `instance` does it.'
+                    'treadmill until the policy changes — update_media with no `id` and `instance` does it.'
             );
         });
 
@@ -277,8 +277,8 @@ describe('the resources a client sees', () => {
 
             expect(body.note).toBe(
                 '1 artist(s) will keep monitoring albums they discover later, or report no readable policy. ' +
-                    'Unmonitoring albums under those artists is a treadmill until the policy changes — set_monitoring ' +
-                    'with level: "artist" does it.'
+                    'Unmonitoring albums under those artists is a treadmill until the policy changes — update_media ' +
+                    'with no `id` does it.'
             );
         });
 
@@ -296,7 +296,7 @@ describe('the resources a client sees', () => {
             expect(body).toMatchObject({ configured: true, artists: 2, stable: false });
             expect(body.instances).toBeUndefined();
             expect(body.degraded).toBeUndefined();
-            expect(String(body.note)).toMatch(/set_monitoring with level: "artist" does it\.$/);
+            expect(String(body.note)).toMatch(/update_media with no `id` does it\.$/);
         });
 
         it('keeps the old body for one unnamed Lidarr that cannot be read', async () => {
@@ -313,7 +313,7 @@ describe('the resources a client sees', () => {
                 configured: true,
                 artists: 0,
                 stable: false,
-                note: 'The policy could not be read, which is not the same as it being off. Call set_monitoring with level: "artist" for the live answer.'
+                note: 'The policy could not be read, which is not the same as it being off. Call update_media with no `id` for the live answer.'
             });
         });
 
@@ -322,8 +322,8 @@ describe('the resources a client sees', () => {
 
             expect(body).toMatchObject({ configured: true, stable: false, degraded: ['lidarr/flac', 'lidarr/mp3'] });
             expect(body.note).toBe(
-                'The policies could not be read, which is not the same as them being off. Call set_monitoring ' +
-                    'with level: "artist" and `instance` for the live answer.'
+                'The policies could not be read, which is not the same as them being off. Call update_media ' +
+                    'with no `id` and `instance` for the live answer.'
             );
         });
 

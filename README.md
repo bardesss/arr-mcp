@@ -49,7 +49,7 @@ part it could not check rather than guessing across the hole.
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
-| 📚 **Forty tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
+| 📚 **Forty-five tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
 
 Nothing else in this space does the last five at all.
 
@@ -150,7 +150,7 @@ ARM NAS runs the same build as everything else.
 
 ## What you can ask it
 
-Forty tools, but you never name them — you ask, and the model picks:
+Forty-five tools, but you never name them — you ask, and the model picks:
 
 > *"What's downloading right now, and is anything stuck?"*
 > *"What aired this week that I haven't watched?"*
@@ -177,7 +177,7 @@ In a client that renders [MCP Apps](https://github.com/modelcontextprotocol/ext-
 than a line of text. `get_media_details` shows one card: poster, blurred
 backdrop, synopsis, genres, runtime or seasons, episode progress, a status badge
 (available, monitored, downloading, unmonitored, not in library) with the
-quality profile, and links to TMDB and IMDb. `search_media`, `lookup_media` and
+quality profile, and links to TMDB and IMDb. `search_media` and
 `get_library` show a grid of up to twenty posters, each with its status.
 
 <img src="screenshots/cards-detail-dark.png" alt="A detail card: poster, title and year, Series and Monitored badges, quality profile, seasons and genres, an episode progress bar, the synopsis and TMDB and IMDb links" width="560">
@@ -200,7 +200,7 @@ them off. The cards are read-only for now.
 
 | | |
 | --- | --- |
-| **[Tools](docs/tools.md)** | All forty, what each answers, and the fields whose meaning is not obvious |
+| **[Tools](docs/tools.md)** | All forty-five, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, the nine services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
@@ -217,13 +217,13 @@ them off. The cards are read-only for now.
 - Lidarr 2.1.3+ for reading, monitoring, adding, changing and deleting artists, its queue, its wanted list and calendar, release search, `diagnose`, `trigger_scan` and `stack_health`:
   `get_library` lists its artists with their album count, monitoring and file
   state, `get_media_details` lists an artist's albums, and `set_monitoring`
-  writes one album's flag or an artist's policy. `lookup_media` finds artists to
+  writes one album's flag or an artist's policy. `search_media` with `source: "discover"` finds artists to
   add, `add_media` adds one by its MusicBrainz id, `update_media` changes its
   profiles, root folder, monitoring and tags, and `delete_media` deletes it.
   Artists join to Jellyfin and Plex on the MusicBrainz artist id. `get_queue`,
   `get_history` and `get_blocklist` include Lidarr, `remove_queue_item` and
-  `clean_queue` take a Lidarr download, and `trigger_scan` rescans, renames and
-  imports for it. `stack_health` reports its disks, failing health checks and
+  `clean_queue` take a Lidarr download, and `trigger_scan` rescans and renames,
+  and `import_download` imports for it. `stack_health` reports its disks, failing health checks and
   last library scan, and `get_wanted` and `get_calendar` list its albums.
   `trigger_search`, `get_releases` and `grab_release` search its indexers for an
   artist or its albums, and `fix_metadata` rewrites an artist's file tags from

@@ -65,6 +65,7 @@ type Case = { tool: ToolName; args: Record<string, unknown> };
  */
 const CASES: Case[] = [
     { tool: 'stack_health', args: { detail: 'full' } },
+    { tool: 'get_instance_options', args: {} },
     { tool: 'get_indexers', args: { detail: 'full' } },
     { tool: 'get_subtitles', args: { detail: 'full', limit: 100 } },
     { tool: 'get_queue', args: { detail: 'full' } },
@@ -88,6 +89,7 @@ const CASES: Case[] = [
     { tool: 'get_library', args: { min_rating: 8, rating_source: 'rottenTomatoes', limit: 5 } },
     { tool: 'get_media_details', args: { query: 'the' } },
     { tool: 'search_media', args: { query: 'the', source: 'library', detail: 'full', limit: 10 } },
+    { tool: 'search_media', args: { query: 'matrix', source: 'discover' } },
     { tool: 'lookup_media', args: { query: 'matrix' } },
     { tool: 'discover_media', args: { media_type: 'movie', detail: 'full' } },
     { tool: 'diagnose', args: { query: 'the' } },
@@ -132,11 +134,15 @@ const DYNAMIC_TOOLS: ToolName[] = [
     // Needs, respectively: a real TMDB id, a configured download client, a
     // real Jellyfin item id, and a real blocklist row. All dry runs.
     'request_media',
+    // The same TMDB id, as a dry-run add.
+    'blocklist_media',
     'pause_downloads',
     'set_watched',
     'remove_blocklist_item',
     // Needs a real Prowlarr indexer id from get_indexers. Dry run of a delete,
     // so the preview reads every app's sync level.
+    'delete_indexer',
+    // Dry run of a disable, off the same indexer row.
     'manage_indexer',
     // Needs a real service+id the same way trigger_search does. Driven off
     // the same searchableHit, but kept to one call: this one polls every
@@ -152,12 +158,17 @@ const DYNAMIC_TOOLS: ToolName[] = [
     // Needs a real service+id, like the writes above, and is driven off the
     // same searchableHit. Dry run: a real call would move files.
     'update_media',
+    // Needs a real Grimmory book id; dry run off its first book, skipped when
+    // Grimmory is not configured.
+    'update_book',
     // Sonarr-only, and both need a real series id — the same reason as the
     // five above. Driven as dry runs off the first Sonarr search hit.
     'set_monitoring',
     'delete_episode_files',
     // Dry runs off a scannable service and a real get_subtitles gap.
     'trigger_scan',
+    // Dry run off the first queue row that carries a downloadId; skipped when none does.
+    'import_download',
     'trigger_subtitle_search',
     'clean_queue',
     // Needs profilarr configured at all, which is optional — skipped rather
@@ -655,7 +666,7 @@ if (addCandidate === undefined) {
  *
  * There is no fixed candidate list here: Whisparr has no metadata-provider
  * search by id the way TMDB gives Radarr one, so candidates are found the way
- * a caller actually would — through the same discover search lookup_media
+ * a caller actually would — through the same discover search search_media
  * uses — rather than invented.
  */
 const whisparrDiscover = await run(
@@ -713,6 +724,17 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
     console.log('SKIP update_media — search_media returned no *arr hit to preview against.');
 }
 
+/** Lidarr's artist policy through update_media: no `id` reaches every artist. A dry run, so nothing is written. */
+if ('lidarr' in (config.services ?? {})) {
+    await run(
+        'update_media',
+        { service: 'lidarr', monitor_new_items: 'none', dry_run: true },
+        'DRY RUN ONLY — previews the policy over every artist, with the state found'
+    );
+} else {
+    console.log('SKIP update_media on every Lidarr artist — lidarr is not configured.');
+}
+
 /**
  * trigger_scan and trigger_subtitle_search, dry run only — a real scan costs a
  * maintainer disk I/O on every run, and a real subtitle search hits providers.
@@ -757,7 +779,7 @@ const finished = (r: QueueRow): boolean => String(r.status).toLowerCase() === 'c
 const queueRow = withId.find(finished) ?? withId[0];
 
 if (queueRow === undefined) {
-    console.log('SKIP trigger_scan import — nothing in the queue carries a downloadId to preview against.');
+    console.log('SKIP import_download — nothing in the queue carries a downloadId to preview against.');
 } else {
     const importArgs = {
         service: (queueRow.service as string).split('/')[0],
@@ -767,10 +789,10 @@ if (queueRow === undefined) {
     };
 
     if (finished(queueRow)) {
-        await run('trigger_scan', importArgs, 'DRY RUN ONLY — the manual import path');
+        await run('import_download', importArgs, 'DRY RUN ONLY — the manual import path');
     } else {
         await expectError(
-            'trigger_scan',
+            'import_download',
             importArgs,
             /has not finished downloading/,
             'DRY RUN ONLY — nothing in the queue has finished, so the manual import path must say that rather than pass on the 500'
@@ -833,12 +855,17 @@ const indexerRow = ((indexersResult?.structuredContent as { items?: unknown[] } 
 if (indexerRow !== undefined) {
     const instance = indexerRow.service.split('/')[1];
     await run(
+        'delete_indexer',
+        { id: indexerRow.id, dry_run: true, ...(instance === undefined ? {} : { instance }) },
+        'DRY RUN ONLY — never applied from this script'
+    );
+    await run(
         'manage_indexer',
-        { id: indexerRow.id, action: 'delete', dry_run: true, ...(instance === undefined ? {} : { instance }) },
+        { id: indexerRow.id, action: 'disable', dry_run: true, ...(instance === undefined ? {} : { instance }) },
         'DRY RUN ONLY — never applied from this script'
     );
 } else {
-    console.log('SKIP manage_indexer — no Prowlarr indexer to preview against.');
+    console.log('SKIP delete_indexer — no Prowlarr indexer to preview against.');
 }
 
 /**
@@ -888,8 +915,13 @@ if (withTmdb?.ids?.tmdb !== undefined) {
         { media_type: withTmdb.kind === 'series' ? 'tv' : 'movie', media_id: withTmdb.ids.tmdb, dry_run: true },
         'DRY RUN ONLY — never applied from this script'
     );
+    await run(
+        'blocklist_media',
+        { action: 'add', id: withTmdb.ids.tmdb, kind: withTmdb.kind === 'series' ? 'series' : 'movie', dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
 } else {
-    console.log('SKIP request_media — no library item carried a TMDB id.');
+    console.log('SKIP request_media and blocklist_media — no library item carried a TMDB id.');
 }
 
 /**
@@ -1079,12 +1111,16 @@ if (config.services?.grimmory !== undefined) {
         console.log(`PASS grimmory ${connection.version ?? '?'}: ${findings.length} finding(s), ${hits.length} search hit(s), ${rows.length} book(s), ${details} (${ms}ms)`);
         for (const f of findings) console.log(`     ${f.type} ${f.source}`);
         passes += 1;
+        // update_book, dry run only: the preview reads the book and sends nothing.
+        if (firstId === undefined) console.log('SKIP update_book — Grimmory has no book to preview against.');
+        else await run('update_book', { id: String(firstId), lock_fields: ['title'], dry_run: true }, 'DRY RUN ONLY — never applied from this script');
     } catch (err) {
         console.error(`FAIL grimmory — ${redactHosts((err as Error).message, hosts)}`);
         failures += 1;
     }
 } else {
     console.log('SKIP grimmory — not configured.');
+    console.log('SKIP update_book — Grimmory is not configured.');
 }
 
 /**

@@ -107,7 +107,11 @@ export type WriteCall = (args: Record<string, unknown>) => Promise<{
  * calls it the way a client would: arguments parsed by the tool's own schema.
  * The permissions are Grimmory's, `perms` as in `grimmoryConfig`.
  */
-export function writeTool(register: (server: never, context: WriteContext) => void, perms?: Perms): WriteCall {
+export function writeTool(
+    register: (server: never, context: WriteContext) => void,
+    perms?: Perms,
+    confirm: ConfirmTokens = new ConfirmTokens()
+): WriteCall {
     let call: WriteCall = () => Promise.reject(new Error('not registered'));
     const server = {
         registerTool(_name: string, config: { inputSchema: z.ZodObject }, handler: WriteCall) {
@@ -117,7 +121,7 @@ export function writeTool(register: (server: never, context: WriteContext) => vo
 
     register(server as never, {
         permissions: permissionSourceFrom(instancesOf({ grimmory: grimmoryConfig(perms) })),
-        confirm: new ConfirmTokens(),
+        confirm,
         audit: WriteAudit.ephemeral(),
         library: { invalidate: vi.fn() } as unknown as LibraryLoader
     });

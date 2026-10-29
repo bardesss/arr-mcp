@@ -251,7 +251,7 @@ describe('request_media', () => {
         // A token here gets confirmed, and the apply fails with an opaque 500.
         const h = harness();
         const call = h.call({ media_type: 'tv', media_id: 31510819 });
-        await expect(call).rejects.toThrow(/lookup_media/);
+        await expect(call).rejects.toThrow(/search_media/);
         await expect(call).rejects.toThrow(/imdb:tt/);
         expect(h.posted).toHaveLength(0);
     });

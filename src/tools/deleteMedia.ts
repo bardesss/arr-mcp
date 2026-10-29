@@ -7,6 +7,8 @@ import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
+import { unfence } from '../core/fence.ts';
+import { requireSeerr, requireSeerrWrite, seerrMediaType } from './blocklistMedia.ts';
 
 /**
  * The first destructive-tier write. Everything the harness does matters more
@@ -84,6 +86,38 @@ async function planBook(
     };
 }
 
+/** What the Seerr half of a delete sends, bound to the token with the rest. */
+type SeerrBlocklistStep = { tmdbId: number; mediaType: 'movie' | 'tv'; title: string; already?: true };
+
+/**
+ * The Seerr half of `seerr_blocklist` (#602), checked in the preview so a
+ * delete is never confirmed on a blocklist that was going to be refused:
+ * Seerr configured, permitted to take a safe write, and a TMDB id to key on.
+ */
+async function planSeerrBlocklist(
+    context: WriteContext,
+    adapters: readonly ServiceAdapter[],
+    details: { kind: string; title: string; ids: { tmdb?: number } },
+    effects: string[]
+): Promise<SeerrBlocklistStep> {
+    const seerr = requireSeerr(adapters);
+    requireSeerrWrite(context.permissions, seerr, 'safe', 'blocklist_media');
+    const tmdbId = details.ids.tmdb;
+    if (tmdbId === undefined) {
+        throw new ServiceError('NotFound', seerr.id, 'it has no TMDB id, which Seerr keys its blocklist on', {
+            remedy: 'Refresh it in Radarr or Sonarr so it picks up a TMDB id, or delete it without seerr_blocklist.'
+        });
+    }
+    const mediaType = seerrMediaType(details.kind === 'series' ? 'series' : 'movie');
+    const step: SeerrBlocklistStep = { tmdbId, mediaType, title: unfence(details.title) };
+    if (await seerr.isBlocklisted(tmdbId, mediaType)) {
+        effects.push('Already blocklisted in Seerr, so that is left as it is.');
+        return { ...step, already: true };
+    }
+    effects.push('Blocklists it in Seerr afterwards, so nobody can request it again; blocklist_media removes it.');
+    return step;
+}
+
 const DeleteMediaInput = z.object({
     ...targetInput(TARGET),
     id: z.string().min(1).describe("The item's id within that service, as an integer string."),
@@ -98,7 +132,11 @@ const DeleteMediaInput = z.object({
         .default(false)
         .describe(
             'Also add an import exclusion so it is never re-added automatically. Defaults to false.'
-        )
+        ),
+    seerr_blocklist: z
+        .boolean()
+        .default(false)
+        .describe('Radarr and Sonarr: also blocklist it in Seerr, so it cannot be requested again. Defaults to false.')
 });
 
 export function registerDeleteMedia(
@@ -117,7 +155,12 @@ export function registerDeleteMedia(
         tier: 'destructive',
         crossCheck: 'delete',
 
-        async plan({ service, id, delete_files, add_import_exclusion }, adapter): Promise<WritePlan> {
+        async plan({ service, id, delete_files, add_import_exclusion, seerr_blocklist }, adapter): Promise<WritePlan> {
+            if (seerr_blocklist && adapter.type !== 'radarr' && adapter.type !== 'sonarr') {
+                throw new ServiceError('PermissionDenied', adapter.id, `seerr_blocklist is for a Radarr film or a Sonarr series, not ${service}`, {
+                    remedy: 'Leave seerr_blocklist off.'
+                });
+            }
             if (!hasMediaDelete(adapter)) {
                 return planBook(adapter, id, delete_files, add_import_exclusion);
             }
@@ -165,6 +208,8 @@ export function registerDeleteMedia(
                 );
             }
 
+            const blocklist = seerr_blocklist ? await planSeerrBlocklist(context, adapters, details, effects) : undefined;
+
             return {
                 target: `${adapter.id}:${id}`,
                 summary:
@@ -176,7 +221,13 @@ export function registerDeleteMedia(
                 // Both flags are effect-bearing, so the confirmation token
                 // commits to them: a token previewed for a database-only
                 // removal must not be usable to also wipe the disk.
-                args: { service, id, deleteFiles: delete_files, addImportExclusion: add_import_exclusion },
+                args: {
+                    service,
+                    id,
+                    deleteFiles: delete_files,
+                    addImportExclusion: add_import_exclusion,
+                    ...(blocklist === undefined ? {} : { seerrBlocklist: blocklist })
+                },
                 // Not in `args`: what the checks find must not change which
                 // write a token commits to.
                 ...arrSubject(adapter, {
@@ -189,7 +240,7 @@ export function registerDeleteMedia(
             };
         },
 
-        async apply(_plan, { id, delete_files, add_import_exclusion }, adapter) {
+        async apply(plan, { id, delete_files, add_import_exclusion }, adapter) {
             if (!hasMediaDelete(adapter)) {
                 const bookId = bookIdOf(id);
                 const outcome = await adapter.deleteBook(bookId);
@@ -204,10 +255,27 @@ export function registerDeleteMedia(
                 deleteFiles: delete_files,
                 addImportExclusion: add_import_exclusion
             });
-            return { deleted: `${adapter.id}:${id}` };
+            const deleted = `${adapter.id}:${id}`;
+            const blocklist = plan.args?.['seerrBlocklist'] as SeerrBlocklistStep | undefined;
+            if (blocklist === undefined || blocklist.already) return { deleted };
+            // After the delete, never before: Seerr's sync would read a film
+            // Radarr still has as available again. A failure here is reported,
+            // not thrown, because the delete above has already happened.
+            try {
+                await requireSeerr(adapters).addToBlocklist(blocklist);
+                return { deleted, seerrBlocklisted: true };
+            } catch (err) {
+                return { deleted, seerrBlocklistFailed: err instanceof Error ? err.message : String(err) };
+            }
         },
 
         applied(outcome, plan) {
+            const failed = (outcome as { seerrBlocklistFailed?: string }).seerrBlocklistFailed;
+            if (failed !== undefined) {
+                const step = plan.args?.['seerrBlocklist'] as SeerrBlocklistStep;
+                const kind = step.mediaType === 'tv' ? 'series' : 'movie';
+                return `Applied. ${plan.summary} But Seerr did not blocklist it: ${failed} To retry, call blocklist_media with action: "add", id: ${step.tmdbId}, kind: "${kind}".`;
+            }
             if ((outcome as { filesLeft?: boolean }).filesLeft !== true) return undefined;
             const title = plan.summary.replace(/^Delete (.*) from Grimmory, deleting .*$/, '$1');
             return `Applied, but Grimmory could not delete its files from disk; they are still in the library folder. Book removed: ${title}.`;

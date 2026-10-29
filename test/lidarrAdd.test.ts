@@ -13,7 +13,7 @@ import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { hasMediaAdd, hasMetadataProfiles, type ServiceAdapter } from '../src/services/types.ts';
 import { registerAddMedia } from '../src/tools/addMedia.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
-import { buildLookupMedia } from '../src/tools/lookupMedia.ts';
+import { buildSearchMedia } from '../src/tools/searchMedia.ts';
 import { buildStackHealth } from '../src/tools/stackHealth.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { instancesOf } from './helpers/instances.ts';
@@ -216,7 +216,7 @@ describe('LidarrAdapter adding an artist', () => {
         // As Lidarr 2.1.3 sends an artist already in the library: all-zero statistics.
         const inLibrary = { ...LOOKUP[0], id: 102, foreignArtistId: '00000000-0000-4000-8000-000000000102', monitored: true, statistics: { trackFileCount: 0 } };
         const { adapter, sent } = lidarr({ '/api/v1/artist/lookup': [LOOKUP[0], inLibrary] });
-        const result = await buildLookupMedia([adapter], { query: 'artist', detail: 'full', limit: 10 });
+        const result = await buildSearchMedia([adapter], { source: 'discover', query: 'artist', detail: 'full', limit: 10 });
 
         expect(sent.map(s => `${s.path}${s.search}`)).toEqual(['/api/v1/artist/lookup?term=artist']);
         expect(result.items.map(h => [h.kind, h.id, h.ids.mbid])).toEqual([

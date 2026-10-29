@@ -91,7 +91,7 @@ export function registerAppResources(server: McpServer): void {
         {
             title: 'Media cards',
             description:
-                'The poster-card view an MCP Apps host shows beside get_media_details, search_media, lookup_media and get_library. It renders the `cards` in their structuredContent and holds no data of its own.',
+                'The poster-card view an MCP Apps host shows beside get_media_details, search_media and get_library. It renders the `cards` in their structuredContent and holds no data of its own.',
             mimeType: RESOURCE_MIME_TYPE,
             _meta: UI_META
         },

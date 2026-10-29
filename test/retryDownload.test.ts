@@ -287,7 +287,7 @@ describe('retry_download', () => {
         const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
         const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
 
-        expect(applied.content[0]?.text).toMatch(/trigger_scan/);
+        expect(applied.content[0]?.text).toMatch(/import_download/);
     });
 
     it('repeats the two-copies warning after the retry, and says Radarr is tracking it', async () => {

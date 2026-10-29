@@ -115,7 +115,7 @@ describe('LidarrAdapter', () => {
      * Listing the prototype covers every guard; sampling a few of them stays
      * green when someone adds the one that was not sampled.
      */
-    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the stack_health reads, the wanted list and calendar, indexer search and grab, adding, updating, deleting, retagging, and nothing else', () => {
+    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the stack_health reads, the wanted list and calendar, indexer search and grab, adding, updating, deleting, retagging, import exclusions, and nothing else', () => {
         const a = adapter({});
         // The shared reads live on `ArrAdapterBase`, so walk up to it; `numericId` is its protected helper.
         const own = [LidarrAdapter.prototype, Object.getPrototypeOf(LidarrAdapter.prototype) as object].flatMap(proto =>
@@ -123,9 +123,11 @@ describe('LidarrAdapter', () => {
         ).filter(name => name !== 'constructor' && name !== 'numericId');
 
         expect(own.sort()).toEqual([
+            'addImportExclusion',
             'addMedia',
             'deleteMedia',
             'findBlocklistItem',
+            'findImportExclusion',
             'findReleases',
             'getCalendar',
             'getDiskSpace',
@@ -155,6 +157,7 @@ describe('LidarrAdapter', () => {
             'refreshItem',
             'refusePartialSelection',
             'removeBlocklistItem',
+            'removeImportExclusion',
             'removeQueueItem',
             'renameItem',
             'retagFiles',

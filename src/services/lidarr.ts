@@ -3,6 +3,8 @@ import { LIBRARY_TTL_MS } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
 import { ArrAdapterBase } from './arrBase.ts';
+import { LIDARR_EXCLUSIONS, addExclusion, findExclusion, removeExclusion } from './arrExclusions.ts';
+import type { ImportExclusion } from './types.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
@@ -242,8 +244,8 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  *
  * `MediaAddCapable` and `MetadataProfileCapable` are `add_media`'s: an artist
  * added by its MusicBrainz id, with a metadata profile beside the quality
- * profile, root folder and tags. `stack_health` lists the last three at
- * `detail: "full"`, as it does for the other services that add.
+ * profile, root folder and tags. `get_instance_options` lists the last three,
+ * as it does for the other services that add.
  *
  * `MediaUpdateCapable` is `update_media`'s: an artist's quality and metadata
  * profiles, root folder, monitoring and tags, changed through the Artist
@@ -721,6 +723,18 @@ export class LidarrAdapter
         return readMetadataProfiles(this.http, this.id);
     }
 
+    async findImportExclusion(externalId: string): Promise<ImportExclusion | undefined> {
+        return findExclusion(this.http, LIDARR_EXCLUSIONS, externalId);
+    }
+
+    async addImportExclusion(externalId: string, label: { title: string; year?: number }): Promise<void> {
+        await addExclusion(this.http, LIDARR_EXCLUSIONS, externalId, label);
+    }
+
+    async removeImportExclusion(exclusionId: number): Promise<void> {
+        await removeExclusion(this.http, LIDARR_EXCLUSIONS, exclusionId);
+    }
+
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
         const raw = await this.#lookupArtist(externalId);
         return {
@@ -840,7 +854,7 @@ export class LidarrAdapter
     async #lookupArtist(externalId: string): Promise<RawArtist> {
         if (!MUSICBRAINZ_ID.test(externalId)) {
             throw new ServiceError('NotFound', this.id, `"${externalId}" is not a MusicBrainz artist id`, {
-                remedy: 'Lidarr adds by MusicBrainz artist id, a GUID. lookup_media returns one under `ids.mbid`.'
+                remedy: 'Lidarr adds by MusicBrainz artist id, a GUID. search_media `source: "discover"` returns one under `ids.mbid`.'
             });
         }
 
@@ -858,7 +872,7 @@ export class LidarrAdapter
             (!inLibrary && (artist.foreignArtistId ?? '').toLowerCase() !== mbid)
         ) {
             throw new ServiceError('NotFound', this.id, `MusicBrainz artist ${mbid} matched nothing`, {
-                remedy: 'Check the id with lookup_media. An artist merged on MusicBrainz answers under its new id, so look it up again by name.'
+                remedy: 'Check the id with search_media `source: "discover"`. An artist merged on MusicBrainz answers under its new id, so look it up again by name.'
             });
         }
         return artist;

@@ -531,8 +531,16 @@ export class SeerrAdapter
         opts: { strict?: boolean } = {}
     ): Promise<{ title: string; year?: number } | undefined> {
         if (request.tmdbId === undefined || request.mediaType === 'unknown') return undefined;
+        return this.describeTitle(request.mediaType, request.tmdbId, { ...opts, requestId: request.id });
+    }
 
-        const path = request.mediaType === 'movie' ? `/api/v1/movie/${request.tmdbId}` : `/api/v1/tv/${request.tmdbId}`;
+    /** The title and year Seerr has for a TMDB id: `describeRequestMedia` without a request. */
+    async describeTitle(
+        mediaType: 'movie' | 'tv',
+        tmdbId: number,
+        opts: { strict?: boolean; requestId?: number } = {}
+    ): Promise<{ title: string; year?: number } | undefined> {
+        const path = mediaType === 'movie' ? `/api/v1/movie/${tmdbId}` : `/api/v1/tv/${tmdbId}`;
 
         try {
             const raw = await this.#http.get<RawMediaDetails>(path);
@@ -553,7 +561,7 @@ export class SeerrAdapter
             // Degrades rather than propagating: a lookup failure must not stop
             // someone deleting a request. The preview says the title is
             // unavailable instead of inventing one.
-            logger.warn({ service: this.id, err, request: request.id }, 'could not resolve a title for a request');
+            logger.warn({ service: this.id, err, request: opts.requestId, tmdbId }, 'could not resolve a title for a request');
             return undefined;
         }
     }
@@ -566,6 +574,73 @@ export class SeerrAdapter
             });
         }
         await this.#http.delete(`/api/v1/request/${requestId}`);
+    }
+
+    /**
+     * Whether Seerr refuses requests for this title. `GET /blocklist/{tmdbId}`
+     * answers the row or a 404, so a 404 is "not blocklisted", not a failure.
+     *
+     * `/blocklist` and not `/blacklist`: Seerr renamed it and keeps the old
+     * path only as a deprecated alias (specs/seerr.json).
+     */
+    async isBlocklisted(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<boolean> {
+        try {
+            await this.#http.get<unknown>(`/api/v1/blocklist/${tmdbId}?mediaType=${mediaType}`);
+            return true;
+        } catch (err) {
+            if (err instanceof ServiceError && err.status === 404) return false;
+            throw err;
+        }
+    }
+
+    /**
+     * Adds a title to Seerr's blocklist: its media record turns `BLOCKLISTED`
+     * and Seerr refuses every new request for it. Requests it already has are
+     * left as they are.
+     *
+     * Two things the published spec leaves out and Seerr's route requires
+     * (`server/routes/blocklist.ts`, `blocklistAdd`): `mediaType`, and `user`,
+     * the id the row is credited to. That is the API key's own user, read from
+     * `/auth/me`, as Seerr's UI credits the person who clicked.
+     *
+     * A duplicate is refused by a unique index, which Seerr answers 412 on
+     * SQLite and 409 on Postgres. Either one is checked rather than trusted.
+     */
+    async addToBlocklist(opts: { tmdbId: number; mediaType: 'movie' | 'tv'; title?: string }): Promise<'added' | 'already'> {
+        const me = await this.#http.get<{ id?: number }>('/api/v1/auth/me');
+        if (typeof me.id !== 'number') {
+            throw new ServiceError('UpstreamError', this.id, '/auth/me returned no user id', {
+                remedy: 'Seerr credits a blocklist entry to a user. Check the API key belongs to a Seerr user, then try again.'
+            });
+        }
+        try {
+            await this.#http.post<unknown>(
+                '/api/v1/blocklist',
+                {
+                    tmdbId: opts.tmdbId,
+                    mediaType: opts.mediaType,
+                    ...(opts.title === undefined ? {} : { title: opts.title }),
+                    user: me.id
+                },
+                true
+            );
+            return 'added';
+        } catch (err) {
+            if (err instanceof ServiceError && (err.status === 409 || err.status === 412)) {
+                if (await this.isBlocklisted(opts.tmdbId, opts.mediaType)) return 'already';
+            }
+            throw err;
+        }
+    }
+
+    /**
+     * Takes a title off the blocklist. Seerr does this by deleting the
+     * blocklist row **and the title's media record**, and the media record
+     * cascades to every request and issue for it. Destructive, whatever
+     * "unblock" sounds like.
+     */
+    async removeFromBlocklist(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<void> {
+        await this.#http.delete(`/api/v1/blocklist/${tmdbId}?mediaType=${mediaType}`);
     }
 
     #toHit(r: RawSearchResult & { id: number }, kind: 'movie' | 'series'): SearchHit {
@@ -607,7 +682,7 @@ export class SeerrAdapter
      * nothing else here does for a title you do not own.
      *
      * **One HTTP call per title**, which is why it is only ever used for a
-     * single item. Calling it across a `lookup_media` page would be fifty
+     * single item. Calling it across a `search_media` page would be fifty
      * requests for one tool call; those hits carry TMDB's `voteAverage` from
      * the search payload instead, which is free.
      *

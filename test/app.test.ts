@@ -383,12 +383,15 @@ describe('the advertised tool surface', () => {
     /** The writes. Everything else only reads. */
     const WRITES = [
         'add_media',
+        'blocklist_media',
         'clean_queue',
         'delete_episode_files',
+        'delete_indexer',
         'delete_media',
         'delete_request',
         'fix_metadata',
         'grab_release',
+        'import_download',
         'manage_indexer',
         'pause_downloads',
         'remove_blocklist_item',
@@ -402,12 +405,15 @@ describe('the advertised tool surface', () => {
         'trigger_scan',
         'trigger_search',
         'trigger_subtitle_search',
+        'update_book',
         'update_media'
     ];
 
     /**
-     * Of those, the eight whose effect cannot be undone by calling again.
-     * `manage_indexer` is here for its `delete`; its disable is safe tier.
+     * Of those, the ten whose effect cannot be undone by calling again.
+     * `blocklist_media` is here for its `remove`, which Seerr carries out by
+     * deleting the title's requests and issues; its `add` is safe tier.
+     * `manage_indexer` stays here while its deprecated `delete` is accepted; its disable is safe tier.
      * `update_media` is here for a Lidarr `metadata_profile`; every other
      * field is safe tier.
      *
@@ -417,8 +423,10 @@ describe('the advertised tool surface', () => {
      * not whether bytes were deleted.
      */
     const DESTRUCTIVE = [
+        'blocklist_media',
         'clean_queue',
         'delete_episode_files',
+        'delete_indexer',
         'delete_media',
         'delete_request',
         'fix_metadata',
@@ -450,6 +458,7 @@ describe('the advertised tool surface', () => {
         const listed = (await listToolsOf(withServices({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' } }))).map(t => t.name);
         const left = [
             'delete_episode_files',
+            'delete_indexer',
             'delete_request',
             'fix_metadata',
             'manage_indexer',
@@ -460,11 +469,12 @@ describe('the advertised tool surface', () => {
             'set_monitoring',
             'set_watched',
             'sync_database',
-            'trigger_subtitle_search'
+            'trigger_subtitle_search',
+            'update_book'
         ];
         expect(TOOL_NAMES.filter(n => !listed.includes(n)).sort()).toEqual(left);
         expect(listed).toContain('get_subtitles');
-        expect(listed).toHaveLength(TOOL_NAMES.length - 12);
+        expect(listed).toHaveLength(TOOL_NAMES.length - 14);
     });
 
     it('advertises no book field on update_media without grimmory', async () => {
@@ -494,7 +504,7 @@ describe('the advertised tool surface', () => {
      * is a decision, not a fix for a failing test.
      */
     const DESCRIPTION_CAP = 1000;
-    const DESCRIPTIONS_TOTAL_CAP = 28_000;
+    const DESCRIPTIONS_TOTAL_CAP = 29_320;
 
     it(`keeps every tool description under ${DESCRIPTION_CAP} characters`, async () => {
         const long = (await listTools())
@@ -1376,7 +1386,7 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         );
         const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
         expect(result.tools).toHaveLength(TOOL_NAMES.length);
-        expect(TOOL_NAMES.length).toBeLessThanOrEqual(40);
+        expect(TOOL_NAMES.length).toBeLessThanOrEqual(45);
     });
 });
 

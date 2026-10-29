@@ -1,13 +1,14 @@
 # Tools
 
-Forty of them. The first nineteen read; the last twenty-one write, and are
+Forty-five of them. The first twenty read; the last twenty-five write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
 | --- | --- |
 | `diagnose` | Why is this not playable? |
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
-| `search_media` | What do I have, what exists, what can I get? Books in Grimmory too, from the library |
+| `get_instance_options` | Which quality profiles, root folders and tags can I pick for Radarr, Sonarr, Whisparr and Lidarr? |
+| `search_media` | What do I have, what exists, what can I get? `source: "discover"` tells me about a title without adding it; artists too, with Lidarr, and books, with Shelfmark. Books in Grimmory too, from the library |
 | `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it; on Grimmory, one book and its files |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files; which Grimmory books have a low match score or no identifier |
 | `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id; Grimmory books are their own kind too |
@@ -22,13 +23,14 @@ off until you turn them on — see [writes](writes.md).
 | `get_playback` | What am I watching, and what can I continue |
 | `get_indexers` | Which indexers are healthy, and what they recently rejected |
 | `get_requests` | What has been requested, and what is still pending |
-| `lookup_media` | Tell me about this, without adding it; artists too, with Lidarr, and books, with Shelfmark |
+| `lookup_media` | Deprecated: `search_media` with `source: "discover"` returns the same rows |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes; on Lidarr, an artist or some of its albums |
-| `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or rescan a Grimmory library or its Bookdrop |
+| `trigger_scan` | Refresh and rescan a library or one item, rename one item, or rescan a Grimmory library or its Bookdrop |
+| `import_download` | Import a download the *arr never took, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or approve a Grimmory Bookdrop file |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
-| `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
+| `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album (the artist level, `level: "artist"`, is deprecated: use `update_media`) |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
 | `remove_queue_item` | Get rid of this stuck or wrong download; on Grimmory, discard a file waiting in the Bookdrop |
@@ -38,13 +40,16 @@ off until you turn them on — see [writes](writes.md).
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
+| `blocklist_media` | Stop anyone requesting this through Seerr, or an *arr's import lists adding it again; or lift either |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
 | `add_media` | Add this film or series and start looking for it; on Lidarr, an artist |
-| `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile; on Grimmory, a book's title, authors, series and categories |
+| `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile |
+| `update_book` | Edit a Grimmory book's title, authors, series, categories and field locks |
 | `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers; on Lidarr, an artist's file tags |
 | `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
 | `sync_database` | Have Profilarr pull its database from git again |
-| `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, stop grabbing from it, or delete it |
+| `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, or stop grabbing from it |
+| `delete_indexer` | Delete a Prowlarr indexer, and its copy in each app |
 
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
@@ -54,7 +59,7 @@ not obvious, and the places where a value is deliberately absent rather than
 difference: a site has no seasons, so **a season is a release year**, `2019`
 rather than `1`. A year the site does not have is refused, and the refusal
 lists the years it does. It does not answer `get_wanted`, `update_media` or
-`fix_metadata`, nor `trigger_scan`'s `import` and `remap` actions. `add_media` works as it does on Sonarr,
+`fix_metadata`, nor `import_download`'s `import` and `remap` actions. `add_media` works as it does on Sonarr,
 by TVDB id — Whisparr reuses that field for its own scene-database id, not
 TheTVDB — except `series_type`, which is Sonarr only, and `monitor: "pilot"`,
 which a site has no equivalent of. Only Whisparr V2 is supported;
@@ -143,11 +148,11 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
-read, and on the twenty-one writes `destructiveHint`, taken from the same permission
+tool carries a title and an annotation: `readOnlyHint` on the twenty that only
+read, and on the twenty-four writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty similarly-shaped
+about, reads those rather than guessing from forty-five similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -194,7 +199,7 @@ case. arr-mcp cannot know a tracker's minimum, so it is the caller's number.
 
 ## Narrowing a read to one kind
 
-`search_media`, `lookup_media`, `get_queue` and `get_calendar` take an optional
+`search_media`, `get_queue` and `get_calendar` take an optional
 `kind`: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr) or `book`
 (Shelfmark, Grimmory), the same values as `get_library`. The parameter names the
 services next to each kind, so a request that only says "add it to Radarr" still
@@ -212,7 +217,7 @@ waits on Lidarr and Shelfmark or gets their answers mixed in.
 - **`get_calendar`** asks only the *arr holding that kind. `series` covers
   Sonarr and Whisparr, and `artist` gives Lidarr's albums.
 
-**A trailing year is read as a year** in `search_media` and `lookup_media`:
+**A trailing year is read as a year** in `search_media`:
 `Paranormal Activity 2027`, `(2027)` or `[2027]`. The services get the title
 alone, and hits from that year rank first among equally good title matches. A
 title that ends in its own number still wins over the shorter title, so `Wonder
@@ -222,7 +227,7 @@ year, because release names carry it.
 
 ## Poster cards
 
-`get_media_details`, `search_media`, `lookup_media` and `get_library` name the
+`get_media_details`, `search_media` and `get_library` name the
 `ui://arr-mcp/media-cards.html` view in `_meta.ui`, and put its data in the
 result's own `_meta`, under `arr-mcp/cards`: `{ view, items, total }`, where
 `view` is `detail` for `get_media_details` and `grid` otherwise, `items` holds at
@@ -409,10 +414,10 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, not monitored and removed by a cleanup rule | none: monitoring would search for it again. Protect the title in Reclaimerr first; the summary names the removal |
 | `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
 | `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
-| `managed`, in Lidarr | `set_monitoring` with `level: "artist"`, `artists: [id]` and `monitored: true`, never `id`: the artist flag only, each album keeps its own |
-| `managed` or `resolve`, nothing manages it | `lookup_media` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
+| `managed`, in Lidarr | `update_media` with the artist `id` and `monitored: true`: the artist flag only, each album keeps its own |
+| `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
-| `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
+| `queue`, import pending | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
 | `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
 | `queue`, a stopped or paused download, or a fault whose import is pending on another row of the same grab | the import above, never the removal |
 | `library` | `trigger_scan` with `action: "scan"` on the media server |
@@ -427,7 +432,7 @@ off, or a read-tier token): the write then refuses and says how to fix it. The `
 and verdict still say what is wrong. A search offered while Reclaimerr could not
 be read says so in its `why`.
 
-An applied `trigger_scan` with `action: "remap"` returns the same field when a
+An applied `import_download` with `action: "remap"` returns the same field when a
 media server that can scan is configured: a `trigger_scan` of it, in place of
 the sentence telling you to rescan by hand. Any write can carry `next_steps`; a
 step that fails to build never fails a write that already landed.
@@ -473,17 +478,24 @@ report this server reads. They appear in `services` with their version and
 connection state, and a fault in one of them shows up as a failed connection
 in `degraded` rather than in `failures`.
 
-### What each instance will accept, at `detail: "full"`
+### Profiles, root folders and tags: `get_instance_options`
 
-`options` lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
+`get_instance_options` takes optional `service` and `instance` (an id as `stack_health`'s `permissions`
+lists it); an `instance` that does not exist is refused with the ones that do.
+
+It lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
 `qualityProfiles`, `rootFolders` and `tags` it actually has. Lidarr's metadata
 profiles are not listed here: `add_media` and `update_media` name them when one
 must be chosen. These are the values `add_media` and `update_media` refuse to
 guess at: with more than one profile they insist you name which, and this is
-where the names come from. Only at `full`, because it is three extra calls per
-instance and it answers "what may I choose", not "is anything broken". An
+where the names come from. It is three calls per instance and answers "what may
+I choose", not "is anything broken", which is why it is a tool of its own. An
 instance whose profile list cannot be read is named in `degraded` and left out
-of `options` — the rest of the answer stands.
+of `items`.
+
+`stack_health` at `detail: "full"` still returns the same list as `options`, but
+that is deprecated: use `get_instance_options`. `stack_health` takes `service`
+and `instance` as well, to check one.
 
 Each root folder also carries `unmappedFolders` when the instance reports any:
 the folder names under that root it associates with no item. It rides along on
@@ -716,7 +728,7 @@ out. A read-only key cannot see the queue, so `get_queue` reports Shelfmark as
 degraded with that key rather than claiming the queue is empty. A book search fails
 the same way, as degraded, and Shelfmark is asked again after five minutes.
 
-To get a book, `lookup_media` finds it (`kind: book`) and `grab_release` with
+To get a book, `search_media` with `source: "discover"` finds it (`kind: book`) and `grab_release` with
 `service: shelfmark` and that id queues the most-downloaded file, with `safe_write`
 on. The preview names the file first. To choose another, `get_releases` lists what
 is on offer, most-downloaded first, with rows from sources that count nothing last,
@@ -844,8 +856,8 @@ and, under `playback`, `itemId` — the media server's own id, which is what
 `media_servers.jellyfin.itemId` instead, as
 [below](#which-media-server-has-it).
 
-**An artist's `acquisition.id` is Lidarr's artist id**, which `set_monitoring`
-takes with `level: "artist"`. An album id is not on a library row at all: take
+**An artist's `acquisition.id` is Lidarr's artist id**, which `update_media`
+takes as `id` to set its monitoring. An album id is not on a library row at all: take
 it from `get_media_details` on the artist, and pass it with `level: "album"`.
 `trigger_search`, `get_releases` and `grab_release` take the artist id as `id`,
 with album ids in `albums` or `album` to narrow the search, `update_media` takes
@@ -893,7 +905,7 @@ MusicBrainz artist id — the one id both Jellyfin and Plex publish for an artis
 | `title` | The artist name, fenced like every other service string |
 | `ids.mbid` | The artist's MusicBrainz id: Lidarr's `foreignArtistId`, Jellyfin's `ProviderIds.MusicBrainzArtist`, Plex's `mbid://` guid. Matched case-insensitively |
 | `albumCount` | How many albums Lidarr holds for the artist. The albums themselves are in `get_media_details` |
-| `acquisition.id` | Lidarr's artist id, which `set_monitoring` takes with `level: "artist"`, and `update_media` and `delete_media` take as `id` |
+| `acquisition.id` | Lidarr's artist id, which `update_media` and `delete_media` take as `id` |
 | `acquisition.status` | Lidarr's own artist status — `continuing` or `ended` — passed through |
 | `acquisition.addedAt` | When Lidarr added the artist, so `sort: "added"` works |
 | `acquisition.hasFile` | At least one track of any album is on disk, the same meaning `has_file` has for a series |
@@ -920,7 +932,7 @@ not row on albums.
 
 `search_media` with `source: "library"` finds an artist by **name** — "do I have
 any Daft Punk" is a library question, and the artist row answers it.
-`source: "discover"`, which is what `lookup_media` runs, answers with Lidarr's
+`source: "discover"` answers with Lidarr's
 artist lookup: artists to add, each with its MusicBrainz id under `ids.mbid`
 and, for one not yet in Lidarr, as `id` too. That id is what `add_media` takes
 as `external_id` for Lidarr.
@@ -1262,7 +1274,7 @@ join rather than a finding about the library.
 ## `get_queue`
 
 Each Radarr, Sonarr or Lidarr row carries `downloadId`, the download client's
-own id for that grab. It is what `trigger_scan`'s `import` action takes, and
+own id for that grab. It is what `import_download` takes, and
 it is the link between "this is stuck at `importBlocked`" and doing something
 about it.
 
@@ -1290,7 +1302,7 @@ added by hand falls back to NZBGet's own `NZBID`.
 A blocked row also carries `statusMessages`, the service's own reasons, one per
 line and fenced. A file the service rejected leads with its filename. They
 tell a retry apart from a dead end: "Series title mismatch" or an unknown
-episode fails the same way every time, so `trigger_scan`'s `import` will not
+episode fails the same way every time, so `import_download` will not
 help. Past ten lines the rest are counted, not listed.
 
 ### Grimmory's Bookdrop
@@ -1299,7 +1311,7 @@ With Grimmory configured, the files waiting in its Bookdrop are queue rows. Each
 has `status: "pending review"`, the file name as its title, and `addedAt` when it
 arrived. They are not downloads: arr-mcp has no progress or ETA for them, and
 they leave the queue when someone finalises them in Grimmory, or when
-`trigger_scan` with `action: "bookdrop"` and the row's `id` imports one. Reading the
+`import_download` with the row's `id` imports one. Reading the
 Bookdrop needs `canAccessBookdrop` on a non-admin account. It is read 100 files
 to a page, and a Bookdrop of more than 1,000 files fails with an error instead
 of paging on.
@@ -1534,7 +1546,7 @@ because too many articles were missing), `DELETED/BAD` and `DELETED/SCAN` are
 only a status code per post-processing stage, so `reason` is the status plus
 the stages that did not succeed, for example
 `FAILURE/PAR (ParStatus FAILURE)`. A row also carries `downloadId` (except at
-`detail: "minimal"`), the id `trigger_scan`'s `postprocess` takes to run its
+`detail: "minimal"`), the id `import_download`'s `postprocess` takes to run its
 post-processing again. It is the `drone` id an *arr stamped on the NZB, or
 NZBGet's own id for one added by hand, and is left out when it is not shaped
 like an id.
@@ -1613,7 +1625,7 @@ and Sonarr's own web UI does and returns every candidate, so a model can
 compare them and pick one for `grab_release`.
 
 `service` and either `id` or `title` are required: this searches one movie or
-series, or on Shelfmark one book, with `id` from a `lookup_media` row. It never
+series, or on Shelfmark one book, with `id` from a `search_media` with `source: "discover"` row. It never
 merges across services the way `get_history` and `get_wanted` do.
 
 A `title` is resolved the way `get_media_details` resolves one, to the id the
@@ -1850,8 +1862,9 @@ Lidarr 3.1.6).
 
 ## `manage_indexer`
 
-Adds, edits, disables, re-enables or deletes one Prowlarr indexer, then queues
-Prowlarr's Application Indexer Sync. Every action but `add` takes `id` from
+Adds, edits, disables or re-enables one Prowlarr indexer, then queues
+Prowlarr's Application Indexer Sync. Deleting is [`delete_indexer`](#delete_indexer);
+`delete` here still works, deprecated, and shows the same preview. Every action but `add` takes `id` from
 `get_indexers`: `21` for a row shown as `prowlarr:21`.
 
 What happens to the copies in Radarr and Sonarr depends on each app's sync
@@ -1911,14 +1924,28 @@ it has. The cost is that an app at Add and Remove Only reports the indexer as
 failing until it is enabled again or deleted. An app whose tags exclude the
 indexer never had it, and the preview says so.
 
-`add`, `edit`, `disable` and `enable` are safe tier. `delete` is destructive:
-Prowlarr keeps nothing to restore, so getting it back means adding the
-indexer again, credentials included. The tool is annotated `destructiveHint`
-because one of its actions is.
+`add`, `edit`, `disable` and `enable` are safe tier. The tool is still annotated
+`destructiveHint` while the deprecated `delete` is accepted, and a token from
+any of the safe actions is refused by `delete_indexer`.
 
 Adding and deleting the same indexer seconds apart can leave a copy behind in
 an app: the delete's sync joins the add's, which is still running. The next
 sync clears it; `trigger_scan` on Prowlarr runs one.
+
+## `delete_indexer`
+
+Deletes one Prowlarr indexer, with `id` from `get_indexers` (`21` for a row
+shown as `prowlarr:21`), then queues Application Indexer Sync. Destructive:
+Prowlarr keeps nothing to restore, so getting it back means adding the indexer
+again, credentials included. To stop grabs and keep the indexer, use
+`manage_indexer` with `disable`.
+
+The preview says per app what happens, as in the `delete` row of the table
+under [`manage_indexer`](#manage_indexer): an app with sync on loses its copy,
+and an app with sync off keeps a copy that fails every search until removed by
+hand. It works on Prowlarr older than 1.8 too. `manage_indexer`'s deprecated
+`delete` runs the same plan and apply, but a confirm token from one tool is
+refused by the other.
 
 ## `set_watched`
 
@@ -2551,7 +2578,7 @@ replacement.
 as soon as it fails, so there is nothing left to retry. Their grabs are only
 retryable with it off.
 
-If no *arr imports the result, `trigger_scan` with `action: "import"` does; the
+If no *arr imports the result, `import_download` does; the
 result names the `download_id` to give it (the new nzo_id after a SABnzbd retry,
 the `drone` id for an NZBGet download an *arr grabbed). The hint is left out
 when the retry failed again or the job is already gone from the client. Safe
@@ -2604,7 +2631,7 @@ existed.
 
 The text reports what actually happened, not what was planned: if only some of
 the items go it says so ("1 of 2 removed"), not only in `result`.
-`trigger_scan` and `trigger_subtitle_search` do the same when part of a remap or
+`import_download` and `trigger_subtitle_search` do the same when part of a remap or
 a subtitle search did not run.
 
 ## `trigger_subtitle_search`
@@ -2642,22 +2669,19 @@ rejects the call without it.
 
 ## `trigger_scan`
 
-Six actions, one idea: make a service reconcile itself with what is on disk
-and, on the *arrs, with its metadata provider.
-
-**Unverified live** (Grimmory): approving one Bookdrop file with `action: "bookdrop"` and `id`.
+Make a service reconcile itself with what is on disk and, on the *arrs, with
+its metadata provider. Importing a download, `remap` and `postprocess` moved to
+[`import_download`](#import_download); they and a `bookdrop` call with an `id`
+still work here, deprecated.
 
 | Call | What it does |
 | --- | --- |
 | `service` alone | Scans that service's whole library, refreshing metadata first on the *arrs. On Prowlarr, which has no library, it syncs the indexer list to Radarr and Sonarr instead. |
 | `service` + `id` | Refreshes and rescans just that Radarr/Sonarr/Whisparr item — far cheaper on a large library. On Lidarr it refreshes one artist, but the rescan after it still reads every root folder. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
-| `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
-| `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
-| `action: "postprocess"` + `download_id` | Reruns NZBGet's post-processing on a finished download that is still in its history. |
 | `action: "bookdrop"` | Has Grimmory look in its Bookdrop folder again. With `action: "scan"`, `library` rescans one Grimmory library. See [On Grimmory](#on-grimmory). |
 
-Everything here queues a command and returns, except `remap` and `postprocess` — see below.
+Everything here queues a command and returns.
 An `id` on a Radarr, Sonarr, Whisparr or Lidarr call must be a positive whole
 number. Zero, negative and fractional ids are refused before any call, with an
 error that says where to find a valid one. That holds for every tool that takes
@@ -2676,7 +2700,7 @@ command as the series page's Refresh & Scan button.
 That makes it the fix for an import refused over metadata the service has not
 caught up with, such as Sonarr's "Episode has a TBA title and recently aired".
 The flow is `trigger_scan` with the series `id`, then `stack_health` until
-`commands` shows the refresh finished, then `import` again. A refresh only helps
+`commands` shows the refresh finished, then `import_download` again. A refresh only helps
 once the provider has the title.
 
 On Jellyfin and Plex a scan looks for files that changed. It does not re-match
@@ -2691,6 +2715,65 @@ rescan still reads every root folder unless the artist is new
 (`RefreshArtistService.RescanArtists`), so it reads the whole library from disk,
 as a full scan does. `rename` is `RenameArtist`, every file of that artist. Both
 appear in `stack_health`'s `commands`.
+
+### On Plex
+
+Plex has no scan-the-whole-server call, so a scan refreshes every library in
+turn. If one of them refuses — a library removed between the listing and the
+refresh — the rest still start and the answer names the ones that did not, so
+you know a scan is running and which shelf it missed. All of them refusing is
+an error, because then nothing is.
+
+Plex returns no command id, so there is nothing in `commands` to poll. It
+reports the scan through each library's own `refreshing` flag instead, which is
+what `stack_health` and `diagnose` already read.
+
+### On Grimmory
+
+Grimmory takes two actions here.
+
+- `action: "scan"` rescans every library, or one with `library`, by name or by
+  id as `stack_health` and `get_library` show it. A name is matched ignoring
+  case. If a name and an id pick different libraries the call is refused and the
+  refusal lists them. So is a name that matches two libraries differing only in
+  case. A library that does not exist is refused, listing the ones
+  that do.
+- `action: "bookdrop"` has Grimmory look in its Bookdrop folder again for new
+  files. It imports nothing: the files wait there until someone finalises them,
+  and `get_queue` lists them. Pass no `library` with it.
+
+A library with `watch` on is skipped, since Grimmory's file watcher already picks
+up changes there. The preview names each library it will rescan and each one it
+skips, and a call that would rescan nothing is a no-op. Libraries are rescanned
+one after another, in the background. `id` is refused, because a book cannot be
+scanned on its own, and `library` and `bookdrop` are refused on any other service.
+Approving a Bookdrop file is [`import_download`](#importing-a-bookdrop-file-on-grimmory).
+
+Safe tier. A non-admin account needs `canManageLibrary` for a library and
+`canAccessBookdrop` for the Bookdrop.
+
+## `import_download`
+
+Getting a finished download into the library, or an imported file onto the right
+episode. Three actions, once `trigger_scan`'s: `import` (the default),
+`remap` and `postprocess`. `trigger_scan` still takes them as deprecated values
+of its `action`, and shows the same preview and answer. A confirm token from one
+tool is refused by the other.
+
+**Unverified live** (Grimmory): approving one Bookdrop file with `id`.
+
+| Call | What it does |
+| --- | --- |
+| `download_id` | Imports a finished download the service never picked up, on Radarr, Sonarr or Lidarr. |
+| `action: "postprocess"` + `download_id` | Reruns NZBGet's post-processing on a finished download that is still in its history. |
+| `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
+| `service: "grimmory"` + `id` | Imports one Bookdrop file as a new book. See [On Grimmory](#importing-a-bookdrop-file-on-grimmory). |
+
+An import queues a command and returns; `stack_health`'s `commands` list says
+whether it has finished. `remap` and `postprocess` wait for their own result
+instead, see below. Safe tier.
+
+### Importing on Lidarr
 
 `import` reads Lidarr's queue first and refuses a download that has not
 finished. Lidarr's candidate read for one fails, as Radarr's and Sonarr's does,
@@ -2707,51 +2790,22 @@ A wrong album match is fixed in Lidarr itself.
 
 There is no Lidarr `remap`.
 
-### On Plex
+### Importing a Bookdrop file on Grimmory
 
-Plex has no scan-the-whole-server call, so a scan refreshes every library in
-turn. If one of them refuses — a library removed between the listing and the
-refresh — the rest still start and the answer names the ones that did not, so
-you know a scan is running and which shelf it missed. All of them refusing is
-an error, because then nothing is.
+Grimmory's Bookdrop holds files nobody has finalised; `get_queue` lists them.
+Rescanning the Bookdrop for new ones is `trigger_scan` with `action: "bookdrop"`.
 
-Plex returns no command id, so there is nothing in `commands` to poll. It
-reports the scan through each library's own `refreshing` flag instead, which is
-what `stack_health` and `diagnose` already read.
+`id` is a Bookdrop row's id from `get_queue`, and the file is imported as a new
+book. It uses the metadata Grimmory read from the file itself, never the provider
+match Grimmory fetched, which can be another edition (another publisher, a series
+the file does not have); `fix_metadata` changes it afterwards. The library is the
+only one there is, or the one `library` names, and it must have a single folder: a
+library with several is refused, so approve that file in Grimmory. A file Grimmory
+has not read yet is refused until a rescan has read it. The preview names the
+file, the library and the metadata it will use; the result names the new book id
+when a title search can tell it apart.
 
-### On Grimmory
-
-Grimmory takes two actions.
-
-- `action: "scan"` rescans every library, or one with `library`, by name or by
-  id as `stack_health` and `get_library` show it. A name is matched ignoring
-  case. If a name and an id pick different libraries the call is refused and the
-  refusal lists them. So is a name that matches two libraries differing only in
-  case. A library that does not exist is refused, listing the ones
-  that do.
-- `action: "bookdrop"` has Grimmory look in its Bookdrop folder again for new
-  files. It imports nothing: the files wait there until someone finalises them,
-  and `get_queue` lists them. Pass no `library` with it.
-- `action: "bookdrop"` with `id`, a Bookdrop row's id from `get_queue`, imports
-  that one file as a new book. It uses the metadata Grimmory read from the file
-  itself, never the provider match Grimmory fetched, which can be another
-  edition (another publisher, a series the file does not have); `fix_metadata`
-  changes it afterwards. The library is the only one there is, or the one
-  `library` names, and it must have a single folder: a library with several is
-  refused, so approve that file in Grimmory. A file Grimmory has not read yet is
-  refused until a rescan has read it. The preview names the file, the library
-  and the metadata it will use; the result names the new book id when a title
-  search can tell it apart.
-
-A library with `watch` on is skipped, since Grimmory's file watcher already picks
-up changes there. The preview names each library it will rescan and each one it
-skips, and a call that would rescan nothing is a no-op. Libraries are rescanned
-one after another, in the background. `id` is refused, because a book cannot be
-scanned on its own (with `bookdrop` it names the file), and `library` and
-`bookdrop` are refused on any other service.
-
-Safe tier. A non-admin account needs `canManageLibrary` for a library and
-`canAccessBookdrop` for the Bookdrop.
+A non-admin account needs `canAccessBookdrop`.
 
 ### Importing a download that never landed
 
@@ -2760,8 +2814,7 @@ fix it: the file is still sitting in the download client's folder, and the *arr
 never took it. `get_queue` shows exactly this as a row stuck at
 `importState: "importBlocked"`.
 
-The flow is `get_queue` → take that row's `downloadId` → `trigger_scan` with
-`action: "import"`.
+The flow is `get_queue` → take that row's `downloadId` → `import_download`.
 
 The preview lists, file by file, what will be imported and what the service
 refuses and why. Rejected files are **excluded** from the import rather than
@@ -2825,7 +2878,7 @@ eligible for import" on each one, and fixing the script does nothing for the
 downloads it already handled. `action: "postprocess"` is NZBGet's "post-process
 again" for one of them.
 
-The flow is `get_queue` → the stuck row's `downloadId` → `trigger_scan` with
+The flow is `get_queue` → the stuck row's `downloadId` → `import_download` with
 `service: "nzbget"` and `action: "postprocess"`. NZBGet's own rows in
 `get_history` carry the same `downloadId`. The id is the `drone` parameter an
 *arr stamps on the NZB it sends; for an NZB added by hand it is NZBGet's own
@@ -2841,7 +2894,7 @@ NZBGet's queue is refused, so a rerun never starts on top of another.
 
 Once confirmed, NZBGet repeats repair and unpack as it is configured, then those
 scripts. Radarr, Sonarr or Lidarr still imports the result: on its next queue
-check, or straight away with `action: "import"`.
+check, or straight away with `import_download`.
 
 It only works while the download's folder still exists. When the folder has
 been moved or deleted, NZBGet still answers the request with success and logs
@@ -2991,24 +3044,103 @@ answer says the book is gone and the files are still in the library folder.
 
 A non-admin account needs `canDeleteBook`.
 
+### Seerr
+
+`seerr_blocklist: true` on a Radarr film or a Sonarr series also adds it to
+Seerr's blocklist, so the next request or watchlist sync does not send it
+straight back. Radarr's import exclusion does not do this: it only stops
+Radarr's own import lists, and Seerr adds through the API. Seerr keys the
+blocklist on the TMDB id, so a title without one is refused, and so is any
+other service.
+
+The preview checks that Seerr is configured and allows `safe_write`, since the
+blocklist is a Seerr write that Radarr's or Sonarr's permissions do not cover,
+and says when the title is already blocklisted. The blocklist is added after
+the delete, so Seerr never sees a title Radarr still has. If the delete lands
+and the blocklist does not, the answer says so and names the
+[`blocklist_media`](#blocklist_media) call that retries it.
+
+**Unverified live** (Seerr): blocklisting with `seerr_blocklist`.
+
+## `blocklist_media`
+
+`service` picks the list: `seerr` (the default) for Seerr's blocklist, or
+`radarr`, `sonarr` or `lidarr` for that *arr's import exclusions, with
+`instance` for a named one. `id` is the id that list keys on: TMDB for Seerr
+and Radarr, TVDB for Sonarr, the MusicBrainz artist id for Lidarr.
+`tmdb_id`, which 1.81.0 took for Seerr, still works there and is deprecated:
+use `id`.
+
+### Seerr
+
+Seerr's blocklist, by TMDB `id` and `kind` (`movie` or `series`). A
+blocklisted title cannot be requested by anyone; its existing requests, and
+anything Radarr or Sonarr has, are left alone. `delete_media` with
+`seerr_blocklist` adds while deleting; this tool covers a title that was never
+in Radarr or Sonarr, a retry, and lifting one.
+
+`action: "add"` is `safe`. `action: "remove"` is `destructive`, because of
+how Seerr does it: it deletes the blocklist row **and its media record for the
+title**, which takes every request and issue for it along. The preview says so.
+Either direction is a no-op when the title is already where it was asked to be.
+The preview reads the title from Seerr first, so a TMDB id Seerr does not know
+fails rather than blocklisting something nobody looked at.
+
+`get_media_details` carries `seerrBlocklisted: true` on a title Seerr has
+blocklisted, and nothing when it has not or could not say.
+
+Seerr credits a blocklist entry to a user: arr-mcp credits it to the API key's
+own user. The old `/blacklist` path is a deprecated alias; arr-mcp uses
+`/blocklist`.
+
+Confirmed live against Seerr 3.5.1: an add stores the title, `movie` and the
+API key's user, and turns the title's status to blocklisted; a remove leaves no
+Seerr record of a title that had none before.
+
+### Import exclusions
+
+An exclusion is weaker than Seerr's blocklist: it only stops that *arr's own
+import lists from adding the title. A Seerr request or a manual add still goes
+through, and the preview says so. Lidarr also deletes an artist's exclusion
+when one of its albums is added. Both `add` and `remove` are `safe`, gated by
+that *arr's own `safe_write`, since an exclusion takes nothing else with it.
+
+The preview names the title through the same lookup `add_media` uses, so an id
+the *arr's metadata provider does not know fails there. The *arrs cannot look
+one exclusion up, so each preview reads the whole list (1,348 rows on a live
+Radarr, one call). The title and, on Radarr, the year are stored with the
+exclusion, as the *arr's own UI stores them.
+
+`kind` is not needed for an *arr, and one that does not match it (a `series`
+on Radarr) is refused. Whisparr is refused for now: its exclusion field is named
+`tvdbId` while its add flow speaks ThePornDB ids, and which one the field holds
+needs a live capture.
+
+Confirmed live against Radarr 6.4: an add stores `tmdbId`, `movieTitle` and
+`movieYear`, and a remove deletes it by its row id.
+
+**Unverified live** (Sonarr): adding and removing an exclusion. The list read is live-checked against 4.0.
+
+**Unverified live** (Lidarr): exclusions, which are written from Lidarr's spec.
+
 ## `update_media`
 
 `add_media`'s counterpart: it changes what something already in Radarr, Sonarr
 or Lidarr is set to — `quality_profile`, `root_folder`, `monitored`, `tags`,
 Radarr's `minimum_availability`, Sonarr's `series_type`, Lidarr's
-`metadata_profile`.
+`metadata_profile`. A Grimmory book is [`update_book`](#update_book).
 
 Radarr and Sonarr are written through their editors (`PUT /movie/editor`,
 `PUT /series/editor`), which change only the fields sent. A new `root_folder`
 moves the files there unless `move_files` is false.
 
 It is also **the only way to change a Radarr item's monitoring**.
-`set_monitoring` covers series and artists, and has never covered films.
+`set_monitoring` covers series and albums, and has never covered films.
 
 On **Lidarr**, `id` is an artist, and `metadata_profile` switches Lidarr's
 second profile, which decides the album types and release statuses the artist
 gets. It writes through Lidarr's Artist Editor (`PUT /artist/editor`), as
-`set_monitoring` writes an artist's policy, because `PUT /artist/{id}` queues a
+the artist policy below does, because `PUT /artist/{id}` queues a
 `MoveArtist` on every call. The editor starts no refresh, so a new metadata
 profile applies at the artist's next one, which may not come until the artist
 changes upstream. Lidarr's daily refresh takes only the artists its metadata
@@ -3033,11 +3165,17 @@ Lidarr picks the artists its daily refresh takes. An unknown name is refused,
 listing the instance's metadata profiles.
 
 `monitored` is the artist's own flag: the albums keep theirs, which
-`set_monitoring` with `level: "album"` changes, and the rule for new albums,
-`monitor_new_items`, is `set_monitoring`'s too.
+`set_monitoring` with `level: "album"` changes. `monitor_new_items` (`all`,
+`new` or `none`) is the rule for albums Lidarr finds later, and with no `id`,
+`monitored` and `monitor_new_items` reach every artist in that Lidarr. The
+preview reports the new-album policy and monitor flag found across them, the
+token is signed over the resolved artist ids, and the write goes through the
+bulk editor once. No other setting goes in the same call as `monitor_new_items`
+or a missing `id`. `set_monitoring` with `level: "artist"`, `artists` and
+`monitor_new_items` still works, deprecated, through the same preview and write.
 
 Takes `service` and `id`, never a title — `acquisition.id` on a `get_library`
-or `get_media_details` record. `stack_health` at `detail: "full"` lists the
+or `get_media_details` record. `get_instance_options` lists the
 profiles, folders and tags each instance has; a name that matches more than one
 is refused rather than resolved, exactly as in `add_media`.
 
@@ -3070,10 +3208,13 @@ folder is still on disk it can leave the track files' recorded paths at the new
 root folder when switched back, which the preview says, and moving the files to
 that folder with `move_files: true` and back sets the paths right again.
 
-### Grimmory
+## `update_book`
 
-`service: "grimmory"` edits a book by hand, with `id` from `acquisition.id` on a
-`get_library` book row. It takes these fields:
+Edits a Grimmory book by hand, with `id` from `acquisition.id` on a
+`get_library` book row, as `58` or `grimmory:58`. It takes `instance` when
+several Grimmory servers are configured, and no `service`, because only
+Grimmory edits books. For a film, series or artist use `update_media`. It takes
+these fields:
 
 | Parameter | Sets |
 | --- | --- |
@@ -3088,9 +3229,7 @@ that folder with `move_files: true` and back sets the paths right again.
 `lock_fields` and `unlock_fields` take `title`, `authors`, `series`,
 `series_number` and `tags`. Only the fields named are sent. A blank title, author,
 tag or series is refused, and a series is cleared with `""` and the categories
-with `[]`. Naming no field is refused. `quality_profile`, `root_folder`,
-`monitored`, `minimum_availability`, `series_type` and `metadata_profile` are
-refused for a book, and the book fields are refused for a film, series or artist.
+with `[]`. Naming no field is refused.
 
 A locked field is refused unless the same call unlocks it. A book with every
 field locked is refused, with the advice to unlock it in Grimmory, since
@@ -3103,9 +3242,14 @@ Grimmory may write the change into the book file and move it to match its naming
 pattern, when its metadata settings say so, and the preview says that. Safe tier.
 A non-admin account needs `canEditMetadata`.
 
+`update_media` still accepts these fields on a Grimmory book, deprecated, and
+gives the same preview. It refuses `quality_profile`, `root_folder`,
+`monitored`, `minimum_availability`, `series_type` and `metadata_profile` for a
+book, and the book fields for a film, series or artist.
+
 ## Prompts and resources
 
-Forty tools do not tell you which one to reach for, and the questions
+Forty-five tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:
