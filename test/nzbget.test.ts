@@ -380,6 +380,7 @@ describe('NzbgetAdapter', () => {
             if (request.method === 'listgroups') {
                 return json({ jsonrpc: '2.0', result: [{ NZBID: 7, Status: 'PAUSED' }], id: request.id });
             }
+            if (request.method === 'status') return json({ jsonrpc: '2.0', result: { DownloadPaused: false }, id: request.id });
             return json({ jsonrpc: '2.0', result: true, id: request.id });
         });
         const adapter = new NzbgetAdapter(config, fetchImpl);
@@ -388,7 +389,8 @@ describe('NzbgetAdapter', () => {
         await adapter.setPaused(false);
         await expect(adapter.readPauseState('7')).resolves.toMatchObject({ paused: true, scope: 'queue item 7' });
 
-        expect(requests.map(request => request.rpc.method)).toEqual(['editqueue', 'resumedownload', 'listgroups']);
+        // A one-item read asks `status` too, for whether the paused queue holds it.
+        expect(requests.map(request => request.rpc.method)).toEqual(['editqueue', 'resumedownload', 'status', 'listgroups']);
         expect(requests[0]?.rpc.params).toEqual(['GroupPause', 0, '', [7]]);
     });
 
@@ -407,6 +409,35 @@ describe('NzbgetAdapter', () => {
         await expect(adapter.readPauseState('7')).resolves.toMatchObject({ paused: true });
         await expect(adapter.readPauseState('8')).resolves.toMatchObject({ paused: false });
         await expect(adapter.readPauseState('9')).resolves.toMatchObject({ paused: false });
+    });
+
+    // A paused queue holds every group not yet in post-processing but a Force one (priority 900 and up,
+    // `QueueCoordinator`). Paused post-processing holds a group waiting for it (`PickNextJob`), in a par
+    // check or repair (`RepairController::CheckPauseState`) or running a script, Force aside, but not an
+    // unpack. A one-item read reports the same.
+    it.each<[Record<string, boolean>, string, number, string | undefined]>([
+        [{ DownloadPaused: true }, 'QUEUED', 0, 'queue'],
+        [{ DownloadPaused: true }, 'PAUSED', 0, 'queue'],
+        [{ ServerPaused: true }, 'DOWNLOADING', 0, 'queue'],
+        [{ Download2Paused: true }, 'FETCHING', 0, 'queue'],
+        [{ DownloadPaused: true }, 'QUEUED', 900, undefined],
+        [{ DownloadPaused: false }, 'QUEUED', 0, undefined],
+        [{ DownloadPaused: true }, 'UNPACKING', 0, undefined],
+        [{ DownloadPaused: true, PostPaused: true }, 'PP_QUEUED', 0, 'postPaused'],
+        [{ PostPaused: true }, 'PP_QUEUED', 900, undefined],
+        [{ PostPaused: true }, 'LOADING_PARS', 0, 'postPaused'],
+        [{ PostPaused: true }, 'REPAIRING', 0, 'postPaused'],
+        [{ PostPaused: true }, 'EXECUTING_SCRIPT', 0, 'postPaused'],
+        [{ PostPaused: true }, 'REPAIRING', 900, undefined],
+        [{ PostPaused: true }, 'UNPACKING', 0, undefined],
+        [{ PostPaused: false }, 'PP_QUEUED', 0, undefined]
+    ])('marks what holds a group (status %j, group %s, priority %i)', async (status, groupStatus, priority, held) => {
+        // NZBGet reads a group as PAUSED only when every byte left is paused (`DetectStatus`).
+        const groups = [{ NZBID: 7, Status: groupStatus, FileSizeMB: 10, RemainingSizeMB: 10, PausedSizeMB: groupStatus === 'PAUSED' ? 10 : 0, MaxPriority: priority }];
+        const { fetchImpl } = rpcRecording(request => json({ jsonrpc: '2.0', result: request.method === 'status' ? status : groups, id: request.id }));
+        const adapter = new NzbgetAdapter(config, fetchImpl);
+        expect((await adapter.getQueue())[0]?.heldBy).toBe(held);
+        expect((await adapter.readPauseState('7')).heldBy).toBe(held);
     });
 
     it('converts the speed limit and disk status units', async () => {

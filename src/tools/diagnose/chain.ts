@@ -516,19 +516,78 @@ const queueImportRemedy = (item: MergedItem): string =>
     `The download finished but has not been imported yet. Check ${arrOf(item)}’s activity/history for why, then trigger the import manually if it did not run on its own.`;
 
 /**
- * The *arrs read every download as paused while the client's whole queue is
- * (`Sabnzbd`, `Nzbget`), and the client's own row then says what that one
- * download would do, often `queued`. Only a row the client itself pauses is
- * resumed alone.
+ * The *arrs read a download as paused while the client's whole queue is
+ * (`Sabnzbd`, `Nzbget`; a SABnzbd one at Force priority aside), whatever the
+ * client's own row says of it, and the adapter marks what holds it in
+ * `heldBy`. Only a row the client itself pauses is resumed alone.
  */
 const pausedInClient = (client: QueueItem): boolean => classifyQueueStatus(client) === 'paused';
 
-/** The step offers the resume when the client's own row is paused. */
-function pausedRemedy(client: QueueItem | undefined): string {
-    if (client === undefined) return 'Resume it in the download client.';
-    return pausedInClient(client)
-        ? `Resume it with pause_downloads (\`action: "resume"\` and its \`id\`) on ${client.service}, or in ${client.service} itself.`
-        : `${client.service} does not report this download paused, so its whole queue may be: resume that with pause_downloads (\`action: "resume"\` without an \`id\`) on ${client.service}, or in ${client.service} itself.`;
+/**
+ * NZBGet's post-processing stages, as its adapter names them. The *arrs read a
+ * download there as paused while its paused extra repair files are all that is
+ * left (`Nzbget`), since NZBGet pauses them on add (`PrePostProcessor`).
+ */
+const NZBGET_POST_PROCESSING = new Set(['verifying', 'repairing', 'extracting', 'moving']);
+
+/**
+ * What starts a download the *arr reads as paused, from the client's own row
+ * of the grab (the one paused itself, then one held, when there are two): the
+ * download itself, the client's whole queue, both (the queue first, as the
+ * step), or nothing, while the client post-processes it or another download,
+ * waits on its own paused post-processing, or holds nothing back. A
+ * whole-queue resume is offered only where the client says its queue holds the
+ * download, since qBittorrent's resume without an id restarts every torrent.
+ */
+function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: NextStep } {
+    const clients = grab.filter(isClientRow);
+    const client = clients.find(pausedInClient) ?? clients.find(q => q.heldBy !== undefined) ?? clients[0];
+    if (client === undefined) return { remedy: 'Resume it in the download client.' };
+    const service = client.service;
+    const resume = (id: string | undefined, why: string): NextStep => ({
+        tool: 'pause_downloads',
+        arguments: { ...instanceArgs(service), action: 'resume', ...(id === undefined ? {} : { id }) },
+        why
+    });
+    if (client.heldBy === 'postPaused') {
+        return { remedy: `${service}'s post-processing is paused, so it waits there: resume post-processing in ${service}.` };
+    }
+    if (instanceArgs(service).service === 'nzbget' && NZBGET_POST_PROCESSING.has(client.status)) {
+        return { remedy: `${service} is post-processing it (${client.status}), and the *arr reads it as paused meanwhile: wait for it.` };
+    }
+    // SABnzbd's queue flag is also set while its "Pause Downloading During Post-Processing" switch waits on
+    // post-processing, which a resume does not end (`Downloader.resume`) and its rows do not always show (`sabHolds`).
+    const sabWait =
+        instanceArgs(service).service === 'sabnzbd'
+            ? ' (With its "Pause Downloading During Post-Processing" switch on, SABnzbd also pauses while it post-processes, and resumes by itself.)'
+            : '';
+    const queueResume = `pause_downloads (\`action: "resume"\` without an \`id\`) on ${service}`;
+    if (pausedInClient(client)) {
+        return client.heldBy === 'queue'
+            ? {
+                  remedy: `It is paused in ${service}, and so is ${service}'s whole queue: resume the queue with ${queueResume}, then this download with \`id\` "${client.id}", or both in ${service} itself.${sabWait}`,
+                  next: resume(undefined, `Resumes ${service}'s whole queue; this download stays paused until it is resumed with its \`id\`.`)
+              }
+            : {
+                  remedy: `Resume it with pause_downloads (\`action: "resume"\` and its \`id\`) on ${service}, or in ${service} itself.`,
+                  next: resume(client.id, `Resumes this one download in ${service}.`)
+              };
+    }
+    if (client.heldBy === 'postProcessing') {
+        return {
+            remedy: `${service} pauses its queue while it post-processes (its "Pause Downloading During Post-Processing" switch), and resumes by itself: wait for it. If it stays paused, resume the queue with ${queueResume}.`
+        };
+    }
+    if (client.heldBy === 'queue') {
+        return {
+            remedy: `${service}'s whole queue is paused and holds it: resume the queue with ${queueResume}, or in ${service} itself.${sabWait}`,
+            next: resume(undefined, `Resumes ${service}'s whole queue.`)
+        };
+    }
+    // Only a status this module knows as progress says nothing there holds it back.
+    return classifyQueueStatus(client) === 'active'
+        ? { remedy: `${service} reports it as ${client.status}, so nothing there is holding it back: check it in ${service} if it does not move on.` }
+        : { remedy: `${service} reports it as ${client.status}: check it in ${service}.` };
 }
 const queueFinishedRemedy = (item: MergedItem): string =>
     `The download is complete, but the client reports a problem, and ${arrOf(item)} imports nothing while it stands. Fix it in the client (free disk space and retry the download, for one); ${arrOf(item)} imports it once the client no longer reports the problem.`;
@@ -536,7 +595,7 @@ const queueFinishedRemedy = (item: MergedItem): string =>
  * A usenet download the *arr marks with a warning after the client filed it in
  * its history (`usenetRerun`); the step's detail shows the message. It opens
  * with the *arr as the remedies beside it name it, and the removal names the
- * row's own instance, as `pausedRemedy` does, since this state offers no next
+ * row's own instance, as `pausedResume` does, since this state offers no next
  * step that would carry it.
  */
 const queueUsenetFinishedRemedy = (item: MergedItem, row: QueueItem): string =>
@@ -804,25 +863,16 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     }
 
     if (cls === 'paused') {
-        const client = grab.find(isClientRow);
-        const own = client !== undefined && pausedInClient(client) ? client : undefined;
+        const { remedy, next } = pausedResume(grab);
         return {
-            ...(own === undefined
-                ? {}
-                : {
-                      next: {
-                          tool: 'pause_downloads',
-                          arguments: { ...instanceArgs(own.service), action: 'resume', id: own.id },
-                          why: `Resumes this one download in ${own.service}.`
-                      }
-                  }),
+            ...(next === undefined ? {} : { next }),
             step: {
                 stage: 'queue',
                 service: row.service,
                 status: 'blocked',
                 detail: `Download ${row.status}${(row.remainingBytes ?? 0) > 0 ? ' before it finished' : ''}${said}.${strikeNote}`
             },
-            remedy: pausedRemedy(client)
+            remedy
         };
     }
 

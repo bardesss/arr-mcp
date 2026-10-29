@@ -371,21 +371,38 @@ unpacking, may hold the only copy of the files, and its remedy says to fix what
 the client reports, after which the *arr imports it (a usenet one's remedy names
 the call, below); one whose import is pending on another row of the same grab
 gets the import's remedy. A torrent qBittorrent says is missing its files is no
-such copy. A download paused or stopped before it finished asks you to resume
-it, and offers `pause_downloads` to do it when the client's own row is in the
-queue and paused too. The *arrs read every SABnzbd or NZBGet download as paused
-while that client's whole queue is, and the client's row then keeps the
-download's own status, so a row the client does not report paused gets a remedy
-to resume its whole queue, and no step. A torrent stopped with nothing left to
-download has finished: it waits on the import like a seeding one. A release the
-*arr holds back and has sent to no client (`delay`: a delay profile, a usenet
-minimum age, an indexer disabled after failures or another release already
-pending, among others) blocks with no remedy, like a download in progress, and
-`downloadClientUnavailable`, a release the *arr could not send, asks you to
-check its download clients. A message on an *arr's row that is not in trouble
-(NZBGet's PAR status on a finished download, "qBittorrent is downloading
-metadata") is not read as a fault; a row still on its way shows it after "Still
-downloading".
+such copy. A download paused or stopped before it finished is read from the
+client's own row in the grab. Paused there, it asks you to resume it and offers
+`pause_downloads` with its id. The *arrs read every SABnzbd download but a Force
+priority one, and every NZBGet download, as paused while that client's whole
+queue is. When the paused queue holds the download, the remedy and the step
+resume the whole queue, and with the download paused too the remedy names its id
+for after. A Force priority download goes on downloading through the pause, so
+an NZBGet one is told that nothing there holds it back. SABnzbd's queue also
+reads as paused while SABnzbd post-processes, with its "Pause Downloading During
+Post-Processing" switch on, and a resume does not end that wait. SABnzbd shows
+the wait when no row reads `queued` and one not paused itself, and not at Force
+priority, reads `downloading` or `propagating`. A download not paused itself is
+then told to wait, and to resume the queue if it stays paused, with no step; one
+paused itself is resumed by its id. Without such a row, the queue's remedy adds
+that SABnzbd may be waiting so. NZBGet pauses a download's extra repair files on
+add, and the *arrs read a download whose paused files are all it has left as
+paused, into post-processing, so a row there (`verifying`, `repairing`,
+`extracting`, `moving`) is told to wait, unless NZBGet's paused post-processing
+holds it (waiting for it, in a par check or repair, or running a script): then
+it is told to resume post-processing in NZBGet. Any other client row gets no
+resume, since qBittorrent's resume without an `id` restarts every torrent: one
+in progress is told that nothing there holds the download back, and one whose
+status the adapter could not map only to check the client. A torrent stopped
+with nothing left to download has finished: it waits on the import like a
+seeding one. A release the *arr holds back and has sent to no client (`delay`: a
+delay profile, a usenet minimum age, an indexer disabled after failures or
+another release already pending, among others) blocks with no remedy, like a
+download in progress, and `downloadClientUnavailable`, a release the *arr could
+not send, asks you to check its download clients. A message on an *arr's row
+that is not in trouble (NZBGet's PAR status on a finished download, "qBittorrent
+is downloading metadata") is not read as a fault; a row still on its way shows
+it after "Still downloading".
 
 With no row from the client in the grab, only the *arr's row says whether a
 torrent has finished, and it cannot tell one missing its files from a finished
@@ -533,11 +550,12 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
 | `queue`, import pending, including a torrent stopped after it finished | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
 | `queue`, failed, a warning or a state it does not know | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist, and for a warning on the *arr's own row its `why` says to add `blocklist: true` if the release itself is bad |
-| `queue`, paused or stopped before it finished, with the client's own row in the queue, paused too | `pause_downloads` with `action: "resume"` and that row's service and id |
+| `queue`, paused or stopped before it finished, with the client's own row in the queue, paused too, and no paused queue holding it but SABnzbd's wait for post-processing | `pause_downloads` with `action: "resume"` and that row's service and id |
+| `queue`, paused, with the SABnzbd or NZBGet row in the queue held by that client's paused queue, other than SABnzbd's wait for post-processing, whether the row is paused itself or not | `pause_downloads` with `action: "resume"` and that client's service, no `id` |
 | `queue`, failed, a warning or a state it does not know, whose import is pending on another row of the same grab, or, short of a failure, whose download is complete in the client, or has nothing left by the *arr's row when no row from the client is in the grab | the import above when there is one, never the removal |
 | `library` | `trigger_scan` with `action: "scan"` on the media server |
 | playable, one film or episode missing a subtitle | `trigger_subtitle_search` with the first missing language, only when Bazarr gave it a code |
-| `scan`, `indexers`, playable otherwise, still downloading, paused with no client row in the queue or one the client does not report paused, or a release the *arr holds back (`downloadClientUnavailable` too) | none |
+| `scan`, `indexers`, playable otherwise, still downloading, paused with no client row in the queue or one the client neither pauses nor holds, or in NZBGet's post-processing, paused or not, or SABnzbd's wait for it, or a release the *arr holds back (`downloadClientUnavailable` too) | none |
 
 A step is left out when its tool would refuse it or when it cannot be built:
 no id to search for, a Whisparr download (which has no manual import), or an
@@ -2448,9 +2466,15 @@ of the client as it was, and its undo names the same `id`.
 `service` is required, and names one client, because permissions are checked
 per service. Pausing everything is one call per client.
 
-Already-paused is a no-op, with no token and no confirmation prompt. For the
-two torrent clients "paused" means every torrent is stopped, and a client
-holding no torrents at all reads as *not* paused.
+Already-paused is a no-op, with no token and no confirmation prompt. On SABnzbd
+and NZBGet a one-item resume reads what else holds the item: the client's paused
+queue, which a Force priority item goes on downloading through; SABnzbd's wait
+for post-processing (see `diagnose_media`), which holds every item and ends by
+itself; or NZBGet's paused post-processing, which this tool does not resume. The
+preview then says when it starts, and an item not paused itself is a no-op that
+says what holds it rather than calling it running. NZBGet answers that with one
+more status read. For the two torrent clients "paused" means every torrent is
+stopped, and a client holding no torrents at all reads as *not* paused.
 
 **Unverified live** (qBittorrent): pause, resume and the speed limit.
 
@@ -2707,9 +2731,11 @@ Outcomes that look alike and are not:
   no-op, with no confirmation asked for.
 - **Everything rejected**: there are files and it will take none of them. A
   refusal naming the reasons.
-- **Still downloading**: the download is `queued`, `paused` or
-  `downloading`, so there is nothing to import yet. The message names the state
-  `get_queue` reports.
+- **Still downloading**: the download is `queued`, `paused` or `downloading`, so
+  there is nothing to import yet. The message names the state `get_queue`
+  reports. A paused torrent is to be resumed, and a paused usenet download too,
+  unless it waits on its client's post-processing, which the *arrs can read as
+  paused; `diagnose_media` on it says which.
 - **Failed**: the download is `failed` in the client, so it is not going to
   finish. Named as failed, with `remove_queue_item` as the remedy.
 - **Warning**: the download is `warning` in the client, which usually means

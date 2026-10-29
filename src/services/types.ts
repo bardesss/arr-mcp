@@ -352,6 +352,18 @@ export interface SubtitleSearchCapable {
 export const hasSubtitleSearch = (a: ServiceAdapter): a is ServiceAdapter & SubtitleSearchCapable =>
     typeof (a as Partial<SubtitleSearchCapable>).triggerSubtitleSearch === 'function';
 
+/**
+ * What else holds a download in its client, beside its own status. `queue`:
+ * the client's whole queue is paused, which a resume ends. On SABnzbd,
+ * `postProcessing`: the wait its "Pause Downloading During Post-Processing"
+ * switch adds, which a resume does not end. On NZBGet, `postPaused`: its
+ * post-processing is paused, which holds a download waiting for it or in it.
+ */
+export type QueueHold = 'queue' | 'postProcessing' | 'postPaused';
+
+/** `heldBy` to spread into a row or a pause state, when something holds it. */
+export const withHold = <H extends QueueHold>(hold: H | undefined): { heldBy?: H } => (hold === undefined ? {} : { heldBy: hold });
+
 export type QueueItem = {
     service: string;
     id: string;
@@ -369,6 +381,8 @@ export type QueueItem = {
     orphaned?: boolean;
     /** Internal, Lidarr only: the row names an artist but no album, so Lidarr cannot ignore the download. Never returned by a tool. */
     noAlbum?: true;
+    /** Internal, SABnzbd and NZBGet rows only: what holds it in the client, as `QueueHold` says. Never returned by a tool. */
+    heldBy?: QueueHold;
     /** `trackedDownloadState`; `importBlocked` is the stuck one. */
     importState?: string;
     /** The download client's own id for this grab: what `import_download`'s
@@ -1842,9 +1856,13 @@ export interface QueueRemoveCapable {
 export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>
     typeof (a as Partial<QueueRemoveCapable>).removeQueueItem === 'function';
 
-/** What a client reports about its own paused state, and what that state is
- *  *of*, "the SABnzbd queue", "2 torrents", so a preview can say it. */
-export type PauseState = { paused: boolean; scope: string };
+/**
+ * What a client reports about its own paused state, and what that state is
+ * *of*, "the SABnzbd queue", "2 torrents", so a preview can say it. `heldBy`,
+ * on a one-item read from SABnzbd or NZBGet, is what else holds that item, so
+ * resuming the item alone does not start it.
+ */
+export type PauseState = { paused: boolean; scope: string; heldBy?: QueueHold };
 
 /**
  * Stopping and restarting a download client.

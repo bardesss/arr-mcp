@@ -244,6 +244,27 @@ describe('a download that has not finished', () => {
         );
     });
 
+    // The *arrs read a usenet download as paused when the client paused it or its whole queue, and while
+    // NZBGet's paused extra repair files are all it has left, into post-processing (`Nzbget`), where
+    // waiting is the remedy. A torrent pauses only in its client.
+    it.each([
+        [
+            'usenet',
+            /^get_queue reports it as paused\/downloading: the client paused it or its whole queue, or NZBGet is post-processing it, which the \*arrs can read as paused, and diagnose_media on it says which\. There is nothing to import until the download client says the item is complete: .*\. Resume it with pause_downloads, or wait for the post-processing, then try again\.$/
+        ],
+        [
+            'torrent',
+            /^get_queue reports it as paused\/downloading: the client paused it\. There is nothing to import until the download client says the item is complete: .*\. Resume it with pause_downloads, then try again\.$/
+        ]
+    ])('says a paused %s download is resumed, or waited for only while NZBGet post-processes it', async (protocol, remedy) => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'paused', protocol }]);
+        const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc').catch((e: unknown) => e)) as { message: string; remedy: string };
+        expect(err.message).toMatch(/has not finished downloading/);
+        expect(err.remedy).toMatch(remedy);
+        expect(err.remedy).not.toMatch(/Wait for it to finish/);
+        expect(s.sent.some(x => x.method === 'POST')).toBe(false);
+    });
+
     /** A download that has failed is not going to finish, so "wait for it" would be the wrong remedy. */
     it('names a failed download as failed, rather than as unfinished', async () => {
         const s = stack(500, [{ ...RUNNING_ROW, status: 'failed', trackedDownloadState: 'downloading' }]);

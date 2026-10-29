@@ -351,6 +351,18 @@ describe('get_queue', () => {
         }
     });
 
+    it('never returns the internal hold mark, at any detail level', async () => {
+        const slot = { nzo_id: 'SABnzbd_nzo_ab12', filename: 'Some.Film.2026', status: 'Queued', priority: 'Normal', mb: '100.00', mbleft: '50.00' };
+        const impl = (async () => jsonResponse({ queue: { paused: true, slots: [slot] } })) as unknown as typeof fetch;
+        const sab = new SabnzbdAdapter(keyed(8080), impl);
+        expect((await sab.getQueue())[0]?.heldBy).toBe('queue');
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            const { items } = await buildGetQueue([sab], { detail, limit: 50 });
+            expect(items).toHaveLength(1);
+            for (const item of items) expect(item).not.toHaveProperty('heldBy');
+        }
+    });
+
     it('never returns the internal no-album mark, at any detail level', async () => {
         const impl = (async () => jsonResponse({ records: [{ id: 2, title: 'Some.Artist-First-FLAC-2024-GROUP', status: 'completed', artistId: 3 }], totalRecords: 1 })) as unknown as typeof fetch;
         for (const detail of ['minimal', 'standard', 'full'] as const) {

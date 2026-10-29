@@ -4,6 +4,7 @@ import type * as z from 'zod/v4';
 import type { AnyServiceConfig, CredentialServiceConfig, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
+import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
@@ -129,6 +130,32 @@ describe('sabnzbd pause', () => {
         expect(seen[1]).toContain('name=pause');
         expect(seen[1]).toContain('value=SABnzbd_nzo_abc');
         expect(seen[2]).toContain('mode=resume');
+    });
+
+    // A manual pause of the queue holds every slot but a Force one (`NzbQueue`), and each shows its job's
+    // own status, Queued for one waiting its turn. During the wait for post-processing alone, no slot reads
+    // Queued, one not paused, fetching, grabbing or checking reads Downloading or Propagating, and the wait
+    // holds every slot, Force too (`build_queue`, `Downloader.run`). The first slot is the one read.
+    it.each<[boolean, [string, string][], string | undefined]>([
+        [true, [['Queued', 'Normal']], 'queue'],
+        [true, [['Paused', 'Normal']], 'queue'],
+        [true, [['Checking', 'Normal']], 'queue'],
+        [true, [['Queued', 'Force']], undefined],
+        [true, [['Downloading', 'Force']], undefined],
+        [true, [['Downloading', 'Normal']], 'postProcessing'],
+        [true, [['Propagating', 'Low']], 'postProcessing'],
+        [true, [['Paused', 'Normal'], ['Downloading', 'Normal']], 'postProcessing'],
+        [true, [['Downloading', 'Force'], ['Downloading', 'High']], 'postProcessing'],
+        [true, [['Queued', 'Normal'], ['Downloading', 'Force']], 'queue'],
+        // A job forced during a pause keeps reading Downloading once its priority drops (`set_priority`).
+        [true, [['Downloading', 'Normal'], ['Queued', 'Normal']], 'queue'],
+        [false, [['Queued', 'Normal']], undefined]
+    ])('marks what holds a slot (queue paused %s, slots %j)', async (queuePaused, rows, held) => {
+        const slots = rows.map(([status, priority], i) => ({ nzo_id: `SABnzbd_nzo_ab1${i}`, filename: `Some.Film.202${i}`, status, priority }));
+        const impl = (async () => jsonResponse({ queue: { paused: queuePaused, slots } })) as unknown as typeof fetch;
+        const adapter = adapterWith(impl);
+        expect((await adapter.getQueue())[0]?.heldBy).toBe(held);
+        expect((await adapter.readPauseState('SABnzbd_nzo_ab10')).heldBy).toBe(held);
     });
 
     it('reads the queue-level paused flag', async () => {
@@ -303,6 +330,106 @@ describe('pause_downloads', () => {
         expect(structuredContent.effects.join(' ')).not.toMatch(wholeClient);
         expect(structuredContent.effects.join(' ')).not.toMatch(/\*arrs/);
         if (action === 'pause') expect(structuredContent.effects.join(' ')).toContain('Undo it by calling this tool again with action: "resume" and the same `id`.');
+    });
+
+    // A one-item resume does not start a download the paused queue still holds.
+    describe('one item under a paused SABnzbd queue', () => {
+        // A second slot reading Downloading, not Force, shows the wait for post-processing (`build_queue`).
+        const WAITING = { nzo_id: 'SABnzbd_nzo_cd34', filename: 'Other.Film.2025', status: 'Downloading', priority: 'Normal' };
+        const run = (status: string, priority: string, opts: { action?: string; others?: object[] } = {}) => {
+            const slot = { nzo_id: 'SABnzbd_nzo_ab12', filename: 'Some.Film.2026', status, priority };
+            const slots = [slot, ...(opts.others ?? [])];
+            const sab = new SabnzbdAdapter(keyed(8080), (async () => jsonResponse({ queue: { paused: true, slots } })) as unknown as typeof fetch);
+            return harness({ adapters: [sab] }).call({ service: 'sabnzbd', action: opts.action ?? 'resume', id: slot.nzo_id });
+        };
+        const POST_PROCESSING = 'sabnzbd pauses its queue while it post-processes ("Pause Downloading During Post-Processing")';
+        const STAYS = 'if it stays paused, resume it with this tool and no `id`.';
+
+        it('says the queue holds it after the resume', async () => {
+            const { structuredContent } = await run('Paused', 'Normal');
+            expect(structuredContent.effects).toEqual([
+                "Restarts queue item SABnzbd_nzo_ab12 on sabnzbd. sabnzbd's whole queue is paused too, so it starts downloading only once that is resumed, with this tool and no `id`."
+            ]);
+        });
+
+        it('says an item that is not paused itself waits on the queue, not that it is running', async () => {
+            const { structuredContent } = await run('Queued', 'Normal');
+            expect(structuredContent).toMatchObject({
+                noop: true,
+                summary: "queue item SABnzbd_nzo_ab12 on sabnzbd is not paused itself, but sabnzbd's whole queue is: resume that with this tool and no `id`."
+            });
+        });
+
+        it('calls a Force item running, since it downloads through a manual pause', async () => {
+            const { structuredContent } = await run('Downloading', 'Force');
+            expect(structuredContent).toMatchObject({ noop: true, summary: 'queue item SABnzbd_nzo_ab12 on sabnzbd is already running.' });
+        });
+
+        it('says the wait for post-processing holds an item that is not paused itself, and ends by itself', async () => {
+            const { structuredContent } = await run('Downloading', 'Normal');
+            expect(structuredContent).toMatchObject({
+                noop: true,
+                summary: `queue item SABnzbd_nzo_ab12 on sabnzbd is not paused itself, but ${POST_PROCESSING}, and resumes by itself; ${STAYS}`
+            });
+        });
+
+        it('says the wait holds a Force item too, since nothing downloads through it', async () => {
+            const { structuredContent } = await run('Downloading', 'Force', { others: [WAITING] });
+            expect(structuredContent).toMatchObject({
+                noop: true,
+                summary: `queue item SABnzbd_nzo_ab12 on sabnzbd is not paused itself, but ${POST_PROCESSING}, and resumes by itself; ${STAYS}`
+            });
+        });
+
+        it('says a resumed item starts once post-processing ends, during the wait', async () => {
+            const { structuredContent } = await run('Paused', 'Normal', { others: [WAITING] });
+            expect(structuredContent.effects).toEqual([
+                `Restarts queue item SABnzbd_nzo_ab12 on sabnzbd. ${POST_PROCESSING}, so it starts downloading once that ends; if the queue stays paused, resume it with this tool and no \`id\`.`
+            ]);
+        });
+
+        it('calls an item paused itself already paused, whatever holds the queue', async () => {
+            const { structuredContent } = await run('Paused', 'Normal', { action: 'pause' });
+            expect(structuredContent).toMatchObject({ noop: true, summary: 'queue item SABnzbd_nzo_ab12 on sabnzbd is already paused.' });
+        });
+    });
+
+    // NZBGet answers a one-item read from `status` and `listgroups`.
+    describe('one item on NZBGet', () => {
+        const run = (status: Record<string, boolean>, group: Record<string, unknown>) => {
+            const fetchImpl = (async (_input: unknown, init?: RequestInit) => {
+                const { method, id } = JSON.parse(String(init?.body)) as { method: string; id: number };
+                const result = method === 'listgroups' ? [{ NZBID: 7, NZBNicename: 'Some.Film.2026', FileSizeMB: 10, ...group }] : status;
+                return jsonResponse({ jsonrpc: '2.0', result, id });
+            }) as unknown as typeof fetch;
+            const nzbget = new NzbgetAdapter(credential(6789), fetchImpl);
+            return harness({ adapters: [nzbget], permissions: { nzbget: credential(6789) as unknown as AnyServiceConfig } }).call({ service: 'nzbget', action: 'resume', id: '7' });
+        };
+
+        it('says the paused queue holds an item that is not paused itself', async () => {
+            const { structuredContent } = await run({ DownloadPaused: true }, { Status: 'QUEUED', RemainingSizeMB: 10, PausedSizeMB: 0 });
+            expect(structuredContent).toMatchObject({
+                noop: true,
+                summary: "queue item 7 on nzbget is not paused itself, but nzbget's whole queue is: resume that with this tool and no `id`."
+            });
+        });
+
+        // `PickNextJob`: paused post-processing starts no job waiting for it.
+        it('says paused post-processing holds an item waiting for it, rather than calling it running', async () => {
+            const { structuredContent } = await run({ PostPaused: true }, { Status: 'PP_QUEUED', RemainingSizeMB: 0, PausedSizeMB: 0 });
+            expect(structuredContent).toMatchObject({
+                noop: true,
+                summary: "queue item 7 on nzbget is not paused itself, but nzbget's post-processing is: it waits there until post-processing is resumed in nzbget."
+            });
+        });
+
+        // `RepairController::CheckPauseState`: a repair waits while post-processing is paused.
+        it('says a resumed item then waits on paused post-processing', async () => {
+            const { structuredContent } = await run({ PostPaused: true }, { Status: 'REPAIRING', RemainingSizeMB: 2, PausedSizeMB: 2 });
+            expect(structuredContent.effects).toEqual([
+                "Restarts queue item 7 on nzbget. nzbget's post-processing is paused too, so it then waits there until post-processing is resumed in nzbget."
+            ]);
+        });
     });
 
     it('is a no-op when the client is already paused', async () => {

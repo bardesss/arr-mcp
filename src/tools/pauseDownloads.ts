@@ -3,7 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasPause, hasSpeedLimit, type ServiceAdapter } from '../services/types.ts';
+import { hasPause, hasSpeedLimit, type QueueHold, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
@@ -61,6 +61,29 @@ const PauseDownloadsInput = z.object({
             'One queue item to pause or resume, exactly as get_queue reported its id. Omit for the whole client. Refused with action "limit".'
         )
 });
+
+/**
+ * What else holds one SABnzbd or NZBGet item, for its resume preview and for
+ * the no-op of an item not paused itself: its client's paused queue, which this
+ * tool resumes without an `id`; SABnzbd's wait for post-processing, which ends
+ * by itself, though its rows can look like it under a manual pause
+ * (`sabHolds`); or NZBGet's paused post-processing, which this tool does not
+ * resume.
+ */
+const HOLD_TEXT: Readonly<Record<QueueHold, (client: string) => { noop: string; effect: string }>> = {
+    queue: client => ({
+        noop: `${client}'s whole queue is: resume that with this tool and no \`id\`.`,
+        effect: `${client}'s whole queue is paused too, so it starts downloading only once that is resumed, with this tool and no \`id\`.`
+    }),
+    postProcessing: client => ({
+        noop: `${client} pauses its queue while it post-processes ("Pause Downloading During Post-Processing"), and resumes by itself; if it stays paused, resume it with this tool and no \`id\`.`,
+        effect: `${client} pauses its queue while it post-processes ("Pause Downloading During Post-Processing"), so it starts downloading once that ends; if the queue stays paused, resume it with this tool and no \`id\`.`
+    }),
+    postPaused: client => ({
+        noop: `${client}'s post-processing is: it waits there until post-processing is resumed in ${client}.`,
+        effect: `${client}'s post-processing is paused too, so it then waits there until post-processing is resumed in ${client}.`
+    })
+};
 
 export function registerPauseDownloads(
     server: McpServer,
@@ -131,9 +154,14 @@ export function registerPauseDownloads(
             // Asking someone to confirm a no-op teaches them to confirm
             // without reading.
             if (state.paused === paused) {
+                // A held item that is not paused itself is not running either.
+                const held = paused ? undefined : state.heldBy;
                 return {
                     target,
-                    summary: `${state.scope} on ${adapter.id} ${paused ? 'is already paused' : 'is already running'}.`,
+                    summary:
+                        held === undefined
+                            ? `${state.scope} on ${adapter.id} ${paused ? 'is already paused' : 'is already running'}.`
+                            : `${state.scope} on ${adapter.id} is not paused itself, but ${HOLD_TEXT[held](adapter.id).noop}`,
                     effects: [],
                     noop: true
                 };
@@ -150,7 +178,7 @@ export function registerPauseDownloads(
                       `Undo it by calling this tool again with action: "resume"${whole ? '' : ` and the same \`id\``}.`
                   ]
                 : [
-                      `Restarts ${state.scope} on ${adapter.id}. Downloading resumes immediately and uses bandwidth.`,
+                      `Restarts ${state.scope} on ${adapter.id}. ${state.heldBy === undefined ? 'Downloading resumes immediately and uses bandwidth.' : HOLD_TEXT[state.heldBy](adapter.id).effect}`,
                       ...(whole ? ['Anything the *arrs grabbed while it was paused starts downloading too.'] : [])
                   ];
 

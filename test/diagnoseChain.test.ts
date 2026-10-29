@@ -1613,8 +1613,9 @@ describe('buildChain — each queue state is worded for what it is', () => {
     });
 
     // SABnzbd's own row, as its adapter reads it.
-    const sabRow = async (status: string): Promise<QueueItem> => {
-        const fetchImpl = servingModes({ queue: { queue: { slots: [{ nzo_id: 'SABnzbd_nzo_ab12', filename: 'Some.Film.2026', status, mb: '10.0', mbleft: '4.0', timeleft: '0:00:00' }] } } });
+    const sabRow = async (status: string, queue: { paused?: boolean; priority?: string; others?: object[] } = {}): Promise<QueueItem> => {
+        const slot = { nzo_id: 'SABnzbd_nzo_ab12', filename: 'Some.Film.2026', status, priority: queue.priority ?? 'Normal', mb: '10.0', mbleft: '4.0', timeleft: '0:00:00' };
+        const fetchImpl = servingModes({ queue: { queue: { paused: queue.paused ?? false, slots: [slot, ...(queue.others ?? [])] } } });
         const sab = new SabnzbdAdapter({ url: 'http://192.0.2.10:8080', api_key: 'k', timeout_ms: 10_000, permissions: { safe_write: false, destructive: false } }, fetchImpl);
         const [client] = await sab.getQueue();
         if (client === undefined) throw new Error('no queue row');
@@ -1631,15 +1632,150 @@ describe('buildChain — each queue state is worded for what it is', () => {
         ]);
     });
 
-    // `Sabnzbd`: Radarr reads every download as paused while SABnzbd's whole queue is,
-    // and SABnzbd's own row keeps the download's own status (`build_queue`).
-    it("asks to resume the client's whole queue, with no step, when its own row is not paused", async () => {
-        const d = run(radarrRow({ status: 'paused', protocol: 'usenet', downloadId: 'SABnzbd_nzo_ab12' }), await sabRow('Queued'));
+    // `Sabnzbd`: Radarr reads every download as paused while SABnzbd's whole queue is, and
+    // under a manual pause SABnzbd's own row keeps the download's own status (`build_queue`).
+    const SAB_WAIT = ' (With its "Pause Downloading During Post-Processing" switch on, SABnzbd also pauses while it post-processes, and resumes by itself.)';
+    const QUEUE_RESUME = { tool: 'pause_downloads', arguments: { service: 'sabnzbd', action: 'resume' }, why: "Resumes sabnzbd's whole queue." };
+    const behindRadarr = (client: QueueItem) => run(radarrRow({ status: 'paused', protocol: 'usenet', downloadId: 'SABnzbd_nzo_ab12' }), client);
+
+    it("asks to resume the client's whole queue, with that step, when the paused queue holds the download", async () => {
+        const d = behindRadarr(await sabRow('Queued', { paused: true }));
         expect(stepFor(d, 'queue')).toMatchObject({ service: 'radarr', detail: 'Download paused before it finished.' });
         expect(d.verdict.remedy).toBe(
-            'sabnzbd does not report this download paused, so its whole queue may be: resume that with pause_downloads (`action: "resume"` without an `id`) on sabnzbd, or in sabnzbd itself.'
+            `sabnzbd's whole queue is paused and holds it: resume the queue with pause_downloads (\`action: "resume"\` without an \`id\`) on sabnzbd, or in sabnzbd itself.${SAB_WAIT}`
+        );
+        expect(d.verdict.next_steps).toEqual([QUEUE_RESUME]);
+    });
+
+    it('asks to resume the queue first, then the download, when both are paused', async () => {
+        const d = behindRadarr(await sabRow('Paused', { paused: true }));
+        expect(d.verdict.remedy).toBe(
+            `It is paused in sabnzbd, and so is sabnzbd's whole queue: resume the queue with pause_downloads (\`action: "resume"\` without an \`id\`) on sabnzbd, then this download with \`id\` "SABnzbd_nzo_ab12", or both in sabnzbd itself.${SAB_WAIT}`
+        );
+        expect(d.verdict.next_steps).toEqual([{ ...QUEUE_RESUME, why: "Resumes sabnzbd's whole queue; this download stays paused until it is resumed with its `id`." }]);
+    });
+
+    // `build_queue`: during the wait for post-processing alone, a slot that is not paused itself reads
+    // Downloading, and a resume does not end the wait (`Downloader.resume`).
+    const WAITING = { nzo_id: 'SABnzbd_nzo_cd34', filename: 'Other.Film.2025', status: 'Downloading', priority: 'Normal' };
+
+    it('asks to wait, with no resume, while SABnzbd pauses its queue for post-processing', async () => {
+        const d = behindRadarr(await sabRow('Downloading', { paused: true }));
+        expect(d.verdict.remedy).toBe(
+            'sabnzbd pauses its queue while it post-processes (its "Pause Downloading During Post-Processing" switch), and resumes by itself: wait for it. If it stays paused, resume the queue with pause_downloads (`action: "resume"` without an `id`) on sabnzbd.'
         );
         expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it('asks to resume only the download paused itself during that wait', async () => {
+        const d = behindRadarr(await sabRow('Paused', { paused: true, others: [WAITING] }));
+        expect(d.verdict.remedy).toBe('Resume it with pause_downloads (`action: "resume"` and its `id`) on sabnzbd, or in sabnzbd itself.');
+        expect(d.verdict.next_steps).toEqual([
+            { tool: 'pause_downloads', arguments: { service: 'sabnzbd', action: 'resume', id: 'SABnzbd_nzo_ab12' }, why: 'Resumes this one download in sabnzbd.' }
+        ]);
+    });
+
+    // NZBGet's own row, as its adapter shapes it, tied to Radarr's by the `drone` id.
+    const nzbgetRow = (over: Partial<QueueItem>): QueueItem => ({
+        service: 'nzbget',
+        id: '7',
+        title: fenceText('Some.Film.2026', { service: 'nzbget', field: 'NZBNicename' }),
+        status: 'queued',
+        protocol: 'usenet',
+        sizeBytes: 1000,
+        remainingBytes: 1000,
+        downloadId: DRONE,
+        ...over
+    });
+    // NZBGet's own row as its adapter reads it, from `status` and one `listgroups` group.
+    const nzbgetClient = async (status: Record<string, boolean>, group: Record<string, unknown>): Promise<QueueItem> => {
+        const fetchImpl = (async (_input: unknown, init?: RequestInit) => {
+            const { method, id } = JSON.parse(String(init?.body)) as { method: string; id: number };
+            const result =
+                method === 'listgroups'
+                    ? [{ NZBID: 7, NZBNicename: 'Some.Film.2026', FileSizeMB: 10, Parameters: [{ Name: 'drone', Value: DRONE }], ...group }]
+                    : { DownloadRate: 0, ...status };
+            return new Response(JSON.stringify({ jsonrpc: '2.0', result, id }), { headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const adapter = new NzbgetAdapter(
+            { url: 'http://192.0.2.10:6789', username: 'u', password: 'p', timeout_ms: 10_000, permissions: { safe_write: false, destructive: false } },
+            fetchImpl
+        );
+        const [row] = await adapter.getQueue();
+        if (row === undefined) throw new Error('no queue row');
+        return row;
+    };
+    const pausedFor = (downloadId: string) => radarrRow({ status: 'paused', protocol: 'usenet', downloadId });
+
+    // A client that holds nothing back gets no resume, least of all a whole-queue one:
+    // qBittorrent's resume without an id restarts every torrent.
+    it.each<[string, () => Promise<[QueueItem, QueueItem]>, string]>([
+        ['SABnzbd with its queue running', async () => [pausedFor('SABnzbd_nzo_ab12'), await sabRow('Queued')], 'sabnzbd reports it as queued'],
+        // `QueueCoordinator`: a Force priority group downloads through NZBGet's paused queue, which Radarr still reads as paused (`Nzbget`).
+        [
+            'NZBGet downloading a Force priority group',
+            async () => [pausedFor(DRONE), await nzbgetClient({ DownloadPaused: true }, { Status: 'DOWNLOADING', RemainingSizeMB: 6, PausedSizeMB: 0, MaxPriority: 900 })],
+            'nzbget reports it as downloading'
+        ],
+        ['qBittorrent downloading', async () => [radarrRow({ status: 'paused' }), torrent('downloading', false)], 'qbittorrent reports it as downloading'],
+        // `QBittorrent`: its checking states read `verifying`, which is not NZBGet's post-processing.
+        ['qBittorrent checking its files', async () => [radarrRow({ status: 'paused' }), torrent('verifying', false)], 'qbittorrent reports it as verifying']
+    ])('says nothing holds it back, with no step, behind %s', async (_case, rows, opening) => {
+        const d = run(...(await rows()));
+        expect(d.verdict.remedy).toBe(`${opening}, so nothing there is holding it back: check it in ${opening.split(' ')[0]} if it does not move on.`);
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // A status the adapter could not map says nothing either way about a pause.
+    it("claims nothing about a client row whose status it does not know, and offers no resume", () => {
+        const d = run(radarrRow({ status: 'paused' }), torrent('unknown', false));
+        expect(d.verdict.remedy).toBe('qbittorrent reports it as unknown: check it in qbittorrent.');
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // NZBGet pauses a download's extra repair files on add (`PrePostProcessor`), and Radarr reads one whose
+    // paused files are all it has left as paused, into post-processing (`Nzbget`), where NZBGet's own row
+    // names the stage. A paused queue holds no download in post-processing, though Radarr reads it as paused.
+    it.each<[string, Record<string, boolean>, number, string, string]>([
+        ['its paused repair files', {}, 2, 'LOADING_PARS', 'verifying'],
+        ['its paused repair files', {}, 2, 'REPAIRING', 'repairing'],
+        ['its paused repair files', {}, 2, 'UNPACKING', 'extracting'],
+        ['its paused repair files', {}, 2, 'MOVING', 'moving'],
+        ['a paused queue', { DownloadPaused: true }, 0, 'UNPACKING', 'extracting']
+    ])('asks to wait, with no resume, while NZBGet is post-processing it (%s, %s)', async (_case, status, pausedMB, group, stage) => {
+        const d = run(pausedFor(DRONE), await nzbgetClient(status, { Status: group, RemainingSizeMB: pausedMB, PausedSizeMB: pausedMB }));
+        expect(d.verdict.remedy).toBe(`nzbget is post-processing it (${stage}), and the *arr reads it as paused meanwhile: wait for it.`);
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // `PickNextJob`: paused post-processing starts no job waiting for it.
+    it('asks to resume post-processing, with no step, for a download waiting on paused post-processing', async () => {
+        const d = run(pausedFor(DRONE), await nzbgetClient({ PostPaused: true }, { Status: 'PP_QUEUED', RemainingSizeMB: 2, PausedSizeMB: 2 }));
+        expect(d.verdict.remedy).toBe("nzbget's post-processing is paused, so it waits there: resume post-processing in nzbget.");
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // Two clients can carry the same grab: the row paused itself is resumed first, then one a queue holds.
+    const PAUSED_B = nzbgetRow({ service: 'nzbget/b', id: '8', status: 'paused' });
+    const RESUME_B = { tool: 'pause_downloads', arguments: { service: 'nzbget', instance: 'b', action: 'resume', id: '8' }, why: 'Resumes this one download in nzbget/b.' };
+    it.each<[string, QueueItem, QueueItem, object]>([
+        ['paused itself, after one running', nzbgetRow({ status: 'queued' }), PAUSED_B, RESUME_B],
+        ['paused itself, after one its queue holds', nzbgetRow({ heldBy: 'queue' }), PAUSED_B, RESUME_B],
+        [
+            'its queue holds, after one running',
+            nzbgetRow({ status: 'queued' }),
+            nzbgetRow({ service: 'nzbget/b', id: '8', heldBy: 'queue' }),
+            { tool: 'pause_downloads', arguments: { service: 'nzbget', instance: 'b', action: 'resume' }, why: "Resumes nzbget/b's whole queue." }
+        ]
+    ])('resumes the client row %s when two clients carry the grab', (_case, first, second, step) => {
+        const d = run(pausedFor(DRONE), first, second);
+        expect(d.verdict.next_steps).toEqual([step]);
+    });
+
+    it("names no SABnzbd switch for NZBGet's paused queue", async () => {
+        const d = run(pausedFor(DRONE), await nzbgetClient({ DownloadPaused: true }, { Status: 'QUEUED', RemainingSizeMB: 10, PausedSizeMB: 0 }));
+        expect(d.verdict.remedy).toBe("nzbget's whole queue is paused and holds it: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) on nzbget, or in nzbget itself.");
+        expect(d.verdict.next_steps).toEqual([{ tool: 'pause_downloads', arguments: { service: 'nzbget', action: 'resume' }, why: "Resumes nzbget's whole queue." }]);
     });
 
     it('sends a paused *arr row with no client row to the download client, with no step to offer', () => {

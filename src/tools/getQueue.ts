@@ -106,7 +106,7 @@ export function dueText(due: CleanuparrDue): string {
 }
 
 const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
-    const { torrent, noAlbum: _n, ...visible } = q;
+    const { torrent, noAlbum: _n, heldBy: _h, ...visible } = q;
     if (detail === 'full') {
         if (torrent === undefined) return visible;
         // The save path only where it helps explain why no Cleanuparr rule matched: 500 of them blow the budget.
