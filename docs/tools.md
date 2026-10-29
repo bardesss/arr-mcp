@@ -40,7 +40,7 @@ off until you turn them on — see [writes](writes.md).
 | `delete_request` | Drop a request record entirely |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
 | `add_media` | Add this film or series and start looking for it; on Lidarr, an artist |
-| `update_media` | Change the profile, folder, monitoring or tags of something already there; on Grimmory, a book's title, authors, series and categories |
+| `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile; on Grimmory, a book's title, authors, series and categories |
 | `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers |
 | `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
 | `sync_database` | Have Profilarr pull its database from git again |
@@ -396,13 +396,13 @@ in `degraded` rather than in `failures`.
 
 `options` lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
 `qualityProfiles`, `rootFolders` and `tags` it actually has. Lidarr's metadata
-profiles are not listed here: `add_media` names them when it needs one chosen.
-These are the values `add_media` and `update_media` refuse to guess at: with
-more than one profile they insist you name which, and this is where the names
-come from. Only at `full`, because it is three extra calls per instance and it
-answers "what may I choose", not "is anything broken". An instance whose profile
-list cannot be read is named in `degraded` and left out of `options` — the rest
-of the answer stands.
+profiles are not listed here: `add_media` and `update_media` name them when one
+must be chosen. These are the values `add_media` and `update_media` refuse to
+guess at: with more than one profile they insist you name which, and this is
+where the names come from. Only at `full`, because it is three extra calls per
+instance and it answers "what may I choose", not "is anything broken". An
+instance whose profile list cannot be read is named in `degraded` and left out
+of `options` — the rest of the answer stands.
 
 Each root folder also carries `unmappedFolders` when the instance reports any:
 the folder names under that root it associates with no item. It rides along on
@@ -755,7 +755,8 @@ and, under `playback`, `itemId` — the media server's own id, which is what
 takes with `level: "artist"`. An album id is not on a library row at all: take it
 from `get_media_details` on the artist, and pass it with `level: "album"`.
 `trigger_search`, `get_releases` and `grab_release` take the artist id as `id`,
-with album ids in `albums` or `album` to narrow the search.
+with album ids in `albums` or `album` to narrow the search, and `update_media`
+takes it as `id` to change the artist's profiles, folder, monitoring or tags.
 
 Before this, a caller had the external ids and nothing a write would accept,
 so answering "delete this" meant a second `search_media(source: "library")` hop
@@ -798,7 +799,7 @@ MusicBrainz artist id — the one id both Jellyfin and Plex publish for an artis
 | `title` | The artist name, fenced like every other service string |
 | `ids.mbid` | The artist's MusicBrainz id: Lidarr's `foreignArtistId`, Jellyfin's `ProviderIds.MusicBrainzArtist`, Plex's `mbid://` guid. Matched case-insensitively |
 | `albumCount` | How many albums Lidarr holds for the artist. The albums themselves are in `get_media_details` |
-| `acquisition.id` | Lidarr's artist id, which `set_monitoring` takes with `level: "artist"` |
+| `acquisition.id` | Lidarr's artist id, which `set_monitoring` takes with `level: "artist"` and `update_media` takes as `id` |
 | `acquisition.status` | Lidarr's own artist status — `continuing` or `ended` — passed through |
 | `acquisition.addedAt` | When Lidarr added the artist, so `sort: "added"` works |
 | `acquisition.hasFile` | At least one track of any album is on disk, the same meaning `has_file` has for a series |
@@ -2711,13 +2712,33 @@ A non-admin account needs `canDeleteBook`.
 
 ## `update_media`
 
-`add_media`'s counterpart: it changes what something already in Radarr or Sonarr
-is set to — `quality_profile`, `root_folder`, `monitored`, `tags`, Radarr's
-`minimum_availability`, Sonarr's `series_type`.
+`add_media`'s counterpart: it changes what something already in Radarr, Sonarr
+or Lidarr is set to — `quality_profile`, `root_folder`, `monitored`, `tags`,
+Radarr's `minimum_availability`, Sonarr's `series_type`, Lidarr's
+`metadata_profile`.
 
 It is also **the only way to change a Radarr item's monitoring**.
-`set_monitoring` is Sonarr's per-season tool and has never covered films. It
-refuses Lidarr too, where monitoring is set through `set_monitoring` itself.
+`set_monitoring` covers series and artists, and has never covered films.
+
+On **Lidarr**, `id` is an artist, and `metadata_profile` switches Lidarr's
+second profile, which decides the album types and release statuses the artist
+gets. It writes through Lidarr's Artist Editor (`PUT /artist/editor`), as
+`set_monitoring` writes an artist's policy, because `PUT /artist/{id}` queues a
+`MoveArtist` on every call. The editor starts no refresh, so a new metadata
+profile applies at the artist's next one. That refresh removes the albums the
+new profile leaves out unless they have files or were added by hand (under
+`None`, every such album), and switching back later brings them in again as new
+albums, without their old flags. The albums it brings in are flagged by the
+artist's `monitor_new_items` rule, and Lidarr then searches the released ones
+while the artist is monitored (in Lidarr newer than 3.2.0.5144, only those
+released in the last 180 days). It searches at the rescan after that refresh, or
+at the next disk scan when Lidarr's "Rescan Artist Folder after Refresh" setting
+skips that rescan. The preview says all of this. An unknown name is refused,
+listing the instance's metadata profiles.
+
+`monitored` is the artist's own flag: the albums keep theirs, which
+`set_monitoring` with `level: "album"` changes, and the rule for new albums,
+`monitor_new_items`, is `set_monitoring`'s too.
 
 Takes `service` and `id`, never a title — `acquisition.id` on a `get_library`
 or `get_media_details` record. `stack_health` at `detail: "full"` lists the
@@ -2735,8 +2756,11 @@ unknown label is refused, listing the ones that exist — nothing here creates a
 tag.
 
 Safe tier. Every field is one the same tool sets back, and a move loses
-nothing: the undo is moving it back. A request that would change nothing is a
-no-op, and a request naming no field at all is refused rather than previewed.
+nothing: the undo is moving it back. A Lidarr metadata profile is the one
+exception: once a refresh has removed albums, switching back brings them in
+without their old flags, which the preview says. A request that would change
+nothing is a no-op, and a request naming no field at all is refused rather than
+previewed.
 
 ### Grimmory
 
@@ -2757,8 +2781,8 @@ no-op, and a request naming no field at all is refused rather than previewed.
 `series_number` and `tags`. Only the fields named are sent. A blank title, author,
 tag or series is refused, and a series is cleared with `""` and the categories
 with `[]`. Naming no field is refused. `quality_profile`, `root_folder`,
-`monitored`, `minimum_availability` and `series_type` are refused for a book, and
-the book fields are refused for a film or series.
+`monitored`, `minimum_availability`, `series_type` and `metadata_profile` are
+refused for a book, and the book fields are refused for a film, series or artist.
 
 A locked field is refused unless the same call unlocks it. A book with every
 field locked is refused, with the advice to unlock it in Grimmory, since

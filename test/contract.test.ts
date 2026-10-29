@@ -539,6 +539,20 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 method: 'get',
                 fixture: 'test/fixtures/lidarr/metadataprofile.json',
                 fields: ['id', 'name']
+            },
+            {
+                // `update_media`'s preview reads the artist itself.
+                path: '/api/v1/artist/{id}',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/artist-detail.json',
+                fields: ['id', 'artistName', 'monitored', 'qualityProfileId', 'metadataProfileId', 'monitorNewItems', 'path', 'tags']
+            },
+            {
+                // `update_media` writes through the Artist Editor and reads its
+                // answer. The spec declares no body for it (Lidarr answers 202
+                // with the artists), so only the recorded response is checked.
+                fixture: 'test/fixtures/lidarr/artist-editor-update.json',
+                fields: ['id', 'artistName', 'monitored', 'qualityProfileId', 'metadataProfileId', 'monitorNewItems', 'path', 'tags']
             }
         ]
     },

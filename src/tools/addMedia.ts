@@ -14,6 +14,7 @@ import {
 } from '../services/types.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
 import { arrSubject } from './crossChecks.ts';
+import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -117,9 +118,6 @@ function searchEffect(
  * in the last 180 days (`AlbumRefreshedService`), where the older ones wait for
  * RSS sync or a search started by hand.
  */
-const SEARCH_AFTER_REFRESH =
-    "Lidarr then searches the released ones while the artist is monitored (in Lidarr newer than 3.2.0.5144, only those released in the last 180 days; older ones wait for RSS sync or trigger_search).";
-
 const NO_ALBUMS_NEW_ITEMS_EFFECT: Readonly<Record<ArtistMonitorNewItems, string>> = {
     all: `If its metadata profile changes later, every album that brings is monitored (\`all\`). ${SEARCH_AFTER_REFRESH}`,
     new: `If its metadata profile changes later, every album that brings is monitored: \`new\` compares with the albums it already has, and it has none. ${SEARCH_AFTER_REFRESH}`,
@@ -162,15 +160,6 @@ function lidarrInitialAlbums(monitor: string | undefined, newItems: ArtistMonito
     }
     return undefined;
 }
-
-/**
- * Lidarr's reserved metadata profile, which every install has
- * (`MetadataProfileService.NONE_PROFILE_NAME`, created at startup; no other
- * profile may take the name). Its album type lists are empty, so an artist on
- * it gets no albums at all (`SkyHookProxy.FilterAlbums`). It is chosen only
- * when it is named, by `metadata_profile` or as the root folder's default.
- */
-const NO_ALBUMS_PROFILE = 'None';
 
 /** Lidarr's metadata profile, for the preview's first line; nothing elsewhere. */
 function metadataProfileNote(profile: QualityProfile | undefined, fromFolder: boolean): string {

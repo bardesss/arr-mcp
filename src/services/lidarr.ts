@@ -46,6 +46,9 @@ import {
     type MediaAddCapable,
     type MediaDetailCapable,
     type MediaDetails,
+    type MediaUpdateCapable,
+    type MediaUpdateOptions,
+    type MediaUpdateState,
     type MetadataProfileCapable,
     type MonitoringCapable,
     type MonitoringTarget,
@@ -117,6 +120,8 @@ type RawArtist = {
     genres?: string[];
     path?: string;
     qualityProfileId?: number;
+    metadataProfileId?: number;
+    tags?: number[];
     statistics?: { trackFileCount?: number; sizeOnDisk?: number; albumCount?: number };
 };
 
@@ -234,6 +239,10 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * profile, root folder and tags. `stack_health` lists the last three at
  * `detail: "full"`, as it does for the other services that add.
  *
+ * `MediaUpdateCapable` is `update_media`'s: an artist's quality and metadata
+ * profiles, root folder, monitoring and tags, changed through the Artist
+ * Editor (see `updateMedia`).
+ *
  * An artist is the row rather than a track or an album, for the reason Radarr
  * and Sonarr row on a film and a series: it is the level a person asks about,
  * it is what joins to a media server on the MusicBrainz artist id, and Lidarr
@@ -271,7 +280,8 @@ export class LidarrAdapter
         ReleaseSearchCapable,
         ReleaseGrabCapable,
         MediaAddCapable,
-        MetadataProfileCapable
+        MetadataProfileCapable,
+        MediaUpdateCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined;
@@ -783,6 +793,58 @@ export class LidarrAdapter
 
         this.#libraryCache.clear();
         return { id: created.id, title: fenceText(created.artistName ?? '', { service: this.id, field: 'title' }) };
+    }
+
+    /** Read from the artist itself, not the library cache: a write must
+     *  preview against what Lidarr holds now. */
+    async readForUpdate(id: string): Promise<MediaUpdateState> {
+        const artistId = this.#numericId(id, 'artist');
+        return this.#updateState(await this.#http.get<RawArtist>(`/api/v1/artist/${artistId}`));
+    }
+
+    /**
+     * Through Lidarr's Artist Editor, `PUT /artist/editor`, as `set_monitoring`
+     * writes an artist's policy, not `PUT /artist/{id}`: that one replaces the
+     * whole artist and queues a `MoveArtist` on every call, even with
+     * `moveFiles=false` and the path unchanged, where the editor moves only
+     * when given a root folder. The editor sets only the fields it is sent, so
+     * there is nothing to read back first, and `tags` replace the set as on
+     * Radarr and Sonarr (`applyTags: "replace"`).
+     *
+     * Unlike `PUT /artist/{id}`, the editor publishes no `ArtistEditedEvent`,
+     * so a new metadata profile starts no refresh: it applies at the artist's
+     * next one (`ArtistEditedService`, `ArtistService.UpdateArtists`).
+     */
+    async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
+        const artistId = this.#numericId(id, 'artist');
+        const updated = await this.#http.put<RawArtist[]>('/api/v1/artist/editor', {
+            artistIds: [artistId],
+            ...(opts.monitored === undefined ? {} : { monitored: opts.monitored }),
+            ...(opts.qualityProfileId === undefined ? {} : { qualityProfileId: opts.qualityProfileId }),
+            ...(opts.metadataProfileId === undefined ? {} : { metadataProfileId: opts.metadataProfileId }),
+            ...(opts.rootFolderPath === undefined ? {} : { rootFolderPath: opts.rootFolderPath }),
+            ...(opts.tagIds === undefined ? {} : { tags: opts.tagIds, applyTags: 'replace' }),
+            // Only ever true beside a new root folder, as on Radarr and Sonarr.
+            moveFiles: opts.rootFolderPath !== undefined && opts.moveFiles
+        });
+        this.#libraryCache.clear();
+
+        // The editor answers with the artists it updated. A build that answers
+        // something else is read back rather than reported as every field cleared.
+        const row = Array.isArray(updated) ? updated.find(a => a.id === artistId) : undefined;
+        return row === undefined ? this.readForUpdate(id) : this.#updateState(row);
+    }
+
+    #updateState(raw: RawArtist): MediaUpdateState {
+        return {
+            title: fenceText(raw.artistName ?? '', { service: this.id, field: 'title' }),
+            monitored: raw.monitored ?? false,
+            ...(raw.qualityProfileId === undefined ? {} : { qualityProfileId: raw.qualityProfileId }),
+            ...(raw.metadataProfileId === undefined ? {} : { metadataProfileId: raw.metadataProfileId }),
+            ...(isKnownNewItems(raw.monitorNewItems) ? { monitorNewItems: raw.monitorNewItems } : {}),
+            ...(raw.path === undefined ? {} : { path: fenceText(raw.path, { service: this.id, field: 'path' }) }),
+            tagIds: raw.tags ?? []
+        };
     }
 
     /**

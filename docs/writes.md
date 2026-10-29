@@ -96,7 +96,10 @@ the service to **move the files on disk**. Nothing is lost by a move: the undo
 is moving them back, and the service does the moving itself. That puts it
 alongside `add_media`, which starts multi-gigabyte downloads and is safe for
 the same reason. The preview names the source and the destination, because
-"change the root folder" reads cheaper than it is.
+"change the root folder" reads cheaper than it is. A Lidarr metadata profile is
+the one field it cannot always set back: once a refresh has removed the albums
+the new profile leaves out, switching back brings them in again as new albums,
+without their old flags, and the preview says so.
 
 On a Grimmory book `update_media` edits the title, authors, series and
 categories, and Grimmory may write the change into the book file and move it to
@@ -412,8 +415,11 @@ album added in Lidarr, which a refresh keeps. With `all` or `new` (which has no
 album to compare with), a later profile change monitors every album it brings,
 and Lidarr then searches the released ones while the artist is monitored. In
 Lidarr newer than 3.2.0.5144 that search covers only albums released in the
-last 180 days, and older ones wait for RSS sync or `trigger_search`. The preview
-says this too when `monitor_new_items` is given.
+last 180 days, and older ones wait for RSS sync or `trigger_search`. It searches
+at the rescan after that refresh, or, when Lidarr's "Rescan Artist Folder after
+Refresh" setting skips that rescan (Never, or After Manual Refresh for a
+scheduled refresh), at the next disk scan. The preview says this too when
+`monitor_new_items` is given.
 
 `monitor_new_items` also sets the albums an artist is added with: Lidarr's first
 refresh flags every album by that rule, and `monitor` then overrides it. So with
