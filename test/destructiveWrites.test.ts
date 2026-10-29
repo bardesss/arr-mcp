@@ -1583,6 +1583,19 @@ describe('delete_episode_files', () => {
         await expect(call({ service: 'sonarr', id: '7', episodes: ['11', '999'] })).rejects.toThrow(/999/);
     });
 
+    it('refuses when none of the episode ids is one the series has, naming each', async () => {
+        // Without the check nothing is targeted, and the no-op reads
+        // "0 episode(s) … have no files on disk."
+        const RAW = [
+            { id: 11, seasonNumber: 2, episodeNumber: 1, title: 'Ep1', hasFile: true, monitored: false, episodeFileId: 102 }
+        ];
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': RAW }).impl)]
+        });
+        await expect(call({ service: 'sonarr', id: '7', episodes: ['998', '999'] })).rejects.toThrow(/Could not find episode\(s\) 998, 999 on /);
+    });
+
     it('names a collateral episode that shares a file with the one actually requested', async () => {
         // Sonarr stores a double episode as one `episodefile`. Targeting only
         // episode 11 still takes episode 12's file with it — the preview must

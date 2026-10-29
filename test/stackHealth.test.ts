@@ -14,7 +14,6 @@ import type {
 import type { ServiceInstance } from '../src/config/instances.ts';
 import { buildStackHealth, registerStackHealth } from '../src/tools/stackHealth.ts';
 import { buildInstanceOptions, registerGetInstanceOptions } from '../src/tools/instanceOptions.ts';
-import { afterTicks } from './helpers/ticks.ts';
 
 /** What `ArrAdapter` used to name, now spelled as the capabilities it is. */
 type ArrLike = ServiceAdapter & DiskSpaceCapable & HealthCheckCapable;
@@ -593,25 +592,41 @@ describe('get_stack_health failures order', () => {
     const check = (service: string, source: string, type: string): HealthCheck => ({ service, source, type, message: `${source} failed` });
     const named = (items: readonly HealthCheck[]) => items.map(f => `${f.service} ${f.source}`);
 
-    /** An instance whose checks arrive after `ticks` microtasks, so a test sets which instance answers first. */
-    const answering = (id: string, ticks: number, checks: HealthCheck[]): ArrLike => ({
-        ...fakeArr({
-            diagnosis: { ...healthy, service: id },
-            getFailedHealthChecks: async () => {
-                await afterTicks(ticks);
-                return checks;
-            }
-        }),
-        id,
-        type: id as ServiceAdapter['type']
-    });
+    const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+
+    /** An instance whose checks wait on a gate the test opens, so the test sets which instance answers first. */
+    const gated = (id: string, checks: HealthCheck[]) => {
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => (release = resolve));
+        const adapter: ArrLike = {
+            ...fakeArr({
+                diagnosis: { ...healthy, service: id },
+                getFailedHealthChecks: async () => {
+                    await gate;
+                    return checks;
+                }
+            }),
+            id,
+            type: id as ServiceAdapter['type']
+        };
+        return { adapter, release };
+    };
+    type Gated = ReturnType<typeof gated>;
+
+    /** Lists `first` before `second` and opens its gate first, with a flush between, so it answers first. */
+    const inOrder = async (first: Gated, second: Gated, limit: number) => {
+        const result = buildStackHealth([first.adapter, second.adapter], { detail: 'standard', limit });
+        first.release();
+        await flush();
+        second.release();
+        return result;
+    };
 
     /** The same Radarr and Sonarr twice, each listed first and answering first once, so neither order can decide. */
-    const bothWays = async (radarr: HealthCheck[], sonarr: HealthCheck[], limit: number) => {
-        const radarrFirst = await buildStackHealth([answering('radarr', 0, radarr), answering('sonarr', 20, sonarr)], { detail: 'standard', limit });
-        const sonarrFirst = await buildStackHealth([answering('sonarr', 0, sonarr), answering('radarr', 20, radarr)], { detail: 'standard', limit });
-        return [radarrFirst, sonarrFirst];
-    };
+    const bothWays = async (radarr: HealthCheck[], sonarr: HealthCheck[], limit: number) => [
+        await inOrder(gated('radarr', radarr), gated('sonarr', sonarr), limit),
+        await inOrder(gated('sonarr', sonarr), gated('radarr', radarr), limit)
+    ];
 
     it('lists errors, then warnings, notices and any other type, each by instance id, whichever instance answers first', async () => {
         const results = await bothWays(
