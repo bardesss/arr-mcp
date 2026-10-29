@@ -1106,22 +1106,61 @@ add a **Generic Destination**:
 | Send All Properties | ticked, with the template left empty |
 | Header | `Authorization`, with the value `Basic ` followed by `arr-mcp:<password>` in base64 |
 
-Only a play that ran to the end is stored; a stop partway through is left to
-the hourly sync. A song is stored with its first artist (the plugin sends no
-album artist or track number) and shows in `get_playback` history, but is never
+Only a play that ran to the end is stored; a stop partway through is left to the
+hourly sync. A song is stored with its first artist (the plugin sends no album
+artist or track number) and shows in `get_playback` history, but is never
 matched against a film or an episode. Music is only kept this way: the hourly
-sync reads films and episodes alone. Anything else the plugin sends is answered 200 and dropped. A
-template instead of Send All Properties works too, as long as it is JSON with
-the plugin's own variable names as keys (`NotificationType`, `ItemId`,
-`ItemType`, `Name`, `SeriesName`, `SeasonNumber`, `EpisodeNumber`, `Year`,
-`Provider_tmdb`, `Provider_imdb`, `Provider_tvdb`, `UserId`,
-`NotificationUsername`, `PlayedToCompletion`, and `Artist` for music). Plex and
-Emby plays are not taken this way yet.
+sync reads films and episodes alone. Anything else the plugin sends is answered
+200 and dropped. A template instead of Send All Properties works too, as long as
+it is JSON with the plugin's own variable names as keys (`NotificationType`,
+`ItemId`, `ItemType`, `Name`, `SeriesName`, `SeasonNumber`, `EpisodeNumber`,
+`Year`, `Provider_tmdb`, `Provider_imdb`, `Provider_tvdb`, `UserId`,
+`NotificationUsername`, `PlayedToCompletion`, and `Artist` for music). Emby
+plays are not taken this way yet; for Plex, see [below](#plays-from-plex).
 
 Turning the log off keeps the secret and the stored events, and stops accepting
 new ones. Events past `retention_days` go when the next event arrives, with a
 limit of 50,000 rows underneath. See
 [Security](security.md#the-library-event-log) for what's stored.
+
+### Plays from Plex
+
+With Plex Pass on the owner account, Plex can report each play to the [play
+store](tools.md#get_playback) the moment it counts it as watched: past 90% of a
+film or an episode by default, and at a song's end. Plex's own history keeps a
+play after its item is deleted, but not the item's ids, so this keeps a film's
+ids even when it is deleted before the next hourly sync, unless that sync is a
+full read (below). A Plex webhook is only a URL, so the same password goes in
+it. In Plex Web, open Settings, Webhooks, and add:
+
+```
+http://arr-mcp:<password>@<arr-mcp as Plex reaches it>:6060/webhooks/plex
+```
+
+Under **Library event log** on the Settings page, this URL is shown with the
+password filled in, built on the address you opened the page on. A password you
+wrote into `config.yaml` yourself has to be percent-encoded in the URL if it
+holds a character such as `@`, `/`, `:`, `?`, `#`, `%` or a space; a generated
+one never does. If you've set [`allowed_hosts`](#access), the host name in the
+URL has to be in the list.
+
+Plex posts every event to that URL, from every server your account plays on.
+Only a `media.scrobble` of your own play on this server is stored, and the rest
+is answered 200 and dropped. A film is stored with the year and ids Plex sends.
+An episode is stored with its series, season and episode, and gets the series'
+year and ids from the next hourly sync if the series is still in the library,
+since the ones Plex sends are the episode's own.
+
+Add `?music=1` to the end of the URL to keep your listening too: a song is
+stored with its artist and its album's year, shows in `get_playback` history,
+and is never matched against a film or an episode. The hourly sync reads films
+and episodes alone, so a song's row only ever comes from the webhook and is
+never refreshed.
+
+A Plex server's first sync reads its whole history and replaces what the store
+holds for it, and so does the first sync after Clear on the Plays tab. What a
+webhook stored before that read finishes goes: a song for good, and a film
+deleted in the meantime comes back from the history without its ids.
 
 ## Appearance
 

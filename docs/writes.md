@@ -380,7 +380,7 @@ exercise. Where the tool has its own section, the same path carries an
 
 | Tool | Service | What | Why |
 | --- | --- | --- | --- |
-| `get_playback` | `plex` | Reading a non-zero `viewOffset` as resume and the rest as next-up, in `/library/onDeck` | Plex marks neither kind, and nobody has checked the split against a live server with an in-progress item; the read itself is captured |
+| `get_playback` | `plex` | Reading a non-zero `viewOffset` as resume and the rest as next-up, in `/library/onDeck`; the play webhook dropping someone else's play, and a play on another server the account owns | Plex marks neither kind, and nobody has checked the split against a live server with an in-progress item; the read itself is captured. Only the owner's own plays on one server were posted to the webhook, so its drop rests on Plex's `user`, `owner` and `Server.uuid` |
 | `pause_downloads` | `qbittorrent` | Pause, resume and the speed limit, on both the v4 and v5 verbs, and the `arr-mcp-paused` tag | No qBittorrent on the maintainer's stack; written from the WebUI API description |
 | `pause_downloads` | `transmission` | The whole-client pause and resume by the `arr-mcp-paused` label, and the alternative speed mode read | Written from the RPC spec; no label has been written on the live Transmission |
 | `pause_downloads` | `deluge` | Resuming one torrent in error, one being moved, one Deluge's queue holds back, or one at its stop ratio | None came up on the test Deluges; read from Deluge's source |

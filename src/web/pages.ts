@@ -673,7 +673,7 @@ export function playsPage(opts: {
                           ${read.summary.map(
                               s => html`<tr>
                                   <td>${s.server}</td>
-                                  <td>${s.user}</td>
+                                  <td>${plain(s.user)}</td>
                                   <td>${String(s.plays)} plays</td>
                                   <td class="mono">${s.lastPlayed === undefined ? '' : shortTime(s.lastPlayed)}</td>
                               </tr>`
@@ -715,7 +715,7 @@ export function playsPage(opts: {
                   <input type="hidden" name="csrf" value="${opts.csrf}">
                   ${opts.confirming === true
                       ? html`<button type="submit" name="confirm" value="yes" class="danger">Yes, clear ${String(total)} plays</button>
-                            <p class="note">Plays the media server has already forgotten are gone for good. Reload to cancel.</p>`
+                            <p class="note">Plays the media server has already forgotten, songs a webhook stored and the ids of deleted items are gone for good. Reload to cancel.</p>`
                       : html`<button type="submit" class="danger">Clear stored plays</button>`}
               </form>`;
 

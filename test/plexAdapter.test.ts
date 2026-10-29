@@ -55,6 +55,46 @@ describe('PlexAdapter', () => {
         await expect(adapter.getVersion()).rejects.toThrow(/version/);
     });
 
+    describe('machineIdentifier', () => {
+        const SERVER = '1'.repeat(40);
+        const answering = (...answers: (() => Response)[]) => {
+            const fetchImpl = vi.fn(() => Promise.resolve((answers.shift() ?? (() => jsonResponse({}, 404)))()));
+            return { adapter: new PlexAdapter(config(), fetchImpl as unknown as typeof fetch), fetchImpl };
+        };
+        // The captured answer, whose machineIdentifier is scrubbed to "": as it is, with an id, or with none.
+        const captured = (IDENTITY as { MediaContainer: Record<string, unknown> }).MediaContainer;
+        const identity = (machineIdentifier?: string) => () =>
+            jsonResponse({
+                MediaContainer: {
+                    ...Object.fromEntries(Object.entries(captured).filter(([key]) => key !== 'machineIdentifier')),
+                    ...(machineIdentifier === undefined ? {} : { machineIdentifier })
+                }
+            });
+
+        it('reads it from /identity once and keeps it', async () => {
+            const { adapter, fetchImpl } = answering(identity(SERVER));
+            expect(await adapter.machineIdentifier()).toBe(SERVER);
+            expect(await adapter.machineIdentifier()).toBe(SERVER);
+            expect(fetchImpl).toHaveBeenCalledTimes(1);
+        });
+
+        it("keeps the one getVersion's read of /identity carried", async () => {
+            const { adapter, fetchImpl } = answering(identity(SERVER));
+            await adapter.getVersion();
+            expect(await adapter.machineIdentifier()).toBe(SERVER);
+            expect(fetchImpl).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps neither a missing or empty id nor a failed read, so the next call asks again', async () => {
+            const { adapter, fetchImpl } = answering(identity(), () => jsonResponse(IDENTITY), () => jsonResponse({}, 500), identity(SERVER));
+            await expect(adapter.machineIdentifier()).rejects.toThrow(/no machineIdentifier/);
+            await adapter.getVersion();
+            await expect(adapter.machineIdentifier()).rejects.toThrow(ServiceError);
+            expect(await adapter.machineIdentifier()).toBe(SERVER);
+            expect(fetchImpl).toHaveBeenCalledTimes(4);
+        });
+    });
+
     it('reports exactly one user, the token owner, however many accounts the server lists', async () => {
         const { adapter } = plex({ '/identity': IDENTITY, '/accounts': ACCOUNTS });
         // Captured accounts.json holds 5 rows; only id 1's (anonymised) name comes back.

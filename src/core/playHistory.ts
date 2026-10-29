@@ -38,6 +38,19 @@ export type PlayRecord = {
     ids?: Pick<ExternalIds, 'tmdb' | 'tvdb' | 'imdb'>;
 };
 
+/** The ids that are there, as a record keeps them, or `undefined` for none. */
+export function recordIds({ tmdb, tvdb, imdb }: { tmdb?: number | undefined; tvdb?: number | undefined; imdb?: string | undefined }): PlayRecord['ids'] {
+    const ids = {
+        ...(tmdb === undefined ? {} : { tmdb }),
+        ...(tvdb === undefined ? {} : { tvdb }),
+        ...(imdb === undefined ? {} : { imdb })
+    };
+    return Object.keys(ids).length === 0 ? undefined : ids;
+}
+
+/** A play a webhook reported, with the id of the user it is kept under. */
+export type WebhookPlay = { userId: string; record: PlayRecord };
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS plays (
     server       TEXT NOT NULL,
@@ -322,15 +335,10 @@ export function playsFrom(
 
     const matchOf = (row: IndexInput | undefined): Pick<PlayRecord, 'year' | 'ids'> => {
         if (row === undefined) return {};
-        const { tmdb, tvdb, imdb } = row.ids;
-        const ids = {
-            ...(tmdb === undefined ? {} : { tmdb }),
-            ...(tvdb === undefined ? {} : { tvdb }),
-            ...(imdb === undefined ? {} : { imdb })
-        };
+        const ids = recordIds(row.ids);
         return {
             ...(row.year === undefined ? {} : { year: row.year }),
-            ...(Object.keys(ids).length === 0 ? {} : { ids })
+            ...(ids === undefined ? {} : { ids })
         };
     };
 

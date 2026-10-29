@@ -51,7 +51,7 @@ const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
  */
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
-/** The largest captured payload is under 5 KiB. */
+/** The largest request captured, a Plex `media.play` with its poster, is 26 KiB. */
 const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 
 /**
@@ -371,8 +371,9 @@ export function buildApp(opts: {
                 )
         })
     );
-    // A webhook is a few kilobytes and has a secret instead of a session, so it gets
-    // less room than a config form. Nested inside the limit above.
+    // The largest webhook captured is 26 KiB, and a webhook has a secret instead
+    // of a session, so it gets less room than a config form. Nested inside the
+    // limit above.
     app.use(
         '/webhooks/*',
         bodyLimit({ maxSize: MAX_WEBHOOK_BODY_BYTES, onError: c => c.text('the body is too large', 413) })

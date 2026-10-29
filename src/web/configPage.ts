@@ -797,12 +797,6 @@ const REGENERATE = raw(
 );
 
 /**
- * The opt-in for the event log, and what to paste into each service once it is on.
- *
- * Paths rather than full addresses: what an *arr has to use is however it reaches
- * this server, which in Docker is usually not the host name in this browser.
- */
-/**
  * How to point Jellyfin's Webhook plugin at the play store, shown once there is
  * a Jellyfin to point. The header value is given whole, already encoded, since
  * the plugin takes a raw header and nobody should have to base64 a password.
@@ -851,7 +845,72 @@ function jellyfinPlays(config: Config, secret: string): SafeHtml {
         </div>`;
 }
 
-function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boolean): SafeHtml {
+/**
+ * Plex takes a webhook as a URL and nothing else, so the password goes in it,
+ * percent-encoded for a hand-written one. Built on the address this page was
+ * opened on, as the MCP endpoint is: Plex has to reach arr-mcp there.
+ */
+function plexPlays(config: Config, secret: string, mcpUrl: string | undefined): SafeHtml {
+    const servers = listInstances(config).filter(i => i.type === 'plex');
+    if (servers.length === 0) return raw('');
+    const page = mcpUrl === undefined ? undefined : new URL(mcpUrl);
+    return html`<h3>Plex plays</h3>
+        <p class="note">
+            With Plex Pass on the owner account, Plex can report each play the moment it counts it as watched, film
+            ids and all. In Plex Web, open Settings, Webhooks, and add the URL below. Add
+            <span class="mono">?music=1</span> to its end to keep your listening too, which the hourly sync does not
+            read.
+        </p>
+        ${page === undefined
+            ? servers.map(
+                  i => html`<p class="note">
+                      Use <span class="mono">http://${WEBHOOK_USERNAME}:&lt;password&gt;@&lt;address&gt;/webhooks/${i.id}</span>,
+                      with the password above, percent-encoded, and the address arr-mcp has on Plex's network.
+                  </p>`
+              )
+            : servers.map(i => {
+                  const url = `${page.protocol}//${WEBHOOK_USERNAME}:${encodeURIComponent(secret)}@${page.host}/webhooks/${i.id}`;
+                  return html`<div class="field">
+                      <label for="webhooks.${i.id}-url">Webhook URL</label>
+                      <div class="token">
+                          <input id="webhooks.${i.id}-url" class="secret" type="text" readonly value="${url}" ${IGNORE}>
+                          <button
+                              class="ghost"
+                              type="button"
+                              data-icon
+                              data-reveal="webhooks.${i.id}-url"
+                              data-what="URL"
+                              aria-pressed="false"
+                              aria-label="Show URL"
+                              title="Show URL"
+                          >${EYE}</button>
+                          <button
+                              class="ghost"
+                              type="button"
+                              data-icon
+                              data-copy="webhooks.${i.id}-url"
+                              aria-label="Copy URL"
+                              title="Copy URL"
+                          >${COPY}</button>
+                      </div>
+                  </div>
+                  <p class="note">
+                      Plex has to reach arr-mcp at this address. If it reaches it under another name, change the address
+                      between the @ and <span class="mono">/webhooks</span>, and add that name to Allowed hosts if you
+                      have set any.
+                  </p>`;
+              })}`;
+}
+
+/**
+ * The opt-in for the event log, and what to paste into each service once it is on.
+ *
+ * Paths rather than full addresses: what an *arr has to use is however it reaches
+ * this server, which in Docker is usually not the host name in this browser. Plex
+ * is the exception, since it takes nothing but a URL: its card gives a whole one on
+ * this page's address and says which part to change.
+ */
+function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boolean, mcpUrl: string | undefined): SafeHtml {
     const webhooks = config.webhooks;
     const targets = listInstances(config).filter(i => Object.hasOwn(WEBHOOK_SERVICES, i.type));
 
@@ -863,6 +922,7 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
             Keeps a log of what Radarr, Sonarr and Lidarr report: grabs, imports, renames and deletes. The services
             lose a title's history when it's deleted, so this is how arr-mcp can still tell you
             what happened to it. Off by default, and it needs a webhook connection in each service.
+            Jellyfin and Plex can use its password to report plays to the play store.
         </p>
         ${field({
             id: 'webhooks.retention_days',
@@ -931,7 +991,8 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
                                 </p>`
                           : raw('')}
                   </div>
-                  ${jellyfinPlays(config, webhooks.secret)}`
+                  ${jellyfinPlays(config, webhooks.secret)}
+                  ${plexPlays(config, webhooks.secret, mcpUrl)}`
             : raw('')}
         <div class="row" style="margin-top:1rem">
             <button type="submit">Save event log settings</button>
@@ -1472,7 +1533,7 @@ export function configPage(opts: {
         access: () =>
             html`${accessIntro}${tokens}${managementApi}${oauthCard(opts.config, keys, opts.oauth ?? {})}${hostAndProxy}${signIn}`,
         settings: () =>
-            html`${savedAlone}${appearance}${mediaServers}${imdb}${webhooksCard(opts.config, keys, opts.confirmingNewSecret === true)}`
+            html`${savedAlone}${appearance}${mediaServers}${imdb}${webhooksCard(opts.config, keys, opts.confirmingNewSecret === true, opts.mcpUrl)}`
     };
 
     // No tab row: each tab is its own entry in the sidebar.
