@@ -354,6 +354,36 @@ const QUEUE_IMPORT_REMEDY =
  *  into "could not fully look" the way `scan` and `indexers` already do. */
 const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'whisparr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
 
+/**
+ * The queue rows that belong to `item`. An id beats a title: a release can be
+ * renamed past recognition, and a title can match another film's grab.
+ *
+ * Ids are only comparable within one instance, because `acquisition` keeps one
+ * instance and a row from another instance of the same *arr numbers its media
+ * independently. A client row has no media id of its own, so it takes the
+ * verdict of the *arr row sharing its download id.
+ */
+export function queueRowsFor(rows: readonly QueueItem[], item: MergedItem): QueueItem[] {
+    const acquisition = item.acquisition;
+    const byId = (row: QueueItem): boolean | undefined =>
+        row.mediaId !== undefined && acquisition?.id !== undefined && row.service === acquisition.service
+            ? row.mediaId === acquisition.id
+            : undefined;
+    const keyOf = (row: QueueItem): string | undefined => (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
+    const claimed = new Map<string, QueueItem>();
+    for (const row of rows) {
+        const key = keyOf(row);
+        if (row.mediaId !== undefined && key !== undefined && !claimed.has(key)) claimed.set(key, row);
+    }
+    return rows.filter(row => {
+        const direct = byId(row);
+        if (direct !== undefined) return direct;
+        const key = row.mediaId === undefined ? keyOf(row) : undefined;
+        const linked = key === undefined ? undefined : claimed.get(key);
+        return (linked === undefined ? undefined : byId(linked)) ?? mentions(row.title, item);
+    });
+}
+
 type QueueResult = { step: Step; remedy?: string };
 
 const STRIKE_KIND: Record<string, string> = {
@@ -386,7 +416,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     // library-read failure alone made this stage report unknown even when
     // every download client had answered in full.
     const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => QUEUE_SERVICES.some(t => s === t || s.startsWith(`${t}/`)))])];
-    const mine = items.filter(q => mentions(q.title, item));
+    const mine = queueRowsFor(items, item);
     // A file on disk means whatever Cleanuparr removed was replaced since.
     const removals = item.acquisition?.hasFile === true ? [] : (ev.cleanuparr ?? []).filter(e => e.event === 'deleted' || e.event === 'stopped');
     const acted = removals.find(e => e.dryRun !== true) ?? removals[0];

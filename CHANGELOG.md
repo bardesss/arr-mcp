@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.58.0](https://github.com/bardesss/arr-mcp/compare/v1.57.2...v1.58.0) (2026-11-05)
+
+
+### Features
+
+* match diagnose queue rows by id before title ([#458](https://github.com/bardesss/arr-mcp/issues/458)) ([a1d6dd2](https://github.com/bardesss/arr-mcp/commit/a1d6dd23363e6917b12dbac9859259f7eb299357))
+* report Prowlarr's commands in stack_health ([#460](https://github.com/bardesss/arr-mcp/issues/460)) ([400a524](https://github.com/bardesss/arr-mcp/commit/400a52467c4d58a0114fcfc7bbe8cab0c929bc27))
+
+## [1.57.2](https://github.com/bardesss/arr-mcp/compare/v1.57.1...v1.57.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* say that trigger_scan syncs indexers on Prowlarr ([#456](https://github.com/bardesss/arr-mcp/issues/456)) ([3f7ddfe](https://github.com/bardesss/arr-mcp/commit/3f7ddfe269e18b89f3de4e2193e911131d8818d2))
+
+## [1.57.1](https://github.com/bardesss/arr-mcp/compare/v1.57.0...v1.57.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* correct the whats_wrong and whats_new prompts ([#454](https://github.com/bardesss/arr-mcp/issues/454)) ([9058096](https://github.com/bardesss/arr-mcp/commit/90580960fd4801e0f9abb53b0348af43ef487601))
+
+## [1.57.0](https://github.com/bardesss/arr-mcp/compare/v1.56.0...v1.57.0) (2026-11-05)
+
+
+### Features
+
+* named management API keys with read and admin tiers ([#451](https://github.com/bardesss/arr-mcp/issues/451)) ([38770a1](https://github.com/bardesss/arr-mcp/commit/38770a1e31d0924b6843560592612f61ad124609))
+
+
+### Bug Fixes
+
+* say that trigger_scan refreshes metadata on the *arrs ([#453](https://github.com/bardesss/arr-mcp/issues/453)) ([c471d4a](https://github.com/bardesss/arr-mcp/commit/c471d4a04e448da3bc0cda8f42b72695b0c402c7)), closes [#450](https://github.com/bardesss/arr-mcp/issues/450)
+* word the manual import refusal by download state, so a failed or warning download gets its own remedy ([#437](https://github.com/bardesss/arr-mcp/issues/437)) ([39fb252](https://github.com/bardesss/arr-mcp/commit/39fb25244eeb65f127c8eef7d14b5d38df07f721))
+
 ## [1.56.0](https://github.com/bardesss/arr-mcp/compare/v1.55.0...v1.56.0) (2026-11-03)
 
 

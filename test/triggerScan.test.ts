@@ -318,6 +318,16 @@ describe('trigger_scan on Plex', () => {
  * other two: re-read one item, and rename its files to the naming scheme.
  */
 describe('trigger_scan on a single item', () => {
+    const fakeItemAdapter = (extra: Record<string, unknown> = {}) =>
+        ({
+            id: 'radarr',
+            type: 'radarr',
+            getVersion: async () => '1',
+            refreshItem: async () => ({ service: 'radarr', commandId: 1, name: 'RefreshMovie' }),
+            renameItem: async () => ({ service: 'radarr', commandId: 2, name: 'RenameMovie' }),
+            ...extra
+        }) as unknown as ServiceAdapter;
+
     const arrRoutes = () => ({
         '/api/v3/movie/15': { id: 15, title: 'Heat', year: 1995 },
         '/api/v3/command': { id: 77, name: 'RefreshMovie', status: 'queued' }
@@ -348,6 +358,40 @@ describe('trigger_scan on a single item', () => {
         const h = radarrHarness();
         const { structuredContent } = await h.call({ service: 'radarr', id: '15', dry_run: true });
         expect(structuredContent.summary).toContain('Heat');
+    });
+
+    it('says a scan of one item refreshes its metadata, not only the disk', async () => {
+        const h = radarrHarness();
+        const { structuredContent } = await h.call({ service: 'radarr', id: '15', dry_run: true });
+        expect(structuredContent.summary).toMatch(/refresh/i);
+        expect(structuredContent.effects.join(' ')).toMatch(/metadata from the provider/i);
+    });
+
+    it('says a library scan on an *arr refreshes metadata too', async () => {
+        const h = radarrHarness();
+        const { structuredContent } = await h.call({ service: 'radarr', dry_run: true });
+        expect(structuredContent.effects.join(' ')).toMatch(/metadata of every item/i);
+    });
+
+    it('does not promise a metadata refresh from a media server scan', async () => {
+        const h = harness();
+        const { structuredContent } = await h.call({ service: 'jellyfin', dry_run: true });
+        expect(structuredContent.effects.join(' ')).not.toMatch(/metadata/i);
+    });
+
+    it('points at stack_health only for a service it reports', async () => {
+        const followed = fakeItemAdapter({ listCommands: async () => [] });
+        const unfollowed = fakeItemAdapter();
+
+        for (const [adapter, expected] of [
+            [followed, /says whether it has finished/],
+            [unfollowed, /its absence there says nothing/]
+        ] as const) {
+            const h = harness({ adapters: [adapter], permissions: { radarr: permissive(true) } });
+            const first = await h.call({ service: 'radarr', id: '15' });
+            const done = await h.call({ service: 'radarr', id: '15', confirm: first.structuredContent.confirm_token });
+            expect(JSON.stringify(done)).toMatch(expected);
+        }
     });
 
     it('says a rename moves files on disk', async () => {
@@ -568,6 +612,24 @@ describe('trigger_scan on Prowlarr', () => {
         await h.call({ service: 'prowlarr', confirm: first.structuredContent.confirm_token });
 
         expect(prowlarr.sent.filter(x => x.method === 'POST').map(x => x.url)).toEqual(['/api/v1/command']);
+    });
+
+    it('describes a sync rather than a library scan, in the preview and the result', async () => {
+        const prowlarr = recordingFetch({ '/api/v1/command': { id: 3, name: 'ApplicationIndexerSync' } });
+        const h = harness({
+            adapters: [new ProwlarrAdapter(keyed(9696), prowlarr.impl)],
+            permissions: { prowlarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'prowlarr' });
+        expect(first.structuredContent.summary).toMatch(/sync its indexers/i);
+        expect(first.structuredContent.summary).not.toMatch(/rescan/i);
+        expect(first.structuredContent.effects.join(' ')).not.toMatch(/on disk|large library/i);
+
+        const done = await h.call({ service: 'prowlarr', confirm: first.structuredContent.confirm_token });
+        expect(JSON.stringify(done)).toMatch(/syncing its indexers/i);
+        expect(JSON.stringify(done)).toMatch(/says whether it has finished/i);
+        expect(JSON.stringify(done)).not.toMatch(/rescanning/i);
     });
 
     it('does not offer per-item actions there', async () => {

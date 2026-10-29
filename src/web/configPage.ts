@@ -9,6 +9,7 @@ import {
     type ServiceId,
     type Theme
 } from '../config/schema.ts';
+import type { StoredManagementKey } from '../core/managementKey.ts';
 import { fingerprint, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
 import { withoutCredentials } from '../tools/stackHealth.ts';
@@ -394,13 +395,47 @@ const tokenCreateForm = (keys: SafeHtml): SafeHtml => html`<form method="post" a
     </div>
 </form>`;
 
+const KEY_TIERS: readonly { key: string; label: string }[] = [
+    { key: 'read', label: 'read: looks only, for dashboards' },
+    { key: 'admin', label: 'admin: can change services, settings and MCP tokens' }
+];
+
+function managementKeyTable(apiKeys: readonly StoredManagementKey[], keys: SafeHtml, confirming: string | undefined): SafeHtml {
+    const last = apiKeys.length === 1;
+    return html`<table>
+        <thead><tr><th>Name</th><th>Tier</th><th>Created</th><th>Fingerprint</th><th></th></tr></thead>
+        <tbody>
+            ${apiKeys.map(
+                k => html`<tr>
+                    <td class="mono">${k.name}</td>
+                    <td>${k.tier}</td>
+                    <td>${k.created}</td>
+                    <td class="mono">${fingerprint(k.hash)}</td>
+                    <td>
+                        <form method="post" action="/ui/config/api-keys/revoke" ${IGNORE_FORM}>
+                            ${keys}
+                            <input type="hidden" name="key" value="${k.name}">
+                            ${confirming === k.name
+                                ? html`<button type="submit" name="confirm" value="yes" class="ghost">Yes, revoke ${k.name}</button>
+                                      <p class="note">${last
+                                          ? 'This is the last key: the management API turns off until you create a new one.'
+                                          : 'Apps using it are refused from the next request.'}</p>`
+                                : html`<button type="submit" class="ghost">Revoke</button>`}
+                        </form>
+                    </td>
+                </tr>`
+            )}
+        </tbody>
+    </table>`;
+}
+
 function managementKeyCard(opts: {
     config: Config;
     keys: SafeHtml;
     revealed: { key: string; apiUrl: string | undefined } | undefined;
-    confirmingRemoval: boolean;
+    confirmingRevoke: string | undefined;
 }): SafeHtml {
-    const key = opts.config.auth.management_key;
+    const apiKeys = opts.config.auth.management_keys ?? [];
     return html`<div class="panel">
         <h3 id="management-api" style="margin:0 0 .75rem">Management API</h3>
         ${opts.revealed === undefined
@@ -416,29 +451,26 @@ function managementKeyCard(opts: {
                       : html`<p class="note">Base URL: <span class="mono">${opts.revealed.apiUrl}</span></p>`}
               </div>`}
         <p class="note">
-            For companion apps that manage arr-mcp the way they manage Sonarr. They send the key as
-            <span class="mono">X-Api-Key</span>. It can manage services, the IMDb dataset, the MCP endpoint and
-            MCP tokens, never this sign-in, OAuth or the key itself.
+            For companion apps that look at arr-mcp the way they look at Sonarr. Give each app its own key, sent as
+            <span class="mono">X-Api-Key</span>. An admin key can manage services, the IMDb dataset, the MCP endpoint
+            and MCP tokens. No key can touch this sign-in, OAuth or the management keys.
         </p>
-        <p class="note">
-            ${key === undefined
-                ? html`Off. Nothing answers under <span class="mono">/api/v1</span> until you generate a key.`
-                : html`On since ${key.created}. Regenerating stops the old key at once.`}
-        </p>
-        <div class="row" style="margin-top:1rem">
-            <form method="post" action="/ui/config/api-key" ${IGNORE_FORM}>
-                ${opts.keys}
-                <button type="submit">${key === undefined ? 'Generate key' : 'Regenerate key'}</button>
-            </form>
-            ${key === undefined
-                ? raw('')
-                : html`<form method="post" action="/ui/config/api-key/remove" ${IGNORE_FORM}>
-                      ${opts.keys}
-                      ${opts.confirmingRemoval
-                          ? html`<button type="submit" name="confirm" value="yes" class="ghost">Yes, turn the API off</button>`
-                          : html`<button type="submit" class="ghost">Turn off</button>`}
-                  </form>`}
-        </div>
+        ${apiKeys.length === 0
+            ? html`<p class="note">Off. Nothing answers under <span class="mono">/api/v1</span> until you create a key.</p>`
+            : managementKeyTable(apiKeys, opts.keys, opts.confirmingRevoke)}
+        <form method="post" action="/ui/config/api-keys/add" ${IGNORE_FORM}>
+            ${opts.keys}
+            ${field({ id: 'api-key.name', name: 'api-key.name', label: 'Name', placeholder: 'nzb360' })}
+            <div class="field">
+                <label for="api-key.tier">Tier</label>
+                <select id="api-key.tier" name="api-key.tier">
+                    ${KEY_TIERS.map(t => html`<option value="${t.key}" ${t.key === 'read' ? raw('selected') : raw('')}>${t.label}</option>`)}
+                </select>
+            </div>
+            <div class="row" style="margin-top:1rem">
+                <button type="submit">Create key</button>
+            </div>
+        </form>
     </div>`;
 }
 
@@ -684,7 +716,7 @@ export function configPage(opts: {
     confirmingRevoke?: string | undefined;
     /** A key just generated: shown in this one response only. */
     revealedKey?: { key: string; apiUrl: string | undefined } | undefined;
-    confirmingKeyRemoval?: boolean;
+    confirmingKeyRevoke?: string | undefined;
     plaintextOnDisk?: readonly string[];
     now?: Date;
     /** What the last OAuth post left for its card: a result, a pending
@@ -877,7 +909,7 @@ export function configPage(opts: {
             config: opts.config,
             keys,
             revealed: opts.revealedKey,
-            confirmingRemoval: opts.confirmingKeyRemoval === true
+            confirmingRevoke: opts.confirmingKeyRevoke
         })}
         ${oauthCard(opts.config, keys, opts.oauth ?? {})}
 

@@ -4,11 +4,14 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { readArrCommands } from './arrCommands.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
 import type { components } from './generated/prowlarr.ts';
 import {
     diagnoseConnection,
     type CommandHandle,
+    type CommandStatus,
+    type CommandStatusCapable,
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
@@ -98,6 +101,7 @@ export class ProwlarrAdapter
         IndexerWriteCapable,
         SearchCapable,
         LibraryScanCapable,
+        CommandStatusCapable,
         SeedCriteriaCapable
 {
     readonly type: ServiceId = 'prowlarr';
@@ -108,7 +112,9 @@ export class ProwlarrAdapter
     constructor(config: ConfigByService['prowlarr'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('prowlarr', config.name);
-        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
+        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl, {
+            apiRoot: '/api/v1'
+        });
     }
 
     async getVersion(): Promise<string> {
@@ -141,6 +147,10 @@ export class ProwlarrAdapter
 
     async syncIndexers(): Promise<CommandHandle> {
         return this.startLibraryScan();
+    }
+
+    async listCommands(): Promise<CommandStatus[]> {
+        return readArrCommands(this.#http, this.id);
     }
 
     /**

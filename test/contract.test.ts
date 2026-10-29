@@ -476,7 +476,13 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fixture: 'test/fixtures/prowlarr/history.json',
                 fields: ['records']
             },
-            { fixture: 'test/fixtures/prowlarr/indexerstats.json', fields: ['indexers'] }
+            { fixture: 'test/fixtures/prowlarr/indexerstats.json', fields: ['indexers'] },
+            {
+                // Captured with housekeeping rows only: no sync had run in the
+                // window, and starting one to record it would change the stack.
+                fixture: 'test/fixtures/prowlarr/command.json',
+                fields: ['id', 'name', 'commandName', 'status', 'queued', 'started', 'ended']
+            }
             // No `search` entry: the capture used a deliberately unmatchable
             // query, so no release shape was recorded. Publishing real release
             // names to catch this would cost more than it is worth.
