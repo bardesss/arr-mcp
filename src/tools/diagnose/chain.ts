@@ -4,6 +4,7 @@ import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { ARR_KIND, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
+import { PENDING_STATUSES } from '../../services/arrRecord.ts';
 import type {
     AlbumSummary,
     CleanupRemoval,
@@ -354,9 +355,10 @@ function requestStep(ev: Evidence, item: MergedItem): Step {
  * `downloadClientUnavailable` and `warning`/`delay` the same way.
  *
  * The vocabulary is what the adapters actually emit, lowercased. `seeding`,
- * qBittorrent's `seeding (no peers)` and `queued to seed` mean the file is fully on disk, so they are import-pending
- * rather than active; `propagating` is SABnzbd finalising a healthy download,
- * so it stays active.
+ * qBittorrent's `seeding (no peers)` and `queued to seed` mean the file is
+ * fully on disk, so they are import-pending rather than active; `propagating`
+ * is SABnzbd finalising a healthy download, so it stays active, as do
+ * qBittorrent's `fetching metadata` and `allocating`.
  */
 const QUEUE_ACTIVE = new Set([
     'downloading',
@@ -364,6 +366,8 @@ const QUEUE_ACTIVE = new Set([
     'queued to verify',
     'verifying',
     'fetching',
+    'fetching metadata',
+    'allocating',
     'checking',
     'extracting',
     'repairing',
@@ -375,32 +379,98 @@ const QUEUE_ACTIVE = new Set([
 const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'seeding (no peers)', 'queued to seed']);
 export const SEEDING = new Set(['seeding', 'seeding (no peers)', 'queued to seed']);
 
-type QueueClass = 'active' | 'importPending' | 'fault' | 'indeterminate';
+/**
+ * A download with a warning: qBittorrent's `stalled`, `error` and
+ * `missing files`, and the *arrs' `warning`. The *arrs give `warning` to those,
+ * to Transmission's error string, and to a full disk while unpacking or a
+ * failed move (`QBittorrent`, `TransmissionBase`, `Sabnzbd`, `Nzbget`).
+ */
+const QUEUE_WARNING = new Set(['warning', 'stalled', 'error', 'missing files']);
+
+/** Stopped in the client: paused before it finished, or a torrent that finished and stopped seeding. */
+const QUEUE_STOPPED = new Set(['paused', 'stopped']);
+
+/** The download clients, as against the *arrs that send them releases. */
+export const DOWNLOAD_CLIENTS: readonly ServiceId[] = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
+
+const isClientRow = (row: QueueItem): boolean => (DOWNLOAD_CLIENTS as readonly string[]).includes(instanceArgs(row.service).service);
 
 /**
- * Anything not recognised as active or import-pending is a fault, including
- * statuses this module has never seen: silence is not evidence of health.
+ * A torrent stopped with nothing left to download (`torrent.seeding`), as at a
+ * seed limit: finished, not paused. A size of 0 is a magnet with no metadata
+ * yet, which has nothing left only because it knows of nothing (Radarr reads it
+ * as queued, `TransmissionBase`).
+ */
+const stoppedFinished = (row: QueueItem): boolean =>
+    QUEUE_STOPPED.has(row.status.toLowerCase()) && row.torrent?.seeding === true && (row.sizeBytes ?? 0) > 0;
+
+/** The whole file is in the client: seeding, or stopped after it finished. */
+const onDisk = (row: QueueItem): boolean => SEEDING.has(row.status.toLowerCase()) || stoppedFinished(row);
+
+/** Every byte is down: on disk in the client, or a row of some size with nothing left to download. */
+const complete = (row: QueueItem): boolean => onDisk(row) || (row.remainingBytes === 0 && (row.sizeBytes ?? 0) > 0);
+
+type QueueClass = 'failed' | 'warning' | 'unrecognised' | 'importPending' | 'unavailable' | 'paused' | 'held' | 'active' | 'indeterminate';
+
+/**
+ * Anything not recognised is `unrecognised`, and blocks like a fault: silence
+ * is not evidence of health.
  *
  * One exception. The literal `"unknown"` is not something a download client
  * reports — it is our own adapters' fallback for a status code they could not
  * map. That is the service saying something unclassifiable, so it is
  * `indeterminate` rather than a fault.
+ *
+ * A message alone decides nothing on an *arr's row: the *arrs say `warning` or
+ * `failed` themselves when it is trouble, and carry others on a download on its
+ * way or finished ("qBittorrent is downloading metadata", `QBittorrent`;
+ * NZBGet's PAR status, `Nzbget`). A download client's row carries one only when
+ * something is wrong (Transmission's error string, which the *arrs read as
+ * `warning`).
+ *
+ * `PENDING_STATUSES` are releases the *arr holds and has sent to no client:
+ * `downloadClientUnavailable` failed to reach one, and the rest wait (a delay
+ * profile, a usenet minimum age or another of the `Temporary` rejections).
  */
 export function classifyQueueStatus(item: QueueItem): QueueClass {
-    if (item.errorMessage !== undefined) return 'fault';
     const status = item.status.toLowerCase();
-    if (QUEUE_IMPORT_PENDING.has(status)) return 'importPending';
+    if (status === 'failed') return 'failed';
+    if (QUEUE_WARNING.has(status) || (item.errorMessage !== undefined && isClientRow(item))) return 'warning';
+    if (QUEUE_IMPORT_PENDING.has(status) || stoppedFinished(item)) return 'importPending';
+    if (status === 'downloadclientunavailable') return 'unavailable';
+    if (QUEUE_STOPPED.has(status)) return 'paused';
+    if (PENDING_STATUSES.has(status)) return 'held';
     if (QUEUE_ACTIVE.has(status)) return 'active';
     if (status === 'unknown') return 'indeterminate';
-    return 'fault';
+    return 'unrecognised';
 }
 
-/** Priority order when more than one row in the same queue matches the item: a fault outranks everything (something is actively broken), then an unimported completion, then genuine progress, then a row this module cannot even classify. */
-const QUEUE_CLASS_PRIORITY: readonly QueueClass[] = ['fault', 'importPending', 'active', 'indeterminate'];
+/**
+ * Priority order when more than one row in the same queue matches the item:
+ * what is broken first (a failed download, one in trouble, a state this module
+ * does not know), then an unimported completion, then a release the *arr could
+ * not send, then what is waiting (paused, held, still downloading), then a
+ * status the adapter itself could not map (`unknown`). Within one of those, the
+ * *arr's row comes before a client's: its removal can blocklist, and while the
+ * *arr lists a grab it has not imported it, whatever a seeding client row and
+ * `hasFile` (any track, on an artist) suggest.
+ */
+const QUEUE_CLASS_PRIORITY: readonly QueueClass[] = [
+    'failed',
+    'warning',
+    'unrecognised',
+    'importPending',
+    'unavailable',
+    'paused',
+    'held',
+    'active',
+    'indeterminate'
+];
 
 function pickQueueRow(mine: readonly QueueItem[]): { row: QueueItem; cls: QueueClass } {
     for (const cls of QUEUE_CLASS_PRIORITY) {
-        const row = mine.find(q => classifyQueueStatus(q) === cls);
+        const rows = mine.filter(q => classifyQueueStatus(q) === cls);
+        const row = rows.find(q => !isClientRow(q)) ?? rows[0];
         if (row !== undefined) return { row, cls };
     }
     // Unreachable: classifyQueueStatus always returns one of the classes
@@ -414,12 +484,33 @@ const arrOf = (item: MergedItem): string => (item.kind === 'artist' ? 'Lidarr' :
 
 const queueFaultRemedy = (item: MergedItem): string =>
     `Check the download client for the failed grab — retry it, remove it, or fix what it reports (e.g. connectivity to the indexer or news server), then let ${arrOf(item)} search again.`;
+const queueWarningRemedy = (item: MergedItem): string =>
+    `A stalled torrent often finishes later, so waiting may be enough; otherwise fix what the client reports, or remove the download and let ${arrOf(item)} search again. To blocklist a bad release, remove it from ${arrOf(item)}’s queue with \`blocklist: true\`: a download client keeps no blocklist.`;
+const queueUnrecognisedRemedy = (item: MergedItem): string =>
+    `Check the download in the download client and fix what it reports, or remove it and let ${arrOf(item)} search again.`;
 const queueImportRemedy = (item: MergedItem): string =>
     `The download finished but has not been imported yet — check ${arrOf(item)}’s activity/history for why, then trigger the import manually if it did not run on its own.`;
 
-/** The download clients `queue` evidence can come from, so `degraded` folds
- *  into "could not fully look" the way `scan` and `indexers` already do. */
-const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'whisparr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
+/** The client whose own row it is, when one is in the queue, resumes it through pause_downloads, which the step offers. */
+const pausedRemedy = (client: QueueItem | undefined): string =>
+    client === undefined
+        ? 'Resume it in the download client.'
+        : `Resume it with pause_downloads (\`action: "resume"\` and its \`id\`) on ${client.service}, or in ${client.service} itself.`;
+const queueFinishedRemedy = (item: MergedItem): string =>
+    `The download is complete, but the client reports a problem, and ${arrOf(item)} imports nothing while it stands. Fix what the client reports (free disk space, for one); ${arrOf(item)} imports it once the client reports it complete.`;
+
+/** The states that block with a remedy and offer the removal. */
+const TROUBLE_REMEDY = {
+    failed: queueFaultRemedy,
+    warning: queueWarningRemedy,
+    unrecognised: queueUnrecognisedRemedy
+} as const satisfies Partial<Record<QueueClass, (item: MergedItem) => string>>;
+
+const isTrouble = (cls: QueueClass): cls is keyof typeof TROUBLE_REMEDY => cls in TROUBLE_REMEDY;
+
+/** The services `queue` evidence can come from, so `degraded` folds into
+ *  "could not fully look" the way `scan` and `indexers` already do. */
+const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'whisparr', ...DOWNLOAD_CLIENTS];
 
 /** Lidarr's queue is only read for an artist (evidence.ts), so only then does its being unreachable cost the queue stage anything. */
 const queueServicesFor = (item: MergedItem): readonly ServiceId[] => (item.kind === 'artist' ? [...QUEUE_SERVICES, 'lidarr'] : QUEUE_SERVICES);
@@ -505,7 +596,7 @@ function importerFor(row: QueueItem, item: MergedItem): string | undefined {
 /**
  * The import to offer for a grab whose download has finished. Built from a row
  * that carries a download id and not from the row that was picked: a torrent
- * client's row has none, and sorts ahead of the *arr's.
+ * client's row has none.
  */
 function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | undefined {
     const pending = mine.filter(q => classifyQueueStatus(q) === 'importPending' && q.downloadId !== undefined);
@@ -519,15 +610,25 @@ function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | un
     };
 }
 
-/**
- * A download that is stopped or paused, or whose import is pending on another
- * row of the same grab, is finished rather than failed. Removing it deletes the
- * only copy of the files, so the import is offered instead.
- */
-function importIsBehind(row: QueueItem, mine: readonly QueueItem[]): boolean {
-    if (['stopped', 'paused'].includes(row.status.toLowerCase())) return true;
+/** The rows that stand for this row's download, itself included. */
+function sameGrab(row: QueueItem, mine: readonly QueueItem[]): QueueItem[] {
     const key = downloadKey(row);
-    return key !== undefined && mine.some(q => q !== row && classifyQueueStatus(q) === 'importPending' && downloadKey(q) === key);
+    return key === undefined ? [row] : mine.filter(q => q === row || downloadKey(q) === key);
+}
+
+/**
+ * Why removing this row would throw away finished files, if it would: its
+ * import is pending on another row of the grab, or, short of a failure, every
+ * byte of the grab is in the client. The *arrs import none of the second while
+ * the warning stands (`TransmissionBase` reads an error string first; a full
+ * disk while unpacking is a warning, `Sabnzbd`), and removing it deletes the
+ * only copy of the files. A torrent the client says is missing files is no
+ * such copy.
+ */
+function finishedFiles(row: QueueItem, grab: readonly QueueItem[], cls: QueueClass): 'importPending' | 'complete' | undefined {
+    if (grab.some(q => q !== row && classifyQueueStatus(q) === 'importPending')) return 'importPending';
+    if (cls === 'failed' || grab.some(q => q.status.toLowerCase() === 'missing files')) return undefined;
+    return grab.some(complete) ? 'complete' : undefined;
 }
 
 function queueStep(ev: Evidence, item: MergedItem): QueueResult {
@@ -576,56 +677,98 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
         return { step: SKIPPED('queue', 'Nothing matching it is in any download queue.') };
     }
 
-    const picked = pickQueueRow(mine);
-    const cls = picked.cls;
-    // `hasFile` on an artist is any track, so a seeding client row sorted ahead
-    // of a Lidarr row still waiting to import the same download says nothing
-    // about that album being imported. Name the row that is stuck instead.
-    const stuck =
-        item.kind === 'artist' && cls === 'importPending' && SEEDING.has(picked.row.status.toLowerCase())
-            ? mine.find(q => classifyQueueStatus(q) === 'importPending' && !SEEDING.has(q.status.toLowerCase()) && downloadKey(q) === downloadKey(picked.row))
-            : undefined;
-    const row = stuck ?? picked.row;
+    const { row, cls } = pickQueueRow(mine);
+    const grab = sameGrab(row, mine);
     const strikeNote = strikeNoteFor(row, ev.strikes);
+    const status = row.status.toLowerCase();
+    const said = row.errorMessage === undefined ? '' : `: ${row.errorMessage}`;
 
-    if (cls === 'fault') {
-        const next: NextStep | undefined = importIsBehind(row, mine)
-            ? importStep(mine, item)
-            : {
-                  tool: 'remove_queue_item',
-                  arguments: { ...instanceArgs(row.service), id: row.id },
-                  why: `Removes the failed download from ${row.service} and deletes its partial data. It is not blocklisted.`
-              };
+    if (isTrouble(cls)) {
+        const state = status === 'missing files' ? 'is missing files' : row.status;
+        // A client's message on a state that is not itself a warning is named as the client's.
+        const what = cls === 'warning' && !QUEUE_WARNING.has(status) ? `${row.service} reports a problem with the download` : `Download ${state}`;
+        const kept = finishedFiles(row, grab, cls);
+        const next: NextStep | undefined =
+            kept === undefined
+                ? {
+                      tool: 'remove_queue_item',
+                      arguments: { ...instanceArgs(row.service), id: row.id },
+                      why: `Removes the ${cls === 'failed' ? 'failed ' : ''}download from ${row.service} and deletes its partial data. It is not blocklisted.`
+                  }
+                : importStep(grab, item);
         return {
             ...(next === undefined ? {} : { next }),
-            step: {
-                stage: 'queue',
-                service: row.service,
-                status: 'blocked',
-                detail: `Download ${row.status}${row.errorMessage === undefined ? '' : `: ${row.errorMessage}`}.${strikeNote}`
-            },
-            remedy: queueFaultRemedy(item)
+            step: { stage: 'queue', service: row.service, status: 'blocked', detail: `${what}${said}.${strikeNote}` },
+            remedy: kept === 'complete' ? queueFinishedRemedy(item) : TROUBLE_REMEDY[cls](item)
         };
     }
 
-    // A torrent still seeding a file that is already in the library has nothing left to import.
-    if (cls === 'importPending' && item.acquisition?.hasFile === true && stuck === undefined && SEEDING.has(row.status.toLowerCase())) {
+    // A torrent whose file is already in the library has nothing left to import.
+    if (cls === 'importPending' && item.acquisition?.hasFile === true && onDisk(row)) {
         return {
             step: {
                 stage: 'queue',
                 service: row.service,
                 status: strikeNote === '' ? 'ok' : 'warning',
-                detail: `Seeding, and the file is already imported.${strikeNote}`
+                detail: `${SEEDING.has(status) ? 'Seeding' : 'Stopped after it finished'}, and the file is already imported.${strikeNote}`
             }
         };
     }
 
     if (cls === 'importPending') {
         const next = importStep(mine, item);
+        // A client's row is imported by the *arr that manages the item, not by the client.
+        const importer = isClientRow(row) ? item.acquisition?.service : row.service;
         return {
-            step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Downloaded, but not yet imported by ${row.service}.${strikeNote}` },
+            step: {
+                stage: 'queue',
+                service: row.service,
+                status: 'blocked',
+                detail: `Downloaded, but not yet imported${importer === undefined ? '' : ` by ${importer}`}.${strikeNote}`
+            },
             remedy: queueImportRemedy(item),
             ...(next === undefined ? {} : { next })
+        };
+    }
+
+    if (cls === 'unavailable') {
+        return {
+            step: {
+                stage: 'queue',
+                service: row.service,
+                status: 'blocked',
+                detail: `${row.service} is holding this release because it could not send it to a download client.`
+            },
+            remedy: `Check ${row.service}’s download clients: enabled, reachable and with working credentials. It tries the release again at its next RSS sync.`
+        };
+    }
+
+    if (cls === 'paused') {
+        const client = grab.find(isClientRow);
+        return {
+            ...(client === undefined
+                ? {}
+                : {
+                      next: {
+                          tool: 'pause_downloads',
+                          arguments: { ...instanceArgs(client.service), action: 'resume', id: client.id },
+                          why: `Resumes this one download in ${client.service}.`
+                      }
+                  }),
+            step: {
+                stage: 'queue',
+                service: row.service,
+                status: 'blocked',
+                detail: `Download ${row.status}${(row.remainingBytes ?? 0) > 0 ? ' before it finished' : ''}${said}.${strikeNote}`
+            },
+            remedy: pausedRemedy(client)
+        };
+    }
+
+    // Waiting, like a download in progress: nothing to fix, so no remedy.
+    if (cls === 'held') {
+        return {
+            step: { stage: 'queue', service: row.service, status: 'blocked', detail: `${row.service} is holding this release back and has sent nothing to a download client.` }
         };
     }
 
@@ -640,7 +783,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
                 stage: 'queue',
                 service: row.service,
                 status: 'unknown',
-                detail: `${row.service} reports a status ("${row.status}") this module does not recognise.`
+                detail: `${row.service} reports a status ("${row.status}") this module does not recognise${said}.`
             }
         };
     }
@@ -648,7 +791,14 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     const eta = row.etaSeconds === undefined ? '' : ` — about ${Math.round(row.etaSeconds / 60)} minute(s) left`;
     // A download genuinely in progress is not a fault: there is nothing to
     // fix, so no remedy — see QueueResult's optional `remedy`.
-    return { step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Still downloading${eta}.${strikeNote}` } };
+    return {
+        step: {
+            stage: 'queue',
+            service: row.service,
+            status: 'blocked',
+            detail: `Still downloading${said}${eta}.${strikeNote}`
+        }
+    };
 }
 
 function indexerStep(ev: Evidence, item: MergedItem): Step {

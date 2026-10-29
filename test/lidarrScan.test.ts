@@ -271,7 +271,7 @@ describe('Lidarr import by download id', () => {
 
         await expect(adapter.listImportCandidates('nzo-1')).rejects.toMatchObject({
             message: expect.stringMatching(/has a warning in the download client/),
-            remedy: expect.stringMatching(/`errorMessage`/)
+            remedy: expect.stringMatching(/get_queue at `detail: "full"` shows that row's `errorMessage`/)
         });
         expect(sent.map(s => s.path)).toEqual(['/api/v1/queue']);
     });

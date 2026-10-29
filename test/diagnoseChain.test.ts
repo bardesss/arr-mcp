@@ -30,7 +30,7 @@ const fence = (title: string): string => fenceText(title, { service: 'radarr', f
  * unfenced fixture is not production shape. This fences per-service the same
  * way the real adapter does.
  */
-const QUEUE_TITLE_FIELD: Record<string, string> = { radarr: 'title', sonarr: 'title', sabnzbd: 'filename', transmission: 'name' };
+const QUEUE_TITLE_FIELD: Record<string, string> = { radarr: 'title', sonarr: 'title', sabnzbd: 'filename', transmission: 'name', qbittorrent: 'name' };
 const queueTitle = (service: string, title: string): string =>
     fenceText(title, { service: service as Parameters<typeof fenceText>[1]['service'], field: QUEUE_TITLE_FIELD[service] ?? 'title' });
 
@@ -276,7 +276,7 @@ describe('buildChain — a symptom never outranks its cause', () => {
     });
 
     it.each(['downloadClientUnavailable', 'warning', 'delay'])(
-        'classifies Radarr/Sonarr queue status %s as a fault, not "still downloading"',
+        'does not read Radarr/Sonarr queue status %s as "still downloading"',
         status => {
             const d = buildChain('some film', {
                 ...healthy(),
@@ -1229,6 +1229,255 @@ describe('buildChain — queue status classification (N5, N6)', () => {
         });
         expect(stepFor(d, 'queue')?.status).toBe('unknown');
         expect(d.verdict.certain).toBe(false);
+    });
+});
+
+describe('buildChain — each queue state is worded for what it is', () => {
+    const noFile = item({ acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false } });
+    const radarrRow = (over: Partial<QueueItem> = {}): QueueItem => ({
+        service: 'radarr',
+        id: 'q1',
+        title: queueTitle('radarr', 'Some.Film.2026'),
+        status: 'downloading',
+        sizeBytes: 1000,
+        remainingBytes: 500,
+        mediaId: '5',
+        downloadId: 'AAAA1111',
+        ...over
+    });
+    // A release the *arr holds has never reached a client, so it has no download id.
+    const held = (status: string): QueueItem => {
+        const { downloadId: _id, ...row } = radarrRow({ status });
+        return row;
+    };
+    const FINISHED_REMEDY =
+        'The download is complete, but the client reports a problem, and Radarr/Sonarr imports nothing while it stands. Fix what the client reports (free disk space, for one); Radarr/Sonarr imports it once the client reports it complete.';
+    // The qBittorrent adapter's own shape: no `errorMessage`, `seeding` meaning nothing is left to download.
+    const torrent = (status: string, seeding: boolean, sizeBytes = 1000): QueueItem => ({
+        service: 'qbittorrent',
+        id: 'aaaa1111',
+        title: queueTitle('qbittorrent', 'Some.Film.2026'),
+        status,
+        sizeBytes,
+        remainingBytes: seeding ? 0 : sizeBytes,
+        torrent: { hash: 'aaaa1111', category: '', tags: [], trackerDomains: [], stopped: status === 'stopped', seeding }
+    });
+    // Fenced, as `arrQueue.ts` and the Transmission adapter fence it.
+    const message = (service: string, text: string): string =>
+        fenceText(text, { service: service as Parameters<typeof fenceText>[1]['service'], field: service === 'transmission' ? 'errorString' : 'errorMessage' });
+    const transmission = (status: string, text: string, seeding: boolean): QueueItem => ({
+        service: 'transmission',
+        id: '7',
+        title: queueTitle('transmission', 'Some.Film.2026'),
+        status,
+        sizeBytes: 1000,
+        remainingBytes: seeding ? 0 : 500,
+        errorMessage: message('transmission', text),
+        torrent: { hash: 'bbbb2222', category: '', tags: [], trackerDomains: [], stopped: status === 'stopped', seeding }
+    });
+    const run = (...rows: QueueItem[]) => buildChain('some film', { ...healthy(), item: noFile, queue: { items: rows, partial: [] } });
+
+    it('keeps the failed-grab remedy and the removal for a failed download', () => {
+        const refused = message('radarr', 'news server refused');
+        const d = run(radarrRow({ status: 'failed', errorMessage: refused }));
+        expect(stepFor(d, 'queue')?.detail).toBe(`Download failed: ${refused}.`);
+        expect(d.verdict.remedy).toMatch(/^Check the download client for the failed grab/);
+        expect(d.verdict.next_steps?.[0]).toMatchObject({ tool: 'remove_queue_item', why: expect.stringMatching(/^Removes the failed download from radarr/) });
+    });
+
+    // `Sabnzbd` and `Nzbget` report nothing left on a failed usenet download: a failure is still removed.
+    it('offers the removal for a failed download with nothing left to download', () => {
+        const d = run(radarrRow({ status: 'failed', remainingBytes: 0 }));
+        expect(d.verdict.next_steps?.[0]?.tool).toBe('remove_queue_item');
+        expect(d.verdict.remedy).toMatch(/^Check the download client for the failed grab/);
+    });
+
+    // Radarr's words for a stalled qBittorrent torrent (`QBittorrent`).
+    it("names Radarr's warning as a warning, and still offers the removal", () => {
+        const stalled = message('radarr', 'The download is stalled with no connections');
+        const d = run(radarrRow({ status: 'warning', errorMessage: stalled }));
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', detail: `Download warning: ${stalled}.` });
+        expect(d.verdict.remedy).toBe(
+            'A stalled torrent often finishes later, so waiting may be enough; otherwise fix what the client reports, or remove the download and let Radarr/Sonarr search again. To blocklist a bad release, remove it from Radarr/Sonarr’s queue with `blocklist: true`: a download client keeps no blocklist.'
+        );
+        expect(d.verdict.next_steps?.[0]).toMatchObject({ tool: 'remove_queue_item', why: expect.stringMatching(/^Removes the download from radarr/) });
+    });
+
+    it.each([
+        ['stalled', 'Download stalled.'],
+        ['error', 'Download error.'],
+        ['missing files', 'Download is missing files.']
+    ])("names qBittorrent's %s as a warning on its own row", (status, detail) => {
+        const d = run(torrent(status, false));
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', detail });
+        expect(d.verdict.remedy).toMatch(/^A stalled torrent often finishes later/);
+        expect(d.verdict.next_steps?.[0]).toMatchObject({ tool: 'remove_queue_item', why: expect.stringMatching(/^Removes the download from qbittorrent/) });
+    });
+
+    it("names and removes the *arr's row when the client's is in the same state, so a bad release can be blocklisted", () => {
+        const stalled = message('radarr', 'The download is stalled with no connections');
+        const d = run(torrent('stalled', false), radarrRow({ status: 'warning', errorMessage: stalled }));
+        expect(stepFor(d, 'queue')).toMatchObject({ service: 'radarr', detail: `Download warning: ${stalled}.` });
+        expect(d.verdict.next_steps?.[0]?.arguments).toEqual({ service: 'radarr', id: 'q1' });
+    });
+
+    it("reads a download client's own message as a warning, whatever its status says", () => {
+        const row = transmission('downloading', 'Tracker gave HTTP response code 404', false);
+        const d = run(row);
+        expect(stepFor(d, 'queue')?.detail).toBe(`transmission reports a problem with the download: ${row.errorMessage}.`);
+        expect(d.verdict.remedy).toMatch(/^A stalled torrent often finishes later/);
+    });
+
+    // TransmissionBase reads the error string first, so the *arrs import none of it while it stands.
+    it.each(['seeding', 'stopped'])('never offers to remove a finished torrent (%s) that has a message of its own', status => {
+        const row = transmission(status, 'Unregistered torrent', true);
+        const d = run(row);
+        expect(stepFor(d, 'queue')?.detail).toBe(`transmission reports a problem with the download: ${row.errorMessage}.`);
+        expect(d.verdict.remedy).toBe(FINISHED_REMEDY);
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it('still offers the removal for a stopped torrent with a message and data left to download', () => {
+        expect(run(transmission('stopped', 'No data found', false)).verdict.next_steps?.[0]?.tool).toBe('remove_queue_item');
+    });
+
+    // qBittorrent reports nothing left for a torrent whose files are gone: that is no copy to keep.
+    it('offers the removal for a torrent missing its files, however little it says is left', () => {
+        const d = run(torrent('missing files', true));
+        expect(stepFor(d, 'queue')?.detail).toBe('Download is missing files.');
+        expect(d.verdict.next_steps?.[0]?.tool).toBe('remove_queue_item');
+    });
+
+    // `QBittorrent`: a magnet with DHT off is a warning of size 0, which is no finished download.
+    it('offers the removal for a warning of no size', () => {
+        const dht = message('radarr', 'qBittorrent cannot resolve magnet link with DHT disabled');
+        expect(run(radarrRow({ status: 'warning', errorMessage: dht, sizeBytes: 0, remainingBytes: 0 })).verdict.next_steps?.[0]?.tool).toBe('remove_queue_item');
+    });
+
+    // `Sabnzbd`: "Unpacking failed, write error or disk is full?" is a warning, with every byte downloaded.
+    it('never offers to remove a warning with nothing left to download', () => {
+        const full = message('radarr', 'Unpacking failed, write error or disk is full?');
+        const d = run(radarrRow({ status: 'warning', errorMessage: full, remainingBytes: 0 }));
+        expect(stepFor(d, 'queue')?.detail).toBe(`Download warning: ${full}.`);
+        expect(d.verdict.remedy).toBe(FINISHED_REMEDY);
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it("does not offer another download's import for a finished warning", () => {
+        const full = message('radarr', 'Unpacking failed, write error or disk is full?');
+        const d = run(radarrRow({ status: 'warning', errorMessage: full, remainingBytes: 0, downloadId: 'SABnzbd_nzo_1' }), radarrRow({ id: 'q2', status: 'completed', remainingBytes: 0, downloadId: 'SABnzbd_nzo_2' }));
+        expect(stepFor(d, 'queue')?.detail).toBe(`Download warning: ${full}.`);
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // `Nzbget` puts its PAR and unpack status on every finished download.
+    it("reads a finished *arr row with the client's note on it as waiting on the import, not as a fault", () => {
+        const note = message('radarr', 'PAR Status: SUCCESS - Unpack Status: SUCCESS - Move Status: SUCCESS');
+        const d = run(radarrRow({ status: 'completed', remainingBytes: 0, errorMessage: note }));
+        expect(stepFor(d, 'queue')?.detail).toBe('Downloaded, but not yet imported by radarr.');
+        expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['import_download']);
+    });
+
+    it("reads an *arr's row still on its way as downloading, with the message it carries", () => {
+        const metadata = message('radarr', 'qBittorrent is downloading metadata');
+        const d = run(radarrRow({ status: 'queued', errorMessage: metadata }));
+        expect(stepFor(d, 'queue')?.detail).toBe(`Still downloading: ${metadata}.`);
+        expect(d.verdict.remedy).toBeUndefined();
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it.each(['fetching metadata', 'allocating'])("reads qBittorrent's %s as still downloading", status => {
+        const d = run(torrent(status, false));
+        expect(stepFor(d, 'queue')?.detail).toBe('Still downloading.');
+        expect(d.verdict.remedy).toBeUndefined();
+    });
+
+    it('asks to resume a download paused before it finished, with pause_downloads on its client, and offers no removal', () => {
+        const d = run({ service: 'sabnzbd', id: 'nzo_1', title: queueTitle('sabnzbd', 'Some.Film.2026'), status: 'paused', remainingBytes: 1000 });
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', detail: 'Download paused before it finished.' });
+        expect(d.verdict.remedy).toBe('Resume it with pause_downloads (`action: "resume"` and its `id`) on sabnzbd, or in sabnzbd itself.');
+        expect(d.verdict.next_steps).toEqual([
+            { tool: 'pause_downloads', arguments: { service: 'sabnzbd', action: 'resume', id: 'nzo_1' }, why: 'Resumes this one download in sabnzbd.' }
+        ]);
+    });
+
+    it('sends a paused *arr row with no client row to the download client, with no step to offer', () => {
+        const d = run(radarrRow({ status: 'paused' }));
+        expect(d.verdict.remedy).toBe('Resume it in the download client.');
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // Radarr reads qBittorrent's stoppedDL as `paused` (`QBittorrent`); the *arr's row is the one named.
+    it("names the client of a paused grab for pause_downloads, though the *arr's row is the one described", () => {
+        const d = run(torrent('stopped', false), radarrRow({ status: 'paused' }));
+        expect(stepFor(d, 'queue')).toMatchObject({ service: 'radarr', detail: 'Download paused before it finished.' });
+        expect(d.verdict.remedy).toBe('Resume it with pause_downloads (`action: "resume"` and its `id`) on qbittorrent, or in qbittorrent itself.');
+        expect(d.verdict.next_steps?.[0]).toMatchObject({ tool: 'pause_downloads', arguments: { service: 'qbittorrent', action: 'resume', id: 'aaaa1111' } });
+    });
+
+    it('says nothing about how far a paused download got when its client does not say', () => {
+        expect(stepFor(run({ service: 'sabnzbd', id: 'nzo_1', title: queueTitle('sabnzbd', 'Some.Film.2026'), status: 'paused' }), 'queue')?.detail).toBe('Download paused.');
+    });
+
+    it('does not say a stopped magnet with no metadata has finished', () => {
+        const d = run(torrent('stopped', true, 0));
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', detail: 'Download stopped.' });
+        expect(d.verdict.remedy).toMatch(/^Resume it with pause_downloads/);
+    });
+
+    it('reads a torrent stopped with nothing left to download as waiting on the import, by the *arr that manages the item', () => {
+        const d = run(torrent('stopped', true));
+        expect(stepFor(d, 'queue')?.detail).toBe('Downloaded, but not yet imported by radarr.');
+        expect(d.verdict.remedy).toMatch(/has not been imported yet/);
+    });
+
+    it('names no importer for a finished client row when nothing manages the item', () => {
+        const d = buildChain('some film', { ...healthy(), item: item({ acquisition: undefined, presence: 'jellyfin_only' }), queue: { items: [torrent('stopped', true)], partial: [] } });
+        expect(stepFor(d, 'queue')?.detail).toBe('Downloaded, but not yet imported.');
+    });
+
+    it('says a torrent stopped after it finished has nothing left to import once the file is in the library', () => {
+        const d = buildChain('some film', healthy({ queue: { items: [torrent('stopped', true)], partial: [] } }));
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'ok', detail: 'Stopped after it finished, and the file is already imported.' });
+    });
+
+    // The *arr lists a grab until it imports it, so its row outranks a seeding client row and `hasFile` (an upgrade).
+    it("names the *arr's unimported row, not the finished torrent of the same grab, when the item already has a file", () => {
+        const d = buildChain('some film', healthy({ queue: { items: [torrent('stopped', true), radarrRow({ status: 'completed', remainingBytes: 0 })], partial: [] } }));
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', service: 'radarr', detail: 'Downloaded, but not yet imported by radarr.' });
+    });
+
+    it('says an *arr holding a release has sent nothing to a client, with nothing to fix or remove', () => {
+        const d = run(held('delay'));
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', detail: 'radarr is holding this release back and has sent nothing to a download client.' });
+        expect(d.verdict.remedy).toBeUndefined();
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it("points at the *arr's download clients for a release it could not send, and offers no removal", () => {
+        const d = run(held('downloadClientUnavailable'));
+        expect(stepFor(d, 'queue')?.detail).toBe('radarr is holding this release because it could not send it to a download client.');
+        expect(d.verdict.remedy).toBe('Check radarr’s download clients: enabled, reachable and with working credentials. It tries the release again at its next RSS sync.');
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it('blocks on a state it does not know, without calling the download failed', () => {
+        const d = run(radarrRow({ status: 'somethingNew' }));
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', detail: 'Download somethingNew.' });
+        expect(d.verdict.remedy).toBe('Check the download in the download client and fix what it reports, or remove it and let Radarr/Sonarr search again.');
+        expect(d.verdict.next_steps?.[0]?.why).toMatch(/^Removes the download from radarr/);
+    });
+
+    it("keeps the message on a status the adapter could not map", () => {
+        const note = message('radarr', 'a note');
+        expect(stepFor(run(radarrRow({ status: 'unknown', errorMessage: note })), 'queue')?.detail).toBe(`radarr reports a status ("unknown") this module does not recognise: ${note}.`);
+    });
+
+    it('names the pending import before a paused download of another grab, and a failure before both', () => {
+        const paused = radarrRow({ id: 'q2', status: 'paused', downloadId: 'B' });
+        const done = radarrRow({ status: 'completed', remainingBytes: 0 });
+        expect(stepFor(run(paused, done), 'queue')?.detail).toMatch(/not yet imported/);
+        expect(stepFor(run(paused, done, radarrRow({ id: 'q3', status: 'failed', downloadId: 'C' })), 'queue')?.detail).toBe('Download failed.');
     });
 });
 

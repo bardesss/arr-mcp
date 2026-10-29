@@ -32,7 +32,7 @@ import type { WebhookEvents } from '../../core/webhookEvents.ts';
 import { EVENT_LOG_SOURCE } from '../getHistory.ts';
 import { RECENT_REJECTION_WINDOW } from '../getIndexers.ts';
 import { resolveInstance } from '../resolveInstance.ts';
-import { queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
+import { DOWNLOAD_CLIENTS, queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
 export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; instance?: string; user?: string };
 
@@ -49,10 +49,6 @@ export type DiagnoseDeps = {
 
 const CLEANUPARR_WINDOW_MS = 30 * 86_400_000;
 const CLEANUPARR_EVENT_LIMIT = 500;
-/** The download clients whose own history outlives the queue. A torrent client
- *  keeps none once the torrent is removed, so only the usenet clients have one
- *  today; `hasHistory` decides, so a client that gains one is read too. */
-const CLIENT_SERVICES: readonly ServiceId[] = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
 
 const rowsOf = (read: HistoryEntry[] | { items: HistoryEntry[] } | undefined): HistoryEntry[] =>
     read === undefined ? [] : Array.isArray(read) ? read : read.items;
@@ -72,7 +68,10 @@ async function historyByName(
     degraded: string[],
     probe: Probe
 ): Promise<HistoryEntry[] | undefined> {
-    const sources = adapters.filter(hasHistory).filter(a => hasCleanuparr(a) || CLIENT_SERVICES.includes(a.type));
+    // Cleanuparr, and each download client that keeps a history of its own: a
+    // torrent client keeps none once the torrent is removed, so only the usenet
+    // clients do; `hasHistory` decides, so a client that gains one is read too.
+    const sources = adapters.filter(hasHistory).filter(a => hasCleanuparr(a) || DOWNLOAD_CLIENTS.includes(a.type));
     if (sources.length === 0 && events === undefined) return undefined;
     const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
     const reads = await Promise.all([

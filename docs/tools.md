@@ -301,18 +301,43 @@ check that service and run diagnose_media again, unless a blocked request comes 
 A Jellyfin id gives no kind, nor does a Plex item that is not a film or a show,
 so there any *arr that could not be read counts.
 
-When Cleanuparr removed or stopped the download and nothing is in the queue,
-the queue stage says so, with the date, its reason and its strike count, and
+The queue stage words each state for what it is. Three block with a remedy and
+the removal step: a `failed` download; one with a warning (the *arrs' `warning`
+status, qBittorrent's `stalled`, `error` and `missing files`, or a download
+client's row with its own error message, which Transmission sends); and a state
+`diagnose_media` does not know. A warning's remedy says a stalled torrent often
+finishes later, and that a bad release is blocklisted from the *arr's queue.
+Where an *arr's row and a client's are in the same state, the *arr's is the one
+named and removed. Short of a failure, a finished download is never offered for
+removal: a torrent seeding or stopped with nothing left, or a row with nothing
+left to download, such as one whose disk filled while unpacking, holds the only
+copy of the files, and its remedy says to fix what the client reports, after
+which the *arr imports it. A torrent the client says is missing its files is no
+such copy. A download paused or stopped before it finished asks you to resume
+it, and offers `pause_downloads` to do it when the client's own row is in the
+queue, and a torrent stopped with nothing left to download has finished: it
+waits on the import like a seeding one. A release the *arr holds back and has
+sent to no client (`delay`: a delay profile, a usenet minimum age, an indexer
+disabled after failures or another release already pending, among others) blocks
+with no remedy, like a download in progress, and `downloadClientUnavailable`, a
+release the *arr could not send, asks you to check its download clients. A
+message on an *arr's row that is not in trouble (NZBGet's PAR status on a
+finished download, "qBittorrent is downloading metadata") is not read as a
+fault; a row still on its way shows it after "Still downloading".
+
+When Cleanuparr removed or stopped the download and nothing is in the queue, the
+queue stage says so, with the date, its reason and its strike count, and
 `remedy` points at its rules. This only applies while the item has no file; a
 file on disk means the removal was since replaced. A dry run is shown as "would
 have removed or stopped it" and does not block the verdict. While a download
 client cannot be reached, the queue stage is unknown instead, since a new grab
 could be on that client. A download still in the queue that Cleanuparr has
-struck carries its strike count and kind in the queue stage, as Cleanuparr's
-own strike list holds them now, and says when it has reached the strike limit
-and goes on Cleanuparr's next run. A torrent still seeding a file that is already in the
-library is `ok`, or `warning` when it has strikes, including qBittorrent's
-`seeding (no peers)`; `warning` never blocks the verdict.
+struck carries its strike count and kind in the queue stage, as Cleanuparr's own
+strike list holds them now, and says when it has reached the strike limit and
+goes on Cleanuparr's next run. A torrent still seeding a file that is already in
+the library, or stopped after it finished, is `ok`, or `warning` when it has
+strikes, including qBittorrent's `seeding (no peers)`; `warning` never blocks
+the verdict.
 
 **Unverified live** (Whisparr): the item's history behind the Cleanuparr and Reclaimerr checks; inherited from Sonarr's spec, not captured.
 
@@ -420,12 +445,13 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Lidarr | `update_media` with the artist `id` and `monitored: true`: the artist flag only, each album keeps its own |
 | `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
-| `queue`, import pending | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
-| `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
-| `queue`, a stopped or paused download, or a fault whose import is pending on another row of the same grab | the import above, never the removal |
+| `queue`, import pending, including a torrent stopped after it finished | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
+| `queue`, failed, a warning or a state it does not know | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
+| `queue`, paused or stopped before it finished, with the client's own row in the queue | `pause_downloads` with `action: "resume"` and that row's service and id |
+| `queue`, failed, a warning or a state it does not know, whose import is pending on another row of the same grab, or, short of a failure, whose download is complete in the client | the import above when there is one, never the removal |
 | `library` | `trigger_scan` with `action: "scan"` on the media server |
 | playable, one film or episode missing a subtitle | `trigger_subtitle_search` with the first missing language, only when Bazarr gave it a code |
-| `scan`, `indexers`, playable otherwise, still downloading | none |
+| `scan`, `indexers`, playable otherwise, still downloading, paused with no client row in the queue, or a release the *arr holds back (`downloadClientUnavailable` too) | none |
 
 A step is left out when its tool would refuse it or when it cannot be built:
 no id to search for, a Whisparr download (which has no manual import), or an
@@ -1303,6 +1329,12 @@ only when a row has none or comes from another instance.
 
 Lidarr rows carry `statusMessages` the same way, and `orphaned` when the
 artist they were grabbed for has been deleted.
+
+`errorMessage` is the download's message, from the client or the *arr: why it is
+in trouble, or a note on it (NZBGet's PAR status on a finished download,
+"qBittorrent is downloading metadata"). A row carries it only at `detail:
+"full"`, with `private`, `seeding`, `strikes` and `markedForRemoval`: `standard`
+leaves them out, and `minimal` keeps only `service`, `id`, `title` and `status`.
 
 NZBGet rows come from its own queue (`listgroups`). Sizes arrive in megabytes
 and are converted to bytes. The ETA is worked out from the current download

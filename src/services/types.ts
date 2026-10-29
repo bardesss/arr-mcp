@@ -361,6 +361,7 @@ export type QueueItem = {
     sizeBytes?: number;
     remainingBytes?: number;
     etaSeconds?: number;
+    /** The download's message, from the client or the *arr: why it is in trouble, or a note on it. `get_queue` shows it only at `detail: "full"`. */
     errorMessage?: string;
     /** The *arr's id for the movie, series or artist this row was grabbed for, as a string. Absent on an orphan and on a download client's row. */
     mediaId?: string;
