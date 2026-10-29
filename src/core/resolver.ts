@@ -19,6 +19,14 @@ export type LibraryKind = 'movie' | 'series' | 'artist' | 'book';
  */
 export type ArrKind = Exclude<LibraryKind, 'book'>;
 
+/** The kind of title each *arr holds. A media server is not in here: it holds all of them. */
+export const ARR_KIND: Readonly<Record<string, ArrKind>> = {
+    radarr: 'movie',
+    sonarr: 'series',
+    whisparr: 'series',
+    lidarr: 'artist'
+};
+
 /** A merged row the *arr chain can read. See `isArrItem`. */
 export type ArrItem = MergedItem & { kind: ArrKind };
 

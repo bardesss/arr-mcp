@@ -405,7 +405,13 @@ says when it will look for nothing: an artist added unmonitored, `monitor:
 `monitor_new_items: "none"`, which leaves no album monitored at all, or the
 `None` metadata profile. An artist added unmonitored is skipped by RSS sync and
 Lidarr's own searches, but `trigger_search` skips that check, as on an artist
-already there, and the preview says so.
+already there, and the preview says so. On the `None` profile the preview says
+instead that monitoring alone grabs nothing: the artist has no monitored album
+until it gets another profile, whose albums `monitor_new_items` flags, or an
+album added in Lidarr, which a refresh keeps. With `all` or `new` (which has no
+album to compare with), a later profile change monitors every album it brings,
+and Lidarr then searches the released ones while the artist is monitored; the
+preview says that too when `monitor_new_items` is given.
 
 `monitor_new_items` also sets the albums an artist is added with: Lidarr's first
 refresh flags every album by that rule, and `monitor` then overrides it. So with

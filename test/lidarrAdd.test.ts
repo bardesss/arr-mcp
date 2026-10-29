@@ -310,16 +310,29 @@ describe('add_media on Lidarr', () => {
             await addMedia([adapter])({ ...base, metadata_profile: 'None', monitor: 'first', monitor_new_items: 'new' })
         ).structuredContent.effects.join(' ');
         expect(noAlbums).not.toContain('"first" set of albums');
+        // Albums from a later profile change are flagged by the rule, and `new`
+        // has nothing to compare with, so every one is monitored.
+        expect(noAlbums).toContain('If its metadata profile changes later, every album that brings is monitored: `new` compares with the albums it already has, and it has none.');
         expect(noAlbums).not.toContain('Albums Lidarr discovers later');
+        const said = async (rule: string) =>
+            (await addMedia([adapter])({ ...base, metadata_profile: 'None', monitor_new_items: rule })).structuredContent.effects.join(' ');
+        expect(await said('all')).toContain('every album that brings is monitored (`all`), and Lidarr then searches the released ones');
+        expect(await said('none')).toContain('the albums that brings are not monitored (`none`).');
         expect(noAlbums).not.toContain('it is added with');
         expect(noAlbums).toContain('The None metadata profile gives the artist no albums, so nothing is searched.');
         expect(noAlbums).not.toContain('Use trigger_search');
         const unmonitoredNone = (await addMedia([adapter])({ ...base, metadata_profile: 'None', monitored: false })).structuredContent.effects.join(' ');
-        expect(unmonitoredNone).toContain("Lidarr's RSS sync and its own automatic searches grab nothing for it until you monitor it.");
+        // Monitoring it alone grabs nothing either, so no "until you monitor it".
+        expect(unmonitoredNone).toContain(
+            'Adds it unmonitored, and the None metadata profile gives it no albums, so monitoring it alone grabs nothing: it needs monitored albums first, from another metadata profile or an album added in Lidarr.'
+        );
+        expect(unmonitoredNone).not.toContain('until you monitor it');
         expect(unmonitoredNone).not.toContain('trigger_search');
 
         const monitoredNone = (await addMedia([adapter])({ ...base, metadata_profile: 'None' })).structuredContent.effects.join(' ');
-        expect(monitoredNone).toContain('Monitors the artist, but the None metadata profile gives it no albums, so nothing is grabbed.');
+        expect(monitoredNone).toContain(
+            'Monitors the artist, but the None metadata profile gives it no albums, so nothing is grabbed until it has monitored ones, from another metadata profile or an album added in Lidarr.'
+        );
         expect(monitoredNone).not.toContain('grabs its monitored albums');
 
         const folderNone = lidarr({ '/api/v1/rootfolder': [{ ...ROOTS[0], defaultMetadataProfileId: 2 }] }).adapter;

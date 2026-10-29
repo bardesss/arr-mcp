@@ -63,12 +63,18 @@ function monitoredEffect(monitored: boolean, lidarr: boolean, noAlbums: boolean)
     }
     // An artist's own flag grabs nothing by itself: its albums carry their own,
     // which the lines below this one describe.
-    if (monitored && noAlbums) return 'Monitors the artist, but the None metadata profile gives it no albums, so nothing is grabbed.';
+    // Monitoring changes nothing under `None`: there is no album to grab
+    // until the artist gets a monitored one, from another profile (the next
+    // refresh flags new albums by `monitorNewItems`) or an album added by
+    // hand, which a refresh keeps (`RefreshAlbumService.ShouldDelete`).
+    if (monitored && noAlbums) {
+        return 'Monitors the artist, but the None metadata profile gives it no albums, so nothing is grabbed until it has monitored ones, from another metadata profile or an album added in Lidarr.';
+    }
+    if (noAlbums) {
+        return 'Adds it unmonitored, and the None metadata profile gives it no albums, so monitoring it alone grabs nothing: it needs monitored albums first, from another metadata profile or an album added in Lidarr.';
+    }
     if (monitored) return 'Monitors the artist, so Lidarr grabs its monitored albums when a matching release appears.';
-    const byHand = noAlbums
-        ? ''
-        : " A search started with trigger_search skips that check, so it can still grab the artist's monitored albums, or any album it names.";
-    return `Adds it unmonitored, so Lidarr's RSS sync and its own automatic searches grab nothing for it until you monitor it.${byHand}`;
+    return "Adds it unmonitored, so Lidarr's RSS sync and its own automatic searches grab nothing for it until you monitor it. A search started with trigger_search skips that check, so it can still grab the artist's monitored albums, or any album it names.";
 }
 
 /**
@@ -100,6 +106,19 @@ function searchEffect(
     }
     return 'Starts searching for its monitored albums that are already released and missing a track — this may begin a download, using disk space and bandwidth.';
 }
+
+/**
+ * The same rules under `None`, where the artist has no album: a later profile
+ * change brings its albums in at the next refresh, flagged by the rule, and
+ * `new` finds nothing to compare with, so it monitors every one
+ * (`MonitorNewAlbumService`). A refresh of a monitored artist then searches the
+ * monitored albums it added that are already released (`AlbumAddedService`).
+ */
+const NO_ALBUMS_NEW_ITEMS_EFFECT: Readonly<Record<ArtistMonitorNewItems, string>> = {
+    all: 'If its metadata profile changes later, every album that brings is monitored (`all`), and Lidarr then searches the released ones while the artist is monitored.',
+    new: 'If its metadata profile changes later, every album that brings is monitored: `new` compares with the albums it already has, and it has none. Lidarr then searches the released ones while the artist is monitored.',
+    none: 'If its metadata profile changes later, the albums that brings are not monitored (`none`).'
+};
 
 /** What each of Lidarr's rules for albums found later does, in the preview. */
 const NEW_ITEMS_EFFECT: Readonly<Record<ArtistMonitorNewItems, string>> = {
@@ -423,7 +442,10 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                         : `Monitors the "${monitor}" set of seasons — ${service} works out which those are.`
                 );
             }
-            if (monitor_new_items !== undefined && !noAlbums) effects.push(NEW_ITEMS_EFFECT[monitor_new_items]);
+            // Said under `None` too: albums from a later profile change are flagged by this rule.
+            if (monitor_new_items !== undefined) {
+                effects.push(noAlbums ? NO_ALBUMS_NEW_ITEMS_EFFECT[monitor_new_items] : NEW_ITEMS_EFFECT[monitor_new_items]);
+            }
             const initial = lidarr && !noAlbums ? lidarrInitialAlbums(monitor, monitor_new_items) : undefined;
             if (initial !== undefined) effects.push(initial);
             if (minimum_availability !== undefined) {

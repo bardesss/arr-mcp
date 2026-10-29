@@ -175,6 +175,21 @@ describe('diagnose', () => {
         expect(d.resolved?.ids).toEqual({ tmdb: 550 });
     });
 
+    // Synthesised from the id alone (not in the index), but Radarr said
+    // `movie`, so the kind is not a guess and only Radarr counts.
+    it('does not mark the kind guessed for an *arr id the index lacks', async () => {
+        const adapters = [
+            stub('radarr', {
+                listLibrary: async () => [],
+                getMediaDetails: async () => ({ service: 'radarr', kind: 'movie', id: '1', title: 'Some Film', ids: { tmdb: 550 } })
+            })
+        ];
+        const evidence = await collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'radarr', id: '1' });
+        expect(evidence.item?.kind).toBe('movie');
+        expect(evidence.item?.acquisition?.service).toBe('radarr');
+        expect(evidence.itemKindGuessed).toBeUndefined();
+    });
+
     it('accepts an explicit id against a named instance', async () => {
         // A named Radarr has `id: "radarr/4k"`, so the open-coded
         // `find(a => a.id === service)` matched nothing and diagnose answered
@@ -528,6 +543,31 @@ describe('diagnose', () => {
 
     // --- Fix round 1 ---
 
+    // Jellyfin's id reports no kind, so `movie` stands in, and the Sonarr whose
+    // read failed may be the one managing it.
+    it('does not call a Jellyfin id unmanaged while an *arr of any kind could not be read', async () => {
+        const adapters = [
+            stub('sonarr', {
+                listLibrary: async () => {
+                    throw new ServiceError('Unreachable', 'sonarr', 'connection refused');
+                }
+            }),
+            stub('jellyfin', {
+                listUserLibrary: async () => [],
+                getMediaDetails: async () => ({ service: 'jellyfin', kind: 'item', id: 'abc123', title: 'A Series', ids: { tvdb: 900 } })
+            })
+        ];
+        const deps = { adapters, library: new LibraryLoader(adapters, undefined) };
+
+        const evidence = await collectEvidence(deps, { service: 'jellyfin', id: 'abc123' });
+        expect(evidence.itemKindGuessed).toBe(true);
+        expect(evidence.libraryDegraded).toContain('sonarr');
+
+        const d = await buildDiagnose(deps, { service: 'jellyfin', id: 'abc123' });
+        expect(d.steps.find(s => s.stage === 'managed')).toMatchObject({ status: 'unknown', service: 'sonarr' });
+        expect(d.verdict).toMatchObject({ stage: 'managed', certain: false });
+    });
+
     it('Finding F: diagnoses a Jellyfin item as the series Sonarr already manages, not a fabricated unmanaged movie', async () => {
         // JellyfinAdapter.getMediaDetails reports kind: 'item' for everything.
         // Coercing that to 'movie' before calling find() used to restrict the
@@ -558,6 +598,8 @@ describe('diagnose', () => {
         );
 
         expect(d.resolved?.kind).toBe('series');
+        // Found in the index, so the kind is known, not guessed.
+        expect((await collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'jellyfin', id: 'abc123' })).itemKindGuessed).toBeUndefined();
         // The bug fabricated a kind: 'movie' record with no acquisition at
         // all, verdicting 'managed' ("Neither Radarr nor Sonarr is managing
         // it") at certain: true. The real join has Sonarr monitoring it with

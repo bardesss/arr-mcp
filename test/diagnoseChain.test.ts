@@ -1992,11 +1992,77 @@ describe('buildChain — a Lidarr artist', () => {
         expect(d.verdict.next_steps?.[0]?.arguments).toEqual({ service: 'lidarr', instance: 'hd', level: 'artist', artists: ['1'], monitored: true });
     });
 
-    it('offers no lookup for an artist nothing manages, and says to add it to Lidarr', () => {
+    // lookup_media answers with Lidarr's artists, each with the MusicBrainz id
+    // add_media takes, so an artist gets the lookup a film or series gets.
+    it('offers the lookup for an artist nothing manages, as for a film, and says to add it to Lidarr', () => {
         const d = buildChain('daft punk', healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) }));
         expect(d.verdict.stage).toBe('managed');
-        expect(d.verdict.next_steps).toBeUndefined();
+        expect(d.verdict.next_steps?.map(s => [s.tool, s.arguments])).toEqual([['lookup_media', { query: 'daft punk' }]]);
         expect(d.verdict.remedy).toMatch(/Lidarr/);
+
+        // Asked for by id, there is no query worth looking up, as for a film.
+        const byId = chain('1', healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) }), false);
+        expect(byId.verdict.next_steps).toBeUndefined();
+    });
+
+    // An *arr of the item's kind whose library read failed may hold it, so
+    // "nothing manages it" is unproven, and a lookup would ask the same *arr.
+    it('reports managed as unknown, with no lookup, when an *arr of its kind could not be read', () => {
+        const unmanagedArtist = artist({ acquisition: undefined, presence: 'jellyfin_only' });
+        const down = buildChain('daft punk', healthy({ item: unmanagedArtist, libraryDegraded: ['lidarr/two'] }));
+        expect(stepFor(down, 'managed')).toMatchObject({
+            status: 'unknown',
+            service: 'lidarr/two',
+            detail: 'lidarr/two could not be read, so whether anything manages it was not checked.'
+        });
+        expect(stepFor(down, 'file')?.detail).toBe('Not reached — whether anything manages it is not known.');
+        // The open question stays the verdict, uncertain, with no lookup.
+        expect(down.verdict.stage).toBe('managed');
+        expect(down.verdict.certain).toBe(false);
+        // Named once: the verdict's own detail already says what was not read.
+        expect(down.verdict.summary).toBe('lidarr/two could not be read, so whether anything manages it was not checked.');
+        expect(down.verdict.remedy).toBe('Check that lidarr/two is reachable, then diagnose again: it may be managing it.');
+        expect(down.verdict.next_steps).toBeUndefined();
+
+        const film = buildChain('some film', healthy({ item: item({ acquisition: undefined, presence: 'jellyfin_only' }), libraryDegraded: ['radarr', 'radarr/4k'] }));
+        expect(stepFor(film, 'managed')).toMatchObject({ status: 'unknown', detail: 'radarr and radarr/4k could not be read, so whether anything manages it was not checked.' });
+        expect(film.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that radarr and radarr/4k are reachable, then diagnose again: one of them may be managing it.' });
+        expect(film.verdict.summary).not.toContain('Could not check');
+        expect(film.verdict.next_steps).toBeUndefined();
+
+        // Another kind's *arr, or a media server's own read, says nothing about who manages it.
+        for (const libraryDegraded of [['radarr'], ['jellyfin:music'], ['sonarr/4k']]) {
+            const up = buildChain('daft punk', healthy({ item: unmanagedArtist, libraryDegraded }));
+            expect(stepFor(up, 'managed')?.status).toBe('blocked');
+            expect(up.verdict.stage).toBe('managed');
+        }
+    });
+
+    // A media server named by id reports no kind, so the film stands in, and
+    // any *arr could hold it.
+    it('counts every unread *arr when the kind was only guessed', () => {
+        const guessed = item({ acquisition: undefined, presence: 'jellyfin_only' });
+        const d = buildChain('some film', healthy({ item: guessed, itemKindGuessed: true, libraryDegraded: ['sonarr'] }));
+        expect(stepFor(d, 'managed')).toMatchObject({ status: 'unknown', service: 'sonarr' });
+        expect(d.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that sonarr is reachable, then diagnose again: it may be managing it.' });
+
+        // The film's kind was known: Sonarr cannot hold it.
+        const known = buildChain('some film', healthy({ item: guessed, libraryDegraded: ['sonarr'] }));
+        expect(stepFor(known, 'managed')?.status).toBe('blocked');
+    });
+
+    it('lets a blocked request stay the verdict while an *arr of its kind is unread', () => {
+        const d = buildChain(
+            'some film',
+            healthy({ item: item({ acquisition: undefined, presence: 'jellyfin_only' }), libraryDegraded: ['radarr'], request: { status: 'declined', id: 3 } })
+        );
+        expect(stepFor(d, 'managed')?.status).toBe('unknown');
+        expect(d.verdict.stage).toBe('request');
+    });
+
+    it('reports managed as unknown for a series while a Whisparr is unread', () => {
+        const d = buildChain('some site', healthy({ item: item({ kind: 'series', acquisition: undefined, presence: 'jellyfin_only' }), libraryDegraded: ['whisparr'] }));
+        expect(d.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that whisparr is reachable, then diagnose again: it may be managing it.' });
     });
 
     it('counts an unreachable Lidarr against an artist, and not against a film', () => {

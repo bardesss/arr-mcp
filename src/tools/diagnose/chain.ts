@@ -3,7 +3,7 @@ import { servicesOnly } from '../../core/gather.ts';
 import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { currentStrikes } from '../cleanuparrQueue.ts';
-import type { MergedItem } from '../../core/resolver.ts';
+import { ARR_KIND, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
 import type {
     AlbumSummary,
@@ -33,6 +33,12 @@ export type Step = { stage: Stage; service?: string; status: StepStatus; detail:
  */
 export type Evidence = {
     item: MergedItem | undefined;
+    /**
+     * Set when `item.kind` is a stand-in: a media server named by id reports
+     * no kind (Jellyfin's `item`), so `movie` is used. Every *arr then counts
+     * as one that could hold it.
+     */
+    itemKindGuessed?: true;
     /**
      * `id` is Seerr's own request id, the one `respond_to_request` takes.
      * `mayRespond` is whether that tool's own check would let the caller act on
@@ -100,8 +106,9 @@ export type Evidence = {
      * *probe* reachability. A service can fail one without the other: a failing
      * `getScanState` on the media server must not erase a library read that
      * succeeded, and a failing Radarr library read must not make `queueStep`
-     * call every queue unknown. Only `libraryStep` reads this; every other
-     * step reads `degraded`.
+     * call every queue unknown. Only `libraryStep`, and the `managed` check
+     * for an item no *arr claims, read this; every other step reads
+     * `degraded`.
      */
     libraryDegraded: readonly string[];
     degraded: readonly string[];
@@ -946,6 +953,22 @@ const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...
  */
 const certaintyDegraded = (ev: Evidence): string[] => servicesOnly(allDegraded(ev));
 
+/**
+ * The *arrs of this kind, any instance, whose library read failed. Any of them
+ * may hold an item no other source claims; a source-scoped id such as
+ * `jellyfin:music` is a media server's read, never an *arr's. With the kind
+ * only guessed (`itemKindGuessed`), every unread *arr counts.
+ */
+const arrsUnreadFor = (ev: Evidence, kind: MergedItem['kind']): string[] =>
+    servicesOnly(ev.libraryDegraded).filter(id => {
+        const holds = ARR_KIND[id.split('/')[0] ?? ''];
+        return holds !== undefined && (ev.itemKindGuessed === true || holds === kind);
+    });
+
+/** `a`, `a and b`, `a, b and c`. */
+const andList = (names: readonly string[]): string =>
+    names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1) as string}`;
+
 const withSteps = (next: NextStep[]): { next_steps?: NextStep[] } => (next.length === 0 ? {} : { next_steps: next });
 
 /**
@@ -1036,7 +1059,19 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // monitoring is off, and the check below needs that real signal to
     // tell "not monitored, and also no file" apart from "not monitored, but
     // it is sitting right there".
-    if (acquisition === undefined) {
+    const unreadArrs = acquisition === undefined ? arrsUnreadFor(ev, item.kind) : [];
+    if (unreadArrs.length > 0) {
+        // An *arr of this kind (any, when the kind was only guessed) whose
+        // library read failed may hold the item, so "nothing manages it" is
+        // unproven, and a lookup would ask it too.
+        steps.push({
+            stage: 'managed',
+            service: unreadArrs.join(', '),
+            status: 'unknown',
+            detail: `${andList(unreadArrs)} could not be read, so whether anything manages it was not checked.`
+        });
+        steps.push(SKIPPED('file', 'Not reached — whether anything manages it is not known.'));
+    } else if (acquisition === undefined) {
         // Not a list of the two *arrs, because the stack may run a third:
         // this is the branch where nothing configured claims the item, and
         // naming services that were never asked reads as a claim they were.
@@ -1111,6 +1146,12 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     } else if (!excludeRequestManaged && isBlocked('managed')) {
         verdictStage = 'managed';
         certaintyPath = ['request', 'managed'];
+    } else if (unreadArrs.length > 0) {
+        // Nothing claims it and an *arr that may hold it could not be read:
+        // that open question stays the verdict, uncertain, rather than falling
+        // through to a "playable" summary written for an item an *arr holds.
+        verdictStage = 'managed';
+        certaintyPath = ['request', 'managed'];
     } else if (isBlocked('file')) {
         // A missing file is a symptom, not the cause: a stalled download or
         // a dead indexer is — but only reached here because `file` is
@@ -1147,9 +1188,13 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     const unchecked = certaintyPath.filter(s => byStage.get(s)?.status === 'unknown');
     const certain = unchecked.length === 0;
 
-    const caveat = certain
-        ? ''
-        : ` Could not check: ${[...new Set(unchecked.map(s => byStage.get(s)?.service ?? s))].join(', ')}.`;
+    // The verdict's own stage is left out: an unknown `managed` verdict
+    // already names what it could not read.
+    const uncheckedElsewhere = unchecked.filter(s => s !== verdictStage);
+    const caveat =
+        uncheckedElsewhere.length === 0
+            ? ''
+            : ` Could not check: ${[...new Set(uncheckedElsewhere.map(s => byStage.get(s)?.service ?? s))].join(', ')}.`;
     // `fileIsOk` still decides which of the two `queueAside` sentences
     // applies (see its own doc comment) — it no longer decides whether one
     // appears at all. A confirmed file is what lets the true wording say
@@ -1201,7 +1246,11 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     const remedy =
         blocking.stage === 'queue'
             ? queueResult.remedy
-            : blocking.stage === 'managed' && removedOnPurpose
+            : blocking.stage === 'managed' && blocking.status === 'unknown'
+              ? unreadArrs.length === 1
+                ? `Check that ${unreadArrs[0]} is reachable, then diagnose again: it may be managing it.`
+                : `Check that ${andList(unreadArrs)} are reachable, then diagnose again: one of them may be managing it.`
+              : blocking.stage === 'managed' && removedOnPurpose
               ? `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then turn monitoring on in ${acquisition?.service ?? 'the service managing it'}.`
               : blocking.stage === 'file'
               // The `file` step always carries the managing service: it is only
@@ -1275,8 +1324,13 @@ function nextStepsFor(
                   ]
                 : [];
         case 'managed':
-            // An artist nothing manages gets no lookup step; ARTIST_MANAGED_REMEDY names Lidarr instead.
-            if (item === undefined || acquisition === undefined) return item?.kind === 'artist' ? [] : lookupStep(query, byWords);
+            // `managed` is unknown with an *arr of its kind unread (any *arr
+            // when the kind was only guessed), and a lookup would ask it too.
+            if (item !== undefined && acquisition === undefined && arrsUnreadFor(ev, item.kind).length > 0) return [];
+            // An artist nothing manages gets the same lookup as a film or a
+            // series: lookup_media answers with Lidarr's artists, each with the
+            // MusicBrainz id add_media takes.
+            if (item === undefined || acquisition === undefined) return lookupStep(query, byWords);
             // Monitoring would search for, and so re-download, what a rule deleted on purpose: the file step withholds its search for this reason.
             if (!acquisition.hasFile && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined) return [];
             return monitorStep(acquisition, item);

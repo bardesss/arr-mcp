@@ -1,5 +1,5 @@
 import { logger } from '../core/logger.ts';
-import type { ExternalIds, MergedItem } from '../core/resolver.ts';
+import { ARR_KIND, type ExternalIds, type MergedItem } from '../core/resolver.ts';
 import {
     hasCleanup,
     hasQueue,
@@ -74,14 +74,6 @@ export const CROSS_CHECK_BUDGET_MS = 5000;
 const TIMED_OUT = Symbol('timed out');
 
 const NO_TMDB = (service: string): string => `${service} (no TMDB id)`;
-
-/** The kind of title each *arr holds. A media server is not in here: it holds all of them. */
-const ARR_KIND: Readonly<Record<string, 'movie' | 'series' | 'artist'>> = {
-    radarr: 'movie',
-    sonarr: 'series',
-    whisparr: 'series',
-    lidarr: 'artist'
-};
 
 /**
  * Whether a degraded library source could have changed the answer for a title
