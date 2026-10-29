@@ -6,9 +6,9 @@ import type { ArtistMonitorCapable, ArtistMonitorPolicy, ServiceAdapter } from '
 import type { ToolContext } from '../tools/register.ts';
 import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
-import { WRITE_TOOLS } from '../tools/register.ts';
+import { toolListed } from '../tools/register.ts';
 import { TOOL_DOC_ALIASES, TOOL_DOCS } from './toolDocs.ts';
-import { toolUsable, type SurfaceOptions } from './toolSurface.ts';
+import type { SurfaceOptions } from './toolSurface.ts';
 
 /**
  * The four resources (0.9 spec ).
@@ -368,7 +368,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         ...Object.entries(TOOL_DOC_ALIASES).map(([old, current]): [string, string, string] => [old, current, TOOL_DOCS[current]!])
     ];
     for (const [name, tool, text] of docs) {
-        if (surface !== undefined && !toolUsable(name, surface, WRITE_TOOLS.has(name))) continue;
+        if (surface !== undefined && !toolListed(name, surface)) continue;
         server.registerResource(
             `docs-${name}`,
             `arr://docs/${name}`,

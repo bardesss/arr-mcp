@@ -304,10 +304,12 @@ editor writes on 2.1.3.3927, of `monitored` and `monitorNewItems` separately
 and together, left the artist's two albums with exactly the flags they had, and
 the same four on 3.1.6.5079 left that artist's four albums as they were.
 `update_media` writes the artist's own flag, and `set_monitoring` with
-`level: "album"` writes the album's. `monitor_new_items` is the standing rule Lidarr applies to albums it
-discovers later, and `none` is the only value that stops the wanted list growing
-by itself. Both are written with Lidarr's bulk endpoints, which queued no
-`MoveArtist` job in the runs that were captured.
+`level: "album"` writes the album's. `monitor_new_items` is the standing rule
+Lidarr applies to albums it discovers later, and `none` is the only value that
+stops the wanted list growing by itself. The artist flag and `monitor_new_items`
+go through Lidarr's Artist Editor (`PUT /artist/editor`), which queued no
+`MoveArtist` job in the runs that were captured; the album flag goes through
+`PUT /album/monitor`.
 
 `search_media` with `source: "discover"` returns Lidarr's artist lookup, and `add_media` adds an artist by
 its MusicBrainz id, with a quality profile, a metadata profile (the root
@@ -1033,8 +1035,7 @@ whole session, so arr-mcp sends only what applies to your stack:
   configured, so the model does not look for a Lidarr you do not run;
 - a sentence about a service you do not run is left out of a description;
 - longer field-by-field references are resources, `arr://docs/<tool>`, read
-  only when a client asks for one.
-
+  only when a client asks for one;
 - a write tool is left out when none of its services is configured:
   `trigger_subtitle_search` without Bazarr, `request_media` without Seerr,
   `sync_database` without Profilarr, and so on. With nothing configured yet,

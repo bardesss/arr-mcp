@@ -54,23 +54,29 @@ async function listTools(services: Record<string, unknown>): Promise<Tool[]> {
         auth: { bearer_token: TOKEN, password_hash: passwordHash },
         services
     });
-    const app = buildApp({
-        runtime: Runtime.fromConfig(cfg, WriteAudit.ephemeral(), { adapters: [] }),
-        audit: WriteAudit.ephemeral(),
-        logs: LogStore.ephemeral()
-    });
-    const res = await app.request('http://localhost:6060/mcp', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json, text/event-stream',
-            Authorization: `Bearer ${TOKEN}`
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
-    });
-    const payload = rpcPayload<{ tools: Tool[] }>(await res.text());
-    if (payload.error || !payload.result) throw new Error(`tools/list failed: ${payload.error?.message ?? res.status}`);
-    return payload.result.tools;
+    const audit = WriteAudit.ephemeral();
+    const logs = LogStore.ephemeral();
+    const runtime = Runtime.fromConfig(cfg, audit, { adapters: [] });
+    try {
+        const app = buildApp({ runtime, audit, logs });
+        const res = await app.request('http://localhost:6060/mcp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json, text/event-stream',
+                Authorization: `Bearer ${TOKEN}`
+            },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+        });
+        const payload = rpcPayload<{ tools: Tool[] }>(await res.text());
+        if (payload.error || !payload.result) throw new Error(`tools/list failed: ${payload.error?.message ?? res.status}`);
+        return payload.result.tools;
+    } finally {
+        // One stack after another in one process: each closes what it opened.
+        await runtime.close();
+        audit.close();
+        logs.close();
+    }
 }
 
 const size = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));

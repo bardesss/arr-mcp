@@ -49,6 +49,9 @@ const NO_INDEXER_ID = 0;
 const RELEASES_FRESH_MS = 5 * 60_000;
 const LISTINGS_KEPT = 20;
 
+/** The refusal for a download Shelfmark marks as not retryable, so a caller can tell it from a failed check. */
+export const NOT_RETRYABLE = 'Shelfmark says this download cannot be retried';
+
 const SNAPSHOT_PATH = '/api/activity/snapshot';
 /** Only what someone dismissed from Shelfmark's activity sidebar. The rest of its history is in the snapshot. */
 const DISMISSED_PATH = '/api/activity/history?limit=500';
@@ -205,7 +208,7 @@ export class ShelfmarkAdapter
         const row = (await this.#finished()).find(r => hashOf(r.taskId) === id);
         if (row === undefined) throw new ServiceError('NotFound', this.id, `no failed or cancelled download has id "${id}"`, { remedy: 'Take the id from a get_history or get_queue row for Shelfmark.' });
         if (row.status === 'complete') throw new ServiceError('NotFound', this.id, 'that download finished, so there is nothing to retry');
-        if (row.task.retry_available !== true) throw new ServiceError('NotFound', this.id, 'Shelfmark says this download cannot be retried', { remedy: 'Find it again with get_releases and grab it with grab_release.' });
+        if (row.task.retry_available !== true) throw new ServiceError('NotFound', this.id, NOT_RETRYABLE, { remedy: 'Find it again with get_releases and grab it with grab_release.' });
         return row;
     }
 

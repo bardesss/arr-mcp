@@ -4,9 +4,11 @@ import { type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { MUSICBRAINZ_ID } from '../services/lidarr.ts';
+import { NOT_RETRYABLE } from '../services/shelfmark.ts';
 import {
     hasMediaAdd,
     hasQueue,
+    hasRetry,
     hasMetadataProfiles,
     hasReleaseGrab,
     hasReleaseSearch,
@@ -394,9 +396,28 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                         const queued = (await adapter.getQueue()).find(row => row.id === hash);
                         queueChecked = true;
                         if (queued !== undefined) {
+                            // An `error` row is a failed download still in the queue: queueing the
+                            // same release again would not help. Shelfmark's own check says whether
+                            // retry_download can take this id; only its refusal means it cannot.
+                            const retry =
+                                queued.status !== 'error' || !hasRetry(adapter)
+                                    ? 'unchecked'
+                                    : await adapter.findRetryTarget(queued.id, { hasPassword: false }).then(
+                                          () => 'yes' as const,
+                                          (err: unknown) => (err instanceof ServiceError && err.detail === NOT_RETRYABLE ? ('no' as const) : ('unchecked' as const))
+                                      );
+                            const failed = `${top.title} already failed in ${service}'s queue.`;
+                            const summary =
+                                queued.status !== 'error'
+                                    ? `${top.title} is already queued in ${service}.`
+                                    : retry === 'yes'
+                                      ? `${failed} To try it again, use retry_download with id "${queued.id}".`
+                                      : retry === 'no'
+                                        ? `${top.title} already failed in ${service}'s queue and cannot be retried. Pick another file with get_releases and grab_release.`
+                                        : `${failed} Whether it can be retried was not checked; retry_download with id "${queued.id}" may run it again.`;
                             return {
                                 target,
-                                summary: `${top.title} is already queued in ${service}.`,
+                                summary,
                                 effects: [],
                                 noop: true
                             };
@@ -410,7 +431,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     : 'Shelfmark writes the file to its destination folder.';
                 return {
                     target,
-                    summary: `Queue the book ${external_id} on ${service}: grab ${top.title} from ${top.indexer}, the most-downloaded release on offer.`,
+                    summary: `Queue the book ${top.title} on ${service} from ${top.indexer}, the most-downloaded release on offer.`,
                     effects: [
                         `Sends this release to ${service}'s download client.${top.downloads === undefined ? ' No release on offer has a download count, so this is simply the first listed.' : ` It has ${top.downloads} downloads.`}`,
                         bookdrop,

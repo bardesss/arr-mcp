@@ -84,6 +84,39 @@ describe('the JSON a schema sends', () => {
             expect(json.properties['title']?.description).toBe('The new title.');
         }
     });
+
+    it('drops a scoped field that is not required, and adds no required list where there was none', () => {
+        const json = leanJsonSchema(
+            {
+                type: 'object',
+                properties: {
+                    id: { type: 'string', description: 'The id.' },
+                    album: { type: 'string', description: '[[lidarr: The album id.]]' }
+                }
+            },
+            'input',
+            on('radarr')
+        ) as { required?: string[]; properties: Record<string, unknown> };
+        expect(Object.keys(json.properties)).toEqual(['id']);
+        expect(json.required).toBeUndefined();
+    });
+
+    it('leaves the required list alone when the dropped field was not in it', () => {
+        const json = leanJsonSchema(
+            {
+                type: 'object',
+                required: ['id'],
+                properties: {
+                    id: { type: 'string', description: 'The id.' },
+                    album: { type: 'string', description: '[[lidarr: The album id.]]' }
+                }
+            },
+            'input',
+            on('radarr')
+        ) as { required: string[]; properties: Record<string, unknown> };
+        expect(Object.keys(json.properties)).toEqual(['id']);
+        expect(json.required).toEqual(['id']);
+    });
 });
 
 describe('a service field', () => {

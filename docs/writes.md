@@ -448,7 +448,6 @@ the run.
 | `get_stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
 | `get_queue` | `cleanuparr` | Seeding rules for a Transmission client | Only hand-written fixtures; the one tester runs qBittorrent |
 | `grab_release` | `shelfmark` | The default grab, with no release named | Mock-only; the live Shelfmark has not been asked for one |
-| `add_media` | `shelfmark` | Adding a book: the same grab as the default `grab_release`, then the Bookdrop approval | Mock-only; the live Shelfmark has not been asked to queue one, the id shape is checked on recorded bodies only, and the `import_download` Bookdrop approve it points to (#541) is unproven live too |
 | `retry_download` | `shelfmark` | Retrying a failed book, or a Prowlarr row | Every failed row on the live Shelfmark is marked not retryable |
 | `trigger_search` | `sonarr` | `SeasonSearch` and `EpisodeSearch` payloads | Posting one runs a real search on the stack, and Sonarr reports success for a command that matches nothing |
 | `add_media` | `radarr` | Adopting an existing folder with `path` | Never posted to a live Radarr |
@@ -465,7 +464,7 @@ the run.
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
 | `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | Written from Seerr's own route (`server/routes/blocklist.ts`), whose request body differs from its published spec. The blocklist call itself is confirmed live through `blocklist_media` on Seerr 3.5.1; the delete-then-blocklist path was not run, since it deletes a film |
-| `fix_profile` | `sonarr` | The profile read and write | Radarr 6.4.4 was captured live on a throwaway profile copy (read, `PUT` answered 202, a refused `PUT` answered 400 with its reason); Sonarr shares the code and the `/api/v3/qualityprofile/{id}` path but was not captured |
+| `fix_profile` | `sonarr` | The profile write | Sonarr 4.0.19's profile list is recorded read-only (no `language` field, which Radarr's carries); the `PUT` was captured only on Radarr 6.4.4, on a throwaway profile copy (`PUT` answered 202, a refused `PUT` answered 400 with its reason), so on Sonarr it is unproven live |
 | `fix_profile` | `whisparr` | The profile read and write | No Whisparr on the maintainer's stack; shares the code and path with Radarr, whose exchange was captured, but was not captured itself |
 | `blocklist_media` | `sonarr` | Adding and removing an import exclusion | The list read is checked against a live Sonarr 4.0; the writes were not run |
 | `blocklist_media` | `lidarr` | Import exclusions | No Lidarr on the maintainer's stack; written from Lidarr's spec |

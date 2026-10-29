@@ -101,6 +101,13 @@ const PLACEHOLDER_EMAIL = /@(?:[\w-]+\.)*(?:example\.test|example\.com|example\.
 export const realEmails = (text: string): string[] =>
     [...text.matchAll(/"email"\s*:\s*"([^"]*)"/gi)].map(m => m[1]!).filter(e => e !== '' && !PLACEHOLDER_EMAIL.test(e));
 
+/** The user names the anonymised captures carry: `user1`, `example-user`. */
+const PLACEHOLDER_USER_NAME = /^(?:user\d+|example-user)$/;
+
+/** Every user-name value (`UserName`, `username`, `jellyfinUsername`…) in raw text that is not a placeholder. */
+export const realUserNames = (text: string): string[] =>
+    [...text.matchAll(/"\w*user_?name"\s*:\s*"([^"]*)"/gi)].map(m => m[1]!).filter(n => n !== '' && !PLACEHOLDER_USER_NAME.test(n));
+
 type Finding = { file: string; path: string; reason: string };
 
 export function scan(file: string, node: unknown, path = '$', out: Finding[] = []): Finding[] {
@@ -159,6 +166,13 @@ describe('committed fixtures', () => {
         expect(findings).toEqual([]);
     });
 
+    it('hold only placeholder user names', async () => {
+        const findings = (await fixtureContents()).flatMap(({ file, text }) =>
+            realUserNames(text).map(name => `${file}: ${name}`)
+        );
+        expect(findings).toEqual([]);
+    });
+
     it('contain no public IP address anywhere in the file', async () => {
         const findings = (await fixtureContents()).flatMap(({ file, text }) =>
             publicAddresses(text).map(address => `${file}: ${address}`)
@@ -184,6 +198,11 @@ describe('the guard itself', () => {
     it('flags an email that is not on a placeholder domain', () => {
         expect(realEmails('{"email":"someone@gmail.com","b":{"email":"user1@example.test"}}')).toEqual(['someone@gmail.com']);
         expect(realEmails('{"email":"a@example.com","email2":"x@y.nl","email":""}')).toEqual([]);
+    });
+
+    it('flags a user name that is not a placeholder, under any user-name key', () => {
+        expect(realUserNames('{"UserName":"someone","b":{"jellyfinUsername":"user1"},"user_name":"x"}')).toEqual(['someone', 'x']);
+        expect(realUserNames('{\n  "username": "example-user",\n  "plexUsername": ""\n}')).toEqual([]);
     });
 
     it('reads pretty-printed JSON, and does not let a look-alike domain pass', () => {
