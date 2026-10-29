@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.46.0](https://github.com/bardesss/arr-mcp/compare/v1.45.1...v1.46.0) (2026-10-29)
+
+
+### Features
+
+* add NZBGet as a download client ([#391](https://github.com/bardesss/arr-mcp/issues/391)) ([66286e4](https://github.com/bardesss/arr-mcp/commit/66286e463f723ba7a0c6e9601de193a207e4466b))
+
+
+### Bug Fixes
+
+* **deps:** bump @hono/node-server from 2.1.1 to 2.1.3 ([#393](https://github.com/bardesss/arr-mcp/issues/393)) ([582d758](https://github.com/bardesss/arr-mcp/commit/582d75862028b4f04990f1ef817b90e53fcd3b45))
+
 ## [1.45.1](https://github.com/bardesss/arr-mcp/compare/v1.45.0...v1.45.1) (2026-10-25)
 
 
