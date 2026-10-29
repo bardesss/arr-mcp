@@ -1,0 +1,11 @@
+{
+  "source": "docs",
+  "service": "shelfmark",
+  "path": "/api/health",
+  "note": "shape of test/fixtures/shelfmark/health.json (public endpoint per Shelfmark README)",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"coordinator\":\"running\",\"status\":\"ok\"}"
+}

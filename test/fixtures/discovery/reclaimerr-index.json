@@ -1,0 +1,11 @@
+{
+  "source": "docs",
+  "service": "reclaimerr",
+  "path": "/",
+  "note": "Reclaimerr frontend/index.html title",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html"
+  },
+  "body": "<!doctype html><html lang=\"en\"><head><title>Reclaimerr</title></head></html>"
+}

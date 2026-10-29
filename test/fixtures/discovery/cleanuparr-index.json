@@ -1,0 +1,11 @@
+{
+  "source": "docs",
+  "service": "cleanuparr",
+  "path": "/",
+  "note": "Cleanuparr frontend/src/index.html title",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html"
+  },
+  "body": "<!doctype html><html><head><title>Cleanuparr</title></head></html>"
+}

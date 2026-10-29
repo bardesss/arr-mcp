@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.73.0](https://github.com/bardesss/arr-mcp/compare/v1.72.0...v1.73.0) (2026-11-08)
+
+
+### Features
+
+* **config-ui:** find services on the network and add them with the address filled in ([#515](https://github.com/bardesss/arr-mcp/issues/515)) ([540e1c3](https://github.com/bardesss/arr-mcp/commit/540e1c32b74cfeb364ab1199cf2c1f9c3a26a165))
+
 ## [1.72.0](https://github.com/bardesss/arr-mcp/compare/v1.71.0...v1.72.0) (2026-11-08)
 
 

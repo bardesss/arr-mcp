@@ -286,9 +286,10 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
 `;
 
 /**
- * Two behaviours, both of which genuinely need a client: copying a secret to
- * the clipboard, and refreshing the log table without losing scroll position.
- * Everything else is a form post and a server render.
+ * Behaviours that genuinely need a client: copying a secret to the clipboard,
+ * refreshing the log table without losing scroll position, and reloading a
+ * running scan without wiping what you opened or typed. Everything else is a
+ * form post and a server render.
  */
 export const JS = `
 // Say what actually happened. The clipboard write fails on every plain http
@@ -476,6 +477,28 @@ if (addService) {
       }
     });
   }
+}
+
+// A running scan reloads the page to show progress. The server stamps
+// data-reload only on a plain view; this holds off while a dialog or a card is
+// open, and for good once a field has been edited, because a reload re-renders
+// every form empty. Without scripting, a <noscript> meta refresh does the job.
+const reloading = document.querySelector('[data-reload]');
+if (reloading) {
+  let edited = false;
+  document.addEventListener('input', () => { edited = true; });
+  document.addEventListener('change', () => { edited = true; });
+  const wait = Number(reloading.dataset.reload) * 1000;
+  const later = () => {
+    if (!edited && !document.querySelector('dialog[open], details[open]')) {
+      location.reload();
+      return;
+    }
+    const paused = document.querySelector('[data-paused]');
+    if (paused) paused.hidden = false;
+    if (!edited) setTimeout(later, wait);
+  };
+  setTimeout(later, wait);
 }
 
 // The log stream polls JSON and builds rows with textContent — never

@@ -1,0 +1,12 @@
+{
+  "service": "profilarr",
+  "path": "/auth/login",
+  "note": "login page, trimmed to title",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html",
+    "x-sveltekit-page": "true"
+  },
+  "body": "<!doctype html><html lang=\"en\"><head><title>Profilarr</title></head></html>"
+}

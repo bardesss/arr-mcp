@@ -40,7 +40,15 @@ export function layout(opts: {
      *  to `prefers-color-scheme`. Stamped server-side rather than set by a
      *  script, so there is no flash of the theme the OS would have picked. */
     theme?: Theme | undefined;
+    /** Reload the page this often. With scripting on, app.js does it and holds
+     *  off while something is open or typed in; the meta refresh inside
+     *  <noscript> is the fallback, so a background run reports progress with
+     *  scripting off too. */
+    refreshSeconds?: number | undefined;
 }): string {
+    const refresh =
+        opts.refreshSeconds === undefined ? '' : `
+<noscript><meta http-equiv="refresh" content="${Math.max(1, Math.floor(opts.refreshSeconds))}"></noscript>`;
     const theme =
         opts.theme === undefined || opts.theme === 'system' ? raw('') : raw(` data-theme="${opts.theme}"`);
 
@@ -66,7 +74,7 @@ export function layout(opts: {
 <html lang="en"${theme.value}>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">${refresh}
 <title>${esc(opts.title)} · arr-mcp</title>
 <!-- Version-stamped because the assets are served with an hour of cache: without
      it, an upgrade leaves a browser holding the previous app.js against the new
