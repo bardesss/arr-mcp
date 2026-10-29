@@ -42,9 +42,12 @@ const config: KeyedServiceConfig = {
 
 type Sent = { method: string; path: string; search: string; body: Record<string, unknown> | undefined };
 
-/** `previews` answers successive retag previews: before, then after the retag. */
-/** `byAlbum` answers a retag preview asked for one album, by its id. */
-function lidarr(opts: { previews?: unknown[]; settings?: unknown; command?: unknown; queued?: unknown; byAlbum?: Record<string, unknown> } = {}) {
+/**
+ * `previews` answers successive retag previews: before, then after the retag.
+ * `byAlbum` answers a retag preview asked for one album, by its id. `name`
+ * makes it a named instance, `lidarr/<name>`.
+ */
+function lidarr(opts: { previews?: unknown[]; settings?: unknown; command?: unknown; queued?: unknown; byAlbum?: Record<string, unknown>; name?: string } = {}) {
     const previews = [...(opts.previews ?? [RETAG, []])];
     const sent: Sent[] = [];
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -61,7 +64,7 @@ function lidarr(opts: { previews?: unknown[]; settings?: unknown; command?: unkn
         if (url.pathname === '/api/v1/command/41') return json(opts.command ?? { id: 41, name: 'RetagFiles', status: 'completed' });
         return new Response(JSON.stringify({ message: 'not found' }), { status: 404 });
     }) as unknown as typeof fetch;
-    return { adapter: new LidarrAdapter(config, impl), sent };
+    return { adapter: new LidarrAdapter(opts.name === undefined ? config : { ...config, name: opts.name }, impl), sent };
 }
 
 describe('LidarrAdapter retagging', () => {
@@ -155,7 +158,8 @@ type Call = (args: Record<string, unknown>) => Promise<{ content: { type: 'text'
 
 const instant: RepairTiming = { pollMs: 0, waitMs: 0, sleep: async () => {} };
 
-function fixMetadata(adapter: LidarrAdapter, hits: MergedItem | MergedItem[] = []) {
+function fixMetadata(adapters: LidarrAdapter | readonly LidarrAdapter[], hits: MergedItem | MergedItem[] = []) {
+    const music = [adapters].flat();
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
         registerTool(_n: string, c: { inputSchema: z.ZodObject }, handler: Call) {
@@ -169,7 +173,7 @@ function fixMetadata(adapter: LidarrAdapter, hits: MergedItem | MergedItem[] = [
     registerFixMetadata(
         server as never,
         {
-            permissions: permissionSourceFrom(instancesOf({ lidarr: config as AnyServiceConfig })),
+            permissions: permissionSourceFrom(music.flatMap(a => instancesOf({ lidarr: (a.instance === undefined ? config : { ...config, name: a.instance }) as AnyServiceConfig }))),
             confirm: new ConfirmTokens(),
             audit: WriteAudit.ephemeral(),
             library: loader
@@ -178,7 +182,7 @@ function fixMetadata(adapter: LidarrAdapter, hits: MergedItem | MergedItem[] = [
         loader,
         instant,
         undefined,
-        [adapter]
+        music
     );
     return (args: Record<string, unknown>) => call(args);
 }
@@ -406,5 +410,85 @@ describe('fix_metadata on a Lidarr artist', () => {
     it('names no id for an artist no configured Lidarr manages', async () => {
         const artist = { kind: 'artist', title: 'Artist 1', ids: {}, acquisition: { service: 'lidarr/other', id: '101' }, presence: 'arr_only' } as unknown as MergedItem;
         await expect(fixMetadata(lidarr().adapter, artist)({ query: 'Artist 1', dry_run: true })).rejects.toThrow(/is an artist no Lidarr manages/);
+    });
+
+    // Read as a media-server item, such an id was checked against the media
+    // server's permissions (here none is configured, so "jellyfin is not
+    // configured") and, on a dry run, looked up there. Refused before either.
+    describe('with an id written as a Lidarr artist\'s that no configured Lidarr matches', () => {
+        it('refuses it before any request, naming the ids the configured Lidarr takes, and still previews one it matches', async () => {
+            const { adapter, sent } = lidarr({ name: 'flac' });
+            const call = fixMetadata(adapter);
+            for (const dry_run of [false, true]) {
+                await expect(call({ id: 'lidarr:101', dry_run })).rejects.toMatchObject({
+                    kind: 'NotFound',
+                    service: 'lidarr',
+                    message: 'lidarr not found: no Lidarr is configured as "lidarr" — Give the artist as `lidarr/flac:<artistId>`, from its `acquisition.service` and `acquisition.id`.'
+                });
+            }
+            expect(sent).toEqual([]);
+
+            const { structuredContent } = await call({ id: 'lidarr/flac:101' });
+            expect(structuredContent.service).toBe('lidarr/flac');
+            expect(structuredContent.target).toBe('lidarr/flac:101');
+            expect(structuredContent.summary).toContain('Rewrite the embedded tags in 3 of');
+        });
+
+        it('names every configured Lidarr', async () => {
+            const flac = lidarr({ name: 'flac' });
+            const mp3 = lidarr({ name: 'mp3' });
+            await expect(fixMetadata([flac.adapter, mp3.adapter])({ id: 'lidarr/hifi:101' })).rejects.toThrow(
+                'no Lidarr is configured as "lidarr/hifi" — Give the artist as `lidarr/flac:<artistId>` or `lidarr/mp3:<artistId>`,'
+            );
+            expect([...flac.sent, ...mp3.sent]).toEqual([]);
+        });
+
+        it('says so when it names a configured Lidarr but no artist', async () => {
+            const { adapter, sent } = lidarr({ name: 'flac' });
+            const call = fixMetadata(adapter);
+            for (const id of ['lidarr/flac', 'lidarr/flac:']) {
+                await expect(call({ id })).rejects.toThrow(`"${id}" names no artist — Give the artist as \`lidarr/flac:<artistId>\`,`);
+            }
+            const unnamed = lidarr();
+            await expect(fixMetadata(unnamed.adapter)({ id: 'lidarr' })).rejects.toThrow('"lidarr" names no artist — Give the artist as `lidarr:<artistId>`,');
+            expect([...sent, ...unnamed.sent]).toEqual([]);
+        });
+
+        // Instance names are matched in any case (`resolveInstance`, and config
+        // refuses two that differ only in case), so the prefix is too.
+        it('matches the prefix in any case, and refuses only a name no Lidarr has in any case', async () => {
+            const one = lidarr({ previews: [RETAG, RETAG, []] });
+            const unnamed = fixMetadata(one.adapter);
+            const first = await unnamed({ id: 'Lidarr:101' });
+            expect(first.structuredContent.target).toBe('lidarr:101');
+            // Confirmed with the id as the configured instance writes it: the token binds the target, not the spelling.
+            const second = await unnamed({ id: 'lidarr:101', confirm: first.structuredContent.confirm_token });
+            expect(second.structuredContent.applied).toBe(true);
+            expect(one.sent.find(s => s.method === 'POST')?.body).toEqual({ name: 'RetagFiles', artistId: 101, files: [1001, 1002, 1003] });
+            const { adapter, sent } = lidarr({ name: 'flac' });
+            const call = fixMetadata(adapter);
+            const named = await call({ id: 'LIDARR/FLAC:101' });
+            expect(named.structuredContent.service).toBe('lidarr/flac');
+            expect(named.structuredContent.target).toBe('lidarr/flac:101');
+            await expect(call({ id: 'Lidarr/Flac' })).rejects.toThrow('"Lidarr/Flac" names no artist — Give the artist as `lidarr/flac:<artistId>`,');
+            const before = sent.length;
+            await expect(call({ id: 'Lidarr/hifi:101' })).rejects.toThrow('no Lidarr is configured as "Lidarr/hifi" — Give the artist as `lidarr/flac:<artistId>`,');
+            expect(sent).toHaveLength(before);
+        });
+
+        it('says when no Lidarr is configured at all', async () => {
+            const call = fixMetadata([]);
+            await expect(call({ id: 'lidarr:101' })).rejects.toMatchObject({
+                kind: 'NotFound',
+                message: 'lidarr not found: no Lidarr is configured — Add a services.lidarr block to config.yaml and restart.'
+            });
+            await expect(call({ query: 'Album 1', files: [1001], dry_run: true })).rejects.toThrow('`files` is for music only, and no Lidarr is configured.');
+        });
+
+        it('names the configured Lidarr when `files` comes with another id', async () => {
+            await expect(fixMetadata(lidarr({ name: 'flac' }).adapter)({ query: 'Album 1', files: [1001], dry_run: true })).rejects.toThrow(
+                '`files` is for music only, with `id` as `lidarr/flac:<artistId>`.'
+            );
+        });
     });
 });

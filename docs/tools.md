@@ -2328,9 +2328,13 @@ A media server reads its music metadata from the tags inside the files, so music
 is repaired by rewriting those tags from Lidarr's metadata rather than through
 the media server. Give `id` as `lidarr:<artistId>`, the artist's
 `acquisition.id`; on a named instance the prefix is its `acquisition.service`,
-such as `lidarr/hd:<artistId>`. An artist asked for by name is not retagged: the
-permission check runs on the arguments before anything is resolved, so a name is
-checked against the media server. A `dry_run` by name answers with the artist's
+such as `lidarr/hd:<artistId>`. The `lidarr` prefix and the instance name are
+matched in any case. An id that is `lidarr` or starts `lidarr:` or `lidarr/` is
+refused before the permission check when it matches no configured Lidarr or
+names no artist; the refusal names the ids the configured Lidarrs take, or says
+none is configured. An artist asked for by name is not retagged: the permission
+check runs on the arguments before anything is resolved, so a name is checked
+against the media server. A `dry_run` by name answers with the artist's
 `lidarr:` id.
 
 The preview is Lidarr's own retag preview: each audio file whose embedded tags
