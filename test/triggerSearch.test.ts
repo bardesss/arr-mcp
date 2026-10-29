@@ -182,6 +182,18 @@ describe('trigger_search', () => {
         expect(structuredContent.target).toBe('radarr:5');
     });
 
+    it('names the instance in the summary, not only the service', async () => {
+        const radarr = recordingFetch({ '/api/v3/movie/5': MOVIE, '/api/v3/command': COMMAND });
+        const h = harness({
+            adapters: [new RadarrAdapter({ ...keyed(7878), name: '4k' }, radarr.impl)],
+            permissions: { radarr: { ...keyed(7878), permissions: { safe_write: true, destructive: false }, name: '4k' } as unknown as AnyServiceConfig }
+        });
+        const { structuredContent } = await h.call({ service: 'radarr', instance: '4k', id: '5', dry_run: true });
+
+        expect(structuredContent.summary).toMatch(/^Ask radarr\/4k to search for releases for /);
+        expect(structuredContent.target).toBe('radarr/4k:5');
+    });
+
     it('changes nothing on a dry run', async () => {
         const h = harness();
         await h.call({ service: 'radarr', id: '5', dry_run: true });

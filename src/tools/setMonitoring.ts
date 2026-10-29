@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
+import { ARR_NAMES } from '../core/resolver.ts';
 import {
     hasMediaDetails,
     hasMonitorState,
@@ -104,7 +105,8 @@ export function registerSetMonitoring(
             refuseBoth(season, episodes, 'Omit both to monitor the whole series.');
 
             const verb = monitored ? 'Monitor' : 'Unmonitor';
-            const who = service.charAt(0).toUpperCase() + service.slice(1);
+            const who = ARR_NAMES[service];
+            if (who === undefined) throw new Error(`set_monitoring: ARR_NAMES has no name for ${service}`);
 
             let label: string;
             let scope: string;
@@ -190,7 +192,7 @@ export function registerSetMonitoring(
 
             return {
                 target: `${adapter.id}:${id}`,
-                summary: `${verb} ${scope} in ${service}.`,
+                summary: `${verb} ${scope} in ${adapter.id}.`,
                 effects,
                 args: {
                     service,

@@ -70,9 +70,11 @@ const DEFAULT_ROUTES = {
 
 type Call = (args: Record<string, unknown>) => Promise<{ structuredContent: Record<string, unknown> }>;
 
-function harness(routes: Record<string, unknown> = DEFAULT_ROUTES) {
+/** `name` makes the one Lidarr a named instance, as one entry of a list is. */
+function harness(routes: Record<string, unknown> = DEFAULT_ROUTES, name?: string) {
     const fetcher = recordingFetch(routes);
-    const adapters: ServiceAdapter[] = [new LidarrAdapter(lidarrConfig, fetcher.impl)];
+    const config = name === undefined ? lidarrConfig : { ...lidarrConfig, name };
+    const adapters: ServiceAdapter[] = [new LidarrAdapter(config, fetcher.impl)];
 
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
@@ -81,7 +83,7 @@ function harness(routes: Record<string, unknown> = DEFAULT_ROUTES) {
         }
     };
 
-    const permissions: Partial<Record<ServiceId, AnyServiceConfig>> = { lidarr: { ...lidarrConfig } as AnyServiceConfig };
+    const permissions: Partial<Record<ServiceId, AnyServiceConfig>> = { lidarr: { ...config } as AnyServiceConfig };
     registerSetMonitoring(
         server as never,
         {
@@ -119,6 +121,16 @@ describe('set_monitoring on lidarr', () => {
 
             expect(preview.structuredContent.noop).toBe(true);
             expect(h.sent.filter(s => s.method === 'PUT')).toEqual([]);
+        });
+
+        it('names the instance in the summary, not only the service', async () => {
+            const h = harness(DEFAULT_ROUTES, 'two');
+            const preview = await h.call({ service: 'lidarr', level: 'album', id: '7', monitored: false });
+
+            expect(preview.structuredContent.summary).toMatch(/ in lidarr\/two\.$/);
+            expect(preview.structuredContent.effects).toContainEqual(
+                expect.stringMatching(/^Lidarr will stop searching for .*House of Sugar.*\. Files already on disk are untouched\.$/)
+            );
         });
 
         it('refuses a season on an album, before a token is issued or a call is made', async () => {
