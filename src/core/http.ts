@@ -74,7 +74,7 @@ export class ServiceHttp {
      * already receives an `http` instance, so the root travels with the
      * adapter instead of with each call site.
      *
-     * The value means nothing to the other nine services: they each spell their
+     * The value means nothing to the other services: they each spell their
      * own prefix, and none of them should start reading this one.
      */
     readonly apiRoot: string;
