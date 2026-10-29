@@ -151,8 +151,29 @@ const InstanceListSchema = z
  * One block, as before, or a list of named ones. A union rather than a new key,
  * so every config that parses today parses unchanged — there is no migration
  * and no upgrade step, the same reasoning that made `password_hash` optional.
+ *
+ * The shape picks the branch before the union runs: an array can only be the
+ * list, and anything else only the block. A missing or wrong-typed field fails
+ * both branches, and a union that fails both reports only "Invalid input" at the
+ * service. Checked against the one branch its shape allows, the value fails
+ * with that branch's own issues, which name the field (`services.lidarr.api_key`,
+ * `services.radarr[1].url`). The union still does the parsing, so a config that
+ * parses is read exactly as before.
+ *
+ * Each issue is re-added as `custom` so the pipe stops there: it goes on past an
+ * `unrecognized_keys` issue, into the union.
  */
-const MultiInstanceServiceSchema = z.union([KeyedServiceSchema, InstanceListSchema]);
+const listOrBlock = <B extends z.ZodType, L extends z.ZodType>(block: B, list: L) =>
+    z
+        .unknown()
+        .superRefine((value, ctx) => {
+            const result = (Array.isArray(value) ? list : block).safeParse(value);
+            if (result.success) return;
+            for (const issue of result.error.issues) ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path });
+        })
+        .pipe(z.union([block, list]));
+
+const MultiInstanceServiceSchema = listOrBlock(KeyedServiceSchema, InstanceListSchema);
 
 /**
  * A service config as an adapter receives it: the same shape, plus the name
@@ -220,7 +241,7 @@ const CredentialInstanceListSchema = z
     .min(1, 'list at least one instance, or use a single block instead of a list')
     .superRefine(uniqueNames);
 
-const MultiInstanceCredentialSchema = z.union([CredentialServiceSchema, CredentialInstanceListSchema]);
+const MultiInstanceCredentialSchema = listOrBlock(CredentialServiceSchema, CredentialInstanceListSchema);
 
 export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | PlexServiceConfig | CredentialServiceConfig;
 

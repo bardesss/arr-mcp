@@ -72,6 +72,14 @@ describe('validateConfigText', () => {
         if (!result.ok) expect(result.detail).toContain('url');
     });
 
+    it('names the field a single block of a list service is missing', () => {
+        const result = validateConfigText(`${AUTH}services:\n  lidarr:\n    url: http://192.0.2.10:8686\n`);
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.detail).toContain('→ at services.lidarr.api_key');
+        expect(result.detail).toContain('expected string, received undefined');
+    });
+
     it('accepts a config with no tokens', () => {
         const result = validateConfigText('auth:\n  username: admin\n  allowed_hosts: []\nservices: {}\n');
         expect(result.ok).toBe(true);
