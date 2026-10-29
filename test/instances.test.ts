@@ -46,7 +46,7 @@ describe('the single form is untouched', () => {
 
 // Transmission and qBittorrent take credentials rather than an api_key, so a
 // loop over every multi-instance type needs to build the right shape for each.
-const CREDENTIAL_TYPES = new Set(['transmission', 'qbittorrent']);
+const CREDENTIAL_TYPES = new Set(['nzbget', 'transmission', 'qbittorrent']);
 const instanceOf = (type: string, name: string, port: number) =>
     CREDENTIAL_TYPES.has(type) ? { name, url: `http://192.0.2.10:${port}`, permissions: {} } : entry(name, port);
 
@@ -112,7 +112,7 @@ describe('what the list form refuses', () => {
         for (const type of ['jellyfin', 'seerr', 'plex']) {
             expect(isMultiInstance(type as never)).toBe(false);
             expect(() => parse({ [type]: [entry('a', 9999)] })).toThrow(
-                /only bazarr, prowlarr, qbittorrent, radarr, sabnzbd, sonarr, transmission/i
+                /only bazarr, nzbget, prowlarr, qbittorrent, radarr, sabnzbd, sonarr, transmission/i
             );
         }
     });
@@ -227,7 +227,7 @@ describe('the download clients and Prowlarr take a list', () => {
         );
     });
 
-    it('still refuses a list for the three that stay single, naming the seven that do not', () => {
+    it('still refuses a list for the three that stay single, naming the services that do not', () => {
         for (const type of ['jellyfin', 'plex', 'seerr'] as const) {
             expect(() => parse({ [type]: [entry('a', 8096), entry('b', 8097)] })).toThrow(/can be a list of instances/);
         }
@@ -245,9 +245,9 @@ describe('the download clients and Prowlarr take a list', () => {
     });
 
     it('reports the new types as multi-instance', () => {
-        for (const type of ['sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const) {
+        for (const type of ['nzbget', 'sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const) {
             expect(isMultiInstance(type)).toBe(true);
         }
-        expect(MULTI_INSTANCE).toHaveLength(7);
+        expect(MULTI_INSTANCE).toHaveLength(8);
     });
 });

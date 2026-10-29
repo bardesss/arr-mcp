@@ -61,6 +61,18 @@ export function apiKeyHeader(header: string, key: string): AuthStrategy {
     };
 }
 
+/** HTTP Basic authentication for services that do not have a session login. */
+export function basicAuth(creds: { username?: string | undefined; password?: string | undefined }): AuthStrategy {
+    return {
+        id: 'basic-auth',
+        apply(ctx) {
+            if (creds.username === undefined) return;
+            const basic = Buffer.from(`${creds.username}:${creds.password ?? ''}`).toString('base64');
+            ctx.headers.set('Authorization', `Basic ${basic}`);
+        }
+    };
+}
+
 /** Jellyfin. The quoted form is what the server parses; bare tokens are rejected. */
 export function embyToken(key: string): AuthStrategy {
     return {
@@ -110,14 +122,12 @@ export function queryParamKey(param: string, key: string): AuthStrategy {
  */
 export function transmissionRpc(creds: { username?: string; password?: string }): AuthStrategy {
     let sessionId: string | undefined;
+    const basic = basicAuth(creds);
 
     return {
         id: 'transmission-rpc',
         apply(ctx) {
-            if (creds.username !== undefined) {
-                const basic = Buffer.from(`${creds.username}:${creds.password ?? ''}`).toString('base64');
-                ctx.headers.set('Authorization', `Basic ${basic}`);
-            }
+            basic.apply(ctx);
             if (sessionId !== undefined) {
                 ctx.headers.set('X-Transmission-Session-Id', sessionId);
             }

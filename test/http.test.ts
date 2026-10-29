@@ -62,6 +62,32 @@ describe('ServiceHttp request shaping', () => {
         });
         await client.post('/transmission/rpc', { method: 'session-get' });
     });
+
+    it('leaves the connection header to the runtime by default', async () => {
+        const client = http(async (_input: string, init?: RequestInit) => {
+            expect(new Headers(init?.headers).get('Connection')).toBeNull();
+            return json({});
+        });
+        await client.get('/api/v3/system/status');
+    });
+
+    it('asks for Connection: close on every request when told to, after a failure too', async () => {
+        const seen: (string | null)[] = [];
+        let calls = 0;
+        const client = new ServiceHttp(
+            'nzbget',
+            config,
+            apiKeyHeader('X-Api-Key', 'secret'),
+            (async (_input: string, init?: RequestInit) => {
+                seen.push(new Headers(init?.headers).get('Connection'));
+                return ++calls === 1 ? new Response('', { status: 401 }) : json({});
+            }) as unknown as typeof fetch,
+            { closeConnection: true }
+        );
+        await expect(client.post('/jsonrpc', {})).rejects.toMatchObject({ kind: 'AuthFailed' });
+        await client.get('/jsonrpc');
+        expect(seen).toEqual(['close', 'close']);
+    });
 });
 
 /**

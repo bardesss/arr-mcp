@@ -4,8 +4,8 @@
  *
  *     ARR_MCP_CONFIG_DIR=./config node scripts/multi-instance-check.ts
  *
- * It configures whichever of Radarr, Sonarr, SABnzbd, Prowlarr, Transmission
- * and qBittorrent the live config holds twice, as `hd` and `4k`. Doubling one
+ * It configures whichever of Radarr, Sonarr, SABnzbd, NZBGet, Prowlarr,
+ * Transmission and qBittorrent the live config holds twice, as `hd` and `4k`. Doubling one
  * service is what makes its totals checkable: the same ids merge, so a
  * fan-out that double-counted or dropped an instance shows up as a total that
  * did not move the way doubling should have moved it.
@@ -29,10 +29,10 @@ const { config: real, token } = withScriptToken(loaded.config);
 const hosts = hostsOf(real);
 
 /** The same service twice, under two names. */
-const DOUBLED_TYPES = ['radarr', 'sonarr', 'sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const;
+const DOUBLED_TYPES = ['radarr', 'sonarr', 'sabnzbd', 'nzbget', 'prowlarr', 'transmission', 'qbittorrent'] as const;
 
 /** The subset of `DOUBLED_TYPES` that are download clients, not *arr apps or Prowlarr. */
-const DOWNLOAD_CLIENT_TYPES = ['sabnzbd', 'transmission', 'qbittorrent'] as const;
+const DOWNLOAD_CLIENT_TYPES = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'] as const;
 
 function doubled(config: Config): Config {
     const services = { ...config.services } as Record<string, unknown>;

@@ -22,21 +22,26 @@ services:
     url: http://192.168.1.20:8081
     username: "…"
     password: "…"
+  nzbget:
+    url: http://192.168.1.20:6789
+    username: "…"            # NZBGet's ControlUsername / ControlPassword
+    password: "…"
 ```
 
-All twelve service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
-`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`, `profilarr`. Configure only what you run —
+All thirteen service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
+`seerr`, `sabnzbd`, `nzbget`, `transmission`, `qbittorrent`, `plex`, `profilarr`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
 
-A misspelled key, an unknown service, or an `api_key` on a torrent client
-**fails at startup with the offending field named**, rather than being silently
+A misspelled key, an unknown service, or an `api_key` on a torrent client or
+NZBGet **fails at startup with the offending field named**, rather than being silently
 ignored.
 
-Both credential fields are optional on either client: Transmission's RPC is
-often unauthenticated on a LAN, and qBittorrent can bypass authentication for
-localhost. Leave them out and nothing logs in.
+Both credential fields are optional on either torrent client and on NZBGet:
+Transmission's RPC is often unauthenticated on a LAN, qBittorrent can bypass
+authentication for localhost, and NZBGet runs without a login when its control
+password is empty. Leave them out and nothing logs in.
 
 Each service also takes an optional `permissions` block. Both flags default to
 false, so the config above is read-only — see [writes](writes.md).
@@ -251,7 +256,7 @@ different API with no adapter. Profilarr because it is the one place that owns
 profile config, so two of them would mean two sources of truth.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
-Transmission and qBittorrent.
+NZBGet, Transmission and qBittorrent.
 
 Two download clients, one behind a VPN and one not:
 
