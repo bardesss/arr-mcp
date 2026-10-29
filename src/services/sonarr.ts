@@ -113,6 +113,8 @@ type RawSeries = {
     status?: string;
     path?: string;
     tvdbId?: number;
+    /** 0 when Sonarr has none. */
+    tmdbId?: number;
     imdbId?: string;
     genres?: string[];
     qualityProfileId?: number;
@@ -459,6 +461,8 @@ export class SonarrAdapter
             ...(s.path === undefined ? {} : { path: fenceText(s.path, { service: this.id, field: 'path' }) }),
             ids: {
                 ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
+                // Sonarr's 0 is "none", and a 0 here would be asked of Reclaimerr as a real id.
+                ...(s.tmdbId === undefined || s.tmdbId <= 0 ? {} : { tmdb: s.tmdbId }),
                 ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
             },
             ...(ratings === undefined ? {} : { ratings }),

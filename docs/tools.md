@@ -225,6 +225,39 @@ title scheduled for deletion, or eligible at the next deletion run, the summary
 says so with the date and the rule. Neither blocks a playable verdict, and a
 Reclaimerr that cannot be read only adds it to `degraded`.
 
+**Next steps.** Beside the prose `remedy`, `verdict.next_steps` holds the tool
+call that does it, as `{ tool, arguments, why }`, and the text block ends with
+the same call as a `Next:` line. The server never runs it: a client offers it to
+the person, and a write still previews and asks for confirmation. A step names
+an instance as `service` plus `instance` (`radarr/hd` is `service: "radarr"`,
+`instance: "hd"`). The text a step carries is never a service's: `arguments`
+hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
+
+| Verdict | `next_steps` |
+|---|---|
+| `file`, no cleanup removal | `trigger_search` with the managing service and id |
+| `file`, removed by a cleanup rule | none: protect the title in Reclaimerr |
+| `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
+| `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
+| `managed` or `resolve`, nothing manages it | `lookup_media` with your `query`, only when you diagnosed by title |
+| `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
+| `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr or Sonarr |
+| `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
+| `queue`, a stopped or paused download, or a fault whose import is pending on another row of the same grab | the import above, never the removal |
+| `library` | `trigger_scan` with `action: "scan"` on the media server |
+| `scan`, `indexers`, playable, still downloading | none |
+
+A step is left out when its tool would refuse it or when it cannot be built:
+no id to search for, a Whisparr download (which has no manual import), or an
+approval for someone else's request without `allow_other_users`. The `remedy`
+and verdict still say what is wrong. A search offered while Reclaimerr could not
+be read says so in its `why`.
+
+An applied `trigger_scan` with `action: "remap"` returns the same field when a
+media server that can scan is configured: a `trigger_scan` of it, in place of
+the sentence telling you to rescan by hand. Any write can carry `next_steps`; a
+step that fails to build never fails a write that already landed.
+
 ## `stack_health`
 
 With more than one instance of a service, each is reported separately. With

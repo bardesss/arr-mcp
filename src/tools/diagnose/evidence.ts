@@ -2,7 +2,7 @@ import type { ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
-import { artistRefusal, filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../../core/resolver.ts';
+import { artistRefusal, filmOrSeriesMatch, isFilmOrSeries, type ExternalIds, type FilmOrSeries } from '../../core/resolver.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import {
     hasCleanup,
@@ -22,6 +22,8 @@ import {
     type ServiceAdapter
 } from '../../services/types.ts';
 import type { LibraryLoader } from '../library.ts';
+import type { IdentityResolver } from '../../core/identity.ts';
+import { mayManageRequest } from '../manageRequests.ts';
 import { resolveInstance } from '../resolveInstance.ts';
 import { queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
@@ -32,6 +34,8 @@ export type DiagnoseDeps = {
     library: LibraryLoader;
     /** With two media servers, the one diagnose walks; absent means the first. */
     primaryMediaServer?: string;
+    /** Decides whether an approval can be offered; without it none is. */
+    seerrIdentity?: IdentityResolver;
 };
 
 const RECENT_REJECTION_LIMIT = 50;
@@ -197,6 +201,18 @@ async function resolveItem(
     return target.query === undefined ? undefined : filmOrSeriesMatch(snapshot.index.search(target.query), target.query);
 }
 
+/**
+ * The request for a title, matched on tmdbId and then tvdbId, never on title.
+ * Shared with the write cross-checks so a warning and `diagnose` cannot
+ * disagree about whether a title was requested.
+ */
+export function findRequest(requests: readonly MediaRequest[], ids: ExternalIds): MediaRequest | undefined {
+    return (
+        (ids.tmdb === undefined ? undefined : requests.find(r => r.tmdbId === ids.tmdb)) ??
+        (ids.tvdb === undefined ? undefined : requests.find(r => r.tvdbId === ids.tvdb))
+    );
+}
+
 export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget): Promise<Evidence> {
     if (target.query === undefined && (target.service === undefined || target.id === undefined)) {
         throw new Error('Name either a query (a title) or both service and id.');
@@ -334,10 +350,15 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         // reported as no request at all just because the join has a gap.
         request = undefined;
     } else {
-        const match =
-            (item.ids.tmdb === undefined ? undefined : requests.find(r => r.tmdbId === item.ids.tmdb)) ??
-            (item.ids.tvdb === undefined ? undefined : requests.find(r => r.tvdbId === item.ids.tvdb));
-        request = match === undefined ? null : { status: match.status };
+        const match = findRequest(requests, item.ids);
+        // Whose request it is stays here: only whether the caller may act on it
+        // leaves, so the next step is withheld where the write would refuse.
+        // Unknown (no identity, or it would not resolve) reads as "may not".
+        let mayRespond = false;
+        if (match !== undefined && match.status === 'pending' && deps.seerrIdentity !== undefined) {
+            mayRespond = await mayManageRequest(match, deps.seerrIdentity).catch(() => false);
+        }
+        request = match === undefined ? null : { status: match.status, id: match.id, mayRespond };
     }
 
     // null: not configured. undefined: could not look. Matched by download id,

@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import type { NextStep } from '../core/nextStep.ts';
 import {
     hasCommandStatus,
     hasEpisodeRemap,
@@ -10,6 +11,7 @@ import {
     hasManualImport,
     hasMediaDetails,
     hasPostProcess,
+    hasUserLibrary,
     type EpisodeRemapCapable,
     type LibraryMaintenanceCapable,
     type ImportMapping,
@@ -18,7 +20,7 @@ import {
     type PostProcessCapable,
     type ServiceAdapter
 } from '../services/types.ts';
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
+import { INSTANCE_PARAM_DESCRIPTION, instanceArgs, resolveInstance } from './resolveInstance.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -123,6 +125,10 @@ const findRemapAdapter = (
 
     return adapter;
 };
+
+/** The media servers that can be told to scan: what a remap leaves out of date. */
+const scannableMediaServers = (adapters: readonly ServiceAdapter[]): ServiceAdapter[] =>
+    adapters.filter(a => hasUserLibrary(a) && hasLibraryScan(a));
 
 const IdSchema = z.string().regex(/^\d+$/, 'a numeric id, as `acquisition.id` on get_library');
 
@@ -457,6 +463,18 @@ export function registerTriggerScan(
             };
         },
 
+        // Only a remap leaves a media server reading names that are no longer
+        // right. Offered even when some filenames kept their old names: the
+        // episodes the server shows are still the ones it has to relearn.
+        followUps(_outcome, { action }): NextStep[] {
+            if (action !== 'remap') return [];
+            return scannableMediaServers(adapters).map(server => ({
+                tool: 'trigger_scan',
+                arguments: { ...instanceArgs(server.id), action: 'scan' },
+                why: `Rescans ${server.id} so it picks up the corrected episodes and names.`
+            }));
+        },
+
         async apply(plan, { service, instance, action, id, download_id, reassignments, mapping }) {
             if (action === 'remap' && id !== undefined && reassignments !== undefined) {
                 const remapper = findRemapAdapter(adapters, service, instance);
@@ -472,7 +490,9 @@ export function registerTriggerScan(
                         : ` ${caughtInWindow.length} file(s) were imported by ${remapper.id} while the temporary naming format was live, so they carry it in their names and need renaming back: ${caughtInWindow.join('; ')}.`;
 
                 if (blocked.length === 0) {
-                    return `${done} The files and the episodes now agree — rescan your media server so it picks the new names up.${caught}`;
+                    // The rescan is a `next_steps` entry when there is a server to name it for.
+                    const rescan = scannableMediaServers(adapters).length > 0 ? '' : ' — rescan your media server so it picks the new names up';
+                    return `${done} The files and the episodes now agree${rescan}.${caught}`;
                 }
 
                 return (

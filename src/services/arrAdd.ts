@@ -194,6 +194,10 @@ async function lookupRaw(
         candidate: {
             title: fenceText(first.title, { service, field: 'title' }),
             ...(first.year === undefined || first.year === 0 ? {} : { year: first.year }),
+            ids: {
+                ...(typeof first.tmdbId === 'number' && first.tmdbId > 0 ? { tmdb: first.tmdbId } : {}),
+                ...(typeof first.tvdbId === 'number' && first.tvdbId > 0 ? { tvdb: first.tvdbId } : {})
+            },
             // A lookup for something not in the library carries no `id` at all
             // (verified live against Radarr and Sonarr, and matching the
             // recorded fixtures), so an id here means it is already added — a
