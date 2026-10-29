@@ -225,15 +225,25 @@ describe('a download that has not finished', () => {
     });
 
     /** A download that has failed is not going to finish, so "wait for it" would be the wrong remedy. */
-    it('names a failed or warning download as the client reports it, rather than as unfinished', async () => {
-        for (const status of ['failed', 'warning']) {
-            const s = stack(500, [{ ...RUNNING_ROW, status, trackedDownloadState: 'downloading' }]);
-            await expect(new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc')).rejects.toMatchObject({
-                message: expect.stringMatching(new RegExp(`is ${status} in the download client`)),
-                remedy: expect.stringMatching(/remove_queue_item/)
-            });
-            expect(s.sent.some(x => x.method === 'POST')).toBe(false);
-        }
+    it('names a failed download as failed, rather than as unfinished', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'failed', trackedDownloadState: 'downloading' }]);
+        await expect(new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc')).rejects.toMatchObject({
+            message: expect.stringMatching(/is failed in the download client/),
+            remedy: expect.stringMatching(/remove_queue_item/)
+        });
+        expect(s.sent.some(x => x.method === 'POST')).toBe(false);
+    });
+
+    /** `warning` is usually a stalled torrent, which often finishes later: stuck, not stopped. */
+    it('names a warning as a warning, points at the row\'s own reasons, and does not say it will not finish', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'warning', trackedDownloadState: 'downloading' }]);
+        const err = await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc').catch((e: unknown) => e);
+        expect(err).toMatchObject({
+            message: expect.stringMatching(/has a warning in the download client/),
+            remedy: expect.stringMatching(/`errorMessage`, and any `statusMessages`, say why.*often finishes later/)
+        });
+        expect((err as { remedy: string }).remedy).not.toMatch(/remove_queue_item/);
+        expect(s.sent.some(x => x.method === 'POST')).toBe(false);
     });
 
     it('says only that it is not completed when the state is one it cannot read, such as the client being unreachable', async () => {

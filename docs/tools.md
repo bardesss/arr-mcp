@@ -1998,7 +1998,7 @@ service still has, like a sample or a file that is not an upgrade. Files the
 mapping leaves out keep the service's own match. The confirm token binds to
 the mapping, so a token from one mapping does not apply another.
 
-Three outcomes that look alike and are not:
+Outcomes that look alike and are not:
 
 - **Nothing to import** — the service sees no files for that download id. A
   no-op, with no confirmation asked for.
@@ -2011,9 +2011,16 @@ Three outcomes that look alike and are not:
   refusal, so the message names the state `get_queue` reports instead of passing
   that on as a service fault; Lidarr's queue is checked before its read, since
   it would list a torrent's partial files instead.
-- **Stopped** — the download is `failed` or `warning` in the client, so it is
-  not going to finish. Named as the client reports it, with `remove_queue_item`
-  as the remedy. Any other state that is not `completed` is reported as such,
+- **Failed** — the download is `failed` in the client, so it is not going to
+  finish. Named as failed, with `remove_queue_item` as the remedy.
+- **Warning** — the download is `warning` in the client, which usually means
+  stuck rather than stopped: a stalled torrent or missing files. A stalled
+  torrent often finishes later, though not every warning will (a qBittorrent
+  magnet with DHT off waits there for good), so it is named as a warning and the
+  remedy points at the row's `errorMessage`, the client's own reason, and any
+  `statusMessages` in `get_queue`.
+- **Anything else** that is not `completed` (`unknown`,
+  `downloadClientUnavailable`, `fallback`) is reported only as not completed,
   with no claim about what the client is doing.
 
 The import re-reads the candidates when it runs rather than trusting the
