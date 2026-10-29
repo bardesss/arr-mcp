@@ -225,8 +225,10 @@ export class SonarrAdapter
         return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
     }
 
+    readonly queueKind = 'series';
+
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id, 'series');
+        return readArrQueue(this.#http, this.id, this.queueKind);
     }
 
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {

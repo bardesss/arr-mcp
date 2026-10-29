@@ -1,7 +1,8 @@
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 import { pageArr } from './arrPaging.ts';
-import { protocolName } from './arrQueue.ts';
+import { mediaIdOf, protocolName } from './arrRecord.ts';
 import type { BlocklistEntry } from './types.ts';
 
 type RawBlocklist = {
@@ -30,7 +31,7 @@ type RawBlocklist = {
 export async function readArrBlocklist(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series' | 'artist'
+    kind: LibraryKind
 ): Promise<BlocklistEntry[]> {
     const records = await pageArr<RawBlocklist>(http, `${http.apiRoot}/blocklist`);
     const fence = (value: string, field: string) => fenceText(value, { service, field });
@@ -38,7 +39,7 @@ export async function readArrBlocklist(
     return records
         .filter((r): r is RawBlocklist & { id: number } => typeof r.id === 'number')
         .map(r => {
-            const mediaId = kind === 'movie' ? r.movieId : kind === 'series' ? r.seriesId : r.artistId;
+            const mediaId = mediaIdOf(r, kind);
             return {
                 service,
                 id: String(r.id),

@@ -393,13 +393,15 @@ export class LidarrAdapter
         this.#libraryCache.clear();
     }
 
+    readonly queueKind = 'artist';
+
     /**
      * Includes rows whose artist was deleted: they sit at importBlocked for
      * good, and are the ones a person most needs to see. Each one carries
      * `orphaned`, read from `artistId`.
      */
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id, 'artist');
+        return readArrQueue(this.#http, this.id, this.queueKind);
     }
 
     /**

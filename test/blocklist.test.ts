@@ -5,6 +5,7 @@ import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/con
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
@@ -61,7 +62,7 @@ const serving = (rows: Record<string, unknown>[], opts: { fail?: boolean } = {})
             return new Response('', { status: 200 });
         }
         if (opts.fail === true) return jsonResponse({ message: 'nope' }, 500);
-        if (url.pathname === '/api/v3/blocklist') {
+        if (url.pathname === '/api/v3/blocklist' || url.pathname === '/api/v1/blocklist') {
             return jsonResponse({ page: 1, pageSize: 200, totalRecords: rows.length, records: rows });
         }
         return jsonResponse({ message: 'not found' }, 404);
@@ -149,9 +150,13 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
-function harness(opts: { rows?: Record<string, unknown>[]; permissions?: Partial<Record<ServiceId, AnyServiceConfig>> } = {}) {
+function harness(
+    opts: { rows?: Record<string, unknown>[]; permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; lidarr?: boolean } = {}
+) {
     const { impl, deleted } = serving(opts.rows ?? [radarrRow()]);
-    const adapters: ServiceAdapter[] = [new RadarrAdapter(keyed(7878), impl)];
+    const adapters: ServiceAdapter[] = [
+        opts.lidarr === true ? new LidarrAdapter(keyed(8686), impl) : new RadarrAdapter(keyed(7878), impl)
+    ];
 
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
@@ -223,6 +228,23 @@ describe('remove_blocklist_item', () => {
 
         expect(structuredContent.summary).toContain('Creed.III');
         expect(structuredContent.effects.join(' ')).toContain('could not be completed');
+    });
+
+    it('offers remove_queue_item to blocklist it again only where remove_queue_item can', async () => {
+        // Radarr's queue removal takes `blocklist`; Lidarr's queue has no
+        // remove_queue_item yet, so pointing there would send a person to a
+        // refusal.
+        const radarr = await harness().call(ARGS);
+        expect(radarr.structuredContent.effects.join(' ')).toContain('remove_queue_item and `blocklist: true`');
+
+        const row = { id: 201, artistId: 151, sourceTitle: 'lidarr item 1', date: '2024-01-01T17:00:00Z', protocol: 'usenet' };
+        const lidarr = await harness({
+            rows: [row],
+            lidarr: true,
+            permissions: { lidarr: keyed(8686) as unknown as AnyServiceConfig }
+        }).call({ service: 'lidarr', id: '201' });
+        expect(lidarr.structuredContent.effects).toContain('Nothing on disk changes.');
+        expect(lidarr.structuredContent.effects.join(' ')).not.toContain('remove_queue_item');
     });
 
     it('names the config key when the permission is off', async () => {

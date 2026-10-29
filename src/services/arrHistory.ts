@@ -1,6 +1,8 @@
 import { fenceText, sanitizeGuid } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 import { pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
+import { mediaIdOf, mediaIdsParam } from './arrRecord.ts';
 import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './types.ts';
 
 /**
@@ -70,8 +72,6 @@ type RawHistory = {
     };
 };
 
-type HistoryKind = 'movie' | 'series' | 'artist';
-
 /**
  * The `eventType` query value for each type, so the service filters before it
  * pages. Integers, because that is what `/api/v3/history` binds, and the two
@@ -87,14 +87,11 @@ type HistoryKind = 'movie' | 'series' | 'artist';
  * TrackFileImported 3 and DownloadImported 8 are imports; DownloadFailed 4
  * and AlbumImportIncomplete 7 are failures; DownloadIgnored is 10.
  */
-const EVENT_CODE: Record<HistoryKind, Partial<Record<HistoryEventType, number | readonly number[]>>> = {
+const EVENT_CODE: Record<LibraryKind, Partial<Record<HistoryEventType, number | readonly number[]>>> = {
     movie: { grabbed: 1, imported: 3, failed: 4, deleted: 6, renamed: 8, ignored: 9 },
     series: { grabbed: 1, imported: 3, failed: 4, deleted: 5, renamed: 6, ignored: 7 },
     artist: { grabbed: 1, imported: [2, 3, 8], failed: [4, 7], deleted: 5, renamed: 6, ignored: 10 }
 };
-
-/** The filter each service takes for one item's history. */
-const SCOPE_PARAM: Record<HistoryKind, string> = { movie: 'movieIds', series: 'seriesIds', artist: 'artistIds' };
 
 /**
  * The newest rows first, filtered to `eventType` and `since`. With `want`, and
@@ -104,7 +101,7 @@ const SCOPE_PARAM: Record<HistoryKind, string> = { movie: 'movieIds', series: 's
 export async function readArrHistory(
     http: ServiceHttp,
     service: string,
-    kind: HistoryKind,
+    kind: LibraryKind,
     opts: HistoryQuery
 ): Promise<Window<HistoryEntry>> {
     const code = opts.eventType === undefined ? undefined : EVENT_CODE[kind][opts.eventType];
@@ -122,7 +119,7 @@ export async function readArrHistory(
 async function readHistoryPages(
     http: ServiceHttp,
     service: string,
-    kind: HistoryKind,
+    kind: LibraryKind,
     opts: HistoryQuery,
     code: number | readonly number[] | undefined
 ): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean }> {
@@ -132,7 +129,7 @@ async function readHistoryPages(
     // /api/v3/history endpoint takes the same movieIds/seriesIds filter and
     // answers the real envelope, so scoping happens there instead. Lidarr's
     // takes `artistIds`, applied server-side on 2.1.3 (the version floor).
-    const scoped = SCOPE_PARAM[kind];
+    const scoped = mediaIdsParam(kind);
 
     // Explicit, not assumed: the early exit below only works if the service
     // is actually sorted newest first, and a live capture showing that order
@@ -172,7 +169,7 @@ async function readHistoryPages(
         .filter((r): r is RawHistory & { id: number } => typeof r.id === 'number')
         .map(r => {
             const raw = r.eventType ?? '';
-            const mediaId = kind === 'artist' ? r.artistId : (r.movieId ?? r.seriesId);
+            const mediaId = mediaIdOf(r, kind);
             const reason = r.data?.reason ?? r.data?.message;
             return {
                 service,

@@ -102,9 +102,8 @@ export async function buildGetHistory(
 ): Promise<GetHistoryResult> {
     // `id` names one movie, series or artist, and Radarr's movieId, Sonarr's
     // seriesId and Lidarr's artistId are different namespaces that can share a
-    // number — passing it
-    // to every adapter unscoped would silently mix two unrelated items'
-    // history together.
+    // number — passing it to every adapter unscoped would silently mix two
+    // unrelated items' history together.
     if (opts.id !== undefined && opts.service === undefined) {
         throw new Error('`id` scopes to one movie, series or artist; pass `service` (and `instance` if it is named) to say which.');
     }

@@ -1125,8 +1125,9 @@ and `id` for `remove_blocklist_item`, and are newest first, because a blocklist
 is read to explain something that has just gone wrong.
 
 `remove_blocklist_item` withdraws one refusal, so the release can be grabbed
-again. Safe tier: nothing on disk changes, and the inverse already exists —
-`remove_queue_item`'s `blocklist: true` puts a release back on the list.
+again. Safe tier: nothing on disk changes, and on Radarr and Sonarr the
+inverse already exists — `remove_queue_item`'s `blocklist: true` puts a
+release back on the list. The preview names it only where that works.
 
 Its preview reads the live blocklist first, and that is not a courtesy. Both
 services answer a `DELETE` of a blocklist id that **does not exist** with

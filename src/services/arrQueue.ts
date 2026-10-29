@@ -1,7 +1,9 @@
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 import { pageArr } from './arrPaging.ts';
+import { mediaIdOf, protocolName } from './arrRecord.ts';
 import type { CalendarEntry, DeleteMediaOptions, QueueItem, RemoveQueueOptions } from './types.ts';
 
 /**
@@ -27,19 +29,6 @@ type RawQueueRecord = {
     downloadId?: string;
     statusMessages?: { title?: string | null; messages?: string[] | null }[] | null;
 };
-
-/**
- * Lidarr 3.1.6 names the protocol by its class, `UsenetDownloadProtocol` or
- * `TorrentDownloadProtocol`, where Lidarr 3.1.0, Radarr and Sonarr say
- * `usenet` or `torrent`. Mapped back, so a row reads the same whichever of them
- * sent it. Any other value passes through as sent.
- */
-const PROTOCOL_NAMES: Readonly<Record<string, string>> = {
-    UsenetDownloadProtocol: 'usenet',
-    TorrentDownloadProtocol: 'torrent'
-};
-
-export const protocolName = (protocol: string): string => PROTOCOL_NAMES[protocol] ?? protocol;
 
 const MAX_STATUS_MESSAGES = 10;
 
@@ -84,7 +73,7 @@ const INCLUDE_UNKNOWN = {
 export async function readArrQueue(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series' | 'artist'
+    kind: LibraryKind
 ): Promise<QueueItem[]> {
     // Off upstream by default, which hides records whose movie, series or
     // artist was deleted — stuck at importBlocked forever, and invisible here.
@@ -106,14 +95,11 @@ export async function readArrQueue(
                 ...(r.sizeleft === undefined ? {} : { remainingBytes: r.sizeleft }),
                 ...(eta === undefined ? {} : { etaSeconds: eta }),
                 ...(r.errorMessage ? { errorMessage: fenceText(r.errorMessage, { service, field: 'errorMessage' }) } : {}),
-                // `== null` rather than `=== undefined`: the generated spec types
-                // these as `number | null`, so a build that serialises the null
-                // instead of omitting the key would hide the very rows
-                // `includeUnknownMovieItems=true` was added to surface. A Lidarr
-                // row has neither of the first two, so it is read on its own id.
-                ...((kind === 'artist' ? r.artistId == null : r.movieId == null && r.seriesId == null)
-                    ? { orphaned: true }
-                    : {}),
+                // `mediaIdOf` reads a null as no id, not only an absent key: the
+                // generated spec types these as `number | null`, so a build that
+                // serialises the null instead of omitting the key would hide the
+                // very rows `includeUnknownMovieItems=true` was added to surface.
+                ...(mediaIdOf(r, kind) === undefined ? { orphaned: true } : {}),
                 // Omitted when it only repeats `status`, which is the common case.
                 ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
                     ? {}
