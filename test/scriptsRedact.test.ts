@@ -6,6 +6,7 @@ import {
     anonymiseNzbgetLog,
     anonymiseNzbgetRows,
     anonymiseNzbgetStatus,
+    resetNzbgetIds,
     anonymisePlexAccounts,
     anonymisePlexHistory,
     anonymisePlexIdentity,
@@ -96,9 +97,10 @@ describe('NZBGet fixture anonymisers', () => {
             ]
         };
 
+        resetNzbgetIds();
         const output = anonymiseNzbgetRows(input) as { result: Record<string, unknown>[] };
         expect(output.result[0]).toMatchObject({
-            NZBID: 121,
+            NZBID: 101,
             DestDir: '/media/nzbget/Item 1/File 1.bin',
             FinalDir: '/media/nzbget/Item 1/File 1.bin',
             DupeKey: 'nzbget item 1',
@@ -124,6 +126,7 @@ describe('NZBGet fixture anonymisers', () => {
     // and status numbers describe the operator's disks and usage.
     it('replaces NZBGet numbers with synthetic ones that keep their shape', () => {
         const big = 6543 * 2 ** 20 + 12345;
+        resetNzbgetIds();
         const output = anonymiseNzbgetRows({
             result: [
                 {
@@ -149,8 +152,8 @@ describe('NZBGet fixture anonymisers', () => {
         const [first, second] = output.result;
         const bytes = (row: NzbgetNumbers): number => row.FileSizeHi * 2 ** 32 + row.FileSizeLo;
 
-        expect(first.NZBID).toBe(133);
-        expect(second.NZBID).toBe(134);
+        expect(first.NZBID).toBe(101);
+        expect(second.NZBID).toBe(102);
         expect(first.FileSizeMB).toBe(first.RemainingSizeMB);
         expect(bytes(first)).toBe(first.FileSizeMB * 2 ** 20);
         expect(first.DownloadedSizeMB).toBe(0);
