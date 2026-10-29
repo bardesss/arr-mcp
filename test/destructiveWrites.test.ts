@@ -85,6 +85,21 @@ const SERIES_FULL = {
 const ARR_QUEUE = {
     records: [{ id: 91, title: 'Alien.1979.2160p-GROUP', status: 'stalled', size: 1000, sizeleft: 900 }]
 };
+/** A Lidarr row is an album release, keyed to an artist. */
+const LIDARR_QUEUE = {
+    records: [
+        {
+            id: 91,
+            title: 'Some.Artist-First-FLAC-2024-GROUP',
+            status: 'downloading',
+            trackedDownloadState: 'downloading',
+            downloadId: 'nzo-91',
+            size: 1000,
+            sizeleft: 900,
+            artistId: 3
+        }
+    ]
+};
 
 // --- adapters ------------------------------------------------------------
 
@@ -453,7 +468,7 @@ function harness(
     const radarr = recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE });
     const sonarr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
     const whisparr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
-    const lidarr = recordingFetch({ '/api/v1/queue': ARR_QUEUE });
+    const lidarr = recordingFetch({ '/api/v1/queue': LIDARR_QUEUE });
 
     const adapters = opts.adapters ?? [
         new RadarrAdapter(keyed(7878), radarr.impl),
@@ -623,7 +638,7 @@ describe('remove_queue_item', () => {
         const h = harness(registerRemoveQueueItem);
         const first = await h.call({ service: 'lidarr', id: '91', blocklist: true });
 
-        expect(first.structuredContent.summary).toContain('Alien.1979.2160p-GROUP');
+        expect(first.structuredContent.summary).toContain('Some.Artist-First-FLAC-2024-GROUP');
         expect(first.structuredContent.effects.join(' ')).toContain('Blocklists this release');
         expect(first.structuredContent.effects.join(' ')).not.toContain('has no blocklist');
         expect(h.lidarr.sent.filter(s => s.method === 'DELETE')).toEqual([]);

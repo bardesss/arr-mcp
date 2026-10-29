@@ -224,6 +224,26 @@ describe('a download that has not finished', () => {
         );
     });
 
+    /** A download that has failed is not going to finish, so "wait for it" would be the wrong remedy. */
+    it('names a failed or warning download as the client reports it, rather than as unfinished', async () => {
+        for (const status of ['failed', 'warning']) {
+            const s = stack(500, [{ ...RUNNING_ROW, status, trackedDownloadState: 'downloading' }]);
+            await expect(new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc')).rejects.toMatchObject({
+                message: expect.stringMatching(new RegExp(`is ${status} in the download client`)),
+                remedy: expect.stringMatching(/remove_queue_item/)
+            });
+            expect(s.sent.some(x => x.method === 'POST')).toBe(false);
+        }
+    });
+
+    it('says only that it is not completed when the state is one it cannot read, such as the client being unreachable', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'downloadClientUnavailable' }]);
+        await expect(new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_abc')).rejects.toMatchObject({
+            message: expect.stringMatching(/nzo_abc is not completed —/),
+            remedy: expect.stringMatching(/reports it as downloadClientUnavailable/)
+        });
+    });
+
     it('matches the queue row whatever case the download id was given in', async () => {
         const s = stack(500, [{ ...RUNNING_ROW, downloadId: 'ABC123' }]);
         await expect(new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('abc123')).rejects.toThrow(
