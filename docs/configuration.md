@@ -224,10 +224,11 @@ services:
 Every artist row names the instance it came from in `acquisition.service`, as
 `lidarr/flac`. An artist both of them hold is one row, joined on its MusicBrainz
 id the way a film two Radarrs hold is, and that row carries one instance's
-`acquisition`, the one listed later under `lidarr` in `config.yaml`, so its
-`acquisition.id` is that instance's: ids are per instance.
-The rest of that row is that one instance's too: `has_file` and `monitored`, and
-a `diagnose` built from it, say nothing about the other copy. In a lossless
+`acquisition`: the one whose name sorts later, since instances are read in id
+order whatever their order in `config.yaml` (with `flac` and `mp3`, always
+`mp3`). Its `acquisition.id` is that instance's: ids are per instance. The rest
+of that row is that one instance's too: `has_file` and `monitored`, and a
+`diagnose` built from it, say nothing about the other copy. In a lossless
 library beside a lossy one, where most artists are in both, `diagnose` can call
 an artist playable when only one instance has its files; `get_media_details`
 with `instance` reads each one.
