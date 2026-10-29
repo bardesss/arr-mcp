@@ -146,6 +146,22 @@ const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCo
  * (`TaskManager`), including the one Lidarr queues when an artist is added,
  * which scans that artist's folder alone.
  *
+ * So the time is when a `RescanFolders` last finished, even one that failed
+ * (`CommandExecutor` reports it either way), and not always a full scan; the
+ * task list cannot tell which:
+ * - A scan stops at a missing root folder and skips an empty one, but either
+ *   way it completes (`DiskScanService.Scan`), so an unmounted music share can
+ *   show a scan from today. Lidarr's root-folder health check, every six
+ *   hours, reports a missing root folder that holds artists in `failures`; it
+ *   does not report an empty one.
+ * - The daily scan is scheduled from the last run (`TaskManager.GetPending`),
+ *   so the one-folder scan after an artist is added also postpones it: an
+ *   import list that adds an artist every day keeps the scheduled scan from
+ *   running while the time stays recent, and the whole library is then read
+ *   only when the daily `RefreshArtist` updates some metadata.
+ * - A new install sets the time when it creates the task, so for up to a day
+ *   it reports a scan that has not run.
+ *
  * Matched exactly, never by pattern, for Sonarr's reason: a live Lidarr runs
  * `RefreshMonitoredDownloads` every minute, and a loose match would report the
  * library as scanned minutes ago.
@@ -163,9 +179,10 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * write, and the endpoints still waiting on a library with real activity.
  *
  * `LibraryScanCapable`, `LibraryMaintenanceCapable`, `ManualImportCapable` and
- * `CommandStatusCapable` are `trigger_scan`'s: rescan the library or one
- * artist, rename an artist's files, import a finished download by its id, and
- * follow the command in `stack_health`. All four are the shared helpers, with
+ * `CommandStatusCapable` are `trigger_scan`'s: rescan the library or refresh
+ * one artist (the rescan after it still reads every root folder), rename an
+ * artist's files, import a finished download by its id, and follow the command
+ * in `stack_health`. All four are the shared helpers, with
  * `resource: 'artist'` where they take one; an import `mapping` is refused,
  * because it names movies and episodes.
  *

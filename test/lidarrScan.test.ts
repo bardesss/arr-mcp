@@ -321,13 +321,17 @@ describe('trigger_scan on lidarr', () => {
     const named = () => lidarr(s => (s.path === '/api/v1/artist/3' ? { id: 3, artistName: 'Some Artist' } : undefined));
     const plain = (s: string) => s.replace(/<<untrusted:[^>]*>>|<<\/untrusted>>/g, '');
 
-    it('previews one artist\'s scan by name, sending no command', async () => {
+    /** Lidarr's rescan after a one-artist refresh still reads every root folder, so the preview must not say "its folder". */
+    it('previews one artist\'s scan by name, as a rescan of every root folder, sending no command', async () => {
         const { adapter, sent } = named();
         const call = harness(adapter);
 
         const { structuredContent } = await call({ service: 'lidarr', id: '3', dry_run: true });
 
-        expect(plain(structuredContent.summary)).toBe('Ask lidarr to refresh Some Artist and rescan its folder.');
+        expect(plain(structuredContent.summary)).toBe('Ask lidarr to refresh Some Artist and rescan every root folder.');
+        const effects = structuredContent.effects.map(plain).join(' ');
+        expect(effects).toMatch(/rescans every root folder/);
+        expect(effects).not.toMatch(/not touched/);
         expect(sent.map(s => `${s.method} ${s.path}`)).toEqual(['GET /api/v1/artist/3']);
     });
 

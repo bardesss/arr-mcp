@@ -41,7 +41,7 @@ export async function arrDiskSpace(http: ServiceHttp, id: string): Promise<DiskS
 
 export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Promise<HealthCheck[]> {
     const all = await http.get<RawHealthCheck[]>(`${http.apiRoot}/health`);
-    // Both services generally return only entries worth surfacing, but some
+    // These services generally return only entries worth surfacing, but some
     // versions include `ok` rows — filter rather than trust.
     return all
         .filter(c => c.type !== 'ok')
@@ -57,10 +57,11 @@ export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Prom
 }
 
 /**
- * Queues the command whose run `arrScanState` reports, so what this starts and
- * what that reports cannot drift apart. Radarr, Sonarr and Whisparr pass the
- * same name to both. Lidarr starts `RefreshArtist`, which queues the
- * `RescanFolders` its scan state reads (`LIBRARY_SCAN_TASK` in `lidarr.ts`).
+ * Queues the library scan whose time `arrScanState` reports. Radarr, Sonarr and
+ * Whisparr pass the same name to both, so what this starts and what that
+ * reports cannot drift apart. Lidarr starts `RefreshArtist`, which queues the
+ * `RescanFolders` its scan state reads unless "rescan artist folder after
+ * refresh" is Never (`LIBRARY_SCAN_TASK` in `lidarr.ts`).
  */
 export async function arrStartLibraryScan(http: ServiceHttp, id: string, command: string): Promise<CommandHandle> {
     return postArrCommand(http, id, { name: command });
