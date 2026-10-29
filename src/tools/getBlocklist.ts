@@ -57,7 +57,7 @@ export async function buildGetBlocklist(
         // "nothing is blocklisted", which is a different claim.
         if (!hasBlocklist(adapter)) {
             throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no blocklist`, {
-                remedy: 'Only radarr and sonarr keep a blocklist. The download clients have none — a release they refused was refused by the *arr that queued it.'
+                remedy: 'Only radarr, sonarr and lidarr keep a blocklist. The download clients have none — a release they refused was refused by the *arr that queued it.'
             });
         }
         scoped = [adapter];
@@ -79,10 +79,10 @@ export function registerGetBlocklist(server: McpServer, adapters: readonly Servi
             title: 'Blocklisted releases',
             annotations: READ_ONLY,
             description:
-                'Why a release keeps getting skipped. Lists what Radarr and Sonarr have blocklisted — releases they will not grab again — with the reason each was blocklisted, usually relayed from the download client. This is the answer to "it keeps finding the same thing and never downloading it", which `get_history` shows as a repeating grab-then-fail and nothing explains. Rows carry `mediaId` for get_media_details, and `id` for remove_blocklist_item. Newest first. Radarr and Sonarr only — the download clients have no blocklist of their own.',
+                'Why a release keeps getting skipped. Lists what Radarr, Sonarr and Lidarr have blocklisted — releases they will not grab again — with the reason each was blocklisted, usually relayed from the download client. This is the answer to "it keeps finding the same thing and never downloading it", which `get_history` shows as a repeating grab-then-fail and nothing explains. Rows carry `mediaId` for get_media_details (an artist id on a Lidarr row), and `id` for remove_blocklist_item. Newest first. Radarr, Sonarr and Lidarr only — the download clients have no blocklist of their own.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
-                service: ServiceIdSchema.optional().describe('Scope to one service. Omit to merge Radarr and Sonarr.'),
+                service: ServiceIdSchema.optional().describe('Scope to one service. Omit to merge Radarr, Sonarr and Lidarr.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 detail: DetailSchema,
                 limit: LimitSchema,

@@ -7,6 +7,7 @@ import type { CalendarEntry, DeleteMediaOptions, QueueItem, RemoveQueueOptions }
 /**
  * Radarr and Sonarr share a framework, so their queue and calendar responses
  * differ only in the fields naming the media. One implementation, two services.
+ * Lidarr's queue is the same framework again, naming its media `artistId`.
  */
 
 type RawQueueRecord = {
@@ -20,10 +21,25 @@ type RawQueueRecord = {
     errorMessage?: string;
     movieId?: number;
     seriesId?: number;
+    /** Lidarr only. `int?` in its `QueueResource`, like the two above. */
+    artistId?: number | null;
     trackedDownloadState?: string;
     downloadId?: string;
     statusMessages?: { title?: string | null; messages?: string[] | null }[] | null;
 };
+
+/**
+ * Lidarr 3.1.6 names the protocol by its class, `UsenetDownloadProtocol` or
+ * `TorrentDownloadProtocol`, where Lidarr 3.1.0, Radarr and Sonarr say
+ * `usenet` or `torrent`. Mapped back, so a row reads the same whichever of them
+ * sent it. Any other value passes through as sent.
+ */
+const PROTOCOL_NAMES: Readonly<Record<string, string>> = {
+    UsenetDownloadProtocol: 'usenet',
+    TorrentDownloadProtocol: 'torrent'
+};
+
+export const protocolName = (protocol: string): string => PROTOCOL_NAMES[protocol] ?? protocol;
 
 const MAX_STATUS_MESSAGES = 10;
 
@@ -57,15 +73,22 @@ export function parseTimeleft(value: string | undefined): number | undefined {
     return Number(parts[1] ?? 0) * 86_400 + Number(parts[2]) * 3600 + Number(parts[3]) * 60 + Number(parts[4]);
 }
 
+/** Each service's spelling of "include rows whose media is gone". */
+const INCLUDE_UNKNOWN = {
+    movie: 'includeUnknownMovieItems=true',
+    series: 'includeUnknownSeriesItems=true',
+    artist: 'includeUnknownArtistItems=true'
+} as const;
+
 /** `kind` is passed in because `service` may be an instance id like `radarr/hd`. */
 export async function readArrQueue(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series'
+    kind: 'movie' | 'series' | 'artist'
 ): Promise<QueueItem[]> {
-    // Off upstream by default, which hides records whose movie or series was
-    // deleted — stuck at importBlocked forever, and invisible here.
-    const includeUnknown = kind === 'movie' ? 'includeUnknownMovieItems=true' : 'includeUnknownSeriesItems=true';
+    // Off upstream by default, which hides records whose movie, series or
+    // artist was deleted — stuck at importBlocked forever, and invisible here.
+    const includeUnknown = INCLUDE_UNKNOWN[kind];
     const records = await pageArr<RawQueueRecord>(http, `${http.apiRoot}/queue`, includeUnknown);
 
     return records
@@ -78,7 +101,7 @@ export async function readArrQueue(
                 id: String(r.id),
                 title: fenceText(r.title ?? '', { service, field: 'title' }),
                 status: r.status ?? 'unknown',
-                ...(r.protocol === undefined ? {} : { protocol: r.protocol }),
+                ...(r.protocol === undefined ? {} : { protocol: protocolName(r.protocol) }),
                 ...(r.size === undefined ? {} : { sizeBytes: r.size }),
                 ...(r.sizeleft === undefined ? {} : { remainingBytes: r.sizeleft }),
                 ...(eta === undefined ? {} : { etaSeconds: eta }),
@@ -86,8 +109,11 @@ export async function readArrQueue(
                 // `== null` rather than `=== undefined`: the generated spec types
                 // these as `number | null`, so a build that serialises the null
                 // instead of omitting the key would hide the very rows
-                // `includeUnknownMovieItems=true` was added to surface.
-                ...(r.movieId == null && r.seriesId == null ? { orphaned: true } : {}),
+                // `includeUnknownMovieItems=true` was added to surface. A Lidarr
+                // row has neither of the first two, so it is read on its own id.
+                ...((kind === 'artist' ? r.artistId == null : r.movieId == null && r.seriesId == null)
+                    ? { orphaned: true }
+                    : {}),
                 // Omitted when it only repeats `status`, which is the common case.
                 ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
                     ? {}

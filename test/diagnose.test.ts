@@ -372,6 +372,28 @@ describe('diagnose', () => {
         expect(evidence.degraded).toContain('sabnzbd');
     });
 
+    it('leaves Lidarr\'s queue out, so an unreachable Lidarr cannot make a film\'s queue unknown', async () => {
+        let lidarrReads = 0;
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+            stub('lidarr', {
+                getQueue: async () => {
+                    lidarrReads += 1;
+                    throw new Error('down');
+                }
+            })
+        ];
+
+        const evidence = await collectEvidence(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'some film' }
+        );
+
+        expect(lidarrReads).toBe(0);
+        expect(evidence.queue).toEqual({ items: [], partial: [] });
+        expect(evidence.degraded).not.toContain('lidarr');
+    });
+
     it('collapses the queue to undefined only when every configured client fails, not when one of several does', async () => {
         const adapters = [
             stub('radarr', {

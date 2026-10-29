@@ -6,23 +6,34 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readProfileNames } from './arrAdd.ts';
+import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { readArrHistory } from './arrHistory.ts';
+import { readArrQueue } from './arrQueue.ts';
 import { arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
     type ArtistMonitorCapable,
     type ArtistMonitorNewItems,
     type ArtistMonitorPolicy,
+    type BlocklistCapable,
+    type BlocklistEntry,
     type ConnectionDiagnosis,
+    type HistoryCapable,
+    type HistoryEntry,
+    type HistoryQuery,
     type LibraryCapable,
     type MediaDetails,
     type MonitoringCapable,
     type MonitoringTarget,
     type MonitorState,
     type MonitorStateCapable,
+    type QueueCapable,
+    type QueueItem,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type Window
 } from './types.ts';
 
 /**
@@ -99,7 +110,10 @@ const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCo
 
 /**
  * Lidarr. It claims `LibraryCapable`, `SearchCapable`, `MonitoringCapable`,
- * `MonitorStateCapable` and `ArtistMonitorCapable`.
+ * `MonitorStateCapable`, `ArtistMonitorCapable`, `QueueCapable`,
+ * `HistoryCapable` and `BlocklistCapable`. The last three are the shared
+ * `arr*` helpers with `kind: 'artist'`, so Lidarr's queue, history and
+ * blocklist read the way Radarr's and Sonarr's do.
  * `CONTRIBUTING.md` lists the API traps for the adapter that adds the next
  * write, and the endpoints still waiting on a library with real activity.
  *
@@ -111,7 +125,16 @@ const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCo
  * 36,000.
  */
 export class LidarrAdapter
-    implements ServiceAdapter, LibraryCapable, SearchCapable, MonitoringCapable, MonitorStateCapable, ArtistMonitorCapable
+    implements
+        ServiceAdapter,
+        LibraryCapable,
+        SearchCapable,
+        MonitoringCapable,
+        MonitorStateCapable,
+        ArtistMonitorCapable,
+        QueueCapable,
+        HistoryCapable,
+        BlocklistCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined = undefined;
@@ -368,6 +391,32 @@ export class LidarrAdapter
             true
         );
         this.#libraryCache.clear();
+    }
+
+    /**
+     * Includes rows whose artist was deleted: they sit at importBlocked for
+     * good, and are the ones a person most needs to see. Each one carries
+     * `orphaned`, read from `artistId`.
+     */
+    async getQueue(): Promise<QueueItem[]> {
+        return readArrQueue(this.#http, this.id, 'artist');
+    }
+
+    /**
+     * Scoped with `id` to one artist, through `artistIds`. An album or track id
+     * would be a different namespace, and `get_history` does not take one.
+     */
+    async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
+        return readArrHistory(this.#http, this.id, 'artist', opts);
+    }
+
+    /** `mediaId` on each row is the artist id, which `get_media_details` takes. */
+    async readBlocklist(): Promise<BlocklistEntry[]> {
+        return readArrBlocklist(this.#http, this.id, 'artist');
+    }
+
+    async removeBlocklistItem(id: string): Promise<void> {
+        return removeArrBlocklistItem(this.#http, id);
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

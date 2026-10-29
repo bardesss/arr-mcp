@@ -18,17 +18,30 @@ import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './typ
  * observed live but are kept as defensive entries — the generated spec
  * types `eventType` as a bare string, so an older or newer build could still
  * send them.
+ *
+ * Lidarr names its own (`EntityHistoryEventType`, read from Lidarr 3.1.0):
+ * three imports — `artistFolderImported`, `trackFileImported` and
+ * `downloadImported` — and `albumImportIncomplete` beside `downloadFailed`, a
+ * download that arrived but could not all be imported. `trackFileRetagged`
+ * has no counterpart here and stays `unknown`, with `rawEvent` saying what it
+ * was.
  */
 const EVENT: Record<string, HistoryEventType> = {
     grabbed: 'grabbed',
     downloadFolderImported: 'imported',
     episodeFileImported: 'imported',
     movieFileImported: 'imported',
+    artistFolderImported: 'imported',
+    trackFileImported: 'imported',
+    downloadImported: 'imported',
     downloadFailed: 'failed',
+    albumImportIncomplete: 'failed',
     movieFileDeleted: 'deleted',
     episodeFileDeleted: 'deleted',
+    trackFileDeleted: 'deleted',
     episodeFileRenamed: 'renamed',
     movieFileRenamed: 'renamed',
+    trackFileRenamed: 'renamed',
     downloadIgnored: 'ignored'
 };
 
@@ -39,6 +52,8 @@ type RawHistory = {
     sourceTitle?: string;
     movieId?: number;
     seriesId?: number;
+    /** Lidarr only. */
+    artistId?: number;
     episodeId?: number;
     downloadId?: string;
     quality?: { quality?: { name?: string } };
@@ -55,6 +70,8 @@ type RawHistory = {
     };
 };
 
+type HistoryKind = 'movie' | 'series' | 'artist';
+
 /**
  * The `eventType` query value for each type, so the service filters before it
  * pages. Integers, because that is what `/api/v3/history` binds, and the two
@@ -63,11 +80,21 @@ type RawHistory = {
  *
  * One value per type, because Sonarr 4.0.0 binds a single `int? eventType`.
  * `unknown` and `subtitle` have none and are filtered here instead.
+ *
+ * Lidarr is the exception: it binds `int[] eventType` (`HistoryController`,
+ * Lidarr 3.1.0) and spreads one type over several codes, so it is sent every
+ * code for the type. `EntityHistory.cs`: ArtistFolderImported 2,
+ * TrackFileImported 3 and DownloadImported 8 are imports; DownloadFailed 4
+ * and AlbumImportIncomplete 7 are failures; DownloadIgnored is 10.
  */
-const EVENT_CODE: Record<'movie' | 'series', Partial<Record<HistoryEventType, number>>> = {
+const EVENT_CODE: Record<HistoryKind, Partial<Record<HistoryEventType, number | readonly number[]>>> = {
     movie: { grabbed: 1, imported: 3, failed: 4, deleted: 6, renamed: 8, ignored: 9 },
-    series: { grabbed: 1, imported: 3, failed: 4, deleted: 5, renamed: 6, ignored: 7 }
+    series: { grabbed: 1, imported: 3, failed: 4, deleted: 5, renamed: 6, ignored: 7 },
+    artist: { grabbed: 1, imported: [2, 3, 8], failed: [4, 7], deleted: 5, renamed: 6, ignored: 10 }
 };
+
+/** The filter each service takes for one item's history. */
+const SCOPE_PARAM: Record<HistoryKind, string> = { movie: 'movieIds', series: 'seriesIds', artist: 'artistIds' };
 
 /**
  * The newest rows first, filtered to `eventType` and `since`. With `want`, and
@@ -77,7 +104,7 @@ const EVENT_CODE: Record<'movie' | 'series', Partial<Record<HistoryEventType, nu
 export async function readArrHistory(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series',
+    kind: HistoryKind,
     opts: HistoryQuery
 ): Promise<Window<HistoryEntry>> {
     const code = opts.eventType === undefined ? undefined : EVENT_CODE[kind][opts.eventType];
@@ -95,16 +122,17 @@ export async function readArrHistory(
 async function readHistoryPages(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series',
+    kind: HistoryKind,
     opts: HistoryQuery,
-    code: number | undefined
+    code: number | readonly number[] | undefined
 ): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean }> {
     // Confirmed live: /api/v3/history/movie?movieId=<id> answers a bare
     // HistoryResource[], not the {records, totalRecords} envelope pageArr
     // expects, so a scoped read through it always looked empty. The paged
     // /api/v3/history endpoint takes the same movieIds/seriesIds filter and
-    // answers the real envelope, so scoping happens there instead.
-    const scoped = kind === 'movie' ? 'movieIds' : 'seriesIds';
+    // answers the real envelope, so scoping happens there instead. Lidarr's
+    // takes `artistIds`, applied server-side on 2.1.3 (the version floor).
+    const scoped = SCOPE_PARAM[kind];
 
     // Explicit, not assumed: the early exit below only works if the service
     // is actually sorted newest first, and a live capture showing that order
@@ -112,7 +140,7 @@ async function readHistoryPages(
     const sort = 'sortKey=date&sortDirection=descending';
     const query = [
         ...(opts.id === undefined ? [] : [`${scoped}=${encodeURIComponent(opts.id)}`]),
-        ...(code === undefined ? [] : [`eventType=${code}`]),
+        ...(code === undefined ? [] : [code].flat().map(c => `eventType=${c}`)),
         sort
     ].join('&');
 
@@ -144,7 +172,7 @@ async function readHistoryPages(
         .filter((r): r is RawHistory & { id: number } => typeof r.id === 'number')
         .map(r => {
             const raw = r.eventType ?? '';
-            const mediaId = r.movieId ?? r.seriesId;
+            const mediaId = kind === 'artist' ? r.artistId : (r.movieId ?? r.seriesId);
             const reason = r.data?.reason ?? r.data?.message;
             return {
                 service,

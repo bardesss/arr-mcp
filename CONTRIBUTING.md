@@ -210,18 +210,22 @@ small, shaped change, and a service in no slot at all is a different product.
 **Managed — what decides something should exist**
 
 - **Lidarr.** An adapter exists: the service id, the config block, the icon, the
-  vendored spec, and six capabilities. `LibraryCapable` and `SearchCapable`, so
+  vendored spec, and nine capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists and `search_media` finds them.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
   album's flag. `MonitorStateCapable`, so that flag is read before it is changed
   and a no-op is reported as one. `ArtistMonitorCapable`, so an artist's standing
-  policy is read and written as a set. All 21 capture endpoints were exercised
-  against a
-  live Lidarr 3.1.6.5079 and the fixtures are committed, but seven came back
-  with no rows: queue, history, blocklist, wanted cutoff, release, tag and
-  indexer are empty on a fresh instance. Those row shapes need a capture against
-  a library with real activity before a read adapter can claim them, and
+  policy is read and written as a set. `QueueCapable`, `HistoryCapable` and
+  `BlocklistCapable` are the shared `arr*` helpers with `kind: 'artist'`, so
+  `get_queue`, `get_history` and `get_blocklist` include Lidarr; their fixtures
+  were captured from Lidarr 3.1.0.4875 with download activity, and the reads
+  were exercised against 2.1.3.3927 and 3.1.6.5079. All 21 capture endpoints
+  were exercised against a
+  live Lidarr 3.1.6.5079 and the fixtures are committed, but four still have no
+  rows: wanted cutoff, release, tag and indexer are empty on a fresh instance.
+  Those row shapes need a capture against a library with real activity before a
+  read adapter can claim them, and
   `/wanted/missing` is the one populated paged route if one is wanted next. The
   two write responses were captured separately, on a throwaway 2.1.3.3927
   instance.
@@ -302,8 +306,9 @@ finding out afterwards.
 **You will have to test it yourself, properly.** The maintainer runs neither
 Lidarr, Plex, qBittorrent nor Cleanuparr. Lidarr's read fixtures came from a live 3.1.6
 library with 1,578 artists and no download activity, and its two write fixtures
-from a temporary 2.1.3.3927 instance, so a capture against real download
-activity is still outstanding. Plex has an adapter
+from a temporary 2.1.3.3927 instance. Its queue, history and blocklist
+fixtures came later, from a 3.1.0.4875 library with real download activity.
+Plex has an adapter
 and, as of a volunteer tester's report on [issue #180](../../issues/180), has
 been exercised against a real instance. [qBittorrent](../../issues/147) has an
 adapter too, exercised against a real 5.2.3 server in [#195](../../issues/195)

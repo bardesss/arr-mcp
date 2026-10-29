@@ -1,6 +1,7 @@
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { pageArr } from './arrPaging.ts';
+import { protocolName } from './arrQueue.ts';
 import type { BlocklistEntry } from './types.ts';
 
 type RawBlocklist = {
@@ -9,6 +10,8 @@ type RawBlocklist = {
     movieId?: number;
     /** Sonarr only; `episodeIds` is the episode-level detail this does not carry. */
     seriesId?: number;
+    /** Lidarr only; `albumIds` is the album-level detail this does not carry. */
+    artistId?: number;
     sourceTitle?: string;
     date?: string;
     protocol?: string;
@@ -21,13 +24,13 @@ type RawBlocklist = {
  * What Radarr and Sonarr refuse to grab again, and why.
  *
  * The question this answers is "why does this release keep getting skipped".
- * Both services expose the same paged shape; only the id of the thing it
- * belongs to differs, which is the one thing normalised here.
+ * Both services expose the same paged shape, and so does Lidarr; only the id
+ * of the thing it belongs to differs, which is the one thing normalised here.
  */
 export async function readArrBlocklist(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series'
+    kind: 'movie' | 'series' | 'artist'
 ): Promise<BlocklistEntry[]> {
     const records = await pageArr<RawBlocklist>(http, `${http.apiRoot}/blocklist`);
     const fence = (value: string, field: string) => fenceText(value, { service, field });
@@ -35,7 +38,7 @@ export async function readArrBlocklist(
     return records
         .filter((r): r is RawBlocklist & { id: number } => typeof r.id === 'number')
         .map(r => {
-            const mediaId = kind === 'movie' ? r.movieId : r.seriesId;
+            const mediaId = kind === 'movie' ? r.movieId : kind === 'series' ? r.seriesId : r.artistId;
             return {
                 service,
                 id: String(r.id),
@@ -43,7 +46,7 @@ export async function readArrBlocklist(
                 at: r.date ?? '',
                 ...(r.indexer === undefined ? {} : { indexer: fence(r.indexer, 'indexer') }),
                 ...(r.message === undefined ? {} : { reason: fence(r.message, 'message') }),
-                ...(r.protocol === undefined ? {} : { protocol: r.protocol }),
+                ...(r.protocol === undefined ? {} : { protocol: protocolName(r.protocol) }),
                 ...(mediaId === undefined ? {} : { mediaId: String(mediaId) })
             };
         });

@@ -3,6 +3,667 @@
   "pageSize": 10,
   "sortKey": "date",
   "sortDirection": "descending",
-  "totalRecords": 0,
-  "records": []
+  "totalRecords": 23,
+  "records": [
+    {
+      "artistId": 151,
+      "albumIds": [
+        125
+      ],
+      "sourceTitle": "lidarr item 1",
+      "quality": {
+        "quality": {
+          "id": 2,
+          "name": "Quality 2"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T17:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 1",
+      "message": "Fixture message 1",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 1",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000001",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 1",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist1",
+        "sortName": "artist 1",
+        "tags": [],
+        "added": "2024-01-01T01:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 151,
+        "overview": "An artist."
+      },
+      "id": 201
+    },
+    {
+      "artistId": 134,
+      "albumIds": [
+        133
+      ],
+      "sourceTitle": "lidarr item 2",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T16:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 2",
+      "message": "Fixture message 2",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 2",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000002",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 2",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist2",
+        "sortName": "artist 2",
+        "tags": [],
+        "added": "2024-01-01T08:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 134,
+        "overview": "An artist."
+      },
+      "id": 202
+    },
+    {
+      "artistId": 136,
+      "albumIds": [
+        137
+      ],
+      "sourceTitle": "lidarr item 3",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T16:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 3",
+      "message": "Fixture message 3",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 3",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000003",
+        "tadbId": 0,
+        "discogsId": 0,
+        "overview": "An artist.",
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 3",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist3",
+        "sortName": "artist 3",
+        "tags": [],
+        "added": "2024-01-01T06:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 136
+      },
+      "id": 203
+    },
+    {
+      "artistId": 138,
+      "albumIds": [
+        139
+      ],
+      "sourceTitle": "lidarr item 4",
+      "quality": {
+        "quality": {
+          "id": 2,
+          "name": "Quality 2"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T15:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 4",
+      "message": "Fixture message 4",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 4",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000004",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 4",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist4",
+        "sortName": "artist 4",
+        "tags": [],
+        "added": "2024-01-01T04:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 138,
+        "overview": "An artist."
+      },
+      "id": 204
+    },
+    {
+      "artistId": 140,
+      "albumIds": [
+        141
+      ],
+      "sourceTitle": "lidarr item 5",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T14:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 5",
+      "message": "Fixture message 5",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 5",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000005",
+        "tadbId": 0,
+        "discogsId": 0,
+        "overview": "An artist.",
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 5",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist5",
+        "sortName": "artist 5",
+        "tags": [],
+        "added": "2024-01-01T07:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 140
+      },
+      "id": 205
+    },
+    {
+      "artistId": 142,
+      "albumIds": [
+        143
+      ],
+      "sourceTitle": "lidarr item 6",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T13:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 6",
+      "message": "Fixture message 6",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 6",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000006",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 6",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist6",
+        "sortName": "artist 6",
+        "tags": [],
+        "added": "2024-01-01T09:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 142,
+        "overview": "An artist."
+      },
+      "id": 206
+    },
+    {
+      "artistId": 152,
+      "albumIds": [
+        144
+      ],
+      "sourceTitle": "lidarr item 7",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T13:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 7",
+      "message": "Fixture message 7",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 7",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000007",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 7",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist7",
+        "sortName": "artist 7",
+        "tags": [],
+        "added": "2024-01-01T09:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 152,
+        "overview": "An artist."
+      },
+      "id": 207
+    },
+    {
+      "artistId": 145,
+      "albumIds": [
+        146
+      ],
+      "sourceTitle": "lidarr item 8",
+      "quality": {
+        "quality": {
+          "id": 2,
+          "name": "Quality 2"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T12:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 8",
+      "message": "Fixture message 8",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 8",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000008",
+        "tadbId": 0,
+        "discogsId": 0,
+        "overview": "An artist.",
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 8",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist8",
+        "sortName": "artist 8",
+        "tags": [],
+        "added": "2024-01-01T05:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 145
+      },
+      "id": 208
+    },
+    {
+      "artistId": 147,
+      "albumIds": [
+        148
+      ],
+      "sourceTitle": "lidarr item 9",
+      "quality": {
+        "quality": {
+          "id": 2,
+          "name": "Quality 2"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T11:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 9",
+      "message": "Fixture message 9",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 9",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000009",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 9",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist9",
+        "sortName": "artist 9",
+        "tags": [],
+        "added": "2024-01-01T02:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 147,
+        "overview": "An artist."
+      },
+      "id": 209
+    },
+    {
+      "artistId": 149,
+      "albumIds": [
+        150
+      ],
+      "sourceTitle": "lidarr item 10",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "date": "2024-01-01T10:00:00Z",
+      "protocol": "usenet",
+      "indexer": "Indexer 10",
+      "message": "Fixture message 10",
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 10",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000010",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 10",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist10",
+        "sortName": "artist 10",
+        "tags": [],
+        "added": "2024-01-01T03:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 149,
+        "overview": "An artist."
+      },
+      "id": 210
+    }
+  ]
 }
