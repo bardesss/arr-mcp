@@ -1109,6 +1109,13 @@ describe('pause_downloads', () => {
             await expect(withSlot('Yellow', false).call({ service: 'deluge', action: 'limit', speed_limit_kbps: 100 })).rejects.toThrow(
                 /^Deluge's Scheduler plugin is on at deluge, and its Schedule marks this hour Throttled, so the download limit in its Throttled Settings \(300 KiB\/s\)/
             );
+            // The hour's own value is refused too, as is none: the 300 in force is
+            // the Scheduler's `low_down`, not the client's `max_download_speed`.
+            for (const speed_limit_kbps of [300, 0]) {
+                await expect(withSlot('Yellow', false).call({ service: 'deluge', action: 'limit', speed_limit_kbps })).rejects.toThrow(
+                    /^Deluge's Scheduler plugin is on at deluge, and its Schedule marks this hour Throttled/
+                );
+            }
             // The Scheduler would undo a state the session is in already too, as
             // in the first minute of an hour, so that is refused, not a no-op.
             await expect(withSlot('Green', true).call({ service: 'deluge', action: 'pause' })).rejects.toThrow(

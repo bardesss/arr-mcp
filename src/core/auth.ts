@@ -379,7 +379,10 @@ export const DELUGE_LOGIN_REMEDY =
  * Deluge answers every call with HTTP 200, a missing or expired session
  * included: that one is `error.code` 1, "Not authenticated", in the body. So
  * this lets the call fail and recovers from the body, the same shape as
- * qBittorrent's 403, and nothing logs in ahead of time.
+ * qBittorrent's 403, and nothing logs in ahead of time. That relies on
+ * `ServiceHttp` asking `recover` about every answer, a 200 included: its
+ * recovery comes after the redirects and before `classifyHttpStatus`, which
+ * passes anything below 400 (`#attempt` in `http.ts`).
  */
 export function delugeSession(creds: {
     id: string;

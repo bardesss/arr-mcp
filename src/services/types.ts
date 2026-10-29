@@ -1970,6 +1970,13 @@ export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRe
  * post-processing, whose repair files NZBGet pauses and unpauses itself: where
  * it is, in words, and whether NZBGet's post-processing is paused; `heldBy` is
  * then a paused queue holding repair files a repair asked for.
+ *
+ * A field a client adds for its own quirks follows one rule: a flag, or one of
+ * a few fixed values, where the tool can word the sentence for every client
+ * (`endsOnRestart`, `scheduler` and `heldBy` here, `scheduled` and
+ * `sessionChange` on `SpeedLimit`), and a string where the client knows
+ * something the tool should not (`resumeNoop` and `resumeNote`, written by the
+ * adapter: a torrent's stop ratio, its error, a move under way).
  */
 export type PauseState = {
     paused: boolean;
@@ -2045,7 +2052,8 @@ export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable 
  * that it is the limit of an hour Deluge's Scheduler marks Throttled, in force
  * through every such hour. `sessionChange` says a new limit also resumes the
  * client's paused session, or pauses its running one: Deluge's Scheduler
- * applies a Normal or Paused hour again whenever the limit changes.
+ * applies a Normal or Paused hour again whenever the limit changes. All three
+ * follow the rule in `PauseState`'s doc.
  */
 export type SpeedLimit = { service: string; kbps?: number; alternative?: true; scheduled?: true; sessionChange?: 'resume' | 'pause' };
 

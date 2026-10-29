@@ -66,7 +66,9 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // resume can show the torrent as it was until Deluge has handled
     // libtorrent's alert, and for longer on 2.0.3, which polls the alerts every
     // 0.3 seconds where 2.2.0 waits on them, and updates its cached torrent
-    // status only on a status request. 2.0.3 is what Debian 12 and Ubuntu 22.04
+    // status only on a status request. Under a session pause it is 2.2.0 that
+    // can lag longer, since libtorrent 1.2 and later raise no alert there for
+    // one torrent's pause or resume. 2.0.3 is what Debian 12 and Ubuntu 22.04
     // still ship. Its version string
     // (2.0.3-2-201906121747-ubuntu18.04.1) parses to 2.0.3.
     deluge: '2.0.3',

@@ -229,6 +229,11 @@ export function registerPauseDownloads(
                 const wanted = speed_limit_kbps === 0 ? undefined : speed_limit_kbps;
                 const target = `${client.id}:limit`;
 
+                // In an hour Deluge's Scheduler marks Throttled, the limit in
+                // force is the hour's (`low_down`), not the client's own, so
+                // the Scheduler owns the setting: even a request that matches
+                // it is refused, here and in the adapter, not reported as set.
+                if (current.scheduled) throw schedulerLimitRefusal(client.id, current.kbps);
                 if (current.kbps === wanted) {
                     return {
                         target,
@@ -242,7 +247,6 @@ export function registerPauseDownloads(
                 }
                 // The adapter refuses this write too; refusing here means no token is issued for it.
                 if (current.alternative) throw turtleModeRefusal(client.id, current.kbps);
-                if (current.scheduled) throw schedulerLimitRefusal(client.id, current.kbps);
 
                 return {
                     target,

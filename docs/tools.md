@@ -1571,6 +1571,10 @@ client row only it matches (`status: "seeding"`, say) is still returned.
 
 **Unverified live** (Grimmory): a file waiting in the Bookdrop, tested on a constructed file.
 
+**Unverified live** (Deluge): the `error` and `moving` states, a torrent its
+queue holds back under a session pause, and a ratio limit in `seeding`, such as
+the one the *arrs set with a "Stop seed at ratio" of 1.
+
 Radarr, Sonarr and Lidarr rows also carry `mediaId`, the *arr's own id for the
 movie, series or artist the grab is for, and an orphaned row has none. `diagnose_media`
 matches a row to a title by that id first, and falls back to the release name
@@ -2842,8 +2846,12 @@ Just after a pause or resume, `get_queue` can still show the torrent as it was
 until Deluge has handled libtorrent's alert: for a moment on 2.2.0, which waits
 on its alerts, and for up to two seconds on 2.0.3, which polls them every 0.3
 seconds and updates its cached torrent status only on a status request, at most
-every 1.5 seconds. `pause_downloads` reads the session's pause and a torrent's
-own pause flag fresh, so its previews see a pause or resume at once.
+every 1.5 seconds. Under a session pause, libtorrent 1.2 and later raise no
+alert for one torrent's pause or resume, since the torrent stays paused either
+way, so it can take longer: on 2.2.0 with libtorrent 2.0, a pause still read as
+before a few seconds later, and both a pause and a resume read as made within a
+minute. `pause_downloads` reads the session's pause and a torrent's own pause
+flag fresh, so its previews see a pause or resume at once.
 
 While Deluge's Scheduler plugin is on, a whole-client pause, resume or limit
 reads the hour's state in its Schedule first, and what that state would undo is
@@ -2861,17 +2869,18 @@ runs it again. A resume is refused in a Paused hour, and the refusal says that
 marking the hour otherwise, or turning the plugin off, resumes a paused session
 at once. Both are refused even when the session already is as asked, rather than
 being the no-op below, since the Scheduler would undo that in the same way. In a
-Throttled hour the limit reported is the one in its Throttled Settings, and a
-new one is refused. A limit set in a Normal or Paused hour is Deluge's own,
-which the Scheduler puts back after each Throttled hour, and since setting it
-makes the Scheduler apply the hour again at once, it resumes a session paused in
-a Normal hour and pauses one running in a Paused hour, which the preview says.
-One torrent paused or resumed with `id` is not refused in any hour. In a Paused
-hour the Scheduler's session pause holds every torrent, so the one-torrent
-resume and `diagnose_media` say it starts once the Scheduler next runs in a
-Normal or Throttled hour, rather than pointing at the whole-client resume. A
-Scheduler that Deluge's settings list but its daemon could not load counts as
-off, since no Schedule runs.
+Throttled hour the limit reported is the one in its Throttled Settings, and any
+limit is refused, that one included, since the Scheduler owns the setting then.
+A limit set in a Normal or Paused hour is Deluge's own, which the Scheduler puts
+back after each Throttled hour, and since setting it makes the Scheduler apply
+the hour again at once, it resumes a session paused in a Normal hour and pauses
+one running in a Paused hour, which the preview says. One torrent paused or
+resumed with `id` is not refused in any hour. In a Paused hour the Scheduler's
+session pause holds every torrent, so the one-torrent resume and
+`diagnose_media` say it starts once the Scheduler next runs in a Normal or
+Throttled hour, rather than pointing at the whole-client resume. A Scheduler
+that Deluge's settings list but its daemon could not load counts as off, since
+no Schedule runs.
 
 `service` is required, and names one client, because permissions are checked
 per service. Pausing everything is one call per client.
@@ -2913,6 +2922,9 @@ resumes by itself. An `id` the client does not have is refused as not found.
 
 **Unverified live** (Transmission): the whole-client pause and resume by label,
 and the turtle mode read.
+
+**Unverified live** (Deluge): resuming one torrent in error, one being moved,
+one its queue holds back, or one at its stop ratio.
 
 ## `retry_download`
 
