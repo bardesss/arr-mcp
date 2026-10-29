@@ -195,6 +195,13 @@ describe('LidarrAdapter', () => {
             expect(seen).toEqual(['/api/v1/album/7']);
         });
 
+        // Lidarr can send `0001-01-01`, .NET's `DateTime.MinValue`, for an album
+        // with no date (`lidarrDate`): it is not the year one.
+        it('gives an album with no release date no year in its label', async () => {
+            const state = await adapter({ '/api/v1/album/7': { ...ALBUM, releaseDate: '0001-01-01T00:00:00Z' } }).getMonitorState('7');
+            expect(state.label).toBe('<<untrusted:lidarr.title>>House of Sugar<</>> — <<untrusted:lidarr.artist>>Alex G<</>>');
+        });
+
         it('refuses a non-integer album id rather than sending it on', async () => {
             const seen: string[] = [];
             await expect(adapter({ '/api/v1/album/7': ALBUM }, seen).getMonitorState('not-a-number')).rejects.toThrow(
@@ -353,6 +360,16 @@ describe('LidarrAdapter', () => {
             expect(row?.acquisition?.addedAt).toBeUndefined();
         });
 
+        const DISCOVERY = {
+            id: 17,
+            title: 'Discovery',
+            foreignAlbumId: '48117b90-a16e-34ca-a514-19c702df1158',
+            releaseDate: '2001-02-26T00:00:00Z',
+            albumType: 'Album',
+            monitored: true,
+            statistics: { trackFileCount: 14 }
+        };
+
         /**
          * Rows on artists, so an album id has to come from somewhere else. This
          * is that somewhere: one artist, its albums, and the ids a
@@ -361,17 +378,7 @@ describe('LidarrAdapter', () => {
         it('reads one artist with its albums for get_media_details', async () => {
             const rows = await adapter({
                 '/api/v1/artist/4': ARTIST,
-                '/api/v1/album': [
-                    {
-                        id: 17,
-                        title: 'Discovery',
-                        foreignAlbumId: '48117b90-a16e-34ca-a514-19c702df1158',
-                        releaseDate: '2001-02-26T00:00:00Z',
-                        albumType: 'Album',
-                        monitored: true,
-                        statistics: { trackFileCount: 14 }
-                    }
-                ]
+                '/api/v1/album': [DISCOVERY]
             }).getMediaDetails('4', { includeEpisodes: true, episodeLimit: 50 });
 
             expect(rows).toMatchObject({
@@ -394,6 +401,17 @@ describe('LidarrAdapter', () => {
                 }
             ]);
             expect(unfenced(rows.albums?.[0]?.title ?? '')).toBe('Discovery');
+        });
+
+        it('gives an album with no release date no year in get_media_details', async () => {
+            const rows = await adapter({
+                '/api/v1/artist/4': ARTIST,
+                '/api/v1/album': [{ ...DISCOVERY, releaseDate: '0001-01-01T00:00:00Z' }]
+            }).getMediaDetails('4', { includeEpisodes: true, episodeLimit: 50 });
+
+            expect(rows.albums).toHaveLength(1);
+            expect(rows.albums?.[0]).not.toHaveProperty('year');
+            expect(rows.albums?.[0]).toMatchObject({ id: '17', albumType: 'Album' });
         });
 
         it('does not read albums at standard detail', async () => {

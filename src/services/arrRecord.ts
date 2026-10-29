@@ -3,7 +3,7 @@ import type { ArrKind } from '../core/resolver.ts';
 /**
  * What Radarr, Sonarr and Lidarr rows share, read the same way wherever they
  * come from: the queue, history and the blocklist today, release search later.
- * Also Lidarr's "no date", which its wanted list and calendar both read.
+ * Also Lidarr's "no date", which its wanted list, calendar and album years read.
  */
 
 /** The field naming a row's media, one per kind of library. */

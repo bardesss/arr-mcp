@@ -261,7 +261,8 @@ updates some metadata. A new install sets the time when it creates the task, so
 for up to a day it reports a scan that has not run.
 
 `get_media_details` on an artist lists the albums under it, each with its Lidarr
-album id, type, year, monitoring and file state. That is where the id for
+album id, type, year (when Lidarr has a release date), monitoring and file
+state. That is where the id for
 `set_monitoring` with `level: "album"` comes from.
 
 **An artist joins to a media server.** Lidarr's `foreignArtistId`, Jellyfin's
