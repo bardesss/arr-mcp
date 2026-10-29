@@ -248,14 +248,15 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with twenty-five capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr — the rest of it.** The adapter has shipped, with twenty-six capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists, `search_media` finds them, and its discover
   source (`lookup_media`) finds artists to add. `MediaAddCapable` and
   `MetadataProfileCapable`, so `add_media` adds one by its MusicBrainz id, with
   the metadata profile beside the quality profile. `MediaUpdateCapable`, so
   `update_media` changes an artist's profiles, root folder, monitoring and tags
   later, through the Artist Editor. The lookup, add and editor fixtures were
-  captured on a 3.1.6.5079 test instance.
+  captured on a 3.1.6.5079 test instance. `MediaDeleteCapable`, so
+  `delete_media` deletes an artist.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
   album's flag. `MonitorStateCapable`, so that flag is read before it is changed
@@ -280,7 +281,7 @@ small, shaped change, and a service in no slot at all is a different product.
   `ReleaseGrabCapable`, so `trigger_search` searches the indexers for an artist
   or some of its albums, and `get_releases` and `grab_release` list and grab the
   releases for the artist or one album; the release fixture was captured from
-  an album search on Lidarr 3.1.6.5079. What it still lacks is deleting artists.
+  an album search on Lidarr 3.1.6.5079.
   All 21 capture endpoints were exercised against a live Lidarr 3.1.6.5079 and
   the fixtures are committed, but two still have no rows: tag and indexer are
   empty on a fresh instance. Tags are read anyway, with the shared `readTags`
