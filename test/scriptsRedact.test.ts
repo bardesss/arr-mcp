@@ -88,8 +88,8 @@ describe('NZBGet fixture anonymisers', () => {
             version: '1.1',
             result: [
                 {
-                    NZBID: 7721,
-                    DestDir: '/downloads/incomplete/Real.Release.2017.REMUX-GRP.#7721',
+                    NZBID: 5001,
+                    DestDir: '/downloads/incomplete/Real.Release.2017.REMUX-GRP.#5001',
                     FinalDir: '',
                     DupeKey: 'imdb=tt0000001',
                     Log: [{ ID: 1, Kind: 'INFO', Text: 'Downloading Real.Release.2017.REMUX-GRP' }]
@@ -130,7 +130,7 @@ describe('NZBGet fixture anonymisers', () => {
         const output = anonymiseNzbgetRows({
             result: [
                 {
-                    NZBID: 7733,
+                    NZBID: 5002,
                     FileSizeLo: big % 2 ** 32,
                     FileSizeHi: Math.floor(big / 2 ** 32),
                     FileSizeMB: 6543,
@@ -146,7 +146,7 @@ describe('NZBGet fixture anonymisers', () => {
                     FailedArticles: 0,
                     Status: 'QUEUED'
                 },
-                { NZBID: 7734, FileSizeLo: 5, FileSizeHi: 0, FileSizeMB: 0, MinPostTime: 1785000000, Status: 'PAUSED' }
+                { NZBID: 5003, FileSizeLo: 5, FileSizeHi: 0, FileSizeMB: 0, MinPostTime: 1785000000, Status: 'PAUSED' }
             ]
         }) as { result: [NzbgetNumbers, NzbgetNumbers] };
         const [first, second] = output.result;
@@ -164,9 +164,9 @@ describe('NZBGet fixture anonymisers', () => {
 
         const status = anonymiseNzbgetStatus({
             result: {
-                FreeDiskSpaceLo: 1234567,
-                FreeDiskSpaceHi: 2943,
-                FreeDiskSpaceMB: 12345678,
+                FreeDiskSpaceLo: 0,
+                FreeDiskSpaceHi: 1000,
+                FreeDiskSpaceMB: 4096000,
                 FreeInterDiskSpaceLo: 4294967295,
                 FreeInterDiskSpaceHi: 4294967295,
                 FreeInterDiskSpaceMB: -1,
@@ -184,15 +184,15 @@ describe('NZBGet fixture anonymisers', () => {
             DownloadLimit: 5120000,
             NewsServers: [{ ID: 1, Active: true }]
         });
-        expect(JSON.stringify(status)).not.toMatch(/12345678|5555555|1786000100|4321/);
+        expect(JSON.stringify(status)).not.toMatch(/4096000|5555555|1786000100|4321/);
     });
 
     // A log line can name a release, a download folder or a news server.
     it('replaces NZBGet log text, keeping only the post-process refusal\'s wording, and renumbers ids and times', () => {
         const output = anonymiseNzbgetLog({
             result: [
-                { ID: 8812, Kind: 'INFO', Time: 1_786_000_200, Text: 'Collection Real.Release.2017 added to history' },
-                { ID: 8813, Kind: 'ERROR', Time: 1_786_000_260, Text: "Could not post-process again Real.Release: destination directory /downloads/Real.Release doesn't exist" }
+                { ID: 1001, Kind: 'INFO', Time: 1_786_000_200, Text: 'Collection Real.Release.2017 added to history' },
+                { ID: 1002, Kind: 'ERROR', Time: 1_786_000_260, Text: "Could not post-process again Real.Release: destination directory /downloads/Real.Release doesn't exist" }
             ]
         });
 

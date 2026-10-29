@@ -1515,13 +1515,16 @@ It only works while the download's folder still exists. When the folder has
 been moved or deleted, NZBGet still answers the request with success and logs
 `Could not post-process again <name>: destination directory … doesn't exist`
 instead. So the answer alone proves nothing. This watches, for a few seconds,
-for one of three things:
+for one of four things:
 
 - the download in NZBGet's queue: the rerun is still going, and `get_queue`
   shows it until it finishes;
-- the download back in history after leaving it: the rerun finished, and the
+- the download back in history after this rerun: the rerun finished, and the
   answer gives the status it finished on, saying so plainly when it failed
   again;
+- the download gone from both after NZBGet showed this rerun running or filed
+  it: a quick rerun whose result an *arr already imported and removed from
+  NZBGet's history, which the answer says so the *arr is checked instead;
 - the logged refusal for exactly this download: an error naming the missing
   folder.
 

@@ -104,6 +104,7 @@ const TWO_POW_32 = 2 ** 32;
 
 const isArray = <T>(value: unknown): value is T[] => Array.isArray(value);
 const isObject = <T>(value: unknown): value is T => value !== null && typeof value === 'object';
+const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
 /** The object elements of a list, or none: a `null` or primitive element is
  *  skipped rather than read as a row. */
 const objectsIn = <T>(value: unknown): T[] => (Array.isArray(value) ? value.filter((v): v is T => isObject<T>(v)) : []);
@@ -189,9 +190,6 @@ const enabledScripts = (parameters: unknown): string[] =>
             : []
     );
 
-/** How often, and for how long, a rerun is watched for a sign that it started.
- *  A download with nothing left to do is back in history within about a
- *  second on 21.0; a real unpack or script shows in the queue at once. */
 /** A non-NZB history record in fixed words, never NZBGet's own text. */
 const describeKind = (kind: string | undefined): string =>
     kind === 'URL' ? 'a URL fetch' : kind === 'DUP' ? 'a duplicate record' : 'an unrecognised record';
@@ -200,8 +198,20 @@ const describeKind = (kind: string | undefined): string =>
  *  someone's free text, and is not passed on as an id. */
 const DOWNLOAD_ID_SHAPE = /^[A-Za-z0-9._-]{1,128}$/;
 
+/** How often, and for how long, a rerun is watched for a sign that it started.
+ *  A download with nothing left to do is back in history within about a
+ *  second on 21.0; a real unpack or script shows in the queue at once. The
+ *  full history is read only when the log says the download was filed, or on
+ *  every fourth poll, because it can hold thousands of rows. */
 const POST_PROCESS_POLL_MS = 250;
 const POST_PROCESS_POLLS = 20;
+const POST_PROCESS_HISTORY_EVERY = 4;
+/** How many previewed rows are kept for their confirm. */
+const POST_PROCESS_CACHED = 8;
+/** PrePostProcessor.cpp's line when it accepts the rerun, and QueueCoordinator's
+ *  when the download is filed into history again. */
+const POST_PROCESS_STARTED = 'Post-processing again';
+const filedLine = (name: string): string => `Collection ${name} added to history`;
 const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 /** PrePostProcessor.cpp's refusal when the download's folder is gone. NZBGet
@@ -479,7 +489,7 @@ export class NzbgetAdapter
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
         const numericId = asIntegerId(id, this.id);
         const command = opts.removeFromClient ? 'GroupFinalDelete' : 'GroupParkDelete';
-        const ok = await this.#rpc<boolean>('editqueue', [command, 0, '', [numericId]], (value): value is boolean => typeof value === 'boolean');
+        const ok = await this.#rpc<boolean>('editqueue', [command, 0, '', [numericId]], isBoolean);
         if (!ok) {
             throw new ServiceError('UpstreamError', this.id, `queue ${command} of ${id} was refused`, {
                 remedy: 'Check that the queue item is still present — take a current id from get_queue.'
@@ -521,7 +531,7 @@ export class NzbgetAdapter
         if (id !== undefined) {
             const numericId = asIntegerId(id, this.id);
             const command = paused ? 'GroupPause' : 'GroupResume';
-            const ok = await this.#rpc<boolean>('editqueue', [command, 0, '', [numericId]], (value): value is boolean => typeof value === 'boolean');
+            const ok = await this.#rpc<boolean>('editqueue', [command, 0, '', [numericId]], isBoolean);
             if (!ok) {
                 throw new ServiceError('UpstreamError', this.id, `${command} was refused for queue item ${id}`);
             }
@@ -529,7 +539,7 @@ export class NzbgetAdapter
         }
 
         const method = paused ? 'pausedownload' : 'resumedownload';
-        const ok = await this.#rpc<boolean>(method, [], (value): value is boolean => typeof value === 'boolean');
+        const ok = await this.#rpc<boolean>(method, [], isBoolean);
         if (!ok) throw new ServiceError('UpstreamError', this.id, `${method} was refused`);
     }
 
@@ -543,7 +553,7 @@ export class NzbgetAdapter
 
     async setSpeedLimit(kbps: number | undefined): Promise<void> {
         const value = kbps === undefined || kbps <= 0 ? 0 : Math.round(kbps);
-        const ok = await this.#rpc<boolean>('rate', [value], (result): result is boolean => typeof result === 'boolean');
+        const ok = await this.#rpc<boolean>('rate', [value], isBoolean);
         if (!ok) throw new ServiceError('UpstreamError', this.id, 'the speed limit was refused');
     }
 
@@ -593,20 +603,22 @@ export class NzbgetAdapter
      *  by its `drone` parameter (what an *arr's queue shows) or, for an NZB
      *  added by hand, by its NZBID (what get_queue falls back to). */
     #isDownload(row: { NZBID?: number; Parameters?: RawParameter[] }, downloadId: string): boolean {
+        // Case-insensitive, as trigger_scan's import matches the same id.
         const drone = droneParameter(row.Parameters);
-        if (drone !== undefined) return drone === downloadId;
+        if (drone !== undefined) return drone.toLowerCase() === downloadId.toLowerCase();
         return /^\d+$/.test(downloadId) && typeof row.NZBID === 'number' && String(row.NZBID) === downloadId;
     }
 
     /** A rerun of a download already in the queue would run twice on one
-     *  folder, so it is refused while one is in progress. */
+     *  folder, so it is refused while one is in progress. Not an upstream
+     *  fault: the download simply is not back in history yet. */
     async #refuseIfQueued(downloadId: string): Promise<void> {
         const queued = (await this.#groups()).find(group => this.#isDownload(group, downloadId));
         if (queued !== undefined) {
             throw new ServiceError(
-                'UpstreamError',
+                'NotFound',
                 this.id,
-                `download ${downloadId} is already in NZBGet's queue, as ${fenceText(queueStatus(queued.Status), { service: this.id, field: 'Status' })}`,
+                `download ${downloadId} is not in NZBGet's history yet: it is still in the queue, as ${fenceText(queueStatus(queued.Status), { service: this.id, field: 'Status' })}`,
                 { remedy: 'Wait until it has finished and is back in history (get_queue shows it until then), then try again.' }
             );
         }
@@ -653,9 +665,25 @@ export class NzbgetAdapter
         };
     }
 
+    /**
+     * The rows the last few previews resolved, by history id. On confirm the write
+     * harness re-runs the preview immediately before applying, and the token
+     * has bound that history id and time, so the run reuses the row instead of
+     * reading the queue and the whole history again.
+     */
+    readonly #resolved = new Map<string, RawHistory & { ID: number }>();
+
     async findPostProcessTarget(downloadId: string): Promise<PostProcessTarget> {
         await this.#refuseIfQueued(downloadId);
-        return this.#postProcessTarget(await this.#historyRow(downloadId));
+        const row = await this.#historyRow(downloadId);
+        this.#resolved.delete(String(row.ID));
+        this.#resolved.set(String(row.ID), row);
+        // Only a preview about to be confirmed needs its row: drop the oldest.
+        for (const key of this.#resolved.keys()) {
+            if (this.#resolved.size <= POST_PROCESS_CACHED) break;
+            this.#resolved.delete(key);
+        }
+        return this.#postProcessTarget(row);
     }
 
     /** The id of the newest message in NZBGet's log, or 0 when it is empty. */
@@ -669,14 +697,21 @@ export class NzbgetAdapter
      *
      * NZBGet answers `true` even when it then refuses because the download's
      * folder is gone, and logs the refusal instead, so the answer alone proves
-     * nothing. After sending, the item is watched until one of these happens:
-     * it is in the queue (running), it has left history and come back
-     * (finished, with whatever status it finished on), or the log records the
-     * refusal. Nothing within the time allowed is an error, never a success.
+     * nothing. After sending, the item is watched for about five seconds:
+     * in the queue is `running`; back in history after this rerun is
+     * `finished`, with whatever status it finished on; filed after this rerun
+     * and then gone from both, or gone from both at the end after NZBGet
+     * showed it running, is `removed` (an *arr already took the result); a
+     * logged refusal is an error. Anything else is an error, never a success.
      */
     async runPostProcess(downloadId: string, historyId: string): Promise<PostProcessOutcome> {
-        await this.#refuseIfQueued(downloadId);
-        const row = await this.#historyRow(downloadId);
+        let row = this.#resolved.get(historyId);
+        this.#resolved.delete(historyId);
+        if (row === undefined || !this.#isDownload(row, downloadId)) {
+            // Not previewed by this instance (or for another id): look again.
+            await this.#refuseIfQueued(downloadId);
+            row = await this.#historyRow(downloadId);
+        }
         if (String(row.ID) !== historyId) {
             throw new ServiceError('NotFound', this.id, `download ${downloadId} no longer resolves to the history item the preview showed`, {
                 remedy: 'Preview it again: NZBGet\'s history changed in between.'
@@ -685,7 +720,7 @@ export class NzbgetAdapter
         const target = this.#postProcessTarget(row);
         const mark = await this.#lastLogId();
 
-        const ok = await this.#rpc<boolean>('editqueue', ['HistoryProcess', 0, '', [row.ID]], (value): value is boolean => typeof value === 'boolean');
+        const ok = await this.#rpc<boolean>('editqueue', ['HistoryProcess', 0, '', [row.ID]], isBoolean);
         if (!ok) {
             throw new ServiceError('UpstreamError', this.id, `NZBGet refused to post-process download ${downloadId} again`, {
                 remedy: 'Check that the download is still in NZBGet\'s history — take a current id from get_history.'
@@ -696,49 +731,77 @@ export class NzbgetAdapter
         // Matching the whole prefix keeps `Some.Release.REPACK`'s refusal, or
         // one whose path merely contains this name, from reading as this one's.
         const name = row.NZBName ?? row.Name;
-        const refusalPrefix = name === undefined || name === '' ? undefined : `${POST_PROCESS_REFUSED} ${name}:`;
+        const named = name !== undefined && name !== '';
+        const refusalPrefix = named ? `${POST_PROCESS_REFUSED} ${name}:` : undefined;
         const isThisRow = (r: { NZBID?: number }) => typeof r.NZBID === 'number' && r.NZBID === (row.NZBID ?? row.ID);
-        let leftHistory = false;
+        const status = (raw: string | undefined) => fenceText(raw ?? 'unknown', { service: this.id, field: 'Status' });
+        // Evidence that the rerun really ran, as opposed to NZBGet having
+        // accepted the request and done nothing.
+        let started = false;
+        let seenInQueue = false;
+        let seenLeftHistory = false;
+        const last = POST_PROCESS_POLLS - 1;
 
         for (let poll = 0; poll < POST_PROCESS_POLLS; poll++) {
             if (poll > 0) await delay(POST_PROCESS_POLL_MS);
 
-            // Only the messages logged since the request: a short read.
-            const refusal = objectsIn<RawLogMessage>(await this.#rpc<unknown[]>('log', [mark + 1, 0], isArray)).find(
-                m => m.Kind === 'ERROR' && refusalPrefix !== undefined && typeof m.Text === 'string' && m.Text.startsWith(refusalPrefix)
-            );
+            // Only the messages logged since the request, read alongside the queue.
+            const [messages, groups] = await Promise.all([
+                this.#rpc<unknown[]>('log', [mark + 1, 0], isArray).then(rows => objectsIn<RawLogMessage>(rows)),
+                this.#groups()
+            ]);
+            const texts = messages.flatMap(m => (typeof m.Text === 'string' ? [{ kind: m.Kind, text: m.Text }] : []));
+
+            const refusal = texts.find(m => m.kind === 'ERROR' && refusalPrefix !== undefined && m.text.startsWith(refusalPrefix));
             if (refusal !== undefined) {
-                throw new ServiceError('UpstreamError', this.id, fenceText(refusal.Text as string, { service: this.id, field: 'log' }), {
+                throw new ServiceError('UpstreamError', this.id, fenceText(refusal.text, { service: this.id, field: 'log' }), {
                     remedy: "NZBGet only post-processes files still in the download's folder, and that folder has been moved or deleted — usually by an *arr's import or a cleanup. Nothing was changed. If the files are gone, grab the release again instead."
                 });
             }
+            if (named && texts.some(m => m.text === `${POST_PROCESS_STARTED} ${name}`)) started = true;
+            // The filing line names only the NZB, which another row of the same
+            // NZB can share, so it counts only after this rerun's own start line.
+            const filedAgain = started && texts.some(m => m.text === filedLine(name as string));
 
-            const queued = (await this.#groups()).find(isThisRow);
-            // PP_FINISHED is done but not yet filed: wait for history, which
-            // says whether it succeeded, rather than calling it running.
-            if (queued !== undefined && (queued.Status ?? '').toUpperCase() === 'PP_FINISHED') {
-                leftHistory = true;
+            const queued = groups.find(isThisRow);
+            if (queued !== undefined) {
+                seenInQueue = true;
+                const finishing = (queued.Status ?? '').toUpperCase() === 'PP_FINISHED';
+                // PP_FINISHED is done but not yet filed: wait for history, which
+                // says whether it succeeded, unless time is up.
+                if (!finishing || poll === last) return { target, state: 'running', status: status(queueStatus(queued.Status)) };
                 continue;
             }
-            if (queued !== undefined) {
-                return { target, state: 'running', status: fenceText(queueStatus(queued.Status), { service: this.id, field: 'Status' }) };
-            }
 
-            // Not in the queue, so look in history: gone means it is on its
-            // way through; back again (or refiled with a new time) means done.
+            // The full history can hold thousands of rows: read it when the log
+            // says the download was filed, every fourth poll, and on the last.
+            if (!filedAgain && poll !== last && poll % POST_PROCESS_HISTORY_EVERY !== POST_PROCESS_HISTORY_EVERY - 1) continue;
+
             const filed = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray)).find(r => r.ID === row.ID);
             if (filed === undefined) {
-                leftHistory = true;
+                // Filed after this rerun and then gone, or gone at the end after
+                // NZBGet showed the rerun running: an *arr's "Remove Completed"
+                // already took the result. Missing alone is not proof it ran.
+                if (filedAgain || (poll === last && (started || seenInQueue))) return { target, state: 'removed' };
+                seenLeftHistory = true;
                 continue;
             }
             const refiled =
-                leftHistory || (typeof filed.HistoryTime === 'number' && typeof row.HistoryTime === 'number' && filed.HistoryTime > row.HistoryTime);
+                filedAgain ||
+                seenInQueue ||
+                seenLeftHistory ||
+                (typeof filed.HistoryTime === 'number' && typeof row.HistoryTime === 'number' && filed.HistoryTime > row.HistoryTime);
             if (refiled) {
-                const status = filed.Status ?? 'unknown';
-                return { target, state: 'finished', event: historyEvent(status), status: fenceText(status, { service: this.id, field: 'Status' }) };
+                const raw = filed.Status ?? 'unknown';
+                return { target, state: 'finished', event: historyEvent(raw), status: status(raw) };
             }
         }
 
+        if (started) {
+            throw new ServiceError('UpstreamError', this.id, `NZBGet started post-processing download ${downloadId} again, but had not filed a result when the wait ran out`, {
+                remedy: 'It was not reported as done. get_queue and get_history show where it stands now.'
+            });
+        }
         throw new ServiceError('UpstreamError', this.id, `NZBGet accepted the request for download ${downloadId} but showed no sign of post-processing it`, {
             remedy: "It was not reported as done, because it may not have run. The usual cause is that the download's folder no longer exists; NZBGet's Messages page says for certain."
         });

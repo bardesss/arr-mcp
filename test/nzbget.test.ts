@@ -616,7 +616,7 @@ describe('NzbgetAdapter', () => {
 
     describe('post-processing again', () => {
         type Row = Record<string, unknown>;
-        type Effect = 'queue' | 'finishing' | 'refile' | 'refileFailed' | 'leaveThenReturn' | 'refuse' | 'refuseOther' | 'silent';
+        type Effect = 'queue' | 'finishing' | 'refile' | 'refileLogged' | 'refileFailed' | 'leaveThenReturn' | 'removedFast' | 'filedThenRemoved' | 'deleted' | 'stuckFinishing' | 'startedOnly' | 'otherCopyFiled' | 'refuse' | 'refuseOther' | 'silent';
         const row = (over: Row = {}): Row => ({
             ID: 4,
             NZBID: 4,
@@ -630,8 +630,8 @@ describe('NzbgetAdapter', () => {
             Parameters: [
                 { Name: 'drone', Value: 'drone-abc' },
                 { Name: '*Unpack:', Value: 'yes' },
-                { Name: 'Unpack7z.py:', Value: 'yes' },
-                { Name: 'Notify.py:', Value: 'no' }
+                { Name: 'Example.py:', Value: 'yes' },
+                { Name: 'Other.py:', Value: 'no' }
             ],
             ...over
         });
@@ -679,6 +679,28 @@ describe('NzbgetAdapter', () => {
                         if (effect === 'refile') target.HistoryTime = (target.HistoryTime as number) + 60;
                         if (effect === 'refileFailed') Object.assign(target, { HistoryTime: (target.HistoryTime as number) + 60, Status: 'FAILURE/UNPACK', UnpackStatus: 'FAILURE' });
                         if (effect === 'leaveThenReturn') state.away = 1;
+                        const started = { ID: 12, Kind: 'INFO', Text: `Post-processing again ${String(target.NZBName)}` };
+                        // Seen live: logged on accept, then filed back with a "Collection … added" line.
+                        if (effect === 'refileLogged') {
+                            state.log.push(started, { ID: 13, Kind: 'INFO', Text: `Collection ${String(target.NZBName)} added to history` });
+                            target.HistoryTime = (target.HistoryTime as number) + 60;
+                        }
+                        // A quick rerun an *arr then imported and removed from NZBGet's history.
+                        if (effect === 'removedFast') {
+                            state.log.push(started);
+                            state.history = state.history.filter(r => r !== target);
+                        }
+                        // Filed after the rerun, then taken by an *arr before the next read.
+                        if (effect === 'filedThenRemoved') {
+                            state.log.push(started, { ID: 13, Kind: 'INFO', Text: `Collection ${String(target.NZBName)} added to history` });
+                            state.history = state.history.filter(r => r !== target);
+                        }
+                        // Deleted from history before the request landed: nothing ran.
+                        if (effect === 'deleted') state.history = state.history.filter(r => r !== target);
+                        if (effect === 'stuckFinishing') state.groups = [{ NZBID: target.NZBID, Status: 'PP_FINISHED' }];
+                        if (effect === 'startedOnly') state.log.push(started);
+                        // Another row of the same NZB filed meanwhile; this one never ran.
+                        if (effect === 'otherCopyFiled') state.log.push({ ID: 13, Kind: 'INFO', Text: `Collection ${String(target.NZBName)} added to history` });
                         if (effect === 'refuse') state.log.push(refusal(target.NZBName));
                         // A name that starts with this one's, and the same folder in its text.
                         if (effect === 'refuseOther') state.log.push(refusal(`${String(target.NZBName)}.REPACK`));
@@ -706,7 +728,7 @@ describe('NzbgetAdapter', () => {
                 expect(target.folder).toContain('/downloads/completed/Some.Release');
                 expect(target.finalFolder).toBeUndefined();
                 expect(target.scripts).toHaveLength(1);
-                expect(target.scripts[0]).toContain('Unpack7z.py');
+                expect(target.scripts[0]).toContain('Example.py');
                 expect(target.title).toContain('Some.Release');
                 expect(target.title).not.toBe('Some.Release');
                 expect(methods(requests)).toEqual(['listgroups', 'history']);
@@ -748,6 +770,11 @@ describe('NzbgetAdapter', () => {
                 expect((error as Error).message).not.toContain('Ignore previous instructions');
             });
 
+            // trigger_scan's import matches the same id case-insensitively.
+            it('matches the drone id regardless of case, as import does', async () => {
+                await expect(fake('queue').adapter.findPostProcessTarget('DRONE-ABC')).resolves.toMatchObject({ historyId: '4' });
+            });
+
             it('refuses an id nothing in history has', async () => {
                 await expect(fake('queue').adapter.findPostProcessTarget('drone-zzz')).rejects.toMatchObject({ kind: 'NotFound' });
             });
@@ -756,8 +783,13 @@ describe('NzbgetAdapter', () => {
             it('refuses while the download is already in the queue', async () => {
                 const groups = [{ NZBID: 4, Status: 'UNPACKING', Parameters: [{ Name: 'drone', Value: 'drone-abc' }] }];
 
-                await expect(fake('queue', { groups }).adapter.findPostProcessTarget('drone-abc')).rejects.toThrow(/already in NZBGet's queue/);
-                await expect(fake('queue', { groups }).adapter.runPostProcess('drone-abc', '4')).rejects.toThrow(/already in NZBGet's queue/);
+                // A precondition to wait out, not an NZBGet fault.
+                await expect(fake('queue', { groups }).adapter.findPostProcessTarget('drone-abc')).rejects.toMatchObject({
+                    kind: 'NotFound',
+                    message: expect.stringMatching(/still in the queue/)
+                });
+                await expect(fake('queue', { groups }).adapter.runPostProcess('drone-abc', '4')).rejects.toThrow(/still in the queue/);
+                await expect(fake('queue', { groups }).adapter.findPostProcessTarget('DRONE-ABC')).rejects.toThrow(/still in the queue/);
             });
         });
 
@@ -768,7 +800,7 @@ describe('NzbgetAdapter', () => {
                 const outcome = await adapter.runPostProcess('drone-abc', '4');
 
                 expect(outcome).toMatchObject({ state: 'running' });
-                expect(outcome.status).toContain('extracting');
+                expect((outcome as { status: string }).status).toContain('extracting');
                 expect(requests.find(r => r.rpc.method === 'editqueue')?.rpc.params).toEqual(['HistoryProcess', 0, '', [4]]);
             });
 
@@ -777,7 +809,7 @@ describe('NzbgetAdapter', () => {
                 const outcome = await fake('refile').adapter.runPostProcess('drone-abc', '4');
 
                 expect(outcome).toMatchObject({ state: 'finished', event: 'imported' });
-                expect(outcome.status).toContain('SUCCESS/UNPACK');
+                expect((outcome as { status: string }).status).toContain('SUCCESS/UNPACK');
             });
 
             it('waits past PP_FINISHED for the status it was filed with, rather than calling it running', async () => {
@@ -797,7 +829,100 @@ describe('NzbgetAdapter', () => {
                 const outcome = await fake('refileFailed').adapter.runPostProcess('drone-abc', '4');
 
                 expect(outcome).toMatchObject({ state: 'finished', event: 'failed' });
-                expect(outcome.status).toContain('FAILURE/UNPACK');
+                expect((outcome as { status: string }).status).toContain('FAILURE/UNPACK');
+            });
+
+            // NZBGet logs the filing, so the full history is read once, not on every poll.
+            it('reads the full history only when the log says the download was filed again', async () => {
+                const { adapter, requests } = fake('refileLogged');
+
+                const outcome = await adapter.runPostProcess('drone-abc', '4');
+
+                expect(outcome).toMatchObject({ state: 'finished', event: 'imported' });
+                const afterSend = methods(requests).slice(methods(requests).indexOf('editqueue') + 1);
+                expect(afterSend.filter(m => m === 'history')).toHaveLength(1);
+            });
+
+            // A missing row is read every fourth poll and on the last, not on all twenty.
+            it('reads the full history only every fourth poll while nothing is logged', async () => {
+                vi.useFakeTimers();
+                const { adapter, requests } = fake('silent');
+                const outcome = expect(adapter.runPostProcess('drone-abc', '4')).rejects.toThrow(/showed no sign/);
+                await vi.runAllTimersAsync();
+                await outcome;
+
+                const afterSend = methods(requests).slice(methods(requests).indexOf('editqueue') + 1);
+                expect(afterSend.filter(m => m === 'history')).toHaveLength(5);
+                expect(afterSend.filter(m => m === 'listgroups')).toHaveLength(20);
+            });
+
+            it('reports a quick rerun that an *arr already removed from history as ran, not as no sign', async () => {
+                vi.useFakeTimers();
+                const outcome = fake('removedFast').adapter.runPostProcess('drone-abc', '4');
+                await vi.runAllTimersAsync();
+
+                await expect(outcome).resolves.toMatchObject({ state: 'removed' });
+            });
+
+            // The filing line, then the row gone, is enough: no polling on to the end.
+            it('reports removed at once when the rerun was filed and is already gone', async () => {
+                const { adapter, requests } = fake('filedThenRemoved');
+
+                await expect(adapter.runPostProcess('drone-abc', '4')).resolves.toMatchObject({ state: 'removed' });
+                const afterSend = methods(requests).slice(methods(requests).indexOf('editqueue') + 1);
+                expect(afterSend).toEqual(['log', 'listgroups', 'history']);
+            });
+
+            it('does not report a row deleted before the request as a rerun that ran', async () => {
+                vi.useFakeTimers();
+                const outcome = expect(fake('deleted').adapter.runPostProcess('drone-abc', '4')).rejects.toThrow(/showed no sign/);
+                await vi.runAllTimersAsync();
+                await outcome;
+            });
+
+            it('reports a rerun still waiting to be filed when time runs out as running, not removed', async () => {
+                vi.useFakeTimers();
+                const outcome = fake('stuckFinishing').adapter.runPostProcess('drone-abc', '4');
+                await vi.runAllTimersAsync();
+
+                await expect(outcome).resolves.toMatchObject({ state: 'running' });
+            });
+
+            it('says it started but has no result, rather than removed, when the row never moved', async () => {
+                vi.useFakeTimers();
+                const outcome = expect(fake('startedOnly').adapter.runPostProcess('drone-abc', '4')).rejects.toThrow(/started post-processing/);
+                await vi.runAllTimersAsync();
+                await outcome;
+            });
+
+            // Two rows of the same NZB share the name in the filing line.
+            it('does not take another copy\'s filing line as this rerun finishing', async () => {
+                vi.useFakeTimers();
+                const outcome = expect(fake('otherCopyFiled').adapter.runPostProcess('drone-abc', '4')).rejects.toThrow(/showed no sign/);
+                await vi.runAllTimersAsync();
+                await outcome;
+            });
+
+            // The harness re-runs the preview just before applying, with the same adapter.
+            it('reuses the row the preview resolved instead of reading the queue and history again', async () => {
+                const { adapter, requests } = fake('queue');
+
+                await adapter.findPostProcessTarget('drone-abc');
+                const before = requests.length;
+                await adapter.runPostProcess('drone-abc', '4');
+
+                const beforeSend = methods(requests.slice(before)).slice(0, methods(requests.slice(before)).indexOf('editqueue'));
+                expect(beforeSend).toEqual(['log']);
+            });
+
+            it('looks the download up again when the run names a different id than the preview', async () => {
+                const { adapter, requests } = fake('queue');
+
+                await adapter.findPostProcessTarget('drone-abc');
+                const before = requests.length;
+                await expect(adapter.runPostProcess('drone-zzz', '4')).rejects.toMatchObject({ kind: 'NotFound' });
+
+                expect(methods(requests.slice(before))).toEqual(['listgroups', 'history']);
             });
 
             // NZBGet answers true here too; the refusal is only in its log.

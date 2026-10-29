@@ -464,6 +464,9 @@ export function registerTriggerScan(
                 if (outcome.state === 'running') {
                     return `${processor.id} is post-processing ${title} again, now ${outcome.status}. It keeps running in the background: get_queue shows it until it is back in history, and get_history then says how it finished. Radarr or Sonarr imports the result on its next queue check, or use action "import" on it then.`;
                 }
+                if (outcome.state === 'removed') {
+                    return `${processor.id} ran post-processing again on ${title}, and it is no longer in ${processor.id}'s queue or history: Radarr or Sonarr usually imports a finished download and removes it from the client. Check get_queue and get_history on the *arr to see whether it was imported.`;
+                }
                 if (outcome.event === 'imported') {
                     return `${processor.id} ran post-processing again on ${title}, and it finished as ${outcome.status}. Radarr or Sonarr imports the result on its next queue check, or use action "import" on it now.`;
                 }

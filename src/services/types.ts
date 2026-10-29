@@ -982,11 +982,15 @@ export type PostProcessTarget = {
     scripts: string[];
 };
 
-/** Where a rerun stood when the client first showed it had started:
- *  still going, or already back in history with the status it finished on. */
+/** Where a rerun stood once the client showed it had run: still in the
+ *  queue, back in history with the status it finished on, or already gone
+ *  from both. */
 export type PostProcessOutcome =
     | { target: PostProcessTarget; state: 'running'; status: string }
-    | { target: PostProcessTarget; state: 'finished'; event: HistoryEventType; status: string };
+    | { target: PostProcessTarget; state: 'finished'; event: HistoryEventType; status: string }
+    /** It ran and is now in neither the queue nor history: an *arr
+     *  usually imported it and removed it from the client's history. */
+    | { target: PostProcessTarget; state: 'removed' };
 
 /** Post-processing run again on a finished download: NZBGet's
  *  "post-process again". */
@@ -995,7 +999,8 @@ export interface PostProcessCapable {
     findPostProcessTarget(downloadId: string): Promise<PostProcessTarget>;
     /** Runs it on exactly the history item the preview showed, and refuses if
      *  the id now resolves to another. Resolves only once the client shows the
-     *  rerun started; a rerun it accepted and then refused is an error. */
+     *  rerun ran; a rerun it accepted and then refused, or showed no sign of
+     *  running, is an error. */
     runPostProcess(downloadId: string, historyId: string): Promise<PostProcessOutcome>;
 }
 

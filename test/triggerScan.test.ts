@@ -813,11 +813,11 @@ describe('trigger_scan postprocess on nzbget', () => {
         DestDir: '/downloads/completed/Some.Release',
         Parameters: [
             { Name: 'drone', Value: 'drone-abc' },
-            { Name: 'Unpack7z.py:', Value: 'yes' }
+            { Name: 'Example.py:', Value: 'yes' }
         ]
     };
 
-    type Behaviour = 'running' | 'folderGone' | 'finishedFailed';
+    type Behaviour = 'running' | 'folderGone' | 'finishedFailed' | 'removedFast';
     const nzbget = (behaviour: Behaviour | boolean, history: Record<string, unknown>[] = [{ ...HISTORY_ROW }]) => {
         const mode: Behaviour = behaviour === true ? 'folderGone' : behaviour === false ? 'running' : behaviour;
         const methods: string[] = [];
@@ -833,6 +833,9 @@ describe('trigger_scan postprocess on nzbget', () => {
             if (method === 'editqueue') {
                 if (mode === 'folderGone') {
                     log.push({ ID: 2, Kind: 'ERROR', Text: "Could not post-process again Some.Release: destination directory /downloads/completed/Some.Release doesn't exist" });
+                } else if (mode === 'removedFast') {
+                    log.push({ ID: 2, Kind: 'INFO', Text: 'Post-processing again Some.Release' });
+                    history.splice(0, history.length);
                 } else if (mode === 'finishedFailed') {
                     Object.assign(history[0] ?? {}, { HistoryTime: 1_700_000_060, Status: 'FAILURE/UNPACK' });
                 } else {
@@ -855,7 +858,7 @@ describe('trigger_scan postprocess on nzbget', () => {
         const effects = structuredContent.effects.join(' ');
         expect(structuredContent.summary).toContain('Some.Release');
         expect(effects).toContain('/downloads/completed/Some.Release');
-        expect(effects).toContain('Unpack7z.py');
+        expect(effects).toContain('Example.py');
         expect(effects).toMatch(/refuses, and this reports the refusal/);
         expect(methods).not.toContain('editqueue');
     });
@@ -896,6 +899,23 @@ describe('trigger_scan postprocess on nzbget', () => {
 
         expect(String(done.structuredContent.result)).toMatch(/FAILURE\/UNPACK.*did not succeed/);
         expect(String(done.structuredContent.result)).not.toMatch(/imports the result/);
+    });
+
+    it('says a rerun ran and was cleared from history when an *arr already took it', async () => {
+        vi.useFakeTimers();
+        try {
+            const { adapter } = nzbget('removedFast');
+            const tool = call(adapter);
+            const preview = await tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc' });
+            const pending = tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc', confirm: preview.structuredContent.confirm_token });
+            await vi.runAllTimersAsync();
+            const done = await pending;
+
+            expect(done.structuredContent.applied).toBe(true);
+            expect(String(done.structuredContent.result)).toMatch(/no longer in nzbget's queue or history/);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     // The token binds the history item, not the id that found it: a newer item
