@@ -245,8 +245,8 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app
 ]
 ```
 
-Fields depend on the type. Transmission and qBittorrent have `username` and
-`passwordSet`. Everything else has `apiKeySet`. Jellyfin, Plex and Seerr add
+Fields depend on the type. Transmission, qBittorrent and NZBGet have `username`
+and `passwordSet`. Everything else has `apiKeySet`. Jellyfin, Plex and Seerr add
 `defaultUser` and `allowOtherUsers`, and Plex alone adds `allowMetadataRepair`. Any
 credentials in the URL are stripped.
 
@@ -352,7 +352,7 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token
 ### `POST /app`
 
 Adds an app. `type` and `url` are required, and so is `apiKey` for every type
-except Transmission and qBittorrent. The other fields are the ones in the
+except Transmission, qBittorrent and NZBGet. The other fields are the ones in the
 [update list](#updating-an-app): `username`, `password`,
 `defaultUser`, `allowOtherUsers`, `timeoutMs`, `safeWrite`, `destructive` and
 `allowMetadataRepair`.

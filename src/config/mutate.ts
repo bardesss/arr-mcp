@@ -113,7 +113,7 @@ const withPrimary = (config: Config, services: Record<string, unknown>): Config 
 };
 
 export const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
-export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent']);
+export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent', 'nzbget']);
 
 /**
  * Applies form fields to an entry, leaving a blank credential as it was.

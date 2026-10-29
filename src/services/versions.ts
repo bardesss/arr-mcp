@@ -9,6 +9,8 @@ import { ServiceError } from '../core/errors.ts';
  * on the stack this was developed against — Radarr 6.3.0, Sonarr 4.0.19,
  * Prowlarr 2.5.2, Bazarr 1.6.0, Jellyfin 10.11.11, Seerr 3.4.1, SABnzbd 5.0.4,
  * Transmission 4.1.3 — at the point where the API surface we use stabilised.
+ * NZBGet was added later. Its fixtures come from NZBGet 26.3, and its floor
+ * was checked against the source at the floor tag and then run live on 21.0.
  *
  * Expect to argue with them. Raising one is a breaking change for somebody.
  */
@@ -35,6 +37,10 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     seerr: '1.0.0',
     // output=json on the query-parameter API.
     sabnzbd: '3.0.0',
+    // v21.0's XmlRpc.cpp has every method and editqueue action used here. Its
+    // status lacks TotalDiskSpace* and DownloadRateHi/Lo; the adapter omits
+    // total space and falls back to DownloadRate. systemhealth is gated to 26.
+    nzbget: '21.0.0',
     // RPC session handshake and download-dir-free-space.
     transmission: '3.0.0',
     // The v2 WebUI API, which 4.1.0 introduced and nothing before it has.

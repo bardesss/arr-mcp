@@ -61,17 +61,31 @@ export class ServiceHttp {
     readonly #timeoutMs: number;
     readonly #auth: AuthStrategy;
     readonly #fetch: typeof fetch;
+    readonly #closeConnection: boolean;
 
     #consecutiveFailures = 0;
     #openedAt: number | undefined;
 
-    constructor(id: string, config: BaseServiceConfig, auth: AuthStrategy, fetchImpl: typeof fetch = fetch) {
+    /**
+     * `closeConnection` sends `Connection: close` on every request, for a
+     * server that cannot be trusted with a reused socket. NZBGet's
+     * WebServer.cpp answers a 401 before reading the POST body but keeps the
+     * connection open, so the next request on that socket fails.
+     */
+    constructor(
+        id: string,
+        config: BaseServiceConfig,
+        auth: AuthStrategy,
+        fetchImpl: typeof fetch = fetch,
+        opts: { closeConnection?: boolean } = {}
+    ) {
         this.#id = id;
         this.#baseUrl = config.url;
         this.#basePath = new URL(config.url).pathname.replace(/\/+$/, '');
         this.#timeoutMs = config.timeout_ms;
         this.#auth = auth;
         this.#fetch = fetchImpl;
+        this.#closeConnection = opts.closeConnection === true;
     }
 
     /**
@@ -259,6 +273,7 @@ export class ServiceHttp {
         const headers = new Headers({ Accept: read === 'text' ? '*/*' : 'application/json' });
         const encoded = body === undefined ? undefined : encodeBody(body);
         if (encoded !== undefined) headers.set('content-type', encoded.contentType);
+        if (this.#closeConnection) headers.set('Connection', 'close');
 
         // Before the strategy, so a service's own Authorization header wins.
         const basic = takeUserinfo(url);

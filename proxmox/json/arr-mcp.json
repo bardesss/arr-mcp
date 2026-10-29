@@ -14,7 +14,7 @@
   "repository": "https://github.com/bardesss/arr-mcp",
   "platforms": ["pve"],
   "logo": "https://cdn.jsdelivr.net/gh/bardesss/arr-mcp@main/assets/logo.png",
-  "description": "One MCP server for a whole self-hosted media stack. It gives an AI client a single endpoint that reaches Radarr, Sonarr, Whisparr, Prowlarr, Bazarr, Jellyfin, Plex, Seerr, SABnzbd, Transmission, qBittorrent and Profilarr at once, so a question like 'what is stuck in the queue and why' is answered across all of them rather than one service at a time. Writes are off by default and the destructive ones are previewed before they run.",
+  "description": "One MCP server for a whole self-hosted media stack. It gives an AI client a single endpoint that reaches Radarr, Sonarr, Whisparr, Prowlarr, Bazarr, Jellyfin, Plex, Seerr, SABnzbd, NZBGet, Transmission, qBittorrent and Profilarr at once, so a question like 'what is stuck in the queue and why' is answered across all of them rather than one service at a time. Writes are off by default and the destructive ones are previewed before they run.",
   "install_methods": [
     {
       "type": "default",

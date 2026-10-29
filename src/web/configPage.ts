@@ -57,7 +57,7 @@ export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].s
 const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'plex', 'seerr']);
 /** The media servers; when both are configured, one is primary. */
 const MEDIA_SERVERS: readonly ServiceId[] = ['jellyfin', 'plex'];
-const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent'];
+const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent', 'nzbget'];
 const NO_API_KEY: ReadonlySet<string> = new Set(NO_API_KEY_IDS);
 
 type AnyService = {

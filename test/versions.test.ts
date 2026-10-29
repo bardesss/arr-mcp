@@ -107,7 +107,7 @@ describe('assertVersionSupported', () => {
     });
 
     it('has a floor for every service', () => {
-        const services = ['radarr', 'sonarr', 'whisparr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'transmission', 'qbittorrent', 'plex', 'profilarr'];
+        const services = ['radarr', 'sonarr', 'whisparr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'plex', 'profilarr'];
         for (const s of services) expect(MINIMUM_VERSIONS[s as keyof typeof MINIMUM_VERSIONS]).toBeTruthy();
     });
 
@@ -141,6 +141,7 @@ describe('assertVersionSupported against captured evidence', () => {
         jellyfin: (read('test/fixtures/jellyfin/system-info.json') as { Version: string }).Version,
         seerr: (read('test/fixtures/seerr/status.json') as { version: string }).version,
         sabnzbd: (read('test/fixtures/sabnzbd/version.json') as { version: string }).version,
+        nzbget: (read('test/fixtures/nzbget/version.json') as { result: string }).result,
         transmission: (read('test/fixtures/transmission/session-get.json') as { arguments: { version: string } }).arguments.version,
         qbittorrent: (read('test/fixtures/qbittorrent/version.json') as { version: string }).version,
         plex: '1.0.0',
