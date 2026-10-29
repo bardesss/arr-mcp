@@ -1,0 +1,460 @@
+[
+  {
+    "title": "Album 1",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 5,
+    "foreignAlbumId": "00000000-0000-4000-8000-000000000001",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 184000,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": {
+      "votes": 10,
+      "value": 8
+    },
+    "releaseDate": "2024-01-01T01:00:00Z",
+    "releases": [
+      {
+        "id": 1001,
+        "albumId": 17,
+        "foreignReleaseId": "00000000-0000-4000-8000-000000000001",
+        "title": "Album 1",
+        "status": "Official",
+        "duration": 184000,
+        "trackCount": 10,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "Name 1",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [],
+        "label": [
+          "Fixture text",
+          "Fixture text"
+        ],
+        "format": "Digital Media",
+        "monitored": true
+      },
+      {
+        "id": 1002,
+        "albumId": 17,
+        "foreignReleaseId": "00000000-0000-4000-8000-000000000001",
+        "title": "Album 1",
+        "status": "Official",
+        "duration": 181000,
+        "trackCount": 10,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "Name 1",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "Fixture text"
+        ],
+        "label": [
+          "Fixture text",
+          "Fixture text"
+        ],
+        "format": "Digital Media",
+        "monitored": false
+      },
+      {
+        "id": 1003,
+        "albumId": 17,
+        "foreignReleaseId": "00000000-0000-4000-8000-000000000001",
+        "title": "Album 1",
+        "status": "Official",
+        "duration": 183000,
+        "trackCount": 10,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "Name 1",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "Fixture text"
+        ],
+        "label": [
+          "Fixture text",
+          "Fixture text"
+        ],
+        "format": "Digital Media",
+        "monitored": false
+      },
+      {
+        "id": 1004,
+        "albumId": 17,
+        "foreignReleaseId": "00000000-0000-4000-8000-000000000001",
+        "title": "Album 1",
+        "status": "Official",
+        "duration": 181000,
+        "trackCount": 10,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "Name 1",
+            "mediumFormat": "12\" Vinyl"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "Fixture text"
+        ],
+        "label": [],
+        "format": "12\" Vinyl",
+        "monitored": false
+      },
+      {
+        "id": 1005,
+        "albumId": 17,
+        "foreignReleaseId": "00000000-0000-4000-8000-000000000001",
+        "title": "Album 1",
+        "status": "Official",
+        "duration": 181000,
+        "trackCount": 10,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "Name 1",
+            "mediumFormat": "12\" Vinyl"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "Fixture text"
+        ],
+        "label": [],
+        "format": "12\" Vinyl",
+        "monitored": false
+      },
+      {
+        "id": 1006,
+        "albumId": 17,
+        "foreignReleaseId": "00000000-0000-4000-8000-000000000001",
+        "title": "Album 1",
+        "status": "Official",
+        "duration": 182000,
+        "trackCount": 10,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "Name 1",
+            "mediumFormat": "CD"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "Fixture text"
+        ],
+        "label": [
+          "Fixture text"
+        ],
+        "format": "CD",
+        "monitored": false
+      },
+      {
+        "id": 1007,
+        "albumId": 17,
+        "foreignReleaseId": "00000000-0000-4000-8000-000000000001",
+        "title": "Album 1",
+        "status": "Official",
+        "duration": 184000,
+        "trackCount": 10,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "Name 1",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "Fixture text"
+        ],
+        "label": [],
+        "format": "Digital Media",
+        "monitored": false
+      }
+    ],
+    "genres": [
+      "Genre 1"
+    ],
+    "media": [
+      {
+        "mediumNumber": 1,
+        "mediumName": "Name 1",
+        "mediumFormat": "Digital Media"
+      }
+    ],
+    "artist": {
+      "artistMetadataId": 6,
+      "status": "continuing",
+      "ended": false,
+      "artistName": "Artist 1",
+      "foreignArtistId": "00000000-0000-4000-8000-000000000001",
+      "tadbId": 0,
+      "discogsId": 0,
+      "artistType": "Person",
+      "disambiguation": "",
+      "links": [
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-1"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-2"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-3"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-4"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-5"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-6"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-7"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-8"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-9"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-10"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-11"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-12"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-13"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-14"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-15"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-16"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-17"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-18"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-19"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-20"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-21"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-22"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-23"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-24"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-25"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-26"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-27"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-28"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-29"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-30"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-31"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-32"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-33"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-34"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-35"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-36"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-37"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-38"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-39"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-40"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-41"
+        },
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-42"
+        }
+      ],
+      "images": [],
+      "path": "/media/lidarr/Artist 1",
+      "qualityProfileId": 1,
+      "metadataProfileId": 1,
+      "monitored": false,
+      "monitorNewItems": "all",
+      "genres": [
+        "Genre 1"
+      ],
+      "cleanName": "artist1",
+      "sortName": "artist 1",
+      "tags": [],
+      "added": "2024-01-01T02:00:00Z",
+      "ratings": {
+        "votes": 10,
+        "value": 8
+      },
+      "statistics": {
+        "albumCount": 0,
+        "trackFileCount": 0,
+        "trackCount": 0,
+        "totalTrackCount": 0,
+        "sizeOnDisk": 0,
+        "percentOfTracks": 0
+      },
+      "id": 5
+    },
+    "images": [
+      {
+        "url": "https://indexer.example.test/",
+        "coverType": "cover",
+        "extension": ".jpg",
+        "remoteUrl": "https://indexer.example.test/"
+      }
+    ],
+    "links": [
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-1"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-2"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-3"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-4"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-5"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-6"
+      }
+    ],
+    "statistics": {
+      "trackFileCount": 0,
+      "trackCount": 10,
+      "totalTrackCount": 10,
+      "sizeOnDisk": 0,
+      "percentOfTracks": 0
+    },
+    "grabbed": false,
+    "id": 17
+  }
+]

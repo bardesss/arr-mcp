@@ -421,6 +421,37 @@ describe('PlexAdapter', () => {
         const page = (items: unknown[]) => ({ MediaContainer: { Metadata: items } });
         const withPaging = (start: number, extra = '') => `?${extra}includeGuids=1&X-Plex-Container-Start=${start}&X-Plex-Container-Size=500`;
 
+        /**
+         * The music half, against the capture @ghostintherack took from Plex
+         * 1.43.5 and anonymised. Five artists, and the last has no `mbid://`
+         * guid, which is the real case: not every artist carries one.
+         */
+        it('reads artists from a music section, joined on the mbid guid', async () => {
+            const music = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/plex/section-artists.json'), 'utf8'));
+            const { adapter } = plex({
+                '/library/sections': {
+                    MediaContainer: { Directory: [{ key: '1', type: 'movie' }, { key: '2', type: 'artist' }] }
+                },
+                [`/library/sections/2/all?type=8&includeGuids=1&X-Plex-Container-Start=0&X-Plex-Container-Size=500`]: music
+            });
+
+            const items = await adapter.listUserMusic({ id: '1', name: 'Bartus' });
+
+            expect(items).toHaveLength(5);
+            expect(items.map(i => i.kind)).toEqual(Array(5).fill('artist'));
+            expect(items[0]).toMatchObject({ ids: { mbid: '00000000-0000-4000-8000-000000000001' } });
+            expect(items[0]?.playback).toEqual({ user: 'Bartus', itemId: '1001' });
+            expect(items[0]?.playback).not.toHaveProperty('watched');
+            // The captured artist with no mbid guid: no id invented for it.
+            expect(items[4]?.ids).toEqual({});
+        });
+
+        it('reads no artists when Plex has no music section', async () => {
+            const { adapter } = plex({ '/library/sections': SECTIONS });
+
+            expect(await adapter.listUserMusic({ id: '1', name: 'Bartus' })).toEqual([]);
+        });
+
         it('contributes items from both a movie section and a show section', async () => {
             const { adapter } = plex({
                 '/library/sections': SECTIONS,

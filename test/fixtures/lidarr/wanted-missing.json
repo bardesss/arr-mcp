@@ -1,0 +1,4451 @@
+{
+  "page": 1,
+  "pageSize": 10,
+  "sortKey": "releaseDate",
+  "sortDirection": "descending",
+  "totalRecords": 4,
+  "records": [
+    {
+      "title": "Random Access Memories",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 1,
+      "foreignAlbumId": "aa997ea0-2936-40bd-884d-3af8a0e064dc",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 0,
+      "duration": 16196600,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "ratings": {
+        "votes": 42,
+        "value": 8.1
+      },
+      "releaseDate": "2013-05-17T00:00:00Z",
+      "releases": [
+        {
+          "id": 67,
+          "albumId": 4,
+          "foreignReleaseId": "8ecfafd1-89a8-423a-968f-3fff47f0b0f9",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 6616285,
+          "trackCount": 22,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "10th anniversary edition",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "2xCD",
+          "monitored": false
+        },
+        {
+          "id": 68,
+          "albumId": 4,
+          "foreignReleaseId": "158f94bf-d77f-4055-afa4-8fc7e0b2a004",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4464000,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Brazil"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 69,
+          "albumId": 4,
+          "foreignReleaseId": "b3484b6e-3daf-400c-be4a-f72a10cd66cd",
+          "title": "ランダム・アクセス・メモリーズ",
+          "status": "Pseudo-Release",
+          "duration": 4728000,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "Unknown",
+              "mediumFormat": "Unknown"
+            }
+          ],
+          "disambiguation": "",
+          "country": [],
+          "label": [],
+          "format": "Unknown",
+          "monitored": false
+        },
+        {
+          "id": 70,
+          "albumId": 4,
+          "foreignReleaseId": "e69e2f55-a2c0-472e-b30b-f43b565b3fbe",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4477288,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Canada"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 71,
+          "albumId": 4,
+          "foreignReleaseId": "bbfc83ad-826f-4957-893d-a808105c828b",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4464000,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Australia"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 72,
+          "albumId": 4,
+          "foreignReleaseId": "1f1710cf-17cf-4a5e-80df-d39ce2b191b9",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4464000,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "South Korea"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 73,
+          "albumId": 4,
+          "foreignReleaseId": "4867ceba-ffe7-40c0-a093-45be6c03c655",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4464000,
+          "trackCount": 13,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France",
+            "Germany",
+            "Italy",
+            "United Kingdom",
+            "United States"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 74,
+          "albumId": 4,
+          "foreignReleaseId": "42662b17-c1a3-4ae7-9060-da4513798f7f",
+          "title": "Random Access Memories",
+          "status": "Withdrawn",
+          "duration": 4468000,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "24bit/88.2kHz",
+          "country": [
+            "Japan"
+          ],
+          "label": [
+            "Sony Records International",
+            "Sony Records International"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 75,
+          "albumId": 4,
+          "foreignReleaseId": "36e2aede-346d-4931-8565-78d810d167c7",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4464000,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "Apple Digital Master",
+          "country": [
+            "United States",
+            "[Worldwide]"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 76,
+          "albumId": 4,
+          "foreignReleaseId": "c7e5cfae-3313-40d5-88c8-cea90656eb45",
+          "title": "Random Access Memories",
+          "status": "Bootleg",
+          "duration": 5362000,
+          "trackCount": 15,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "1/2\" 15 IPS",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "[no label]"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 77,
+          "albumId": 4,
+          "foreignReleaseId": "86b962b4-6cfb-48fc-a313-a58424fcb317",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 5372000,
+          "trackCount": 15,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "USB Flash Drive"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "USB Flash Drive",
+          "monitored": false
+        },
+        {
+          "id": 78,
+          "albumId": 4,
+          "foreignReleaseId": "873e0cbd-f696-4e79-9868-e469274bbbe4",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 5372000,
+          "trackCount": 15,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "USB Flash Drive"
+            }
+          ],
+          "disambiguation": "USB FLAC, 24-bit / 88.2kHz",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "USB Flash Drive",
+          "monitored": false
+        },
+        {
+          "id": 79,
+          "albumId": 4,
+          "foreignReleaseId": "79215cdf-4764-4dee-b0b9-fec1643df7c5",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4739557,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Japan"
+          ],
+          "label": [
+            "Sony Records International"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 80,
+          "albumId": 4,
+          "foreignReleaseId": "fc1eb6d6-1c46-429a-8332-4f881c541ae7",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 11418000,
+          "trackCount": 30,
+          "mediumCount": 4,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 3,
+              "mediumName": "",
+              "mediumFormat": "10\" Vinyl"
+            },
+            {
+              "mediumNumber": 4,
+              "mediumName": "",
+              "mediumFormat": "USB Flash Drive"
+            }
+          ],
+          "disambiguation": "limited box set edition",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Columbia",
+            "Columbia"
+          ],
+          "format": "2x12\" Vinyl, 10\" Vinyl, USB Flash Drive",
+          "monitored": false
+        },
+        {
+          "id": 81,
+          "albumId": 4,
+          "foreignReleaseId": "6940fcdf-6e70-4764-8782-18e2c1e600de",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 6616285,
+          "trackCount": 22,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "10th anniversary edition",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Columbia",
+            "Legacy",
+            "Sony Music"
+          ],
+          "format": "2xCD",
+          "monitored": false
+        },
+        {
+          "id": 82,
+          "albumId": 4,
+          "foreignReleaseId": "5000a285-b67e-4cfc-b54b-2b98f1810d2e",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4464000,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 83,
+          "albumId": 4,
+          "foreignReleaseId": "a8308466-dd18-4912-9192-ccd0eb1878e0",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4477288,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 84,
+          "albumId": 4,
+          "foreignReleaseId": "f6758afb-ecff-410e-8979-b131cfa3c6d3",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4477288,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France",
+            "Germany",
+            "Netherlands",
+            "United Kingdom"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 85,
+          "albumId": 4,
+          "foreignReleaseId": "ecf72e5a-e378-485e-bb87-7ebbd0430a79",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4461000,
+          "trackCount": 13,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Columbia",
+            "Sony Music"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 86,
+          "albumId": 4,
+          "foreignReleaseId": "4375c18f-f160-44d0-ae2b-795f1dd5870f",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 6600000,
+          "trackCount": 22,
+          "mediumCount": 3,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "Vinyl"
+            },
+            {
+              "mediumNumber": 3,
+              "mediumName": "",
+              "mediumFormat": "Vinyl"
+            }
+          ],
+          "disambiguation": "10th anniversary edition",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Rough Trade"
+          ],
+          "format": "3xVinyl",
+          "monitored": false
+        },
+        {
+          "id": 87,
+          "albumId": 4,
+          "foreignReleaseId": "ec116461-5b0d-4c98-bb44-a4de5de63076",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 4464000,
+          "trackCount": 13,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "88.2kHz/24‐bit",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "Columbia"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 88,
+          "albumId": 4,
+          "foreignReleaseId": "bd104f75-c502-40cf-b46a-83a0535984d4",
+          "title": "Random Access Memories",
+          "status": "Bootleg",
+          "duration": 16196600,
+          "trackCount": 49,
+          "mediumCount": 4,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            },
+            {
+              "mediumNumber": 3,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            },
+            {
+              "mediumNumber": 4,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "Complete Audiophile Edition",
+          "country": [],
+          "label": [],
+          "format": "4xDigital Media",
+          "monitored": true
+        },
+        {
+          "id": 89,
+          "albumId": 4,
+          "foreignReleaseId": "e65fcfb0-02dc-407c-ab28-8168dafcb999",
+          "title": "Random Access Memories",
+          "status": "Official",
+          "duration": 6610659,
+          "trackCount": 22,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "10th anniversary edition",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "Columbia",
+            "Legacy"
+          ],
+          "format": "2xDigital Media",
+          "monitored": false
+        }
+      ],
+      "genres": [
+        "Electronic",
+        "Disco",
+        "Funk",
+        "Electro",
+        "French House",
+        "Pop",
+        "Nu Disco",
+        "Synth Funk",
+        "Club",
+        "Electro-Disco",
+        "Dance",
+        "Electronica",
+        "House",
+        "Progressive House",
+        "Synth-Pop"
+      ],
+      "mediumCount": 4,
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "",
+          "mediumFormat": "Digital Media"
+        },
+        {
+          "mediumNumber": 2,
+          "mediumName": "",
+          "mediumFormat": "Digital Media"
+        },
+        {
+          "mediumNumber": 3,
+          "mediumName": "",
+          "mediumFormat": "Digital Media"
+        },
+        {
+          "mediumNumber": 4,
+          "mediumName": "",
+          "mediumFormat": "Digital Media"
+        }
+      ],
+      "artist": {
+        "status": "ended",
+        "ended": true,
+        "artistName": "Daft Punk",
+        "foreignArtistId": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "French electronic duo",
+        "links": [
+          {
+            "url": "https://daftpunk.com/",
+            "name": "daftpunk"
+          },
+          {
+            "url": "https://www.discogs.com/artist/1289",
+            "name": "discogs"
+          },
+          {
+            "url": "http://musicmoz.org/Bands_and_Artists/D/Daft_Punk/",
+            "name": "musicmoz"
+          },
+          {
+            "url": "https://www.imdb.com/name/nm1386916/",
+            "name": "imdb"
+          },
+          {
+            "url": "https://myspace.com/daftpunk",
+            "name": "myspace"
+          },
+          {
+            "url": "https://www.bbc.co.uk/music/artists/056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+            "name": "bbc"
+          },
+          {
+            "url": "https://www.allmusic.com/artist/mn0000667669",
+            "name": "allmusic"
+          },
+          {
+            "url": "https://www.last.fm/music/Daft+Punk",
+            "name": "last"
+          },
+          {
+            "url": "http://viaf.org/viaf/131208258",
+            "name": "viaf"
+          },
+          {
+            "url": "https://www.wikidata.org/wiki/Q185828",
+            "name": "wikidata"
+          },
+          {
+            "url": "http://emimusic.jp/daftpunk",
+            "name": "emimusic"
+          },
+          {
+            "url": "http://sonymusic.co.jp/daftpunk",
+            "name": "sonymusic"
+          },
+          {
+            "url": "https://secondhandsongs.com/artist/2933",
+            "name": "secondhandsongs"
+          },
+          {
+            "url": "https://rateyourmusic.com/artist/daft-punk",
+            "name": "rateyourmusic"
+          },
+          {
+            "url": "https://commons.wikimedia.org/wiki/File:Daftpunklapremiere2010.jpg",
+            "name": "wikimedia"
+          },
+          {
+            "url": "https://twitter.com/daftpunk",
+            "name": "twitter"
+          },
+          {
+            "url": "https://www.deezer.com/artist/27",
+            "name": "deezer"
+          },
+          {
+            "url": "https://open.spotify.com/artist/4tZwfgrHOc3mvqYlEYSvVi",
+            "name": "spotify"
+          },
+          {
+            "url": "https://genius.com/artists/Daft-punk",
+            "name": "genius"
+          },
+          {
+            "url": "http://mouskni.com/artists/daft-punk/",
+            "name": "mouskni"
+          },
+          {
+            "url": "https://imvdb.com/n/daft-punk",
+            "name": "imvdb"
+          },
+          {
+            "url": "https://tidal.com/artist/8847",
+            "name": "tidal"
+          },
+          {
+            "url": "https://www.instagram.com/daftpunk/",
+            "name": "instagram"
+          },
+          {
+            "url": "https://d-nb.info/gnd/10198300-1",
+            "name": "d-nb"
+          },
+          {
+            "url": "http://id.loc.gov/authorities/names/no97063566",
+            "name": "loc"
+          },
+          {
+            "url": "https://catalogue.bnf.fr/ark:/12148/cb139764066",
+            "name": "bnf"
+          },
+          {
+            "url": "https://www.dailymotion.com/daftpunk",
+            "name": "dailymotion"
+          },
+          {
+            "url": "https://www.songkick.com/artists/368193",
+            "name": "songkick"
+          },
+          {
+            "url": "https://soundcloud.com/daftpunkofficialmusic",
+            "name": "soundcloud"
+          },
+          {
+            "url": "https://www.cdjapan.co.jp/person/700202980",
+            "name": "cdjapan"
+          },
+          {
+            "url": "https://www.musik-sammler.de/artist/2854/",
+            "name": "musik-sammler"
+          },
+          {
+            "url": "https://www.musixmatch.com/artist/Daft-Punk",
+            "name": "musixmatch"
+          },
+          {
+            "url": "https://muzikum.eu/en/daft-punk/lyrics",
+            "name": "muzikum"
+          },
+          {
+            "url": "https://us.napster.com/artist/daft-punk",
+            "name": "napster"
+          },
+          {
+            "url": "https://www.junodownload.com/artists/Daft+Punk/releases/",
+            "name": "junodownload"
+          },
+          {
+            "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://ra.co/dj/daftpunk",
+            "name": "ra"
+          },
+          {
+            "url": "http://soundtrackcollector.com/composer/10148/",
+            "name": "soundtrackcollector"
+          },
+          {
+            "url": "https://www.whosampled.com/Daft-Punk/",
+            "name": "whosampled"
+          },
+          {
+            "url": "https://www.twitch.tv/daftpunk",
+            "name": "twitch"
+          },
+          {
+            "url": "https://vgmdb.net/artist/13389",
+            "name": "vgmdb"
+          },
+          {
+            "url": "https://www.muziekweb.nl/Link/M00000098950/POPULAR/",
+            "name": "muziekweb"
+          },
+          {
+            "url": "https://www.setlist.fm/setlists/daft-punk-bd6d5a2.html",
+            "name": "setlist"
+          },
+          {
+            "url": "https://www.youtube.com/channel/UC_kRDKYrUlrbtrSiyu5Tflg",
+            "name": "youtube"
+          },
+          {
+            "url": "https://www.tiktok.com/@daftpunk",
+            "name": "tiktok"
+          },
+          {
+            "url": "https://www.45cat.com/artist/daft-punk",
+            "name": "45cat"
+          },
+          {
+            "url": "https://www.livefans.jp/artists/2584",
+            "name": "livefans"
+          },
+          {
+            "url": "https://mora.jp/artist/332271/",
+            "name": "mora"
+          },
+          {
+            "url": "https://music.youtube.com/channel/UCRr1xG_2WIDs18a6cIiCxeA",
+            "name": "youtube"
+          },
+          {
+            "url": "https://www.discogs.com/artist/7618671",
+            "name": "discogs"
+          },
+          {
+            "url": "https://www.deezer.com/artist/1477045",
+            "name": "deezer"
+          },
+          {
+            "url": "https://id.oclc.org/worldcat/entity/E39QQPVp836qD8MJb64BpRQfkt",
+            "name": "oclc"
+          },
+          {
+            "url": "https://daft.fm/artists/daft-punk/",
+            "name": "daft"
+          },
+          {
+            "url": "https://www.bandsintown.com/a/263",
+            "name": "bandsintown"
+          },
+          {
+            "url": "https://itunes.apple.com/fr/artist/id5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.apple.com/fr/artist/5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.apple.com/fr/artist/5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.amazon.fr/artists/B001E8WS3O",
+            "name": "amazon"
+          },
+          {
+            "url": "https://www.worldcat.org/identities/lccn-no97063566/",
+            "name": "worldcat"
+          },
+          {
+            "url": "https://www.idref.fr/080492193",
+            "name": "idref"
+          },
+          {
+            "url": "https://jaxsta.com/profile/0c43a427-4e1e-4986-8079-4b7a7359702e",
+            "name": "jaxsta"
+          },
+          {
+            "url": "https://music.yandex.com/artist/13905",
+            "name": "yandex"
+          },
+          {
+            "url": "https://www.facebook.com/daftpunk",
+            "name": "facebook"
+          },
+          {
+            "url": "https://www.beatport.com/artist/daft-punk/3547",
+            "name": "beatport"
+          },
+          {
+            "url": "https://www.theaudiodb.com/artist/111492-Daft-Punk",
+            "name": "theaudiodb"
+          },
+          {
+            "url": "https://ototoy.jp/_/default/a/321671",
+            "name": "ototoy"
+          },
+          {
+            "url": "https://id.ndl.go.jp/auth/ndlna/001155868",
+            "name": "go"
+          },
+          {
+            "url": "https://www.goodreads.com/author/show/1032817",
+            "name": "goodreads"
+          },
+          {
+            "url": "https://open.qobuz.com/artist/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://open.qobuz.com/artist/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://ototoy.jp/_/default/a/875226",
+            "name": "ototoy"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/music/Daft Punk",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Electronic",
+          "House",
+          "French House",
+          "Dance",
+          "Disco",
+          "Electro",
+          "Electronica",
+          "Electro House",
+          "Techno",
+          "Nu Disco",
+          "French Electro",
+          "Club",
+          "Electronic Rock",
+          "Funk",
+          "Synth-Pop",
+          "Jackin House",
+          "Electroclash",
+          "Pop",
+          "R&B",
+          "Trap",
+          "Edm",
+          "Organic House"
+        ],
+        "cleanName": "daftpunk",
+        "sortName": "daft punk",
+        "tags": [],
+        "added": "2026-10-27T04:14:06Z",
+        "ratings": {
+          "votes": 27,
+          "value": 9.3
+        },
+        "id": 1
+      },
+      "images": [
+        {
+          "coverType": "cover",
+          "url": "/MediaCover/1/poster.jpg",
+          "remoteUrl": "https://indexer.example.test/",
+          "extension": ".jpg"
+        },
+        {
+          "coverType": "disc",
+          "url": "/MediaCover/1/poster.jpg",
+          "remoteUrl": "https://indexer.example.test/",
+          "extension": ".jpg"
+        }
+      ],
+      "links": [
+        {
+          "url": "http://www.randomaccessmemories.com/",
+          "name": "randomaccessmemories"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q8119033",
+          "name": "wikidata"
+        },
+        {
+          "url": "https://www.discogs.com/master/556257",
+          "name": "discogs"
+        },
+        {
+          "url": "https://www.allmusic.com/album/mw0002521619",
+          "name": "allmusic"
+        },
+        {
+          "url": "http://thequietus.com/articles/12374-daft-punk-random-access-memories-review",
+          "name": "thequietus"
+        },
+        {
+          "url": "https://rateyourmusic.com/release/album/daft_punk/random_access_memories/",
+          "name": "rateyourmusic"
+        },
+        {
+          "url": "http://pitchfork.com/reviews/albums/18028-daft-punk-random-access-memories/",
+          "name": "pitchfork"
+        },
+        {
+          "url": "https://www.offiziellecharts.de/charts/album-details-215083",
+          "name": "offiziellecharts"
+        },
+        {
+          "url": "https://pitchfork.com/reviews/albums/daft-punk-random-access-memories-10th-anniversary-edition/",
+          "name": "pitchfork"
+        },
+        {
+          "url": "https://www.last.fm/music/Daft+Punk/Random+Access+Memories",
+          "name": "last"
+        }
+      ],
+      "statistics": {
+        "trackFileCount": 0,
+        "trackCount": 49,
+        "totalTrackCount": 49,
+        "sizeOnDisk": 0,
+        "percentOfTracks": 0
+      },
+      "id": 4
+    },
+    {
+      "title": "Human After All",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 1,
+      "foreignAlbumId": "f9e8042a-674e-3f01-80ec-7f0ab1c537df",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 0,
+      "duration": 4248000,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "ratings": {
+        "votes": 19,
+        "value": 6.7
+      },
+      "releaseDate": "2005-03-01T00:00:00Z",
+      "releases": [
+        {
+          "id": 24,
+          "albumId": 2,
+          "foreignReleaseId": "8f4d3899-be98-4352-a9f0-8853cd6fb21e",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2712000,
+          "trackCount": 10,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "repress",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 25,
+          "albumId": 2,
+          "foreignReleaseId": "fd07d0fc-a68a-3b77-95c9-fd7ec7fea013",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2736891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United Kingdom"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 26,
+          "albumId": 2,
+          "foreignReleaseId": "877970e7-3bae-37ef-bd9f-b28c2c948dbb",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2738891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Canada"
+          ],
+          "label": [
+            "Virgin Music Canada"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 27,
+          "albumId": 2,
+          "foreignReleaseId": "77a2f001-ae10-45fe-8d56-6069edfe20fe",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2712000,
+          "trackCount": 10,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 28,
+          "albumId": 2,
+          "foreignReleaseId": "0443ddba-cc5d-347c-9859-d72a70eab674",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2736891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Enhanced CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France"
+          ],
+          "label": [
+            "Virgin Music France"
+          ],
+          "format": "Enhanced CD",
+          "monitored": false
+        },
+        {
+          "id": 29,
+          "albumId": 2,
+          "foreignReleaseId": "86d4299f-810e-3c4c-a324-2cc03672ed00",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2738891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Brazil"
+          ],
+          "label": [
+            "EMI Music Brasil"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 30,
+          "albumId": 2,
+          "foreignReleaseId": "b3923734-6636-4e81-8330-0990a318e10e",
+          "title": "Human After All",
+          "status": "Promotion",
+          "duration": 2738972,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD-R"
+            }
+          ],
+          "disambiguation": "early mastering",
+          "country": [
+            "United Kingdom"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD-R",
+          "monitored": false
+        },
+        {
+          "id": 31,
+          "albumId": 2,
+          "foreignReleaseId": "9c02dc5c-6725-314b-a5d1-b6097ff0c6ce",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2738891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Japan"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 32,
+          "albumId": 2,
+          "foreignReleaseId": "5005475a-cbd4-4e07-8d62-45bac1285673",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2738891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Enhanced CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Australia"
+          ],
+          "label": [
+            "EMI Music Group Australasia",
+            "Virgin"
+          ],
+          "format": "Enhanced CD",
+          "monitored": false
+        },
+        {
+          "id": 33,
+          "albumId": 2,
+          "foreignReleaseId": "ecf98192-83c3-4176-afec-8a069eb4de8f",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2707000,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Cassette"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Indonesia"
+          ],
+          "label": [
+            "EMI",
+            "Virgin Music"
+          ],
+          "format": "Cassette",
+          "monitored": false
+        },
+        {
+          "id": 34,
+          "albumId": 2,
+          "foreignReleaseId": "2b2d70aa-8327-43d0-9683-a1216c295611",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2738891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Enhanced CD"
+            }
+          ],
+          "disambiguation": "“Industria Argentina” is printed on the back cover.",
+          "country": [
+            "Argentina"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "Enhanced CD",
+          "monitored": false
+        },
+        {
+          "id": 35,
+          "albumId": 2,
+          "foreignReleaseId": "382e22d2-27ad-49c6-ab3b-aaa6e860447d",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2739905,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Parlophone"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 36,
+          "albumId": 2,
+          "foreignReleaseId": "7f293aa6-8c19-4695-80bb-63ac40a0f2b5",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2736893,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Canada",
+            "United States"
+          ],
+          "label": [
+            "Parlophone France"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 37,
+          "albumId": 2,
+          "foreignReleaseId": "e7b4cfcd-6ad2-4426-a8be-103f24cd62c6",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2738974,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Algeria",
+            "Angola",
+            "Anguilla",
+            "Antigua and Barbuda",
+            "Argentina",
+            "Armenia",
+            "Australia",
+            "Austria",
+            "Azerbaijan",
+            "Bahamas",
+            "Bahrain",
+            "Barbados",
+            "Belarus",
+            "Belgium",
+            "Belize",
+            "Benin",
+            "Bermuda",
+            "Bhutan",
+            "Bolivia",
+            "Bosnia and Herzegovina",
+            "Botswana",
+            "Brazil",
+            "Brunei",
+            "Bulgaria",
+            "Burkina Faso",
+            "Cambodia",
+            "Cameroon",
+            "Cape Verde",
+            "Cayman Islands",
+            "Chad",
+            "Chile",
+            "China",
+            "Colombia",
+            "Congo",
+            "Costa Rica",
+            "Côte d'Ivoire",
+            "Croatia",
+            "Cyprus",
+            "Czechia",
+            "Denmark",
+            "Dominica",
+            "Dominican Republic",
+            "Ecuador",
+            "Egypt",
+            "El Salvador",
+            "Estonia",
+            "Fiji",
+            "Finland",
+            "France",
+            "Gabon",
+            "Gambia",
+            "Georgia",
+            "Germany",
+            "Ghana",
+            "Greece",
+            "Grenada",
+            "Guatemala",
+            "Guinea-Bissau",
+            "Guyana",
+            "Honduras",
+            "Hong Kong",
+            "Hungary",
+            "Iceland",
+            "India",
+            "Indonesia",
+            "Iraq",
+            "Ireland",
+            "Israel",
+            "Italy",
+            "Jamaica",
+            "Japan",
+            "Jordan",
+            "Kazakhstan",
+            "Kenya",
+            "South Korea",
+            "Kuwait",
+            "Kyrgyzstan",
+            "Laos",
+            "Latvia",
+            "Lebanon",
+            "Liberia",
+            "Libya",
+            "Lithuania",
+            "Luxembourg",
+            "Macao",
+            "North Macedonia",
+            "Madagascar",
+            "Malawi",
+            "Malaysia",
+            "Maldives",
+            "Mali",
+            "Malta",
+            "Mauritania",
+            "Mauritius",
+            "Mexico",
+            "Federated States of Micronesia",
+            "Moldova",
+            "Mongolia",
+            "Montserrat",
+            "Morocco",
+            "Mozambique",
+            "Myanmar",
+            "Namibia",
+            "Nepal",
+            "Netherlands",
+            "New Zealand",
+            "Nicaragua",
+            "Niger",
+            "Nigeria",
+            "Norway",
+            "Oman",
+            "Panama",
+            "Papua New Guinea",
+            "Paraguay",
+            "Peru",
+            "Philippines",
+            "Poland",
+            "Portugal",
+            "Qatar",
+            "Romania",
+            "Russia",
+            "Rwanda",
+            "Saint Kitts and Nevis",
+            "Saint Lucia",
+            "Saint Vincent and The Grenadines",
+            "Saudi Arabia",
+            "Senegal",
+            "Seychelles",
+            "Sierra Leone",
+            "Singapore",
+            "Slovakia",
+            "Slovenia",
+            "Solomon Islands",
+            "South Africa",
+            "Spain",
+            "Sri Lanka",
+            "Suriname",
+            "Eswatini",
+            "Sweden",
+            "Switzerland",
+            "Taiwan",
+            "Tajikistan",
+            "Tanzania",
+            "Thailand",
+            "Tonga",
+            "Trinidad and Tobago",
+            "Tunisia",
+            "Türkiye",
+            "Turkmenistan",
+            "Turks and Caicos Islands",
+            "Uganda",
+            "Ukraine",
+            "United Arab Emirates",
+            "United Kingdom",
+            "Uruguay",
+            "Uzbekistan",
+            "Vanuatu",
+            "Venezuela",
+            "Vietnam",
+            "British Virgin Islands",
+            "Yemen",
+            "Democratic Republic of the Congo",
+            "Zambia",
+            "Zimbabwe",
+            "Montenegro",
+            "Serbia",
+            "Kosovo"
+          ],
+          "label": [
+            "Parlophone France"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 38,
+          "albumId": 2,
+          "foreignReleaseId": "e2b832c5-65cb-496d-801b-9d24c9b85a90",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2736891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Parlophone",
+            "Warner Music"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 39,
+          "albumId": 2,
+          "foreignReleaseId": "9a4cf1a0-da00-44bb-9fe4-b714394889c2",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2712000,
+          "trackCount": 10,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "Alternative Distribution Alliance"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 40,
+          "albumId": 2,
+          "foreignReleaseId": "742047dc-e0ae-43c2-b77e-e6e1d0bec237",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2712000,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Japan"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 41,
+          "albumId": 2,
+          "foreignReleaseId": "9e3978e5-221d-4c9f-ba12-c1d05da1e64d",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2739905,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [],
+          "label": [
+            "ADA France"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 42,
+          "albumId": 2,
+          "foreignReleaseId": "e890f782-bc39-43dd-890d-0c906c2641b2",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2738974,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "",
+          "country": [],
+          "label": [
+            "ADA France"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 43,
+          "albumId": 2,
+          "foreignReleaseId": "e4aad7bc-f587-4a64-94b3-d16979007313",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2712000,
+          "trackCount": 10,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Astralwerks",
+            "Astralwerks"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 44,
+          "albumId": 2,
+          "foreignReleaseId": "3c89972c-81bc-4dbb-917c-09451198df67",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2712000,
+          "trackCount": 10,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States",
+            "Europe"
+          ],
+          "label": [
+            "Parlophone"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 45,
+          "albumId": 2,
+          "foreignReleaseId": "abbc40a0-2bcc-449e-bdd0-2dbae3213517",
+          "title": "Human After All",
+          "status": "Official",
+          "duration": 2738891,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 46,
+          "albumId": 2,
+          "foreignReleaseId": "e367f332-fe1a-4e28-9754-9eda252b5b50",
+          "title": "Human After All",
+          "status": "Bootleg",
+          "duration": 4248000,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Russia"
+          ],
+          "label": [
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": true
+        },
+        {
+          "id": 47,
+          "albumId": 2,
+          "foreignReleaseId": "bda44260-ef94-4abf-a787-02a2f6ef22e1",
+          "title": "Human After All",
+          "status": "Promotion",
+          "duration": 2712000,
+          "trackCount": 10,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Copy Control CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "Copy Control CD",
+          "monitored": false
+        }
+      ],
+      "genres": [
+        "House",
+        "Electronic",
+        "Electro",
+        "French House",
+        "Experimental",
+        "Club",
+        "Progressive House",
+        "Electronica"
+      ],
+      "mediumCount": 1,
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "",
+          "mediumFormat": "CD"
+        }
+      ],
+      "artist": {
+        "status": "ended",
+        "ended": true,
+        "artistName": "Daft Punk",
+        "foreignArtistId": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "French electronic duo",
+        "links": [
+          {
+            "url": "https://daftpunk.com/",
+            "name": "daftpunk"
+          },
+          {
+            "url": "https://www.discogs.com/artist/1289",
+            "name": "discogs"
+          },
+          {
+            "url": "http://musicmoz.org/Bands_and_Artists/D/Daft_Punk/",
+            "name": "musicmoz"
+          },
+          {
+            "url": "https://www.imdb.com/name/nm1386916/",
+            "name": "imdb"
+          },
+          {
+            "url": "https://myspace.com/daftpunk",
+            "name": "myspace"
+          },
+          {
+            "url": "https://www.bbc.co.uk/music/artists/056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+            "name": "bbc"
+          },
+          {
+            "url": "https://www.allmusic.com/artist/mn0000667669",
+            "name": "allmusic"
+          },
+          {
+            "url": "https://www.last.fm/music/Daft+Punk",
+            "name": "last"
+          },
+          {
+            "url": "http://viaf.org/viaf/131208258",
+            "name": "viaf"
+          },
+          {
+            "url": "https://www.wikidata.org/wiki/Q185828",
+            "name": "wikidata"
+          },
+          {
+            "url": "http://emimusic.jp/daftpunk",
+            "name": "emimusic"
+          },
+          {
+            "url": "http://sonymusic.co.jp/daftpunk",
+            "name": "sonymusic"
+          },
+          {
+            "url": "https://secondhandsongs.com/artist/2933",
+            "name": "secondhandsongs"
+          },
+          {
+            "url": "https://rateyourmusic.com/artist/daft-punk",
+            "name": "rateyourmusic"
+          },
+          {
+            "url": "https://commons.wikimedia.org/wiki/File:Daftpunklapremiere2010.jpg",
+            "name": "wikimedia"
+          },
+          {
+            "url": "https://twitter.com/daftpunk",
+            "name": "twitter"
+          },
+          {
+            "url": "https://www.deezer.com/artist/27",
+            "name": "deezer"
+          },
+          {
+            "url": "https://open.spotify.com/artist/4tZwfgrHOc3mvqYlEYSvVi",
+            "name": "spotify"
+          },
+          {
+            "url": "https://genius.com/artists/Daft-punk",
+            "name": "genius"
+          },
+          {
+            "url": "http://mouskni.com/artists/daft-punk/",
+            "name": "mouskni"
+          },
+          {
+            "url": "https://imvdb.com/n/daft-punk",
+            "name": "imvdb"
+          },
+          {
+            "url": "https://tidal.com/artist/8847",
+            "name": "tidal"
+          },
+          {
+            "url": "https://www.instagram.com/daftpunk/",
+            "name": "instagram"
+          },
+          {
+            "url": "https://d-nb.info/gnd/10198300-1",
+            "name": "d-nb"
+          },
+          {
+            "url": "http://id.loc.gov/authorities/names/no97063566",
+            "name": "loc"
+          },
+          {
+            "url": "https://catalogue.bnf.fr/ark:/12148/cb139764066",
+            "name": "bnf"
+          },
+          {
+            "url": "https://www.dailymotion.com/daftpunk",
+            "name": "dailymotion"
+          },
+          {
+            "url": "https://www.songkick.com/artists/368193",
+            "name": "songkick"
+          },
+          {
+            "url": "https://soundcloud.com/daftpunkofficialmusic",
+            "name": "soundcloud"
+          },
+          {
+            "url": "https://www.cdjapan.co.jp/person/700202980",
+            "name": "cdjapan"
+          },
+          {
+            "url": "https://www.musik-sammler.de/artist/2854/",
+            "name": "musik-sammler"
+          },
+          {
+            "url": "https://www.musixmatch.com/artist/Daft-Punk",
+            "name": "musixmatch"
+          },
+          {
+            "url": "https://muzikum.eu/en/daft-punk/lyrics",
+            "name": "muzikum"
+          },
+          {
+            "url": "https://us.napster.com/artist/daft-punk",
+            "name": "napster"
+          },
+          {
+            "url": "https://www.junodownload.com/artists/Daft+Punk/releases/",
+            "name": "junodownload"
+          },
+          {
+            "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://ra.co/dj/daftpunk",
+            "name": "ra"
+          },
+          {
+            "url": "http://soundtrackcollector.com/composer/10148/",
+            "name": "soundtrackcollector"
+          },
+          {
+            "url": "https://www.whosampled.com/Daft-Punk/",
+            "name": "whosampled"
+          },
+          {
+            "url": "https://www.twitch.tv/daftpunk",
+            "name": "twitch"
+          },
+          {
+            "url": "https://vgmdb.net/artist/13389",
+            "name": "vgmdb"
+          },
+          {
+            "url": "https://www.muziekweb.nl/Link/M00000098950/POPULAR/",
+            "name": "muziekweb"
+          },
+          {
+            "url": "https://www.setlist.fm/setlists/daft-punk-bd6d5a2.html",
+            "name": "setlist"
+          },
+          {
+            "url": "https://www.youtube.com/channel/UC_kRDKYrUlrbtrSiyu5Tflg",
+            "name": "youtube"
+          },
+          {
+            "url": "https://www.tiktok.com/@daftpunk",
+            "name": "tiktok"
+          },
+          {
+            "url": "https://www.45cat.com/artist/daft-punk",
+            "name": "45cat"
+          },
+          {
+            "url": "https://www.livefans.jp/artists/2584",
+            "name": "livefans"
+          },
+          {
+            "url": "https://mora.jp/artist/332271/",
+            "name": "mora"
+          },
+          {
+            "url": "https://music.youtube.com/channel/UCRr1xG_2WIDs18a6cIiCxeA",
+            "name": "youtube"
+          },
+          {
+            "url": "https://www.discogs.com/artist/7618671",
+            "name": "discogs"
+          },
+          {
+            "url": "https://www.deezer.com/artist/1477045",
+            "name": "deezer"
+          },
+          {
+            "url": "https://id.oclc.org/worldcat/entity/E39QQPVp836qD8MJb64BpRQfkt",
+            "name": "oclc"
+          },
+          {
+            "url": "https://daft.fm/artists/daft-punk/",
+            "name": "daft"
+          },
+          {
+            "url": "https://www.bandsintown.com/a/263",
+            "name": "bandsintown"
+          },
+          {
+            "url": "https://itunes.apple.com/fr/artist/id5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.apple.com/fr/artist/5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.apple.com/fr/artist/5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.amazon.fr/artists/B001E8WS3O",
+            "name": "amazon"
+          },
+          {
+            "url": "https://www.worldcat.org/identities/lccn-no97063566/",
+            "name": "worldcat"
+          },
+          {
+            "url": "https://www.idref.fr/080492193",
+            "name": "idref"
+          },
+          {
+            "url": "https://jaxsta.com/profile/0c43a427-4e1e-4986-8079-4b7a7359702e",
+            "name": "jaxsta"
+          },
+          {
+            "url": "https://music.yandex.com/artist/13905",
+            "name": "yandex"
+          },
+          {
+            "url": "https://www.facebook.com/daftpunk",
+            "name": "facebook"
+          },
+          {
+            "url": "https://www.beatport.com/artist/daft-punk/3547",
+            "name": "beatport"
+          },
+          {
+            "url": "https://www.theaudiodb.com/artist/111492-Daft-Punk",
+            "name": "theaudiodb"
+          },
+          {
+            "url": "https://ototoy.jp/_/default/a/321671",
+            "name": "ototoy"
+          },
+          {
+            "url": "https://id.ndl.go.jp/auth/ndlna/001155868",
+            "name": "go"
+          },
+          {
+            "url": "https://www.goodreads.com/author/show/1032817",
+            "name": "goodreads"
+          },
+          {
+            "url": "https://open.qobuz.com/artist/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://open.qobuz.com/artist/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://ototoy.jp/_/default/a/875226",
+            "name": "ototoy"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/music/Daft Punk",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Electronic",
+          "House",
+          "French House",
+          "Dance",
+          "Disco",
+          "Electro",
+          "Electronica",
+          "Electro House",
+          "Techno",
+          "Nu Disco",
+          "French Electro",
+          "Club",
+          "Electronic Rock",
+          "Funk",
+          "Synth-Pop",
+          "Jackin House",
+          "Electroclash",
+          "Pop",
+          "R&B",
+          "Trap",
+          "Edm",
+          "Organic House"
+        ],
+        "cleanName": "daftpunk",
+        "sortName": "daft punk",
+        "tags": [],
+        "added": "2026-10-27T04:14:06Z",
+        "ratings": {
+          "votes": 27,
+          "value": 9.3
+        },
+        "id": 1
+      },
+      "images": [
+        {
+          "coverType": "cover",
+          "url": "/MediaCover/1/poster.jpg",
+          "remoteUrl": "https://indexer.example.test/",
+          "extension": ".jpg"
+        },
+        {
+          "coverType": "disc",
+          "url": "/MediaCover/1/poster.jpg",
+          "remoteUrl": "https://indexer.example.test/",
+          "extension": ".jpg"
+        }
+      ],
+      "links": [
+        {
+          "url": "https://www.discogs.com/master/26833",
+          "name": "discogs"
+        },
+        {
+          "url": "https://www.bbc.co.uk/music/reviews/gpcz",
+          "name": "bbc"
+        },
+        {
+          "url": "https://www.allmusic.com/album/mw0000255400",
+          "name": "allmusic"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q1636518",
+          "name": "wikidata"
+        },
+        {
+          "url": "https://www.indielondon.co.uk/music/cd_daft_punk_human_after.html",
+          "name": "indielondon"
+        },
+        {
+          "url": "https://rateyourmusic.com/release/album/daft-punk/human-after-all/",
+          "name": "rateyourmusic"
+        },
+        {
+          "url": "https://pitchfork.com/reviews/albums/2137-human-after-all/",
+          "name": "pitchfork"
+        },
+        {
+          "url": "https://www.last.fm/music/Daft+Punk/Human+After+All",
+          "name": "last"
+        }
+      ],
+      "statistics": {
+        "trackFileCount": 0,
+        "trackCount": 14,
+        "totalTrackCount": 14,
+        "sizeOnDisk": 0,
+        "percentOfTracks": 0
+      },
+      "id": 2
+    },
+    {
+      "title": "Discovery",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 1,
+      "foreignAlbumId": "48117b90-a16e-34ca-a514-19c702df1158",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 0,
+      "duration": 3657862,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "ratings": {
+        "votes": 41,
+        "value": 8.5
+      },
+      "releaseDate": "2001-02-26T00:00:00Z",
+      "releases": [
+        {
+          "id": 1,
+          "albumId": 1,
+          "foreignReleaseId": "51467269-3122-3d7e-92b2-0f0a694d30c1",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Japan"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": true
+        },
+        {
+          "id": 2,
+          "albumId": 1,
+          "foreignReleaseId": "5ad66522-edce-3a77-b5fa-7956ee879239",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 3,
+          "albumId": 1,
+          "foreignReleaseId": "488477d8-10b4-47fe-a482-549f011406a5",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3661979,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "ADA France"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 4,
+          "albumId": 1,
+          "foreignReleaseId": "30e45d86-707d-4042-9df5-93724557aadb",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 5,
+          "albumId": 1,
+          "foreignReleaseId": "8343b377-ea18-4d64-b5f6-ffaf55d8f55b",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657955,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Australia"
+          ],
+          "label": [
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 6,
+          "albumId": 1,
+          "foreignReleaseId": "c80cdcf0-0b8d-4c40-bbbb-54b286fd9a21",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Parlophone",
+            "Warner Bros. Records"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 7,
+          "albumId": 1,
+          "foreignReleaseId": "d073287b-d1bd-4f11-a933-a4386f8cf701",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France",
+            "Europe"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 8,
+          "albumId": 1,
+          "foreignReleaseId": "bd3bb36e-16c8-438f-850e-dfbf4d1478f0",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657955,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Australia"
+          ],
+          "label": [
+            "Parlophone"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 9,
+          "albumId": 1,
+          "foreignReleaseId": "74ccb54a-1b24-41a6-a25f-a877e0774fc9",
+          "title": "ディスカバリ / Discovery",
+          "status": "Official",
+          "duration": 3658289,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "Forever Young Campaign",
+          "country": [
+            "Japan"
+          ],
+          "label": [
+            "Parlophone"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 10,
+          "albumId": 1,
+          "foreignReleaseId": "098060d4-ba3c-469d-88b0-08642261c7ab",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 11,
+          "albumId": 1,
+          "foreignReleaseId": "ac7518c6-b630-4761-99c7-6a94cc35a594",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3653000,
+          "trackCount": 14,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France",
+            "Europe"
+          ],
+          "label": [
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 12,
+          "albumId": 1,
+          "foreignReleaseId": "a1be7f50-6fbb-4251-8de3-3bb54d168d7f",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3661979,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Germany"
+          ],
+          "label": [
+            "Alternative Distribution Alliance",
+            "Warner Music France"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 13,
+          "albumId": 1,
+          "foreignReleaseId": "b078d70c-d2eb-489a-a8f8-e322af35dedf",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3651000,
+          "trackCount": 14,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Alternative Distribution Alliance"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 14,
+          "albumId": 1,
+          "foreignReleaseId": "44e85a85-77d7-3e2e-8416-65a27d2aef68",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United Kingdom"
+          ],
+          "label": [
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 15,
+          "albumId": 1,
+          "foreignReleaseId": "5654ace8-fd02-4471-a14c-bd6781cf2277",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3664000,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Mexico"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 16,
+          "albumId": 1,
+          "foreignReleaseId": "89643cd8-4664-4ea0-9cde-2564d26231a9",
+          "title": "ディスカバリー",
+          "status": "Official",
+          "duration": 0,
+          "trackCount": 14,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "ADA France"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 17,
+          "albumId": 1,
+          "foreignReleaseId": "6b6628a6-59a2-4284-86fc-8f2d24cb7b7e",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Canada"
+          ],
+          "label": [
+            "Parlophone"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 18,
+          "albumId": 1,
+          "foreignReleaseId": "ab5ca495-8983-41b9-86b4-46a981d173be",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3658289,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "1st pressing",
+          "country": [
+            "Japan"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 19,
+          "albumId": 1,
+          "foreignReleaseId": "69b198ff-fbaa-492a-bd2e-55f7aef7c29e",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3657862,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Parlophone"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 20,
+          "albumId": 1,
+          "foreignReleaseId": "5125fa48-f5dc-4fe4-9e4e-8c0cb719ce03",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 0,
+          "trackCount": 14,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Alternative Distribution Alliance"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 21,
+          "albumId": 1,
+          "foreignReleaseId": "fcbe492b-c203-48c6-b15e-ae60122404bd",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3651000,
+          "trackCount": 14,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "Made in Poland",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "Alternative Distribution Alliance"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 22,
+          "albumId": 1,
+          "foreignReleaseId": "6cd30d99-4923-4d5e-8e51-9d87506976f1",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3667731,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "ADA France",
+            "Virgin"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 23,
+          "albumId": 1,
+          "foreignReleaseId": "8d28a4da-8077-4cae-a0a1-2d16c4923775",
+          "title": "Discovery",
+          "status": "Official",
+          "duration": 3667731,
+          "trackCount": 14,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "Interstella 5555 artwork",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "ADA France"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        }
+      ],
+      "genres": [
+        "House",
+        "Electronic",
+        "French House",
+        "Progressive House",
+        "Electro",
+        "Dance",
+        "Funky House",
+        "Dance-Pop",
+        "Electronica",
+        "Euro House",
+        "Synth Funk",
+        "Electro-Disco",
+        "Disco",
+        "Downtempo",
+        "Electro House",
+        "Tech House",
+        "Boogie",
+        "Club"
+      ],
+      "mediumCount": 1,
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "",
+          "mediumFormat": "CD"
+        }
+      ],
+      "artist": {
+        "status": "ended",
+        "ended": true,
+        "artistName": "Daft Punk",
+        "foreignArtistId": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "French electronic duo",
+        "links": [
+          {
+            "url": "https://daftpunk.com/",
+            "name": "daftpunk"
+          },
+          {
+            "url": "https://www.discogs.com/artist/1289",
+            "name": "discogs"
+          },
+          {
+            "url": "http://musicmoz.org/Bands_and_Artists/D/Daft_Punk/",
+            "name": "musicmoz"
+          },
+          {
+            "url": "https://www.imdb.com/name/nm1386916/",
+            "name": "imdb"
+          },
+          {
+            "url": "https://myspace.com/daftpunk",
+            "name": "myspace"
+          },
+          {
+            "url": "https://www.bbc.co.uk/music/artists/056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+            "name": "bbc"
+          },
+          {
+            "url": "https://www.allmusic.com/artist/mn0000667669",
+            "name": "allmusic"
+          },
+          {
+            "url": "https://www.last.fm/music/Daft+Punk",
+            "name": "last"
+          },
+          {
+            "url": "http://viaf.org/viaf/131208258",
+            "name": "viaf"
+          },
+          {
+            "url": "https://www.wikidata.org/wiki/Q185828",
+            "name": "wikidata"
+          },
+          {
+            "url": "http://emimusic.jp/daftpunk",
+            "name": "emimusic"
+          },
+          {
+            "url": "http://sonymusic.co.jp/daftpunk",
+            "name": "sonymusic"
+          },
+          {
+            "url": "https://secondhandsongs.com/artist/2933",
+            "name": "secondhandsongs"
+          },
+          {
+            "url": "https://rateyourmusic.com/artist/daft-punk",
+            "name": "rateyourmusic"
+          },
+          {
+            "url": "https://commons.wikimedia.org/wiki/File:Daftpunklapremiere2010.jpg",
+            "name": "wikimedia"
+          },
+          {
+            "url": "https://twitter.com/daftpunk",
+            "name": "twitter"
+          },
+          {
+            "url": "https://www.deezer.com/artist/27",
+            "name": "deezer"
+          },
+          {
+            "url": "https://open.spotify.com/artist/4tZwfgrHOc3mvqYlEYSvVi",
+            "name": "spotify"
+          },
+          {
+            "url": "https://genius.com/artists/Daft-punk",
+            "name": "genius"
+          },
+          {
+            "url": "http://mouskni.com/artists/daft-punk/",
+            "name": "mouskni"
+          },
+          {
+            "url": "https://imvdb.com/n/daft-punk",
+            "name": "imvdb"
+          },
+          {
+            "url": "https://tidal.com/artist/8847",
+            "name": "tidal"
+          },
+          {
+            "url": "https://www.instagram.com/daftpunk/",
+            "name": "instagram"
+          },
+          {
+            "url": "https://d-nb.info/gnd/10198300-1",
+            "name": "d-nb"
+          },
+          {
+            "url": "http://id.loc.gov/authorities/names/no97063566",
+            "name": "loc"
+          },
+          {
+            "url": "https://catalogue.bnf.fr/ark:/12148/cb139764066",
+            "name": "bnf"
+          },
+          {
+            "url": "https://www.dailymotion.com/daftpunk",
+            "name": "dailymotion"
+          },
+          {
+            "url": "https://www.songkick.com/artists/368193",
+            "name": "songkick"
+          },
+          {
+            "url": "https://soundcloud.com/daftpunkofficialmusic",
+            "name": "soundcloud"
+          },
+          {
+            "url": "https://www.cdjapan.co.jp/person/700202980",
+            "name": "cdjapan"
+          },
+          {
+            "url": "https://www.musik-sammler.de/artist/2854/",
+            "name": "musik-sammler"
+          },
+          {
+            "url": "https://www.musixmatch.com/artist/Daft-Punk",
+            "name": "musixmatch"
+          },
+          {
+            "url": "https://muzikum.eu/en/daft-punk/lyrics",
+            "name": "muzikum"
+          },
+          {
+            "url": "https://us.napster.com/artist/daft-punk",
+            "name": "napster"
+          },
+          {
+            "url": "https://www.junodownload.com/artists/Daft+Punk/releases/",
+            "name": "junodownload"
+          },
+          {
+            "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://ra.co/dj/daftpunk",
+            "name": "ra"
+          },
+          {
+            "url": "http://soundtrackcollector.com/composer/10148/",
+            "name": "soundtrackcollector"
+          },
+          {
+            "url": "https://www.whosampled.com/Daft-Punk/",
+            "name": "whosampled"
+          },
+          {
+            "url": "https://www.twitch.tv/daftpunk",
+            "name": "twitch"
+          },
+          {
+            "url": "https://vgmdb.net/artist/13389",
+            "name": "vgmdb"
+          },
+          {
+            "url": "https://www.muziekweb.nl/Link/M00000098950/POPULAR/",
+            "name": "muziekweb"
+          },
+          {
+            "url": "https://www.setlist.fm/setlists/daft-punk-bd6d5a2.html",
+            "name": "setlist"
+          },
+          {
+            "url": "https://www.youtube.com/channel/UC_kRDKYrUlrbtrSiyu5Tflg",
+            "name": "youtube"
+          },
+          {
+            "url": "https://www.tiktok.com/@daftpunk",
+            "name": "tiktok"
+          },
+          {
+            "url": "https://www.45cat.com/artist/daft-punk",
+            "name": "45cat"
+          },
+          {
+            "url": "https://www.livefans.jp/artists/2584",
+            "name": "livefans"
+          },
+          {
+            "url": "https://mora.jp/artist/332271/",
+            "name": "mora"
+          },
+          {
+            "url": "https://music.youtube.com/channel/UCRr1xG_2WIDs18a6cIiCxeA",
+            "name": "youtube"
+          },
+          {
+            "url": "https://www.discogs.com/artist/7618671",
+            "name": "discogs"
+          },
+          {
+            "url": "https://www.deezer.com/artist/1477045",
+            "name": "deezer"
+          },
+          {
+            "url": "https://id.oclc.org/worldcat/entity/E39QQPVp836qD8MJb64BpRQfkt",
+            "name": "oclc"
+          },
+          {
+            "url": "https://daft.fm/artists/daft-punk/",
+            "name": "daft"
+          },
+          {
+            "url": "https://www.bandsintown.com/a/263",
+            "name": "bandsintown"
+          },
+          {
+            "url": "https://itunes.apple.com/fr/artist/id5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.apple.com/fr/artist/5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.apple.com/fr/artist/5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.amazon.fr/artists/B001E8WS3O",
+            "name": "amazon"
+          },
+          {
+            "url": "https://www.worldcat.org/identities/lccn-no97063566/",
+            "name": "worldcat"
+          },
+          {
+            "url": "https://www.idref.fr/080492193",
+            "name": "idref"
+          },
+          {
+            "url": "https://jaxsta.com/profile/0c43a427-4e1e-4986-8079-4b7a7359702e",
+            "name": "jaxsta"
+          },
+          {
+            "url": "https://music.yandex.com/artist/13905",
+            "name": "yandex"
+          },
+          {
+            "url": "https://www.facebook.com/daftpunk",
+            "name": "facebook"
+          },
+          {
+            "url": "https://www.beatport.com/artist/daft-punk/3547",
+            "name": "beatport"
+          },
+          {
+            "url": "https://www.theaudiodb.com/artist/111492-Daft-Punk",
+            "name": "theaudiodb"
+          },
+          {
+            "url": "https://ototoy.jp/_/default/a/321671",
+            "name": "ototoy"
+          },
+          {
+            "url": "https://id.ndl.go.jp/auth/ndlna/001155868",
+            "name": "go"
+          },
+          {
+            "url": "https://www.goodreads.com/author/show/1032817",
+            "name": "goodreads"
+          },
+          {
+            "url": "https://open.qobuz.com/artist/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://open.qobuz.com/artist/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://ototoy.jp/_/default/a/875226",
+            "name": "ototoy"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/music/Daft Punk",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Electronic",
+          "House",
+          "French House",
+          "Dance",
+          "Disco",
+          "Electro",
+          "Electronica",
+          "Electro House",
+          "Techno",
+          "Nu Disco",
+          "French Electro",
+          "Club",
+          "Electronic Rock",
+          "Funk",
+          "Synth-Pop",
+          "Jackin House",
+          "Electroclash",
+          "Pop",
+          "R&B",
+          "Trap",
+          "Edm",
+          "Organic House"
+        ],
+        "cleanName": "daftpunk",
+        "sortName": "daft punk",
+        "tags": [],
+        "added": "2026-10-27T04:14:06Z",
+        "ratings": {
+          "votes": 27,
+          "value": 9.3
+        },
+        "id": 1
+      },
+      "images": [
+        {
+          "coverType": "cover",
+          "url": "/MediaCover/1/poster.jpg",
+          "remoteUrl": "https://indexer.example.test/",
+          "extension": ".jpg"
+        },
+        {
+          "coverType": "disc",
+          "url": "/MediaCover/1/poster.jpg",
+          "remoteUrl": "https://indexer.example.test/",
+          "extension": ".jpg"
+        }
+      ],
+      "links": [
+        {
+          "url": "https://www.discogs.com/master/26647",
+          "name": "discogs"
+        },
+        {
+          "url": "https://www.bbc.co.uk/music/reviews/jh3n",
+          "name": "bbc"
+        },
+        {
+          "url": "https://www.allmusic.com/album/mw0000119560",
+          "name": "allmusic"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q1901313",
+          "name": "wikidata"
+        },
+        {
+          "url": "https://rateyourmusic.com/release/album/daft_punk/discovery/",
+          "name": "rateyourmusic"
+        },
+        {
+          "url": "https://www.offiziellecharts.de/charts/album-details-3612",
+          "name": "offiziellecharts"
+        },
+        {
+          "url": "https://pitchfork.com/reviews/albums/2134-discovery/",
+          "name": "pitchfork"
+        },
+        {
+          "url": "https://www.last.fm/music/Daft+Punk/Discovery",
+          "name": "last"
+        }
+      ],
+      "statistics": {
+        "trackFileCount": 0,
+        "trackCount": 14,
+        "totalTrackCount": 14,
+        "sizeOnDisk": 0,
+        "percentOfTracks": 0
+      },
+      "id": 1
+    },
+    {
+      "title": "Homework",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 1,
+      "foreignAlbumId": "00054665-89fa-33d5-a8f0-1728ea8c32c3",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 0,
+      "duration": 10910000,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "ratings": {
+        "votes": 28,
+        "value": 8.1
+      },
+      "releaseDate": "1997-01-20T00:00:00Z",
+      "releases": [
+        {
+          "id": 48,
+          "albumId": 3,
+          "foreignReleaseId": "c6e0351d-6337-35c0-8d31-468fc4ddc70b",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433501,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "MiniDisc"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "MiniDisc",
+          "monitored": false
+        },
+        {
+          "id": 49,
+          "albumId": 3,
+          "foreignReleaseId": "32385e9e-51cd-3d5e-8d56-2fdc354a166a",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433501,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Cassette"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "Cassette",
+          "monitored": false
+        },
+        {
+          "id": 50,
+          "albumId": 3,
+          "foreignReleaseId": "7c6f8d63-edf7-4d99-b17e-2ab54e37bd56",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433621,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Australia"
+          ],
+          "label": [
+            "Virgin",
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 51,
+          "albumId": 3,
+          "foreignReleaseId": "ffc8b6c6-7294-475d-bc91-cfb1fde68e4f",
+          "title": "Homework",
+          "status": "Promotion",
+          "duration": 4411000,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 52,
+          "albumId": 3,
+          "foreignReleaseId": "db85b4cf-3554-46f6-9771-e3c281bf4b4c",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433501,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Parlophone"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 53,
+          "albumId": 3,
+          "foreignReleaseId": "ab98d218-73ea-45bd-a050-3902eb683d3f",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4411000,
+          "trackCount": 16,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States",
+            "Europe"
+          ],
+          "label": [
+            "Soma Records",
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 54,
+          "albumId": 3,
+          "foreignReleaseId": "af924388-28da-4425-9dc4-e39c4541c66e",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4411000,
+          "trackCount": 16,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United Kingdom",
+            "Europe"
+          ],
+          "label": [
+            "Soma Records",
+            "Soma Records",
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 55,
+          "albumId": 3,
+          "foreignReleaseId": "992cb0d1-3f58-4af7-84a9-5fa6784e4336",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433501,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "made in Canada",
+          "country": [
+            "Canada"
+          ],
+          "label": [
+            "Virgin Music Canada"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 56,
+          "albumId": 3,
+          "foreignReleaseId": "aa7f9a4a-ce70-4404-b992-2f677e0cf064",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433621,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "Printed in the UK",
+          "country": [
+            "United Kingdom"
+          ],
+          "label": [
+            "Soma Records",
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 57,
+          "albumId": 3,
+          "foreignReleaseId": "dbdc3cb4-144b-4817-a20d-0bc532602f34",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4411559,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Cassette"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Canada"
+          ],
+          "label": [
+            "Virgin",
+            "Virgin Music Canada"
+          ],
+          "format": "Cassette",
+          "monitored": false
+        },
+        {
+          "id": 58,
+          "albumId": 3,
+          "foreignReleaseId": "770b9b80-10e1-4297-b1fd-46ad0dbb0305",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4411000,
+          "trackCount": 16,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "12\" Vinyl"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "France"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "2x12\" Vinyl",
+          "monitored": false
+        },
+        {
+          "id": 59,
+          "albumId": 3,
+          "foreignReleaseId": "ce45ae00-c3e2-38db-95e3-2cc4c42f2985",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433501,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "United States"
+          ],
+          "label": [
+            "Soma Records",
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 60,
+          "albumId": 3,
+          "foreignReleaseId": "c128183d-d999-46f6-8593-7ef60a7fe354",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433621,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "re-release",
+          "country": [
+            "Europe"
+          ],
+          "label": [
+            "ADA France"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 61,
+          "albumId": 3,
+          "foreignReleaseId": "647d7016-2683-42c6-b027-83114a7c3eec",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4433621,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "printed in Holland",
+          "country": [
+            "France",
+            "United Kingdom"
+          ],
+          "label": [
+            "Soma Records",
+            "Virgin",
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 62,
+          "albumId": 3,
+          "foreignReleaseId": "2fdcc2d7-50b9-4b27-8262-8cf9e31aaa4d",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4437532,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "Parlophone France"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 63,
+          "albumId": 3,
+          "foreignReleaseId": "b314ce03-0753-4f86-9a66-ec0eff166083",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4437532,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "ADA France"
+          ],
+          "format": "Digital Media",
+          "monitored": false
+        },
+        {
+          "id": 64,
+          "albumId": 3,
+          "foreignReleaseId": "d36255ce-cd6e-4220-b283-93633c4d409c",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4438541,
+          "trackCount": 15,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "",
+          "country": [
+            "Mexico"
+          ],
+          "label": [
+            "EMI"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 65,
+          "albumId": 3,
+          "foreignReleaseId": "c34926e6-ffa7-4c34-98cd-3bb078a14143",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 4435051,
+          "trackCount": 16,
+          "mediumCount": 1,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "CD"
+            }
+          ],
+          "disambiguation": "Printed in Korea",
+          "country": [
+            "South Korea"
+          ],
+          "label": [
+            "Virgin"
+          ],
+          "format": "CD",
+          "monitored": false
+        },
+        {
+          "id": 66,
+          "albumId": 3,
+          "foreignReleaseId": "1ca31e9e-67a3-4028-98de-deaed8f13779",
+          "title": "Homework",
+          "status": "Official",
+          "duration": 10910000,
+          "trackCount": 31,
+          "mediumCount": 2,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            },
+            {
+              "mediumNumber": 2,
+              "mediumName": "",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "disambiguation": "25th Anniversary Edition",
+          "country": [
+            "[Worldwide]"
+          ],
+          "label": [
+            "ADA France"
+          ],
+          "format": "2xDigital Media",
+          "monitored": true
+        }
+      ],
+      "genres": [
+        "Electronic",
+        "House",
+        "French House",
+        "Electro",
+        "Disco",
+        "Electronica",
+        "Deep House",
+        "Pop",
+        "Progressive House",
+        "Tech House",
+        "Techno",
+        "Club"
+      ],
+      "mediumCount": 2,
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "",
+          "mediumFormat": "Digital Media"
+        },
+        {
+          "mediumNumber": 2,
+          "mediumName": "",
+          "mediumFormat": "Digital Media"
+        }
+      ],
+      "artist": {
+        "status": "ended",
+        "ended": true,
+        "artistName": "Daft Punk",
+        "foreignArtistId": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "French electronic duo",
+        "links": [
+          {
+            "url": "https://daftpunk.com/",
+            "name": "daftpunk"
+          },
+          {
+            "url": "https://www.discogs.com/artist/1289",
+            "name": "discogs"
+          },
+          {
+            "url": "http://musicmoz.org/Bands_and_Artists/D/Daft_Punk/",
+            "name": "musicmoz"
+          },
+          {
+            "url": "https://www.imdb.com/name/nm1386916/",
+            "name": "imdb"
+          },
+          {
+            "url": "https://myspace.com/daftpunk",
+            "name": "myspace"
+          },
+          {
+            "url": "https://www.bbc.co.uk/music/artists/056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+            "name": "bbc"
+          },
+          {
+            "url": "https://www.allmusic.com/artist/mn0000667669",
+            "name": "allmusic"
+          },
+          {
+            "url": "https://www.last.fm/music/Daft+Punk",
+            "name": "last"
+          },
+          {
+            "url": "http://viaf.org/viaf/131208258",
+            "name": "viaf"
+          },
+          {
+            "url": "https://www.wikidata.org/wiki/Q185828",
+            "name": "wikidata"
+          },
+          {
+            "url": "http://emimusic.jp/daftpunk",
+            "name": "emimusic"
+          },
+          {
+            "url": "http://sonymusic.co.jp/daftpunk",
+            "name": "sonymusic"
+          },
+          {
+            "url": "https://secondhandsongs.com/artist/2933",
+            "name": "secondhandsongs"
+          },
+          {
+            "url": "https://rateyourmusic.com/artist/daft-punk",
+            "name": "rateyourmusic"
+          },
+          {
+            "url": "https://commons.wikimedia.org/wiki/File:Daftpunklapremiere2010.jpg",
+            "name": "wikimedia"
+          },
+          {
+            "url": "https://twitter.com/daftpunk",
+            "name": "twitter"
+          },
+          {
+            "url": "https://www.deezer.com/artist/27",
+            "name": "deezer"
+          },
+          {
+            "url": "https://open.spotify.com/artist/4tZwfgrHOc3mvqYlEYSvVi",
+            "name": "spotify"
+          },
+          {
+            "url": "https://genius.com/artists/Daft-punk",
+            "name": "genius"
+          },
+          {
+            "url": "http://mouskni.com/artists/daft-punk/",
+            "name": "mouskni"
+          },
+          {
+            "url": "https://imvdb.com/n/daft-punk",
+            "name": "imvdb"
+          },
+          {
+            "url": "https://tidal.com/artist/8847",
+            "name": "tidal"
+          },
+          {
+            "url": "https://www.instagram.com/daftpunk/",
+            "name": "instagram"
+          },
+          {
+            "url": "https://d-nb.info/gnd/10198300-1",
+            "name": "d-nb"
+          },
+          {
+            "url": "http://id.loc.gov/authorities/names/no97063566",
+            "name": "loc"
+          },
+          {
+            "url": "https://catalogue.bnf.fr/ark:/12148/cb139764066",
+            "name": "bnf"
+          },
+          {
+            "url": "https://www.dailymotion.com/daftpunk",
+            "name": "dailymotion"
+          },
+          {
+            "url": "https://www.songkick.com/artists/368193",
+            "name": "songkick"
+          },
+          {
+            "url": "https://soundcloud.com/daftpunkofficialmusic",
+            "name": "soundcloud"
+          },
+          {
+            "url": "https://www.cdjapan.co.jp/person/700202980",
+            "name": "cdjapan"
+          },
+          {
+            "url": "https://www.musik-sammler.de/artist/2854/",
+            "name": "musik-sammler"
+          },
+          {
+            "url": "https://www.musixmatch.com/artist/Daft-Punk",
+            "name": "musixmatch"
+          },
+          {
+            "url": "https://muzikum.eu/en/daft-punk/lyrics",
+            "name": "muzikum"
+          },
+          {
+            "url": "https://us.napster.com/artist/daft-punk",
+            "name": "napster"
+          },
+          {
+            "url": "https://www.junodownload.com/artists/Daft+Punk/releases/",
+            "name": "junodownload"
+          },
+          {
+            "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://ra.co/dj/daftpunk",
+            "name": "ra"
+          },
+          {
+            "url": "http://soundtrackcollector.com/composer/10148/",
+            "name": "soundtrackcollector"
+          },
+          {
+            "url": "https://www.whosampled.com/Daft-Punk/",
+            "name": "whosampled"
+          },
+          {
+            "url": "https://www.twitch.tv/daftpunk",
+            "name": "twitch"
+          },
+          {
+            "url": "https://vgmdb.net/artist/13389",
+            "name": "vgmdb"
+          },
+          {
+            "url": "https://www.muziekweb.nl/Link/M00000098950/POPULAR/",
+            "name": "muziekweb"
+          },
+          {
+            "url": "https://www.setlist.fm/setlists/daft-punk-bd6d5a2.html",
+            "name": "setlist"
+          },
+          {
+            "url": "https://www.youtube.com/channel/UC_kRDKYrUlrbtrSiyu5Tflg",
+            "name": "youtube"
+          },
+          {
+            "url": "https://www.tiktok.com/@daftpunk",
+            "name": "tiktok"
+          },
+          {
+            "url": "https://www.45cat.com/artist/daft-punk",
+            "name": "45cat"
+          },
+          {
+            "url": "https://www.livefans.jp/artists/2584",
+            "name": "livefans"
+          },
+          {
+            "url": "https://mora.jp/artist/332271/",
+            "name": "mora"
+          },
+          {
+            "url": "https://music.youtube.com/channel/UCRr1xG_2WIDs18a6cIiCxeA",
+            "name": "youtube"
+          },
+          {
+            "url": "https://www.discogs.com/artist/7618671",
+            "name": "discogs"
+          },
+          {
+            "url": "https://www.deezer.com/artist/1477045",
+            "name": "deezer"
+          },
+          {
+            "url": "https://id.oclc.org/worldcat/entity/E39QQPVp836qD8MJb64BpRQfkt",
+            "name": "oclc"
+          },
+          {
+            "url": "https://daft.fm/artists/daft-punk/",
+            "name": "daft"
+          },
+          {
+            "url": "https://www.bandsintown.com/a/263",
+            "name": "bandsintown"
+          },
+          {
+            "url": "https://itunes.apple.com/fr/artist/id5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.apple.com/fr/artist/5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.apple.com/fr/artist/5468295",
+            "name": "apple"
+          },
+          {
+            "url": "https://music.amazon.fr/artists/B001E8WS3O",
+            "name": "amazon"
+          },
+          {
+            "url": "https://www.worldcat.org/identities/lccn-no97063566/",
+            "name": "worldcat"
+          },
+          {
+            "url": "https://www.idref.fr/080492193",
+            "name": "idref"
+          },
+          {
+            "url": "https://jaxsta.com/profile/0c43a427-4e1e-4986-8079-4b7a7359702e",
+            "name": "jaxsta"
+          },
+          {
+            "url": "https://music.yandex.com/artist/13905",
+            "name": "yandex"
+          },
+          {
+            "url": "https://www.facebook.com/daftpunk",
+            "name": "facebook"
+          },
+          {
+            "url": "https://www.beatport.com/artist/daft-punk/3547",
+            "name": "beatport"
+          },
+          {
+            "url": "https://www.theaudiodb.com/artist/111492-Daft-Punk",
+            "name": "theaudiodb"
+          },
+          {
+            "url": "https://ototoy.jp/_/default/a/321671",
+            "name": "ototoy"
+          },
+          {
+            "url": "https://id.ndl.go.jp/auth/ndlna/001155868",
+            "name": "go"
+          },
+          {
+            "url": "https://www.goodreads.com/author/show/1032817",
+            "name": "goodreads"
+          },
+          {
+            "url": "https://open.qobuz.com/artist/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://open.qobuz.com/artist/36819",
+            "name": "qobuz"
+          },
+          {
+            "url": "https://ototoy.jp/_/default/a/875226",
+            "name": "ototoy"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/music/Daft Punk",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Electronic",
+          "House",
+          "French House",
+          "Dance",
+          "Disco",
+          "Electro",
+          "Electronica",
+          "Electro House",
+          "Techno",
+          "Nu Disco",
+          "French Electro",
+          "Club",
+          "Electronic Rock",
+          "Funk",
+          "Synth-Pop",
+          "Jackin House",
+          "Electroclash",
+          "Pop",
+          "R&B",
+          "Trap",
+          "Edm",
+          "Organic House"
+        ],
+        "cleanName": "daftpunk",
+        "sortName": "daft punk",
+        "tags": [],
+        "added": "2026-10-27T04:14:06Z",
+        "ratings": {
+          "votes": 27,
+          "value": 9.3
+        },
+        "id": 1
+      },
+      "images": [
+        {
+          "coverType": "cover",
+          "url": "/MediaCover/1/poster.jpg",
+          "remoteUrl": "https://indexer.example.test/",
+          "extension": ".jpg"
+        },
+        {
+          "coverType": "disc",
+          "url": "/MediaCover/1/poster.jpg",
+          "remoteUrl": "https://indexer.example.test/",
+          "extension": ".jpg"
+        }
+      ],
+      "links": [
+        {
+          "url": "http://musicmoz.org/Bands_and_Artists/D/Daft_Punk/Discography/Homework/",
+          "name": "musicmoz"
+        },
+        {
+          "url": "https://www.discogs.com/master/26629",
+          "name": "discogs"
+        },
+        {
+          "url": "https://www.bbc.co.uk/music/reviews/vmq4",
+          "name": "bbc"
+        },
+        {
+          "url": "https://www.allmusic.com/album/mw0000097581",
+          "name": "allmusic"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q920504",
+          "name": "wikidata"
+        },
+        {
+          "url": "https://rateyourmusic.com/release/album/daft_punk/homework/",
+          "name": "rateyourmusic"
+        },
+        {
+          "url": "https://www.offiziellecharts.de/charts/album-details-5543",
+          "name": "offiziellecharts"
+        },
+        {
+          "url": "https://pitchfork.com/reviews/albums/daft-punk-homework/",
+          "name": "pitchfork"
+        },
+        {
+          "url": "https://www.last.fm/music/Daft+Punk/Homework",
+          "name": "last"
+        }
+      ],
+      "statistics": {
+        "trackFileCount": 0,
+        "trackCount": 31,
+        "totalTrackCount": 31,
+        "sizeOnDisk": 0,
+        "percentOfTracks": 0
+      },
+      "id": 3
+    }
+  ]
+}

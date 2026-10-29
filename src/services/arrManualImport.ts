@@ -154,7 +154,7 @@ async function lookUpTarget(
 ): Promise<TargetLookup> {
     let target: { title?: string };
     try {
-        target = await http.get<{ title?: string }>(`/api/v3/${resource}/${id}`);
+        target = await http.get<{ title?: string }>(`${http.apiRoot}/${resource}/${id}`);
     } catch (err) {
         if (err instanceof ServiceError && err.kind === 'NotFound') {
             throw new ServiceError('NotFound', service, `${service} has no ${resource} ${id}`, {
@@ -165,7 +165,7 @@ async function lookUpTarget(
         throw err;
     }
     const episodes =
-        resource === 'series' ? await http.get<RawEpisodeRow[]>(`/api/v3/episode?seriesId=${id}`) : [];
+        resource === 'series' ? await http.get<RawEpisodeRow[]>(`${http.apiRoot}/episode?seriesId=${id}`) : [];
     return { ...(target.title === undefined ? {} : { title: target.title }), episodes };
 }
 
@@ -237,7 +237,7 @@ async function applyMapping(
         };
     });
 
-    const judged = await http.post<RawCandidate[]>('/api/v3/manualimport', items.map(i => i.body));
+    const judged = await http.post<RawCandidate[]>(`${http.apiRoot}/manualimport`, items.map(i => i.body));
 
     const merged = [...raw];
     items.forEach(({ m, r, index, episodes, body }, i) => {
@@ -270,7 +270,7 @@ async function readCandidates(
     let raw: RawCandidate[];
     try {
         raw = await http.get<RawCandidate[]>(
-            `/api/v3/manualimport?downloadId=${encodeURIComponent(downloadId)}&filterExistingFiles=true`
+            `${http.apiRoot}/manualimport?downloadId=${encodeURIComponent(downloadId)}&filterExistingFiles=true`
         );
     } catch (err) {
         throw await explainUnfinishedDownload(http, service, resource, downloadId, err);
@@ -393,8 +393,8 @@ async function resolveEpisodeRemap(
     // rather than parsing names, so `episodes` is the current association —
     // and after a remap, the corrected one.
     const [files, episodes] = await Promise.all([
-        http.get<RawSeriesFile[]>(`/api/v3/manualimport?seriesId=${seriesId}`),
-        http.get<RawEpisodeRow[]>(`/api/v3/episode?seriesId=${seriesId}`)
+        http.get<RawSeriesFile[]>(`${http.apiRoot}/manualimport?seriesId=${seriesId}`),
+        http.get<RawEpisodeRow[]>(`${http.apiRoot}/episode?seriesId=${seriesId}`)
     ]);
 
     const label = (e: RawEpisodeRow): string => sxe(e.seasonNumber ?? 0, e.episodeNumber ?? 0);
@@ -571,8 +571,8 @@ async function verifyRemapLanded(
     seriesId: number,
     moves: ResolvedRemap['moves']
 ): Promise<void> {
-    const episodes = await http.get<RawEpisodeRow[]>(`/api/v3/episode?seriesId=${seriesId}`);
-    const files = await http.get<RawSeriesFile[]>(`/api/v3/manualimport?seriesId=${seriesId}`);
+    const episodes = await http.get<RawEpisodeRow[]>(`${http.apiRoot}/episode?seriesId=${seriesId}`);
+    const files = await http.get<RawSeriesFile[]>(`${http.apiRoot}/manualimport?seriesId=${seriesId}`);
     const pathOf = new Map(
         files
             .filter(f => typeof f.episodeFileId === 'number')
@@ -602,7 +602,7 @@ type RawRenameRow = { episodeFileId?: number; existingPath?: string; newPath?: s
 
 /** Which of Sonarr's three episode naming formats this series is named by. */
 const seriesTypeOf = async (http: ServiceHttp, seriesId: number): Promise<string | undefined> =>
-    (await http.get<{ seriesType?: string }>(`/api/v3/series/${seriesId}`)).seriesType;
+    (await http.get<{ seriesType?: string }>(`${http.apiRoot}/series/${seriesId}`)).seriesType;
 
 /**
  * Makes the filenames match the episodes the remap just moved the files onto.
@@ -631,8 +631,8 @@ async function renameRemappedFiles(
     // Re-read for the ids Sonarr has just assigned, and ask it what it would
     // rename rather than deriving names from the format ourselves.
     const [after, pending] = await Promise.all([
-        http.get<RawSeriesFile[]>(`/api/v3/manualimport?seriesId=${seriesId}`),
-        http.get<RawRenameRow[]>(`/api/v3/rename?seriesId=${seriesId}`)
+        http.get<RawSeriesFile[]>(`${http.apiRoot}/manualimport?seriesId=${seriesId}`),
+        http.get<RawRenameRow[]>(`${http.apiRoot}/rename?seriesId=${seriesId}`)
     ]);
 
     const moved = new Set(

@@ -4,7 +4,7 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { servicesOnly } from '../core/gather.ts';
-import type { MergedItem } from '../core/resolver.ts';
+import { filmOrSeriesMatch, type FilmOrSeries } from '../core/resolver.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, toolInput, type DetailLevel } from '../core/shape.ts';
 import { logger } from '../core/logger.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -27,7 +27,7 @@ export async function buildGetMediaDetails(
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
     if (!hasMediaDetails(adapter)) {
         throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no media details to return`, {
-            remedy: 'Only radarr, sonarr and jellyfin can answer get_media_details.'
+            remedy: 'Only radarr, sonarr, lidarr and jellyfin can answer get_media_details.'
         });
     }
 
@@ -86,7 +86,7 @@ export type MediaDetailsQuery = {
  * one specific item either produced that item or did not, and an empty success
  * would read as "the item does not exist".
  */
-export type ResolvedMediaDetails = MergedItem & {
+export type ResolvedMediaDetails = FilmOrSeries & {
     episodes?: EpisodeSummary[];
     episodeCount?: number;
     episodesTruncated?: boolean;
@@ -100,7 +100,7 @@ export async function buildResolvedMediaDetails(
     opts?: { adapters: readonly ServiceAdapter[]; detail: DetailLevel; limit: number }
 ): Promise<ResolvedMediaDetails> {
     const { index, degraded } = await loader.load();
-    const [best] = index.search(query);
+    const best = filmOrSeriesMatch(index.search(query), query);
 
     if (best === undefined) {
         // `diagnose` (via its own `resolve` step) and `get_library` both hedge

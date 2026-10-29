@@ -1,0 +1,204 @@
+{
+  "Items": [
+    {
+      "Name": "Artist 1",
+      "ServerId": "00000000000000000000000000000000",
+      "Id": "00000000000000000000000000000001",
+      "ChannelId": null,
+      "RunTimeTicks": 36000000000,
+      "ProviderIds": {
+        "MusicBrainzArtist": "00000000-0000-4000-8000-000000000001"
+      },
+      "IsFolder": true,
+      "Type": "MusicArtist",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "Artist-Musicbrainz-00000000-0000-4000-8000-000000000001",
+        "ItemId": "00000000000000000000000000000001"
+      },
+      "ImageTags": {
+        "Primary": "b0000000000000000000000000000001",
+        "Logo": "b0000000000000000000000000000002"
+      },
+      "BackdropImageTags": [
+        "b0000000000000000000000000000003"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "b0000000000000000000000000000003": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Primary": {
+          "b0000000000000000000000000000001": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Logo": {
+          "b0000000000000000000000000000002": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    },
+    {
+      "Name": "Artist 2",
+      "ServerId": "00000000000000000000000000000000",
+      "Id": "00000000000000000000000000000002",
+      "ChannelId": null,
+      "RunTimeTicks": 72000000000,
+      "ProviderIds": {
+        "MusicBrainzArtist": "00000000-0000-4000-8000-000000000002"
+      },
+      "IsFolder": true,
+      "Type": "MusicArtist",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "Artist-Musicbrainz-00000000-0000-4000-8000-000000000002",
+        "ItemId": "00000000000000000000000000000002"
+      },
+      "ImageTags": {
+        "Primary": "b0000000000000000000000000000001",
+        "Logo": "b0000000000000000000000000000002"
+      },
+      "BackdropImageTags": [
+        "b0000000000000000000000000000003"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "b0000000000000000000000000000003": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Primary": {
+          "b0000000000000000000000000000001": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Logo": {
+          "b0000000000000000000000000000002": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    },
+    {
+      "Name": "Artist 3",
+      "ServerId": "00000000000000000000000000000000",
+      "Id": "00000000000000000000000000000003",
+      "ChannelId": null,
+      "RunTimeTicks": 108000000000,
+      "ProviderIds": {
+        "MusicBrainzArtist": "00000000-0000-4000-8000-000000000003"
+      },
+      "Type": "MusicArtist",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "Artist-Musicbrainz-00000000-0000-4000-8000-000000000003",
+        "ItemId": "00000000000000000000000000000003"
+      },
+      "ImageTags": {
+        "Primary": "b0000000000000000000000000000001",
+        "Logo": "b0000000000000000000000000000002"
+      },
+      "BackdropImageTags": [
+        "b0000000000000000000000000000003"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "b0000000000000000000000000000003": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Primary": {
+          "b0000000000000000000000000000001": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Logo": {
+          "b0000000000000000000000000000002": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    },
+    {
+      "Name": "Artist 4",
+      "ServerId": "00000000000000000000000000000000",
+      "Id": "00000000000000000000000000000004",
+      "ChannelId": null,
+      "RunTimeTicks": 144000000000,
+      "ProviderIds": {
+        "MusicBrainzArtist": "00000000-0000-4000-8000-000000000004"
+      },
+      "Type": "MusicArtist",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "Artist-Musicbrainz-00000000-0000-4000-8000-000000000004",
+        "ItemId": "00000000000000000000000000000004"
+      },
+      "ImageTags": {
+        "Logo": "b0000000000000000000000000000001",
+        "Primary": "b0000000000000000000000000000002"
+      },
+      "BackdropImageTags": [
+        "b0000000000000000000000000000003"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "b0000000000000000000000000000003": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Logo": {
+          "b0000000000000000000000000000001": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Primary": {
+          "b0000000000000000000000000000002": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    },
+    {
+      "Name": "Artist 5",
+      "ServerId": "00000000000000000000000000000000",
+      "Id": "00000000000000000000000000000005",
+      "ChannelId": null,
+      "RunTimeTicks": 180000000000,
+      "ProviderIds": {
+        "MusicBrainzArtist": "00000000-0000-4000-8000-000000000005"
+      },
+      "IsFolder": true,
+      "Type": "MusicArtist",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false,
+        "Key": "Artist-Musicbrainz-00000000-0000-4000-8000-000000000005",
+        "ItemId": "00000000000000000000000000000005"
+      },
+      "ImageTags": {
+        "Logo": "b0000000000000000000000000000001",
+        "Primary": "b0000000000000000000000000000002"
+      },
+      "BackdropImageTags": [
+        "b0000000000000000000000000000003"
+      ],
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "b0000000000000000000000000000003": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Logo": {
+          "b0000000000000000000000000000001": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        },
+        "Primary": {
+          "b0000000000000000000000000000002": "L00000fQfQfQfQfQfQfQfQfQfQfQ"
+        }
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown"
+    }
+  ],
+  "TotalRecordCount": 15,
+  "StartIndex": 0
+}

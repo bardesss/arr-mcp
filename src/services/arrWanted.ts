@@ -49,7 +49,7 @@ export async function readArrWanted(
     scope: WantedScope,
     want?: number
 ): Promise<Window<WantedItem>> {
-    const path = scope === 'missing' ? '/api/v3/wanted/missing' : '/api/v3/wanted/cutoff';
+    const path = scope === 'missing' ? `${http.apiRoot}/wanted/missing` : `${http.apiRoot}/wanted/cutoff`;
     const fence = (value: string, field: string) => fenceText(value, { service, field });
     const paging =
         want === undefined ? {} : { pageSize: pageSizeFor(want), stopWhen: (_page: unknown[], kept: number) => kept >= want };

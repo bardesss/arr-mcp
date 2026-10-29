@@ -209,10 +209,47 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr.** The clearest yes on this page. Servarr family, the same API shape
-  Radarr and Sonarr are already written against, on the chain by construction,
-  and it very likely spends no new tool: music maps onto `get_library`,
-  `get_queue`, `get_calendar` and the existing writes.
+- **Lidarr.** An adapter exists: the service id, the config block, the icon, the
+  vendored spec, and six capabilities. `LibraryCapable` and `SearchCapable`, so
+  `get_library` lists artists and `search_media` finds them.
+  `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
+  album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
+  album's flag. `MonitorStateCapable`, so that flag is read before it is changed
+  and a no-op is reported as one. `ArtistMonitorCapable`, so an artist's standing
+  policy is read and written as a set. All 21 capture endpoints were exercised
+  against a
+  live Lidarr 3.1.6.5079 and the fixtures are committed, but seven came back
+  with no rows: queue, history, blocklist, wanted cutoff, release, tag and
+  indexer are empty on a fresh instance. Those row shapes need a capture against
+  a library with real activity before a read adapter can claim them, and
+  `/wanted/missing` is the one populated paged route if one is wanted next. The
+  two write responses were captured separately, on a throwaway 2.1.3.3927
+  instance.
+
+  **The design constraint.** Music sits in the merged index as its own `kind`,
+  `artist`, and joins because its identity is a MusicBrainz MBID: a GUID, where
+  films and series key on integer TMDB, TVDB and IMDb ids. Jellyfin publishes the
+  same GUID on an album artist and Plex on an artist in a music section, so the
+  join works — and it is namespaced by kind, so an MBID can never collide with
+  the integer spaces. `get_media_details` answers for an artist. `diagnose` and
+  `fix_metadata` still read the film and series chain, and refuse an artist —
+  by query or by Lidarr id — naming `get_media_details` with `detail: "full"`
+  for the albums and `get_library`'s `kind: "artist"` for the artist list,
+  rather than reporting it as absent. The music read is its own source in a
+  library build, so a failed or absent one reports `unknown` presence rather than
+  claiming every artist is `arr_only`. It runs only when a Lidarr is configured:
+  with no artist row to join to, it would add the whole music collection as
+  `jellyfin_only`.
+
+  **What its API does not say out loud.** Three media levels, so `resource:
+  'movie' | 'series'` in the shared `arr*.ts` helpers does not apply. Two
+  profiles gate what gets monitored: quality and metadata. `RootFolderResource`
+  carries no `unmappedFolders`, and it does carry default profile and monitor
+  fields the shared `RootFolder` type has no room for. History ordinals move
+  too: `downloadIgnored` is 10, where Sonarr has it at 7. An *artist* carries an
+  added date, so `sort: "added"` works for music; an *album* has no added date
+  and no per-album quality, which is why the library rows on artists and albums
+  live under `get_media_details`.
 
 **Downloaded — where a grab actually lands**
 
@@ -263,7 +300,10 @@ gets held against the four checks above, which is cheaper for everyone than
 finding out afterwards.
 
 **You will have to test it yourself, properly.** The maintainer runs neither
-Lidarr, Plex nor qBittorrent. Lidarr has no adapter yet. Plex has an adapter
+Lidarr, Plex nor qBittorrent. Lidarr's read fixtures came from a live 3.1.6
+library with 1,578 artists and no download activity, and its two write fixtures
+from a temporary 2.1.3.3927 instance, so a capture against real download
+activity is still outstanding. Plex has an adapter
 and, as of a volunteer tester's report on [issue #180](../../issues/180), has
 been exercised against a real instance. [qBittorrent](../../issues/147) has an
 adapter too, exercised against a real 5.2.3 server in [#195](../../issues/195)
@@ -307,7 +347,7 @@ around them.
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
 5. **Decide whether it can be configured twice**, and say so in the adapter.
-   Eight of the thirteen services can be, so this is the common case rather than the
+   Eight of the fourteen services can be, so this is the common case rather than the
    exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
    '<type>'`, which is the *single*-instance shape. That is the safe default
    (a service that simply cannot be configured twice, rather than two adapters
@@ -365,12 +405,12 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Six of the thirteen services publish no usable OpenAPI spec, so the adapter
+Six of the fourteen services publish no usable OpenAPI spec, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
 That also decides what the nightly drift job can watch. `openapi-drift.yml`
-re-fetches the seven published specs and regenerates types from them, so it
+re-fetches the eight published specs and regenerates types from them, so it
 catches an upstream change before a user does. A spec-less service has nothing
 to fetch: its contract is the fields declared in `test/contract.test.ts`,
 checked against committed fixtures. That catches us breaking our own adapter,

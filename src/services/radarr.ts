@@ -6,7 +6,15 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
-import { addArrMedia, lookupArrForAdd, RADARR_ADD, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
+import {
+    addArrMedia,
+    lookupArrForAdd,
+    RADARR_ADD,
+    readProfileNames,
+    readQualityProfiles,
+    readRootFolders,
+    readTags
+} from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
@@ -277,7 +285,7 @@ export class RadarrAdapter
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const movies = await this.#http.get<Parameters<typeof readRadarrCalendar>[0]>(calendarPath(range));
+        const movies = await this.#http.get<Parameters<typeof readRadarrCalendar>[0]>(calendarPath(this.#http.apiRoot, range));
         return readRadarrCalendar(movies, this.id);
     }
 
@@ -356,23 +364,6 @@ export class RadarrAdapter
         this.#libraryCache.clear();
     }
 
-    /**
-     * Profile id → fenced name, cached beside the library read so a build
-     * costs one extra call rather than one per film. An empty map on failure:
-     * a profile list that times out must not take the whole library with it,
-     * and the id alone is still worth reporting.
-     */
-    async #profileNames(): Promise<Map<number, string>> {
-        try {
-            const profiles = await this.#libraryCache.get('profiles', LIBRARY_TTL_MS, () =>
-                readQualityProfiles(this.#http, this.id)
-            );
-            return new Map(profiles.map(p => [p.id, p.display]));
-        } catch {
-            return new Map();
-        }
-    }
-
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 
@@ -418,7 +409,7 @@ export class RadarrAdapter
      * this is the same `/api/v3/movie` read `search` already does, via `#allMovies`.
      */
     async listLibrary(): Promise<IndexInput[]> {
-        const [movies, profileNames] = await Promise.all([this.#allMovies(), this.#profileNames()]);
+        const [movies, profileNames] = await Promise.all([this.#allMovies(), readProfileNames(this.#http, this.id, this.#libraryCache)]);
 
         return movies.map(m => ({
             kind: 'movie' as const,

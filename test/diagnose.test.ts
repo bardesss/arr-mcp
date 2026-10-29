@@ -190,6 +190,30 @@ describe('diagnose', () => {
         expect(d.resolved?.ids).toEqual({ tmdb: 999 });
     });
 
+    it('refuses a Lidarr artist id rather than diagnosing it as a film', async () => {
+        // Lidarr gained getMediaDetails with the music work, so this path got
+        // past the `hasMediaDetails` gate. The artist row then failed
+        // `isFilmOrSeries` and fell through to a synthesised `kind: 'movie'`
+        // item with Lidarr acquisition, checked against Radarr's queue and
+        // indexers. Diagnosing by name already refuses artists; so does this.
+        const adapters = [
+            stub('lidarr', {
+                listLibrary: async () => [],
+                getMediaDetails: async () => ({
+                    service: 'lidarr',
+                    kind: 'artist',
+                    id: '4',
+                    title: 'Daft Punk',
+                    ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' }
+                })
+            })
+        ];
+
+        await expect(
+            buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '4' })
+        ).rejects.toThrow(/get_media_details.*detail: "full"/i);
+    });
+
     it('names the parameters when given neither', async () => {
         await expect(buildDiagnose(deps(), {})).rejects.toThrow(/query.*service.*id/i);
     });

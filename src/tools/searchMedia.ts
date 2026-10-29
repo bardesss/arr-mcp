@@ -20,7 +20,7 @@ import { hasSearch, type SearchHit, type SearchSource, type ServiceAdapter } fro
  */
 export function searchLine(hit: SearchHit): string {
     const facts = [hit.kind, `${hit.service}:${hit.id}`];
-    for (const source of ['tmdb', 'tvdb', 'imdb'] as const) {
+    for (const source of ['tmdb', 'tvdb', 'imdb', 'mbid'] as const) {
         const id = hit.ids[source];
         if (id !== undefined) facts.push(`${source}:${id}`);
     }

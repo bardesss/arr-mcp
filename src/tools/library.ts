@@ -10,6 +10,7 @@ import {
     NO_MEDIA_SERVER_NOTE,
     hasLibrary,
     hasUserLibrary,
+    hasUserMusic,
     hasUserSeasons,
     type ServiceAdapter,
     type ServiceUser
@@ -222,6 +223,27 @@ export class LibraryLoader {
             });
         }
 
+        // Music is its own source for the same reason, and one more: a failed
+        // music read must not report every artist as `arr_only`, which is what
+        // sharing `playbackGathered` would do.
+        //
+        // Only with a Lidarr: without one there is no artist row to join to,
+        // so the media server's whole music collection would arrive as
+        // `jellyfin_only`. That inflates the summary and answers "what does no
+        // *arr manage?" with every artist the server holds.
+        const music = this.#adapters.some(a => a.type === 'lidarr')
+            ? this.#adapters.filter(hasUserMusic).find(isPrimary)
+            : undefined;
+        if (music !== undefined) {
+            sources.push({
+                id: `${music.id}:music`,
+                fetch:
+                    user === undefined
+                        ? () => Promise.reject(new Error(`no ${music.id} user resolved`))
+                        : () => music.listUserMusic(user)
+            });
+        }
+
         // Its own source, so `gather` degrades it by name. A try/catch inside
         // the adapter could not tell the snapshot *why* seasons were missing —
         // the same ambiguity `BuildOptions.playbackGathered` exists to prevent.
@@ -276,6 +298,7 @@ export class LibraryLoader {
         // not in `degraded`, covering a fetch failure and the synthetic
         // no-user-resolved rejection alike).
         const playbackGathered = mediaServer !== undefined && !degraded.includes(mediaServer.id);
+        const musicGathered = music !== undefined && !degraded.includes(`${music.id}:music`);
 
         // Enriched *before* the merge: the index hands the same objects to
         // `all()` and to its key map, so replacing them afterwards would have
@@ -307,14 +330,26 @@ export class LibraryLoader {
                     : undefined;
         const note = [primaryNote, secondaryNote].filter(n => n !== undefined).join(' ') || undefined;
 
-        const index = LibraryIndex.build(rated, { playbackGathered });
+        const index = LibraryIndex.build(rated, { playbackGathered, musicGathered });
 
         if (secondary !== undefined) {
             const secondaryIndex = secondaryRead ? LibraryIndex.build(secondaryRows) : undefined;
             for (const item of index.all()) {
+                // An artist is stamped from the music read and a film or series
+                // from the film one, because the two reads fail separately. A
+                // `present: false` derived from a read that never ran would make
+                // `missing_from` list every artist of a server that was simply
+                // not asked.
+                const isMusic = item.kind === 'artist';
+                const gathered = isMusic ? musicGathered : playbackGathered;
                 const servers: Record<string, MediaServerPresence> = {};
-                if (playbackGathered) servers[mediaServer.id] = item.playback === undefined ? { present: false } : presenceOf(item);
-                if (secondaryIndex !== undefined && secondaryAdapter !== undefined) {
+                if (gathered && mediaServer !== undefined) {
+                    servers[mediaServer.id] = item.playback === undefined ? { present: false } : presenceOf(item);
+                }
+                // No secondary comparison for music: `secondaryIndex` is built
+                // from `listUserLibrary`, which has no music in it, so asking it
+                // about an artist would always answer `present: false`.
+                if (!isMusic && secondaryIndex !== undefined && secondaryAdapter !== undefined) {
                     servers[secondaryAdapter.id] = presenceOf(secondaryIndex.find(item.ids, item.kind));
                 }
                 item.media_servers = servers;

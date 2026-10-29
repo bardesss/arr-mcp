@@ -6,7 +6,7 @@
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-**Radarr · Sonarr · Whisparr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · NZBGet · Transmission · qBittorrent · Profilarr**
+**Radarr · Sonarr · Whisparr · Lidarr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · NZBGet · Transmission · qBittorrent · Profilarr**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
@@ -178,6 +178,11 @@ Thirty-eight tools, but you never name them — you ask, and the model picks:
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server 1.32+,
   Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+
+- Lidarr 2.1.3+ for reading and for monitoring: `get_library` lists its artists
+  with their album count, monitoring and file state, `get_media_details` lists an
+  artist's albums, and `set_monitoring` writes one album's flag or an artist's
+  policy. Artists join to Jellyfin and Plex on the MusicBrainz artist id. No
+  queue, history, wanted list or release search.
 - Docker, or Node 24+ to run from source
 - An MCP client speaking protocol revision `2026-07-28`
 
@@ -187,8 +192,8 @@ model stops finding a renamed tool rather than raising an error.
 
 ## Contributing
 
-**Contributions are welcome, and new service adapters most of all** — Lidarr,
-Emby and Deluge would all be accepted today, and
+**Contributions are welcome, and new service adapters most of all** — Emby and
+Deluge would both be accepted today, and
 [the list says so in advance](CONTRIBUTING.md#what-would-be-accepted-today),
 along with the ones that would not be. An adapter is deliberately the most
 self-contained thing in the codebase. Two things to know first: not every
@@ -203,10 +208,12 @@ Plex nor qBittorrent — testing means running a build against your own server
 and reporting what worked. [Plex](../../issues/180) has since been verified
 against two live Plex Media Servers by two volunteer testers, its first write
 included, and its metadata repair has since repaired both films and series on a
-live server ([#312](../../issues/312)); [qBittorrent](../../issues/147) has shipped but still waits on the
-same kind of report. The maintainer does not run NZBGet either: its adapter was
-tested by its contributor against live NZBGet 21.0 and 26.3
-([#391](../../pull/391)). [The design behind Plex, and what else is on the
+live server ([#312](../../issues/312)); Lidarr's media-server music reads were
+captured by a volunteer against Jellyfin 12.4.0 and Plex Media Server 1.43.5;
+[qBittorrent](../../issues/147) has shipped but still waits on the same kind of
+report. The maintainer does not run NZBGet either: its adapter was tested by its
+contributor against live NZBGet 21.0 and 26.3 ([#391](../../pull/391)). [The
+design behind Plex, and what else is on the
 list](CONTRIBUTING.md#what-would-be-accepted-today).
 
 **AI-assisted contributions are welcome**, held to the same bar and no other;

@@ -90,7 +90,7 @@ const HOUSEKEEPING = new Set([
  * scheduling, and that was a quiet queue.
  */
 export async function assertQueueClear(http: ServiceHttp, service: string): Promise<void> {
-    const rows = await http.get<RawCommandRow[]>('/api/v3/command');
+    const rows = await http.get<RawCommandRow[]>(`${http.apiRoot}/command`);
     const busy = rows.filter(c => {
         const status = (c.status ?? '').toLowerCase();
         if (status !== 'queued' && status !== 'started') return false;
@@ -113,7 +113,7 @@ async function readFormat(
     service: string,
     key: keyof RawNaming
 ): Promise<{ format: string }> {
-    const naming = await http.get<RawNaming>('/api/v3/config/naming');
+    const naming = await http.get<RawNaming>(`${http.apiRoot}/config/naming`);
     const live = naming[key];
     if (typeof live !== 'string' || live === '') {
         throw new ServiceError('UpstreamError', service, `${service} reports no ${String(key)} to rename by`, {
@@ -144,15 +144,16 @@ async function readFormat(
  * formats, the other two episode formats — with no error and no log line.
  */
 const setFormat = async (http: ServiceHttp, key: keyof RawNaming, value: string): Promise<void> => {
-    const live = await http.get<RawNaming>('/api/v3/config/naming');
-    await http.put(`/api/v3/config/naming`, { ...live, [key]: value }, true);
+    const live = await http.get<RawNaming>(`${http.apiRoot}/config/naming`);
+    await http.put(`${http.apiRoot}/config/naming`, { ...live, [key]: value }, true);
 };
 
 type RawHistoryPage = {
     records?: { id?: number; data?: { importedPath?: string } }[];
 };
 
-const IMPORT_HISTORY = `/api/v3/history?page=1&pageSize=50&sortKey=date&sortDirection=descending&eventType=3`;
+const importHistoryPath = (apiRoot: string): string =>
+    `${apiRoot}/history?page=1&pageSize=50&sortKey=date&sortDirection=descending&eventType=3`;
 
 /**
  * The newest import's history id, read before the window opens. Bounding the
@@ -162,7 +163,7 @@ const IMPORT_HISTORY = `/api/v3/history?page=1&pageSize=50&sortKey=date&sortDire
  */
 async function newestImportId(http: ServiceHttp, service: string): Promise<number | undefined> {
     try {
-        const page = await http.get<RawHistoryPage>(IMPORT_HISTORY);
+        const page = await http.get<RawHistoryPage>(importHistoryPath(http.apiRoot));
         return (page.records ?? []).reduce((max, r) => Math.max(max, r.id ?? 0), 0);
     } catch (err) {
         logger.warn({ service, err }, 'could not read history before the rename window; imports during it will not be checked');
@@ -186,7 +187,7 @@ async function newestImportId(http: ServiceHttp, service: string): Promise<numbe
 async function importsDuring(http: ServiceHttp, service: string, after: number | undefined): Promise<string[]> {
     if (after === undefined) return [];
     try {
-        const page = await http.get<RawHistoryPage>(IMPORT_HISTORY);
+        const page = await http.get<RawHistoryPage>(importHistoryPath(http.apiRoot));
         // The marker test is what scopes this to the series type: the format
         // changed is one of three, and an import named by another one cannot
         // carry it.
@@ -208,7 +209,7 @@ async function importsDuring(http: ServiceHttp, service: string, after: number |
  *  could not be read — the caller then falls back to the command's own count. */
 async function stillMisnamed(http: ServiceHttp, seriesId: number, fileIds: number[]): Promise<number | undefined> {
     try {
-        const pending = await http.get<{ episodeFileId?: number }[]>(`/api/v3/rename?seriesId=${seriesId}`);
+        const pending = await http.get<{ episodeFileId?: number }[]>(`${http.apiRoot}/rename?seriesId=${seriesId}`);
         return pending.filter(r => r.episodeFileId !== undefined && fileIds.includes(r.episodeFileId)).length;
     } catch {
         return undefined;

@@ -16,7 +16,7 @@ import { fenceText } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import type { IdentityResolver } from '../core/identity.ts';
-import type { MergedItem } from '../core/resolver.ts';
+import { isFilmOrSeries, type FilmOrSeries } from '../core/resolver.ts';
 import {
     hasMediaDetails,
     hasMetadataInspect,
@@ -206,7 +206,7 @@ async function resolve(loader: LibraryLoader, query: string, adapter: ServiceAda
     return fromMerged(best, itemId);
 }
 
-const fromMerged = (item: MergedItem, itemId: string): Resolved => ({
+const fromMerged = (item: FilmOrSeries, itemId: string): Resolved => ({
     itemId,
     title: item.title,
     kind: item.kind,
@@ -226,7 +226,9 @@ async function resolveById(loader: LibraryLoader, raw: string, adapter: ServiceA
 
     // Through the index first, so a managed title keeps its Radarr or Sonarr ids.
     const { index } = await loader.load();
-    const known = index.all().find(i => itemIdOn(i, adapter.id) === itemId);
+    const known = index
+        .all()
+        .find((i): i is FilmOrSeries => isFilmOrSeries(i) && itemIdOn(i, adapter.id) === itemId);
     if (known !== undefined) return fromMerged(known, itemId);
 
     const notFound = new ServiceError('NotFound', adapter.id, `${serverName(adapter)} has no film or series with id ${itemId}`, {

@@ -54,7 +54,7 @@ export async function readArrForUpdate(
     id: string
 ): Promise<MediaUpdateState> {
     const numeric = numericId(service, resource, id);
-    return toState(service, await http.get<RawResource>(`/api/v3/${resource}/${numeric}`));
+    return toState(service, await http.get<RawResource>(`${http.apiRoot}/${resource}/${numeric}`));
 }
 
 export async function updateArrMedia(
@@ -65,7 +65,7 @@ export async function updateArrMedia(
     opts: MediaUpdateOptions
 ): Promise<MediaUpdateState> {
     const numeric = numericId(service, resource, id);
-    const current = await http.get<RawResource>(`/api/v3/${resource}/${numeric}`);
+    const current = await http.get<RawResource>(`${http.apiRoot}/${resource}/${numeric}`);
 
     const body: Record<string, unknown> = { ...current };
     if (opts.qualityProfileId !== undefined) body.qualityProfileId = opts.qualityProfileId;
@@ -79,7 +79,7 @@ export async function updateArrMedia(
     // means "move to the folder this body names", and sending it without one
     // asks the service to move an item to where it already is.
     const move = opts.rootFolderPath !== undefined && opts.moveFiles;
-    const updated = await http.put<RawResource>(`/api/v3/${resource}/${numeric}?moveFiles=${String(move)}`, body);
+    const updated = await http.put<RawResource>(`${http.apiRoot}/${resource}/${numeric}?moveFiles=${String(move)}`, body);
 
     // Both services answer with the updated resource. A build that answers
     // something empty would otherwise report every field as cleared.

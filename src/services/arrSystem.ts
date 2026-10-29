@@ -17,7 +17,7 @@ type RawHealthCheck = { source?: string; type?: unknown; message?: string };
 type RawTask = { taskName?: string; lastExecution?: string };
 
 export async function arrVersion(http: ServiceHttp, id: string): Promise<string> {
-    const status = await http.get<RawStatus>('/api/v3/system/status');
+    const status = await http.get<RawStatus>(`${http.apiRoot}/system/status`);
     if (!status.version) {
         throw new ServiceError('UpstreamError', id, 'system/status returned no version field');
     }
@@ -25,7 +25,7 @@ export async function arrVersion(http: ServiceHttp, id: string): Promise<string>
 }
 
 export async function arrDiskSpace(http: ServiceHttp, id: string): Promise<DiskSpace[]> {
-    const rows = await http.get<RawDiskSpace[]>('/api/v3/diskspace');
+    const rows = await http.get<RawDiskSpace[]>(`${http.apiRoot}/diskspace`);
     // The vendored spec marks these nullable, not merely optional — the spec
     // really does allow nulls. Narrowing on the value rather than on
     // `!== undefined` is what keeps a null out of a `string` field.
@@ -39,7 +39,7 @@ export async function arrDiskSpace(http: ServiceHttp, id: string): Promise<DiskS
 }
 
 export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Promise<HealthCheck[]> {
-    const all = await http.get<RawHealthCheck[]>('/api/v3/health');
+    const all = await http.get<RawHealthCheck[]>(`${http.apiRoot}/health`);
     // Both services generally return only entries worth surfacing, but some
     // versions include `ok` rows — filter rather than trust.
     return all
@@ -64,7 +64,7 @@ export async function arrStartLibraryScan(http: ServiceHttp, id: string, command
 }
 
 export async function arrScanState(http: ServiceHttp, id: string, taskName: string): Promise<ScanState> {
-    const tasks = await http.get<RawTask[]>('/api/v3/system/task');
+    const tasks = await http.get<RawTask[]>(`${http.apiRoot}/system/task`);
     const lastCompleted = tasks.find(t => t.taskName === taskName)?.lastExecution;
     return {
         service: id,

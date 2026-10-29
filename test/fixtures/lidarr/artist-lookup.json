@@ -1,0 +1,454 @@
+[
+  {
+    "status": "ended",
+    "ended": true,
+    "artistName": "Artist",
+    "foreignArtistId": "bdf9e707-7054-4873-b855-023a36a36263",
+    "tadbId": 0,
+    "discogsId": 0,
+    "artistType": "Group",
+    "disambiguation": "80s rock band",
+    "links": [],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/1/poster.jpg",
+        "remoteUrl": "https://indexer.example.test/",
+        "extension": ".jpg"
+      }
+    ],
+    "remotePoster": "https://indexer.example.test/",
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "Artist",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "Artist",
+    "foreignArtistId": "f1f3f015-1d10-4610-8cfa-d11f184fbd95",
+    "tadbId": 0,
+    "discogsId": 0,
+    "artistType": "Group",
+    "disambiguation": "Hard rock band",
+    "links": [
+      {
+        "url": "https://rateyourmusic.com/artist/artist-1",
+        "name": "rateyourmusic"
+      },
+      {
+        "url": "https://www.discogs.com/artist/4378207",
+        "name": "discogs"
+      }
+    ],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/1/poster.jpg",
+        "remoteUrl": "https://indexer.example.test/",
+        "extension": ".jpg"
+      }
+    ],
+    "remotePoster": "https://indexer.example.test/",
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "Artist",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "artist",
+    "foreignArtistId": "1198b68a-4489-4872-92d3-3d8079dfe447",
+    "tadbId": 0,
+    "discogsId": 0,
+    "artistType": "Person",
+    "disambiguation": "rapper/producer fka Lil Slatt",
+    "links": [
+      {
+        "url": "https://soundcloud.com/lilslatta",
+        "name": "soundcloud"
+      },
+      {
+        "url": "https://twitter.com/1300slatt",
+        "name": "twitter"
+      },
+      {
+        "url": "https://www.instagram.com/slattometer/",
+        "name": "instagram"
+      }
+    ],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [],
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "artist",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "Artist",
+    "foreignArtistId": "9424bc5b-c819-487c-b6cf-2c8e09381290",
+    "tadbId": 0,
+    "discogsId": 0,
+    "artistType": "Person",
+    "disambiguation": "French rapper",
+    "links": [],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [],
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "Artist",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "Artist Unknown",
+    "foreignArtistId": "eb9d8589-6659-4ccc-ae9c-36cd6f95d8a8",
+    "tadbId": 0,
+    "discogsId": 0,
+    "artistType": "Group",
+    "disambiguation": "This is a real artist, for unknown artists use [unknown]",
+    "links": [
+      {
+        "url": "https://www.discogs.com/artist/2846",
+        "name": "discogs"
+      },
+      {
+        "url": "http://www.artistunknown.de/",
+        "name": "artistunknown"
+      },
+      {
+        "url": "https://www.allmusic.com/artist/mn0000603427",
+        "name": "allmusic"
+      },
+      {
+        "url": "https://rateyourmusic.com/artist/artist_unknown",
+        "name": "rateyourmusic"
+      },
+      {
+        "url": "https://www.facebook.com/artistunknown.undead",
+        "name": "facebook"
+      }
+    ],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [],
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "Artist Unknown",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "The Artist Formerly Known as Ponce",
+    "foreignArtistId": "9b5cf3ad-6810-42a9-a176-07c36e74739b",
+    "tadbId": 0,
+    "discogsId": 0,
+    "disambiguation": "",
+    "links": [],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [],
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "The Artist Formerly Known as Ponce",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "The Artist Formerly Unknown",
+    "foreignArtistId": "135b182c-cebc-4afb-9006-4299c1bb1d50",
+    "tadbId": 0,
+    "discogsId": 0,
+    "disambiguation": "",
+    "links": [],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [],
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "The Artist Formerly Unknown",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "aRTIST oF tHE yEAR",
+    "foreignArtistId": "b29a72b5-e8ef-498d-b70f-36cd4b041ff6",
+    "tadbId": 0,
+    "discogsId": 0,
+    "artistType": "Group",
+    "disambiguation": "",
+    "links": [
+      {
+        "url": "https://rateyourmusic.com/artist/artist_of_the_year",
+        "name": "rateyourmusic"
+      },
+      {
+        "url": "https://artistoftheyear.bandcamp.com/",
+        "name": "bandcamp"
+      },
+      {
+        "url": "http://www.artistoftheyear.ca/",
+        "name": "artistoftheyear"
+      },
+      {
+        "url": "https://twitter.com/artistoftheyear",
+        "name": "twitter"
+      },
+      {
+        "url": "https://www.facebook.com/artistoftheyearmusic",
+        "name": "facebook"
+      },
+      {
+        "url": "https://www.discogs.com/artist/557948",
+        "name": "discogs"
+      },
+      {
+        "url": "https://open.spotify.com/artist/6uxWOe8za52RuvwfuxM1aB",
+        "name": "spotify"
+      },
+      {
+        "url": "https://www.deezer.com/artist/1706648",
+        "name": "deezer"
+      },
+      {
+        "url": "https://music.apple.com/ca/artist/205893325",
+        "name": "apple"
+      },
+      {
+        "url": "https://tidal.com/artist/4610694",
+        "name": "tidal"
+      }
+    ],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [],
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "aRTIST oF tHE yEAR",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "continuing",
+    "ended": false,
+    "artistName": "Artist 00",
+    "foreignArtistId": "0540101d-3637-4254-bb6b-da3a86efdb9d",
+    "tadbId": 0,
+    "discogsId": 0,
+    "disambiguation": "",
+    "links": [
+      {
+        "url": "https://www.discogs.com/artist/139502",
+        "name": "discogs"
+      }
+    ],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [],
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "Artist 00",
+    "genres": [],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  },
+  {
+    "status": "ended",
+    "ended": true,
+    "artistName": "Artist Vs Poet",
+    "foreignArtistId": "ed426a89-d522-4ca5-8c6b-d7910e084446",
+    "tadbId": 0,
+    "discogsId": 0,
+    "overview": "An artist.",
+    "artistType": "Group",
+    "disambiguation": "American power-pop band",
+    "links": [
+      {
+        "url": "https://myspace.com/artistvspoet",
+        "name": "myspace"
+      },
+      {
+        "url": "http://www.purevolume.com/artistvspoet",
+        "name": "purevolume"
+      },
+      {
+        "url": "https://itunes.apple.com/us/artist/id276951675",
+        "name": "apple"
+      },
+      {
+        "url": "https://twitter.com/ArtistVsPoet",
+        "name": "twitter"
+      },
+      {
+        "url": "https://www.last.fm/music/Artist%20vs.%20Poet",
+        "name": "last"
+      },
+      {
+        "url": "https://rateyourmusic.com/artist/artist_vs_poet",
+        "name": "rateyourmusic"
+      },
+      {
+        "url": "https://artistvspoet1.bandcamp.com/",
+        "name": "bandcamp"
+      },
+      {
+        "url": "https://www.allmusic.com/artist/mn0001016438",
+        "name": "allmusic"
+      },
+      {
+        "url": "https://www.discogs.com/artist/1767642",
+        "name": "discogs"
+      },
+      {
+        "url": "https://www.wikidata.org/wiki/Q4801246",
+        "name": "wikidata"
+      },
+      {
+        "url": "https://www.facebook.com/artistvspoet",
+        "name": "facebook"
+      },
+      {
+        "url": "https://www.youtube.com/user/artistvspoet",
+        "name": "youtube"
+      },
+      {
+        "url": "https://music.apple.com/us/artist/276951675",
+        "name": "apple"
+      },
+      {
+        "url": "https://www.deezer.com/artist/152442",
+        "name": "deezer"
+      },
+      {
+        "url": "https://open.spotify.com/artist/3kYFawNQVZ00FQbgs4rVBe",
+        "name": "spotify"
+      },
+      {
+        "url": "https://tidal.com/artist/3828611",
+        "name": "tidal"
+      },
+      {
+        "url": "https://imvdb.com/n/artist-vs-poet",
+        "name": "imvdb"
+      }
+    ],
+    "nextAlbum": null,
+    "lastAlbum": null,
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/1/poster.jpg",
+        "remoteUrl": "https://indexer.example.test/",
+        "extension": ".jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCover/1/poster.jpg",
+        "remoteUrl": "https://indexer.example.test/",
+        "extension": ".jpg"
+      }
+    ],
+    "remotePoster": "https://indexer.example.test/",
+    "qualityProfileId": 0,
+    "metadataProfileId": 0,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "folder": "Artist Vs Poet",
+    "genres": [
+      "Pop Punk",
+      "Electronic",
+      "Electronica",
+      "Pop Rock",
+      "Power Pop"
+    ],
+    "tags": [],
+    "added": "0001-01-01T00:00:00Z",
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    }
+  }
+]

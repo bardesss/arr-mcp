@@ -118,15 +118,18 @@ const LEGACY_AGENTS: Record<string, 'imdb' | 'tmdb' | 'tvdb'> = {
  * shares nothing, which would make `get_library` report every film as
  * `arr_only`. Both shapes are read for that reason.
  */
-export function externalIds(item: RawPlexItem): { tmdb?: number; tvdb?: number; imdb?: string } {
-    const out: { tmdb?: number; tvdb?: number; imdb?: string } = {};
+export function externalIds(item: RawPlexItem): { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string } {
+    const out: { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string } = {};
 
     if (Array.isArray(item.Guid) && item.Guid.length > 0) {
         for (const g of item.Guid) {
-            const m = /^(imdb|tmdb|tvdb):\/\/(.+)$/.exec(g.id ?? '');
+            const m = /^(imdb|tmdb|tvdb|mbid):\/\/(.+)$/.exec(g.id ?? '');
             if (m === null) continue;
             const [, scheme, value] = m as unknown as [string, string, string];
             if (scheme === 'imdb') out.imdb = value;
+            // `mbid://<guid>` on an artist in a music section. Kept as the GUID:
+            // Lidarr's `foreignArtistId` is the same value, and that is the join.
+            else if (scheme === 'mbid') out.mbid = value.toLowerCase();
             else {
                 const n = numericId(value.split('/')[0]);
                 if (n !== undefined) out[scheme as 'tmdb' | 'tvdb'] = n;
@@ -196,6 +199,7 @@ const KEPT_STEP_KINDS = new Set<ServiceErrorKind>(['Timeout', 'Unreachable', 'Au
 /** Plex library item types, for `?type=` on `/library/sections/{key}/all`. */
 const PLEX_TYPE_MOVIE = 1;
 const PLEX_TYPE_EPISODE = 4;
+const PLEX_TYPE_ARTIST = 8;
 
 /**
  * `ServiceHttp` has no per-request header hook. Plex's documented paging is
@@ -571,6 +575,51 @@ export class PlexAdapter
             out.push(...items.map(item => this.#toIndexItem(user, item, kind)));
         }
         return out;
+    }
+
+    /**
+     * Artists from every music section, one row each, joined to Lidarr on the
+     * `mbid://` guid.
+     *
+     * Its own read and its own source in a library build: a Plex whose music
+     * half fails must not take films and series with it, and `musicGathered`
+     * has to be able to say which half was missing.
+     */
+    async listUserMusic(user: ServiceUser): Promise<IndexInput[]> {
+        const sections = await this.#sections('artist');
+        const out: IndexInput[] = [];
+        for (const section of sections) {
+            const artists = await this.#pagedSection(section.key, PLEX_TYPE_ARTIST);
+            out.push(...artists.map(item => this.#toMusicItem(user, item)));
+        }
+        return out;
+    }
+
+    /**
+     * An artist in a music section, joined to Lidarr on `mbid://<guid>`.
+     *
+     * No `watched`: Plex has no finished-or-not answer for an artist, and a
+     * `false` invented from that silence would be a claim the server never
+     * made. `playback` still carries the server's id, which is what marks the
+     * row as found on this side of the join.
+     */
+    #toMusicItem(user: ServiceUser, item: RawPlexItem): IndexInput {
+        return {
+            kind: 'artist',
+            title: this.#fence('title', item.title ?? ''),
+            ...(item.Genre === undefined
+                ? {}
+                : {
+                      genres: item.Genre.map(g => g.tag)
+                          .filter((t): t is string => typeof t === 'string')
+                          .map(t => this.#fence('Genre', t))
+                  }),
+            ids: externalIds(item),
+            playback: {
+                user: user.name,
+                ...(item.ratingKey === undefined ? {} : { itemId: item.ratingKey })
+            }
+        };
     }
 
     /**

@@ -66,7 +66,7 @@ export async function readArrQueue(
     // Off upstream by default, which hides records whose movie or series was
     // deleted — stuck at importBlocked forever, and invisible here.
     const includeUnknown = kind === 'movie' ? 'includeUnknownMovieItems=true' : 'includeUnknownSeriesItems=true';
-    const records = await pageArr<RawQueueRecord>(http, '/api/v3/queue', includeUnknown);
+    const records = await pageArr<RawQueueRecord>(http, `${http.apiRoot}/queue`, includeUnknown);
 
     return records
         .filter((r): r is RawQueueRecord & { id: number } => typeof r.id === 'number')
@@ -121,7 +121,7 @@ export async function removeArrQueueItem(
     // remove-from-*arr-only request would also wipe it from the download
     // client — the opposite of what was asked for.
     await http.delete(
-        `/api/v3/queue/${numeric}?removeFromClient=${String(opts.removeFromClient)}&blocklist=${String(opts.blocklist)}`
+        `${http.apiRoot}/queue/${numeric}?removeFromClient=${String(opts.removeFromClient)}&blocklist=${String(opts.blocklist)}`
     );
 }
 
@@ -151,7 +151,7 @@ export async function deleteArrMedia(
     }
 
     await http.delete(
-        `/api/v3/${resource}/${numeric}?deleteFiles=${String(opts.deleteFiles)}` +
+        `${http.apiRoot}/${resource}/${numeric}?deleteFiles=${String(opts.deleteFiles)}` +
             `&${EXCLUSION_PARAM[resource]}=${String(opts.addImportExclusion)}`
     );
 }
@@ -232,8 +232,8 @@ export function readSonarrCalendar(
         }));
 }
 
-export const calendarPath = (range: { start: Date; end: Date }): string =>
-    `/api/v3/calendar?start=${range.start.toISOString()}&end=${range.end.toISOString()}`;
+export const calendarPath = (apiRoot: string, range: { start: Date; end: Date }): string =>
+    `${apiRoot}/calendar?start=${range.start.toISOString()}&end=${range.end.toISOString()}`;
 
 /**
  * Sonarr omits the series object from calendar rows unless asked, so
@@ -241,5 +241,5 @@ export const calendarPath = (range: { start: Date; end: Date }): string =>
  * cannot say which series an episode belongs to is close to useless. Confirmed
  * against a live Sonarr 4.0.19 during a live capture.
  */
-export const sonarrCalendarPath = (range: { start: Date; end: Date }): string =>
-    `${calendarPath(range)}&includeSeries=true`;
+export const sonarrCalendarPath = (apiRoot: string, range: { start: Date; end: Date }): string =>
+    `${calendarPath(apiRoot, range)}&includeSeries=true`;
