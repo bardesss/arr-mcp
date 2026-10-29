@@ -79,7 +79,7 @@ describe('LidarrAdapter', () => {
      * Listing the prototype covers all 46 guards; sampling a few of them stays
      * green when someone adds the one that was not sampled.
      */
-    it('claims library reads, search, monitoring, queue, history and blocklist, and nothing else', () => {
+    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, and nothing else', () => {
         const a = adapter({});
         const own = Object.getOwnPropertyNames(LidarrAdapter.prototype).filter(name => name !== 'constructor');
 
@@ -95,6 +95,7 @@ describe('LidarrAdapter', () => {
             'readHistory',
             'refusePartialSelection',
             'removeBlocklistItem',
+            'removeQueueItem',
             'search',
             'setArtistMonitorPolicy',
             'setMonitoring',

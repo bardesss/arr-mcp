@@ -33,7 +33,7 @@ off until you turn them on — see [writes](writes.md).
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
-| `clean_queue` | Clear out completed downloads whose film or series no longer exists |
+| `clean_queue` | Clear out completed downloads whose film, series or artist no longer exists |
 | `delete_media` | Remove this film or series, optionally from disk |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
@@ -1251,9 +1251,12 @@ and `id` for `remove_blocklist_item`, and are newest first, because a blocklist
 is read to explain something that has just gone wrong.
 
 `remove_blocklist_item` withdraws one refusal, so the release can be grabbed
-again. Safe tier: nothing on disk changes, and on Radarr, Sonarr and Whisparr
-the inverse already exists — `remove_queue_item`'s `blocklist: true` puts a
-release back on the list. The preview names it only where that works.
+again. Safe tier: nothing on disk changes, and the inverse already exists —
+`remove_queue_item`'s `blocklist: true` puts a release back on the list, on
+Radarr, Sonarr, Whisparr and Lidarr alike. On Lidarr, blocklisting marks the
+download failed, and with Lidarr's "redownload failed" setting on (its
+default) that also starts a search for a replacement
+(`RedownloadFailedDownloadService`, Lidarr 3.1.0).
 
 Its preview reads the live blocklist first, and that is not a courtesy. Both
 services answer a `DELETE` of a blocklist id that **does not exist** with
@@ -1861,6 +1864,17 @@ whether the item is finished with.
 
 It never blocklists. The release was fine — the film was deleted — so any of
 these can be grabbed again later.
+
+Lidarr does the same for an album whose artist was deleted, and `clean_queue`
+takes `service: "lidarr"` with the same rule, **from Lidarr 2.10.1**. That is
+the first release whose `CompletedDownloadService` marks such a download
+`importBlocked`; before it, the download stays `status: "completed"` with
+`importState: "downloading"` and a warning ("Artist name mismatch, automatic
+import is not possible"), so on 2.1.3 to 2.10.0 the rule matches nothing, and a
+Lidarr preview with nothing to clean says so. Remove one of those with
+`remove_queue_item`. A deleted artist's downloads that had already imported read
+`orphaned` with `importState: "imported"` instead, and are left alone: they are
+not stuck, and `remove_queue_item` removes one if it is wanted gone.
 
 The preview lists every item by name before anything is removed, and the
 confirmation token is bound to those exact ids, so an item that appears in the

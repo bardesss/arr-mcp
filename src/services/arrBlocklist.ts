@@ -22,11 +22,11 @@ type RawBlocklist = {
 };
 
 /**
- * What Radarr and Sonarr refuse to grab again, and why.
+ * What Radarr, Sonarr, Whisparr and Lidarr refuse to grab again, and why.
  *
  * The question this answers is "why does this release keep getting skipped".
- * Both services expose the same paged shape, and so does Lidarr; only the id
- * of the thing it belongs to differs, which is the one thing normalised here.
+ * All four expose the same paged shape; only the id of the thing it belongs
+ * to differs, which is the one thing normalised here.
  */
 export async function readArrBlocklist(
     http: ServiceHttp,

@@ -8,8 +8,9 @@ import type { CalendarEntry, DeleteMediaOptions, QueueItem, RemoveQueueOptions }
 
 /**
  * Radarr and Sonarr share a framework, so their queue and calendar responses
- * differ only in the fields naming the media. One implementation, two services.
- * Lidarr's queue is the same framework again, naming its media `artistId`.
+ * differ only in the fields naming the media. Lidarr's queue is the same
+ * framework again, naming its media `artistId`. One implementation for all of
+ * them.
  */
 
 type RawQueueRecord = {
@@ -112,8 +113,10 @@ export async function readArrQueue(
 
 /**
  * Shared for the same reason the read above is: Radarr and Sonarr expose the
- * identical `DELETE /api/v3/queue/{id}` with the identical two flags. Writing
- * it twice is how the two drift into disagreeing about what `blocklist` means.
+ * identical `DELETE /api/v3/queue/{id}` with the identical two flags, and
+ * Lidarr the same route under `/api/v1` with the same defaults
+ * (`QueueController.RemoveAction`, Lidarr 3.1.0). Writing it more than once is
+ * how they drift into disagreeing about what `blocklist` means.
  */
 export async function removeArrQueueItem(
     http: ServiceHttp,
@@ -124,7 +127,7 @@ export async function removeArrQueueItem(
     const numeric = Number(id);
     if (!Number.isInteger(numeric)) {
         throw new ServiceError('NotFound', service, `"${id}" is not a ${service} queue id`, {
-            remedy: 'Queue ids are integers on Radarr and Sonarr. Take one from get_queue.'
+            remedy: `${service} queue ids are integers. Take one from get_queue.`
         });
     }
 

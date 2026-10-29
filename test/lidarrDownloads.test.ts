@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { unfenced } from '../src/core/titleMatch.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
-import { hasBlocklist, hasHistory, hasQueue } from '../src/services/types.ts';
+import { hasBlocklist, hasHistory, hasQueue, hasQueueRemove } from '../src/services/types.ts';
 
 /**
  * Lidarr's queue, history and blocklist, read through the shared `arr*`
@@ -434,5 +434,34 @@ describe('Lidarr text is fenced exactly once', () => {
         ];
         expect(texts).toHaveLength(11);
         for (const text of texts) expectFencedOnce(text);
+    });
+});
+
+describe('Lidarr queue removal', () => {
+    it('claims queue removal, and honours a blocklist', () => {
+        const { adapter } = lidarr({});
+        expect(hasQueueRemove(adapter)).toBe(true);
+        expect(adapter.supportsBlocklist).toBe(true);
+    });
+
+    /** Lidarr defaults `removeFromClient` to true, as Radarr does, so both flags are always sent. */
+    it('deletes on /api/v1 with both flags spelled out', async () => {
+        const { adapter, sent } = lidarr({ '/api/v1/queue/7': null });
+
+        await adapter.removeQueueItem('7', { removeFromClient: false, blocklist: true });
+
+        expect(sent).toHaveLength(1);
+        expect(sent[0]).toMatchObject({ method: 'DELETE', path: '/api/v1/queue/7' });
+        expect(sent[0]?.query.get('removeFromClient')).toBe('false');
+        expect(sent[0]?.query.get('blocklist')).toBe('true');
+    });
+
+    it('refuses a non-integer id before asking Lidarr anything', async () => {
+        const { adapter, sent } = lidarr({});
+
+        await expect(adapter.removeQueueItem('abc', { removeFromClient: true, blocklist: false })).rejects.toMatchObject({
+            service: 'lidarr'
+        });
+        expect(sent).toEqual([]);
     });
 });
