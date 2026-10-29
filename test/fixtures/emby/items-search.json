@@ -1,0 +1,34 @@
+{
+  "Items": [
+    {
+      "Name": "Detour",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "12",
+      "RunTimeTicks": 40584240000,
+      "ProductionYear": 1945,
+      "ProviderIds": {
+        "Tmdb": "20367",
+        "Imdb": "tt0037638"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Night of the Living Dead",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "11",
+      "RunTimeTicks": 57318320000,
+      "ProductionYear": 1968,
+      "ProviderIds": {
+        "Tmdb": "10331",
+        "Imdb": "tt0063350",
+        "Tvdb": "1831"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 0
+}

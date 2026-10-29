@@ -430,8 +430,30 @@ describe('plex', () => {
         });
 
         it('refuses an unknown value', () => {
-            const run = () => ConfigSchema.parse({ auth: AUTH2, services: both, primary_media_server: 'emby' });
-            expect(run).toThrow();
+            const result = ConfigSchema.safeParse({ auth: AUTH2, services: both, primary_media_server: 'kodi' });
+            expect(result.success).toBe(false);
+            expect(result.error?.issues.map(i => [i.path.join('.'), i.code])).toEqual([['primary_media_server', 'invalid_value']]);
+        });
+
+        it('accepts emby beside jellyfin, with either as the primary', () => {
+            const pair = { jellyfin: media('http://192.0.2.10:8096'), emby: media('http://192.0.2.11:8096') };
+            expect(ConfigSchema.parse({ auth: AUTH2, services: pair, primary_media_server: 'emby' }).primary_media_server).toBe('emby');
+            expect(ConfigSchema.parse({ auth: AUTH2, services: pair, primary_media_server: 'jellyfin' }).primary_media_server).toBe('jellyfin');
+        });
+
+        it('names the two configured servers when the primary is missing', () => {
+            const result = ConfigSchema.safeParse({ auth: AUTH2, services: { emby: media('http://192.0.2.11:8096'), plex: media('http://192.0.2.10:32400') } });
+            expect(result.error?.issues.map(i => i.message)).toEqual([
+                'set to emby or plex: both are configured, so arr-mcp needs to know which one the tools default to'
+            ]);
+        });
+
+        it('refuses all three media servers, which the tools cannot hold', () => {
+            const three = { ...both, emby: media('http://192.0.2.11:8096') };
+            const result = ConfigSchema.safeParse({ auth: AUTH2, services: three, primary_media_server: 'jellyfin' });
+            expect(result.error?.issues.map(i => [i.path.join('.'), i.message])).toEqual([
+                ['services', 'at most two of jellyfin, emby, plex can be configured together: remove one']
+            ]);
         });
     });
 

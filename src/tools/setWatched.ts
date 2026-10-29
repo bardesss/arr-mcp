@@ -1,9 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { MEDIA_SERVER_NAMES, type MediaServerId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import type { IdentityResolver } from '../core/identity.ts';
+import { EMBY } from '../services/emby.ts';
+import { JELLYFIN } from '../services/jellyfin.ts';
 import { hasBookReadStatus, hasWatchState, type BookReadStatusCapable, type ServiceAdapter, type WatchStateCapable, type WatchTarget } from '../services/types.ts';
-import { jellyfinIdByTitle } from './byTitle.ts';
+import { serverItemIdByTitle } from './byTitle.ts';
 import type { LibraryLoader } from './library.ts';
 import { byMediaServers, withBoth } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -17,22 +20,75 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  */
 
 /**
- * Jellyfin-only by design: Plex watch state stays read-only in arr-mcp.
- * A Plex user is told to add Jellyfin alongside, not to replace Plex.
+ * Jellyfin or Emby by design: Plex watch state stays read-only in arr-mcp.
+ * A Plex user is told to add one of them alongside, not to replace Plex.
  */
 const watchedRemedy = (adapters: readonly ServiceAdapter[]): string =>
     adapters.some(a => a.type === 'plex')
-        ? 'set_watched needs Jellyfin; arr-mcp cannot write Plex watch state. Add a services.jellyfin block alongside Plex, set primary_media_server, and restart.'
-        : 'Watch state lives in Jellyfin. Add a services.jellyfin block to config.yaml and restart.';
+        ? 'set_watched needs Jellyfin or Emby; arr-mcp cannot write Plex watch state. Add a services.jellyfin or services.emby block alongside Plex, set primary_media_server, and restart.'
+        : 'Watch state lives in Jellyfin or Emby. Add a services.jellyfin or services.emby block to config.yaml and restart.';
 
-const jellyfinAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & WatchStateCapable => {
-    const adapter = adapters.find(a => a.type === 'jellyfin');
-    if (adapter === undefined || !hasWatchState(adapter)) {
-        throw new ServiceError('NotFound', 'jellyfin', 'jellyfin is not configured', {
+/**
+ * The media server whose users `identity` resolves, which register.ts picks
+ * as the first of primary and secondary that writes watch state. Found
+ * through it, so the server written to and the user directory are always the
+ * same one.
+ */
+const watchServer = (
+    adapters: readonly ServiceAdapter[],
+    identity: IdentityResolver | undefined
+): { adapter: ServiceAdapter & WatchStateCapable; identity: IdentityResolver } => {
+    const adapter = identity === undefined ? undefined : adapters.find(a => a.id === identity.serviceId);
+    if (identity === undefined || adapter === undefined || !hasWatchState(adapter)) {
+        throw new ServiceError('NotFound', 'jellyfin', 'neither jellyfin nor emby is configured', {
             remedy: watchedRemedy(adapters)
         });
     }
-    return adapter;
+    return { adapter, identity };
+};
+
+/**
+ * The media servers whose watch state set_watched writes, by their dialect,
+ * which says how their item ids look; Plex's is never written. A test holds
+ * this to the adapters.
+ */
+export const WATCH_STATE_SERVERS = { jellyfin: JELLYFIN, emby: EMBY } as const;
+type Writer = keyof typeof WATCH_STATE_SERVERS;
+const isWriter = (id: string): id is Writer => Object.hasOwn(WATCH_STATE_SERVERS, id);
+
+/**
+ * The writers a description names. With Jellyfin and Emby both configured
+ * only the primary is written to (register.ts), so only it is named; with
+ * one of them, the `[[…]]` scopes drop the other.
+ */
+const writersOf = (ids: [string, string] | undefined): Writer[] => (ids === undefined ? [] : ids.filter(isWriter));
+const named = (ids: [string, string] | undefined): Writer[] => {
+    const writers = writersOf(ids);
+    return writers.length === 2 ? writers.slice(0, 1) : (Object.keys(WATCH_STATE_SERVERS) as Writer[]);
+};
+const scopeOf = (ids: [string, string] | undefined): string => named(ids).join('|');
+/** `{{or: …}}` entries, one per writer named. */
+const entries = (ids: [string, string] | undefined, text: (id: Writer, name: string) => string): string =>
+    named(ids)
+        .map(id => `${id}=${text(id, MEDIA_SERVER_NAMES[id])}`)
+        .join('; ');
+
+/**
+ * Said where Radarr or Sonarr is configured. A writer whose ids have their
+ * shape (Emby's 12 was a film on the test server) cannot refuse one, so the
+ * preview is the check.
+ */
+const arrIdNote = (writer: Writer | undefined): string =>
+    writer !== undefined && WATCH_STATE_SERVERS[writer].itemId.likeArrIds
+        ? `[[radarr|sonarr: ${MEDIA_SERVER_NAMES[writer]} ids are ${WATCH_STATE_SERVERS[writer].itemId.described}, as {{or: radarr=Radarr's; sonarr=Sonarr's}} are, so check that the preview names the right item.]] `
+        : '[[radarr|sonarr: A {{or: radarr=Radarr; sonarr=Sonarr}} id is refused.]] ';
+
+/** With Plex as the other server: where the writer's own id is, since `playback.itemId` is then Plex's whenever Plex is the primary. */
+const writerBesidePlex = (ids: [string, string] | undefined): { writer: Writer; other: string } | undefined => {
+    const writers = writersOf(ids);
+    const [writer] = writers;
+    const other = ids?.find(id => id !== writer) as MediaServerId | undefined;
+    return writers.length === 1 && writer !== undefined && other !== undefined ? { writer, other: MEDIA_SERVER_NAMES[other] } : undefined;
 };
 
 const BOOK_PREFIX = 'grimmory:';
@@ -73,15 +129,6 @@ const refuseBookExtras = (args: { user?: string | undefined; season?: number | u
 const alreadyThere = (readStatus: string, watched: boolean): boolean =>
     watched ? readStatus === 'READ' : readStatus === 'UNREAD' || readStatus === 'UNSET';
 
-const requireIdentity = (adapters: readonly ServiceAdapter[], identity: IdentityResolver | undefined): IdentityResolver => {
-    if (identity === undefined) {
-        throw new ServiceError('NotFound', 'jellyfin', 'jellyfin is not configured', {
-            remedy: watchedRemedy(adapters)
-        });
-    }
-    return identity;
-};
-
 /** What this call would actually change: the items not already in the wanted
  *  state. Empty means there is nothing to do. */
 async function pending(
@@ -94,7 +141,7 @@ async function pending(
     if (item.kind === 'folder') {
         // Jellyfin marks a folder's children recursively, so one write here
         // would change far more than the "1 item" a preview could show.
-        throw new ServiceError('NotFound', 'jellyfin', `${item.title} is a folder, and marking it would mark every item inside it`, {
+        throw new ServiceError('NotFound', adapter.id, `${item.title} is a folder, and marking it would mark every item inside it`, {
             remedy:
                 item.seriesId !== undefined && item.season !== undefined
                     ? `Pass the series id ${item.seriesId} with \`season: ${item.season}\`.`
@@ -103,7 +150,7 @@ async function pending(
     }
     if (item.kind !== 'series') {
         if (season !== undefined) {
-            throw new ServiceError('NotFound', 'jellyfin', `${item.title} is not a series, so it has no seasons`, {
+            throw new ServiceError('NotFound', adapter.id, `${item.title} is not a series, so it has no seasons`, {
                 remedy: 'Drop `season`, or pass the series item id instead of this one.'
             });
         }
@@ -117,8 +164,8 @@ async function pending(
         const seasons = [...new Set((await adapter.listEpisodeItems(user, item.id)).flatMap(e => (e.season === undefined ? [] : [e.season])))].sort(
             (a, b) => a - b
         );
-        throw new ServiceError('NotFound', 'jellyfin', `${item.title} has no season ${season} in Jellyfin`, {
-            remedy: seasons.length === 0 ? 'Jellyfin lists no episodes for this series.' : `Seasons it has: ${seasons.join(', ')}.`
+        throw new ServiceError('NotFound', adapter.id, `${item.title} has no season ${season} in ${adapter.name}`, {
+            remedy: seasons.length === 0 ? `${adapter.name} lists no episodes for this series.` : `Seasons it has: ${seasons.join(', ')}.`
         });
     }
     return { targets: episodes.filter(e => e.watched !== watched), total: episodes.length };
@@ -135,8 +182,11 @@ const setWatchedInput = byMediaServers(ids => z.object({
         .min(1)
         .optional()
         .describe(
-            '[[jellyfin: The Jellyfin item id: 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.]]' +
-                withBoth(ids, 'Or `media_servers.jellyfin.itemId` when Plex is the primary media server.') +
+            named(ids)
+                .map(id => `[[${id}: The ${MEDIA_SERVER_NAMES[id]} item id: ${WATCH_STATE_SERVERS[id].itemId.described}.]] `)
+                .join('') +
+                `[[${scopeOf(ids)}: \`playback.itemId\` on a get_library or get_media_details record, or the \`itemId\` get_playback reports.]]` +
+                ((w => withBoth(ids, w === undefined ? '' : `Or \`media_servers.${w.writer}.itemId\` when ${w.other} is the primary media server.`))(writerBesidePlex(ids))) +
                 ' [[grimmory: A book is `grimmory:<book id>`.]] [[radarr|sonarr: Not a {{or: radarr=Radarr; sonarr=Sonarr}} id.]]'
         ),
     season: z
@@ -150,7 +200,8 @@ const setWatchedInput = byMediaServers(ids => z.object({
         .string()
         .optional()
         .describe(
-            'Whose watch state to change. Defaults to services.jellyfin.default_user; naming anyone else needs services.jellyfin.allow_other_users.'
+            `Whose watch state to change. Defaults to {{or: ${entries(ids, id => `services.${id}.default_user`)}; else=services.jellyfin.default_user}}; ` +
+                `naming anyone else needs {{or: ${entries(ids, id => `services.${id}.allow_other_users`)}; else=services.jellyfin.allow_other_users}}.`
         )
 }));
 
@@ -173,17 +224,23 @@ export function registerSetWatched(
         }
         if (item_id !== undefined) return item_id;
         if (loader === undefined) throw new Error('`title` cannot be resolved here; pass `item_id`.');
-        return jellyfinIdByTitle(adapters, loader, title as string);
+        return serverItemIdByTitle(adapters, loader, title as string, watchServer(adapters, identity).adapter);
     };
 
     registerWriteTool(server, context, {
         name: 'set_watched',
         title: 'Mark watched or unwatched',
         description:
-            'Marks {{or: jellyfin=a film, series, season or episode watched or unwatched in Jellyfin; grimmory=a Grimmory book read or unread}}. Give a `title`, or `item_id`[[jellyfin: , the Jellyfin id: `playback.itemId` from get_library or get_media_details, or `itemId` from get_playback]]. [[radarr|sonarr: A {{or: radarr=Radarr; sonarr=Sonarr}} id is refused.]] [[jellyfin: A series id with `season` marks one season.]] [[grimmory: A book is `grimmory:<book id>`; READ is watched, and marking sets its finish date to now.]] Safe tier, but unmarking and re-marking loses the original play date and resume position. [[jellyfin: A `user` other than the default needs services.jellyfin.allow_other_users.]] Previews first; confirm to apply. Field reference: arr://docs/set_watched.' +
-            withBoth(mediaServerIds, 'When Plex is the primary media server, take it from `media_servers.jellyfin.itemId` instead: `playback.itemId` is then a Plex id.'),
+            `Marks {{or: ${entries(mediaServerIds, (_, name) => `a film, series, season or episode watched or unwatched in ${name}`)}; grimmory=a Grimmory book read or unread}}. ` +
+            `Give a \`title\`, or \`item_id\`[[${scopeOf(mediaServerIds)}: , the {{or: ${entries(mediaServerIds, (_, name) => name)}}} id: \`playback.itemId\` from get_library or get_media_details, or \`itemId\` from get_playback]]. ` +
+            arrIdNote(identity !== undefined && isWriter(identity.serviceId) ? identity.serviceId : undefined) +
+            `[[${scopeOf(mediaServerIds)}: A series id with \`season\` marks one season.]] [[grimmory: A book is \`grimmory:<book id>\`; READ is watched, and marking sets its finish date to now.]] ` +
+            'Safe tier, but unmarking and re-marking loses the original play date and resume position. ' +
+            `[[${scopeOf(mediaServerIds)}: A \`user\` other than the default needs {{or: ${entries(mediaServerIds, id => `services.${id}.allow_other_users`)}}}.]] ` +
+            'Previews first; confirm to apply. Field reference: arr://docs/set_watched.' +
+            ((w => withBoth(mediaServerIds, w === undefined ? '' : `When ${w.other} is the primary media server, take it from \`media_servers.${w.writer}.itemId\` instead: \`playback.itemId\` is then a ${w.other} id.`))(writerBesidePlex(mediaServerIds))),
         inputSchema: setWatchedInput(mediaServerIds),
-        service: ({ item_id }) => (item_id !== undefined && isBookId(item_id) ? (adapters.find(hasBookReadStatus)?.id ?? 'grimmory') : 'jellyfin'),
+        service: ({ item_id }) => (item_id !== undefined && isBookId(item_id) ? (adapters.find(hasBookReadStatus)?.id ?? 'grimmory') : (identity?.serviceId ?? 'jellyfin')),
         operation: 'set_watched',
         tier: 'safe',
 
@@ -213,10 +270,10 @@ export function registerSetWatched(
                     args: { itemId: target, watched }
                 };
             }
-            const adapter = jellyfinAdapter(adapters);
+            const { adapter, identity: who } = watchServer(adapters, identity);
             // Configuration only, and before any network call; nothing
-            // Jellyfin returns can widen whose state may be written.
-            const viewer = await requireIdentity(adapters, identity).resolve(user);
+            // the server returns can widen whose state may be written.
+            const viewer = await who.resolve(user);
 
             const item = await adapter.readWatchTarget(viewer, item_id);
             const { targets, total } = await pending(adapter, viewer, item, season, watched);
@@ -227,7 +284,7 @@ export function registerSetWatched(
                         ? `${item.title} (${total} episodes)`
                         : `${item.title} season ${season} (${total} episodes)`
                     : item.title;
-            const target = `jellyfin:${item.id}${season === undefined ? '' : `:s${season}`}`;
+            const target = `${adapter.id}:${item.id}${season === undefined ? '' : `:s${season}`}`;
             const verb = watched ? 'watched' : 'unwatched';
 
             if (targets.length === 0) {
@@ -250,7 +307,7 @@ export function registerSetWatched(
                 target,
                 summary: `Mark ${scope} ${verb} for ${viewer.name}.`,
                 effects: [
-                    `Marks ${amount} ${verb} for ${viewer.name} in Jellyfin.`,
+                    `Marks ${amount} ${verb} for ${viewer.name} in ${adapter.name}.`,
                     watched
                         ? 'Anything marked watched drops out of Continue Watching and Next Up.'
                         : 'Anything unmarked comes back into Next Up.',
@@ -274,15 +331,15 @@ export function registerSetWatched(
                 await adapter.setBookReadStatus(id, watched ? 'READ' : 'UNREAD');
                 return { changed: 1 };
             }
-            const adapter = jellyfinAdapter(adapters);
-            const viewer = await requireIdentity(adapters, identity).resolve(user);
+            const { adapter, identity: who } = watchServer(adapters, identity);
+            const viewer = await who.resolve(user);
 
             const item = await adapter.readWatchTarget(viewer, item_id);
             const { targets } = await pending(adapter, viewer, item, season, watched);
 
             // Sequentially rather than in parallel: this can be a whole
             // series, and a burst of a hundred concurrent writes at one
-            // Jellyfin is how a rate limit turns into a half-applied change.
+            // server is how a rate limit turns into a half-applied change.
             // It stops at the first failure, and what was marked before it is
             // reported as applied: thrown, a series half marked would read as
             // nothing changed, and the library cache would keep the old state.
@@ -295,7 +352,8 @@ export function registerSetWatched(
                     return {
                         changed,
                         failed: `${each.title}: ${err instanceof Error ? err.message : String(err)}`,
-                        notTried: targets.length - changed - 1
+                        notTried: targets.length - changed - 1,
+                        server: adapter.name
                     };
                 }
                 changed += 1;
@@ -305,9 +363,10 @@ export function registerSetWatched(
         },
 
         applied(outcome, plan) {
-            const { changed, failed, notTried } = outcome as { changed: number; failed?: string; notTried?: number };
-            if (failed === undefined) return undefined;
-            return `Partly applied. ${plan.summary} Marked ${changed}, then Jellyfin failed on ${failed}${
+            const result = outcome as { changed: number; failed?: undefined } | { changed: number; failed: string; notTried: number; server: string };
+            if (result.failed === undefined) return undefined;
+            const { changed, failed, notTried, server } = result;
+            return `Partly applied. ${plan.summary} Marked ${changed}, then ${server} failed on ${failed}${
                 notTried === 0 ? '' : `, and ${notTried} more ${notTried === 1 ? 'was' : 'were'} not tried`
             }. Call set_watched again to finish: it only marks what is still left.`;
         }

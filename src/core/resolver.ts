@@ -189,8 +189,8 @@ export type MergedItem = {
      * A degraded or unconfigured media server gets `unknown`, never
      * `arr_only`; that claim asserts the server looked and did not find it.
      *
-     * An artist reads like a film or a series: Jellyfin and Plex both publish
-     * the MusicBrainz artist id, so music joins on it. An artist found on both
+     * An artist reads like a film or a series: Jellyfin, Emby and Plex all
+     * publish the MusicBrainz artist id, so music joins on it. An artist found on both
      * sides is `both`, and one the server never saw is `arr_only`.
      *
      * Named for Jellyfin from when it was the only media server. Now that

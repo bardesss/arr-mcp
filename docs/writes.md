@@ -107,9 +107,10 @@ records the retag, but nothing writes the old values back.
 `set_watched` is safe rather than destructive, but it is the one safe write
 whose undo is not perfectly clean: unmarking and re-marking restores the
 watched flag and nothing else. The original play date and resume position are
-gone, and Jellyfin has no way to put them back. The preview says so before you
-confirm. On a Grimmory book the equivalent is the finish date: marking it read
-sets it to now, marking it unread clears it, and an earlier one is not restored.
+gone, and neither Jellyfin nor Emby has a way to put them back. The preview
+says so before you confirm. On a Grimmory book the equivalent is the finish
+date: marking it read sets it to now, marking it unread clears it, and an
+earlier one is not restored.
 
 `update_media` is safe, including when it changes the root folder, which asks
 the service to **move the files on disk**. Nothing is lost by a move: the undo

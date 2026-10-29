@@ -36,7 +36,7 @@ const ScopeSchema = z
     .describe(
         '`active` (default): now playing and what can be resumed. `next_up`: the next unwatched episode of every ' +
             "series this user has in progress, your media server's own answer to what to watch next. `history`: " +
-            'watched movies and episodes, newest first, including ones the server has since forgotten, on Jellyfin ' +
+            'watched movies and episodes, newest first, including ones the server has since forgotten, on {{or: jellyfin=Jellyfin; emby=Emby; else=Jellyfin}} ' +
             'also plays its activity log holds that never got marked played, such as an offline client syncing back.'
     );
 
@@ -206,7 +206,7 @@ export function registerGetPlayback(server: McpServer, servers: MediaServers, pl
             title: 'Playback activity',
             annotations: READ_ONLY,
             description:
-                'What a media-server user is watching, has next, or has watched; watch state exists only on the media server. `scope: "active"` (default): now playing and resumable, with position. `"next_up"`: the next unwatched episode of each series in progress. `"history"`: plays newest first, kept by arr-mcp after the server forgets them (a deleted title, an old play); [[jellyfin: on Jellyfin also plays from its activity log never marked played (an offline client syncing back), tagged `source: "activity_log"`.]] Defaults to the configured user; another needs allow_other_users. With no media server configured every scope is empty and `note` says why: report that rather than saying nothing is playing. Field reference: arr://docs/get_playback.' +
+                'What a media-server user is watching, has next, or has watched; watch state exists only on the media server. `scope: "active"` (default): now playing and resumable, with position. `"next_up"`: the next unwatched episode of each series in progress. `"history"`: plays newest first, kept by arr-mcp after the server forgets them (a deleted title, an old play); [[jellyfin|emby: on {{or: jellyfin=Jellyfin; emby=Emby}} also plays from its activity log never marked played (an offline client syncing back), tagged `source: "activity_log"`.]] Defaults to the configured user; another needs allow_other_users. With no media server configured every scope is empty and `note` says why: report that rather than saying nothing is playing. Field reference: arr://docs/get_playback.' +
                 withBoth(
                     bothIds(servers),
                     'With two media servers configured, `service` picks one; it defaults to the primary. Call once per server for everything playing everywhere.'

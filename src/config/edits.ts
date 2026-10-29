@@ -81,7 +81,7 @@ export const configuredMediaServers = (config: Config): MediaServerId[] => media
 /** Only meaningful with both configured; with one, naming that one is a no-op. */
 export function setPrimaryMediaServer(config: Config, primary: string): Config {
     const parsed = MediaServerIdSchema.safeParse(primary);
-    if (!parsed.success) throw new ConfigEditError('Pick jellyfin or plex as the primary media server.');
+    if (!parsed.success) throw new ConfigEditError('Pick jellyfin, emby or plex as the primary media server.');
     const configured = configuredMediaServers(config);
     if (!configured.includes(parsed.data)) throw new ConfigEditError(`${parsed.data} is not configured.`);
     if (configured.length < 2) return config;

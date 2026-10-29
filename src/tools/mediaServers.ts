@@ -38,6 +38,7 @@ function complete(candidate: ServiceAdapter): MediaServerAdapter {
 /** Keyed by adapter `type`; narrowed by hand because each `services` key has its own shape. */
 function configFor(type: ServiceId, services: Config['services']): MultiUserServiceConfig | undefined {
     if (type === 'jellyfin') return services.jellyfin;
+    if (type === 'emby') return services.emby;
     if (type === 'plex') return services.plex;
     return undefined;
 }
@@ -88,8 +89,8 @@ export function bothIds(servers: MediaServers): [string, string] | undefined {
  * A schema that depends on which media servers are configured, built once per
  * distinct pair and shared by every request's server (#573). A reload that
  * changes the pair gets a fresh schema, since the pair is the cache key. The
- * map never evicts, but only a handful of pairs exist (two server types, two
- * orderings).
+ * map never evicts, but only a handful of pairs exist (three server types, two
+ * at a time, in either order).
  */
 export const byMediaServers = <V>(build: (ids: [string, string] | undefined) => V): ((ids: [string, string] | undefined) => V) => {
     const built = new Map<string, V>();

@@ -2,6 +2,7 @@ import type { FilmOrSeries } from '../core/resolver.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { buildResolvedMediaDetails, explainMiss, NotInLibrary, type ResolvedMediaDetails } from './getMediaDetails.ts';
 import type { LibraryLoader } from './library.ts';
+import { itemIdOn } from './mediaServers.ts';
 import { titled } from '../core/labels.ts';
 
 /**
@@ -56,15 +57,20 @@ export async function managedIdByTitle(
 }
 
 /**
- * The Jellyfin item id for a title. With two media servers the merged record's
- * `playback` is the primary's, so Jellyfin's own id is read from
+ * A media server's own item id for a title. With two media servers the merged
+ * record's `playback` is the primary's, so the server's own id is read from
  * `media_servers` whenever that is there.
  */
-export async function jellyfinIdByTitle(adapters: readonly ServiceAdapter[], loader: LibraryLoader, title: string): Promise<string> {
+export async function serverItemIdByTitle(
+    adapters: readonly ServiceAdapter[],
+    loader: LibraryLoader,
+    title: string,
+    server: { readonly id: string; readonly name: string }
+): Promise<string> {
     const item = await itemByTitle(adapters, loader, title);
-    const id = item.media_servers === undefined ? item.playback?.itemId : item.media_servers['jellyfin']?.itemId;
+    const id = itemIdOn(item, server.id);
     if (id === undefined) {
-        throw new Error(`${titled(item.title, item.year)} is not in Jellyfin, so there is no watch state to set.`);
+        throw new Error(`${titled(item.title, item.year)} is not in ${server.name}, so there is no watch state to set.`);
     }
     return id;
 }

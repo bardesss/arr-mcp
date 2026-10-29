@@ -4,6 +4,7 @@ import { resolveSecrets } from '../config/secretSources.ts';
 import { BazarrAdapter } from './bazarr.ts';
 import { CleanuparrAdapter } from './cleanuparr.ts';
 import { DispatcharrAdapter } from './dispatcharr.ts';
+import { EmbyAdapter } from './emby.ts';
 import { JellyfinAdapter } from './jellyfin.ts';
 import { LidarrAdapter } from './lidarr.ts';
 import { NzbgetAdapter } from './nzbget.ts';
@@ -63,6 +64,8 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
             return new CleanuparrAdapter(instance.config);
         case 'dispatcharr':
             return new DispatcharrAdapter(instance.config);
+        case 'emby':
+            return new EmbyAdapter(instance.config);
         case 'jellyfin':
             return new JellyfinAdapter(instance.config);
         case 'lidarr':

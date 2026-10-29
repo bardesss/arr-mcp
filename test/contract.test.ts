@@ -744,6 +744,94 @@ const CONTRACTS: Record<string, ServiceContract> = {
             }
         ]
     },
+    // No spec: Emby serves its swagger from the running server only, so the
+    // fixtures, captured from Emby 4.10.2.0, are the whole contract.
+    emby: {
+        dependencies: [
+            { fixture: 'test/fixtures/emby/system-info.json', fields: ['Version'] },
+            { fixture: 'test/fixtures/emby/users.json', fields: ['Id', 'Name'] },
+            {
+                fixture: 'test/fixtures/emby/scheduled-tasks.json',
+                fields: ['Id', 'Key', 'State', 'LastExecutionResult.EndTimeUtc']
+            },
+            {
+                // Captured while a client was playing, so `NowPlayingItem`
+                // and its position are on the row that getPlayback reads.
+                fixture: 'test/fixtures/emby/sessions.json',
+                fields: ['UserId', 'DeviceName', 'PlayState.PositionTicks', 'NowPlayingItem.Id', 'NowPlayingItem.RunTimeTicks']
+            },
+            // `ProductionYear` only because the reads name it in `Fields`: see EMBY.yearField.
+            { fixture: 'test/fixtures/emby/items-search.json', fields: ['Items.Id', 'Items.Name', 'Items.Type', 'Items.ProductionYear', 'Items.ProviderIds'] },
+            {
+                fixture: 'test/fixtures/emby/items-library.json',
+                fields: [
+                    'Items.Id',
+                    'Items.Name',
+                    'Items.OriginalTitle',
+                    'Items.Type',
+                    'Items.ProductionYear',
+                    'Items.ProviderIds',
+                    'Items.UserData.Played',
+                    'Items.UserData.PlayCount',
+                    'Items.Genres'
+                ]
+            },
+            {
+                // `/Users/{userId}/Items/Resume?MediaTypes=Video`. Holds a
+                // next episode at position zero beside the part-watched rows.
+                fixture: 'test/fixtures/emby/resume.json',
+                fields: [
+                    'Items.Id',
+                    'Items.Name',
+                    'Items.Type',
+                    'Items.RunTimeTicks',
+                    'Items.UserData.PlaybackPositionTicks',
+                    'Items.UserData.LastPlayedDate'
+                ]
+            },
+            {
+                fixture: 'test/fixtures/emby/next-up.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.SeriesName', 'Items.ParentIndexNumber', 'Items.IndexNumber']
+            },
+            {
+                // `ItemId` joins a stop to its item; `UserId` is an internal
+                // number here, resolved through `/Users/{n}` (log-user.json).
+                fixture: 'test/fixtures/emby/activity-log.json',
+                fields: ['Items.Type', 'Items.ItemId', 'Items.Date', 'Items.UserId']
+            },
+            { fixture: 'test/fixtures/emby/log-user.json', fields: ['Id'] },
+            {
+                fixture: 'test/fixtures/emby/show-episodes.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.IndexNumber', 'Items.ParentIndexNumber', 'Items.Path', 'Items.UserData.Played']
+            },
+            {
+                // fix_metadata's reads. `LockData` and `LockedFields` come back
+                // as false and [] when nothing is locked: the lock check reads
+                // a missing pair as locks it cannot see.
+                fixture: 'test/fixtures/emby/episode-metadata.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.IndexNumber', 'Items.ParentIndexNumber', 'Items.Path', 'Items.ProviderIds', 'Items.LockData', 'Items.LockedFields']
+            },
+            { fixture: 'test/fixtures/emby/series-locks.json', fields: ['Items.Id', 'Items.Type', 'Items.LockData', 'Items.LockedFields'] },
+            {
+                fixture: 'test/fixtures/emby/episode-locks.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.IndexNumber', 'Items.ParentIndexNumber', 'Items.LockData', 'Items.LockedFields']
+            },
+            {
+                fixture: 'test/fixtures/emby/film-metadata.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.ProductionYear', 'Items.Path', 'Items.ProviderIds', 'Items.LockData', 'Items.LockedFields']
+            },
+            {
+                // `/Users/{userId}/Items/{itemId}`: set_watched's target read.
+                fixture: 'test/fixtures/emby/watch-target.json',
+                fields: ['Type', 'Name', 'UserData.Played']
+            },
+            {
+                // Emby spells the key `MusicBrainzArtist`, as Jellyfin does.
+                fixture: 'test/fixtures/emby/album-artists.json',
+                fields: ['Items.Id', 'Items.Name', 'Items.ProviderIds.MusicBrainzArtist']
+            }
+        ]
+    },
     seerr: {
         spec: 'specs/seerr.json',
         dependencies: [

@@ -95,6 +95,13 @@ describe('assertVersionSupported', () => {
         expect(rejection(() => assertVersionSupported('lidarr', '2.1.2')).kind).toBe('VersionUnsupported');
     });
 
+    it('rejects Emby 4.8.11.0, whose activity log names no item, and accepts 4.9.1.80', () => {
+        expect(() => assertVersionSupported('emby', '4.9.1.80')).not.toThrow();
+        const err = rejection(() => assertVersionSupported('emby', '4.8.11.0'));
+        expect(err.kind).toBe('VersionUnsupported');
+        expect(err.remedy).toContain('4.9.1.80');
+    });
+
     it('rejects Jellyfin 10.8, whose API lacks three routes the adapter calls', () => {
         // `/Items/{itemId}`, `/UserPlayedItems/{itemId}` and `/UserItems/Resume`
         // all arrived in 10.9.0, alongside the deprecation of the per-user
@@ -149,6 +156,7 @@ describe('assertVersionSupported against captured evidence', () => {
         prowlarr: (read('test/fixtures/prowlarr/system-status.json') as { version: string }).version,
         bazarr: (read('test/fixtures/bazarr/system-status.json') as { data: { bazarr_version: string } }).data.bazarr_version,
         jellyfin: (read('test/fixtures/jellyfin/system-info.json') as { Version: string }).Version,
+        emby: (read('test/fixtures/emby/system-info.json') as { Version: string }).Version,
         seerr: (read('test/fixtures/seerr/status.json') as { version: string }).version,
         sabnzbd: (read('test/fixtures/sabnzbd/version.json') as { version: string }).version,
         nzbget: (read('test/fixtures/nzbget/version.json') as { result: string }).result,

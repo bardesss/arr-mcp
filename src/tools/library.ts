@@ -337,9 +337,9 @@ export class LibraryLoader {
         // rating, which nothing else in the stack could give them.
         const rated = enrichWithImdb(items, this.#dataset);
 
-        // The actual configured media server's id (`jellyfin` or `plex`), not
-        // a hardcoded name, falling back to the identity's own adapter id for
-        // the pathological case where the two disagree.
+        // The actual configured media server's id (`jellyfin`, `emby` or
+        // `plex`), not a hardcoded name, falling back to the identity's own
+        // adapter id for the pathological case where the two disagree.
         const mediaServerId = mediaServer?.id ?? this.#identity?.serviceId;
 
         // Ordered most specific first: a media server that is configured but

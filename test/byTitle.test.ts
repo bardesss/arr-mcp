@@ -5,7 +5,7 @@ import { fenceText } from '../src/core/fence.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
-import { itemByTitle, jellyfinIdByTitle, managedIdByTitle } from '../src/tools/byTitle.ts';
+import { itemByTitle, managedIdByTitle, serverItemIdByTitle } from '../src/tools/byTitle.ts';
 import { registerGetReleases } from '../src/tools/getReleases.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { serving } from './helpers/serve.ts';
@@ -70,9 +70,12 @@ describe('a title in place of an id', () => {
         await expect(managedIdByTitle(adapters, loader, 'The Matrix', 'radarr')).rejects.toThrow(/^Nothing in your library matches "The Matrix"\. No metadata lookup/);
     });
 
+    const jellyfin = { id: 'jellyfin', name: 'Jellyfin' };
+    const emby = { id: 'emby', name: 'Emby' };
+
     it('reads the Jellyfin id from playback with one media server', async () => {
         const { adapters, loader } = loaderOf([film('Arrival', 1, '340', 2016, { playback: { user: 'Sam', itemId: 'jf-1', watched: false } })]);
-        expect(await jellyfinIdByTitle(adapters, loader, 'Arrival')).toBe('jf-1');
+        expect(await serverItemIdByTitle(adapters, loader, 'Arrival', jellyfin)).toBe('jf-1');
     });
 
     it('reads the Jellyfin id from media_servers when Plex is primary', async () => {
@@ -83,12 +86,29 @@ describe('a title in place of an id', () => {
             })
         ];
         const { adapters, loader } = loaderOf(rows);
-        expect(await jellyfinIdByTitle(adapters, loader, 'Arrival')).toBe('jf-1');
+        expect(await serverItemIdByTitle(adapters, loader, 'Arrival', jellyfin)).toBe('jf-1');
+    });
+
+    it("reads the server's own id from media_servers beside another server, whichever it is", async () => {
+        const rows = [
+            film('Arrival', 1, '340', 2016, {
+                playback: { user: 'Sam', itemId: 'jf-1', watched: false },
+                media_servers: { jellyfin: { present: true, itemId: 'jf-1' }, emby: { present: true, itemId: '12' } }
+            })
+        ];
+        const { adapters, loader } = loaderOf(rows);
+        expect(await serverItemIdByTitle(adapters, loader, 'Arrival', emby)).toBe('12');
     });
 
     it('says so when Jellyfin does not have it', async () => {
         const { adapters, loader } = loaderOf([film('Arrival', 1, '340')]);
-        await expect(jellyfinIdByTitle(adapters, loader, 'Arrival')).rejects.toThrow(/is not in Jellyfin/);
+        await expect(serverItemIdByTitle(adapters, loader, 'Arrival', jellyfin)).rejects.toThrow(/is not in Jellyfin/);
+    });
+
+    it('names the server that does not have it', async () => {
+        const rows = [film('Arrival', 1, '340', 2016, { media_servers: { jellyfin: { present: true, itemId: 'jf-1' }, emby: { present: false } } })];
+        const { adapters, loader } = loaderOf(rows);
+        await expect(serverItemIdByTitle(adapters, loader, 'Arrival', emby)).rejects.toThrow('<<untrusted:radarr.title>>Arrival<</>> (2016) is not in Emby, so there is no watch state to set.');
     });
 });
 

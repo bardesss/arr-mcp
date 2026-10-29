@@ -162,9 +162,9 @@ const yearOf = (releaseDate: string | null | undefined): number | undefined => {
 /**
  * The artist's MusicBrainz id, which `ArtistResource.foreignArtistId` holds.
  *
- * This is the whole reason an artist is the row: Jellyfin and Plex both expose
- * the same id for an album artist, so the join that merges a *arr with a media
- * server finally has a key for music. Nothing is invented when it is absent: a
+ * This is the whole reason an artist is the row: Jellyfin, Emby and Plex all
+ * expose the same id for an album artist, so the join that merges a *arr with a
+ * media server finally has a key for music. Nothing is invented when it is absent: a
  * row with no MBID simply does not join.
  */
 const artistIds = (artist: RawArtist): IndexInput['ids'] =>

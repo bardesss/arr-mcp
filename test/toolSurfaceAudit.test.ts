@@ -17,6 +17,7 @@ const DISPLAY: Record<ServiceId, readonly string[]> = {
     prowlarr: ['Prowlarr'],
     bazarr: ['Bazarr'],
     jellyfin: ['Jellyfin'],
+    emby: ['Emby'],
     seerr: ['Seerr'],
     sabnzbd: ['SABnzbd'],
     nzbget: ['NZBGet'],

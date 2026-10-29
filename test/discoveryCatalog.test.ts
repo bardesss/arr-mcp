@@ -60,6 +60,18 @@ describe('discovery catalog', () => {
         }
     });
 
+    it('jellyfin and emby share 8096 and /System/Info/Public and are told apart', () => {
+        const jellyfin = entry('jellyfin');
+        const emby = entry('emby');
+        expect([jellyfin.port, emby.port]).toEqual([8096, 8096]);
+        expect(emby.path).toBe(jellyfin.path);
+        for (const { name, fixture } of fixtures) {
+            const r = respond(fixture);
+            expect(jellyfin.identify(r) !== undefined, `jellyfin on ${name}`).toBe(fixture.service === 'jellyfin');
+            expect(emby.identify(r) !== undefined, `emby on ${name}`).toBe(fixture.service === 'emby');
+        }
+    });
+
     it('an *arr behind forms login is still named', () => {
         const radarr = fixtures.find(f => f.name === 'radarr-login-forms.json');
         expect(radarr).toBeDefined();

@@ -28,7 +28,10 @@ import {
 } from '../src/core/auth.ts';
 import { parseEventStream } from '../src/core/eventStream.ts';
 import { ServiceHttp } from '../src/core/http.ts';
+import { EMBY } from '../src/services/emby.ts';
+import { JELLYFIN } from '../src/services/jellyfin.ts';
 import { parseServiceFilter } from './lib/captureArgs.ts';
+import { anonymiseActivityLog, anonymiseLogUser, EmbyScrubber } from './lib/embyCapture.ts';
 import {
     anonymiseLidarrAlbum,
     anonymiseLidarrArtist,
@@ -144,6 +147,27 @@ const firstSeriesWithFiles = (body: unknown): number | undefined => {
 };
 
 /**
+ * The user Emby's per-user captures read as: the first who is not an
+ * administrator, else the first. The API key's own administrator is often an
+ * account nobody watches on, and a per-user fixture from a user with no watch
+ * state has no rows to contract against.
+ */
+const embyViewer = (captured: Map<string, unknown>): string | undefined => {
+    const users = captured.get('users');
+    if (!Array.isArray(users)) return undefined;
+    type User = { Id?: string; Policy?: { IsAdministrator?: boolean } };
+    const viewer = (users as User[]).find(u => u.Policy?.IsAdministrator === false) ?? (users as User[])[0];
+    return viewer?.Id;
+};
+
+const embyScrubber = new EmbyScrubber();
+/** A session's user, which the scrub has made `User 2`, in the `userN` shape the fixture guard asks of a `UserName`. */
+const userNameOf = (name: string, fallback: number): string => `user${/^User (\d+)$/.exec(name)?.[1] ?? fallback}`;
+/** The scrub every Emby capture gets (see `EmbyScrubber`), then the endpoint's own anonymiser. */
+const scrubbed = (endpoints: Endpoint[]): Endpoint[] =>
+    endpoints.map(e => ({ ...e, anonymise: body => (e.anonymise ?? (b => b))(embyScrubber.scrub(body)) }));
+
+/**
  * The captured series most likely to actually enumerate episodes.
  *
  * Deliberately not the *first* series: a Jellyfin `Series` row exists whether
@@ -248,7 +272,10 @@ const neutraliseResumeState = (body: unknown): unknown => {
                           PlayCount: 1,
                           IsFavorite: false,
                           LastPlayedDate: `2026-01-0${i + 1}T20:00:00.0000000Z`,
-                          PlaybackPositionTicks: 18_000_000_000 * (i + 1),
+                          // Zero stays zero: Emby puts a series' next episode
+                          // in this read at position zero, and that zero is
+                          // what tells it from a part-watched row.
+                          PlaybackPositionTicks: (item.UserData as Row).PlaybackPositionTicks === 0 ? 0 : 18_000_000_000 * (i + 1),
                           ...('PlayedPercentage' in (item.UserData as Row) ? { PlayedPercentage: 25 * (i + 1) } : {})
                       }
         }))
@@ -1002,6 +1029,163 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: neutraliseWatchState
         }
     ],
+    // Every one also goes through `EmbyScrubber`, in this order.
+    emby: scrubbed([
+        { name: 'system-info', path: '/System/Info' },
+        {
+            name: 'users',
+            path: '/Users',
+            // `Prefix` is the first letter of the name it replaces. The scrub
+            // replaces each name in the fixtures after this one too.
+            anonymise: body =>
+                Array.isArray(body)
+                    ? (body as Row[]).map((u, i) => {
+                          if (typeof u.Name === 'string') embyScrubber.rename(u.Name, `User ${i + 1}`);
+                          return { ...u, Name: replaceIfString(u.Name, `User ${i + 1}`), ...(u.Prefix === undefined ? {} : { Prefix: 'U' }) };
+                      })
+                    : body
+        },
+        // Not anonymised beyond the scrub, as for Jellyfin: `Key` is what identifies the scan.
+        { name: 'scheduled-tasks', path: '/ScheduledTasks' },
+        // Captured while a client is playing something, so a row carries `NowPlayingItem`.
+        {
+            name: 'sessions',
+            path: '/Sessions',
+            anonymise: body =>
+                Array.isArray(body)
+                    ? (body as Row[]).map((s, i) => (typeof s.UserName === 'string' ? { ...s, UserName: userNameOf(s.UserName, i + 1) } : s))
+                    : body
+        },
+        {
+            name: 'items-search',
+            // `de`, not Jellyfin's `a`: Emby matches the start of a word, from
+            // two letters, and a single letter finds nothing. `ProductionYear`
+            // is in `Fields` because Emby sends no year without it (see
+            // EMBY.yearField). EnableImages=false is the capture-only trim
+            // items-library uses.
+            path: '/Items?searchTerm=de&Recursive=true&IncludeItemTypes=Movie,Series&Limit=5&Fields=ProviderIds,ProductionYear&EnableImages=false'
+        },
+        {
+            name: 'items-library',
+            path: captured => {
+                const id = embyViewer(captured);
+                return id === undefined
+                    ? undefined
+                    : `/Items?userId=${id}&Recursive=true&IncludeItemTypes=Movie,Series` +
+                      '&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount,ProductionYear&EnableUserData=true&EnableImages=false&Limit=20';
+            },
+            anonymise: neutraliseWatchState
+        },
+        {
+            name: 'watch-target',
+            // Emby's per-user item read: `/Items/{id}?userId=` answers 404 here.
+            path: captured => {
+                const userId = embyViewer(captured);
+                const items = (captured.get('items-library') as { Items?: { Id?: string }[] } | undefined)?.Items;
+                const itemId = Array.isArray(items) ? items[0]?.Id : undefined;
+                return userId === undefined || itemId === undefined ? undefined : `/Users/${userId}/Items/${itemId}`;
+            },
+            anonymise: body => ({ ...(body as Row), UserData: { Played: false } })
+        },
+        {
+            name: 'album-artists',
+            path: captured => {
+                const id = embyViewer(captured);
+                return id === undefined
+                    ? undefined
+                    : `/Artists/AlbumArtists?userId=${id}&Recursive=true&Fields=ProviderIds&Limit=20&StartIndex=0`;
+            },
+            // A public-domain recording on the test server, so the scrub is all it needs.
+        },
+        {
+            name: 'resume',
+            // `MediaTypes=Video` is what makes Emby answer at all: see EMBY.resume.
+            path: captured => {
+                const id = embyViewer(captured);
+                return id === undefined ? undefined : `/Users/${id}/Items/Resume?MediaTypes=Video&Limit=500&EnableImages=false`;
+            },
+            anonymise: neutraliseResumeState
+        },
+        {
+            name: 'next-up',
+            path: captured => {
+                const id = embyViewer(captured);
+                return id === undefined ? undefined : `/Shows/NextUp?userId=${id}&LegacyNextUp=true&EnableImages=false`;
+            }
+        },
+        {
+            name: 'show-episodes',
+            path: captured => {
+                const userId = embyViewer(captured);
+                const seriesId = richestSeriesId(captured.get('items-library'));
+                return userId === undefined || seriesId === undefined
+                    ? undefined
+                    : `/Shows/${seriesId}/Episodes?userId=${userId}&EnableUserData=true&EnableImages=false&Fields=Path`;
+            },
+            anonymise: neutraliseWatchState
+        },
+        // fix_metadata's reads, as the adapter makes them. `Settings` is what
+        // carries the locks Emby's re-identify would clear, which the repair
+        // checks before it offers a token: a series' own and its episodes' as
+        // the server holds them, with no user.
+        {
+            name: 'episode-metadata',
+            path: captured => {
+                const userId = embyViewer(captured);
+                const seriesId = richestSeriesId(captured.get('items-library'));
+                return userId === undefined || seriesId === undefined
+                    ? undefined
+                    : `/Shows/${seriesId}/Episodes?userId=${userId}&Fields=Path,ProviderIds,Settings&EnableImages=false`;
+            },
+            anonymise: neutraliseWatchState
+        },
+        {
+            name: 'series-locks',
+            path: captured => {
+                const seriesId = richestSeriesId(captured.get('items-library'));
+                return seriesId === undefined ? undefined : `/Items?ids=${seriesId}&Fields=Settings&EnableImages=false`;
+            }
+        },
+        {
+            name: 'episode-locks',
+            path: captured => {
+                const seriesId = richestSeriesId(captured.get('items-library'));
+                return seriesId === undefined ? undefined : `/Shows/${seriesId}/Episodes?Fields=Settings&EnableImages=false`;
+            }
+        },
+        {
+            name: 'film-metadata',
+            path: captured => {
+                const userId = embyViewer(captured);
+                const items = (captured.get('items-library') as { Items?: { Id?: string; Type?: string }[] } | undefined)?.Items;
+                const filmId = Array.isArray(items) ? items.find(i => i.Type === 'Movie')?.Id : undefined;
+                return userId === undefined || filmId === undefined
+                    ? undefined
+                    : `/Items?userId=${userId}&ids=${filmId}&Fields=Path,ProviderIds,Settings,ProductionYear&EnableImages=false`;
+            },
+            anonymise: neutraliseWatchState
+        },
+        // Nothing reads an Emby log entry's sentence: a play of an item deleted
+        // since is left out there. A play's is kept as Emby writes it once the
+        // scrub has renamed its user; the rest become placeholders, and
+        // `Overview` goes in the scrub.
+        {
+            name: 'activity-log',
+            path: '/System/ActivityLog/Entries?hasUserId=true&limit=20',
+            anonymise: anonymiseActivityLog
+        },
+        {
+            name: 'log-user',
+            // The log names a user by an internal number; this is the read that
+            // turns one into the `/Users` id.
+            path: captured => {
+                const items = (captured.get('activity-log') as { Items?: { UserId?: string }[] } | undefined)?.Items;
+                const logId = Array.isArray(items) ? items.find(e => typeof e.UserId === 'string')?.UserId : undefined;
+                return logId === undefined ? undefined : `/Users/${logId}`;
+            },
+            anonymise: anonymiseLogUser
+        }
+    ]),
     seerr: [
         { name: 'status', path: '/api/v1/status' },
         {
@@ -1599,7 +1783,7 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     }
     if (id === 'shelfmark' && (service as { api_key?: string }).api_key === undefined) return noAuth;
     const key = (service as { api_key: string }).api_key;
-    if (id === 'jellyfin') return embyToken(key);
+    if (id === 'jellyfin' || id === 'emby') return embyToken(key, (id === 'emby' ? EMBY : JELLYFIN).apiKeys);
     if (id === 'plex') return plexToken(key);
     if (id === 'sabnzbd') return queryParamKey('apikey', key);
     if (id === 'bazarr') return apiKeyHeader('X-API-KEY', key);

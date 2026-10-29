@@ -1,0 +1,27 @@
+{
+  "Items": [
+    {
+      "Name": "The Last Round",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "16",
+      "PremiereDate": "1961-01-10T00:00:00.0000000Z",
+      "RunTimeTicks": 14971310000,
+      "IndexNumber": 16,
+      "ParentIndexNumber": 3,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false
+      },
+      "SeriesName": "One Step Beyond",
+      "SeriesId": "13",
+      "SeasonId": "14",
+      "SeasonName": "Season 3",
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 1
+}

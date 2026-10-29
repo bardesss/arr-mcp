@@ -49,6 +49,7 @@ body:
         - label: Bazarr
         - label: Profilarr
         - label: Jellyfin
+        - label: Emby
         - label: Plex
         - label: Seerr
         - label: SABnzbd

@@ -85,8 +85,9 @@ const ALLOWED_ADDRESS =
  *  whole file, not named fields: the next endpoint captured will carry its own. */
 export const publicAddresses = (text: string): string[] => {
     // A four-part version ("2.2.0.108") is shaped like an address, and a
-    // version-named key never holds one.
-    const unversioned = text.replace(/"[^"]*version[^"]*"\s*:\s*"[^"]*"/gi, '');
+    // version-named key never holds one, also inside a JSON string, where a
+    // discovery fixture's body holds `\"Version\":\"4.10.2.0\"`.
+    const unversioned = text.replace(/\\?"[^"\\]*version[^"\\]*\\?"\s*:\s*\\?"[^"\\]*\\?"/gi, '');
     return [...unversioned.matchAll(IPV4), ...unversioned.matchAll(IPV6)]
         .map(m => m[0])
         .filter(a => a.includes(':') || a.split('.').every(o => Number(o) <= 255))
@@ -192,6 +193,8 @@ describe('the guard itself', () => {
     it('flags a public address in any field, and passes private, documentation and version-shaped ones', () => {
         expect(publicAddresses('{"anything":"8.8.8.8","v6":"2606:4700::1111"}')).toEqual(['8.8.8.8', '2606:4700::1111']);
         expect(publicAddresses('{"version":"2.2.0.108"}')).toEqual([]);
+        expect(publicAddresses('{"body":"{\\"Version\\":\\"4.10.2.0\\"}"}')).toEqual([]);
+        expect(publicAddresses('{"body":"{\\"Host\\":\\"8.8.8.8\\"}"}')).toEqual(['8.8.8.8']);
         expect(publicAddresses('"192.168.1.5 10.0.0.1 192.0.2.10 2001:db8::a fe80::1 ::1 4.0.5.1234 09:22:10"')).toEqual([]);
     });
 

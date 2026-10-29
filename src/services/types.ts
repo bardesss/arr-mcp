@@ -1,6 +1,6 @@
 import type { ServiceId } from '../config/schema.ts';
 import type { CleanuparrRule, RuleAction, TorrentFacts, UnmatchedReason } from '../core/cleanuparrRules.ts';
-import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
+import type { EpisodeRecord, ItemLocks, MovieRecord } from '../core/episodeMismatch.ts';
 import type { Display } from '../core/display.ts';
 import type { IndexInput, LibraryKind } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
@@ -991,6 +991,9 @@ export interface MetadataInspectCapable {
     /** Locked fields per item, for servers whose list reads leave them out.
      *  Absent where the reads above already carry them. */
     readLockedFields?(itemIds: readonly string[]): Promise<Map<string, string[]>>;
+
+    /** How the server's own UI clears a lock, in its own labels, for a remedy to quote. */
+    readonly unlockHow: string;
 }
 
 export const hasMetadataInspect = (a: ServiceAdapter): a is ServiceAdapter & MetadataInspectCapable =>
@@ -1019,7 +1022,29 @@ export interface MetadataRepairCapable {
         itemId: string,
         opts: { tvdbId?: number; tmdbId?: number }
     ): Promise<{ settled: boolean; matchedTo?: { name: string; year?: string } }>;
+
+    /**
+     * What a repair that pins a provider id would take from the item's locks,
+     * on a server whose identify does not respect them. `parts` are the
+     * records `MetadataInspectCapable` read for the item, so a film costs no
+     * request; a series costs two, for its own locks and its episodes'. Empty,
+     * without a request, where the server's identify keeps every lock.
+     */
+    identifyLockLoss?(item: { itemId: string; kind: 'movie' | 'series' }, parts: readonly { id: string; locks?: ItemLocks }[]): Promise<LockLoss>;
+
+    /** True where that identify clears the locks it meets, so `fix_metadata` refuses a locked item. */
+    readonly identifyClearsLocks?: boolean;
 }
+
+/**
+ * The item's own locks (`item` for the whole-item lock, else the field's
+ * name) and the episodes under it locked as a whole (`name` fenced); or
+ * `unread` when the server did not report its locks, so no loss can be ruled
+ * out.
+ */
+export type LockLoss =
+    | { own: readonly string[]; wholeLockedEpisodes: readonly { id: string; name: string; season?: number; episode?: number }[] }
+    | { unread: true };
 
 /**
  * One audio file whose embedded tags differ from Lidarr's metadata, as
@@ -1374,8 +1399,9 @@ export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapabl
  */
 export type CommandHandle = {
     service: string;
-    /** Absent when the service gave none to follow: Plex and Jellyfin never
-     *  do, and an *arr that answers without one has still queued the work. */
+    /** Absent when the service gave none to follow: Plex, Jellyfin and Emby
+     *  never do, and an *arr that answers without one has still queued the
+     *  work. */
     commandId?: number;
     name: string;
     status?: string;
@@ -2383,7 +2409,7 @@ export const hasUserLibrary = (a: ServiceAdapter): a is ServiceAdapter & UserLib
  * the two apart.
  */
 export const NO_MEDIA_SERVER_NOTE =
-    'No media server is configured, so there is no watch state to read: this is a blind spot, not an empty library. Add `services.jellyfin` or `services.plex` in config.yaml.';
+    'No media server is configured, so there is no watch state to read: this is a blind spot, not an empty library. Add `services.jellyfin`, `services.emby` or `services.plex` in config.yaml.';
 
 /**
  * The three per-user reads a media server answers. Jellyfin has had these
@@ -2455,8 +2481,10 @@ export type WatchTarget = {
  * anywhere else has to be refused legibly rather than 404'd.
  */
 export interface WatchStateCapable {
-    /** Refuses an id that is not shaped like a Jellyfin item id, before any
-     *  network call. */
+    /** Jellyfin or Emby, as previews and remedies name it. */
+    readonly name: string;
+    /** Refuses an id that is not shaped like this server's item id, before
+     *  any network call. */
     readWatchTarget(user: ServiceUser, itemId: string): Promise<WatchTarget>;
     /** Episodes of one series, optionally one season. */
     listEpisodeItems(user: ServiceUser, seriesItemId: string, season?: number): Promise<WatchTarget[]>;

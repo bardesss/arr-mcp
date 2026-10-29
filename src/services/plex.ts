@@ -7,8 +7,8 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { logger } from '../core/logger.ts';
-// A rematch can outlast the default timeout; the value and reasoning are documented on Jellyfin's.
-import { METADATA_REPAIR_TIMEOUT_MS } from './jellyfin.ts';
+// A rematch can outlast the default timeout; the value and reasoning are documented in mediaBrowser.ts.
+import { METADATA_REPAIR_TIMEOUT_MS } from './mediaBrowser.ts';
 import {
     diagnoseConnection,
     type CommandHandle,
@@ -248,6 +248,7 @@ export class PlexAdapter
     readonly type: ServiceId = 'plex';
     readonly id: string = 'plex';
     readonly tokenOwnerOnly = true;
+    readonly unlockHow = 'Edit, then the lock icon beside the field';
     readonly #http: ServiceHttp;
     readonly #defaultUser: string | undefined;
     #warnedUnverifiedOwner = false;
@@ -359,9 +360,9 @@ export class PlexAdapter
      * which is which: unverified against a live server (question 3 for the
      * tester). Until answered: a non-zero `viewOffset` reads as `resume`, its
      * absence (or zero) as `next_up`. `getPlayback` reads this concurrently
-     * with sessions, exactly as `jellyfin.ts` reads `/Sessions` alongside its
-     * resumable list, and keeps only the resume half; `getNextUp` reads the
-     * same endpoint again and keeps only the other half.
+     * with sessions, exactly as `mediaBrowser.ts` reads `/Sessions` alongside
+     * its resumable list, and keeps only the resume half; `getNextUp` reads
+     * the same endpoint again and keeps only the other half.
      *
      * onDeck rows carry no per-user field in the documented shape: unlike
      * sessions, which are server-wide. A local token names exactly one
@@ -662,7 +663,7 @@ export class PlexAdapter
      * Per-season watch state for every series in a show section.
      *
      * A second, independent read from `listUserLibrary`: deliberately not
-     * shared, the same reasoning `jellyfin.ts` documents on its own
+     * shared, the same reasoning `mediaBrowser.ts` documents on its own
      * `listUserSeasons`: independent failure is the point. Episodes come from
      * `?type=4` on the same paged endpoint, standard Plex library-type
      * filtering (1 movie, 2 show, 3 season, 4 episode), and carry
@@ -713,7 +714,7 @@ export class PlexAdapter
                     .sort((a, b) => a.season - b.season)
             }))
             // No external id, no join: see the identical filter in
-            // jellyfin.ts's listUserSeasons for why this is dropped rather
+            // mediaBrowser.ts's listUserSeasons for why this is dropped rather
             // than emitted as a second, seasons-only copy of the title.
             .filter(row => Object.keys(row.ids).length > 0);
     }
@@ -771,7 +772,7 @@ export class PlexAdapter
         const file = item.Media?.[0]?.Part?.[0];
         return {
             service: this.id,
-            // Mirrors jellyfin.ts: only a confirmed 'movie' or 'show' earns
+            // Mirrors mediaBrowser.ts: only a confirmed 'movie' or 'show' earns
             // that kind. Guessing 'movie' for anything else (an episode, a
             // season) would make diagnose/evidence.ts scan the wrong index
             // and silently miss real hits.

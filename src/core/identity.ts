@@ -32,8 +32,8 @@ export class IdentityResolver {
         return this.#config.default_user !== undefined;
     }
 
-    /** The underlying adapter's id, `jellyfin` or `plex`, for remedies and
-     *  log tags built outside this class, which must not hardcode either. */
+    /** The underlying adapter's id, `jellyfin`, `emby` or `plex`, for remedies
+     *  and log tags built outside this class, which must not hardcode one. */
     get serviceId(): string {
         return this.#adapter.id;
     }

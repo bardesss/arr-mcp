@@ -143,9 +143,9 @@ ends up able to do more than anyone consciously decided.
 - The service whose permissions apply is resolved **from the tool arguments,
   before anything else runs** (`src/tools/write.ts`), so the service checked is
   the one the audit row names and the confirm token binds to.
-- Jellyfin and Seerr issue admin-scoped keys, so one key plus a user parameter
-  can read anybody's history. `allow_other_users` defaults to false, and the
-  gate runs before any network call (`src/core/identity.ts`).
+- Jellyfin, Emby and Seerr issue admin-scoped keys, so one key plus a user
+  parameter can read anybody's history. `allow_other_users` defaults to false,
+  and the gate runs before any network call (`src/core/identity.ts`).
 
 **What it does not solve.** The tiers are coarse on purpose. There is no
 per-tool grant, so enabling `destructive` on Radarr enables every destructive

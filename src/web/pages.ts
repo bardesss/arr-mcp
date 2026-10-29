@@ -270,7 +270,7 @@ const GROUPS: { label: string; types: readonly string[] }[] = [
     { label: 'Library', types: ['sonarr', 'radarr', 'lidarr', 'whisparr', 'bazarr', 'grimmory'] },
     { label: 'Downloads', types: ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark'] },
     { label: 'Indexers and profiles', types: ['prowlarr', 'profilarr'] },
-    { label: 'Media and requests', types: ['jellyfin', 'plex', 'seerr'] },
+    { label: 'Media and requests', types: ['jellyfin', 'emby', 'plex', 'seerr'] },
     { label: 'Other', types: [] }
 ];
 
