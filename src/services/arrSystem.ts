@@ -5,10 +5,11 @@ import { postArrCommand } from './arrCommands.ts';
 import type { CommandHandle, DiskSpace, HealthCheck, ScanState } from './types.ts';
 
 /**
- * Radarr and Sonarr share a framework, so their system endpoints are identical
- * but for the command name. One implementation, two services — the same reason
- * `arrQueue.ts` exists, and the drift it prevents had already started: the two
- * copies of the health mapper disagreed about coercing `type` to a string.
+ * Radarr, Sonarr, Whisparr and Lidarr share a framework, so their system
+ * endpoints are identical but for the command name and the API root. One
+ * implementation for all four — the same reason `arrQueue.ts` exists, and the
+ * drift it prevents had already started: the two copies of the health mapper
+ * disagreed about coercing `type` to a string.
  */
 
 type RawStatus = { version?: string };
@@ -56,8 +57,10 @@ export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Prom
 }
 
 /**
- * Queues the same command `arrScanState` reads the last run of, so what this
- * starts and what that reports can never drift apart.
+ * Queues the command whose run `arrScanState` reports, so what this starts and
+ * what that reports cannot drift apart. Radarr, Sonarr and Whisparr pass the
+ * same name to both. Lidarr starts `RefreshArtist`, which queues the
+ * `RescanFolders` its scan state reads (`LIBRARY_SCAN_TASK` in `lidarr.ts`).
  */
 export async function arrStartLibraryScan(http: ServiceHttp, id: string, command: string): Promise<CommandHandle> {
     return postArrCommand(http, id, { name: command });

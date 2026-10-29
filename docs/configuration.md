@@ -207,11 +207,14 @@ services:
 Single instance only. Lidarr answers on `/api/v1`, where Radarr and Sonarr
 answer on `/api/v3`.
 
-A configured Lidarr connects, appears in `stack_health`, reports its version,
-and lists its **artists** in `get_library` as `kind: "artist"`, with the album
-count, genres, monitoring, quality profile, file state and the artist's
-MusicBrainz id. One row per artist, the way Sonarr rows on a series: a library of
-1,578 artists is 1,578 rows rather than 36,170 album rows.
+A configured Lidarr connects, appears in `stack_health` with its version, its
+disks, any failing health checks and when its library was last scanned
+(`RescanFolders`, Lidarr's daily disk scan: its scheduled `RefreshArtist` skips
+the disk when no metadata changed, so it is not the scan time), and lists its
+**artists** in `get_library` as `kind: "artist"`, with the album count, genres,
+monitoring, quality profile, file state and the artist's MusicBrainz id. One row
+per artist, the way Sonarr rows on a series: a library of 1,578 artists is 1,578
+rows rather than 36,170 album rows.
 
 `get_media_details` on an artist lists the albums under it, each with its Lidarr
 album id, type, year, monitoring and file state. That is where the id for

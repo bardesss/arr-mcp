@@ -243,10 +243,9 @@ no more a fault than a grant is.
 ### Which services report health checks
 
 `failures` carries what each service says is wrong with itself. Radarr,
-Sonarr, Whisparr, Prowlarr and Bazarr report their own health checks, NZBGet
-its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr and Dispatcharr their
-own status (see [Dispatcharr](#dispatcharr) below). Lidarr does not report
-health checks yet.
+Sonarr, Whisparr, Lidarr, Prowlarr and Bazarr report their own health checks,
+NZBGet its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr and
+Dispatcharr their own status (see [Dispatcharr](#dispatcharr) below).
 
 SABnzbd reports the warnings and errors from its log, and only those from the
 last 24 hours. Its warnings list is a log rather than a state: it keeps every
@@ -1965,8 +1964,9 @@ has.
 
 A scan is Lidarr's `RefreshArtist`, for the whole library or with `id` for one
 artist. It refreshes the artist's metadata, then rescans the artist folders
-unless Lidarr's "rescan artist folder after refresh" is set to Never.
-`rename` is `RenameArtist`, every file of that artist. Both appear in
+unless Lidarr's "rescan artist folder after refresh" is set to Never. That
+rescan is Lidarr's `RescanFolders`, the scan time `stack_health` reports under
+`scans`. `rename` is `RenameArtist`, every file of that artist. Both appear in
 `stack_health`'s `commands`.
 
 `import` reads Lidarr's queue first and refuses a download that has not

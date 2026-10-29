@@ -11,7 +11,7 @@ import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { readArrQueue, removeArrQueueItem } from './arrQueue.ts';
-import { arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
     type ArtistMonitorCapable,
@@ -23,6 +23,10 @@ import {
     type CommandStatus,
     type CommandStatusCapable,
     type ConnectionDiagnosis,
+    type DiskSpace,
+    type DiskSpaceCapable,
+    type HealthCheck,
+    type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
     type HistoryQuery,
@@ -42,6 +46,8 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
+    type ScanState,
+    type ScanStateCapable,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
@@ -122,6 +128,31 @@ const albumMbId = (album: RawAlbum): { mbid?: string } =>
 const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCount ?? 0) > 0;
 
 /**
+ * The task whose last run is the last library scan: `RescanFolders`, Lidarr's
+ * daily scan of every root folder for files (`TaskManager`, `DiskScanService`,
+ * Lidarr 3.1.0).
+ *
+ * Not `RefreshArtist`, though that is Sonarr's `RefreshSeries` counterpart.
+ * Sonarr's scheduled refresh rescans the disk unless "rescan after refresh"
+ * forbids it, but Lidarr's also skips the rescan whenever the refresh updated
+ * no metadata (`RefreshArtistService.RescanArtists`), so its last run can be
+ * newer than the last time anything looked at the disk. Lidarr schedules the
+ * disk scan as its own task instead, and that is the one this reads.
+ *
+ * A `trigger_scan` library scan still shows here: `startLibraryScan` sends
+ * `RefreshArtist`, which runs as a manual command, and a manual refresh queues a
+ * `RescanFolders` of every root folder unless "rescan artist folder after
+ * refresh" is Never. Every `RescanFolders` run sets this task's time
+ * (`TaskManager`), including the one Lidarr queues when an artist is added,
+ * which scans that artist's folder alone.
+ *
+ * Matched exactly, never by pattern, for Sonarr's reason: a live Lidarr runs
+ * `RefreshMonitoredDownloads` every minute, and a loose match would report the
+ * library as scanned minutes ago.
+ */
+const LIBRARY_SCAN_TASK = 'RescanFolders';
+
+/**
  * Lidarr. It claims `LibraryCapable`, `SearchCapable`, `MediaDetailCapable`,
  * `MonitoringCapable`, `MonitorStateCapable`, `ArtistMonitorCapable`,
  * `QueueCapable`, `QueueRemoveCapable`, `HistoryCapable` and
@@ -137,6 +168,11 @@ const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCo
  * follow the command in `stack_health`. All four are the shared helpers, with
  * `resource: 'artist'` where they take one; an import `mapping` is refused,
  * because it names movies and episodes.
+ *
+ * `DiskSpaceCapable`, `HealthCheckCapable` and `ScanStateCapable` are
+ * `stack_health`'s: the disks, the failing health checks and the last library
+ * scan, through the shared `arrDiskSpace`, `arrFailedHealthChecks` and
+ * `arrScanState`.
  *
  * An artist is the row rather than a track or an album, for the reason Radarr
  * and Sonarr row on a film and a series: it is the level a person asks about,
@@ -161,7 +197,10 @@ export class LidarrAdapter
         LibraryScanCapable,
         LibraryMaintenanceCapable,
         ManualImportCapable,
-        CommandStatusCapable
+        CommandStatusCapable,
+        DiskSpaceCapable,
+        HealthCheckCapable,
+        ScanStateCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined = undefined;
@@ -180,6 +219,19 @@ export class LidarrAdapter
 
     async getVersion(): Promise<string> {
         return arrVersion(this.#http, this.id);
+    }
+
+    async getDiskSpace(): Promise<DiskSpace[]> {
+        return arrDiskSpace(this.#http, this.id);
+    }
+
+    /** Only the checks that are failing; their text is fenced, as Radarr's and Sonarr's is. */
+    async getFailedHealthChecks(): Promise<HealthCheck[]> {
+        return arrFailedHealthChecks(this.#http, this.id);
+    }
+
+    async getScanState(): Promise<ScanState> {
+        return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
     }
 
     /** Every album, used by `getMediaDetails` for one artist's discography. */

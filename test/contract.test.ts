@@ -455,7 +455,11 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 method: 'get',
                 fixture: 'test/fixtures/lidarr/blocklist.json',
                 fields: ['records.id', 'records.artistId', 'records.sourceTitle', 'records.date', 'records.indexer', 'records.message', 'records.protocol']
-            }
+            },
+            // The shared `arr*` system reads `stack_health` makes.
+            { path: '/api/v1/diskspace', method: 'get', fixture: 'test/fixtures/lidarr/diskspace.json', fields: ['path', 'label', 'freeSpace', 'totalSpace'] },
+            { path: '/api/v1/health', method: 'get', fixture: 'test/fixtures/lidarr/health.json', fields: ['source', 'type', 'message'] },
+            { path: '/api/v1/system/task', method: 'get', fixture: 'test/fixtures/lidarr/system-task.json', fields: ['taskName', 'lastExecution'] }
         ]
     },
     prowlarr: {

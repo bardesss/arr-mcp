@@ -220,7 +220,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with fourteen capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr — the rest of it.** The adapter has shipped, with seventeen capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists and `search_media` finds them.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
@@ -236,8 +236,11 @@ small, shaped change, and a service in no slot at all is a different product.
   `ManualImportCapable` and `CommandStatusCapable` are the shared helpers, with
   `resource: 'artist'` where they take one, so `trigger_scan` rescans, renames
   and imports a finished download for Lidarr, and `stack_health` follows the
-  commands it queues. What it still lacks is a wanted list and a release search,
-  and that is the work accepted today. All 21 capture endpoints were exercised
+  commands it queues. `DiskSpaceCapable`, `HealthCheckCapable` and
+  `ScanStateCapable` are the shared `arr*` system reads, so `stack_health` also
+  reports Lidarr's disks, failing health checks and last `RescanFolders` (its
+  disk scan). What it still lacks is a wanted list and a release search, and
+  that is the work accepted today. All 21 capture endpoints were exercised
   against a live Lidarr 3.1.6.5079 and the fixtures are committed, but four
   still have no rows: wanted cutoff, release, tag and indexer are empty on a
   fresh instance. Those row shapes need a capture against a library with real
