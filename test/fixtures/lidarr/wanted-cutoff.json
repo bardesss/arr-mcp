@@ -1,8 +1,594 @@
 {
   "page": 1,
-  "pageSize": 10,
+  "pageSize": 5,
   "sortKey": "Albums.Id",
   "sortDirection": "descending",
-  "totalRecords": 0,
-  "records": []
+  "totalRecords": 12,
+  "records": [
+    {
+      "title": "Album 1",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 101,
+      "foreignAlbumId": "00000000-0000-4000-8000-000000000001",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 1,
+      "duration": 1800000,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "mediumCount": 1,
+      "ratings": {
+        "votes": 0,
+        "value": 0
+      },
+      "releaseDate": "0001-01-01T00:00:00Z",
+      "releases": [
+        {
+          "id": 102,
+          "albumId": 103,
+          "foreignReleaseId": "00000000-0000-4000-8000-000000000001",
+          "title": "Album 1",
+          "status": "Official",
+          "duration": 1800000,
+          "trackCount": 8,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "Name 1",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "mediumCount": 1,
+          "disambiguation": "",
+          "country": [
+            "Fixture text"
+          ],
+          "label": [
+            "Fixture text"
+          ],
+          "format": "Digital Media",
+          "monitored": true
+        }
+      ],
+      "genres": [
+        "Genre 1"
+      ],
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "Name 1",
+          "mediumFormat": "Digital Media"
+        }
+      ],
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 1",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000001",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 1",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist1",
+        "sortName": "artist 1",
+        "tags": [],
+        "added": "2024-01-01T05:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 101,
+        "overview": "An artist."
+      },
+      "images": [
+        {
+          "url": "https://indexer.example.test/",
+          "coverType": "cover",
+          "extension": ".jpg",
+          "remoteUrl": "https://indexer.example.test/"
+        }
+      ],
+      "links": [
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-1"
+        }
+      ],
+      "lastSearchTime": "2024-01-01T10:00:00Z",
+      "statistics": {
+        "trackFileCount": 8,
+        "trackCount": 8,
+        "totalTrackCount": 8,
+        "sizeOnDisk": 1000000000,
+        "percentOfTracks": 100
+      },
+      "id": 103
+    },
+    {
+      "title": "Album 2",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 104,
+      "foreignAlbumId": "00000000-0000-4000-8000-000000000002",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 1,
+      "duration": 1800000,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "mediumCount": 1,
+      "ratings": {
+        "votes": 0,
+        "value": 0
+      },
+      "releaseDate": "2024-01-01T06:00:00Z",
+      "releases": [
+        {
+          "id": 105,
+          "albumId": 106,
+          "foreignReleaseId": "00000000-0000-4000-8000-000000000002",
+          "title": "Album 2",
+          "status": "Official",
+          "duration": 1800000,
+          "trackCount": 8,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "Name 1",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "mediumCount": 1,
+          "disambiguation": "",
+          "country": [
+            "Fixture text"
+          ],
+          "label": [
+            "Fixture text"
+          ],
+          "format": "Digital Media",
+          "monitored": true
+        }
+      ],
+      "genres": [
+        "Genre 1"
+      ],
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "Name 1",
+          "mediumFormat": "Digital Media"
+        }
+      ],
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 2",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000002",
+        "tadbId": 0,
+        "discogsId": 0,
+        "overview": "An artist.",
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 2",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist2",
+        "sortName": "artist 2",
+        "tags": [],
+        "added": "2024-01-01T04:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 104
+      },
+      "images": [
+        {
+          "url": "https://indexer.example.test/",
+          "coverType": "cover",
+          "extension": ".jpg",
+          "remoteUrl": "https://indexer.example.test/"
+        }
+      ],
+      "links": [
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-1"
+        }
+      ],
+      "lastSearchTime": "2024-01-01T12:00:00Z",
+      "statistics": {
+        "trackFileCount": 8,
+        "trackCount": 8,
+        "totalTrackCount": 8,
+        "sizeOnDisk": 2000000000,
+        "percentOfTracks": 100
+      },
+      "id": 106
+    },
+    {
+      "title": "Album 3",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 108,
+      "foreignAlbumId": "00000000-0000-4000-8000-000000000003",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 1,
+      "duration": 1800000,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "mediumCount": 1,
+      "ratings": {
+        "votes": 0,
+        "value": 0
+      },
+      "releaseDate": "2024-01-01T02:00:00Z",
+      "releases": [
+        {
+          "id": 109,
+          "albumId": 110,
+          "foreignReleaseId": "00000000-0000-4000-8000-000000000003",
+          "title": "Album 3",
+          "status": "Official",
+          "duration": 1800000,
+          "trackCount": 8,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "Name 1",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "mediumCount": 1,
+          "disambiguation": "",
+          "country": [
+            "Fixture text"
+          ],
+          "label": [
+            "Fixture text"
+          ],
+          "format": "Digital Media",
+          "monitored": true
+        }
+      ],
+      "genres": [
+        "Genre 1"
+      ],
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "Name 1",
+          "mediumFormat": "Digital Media"
+        }
+      ],
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 3",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000003",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 3",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist3",
+        "sortName": "artist 3",
+        "tags": [],
+        "added": "2024-01-01T08:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 108,
+        "overview": "An artist."
+      },
+      "images": [
+        {
+          "url": "https://indexer.example.test/",
+          "coverType": "cover",
+          "extension": ".jpg",
+          "remoteUrl": "https://indexer.example.test/"
+        }
+      ],
+      "links": [
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-1"
+        }
+      ],
+      "lastSearchTime": "2024-01-01T09:00:00Z",
+      "statistics": {
+        "trackFileCount": 8,
+        "trackCount": 8,
+        "totalTrackCount": 8,
+        "sizeOnDisk": 5000000000,
+        "percentOfTracks": 100
+      },
+      "id": 110
+    },
+    {
+      "title": "Album 4",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 108,
+      "foreignAlbumId": "00000000-0000-4000-8000-000000000004",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 1,
+      "duration": 1800000,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "mediumCount": 1,
+      "ratings": {
+        "votes": 0,
+        "value": 0
+      },
+      "releaseDate": "2024-01-01T01:00:00Z",
+      "releases": [
+        {
+          "id": 117,
+          "albumId": 113,
+          "foreignReleaseId": "00000000-0000-4000-8000-000000000004",
+          "title": "Album 4",
+          "status": "Official",
+          "duration": 1800000,
+          "trackCount": 8,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "Name 1",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "mediumCount": 1,
+          "disambiguation": "",
+          "country": [
+            "Fixture text"
+          ],
+          "label": [
+            "Fixture text"
+          ],
+          "format": "Digital Media",
+          "monitored": true
+        }
+      ],
+      "genres": [
+        "Genre 1"
+      ],
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "Name 1",
+          "mediumFormat": "Digital Media"
+        }
+      ],
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 3",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000003",
+        "tadbId": 0,
+        "discogsId": 0,
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 3",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist3",
+        "sortName": "artist 3",
+        "tags": [],
+        "added": "2024-01-01T08:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 108,
+        "overview": "An artist."
+      },
+      "images": [
+        {
+          "url": "https://indexer.example.test/",
+          "coverType": "cover",
+          "extension": ".jpg",
+          "remoteUrl": "https://indexer.example.test/"
+        }
+      ],
+      "links": [
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-1"
+        }
+      ],
+      "lastSearchTime": "2024-01-01T13:00:00Z",
+      "statistics": {
+        "trackFileCount": 8,
+        "trackCount": 8,
+        "totalTrackCount": 8,
+        "sizeOnDisk": 3000000000,
+        "percentOfTracks": 100
+      },
+      "id": 113
+    },
+    {
+      "title": "Album 5",
+      "disambiguation": "",
+      "overview": "",
+      "artistId": 121,
+      "foreignAlbumId": "00000000-0000-4000-8000-000000000005",
+      "monitored": true,
+      "anyReleaseOk": true,
+      "profileId": 1,
+      "duration": 1800000,
+      "albumType": "Album",
+      "secondaryTypes": [],
+      "mediumCount": 1,
+      "ratings": {
+        "votes": 0,
+        "value": 0
+      },
+      "releaseDate": "2024-01-01T03:00:00Z",
+      "releases": [
+        {
+          "id": 122,
+          "albumId": 123,
+          "foreignReleaseId": "00000000-0000-4000-8000-000000000005",
+          "title": "Album 5",
+          "status": "Official",
+          "duration": 1800000,
+          "trackCount": 8,
+          "media": [
+            {
+              "mediumNumber": 1,
+              "mediumName": "Name 1",
+              "mediumFormat": "Digital Media"
+            }
+          ],
+          "mediumCount": 1,
+          "disambiguation": "",
+          "country": [
+            "Fixture text"
+          ],
+          "label": [
+            "Fixture text"
+          ],
+          "format": "Digital Media",
+          "monitored": true
+        }
+      ],
+      "genres": [
+        "Genre 1"
+      ],
+      "media": [
+        {
+          "mediumNumber": 1,
+          "mediumName": "Name 1",
+          "mediumFormat": "Digital Media"
+        }
+      ],
+      "artist": {
+        "status": "continuing",
+        "ended": false,
+        "artistName": "Artist 5",
+        "foreignArtistId": "00000000-0000-4000-8000-000000000005",
+        "tadbId": 0,
+        "discogsId": 0,
+        "overview": "An artist.",
+        "artistType": "Group",
+        "disambiguation": "",
+        "links": [
+          {
+            "url": "https://indexer.example.test/",
+            "name": "link-1"
+          }
+        ],
+        "nextAlbum": null,
+        "lastAlbum": null,
+        "images": [],
+        "path": "/media/lidarr/Artist 5",
+        "qualityProfileId": 1,
+        "metadataProfileId": 1,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "genres": [
+          "Genre 1"
+        ],
+        "cleanName": "artist5",
+        "sortName": "artist 5",
+        "tags": [],
+        "added": "2024-01-01T07:00:00Z",
+        "ratings": {
+          "votes": 0,
+          "value": 0
+        },
+        "id": 121
+      },
+      "images": [
+        {
+          "url": "https://indexer.example.test/",
+          "coverType": "cover",
+          "extension": ".jpg",
+          "remoteUrl": "https://indexer.example.test/"
+        }
+      ],
+      "links": [
+        {
+          "url": "https://indexer.example.test/",
+          "name": "link-1"
+        }
+      ],
+      "lastSearchTime": "2024-01-01T11:00:00Z",
+      "statistics": {
+        "trackFileCount": 8,
+        "trackCount": 8,
+        "totalTrackCount": 8,
+        "sizeOnDisk": 4000000000,
+        "percentOfTracks": 100
+      },
+      "id": 123
+    }
+  ]
 }

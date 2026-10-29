@@ -296,8 +296,11 @@ Three things the preview says, because each one was found rather than assumed:
   in every case its two albums kept exactly the flags they had. The same four
   writes on 3.1.6.5079, with `monitorNewItems: "all"` in place of `"none"`,
   left an artist's four albums as they were. An album's own flag is what
-  decides whether that album is searched for, and `level: "album"` is how it
-  is set.
+  decides whether that album is wanted, and `level: "album"` is how it is set.
+  While its artist is unmonitored, though, Lidarr's wanted lists, calendar,
+  RSS sync and missing and cutoff searches skip every album of that artist,
+  so `get_wanted` and `get_calendar` leave them out until the artist is
+  monitored again.
 - **`monitor_new_items` decides the future.** It is `all`, `new` or `none`, and
   `none` is the only value under which the wanted list cannot grow by itself.
   An artist added later carries Lidarr's own default, which this tool does not

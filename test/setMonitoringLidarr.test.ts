@@ -177,16 +177,27 @@ describe('set_monitoring on lidarr', () => {
 
         /**
          * Checked against a live library, not assumed: an artist was found reading
-         * `monitored: false` while an album under it stayed `monitored: true`. The
-         * preview must not imply the artist flag empties a wanted list, or the
-         * caller leaves believing nothing is being searched for.
+         * `monitored: false` while an album under it stayed `monitored: true`.
+         * Lidarr's wanted lists and automatic searches skip that album while the
+         * artist is unmonitored, and want it again once the artist is monitored,
+         * so the preview says both, and names the album level as the lasting way
+         * out.
          */
         it('does not claim the artist flag replaces the album flag', async () => {
             const h = harness();
             const preview = await h.call({ service: 'lidarr', level: 'artist', monitored: false });
 
-            expect(String(preview.structuredContent.effects)).toContain('stay monitored');
+            expect(String(preview.structuredContent.effects)).toContain('keep their own flags, but Lidarr leaves all of them out of its wanted lists');
             expect(String(preview.structuredContent.effects)).toContain('level "album"');
+        });
+
+        it('says monitoring the artist brings its monitored albums back', async () => {
+            const h = harness();
+            const preview = await h.call({ service: 'lidarr', level: 'artist', monitored: true });
+
+            expect(String(preview.structuredContent.effects)).toContain(
+                "each album keeps its own, and the monitored ones come back into Lidarr's wanted lists"
+            );
         });
 
         it('writes the artist editor once, for every artist when none are named', async () => {
