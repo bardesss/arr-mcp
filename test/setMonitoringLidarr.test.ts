@@ -162,9 +162,10 @@ describe('set_monitoring on lidarr', () => {
          */
         it('refuses an artist id Lidarr does not have', async () => {
             const h = harness();
-            await expect(h.call({ service: 'lidarr', level: 'artist', artists: ['2', '999'], monitored: false })).rejects.toThrow(
-                /no artist with id 999/
-            );
+            const err = await h.call({ service: 'lidarr', level: 'artist', artists: ['2', '999'], monitored: false }).catch((e: unknown) => e);
+            expect((err as Error).message).toMatch(/no artist with id 999/);
+            // One Lidarr: no per-instance caveat to give.
+            expect((err as ServiceError).remedy).toMatch(/Take an id from acquisition\.id on a get_library artist row\.$/);
         });
 
         it('reports a no-op when every targeted artist already matches', async () => {
@@ -320,7 +321,8 @@ describe('set_monitoring with two lidarrs', () => {
         { id: 2, artistName: 'Artist Three', monitored: false, monitorNewItems: 'none' }
     ];
 
-    function twoLidarrs() {
+    /** `count: 1` is a list holding one named entry, which is still one Lidarr. */
+    function twoLidarrs(count: 1 | 2 = 2) {
         const routes = (artists: unknown) => ({
             '/api/v1/artist': artists,
             '/api/v1/artist/editor': fixture('artist-editor.json')
@@ -330,11 +332,9 @@ describe('set_monitoring with two lidarrs', () => {
         const configs = [
             { ...lidarrConfig, name: 'flac', url: 'http://192.0.2.10:8686' },
             { ...lidarrConfig, name: 'mp3', url: 'http://192.0.2.11:8686' }
-        ];
-        const adapters: ServiceAdapter[] = [
-            new LidarrAdapter(configs[0] as never, flac.impl),
-            new LidarrAdapter(configs[1] as never, mp3.impl)
-        ];
+        ].slice(0, count);
+        const impls = [flac.impl, mp3.impl];
+        const adapters: ServiceAdapter[] = configs.map((c, i) => new LidarrAdapter(c as never, impls[i]!));
 
         let call: Call = () => Promise.reject(new Error('not registered'));
         const server = {
@@ -396,6 +396,17 @@ describe('set_monitoring with two lidarrs', () => {
         expect(err).toBeInstanceOf(ServiceError);
         expect((err as ServiceError).service).toBe('lidarr/flac');
         expect((err as Error).message).toMatch(/no artist with id 2/);
-        expect((err as ServiceError).remedy).toMatch(/acquisition\.service is lidarr\/flac: ids are per instance/);
+        expect((err as ServiceError).remedy).toMatch(/acquisition\.service is lidarr\/flac\. Ids are per instance/);
+        expect((err as ServiceError).remedy).toMatch(/omit `artists` to apply to every artist there\.$/);
+    });
+
+    it('treats a list holding one entry as one Lidarr: no instance needed, no per-instance caveat', async () => {
+        const h = twoLidarrs(1);
+        const preview = await h.call({ service: 'lidarr', level: 'artist', monitor_new_items: 'none' });
+        expect(preview.structuredContent.summary).toMatch(/in lidarr\/flac\.$/);
+
+        const err = await h.call({ service: 'lidarr', level: 'artist', artists: ['2'], monitored: false }).catch((e: unknown) => e);
+        expect((err as ServiceError).service).toBe('lidarr/flac');
+        expect((err as ServiceError).remedy).toMatch(/Take an id from acquisition\.id on a get_library artist row\.$/);
     });
 });

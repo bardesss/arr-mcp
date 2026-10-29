@@ -82,10 +82,11 @@ export type OptionalKeyServiceConfig = z.infer<typeof OptionalKeyServiceSchema>;
  * capability, so a second one is merged into reads and named on writes with no
  * special case.
  *
- * The ones left out are refusals, not omissions, and each says why beside its
- * key in `ServicesSchema`. `get_library`'s `presence` asks whether the media
- * server can see a file, which has no answer with two of them; and a Seerr
- * request carries a user identity that a second instance makes ambiguous.
+ * The ones left out are refusals, not omissions; most say why beside their key
+ * in `ServicesSchema`, and the rest are here. `get_library`'s `presence` asks
+ * whether the media server can see a file, which has no answer with two media
+ * servers; and a Seerr request carries a user identity that a second instance
+ * makes ambiguous.
  */
 export const MULTI_INSTANCE: readonly ServiceId[] = [
     'bazarr',

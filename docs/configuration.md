@@ -224,11 +224,19 @@ services:
 Every artist row names the instance it came from in `acquisition.service`, as
 `lidarr/flac`. An artist both of them hold is one row, joined on its MusicBrainz
 id the way a film two Radarrs hold is, and that row carries one instance's
-`acquisition`, so its `acquisition.id` is that instance's: ids are per instance.
+`acquisition`, the one listed later under `lidarr` in `config.yaml`, so its
+`acquisition.id` is that instance's: ids are per instance.
+The rest of that row is that one instance's too: `has_file` and `monitored`, and
+a `diagnose` built from it, say nothing about the other copy. In a lossless
+library beside a lossy one, where most artists are in both, `diagnose` can call
+an artist playable when only one instance has its files; `get_media_details`
+with `instance` reads each one.
+
 Every tool that acts on one Lidarr, such as `set_monitoring`, `trigger_scan`,
 `remove_queue_item` and `clean_queue`, takes `instance` and refuses to guess
-between them, and `arr://lidarr/monitoring` reports each instance beside the
-totals.
+between them. `arr://lidarr/monitoring` reports each instance that answered
+beside the totals, and names one that did not in `degraded`; the totals add the
+instances up, so an artist both hold counts in each.
 
 A configured Lidarr connects, appears in `stack_health` with its version, its
 disks, any failing health checks and when its library was last scanned

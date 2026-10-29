@@ -261,7 +261,7 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
         {
             title: 'Lidarr monitoring policy',
             description:
-                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `set_monitoring` with `level: \"artist\"` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag — an artist can read unmonitored while an album under it stays monitored — so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one, since `set_monitoring` writes one instance at a time.",
+                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `set_monitoring` with `level: \"artist\"` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag — an artist can read unmonitored while an album under it stays monitored — so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one that answered (one that did not is listed in `degraded`), since `set_monitoring` writes one instance at a time, and the totals add those instances up: an artist two Lidarrs hold counts once in each.",
             mimeType: 'application/json',
             cacheHint: { ttlMs: MONITORING_TTL_MS, cacheScope: 'private' }
         },
@@ -279,16 +279,12 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
 
             // Each instance is read on its own, so one unreachable Lidarr is
             // named as degraded rather than taking the others' answer with it.
-            // Every policy is tagged with its instance, since `gather` merges them.
-            const { items, degraded, counts } = await gather(
+            const { items: read, degraded } = await gather<{ service: string; policies: ArtistMonitorPolicy[] }>(
                 lidarrs.map(l => ({
                     id: l.id,
-                    fetch: async () => (await l.listArtistMonitorPolicies()).map(policy => ({ service: l.id, policy }))
+                    fetch: async () => [{ service: l.id, policies: await l.listArtistMonitorPolicies() }]
                 }))
             );
-            const read: { service: string; policies: ArtistMonitorPolicy[] }[] = lidarrs
-                .filter(l => counts[l.id] !== undefined)
-                .map(l => ({ service: l.id, policies: items.filter(i => i.service === l.id).map(i => i.policy) }));
 
             const several = lidarrs.length > 1;
             if (read.length === 0) {
@@ -297,9 +293,11 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
                     artists: 0,
                     stable: false,
                     ...(several ? { degraded } : {}),
-                    note:
-                        'The policy could not be read, which is not the same as it being off. Call set_monitoring with ' +
-                        `level: "artist"${several ? ' and `instance`' : ''} for the live answer.`
+                    note: several
+                        ? 'The policies could not be read, which is not the same as them being off. Call set_monitoring ' +
+                          'with level: "artist" and `instance` for the live answer.'
+                        : 'The policy could not be read, which is not the same as it being off. Call set_monitoring with ' +
+                          'level: "artist" for the live answer.'
                 });
             }
 
@@ -308,16 +306,20 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
 
             // With several Lidarrs, a write names one of them or is refused.
             const change = several ? 'set_monitoring with level: "artist" and `instance`' : 'set_monitoring with level: "artist"';
+            // The totals add the instances up, so an artist two of them hold is
+            // counted in each, unlike get_library's one merged row.
+            const counted = several ? ' (counted once per instance)' : '';
             const treadmill =
-                `${autoMonitoring} artist(s) will keep monitoring albums they discover later, or report no ` +
+                `${autoMonitoring} artist(s)${counted} will keep monitoring albums they discover later, or report no ` +
                 'readable policy. Unmonitoring albums under those artists is a treadmill until the policy ' +
                 `changes — ${change} does it.`;
             let note: string;
             if (degraded.length > 0) {
                 // Nothing here may claim the wanted list cannot grow: the
                 // instance that did not answer may be the one growing it.
+                const policy = degraded.length === 1 ? 'its policy' : 'their policies';
                 const unread =
-                    `${degraded.join(', ')} could not be read, which is not the same as its policy being off, so the ` +
+                    `${degraded.join(', ')} could not be read, which is not the same as ${policy} being off, so the ` +
                     'counts cover only the rest and cannot say the wanted list will not grow.';
                 note = autoMonitoring > 0 ? `${unread} ${treadmill}` : unread;
             } else if (empty) {

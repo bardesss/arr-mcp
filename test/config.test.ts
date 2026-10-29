@@ -484,13 +484,17 @@ describe('lidarr', () => {
         expect(Array.isArray(parsed.services.lidarr)).toBe(true);
     });
 
-    it('refuses an unnamed entry in a list of lidarr instances', () => {
-        expect(() =>
-            ConfigSchema.parse({
-                auth: AUTH,
-                services: { lidarr: [{ url: 'http://a:8686', api_key: 'k' }] }
-            })
-        ).toThrow();
+    it('refuses an unnamed entry in a list of lidarr instances, for its missing name', () => {
+        const result = ConfigSchema.safeParse({
+            auth: AUTH,
+            services: { lidarr: [{ url: 'http://a:8686', api_key: 'k' }] }
+        });
+
+        expect(result.success).toBe(false);
+        // The failure is the entry's missing name, not some other parse error.
+        const issues = JSON.stringify(result.error?.issues);
+        expect(issues).toMatch(/"path":\[0,"name"\]/);
+        expect(issues).toMatch(/"path":\[0,"name"\],"message":"Invalid input: expected string, received undefined"/);
     });
 });
 
