@@ -261,6 +261,107 @@ describe('sabnzbd pause', () => {
         const impl = (async () => jsonResponse({ queue: { paused: queuePaused, slots } })) as unknown as typeof fetch;
         await expect(adapterWith(impl).readPauseState()).resolves.toEqual({ scope: 'the SABnzbd queue', ...state });
     });
+
+    // Where no slot shows the wait (none but Force or paused ones, or none at all), its switch and the
+    // history do: the switch on and a download in post-processing (`PostProcessor.run`).
+    describe('the wait read from the switch and the history', () => {
+        type Seen = { mode: string | null; keyword: string | null; section: string | null };
+        const sab = (rows: [string, string][], opts: { paused?: boolean; switchOn?: unknown; history?: [string, boolean][]; refuse?: 'config' | 'history' } = {}) => {
+            const seen: Seen[] = [];
+            const slots = rows.map(([status, priority], i) => ({ nzo_id: `SABnzbd_nzo_ab1${i}`, filename: `Some.Film.202${i}`, status, priority }));
+            const impl = (async (input: string | URL | Request) => {
+                const params = new URL(input instanceof Request ? input.url : String(input)).searchParams;
+                const mode = params.get('mode');
+                seen.push({ mode, keyword: params.get('keyword'), section: params.get('section') });
+                if (mode === 'get_config') {
+                    return jsonResponse(opts.refuse === 'config' ? { status: false, error: 'API Key Incorrect' } : { config: { misc: { pause_on_post_processing: opts.switchOn ?? 1 } } });
+                }
+                if (mode === 'history') {
+                    if (opts.refuse === 'history') return jsonResponse({ status: false, error: 'not now' });
+                    const history = opts.history ?? [['Extracting', true], ['Completed', false]];
+                    return jsonResponse({ history: { slots: history.map(([status, loaded], i) => ({ nzo_id: `SABnzbd_nzo_cd3${i}`, status, loaded })) } });
+                }
+                return jsonResponse({ queue: { paused: opts.paused ?? true, slots } });
+            }) as unknown as typeof fetch;
+            return { adapter: adapterWith(impl), seen };
+        };
+        const reads = (seen: Seen[], mode: string) => seen.filter(s => s.mode === mode).length;
+
+        it.each<[string, [string, string][], Parameters<typeof sab>[1], string | undefined]>([
+            ['a Force job alone, the switch on and one in post-processing', [['Downloading', 'Force']], {}, 'postProcessing'],
+            ['a Force job alone, the switch off', [['Downloading', 'Force']], { switchOn: 0 }, undefined],
+            ['a Force job alone, the switch on as 4.4.0 and later send it', [['Downloading', 'Force']], { switchOn: true }, 'postProcessing'],
+            ['a Force job alone, nothing in post-processing', [['Downloading', 'Force']], { history: [['Completed', false], ['Failed', false]] }, undefined],
+            // The history marks the job the post-processor works on (`pp_active`), whatever status it reads yet.
+            ['a Force job alone, the one in post-processing still Queued', [['Downloading', 'Force']], { history: [['Queued', true], ['Completed', false]] }, 'postProcessing'],
+            // With post-processing paused (`pause_pp`) jobs wait for it, and none of those sets the wait.
+            ['a Force job alone, jobs only queued for post-processing', [['Downloading', 'Force']], { history: [['Queued', false], ['Queued', false]] }, undefined],
+            ['a Force job alone, the setting refused', [['Downloading', 'Force']], { refuse: 'config' }, undefined],
+            ['a Force job alone, the history refused', [['Downloading', 'Force']], { refuse: 'history' }, undefined],
+            ['a job paused itself alone', [['Paused', 'Normal']], {}, 'postProcessing'],
+            ['a job paused itself alone, the switch off', [['Paused', 'Normal']], { switchOn: 0 }, 'queue']
+        ])('marks what holds the first slot: %s', async (_case, rows, opts, held) => {
+            const { adapter } = sab(rows, opts);
+            expect((await adapter.getQueue())[0]?.heldBy).toBe(held);
+            expect((await adapter.readPauseState('SABnzbd_nzo_ab10')).heldBy).toBe(held);
+        });
+
+        // A Queued slot proves a pause by hand, which holds every slot not at Force; a Force one only the wait holds.
+        it('holds a Force job by the wait beside a Queued one, and the Queued one by the pause by hand', async () => {
+            const { adapter } = sab([['Queued', 'Normal'], ['Downloading', 'Force']]);
+            expect((await adapter.getQueue()).map(row => row.heldBy)).toEqual(['queue', 'postProcessing']);
+        });
+
+        it('shares the switch for a few seconds, and reads the history each time', async () => {
+            const { adapter, seen } = sab([['Downloading', 'Force']]);
+            await adapter.getQueue();
+            await adapter.getQueue();
+            expect(reads(seen, 'get_config')).toBe(1);
+            expect(reads(seen, 'history')).toBe(2);
+        });
+
+        it('reads neither for an empty queue, which has no row to hold', async () => {
+            const { adapter, seen } = sab([]);
+            await expect(adapter.getQueue()).resolves.toEqual([]);
+            expect(reads(seen, 'get_config') + reads(seen, 'history')).toBe(0);
+        });
+
+        it('reads the whole queue as the wait when it is empty and the switch and history say so', async () => {
+            await expect(sab([]).adapter.readPauseState()).resolves.toEqual({ scope: 'the SABnzbd queue', paused: false, heldBy: 'postProcessing' });
+            await expect(sab([], { switchOn: 0 }).adapter.readPauseState()).resolves.toEqual({ scope: 'the SABnzbd queue', paused: true });
+        });
+
+        // Only the one setting: `get_config` with no keyword answers every setting, the API and NZB keys among them.
+        it('asks for the switch alone, and the history only when it is on', async () => {
+            const on = sab([['Downloading', 'Force']]);
+            await on.adapter.getQueue();
+            expect(on.seen.filter(s => s.mode === 'get_config')).toEqual([{ mode: 'get_config', keyword: 'pause_on_post_processing', section: 'misc' }]);
+            expect(reads(on.seen, 'history')).toBe(1);
+
+            const off = sab([['Downloading', 'Force']], { switchOn: 0 });
+            await off.adapter.getQueue();
+            expect(reads(off.seen, 'history')).toBe(0);
+        });
+
+        it.each<[string, [string, string][], boolean]>([
+            ['the rows show the wait', [['Downloading', 'Normal']], true],
+            ['the queue is not paused', [['Downloading', 'Force']], false]
+        ])('reads neither when %s', async (_case, rows, paused) => {
+            const { adapter, seen } = sab(rows, { paused });
+            await adapter.getQueue();
+            await adapter.readPauseState();
+            expect(reads(seen, 'get_config') + reads(seen, 'history')).toBe(0);
+        });
+
+        // A Queued slot proves a pause by hand: its rows need no more, but the whole queue can be held by the wait too.
+        it('reads the wait beside a pause by hand only for the whole queue', async () => {
+            const { adapter, seen } = sab([['Queued', 'Normal']]);
+            expect((await adapter.getQueue())[0]?.heldBy).toBe('queue');
+            expect(reads(seen, 'get_config')).toBe(0);
+            await expect(adapter.readPauseState()).resolves.toEqual({ scope: 'the SABnzbd queue', paused: true, heldBy: 'postProcessing' });
+            await expect(sab([['Queued', 'Normal']], { switchOn: 0 }).adapter.readPauseState()).resolves.toEqual({ scope: 'the SABnzbd queue', paused: true });
+        });
+    });
 });
 
 describe('qbittorrent pause', () => {
@@ -671,16 +772,16 @@ describe('pause_downloads', () => {
             expect(structuredContent.noop).toBe(false);
             expect(structuredContent.confirm_token).toBeDefined();
             expect(structuredContent.effects[0]).toBe(
-                `Pauses the SABnzbd queue on sabnzbd by hand. Its rows show it waiting on post-processing ${SWITCH}, after which it would resume by itself; this keeps it paused after.`
+                `Pauses the SABnzbd queue on sabnzbd by hand. sabnzbd reads as waiting on post-processing ${SWITCH}, after which it would resume by itself; this keeps it paused after.`
             );
         });
 
-        // The rows can hide a manual pause (`sabWaiting`), and a resume does not end the wait.
+        // A manual pause can lie behind the wait (`sabWaiting`), and a resume does not end the wait.
         it('sends a resume too, and says what starts it if it is only the wait', async () => {
             const { structuredContent } = await run('resume', WAITING);
             expect(structuredContent.confirm_token).toBeDefined();
             expect(structuredContent.effects).toEqual([
-                `Restarts the SABnzbd queue on sabnzbd if it is paused by hand. If sabnzbd is only waiting on post-processing ${SWITCH}, as its rows show, this does not end that, and downloading starts once it ends.`,
+                `Restarts the SABnzbd queue on sabnzbd if it is paused by hand. If sabnzbd is waiting on post-processing ${SWITCH}, this does not end that, and downloading starts once it ends.`,
                 'Anything the *arrs grabbed while it was paused starts downloading with it.'
             ]);
         });
@@ -688,6 +789,32 @@ describe('pause_downloads', () => {
         it('calls a queue paused by hand already paused, as before', async () => {
             const { structuredContent } = await run('pause', [{ ...WAITING[0], status: 'Queued' }]);
             expect(structuredContent).toMatchObject({ noop: true, summary: 'the SABnzbd queue on sabnzbd is already paused.' });
+        });
+
+        // Paused by hand, a Queued row shows, and the switch and history show the wait too: a second pause
+        // changes nothing, and a resume ends only the pause by hand.
+        describe('paused by hand while the wait holds it too', () => {
+            const both = (action: string) => {
+                const impl = (async (input: string | URL | Request) => {
+                    const mode = new URL(input instanceof Request ? input.url : String(input)).searchParams.get('mode');
+                    if (mode === 'get_config') return jsonResponse({ config: { misc: { pause_on_post_processing: 1 } } });
+                    if (mode === 'history') return jsonResponse({ history: { slots: [{ nzo_id: 'SABnzbd_nzo_cd34', status: 'Extracting', loaded: true }] } });
+                    return jsonResponse({ queue: { paused: true, slots: [{ ...WAITING[0], status: 'Queued' }] } });
+                }) as unknown as typeof fetch;
+                return harness({ adapters: [new SabnzbdAdapter(keyed(8080), impl)] }).call({ service: 'sabnzbd', action });
+            };
+
+            it('calls it already paused', async () => {
+                await expect(both('pause')).resolves.toMatchObject({ structuredContent: { noop: true, summary: 'the SABnzbd queue on sabnzbd is already paused.' } });
+            });
+
+            it('sends a resume, and says downloading starts once the wait ends', async () => {
+                const { structuredContent } = await both('resume');
+                expect(structuredContent.confirm_token).toBeDefined();
+                expect(structuredContent.effects[0]).toBe(
+                    `Restarts the SABnzbd queue on sabnzbd if it is paused by hand. If sabnzbd is waiting on post-processing ${SWITCH}, this does not end that, and downloading starts once it ends.`
+                );
+            });
         });
     });
 

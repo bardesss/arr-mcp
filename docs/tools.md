@@ -473,10 +473,12 @@ an NZBGet one is told that nothing there holds it back. SABnzbd's queue also
 reads as paused while SABnzbd post-processes, with its "Pause Downloading During
 Post-Processing" switch on, and a resume does not end that wait. SABnzbd shows
 the wait when no row reads `queued` and one not paused itself, and not at Force
-priority, reads `downloading` or `propagating`. A download not paused itself is
-then told to wait, and to resume the queue if it stays paused, with no step; one
-paused itself is resumed by its id. Without such a row, the queue's remedy adds
-that SABnzbd may be waiting so. NZBGet pauses a download's extra repair files on
+priority, reads `downloading` or `propagating`; where its rows cannot tell, the
+switch and the history are read, as `pause_downloads` says. A download not
+paused itself is then told to wait, and to resume the queue if it stays paused,
+with no step; one paused itself is told that too, and resumed by its id. When it
+reads a pause by hand instead, the queue's remedy adds that SABnzbd may be
+waiting so as well. NZBGet pauses a download's extra repair files on
 add, and the *arrs read a download whose paused files are all it has left as
 paused, into post-processing, so a row there (`verifying`, `repairing`,
 `extracting`, `moving`) is told to wait, unless something holds it. NZBGet's
@@ -2693,13 +2695,24 @@ no-op either way: NZBGet pauses its spare repair files and unpauses the ones a
 repair asks for, so a pause or a resume there would only fight it. The no-op
 says where the item is, and names a paused queue that holds the repair files it
 asked for, paused post-processing, or both. While SABnzbd's rows show the wait
-for post-processing, its whole queue reads as not paused by hand. A pause is
-sent, and keeps the queue paused once the wait ends; a resume is sent too, since
-the rows can hide a manual pause, and its preview says that if it is only the
-wait, downloading starts once that ends. A pause by hand that leaves the rows
-looking like the wait reads the same way, since they cannot tell the two apart:
-a second pause is then offered, and `diagnose_media` still says SABnzbd resumes
-by itself. An `id` the client does not have is refused as not found.
+for post-processing, its whole queue reads as not paused by hand. Where they
+cannot tell, with no row reading `queued` and none below Force priority
+reading `downloading` or `propagating` (only Force jobs, jobs paused
+themselves, grabbing, fetching or checking, or none), its "Pause Downloading
+During Post-Processing" setting and its history are read instead: the switch on
+and a download SABnzbd's post-processor is working on (`loaded` in the history)
+is the wait, which holds a Force job too. They are read too for a Force job
+beside a `queued` row, and for the whole queue, which a `queued` row shows
+paused by hand, since the wait can hold it as well. The switch takes one read,
+shared for ten seconds, and the history one more when it is on. A pause is sent,
+and keeps the queue paused once the wait ends, unless a `queued` row shows it
+paused by hand already; a resume is sent too, since a manual pause can lie
+behind the wait, and its preview says that downloading starts once the wait
+ends. A pause by hand with no `queued` row that leaves the rows looking like
+the wait, or that comes while the switch is on and a download is in
+post-processing, reads the same way, since neither tells the two apart: a second pause is then offered, and
+`diagnose_media` still says SABnzbd resumes by itself. An `id` the client does
+not have is refused as not found.
 
 **Unverified live** (qBittorrent): pause, resume and the speed limit.
 
@@ -2753,12 +2766,18 @@ found a replacement. A job in the client's queue that its paused queue holds is
 said to wait there (`queue_paused` in the result), not to be downloading, with
 the call that resumes the queue. One that SABnzbd's wait for another download's
 post-processing holds is said to start once that ends
-(`post_processing_wait`), with the same call in case the rows hide a pause by
-hand. A job the client pauses itself is told to resume it by its `id`
+(`post_processing_wait`), with the same call in case a pause by hand lies
+behind the wait. A job the client pauses itself is told to resume it by its `id`
 (`paused_itself`), and one held both ways is told both. NZBGet answers the
 queue's hold with one more status read, and SABnzbd, when its queue reads
-paused, with a read of the whole queue where the first read does not settle
-it, since the job's own row often cannot tell the wait from a pause.
+paused, with a read of the whole queue where the first read does not settle it,
+since the job's own row often cannot tell the wait from a pause, and of its
+switch and history where the rows cannot tell (see `pause_downloads`). An NZBGet
+download the retry finds in post-processing is said to be there, in the words of
+its stage (`stage`, such as "queued for post-processing"), with a paused queue
+holding the repair files it asked for (`queue_paused`) and paused
+post-processing (`post_processing_paused`) named; one done with post-processing
+is followed to its history, which says how it ended.
 
 **Remove Failed must be off.** Radarr and Sonarr's "Remove Failed" setting
 (Settings, Download Clients, on by default) deletes a failed job from the client

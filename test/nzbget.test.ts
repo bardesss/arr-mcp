@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CredentialServiceConfig } from '../src/config/schema.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
+import type { RetryOutcome } from '../src/services/types.ts';
 
 const config: CredentialServiceConfig = {
     url: 'http://192.0.2.10:6789',
@@ -1238,22 +1239,32 @@ describe('NzbgetAdapter', () => {
                 groups?: Row[];
                 setParameter?: boolean | 'rpcError';
                 onProcess?: 'queue' | 'removed';
-                onRetry?: 'queue' | 'refuse' | 'nothing' | 'refiled';
+                onRetry?: 'queue' | 'refuse' | 'nothing' | 'refiled' | 'finishing' | 'finishingUnlogged';
                 status?: Row | 'invalid';
                 retriedGroup?: Row;
+                /** With `finishing`: an *arr took it out of history once filed. */
+                removeFiled?: true;
+                /** History reads fail once the retry has been sent. */
+                historyFails?: true;
             } = {}
         ) => {
             const state = {
                 history: opts.history ?? [row()],
                 groups: opts.groups ?? ([] as Row[]),
-                log: [{ ID: 10, Kind: 'INFO', Text: 'earlier' }] as Row[]
+                log: [{ ID: 10, Kind: 'INFO', Text: 'earlier' }] as Row[],
+                /** Polls left before a `finishing` group is filed. */
+                finishing: undefined as number | undefined,
+                /** HistoryRetryFailed was sent. */
+                retried: false
             };
             const recorded = rpcRecording(request => {
                 const ok = (result: unknown) => json({ jsonrpc: '2.0', result, id: request.id });
                 switch (request.method) {
                     case 'history':
+                        if (opts.historyFails && state.retried) return json({ jsonrpc: '2.0', error: { code: 1, message: 'history failed' }, id: request.id });
                         return ok(state.history);
                     case 'listgroups':
+                        if (state.finishing !== undefined && state.finishing-- <= 0) state.groups = [];
                         return ok(state.groups);
                     case 'status':
                         // `invalid` fails the read the way a server does, with a JSON-RPC error.
@@ -1282,7 +1293,20 @@ describe('NzbgetAdapter', () => {
                             }
                         }
                         if (command === 'HistoryRetryFailed') {
+                            state.retried = true;
                             if (opts.onRetry === 'nothing') return ok(true);
+                            if (opts.onRetry === 'finishing' || opts.onRetry === 'finishingUnlogged') {
+                                // Done with post-processing on the first poll, filed by the next.
+                                if (opts.onRetry === 'finishing') state.log.push({ ID: 12, Kind: 'INFO', Text: `Retrying failed articles for ${String(target.NZBName)}` });
+                                state.groups = [{ NZBID: target.NZBID, Status: 'PP_FINISHED' }];
+                                state.finishing = 1;
+                                state.history = opts.removeFiled
+                                    ? state.history.filter(r => r !== target)
+                                    : state.history.map(r =>
+                                          r === target ? { ...r, Status: 'SUCCESS/ALL', ParStatus: 'SUCCESS', UnpackStatus: 'SUCCESS', Health: 1000, HistoryTime: 1_700_000_100 } : r
+                                      );
+                                return ok(true);
+                            }
                             if (opts.onRetry === 'refiled') {
                                 // Nothing left to fetch: back in history before a poll sees the queue.
                                 state.log.push({ ID: 12, Kind: 'INFO', Text: `Retrying failed articles for ${String(target.NZBName)}` });
@@ -1397,6 +1421,106 @@ describe('NzbgetAdapter', () => {
             expect(outcome.heldBy).toBe(queuePaused === true ? 'queue' : undefined);
             expect(outcome.pausedItself).toBe(pausedItself);
             expect(outcome.status).toContain(pausedItself === true ? 'paused' : 'downloading');
+        });
+
+        // With nothing left to fetch, a retried download moves on through post-processing, and a poll can find it
+        // there: it is being processed, in the words of its stage, held by what readPauseState names.
+        it.each<[string, Row, string, string, RetryOutcome['heldBy']]>([
+            ['PP_QUEUED', { DownloadPaused: false, PostPaused: false }, 'verifying', 'queued for post-processing', undefined],
+            ['PP_QUEUED', { DownloadPaused: false, PostPaused: true }, 'verifying', 'queued for post-processing', 'postPaused'],
+            ['UNPACKING', { DownloadPaused: true, PostPaused: true }, 'extracting', 'in post-processing (extracting)', undefined],
+            ['REPAIRING', { DownloadPaused: true, PostPaused: true }, 'repairing', 'in post-processing (repairing)', 'queueAndPostPaused'],
+            ['REPAIRING', { DownloadPaused: true, PostPaused: false }, 'repairing', 'in post-processing (repairing)', 'queue'],
+            ['QS_QUEUED', { DownloadPaused: false, PostPaused: true }, 'verifying', 'queued for post-processing', 'postPaused'],
+            // A script stops at its next message while post-processing is paused (`PostScriptController::AddMessage`).
+            ['EXECUTING_SCRIPT', { DownloadPaused: false, PostPaused: true }, 'moving', 'in post-processing (moving)', 'postPaused']
+        ])('reports a retried download found in %s as processing (status %j)', async (stage, status, word, phrase, heldBy) => {
+            // A repair still fetching the repair files it asked for: some of what is left is not paused.
+            const fetchingRepair = stage === 'REPAIRING' ? { RemainingSizeMB: 6, PausedSizeMB: 2 } : {};
+            const { adapter } = fake({ history: [missing()], retriedGroup: { Status: stage, ...fetchingRepair }, status });
+            const outcome = await adapter.runRetry('4', { method: 'retry-failed' });
+            expect(outcome).toMatchObject({ state: 'processing', stage: phrase });
+            expect(outcome.status).toContain(word);
+            expect(outcome.heldBy).toBe(heldBy);
+            expect(outcome.pausedItself).toBeUndefined();
+        });
+
+        // A Force group goes through a paused queue and paused post-processing (`forced`).
+        it('names no hold on a Force group in post-processing', async () => {
+            const { adapter } = fake({
+                history: [missing()],
+                retriedGroup: { Status: 'REPAIRING', MaxPriority: 900, RemainingSizeMB: 6, PausedSizeMB: 2 },
+                status: { DownloadPaused: true, PostPaused: true }
+            });
+            const outcome = await adapter.runRetry('4', { method: 'retry-failed' });
+            expect(outcome).toMatchObject({ state: 'processing' });
+            expect(outcome.heldBy).toBeUndefined();
+        });
+
+        // PP_FINISHED is done but not filed yet: history says how it ended, read once it leaves the queue,
+        // and the sighting is enough without the log line.
+        it.each(['finishing', 'finishingUnlogged'] as const)('reads history once a download found done with post-processing is filed (%s)', async onRetry => {
+            vi.useFakeTimers();
+            const { adapter, requests } = fake({ history: [missing()], onRetry });
+
+            const outcome = adapter.runRetry('4', { method: 'retry-failed' });
+            await vi.runAllTimersAsync();
+
+            await expect(outcome).resolves.toMatchObject({ id: '4', state: 'finished', event: 'imported' });
+            expect(requests.filter(r => r.rpc.method === 'listgroups')).toHaveLength(2);
+        });
+
+        // The retry has run by then, so a failed history read does not fail it.
+        it('keeps a download seen done with post-processing as processing when history cannot be read', async () => {
+            vi.useFakeTimers();
+            const { adapter } = fake({ history: [missing()], onRetry: 'finishing', historyFails: true });
+
+            const outcome = adapter.runRetry('4', { method: 'retry-failed' });
+            await vi.runAllTimersAsync();
+
+            await expect(outcome).resolves.toMatchObject({ id: '4', state: 'processing', stage: 'done with post-processing' });
+        });
+
+        // Only a sighting in the queue says the retry ran; a logged start alone still needs history to say how it ended.
+        it('fails on a history read that fails after a retry never seen in the queue', async () => {
+            vi.useFakeTimers();
+            const { adapter } = fake({ history: [missing()], onRetry: 'refiled', historyFails: true });
+
+            const outcome = adapter.runRetry('4', { method: 'retry-failed' }).catch((e: unknown) => e);
+            await vi.runAllTimersAsync();
+
+            await expect(outcome).resolves.toMatchObject({ message: expect.stringContaining('history failed') as unknown });
+        });
+
+        it('says a download seen done with post-processing ran, when it is gone from history too', async () => {
+            vi.useFakeTimers();
+            const { adapter } = fake({ history: [missing()], onRetry: 'finishing', removeFiled: true });
+
+            const outcome = adapter.runRetry('4', { method: 'retry-failed' });
+            await vi.runAllTimersAsync();
+
+            const result = await outcome;
+            // As a rerun's watch reports it.
+            expect(result).toMatchObject({ id: '4', state: 'finished', status: 'removed' });
+            expect(result.event).toBeUndefined();
+        });
+
+        it('reports a download still done with post-processing at the last poll as processing', async () => {
+            vi.useFakeTimers();
+            const { adapter, requests } = fake({ history: [missing()], retriedGroup: { Status: 'PP_FINISHED' } });
+
+            const outcome = adapter.runRetry('4', { method: 'retry-failed' });
+            await vi.runAllTimersAsync();
+
+            await expect(outcome).resolves.toMatchObject({ state: 'processing', stage: 'done with post-processing' });
+            expect(requests.filter(r => r.rpc.method === 'listgroups')).toHaveLength(20);
+        });
+
+        it('leaves the holds unsaid when the status read fails after the retry', async () => {
+            const { adapter } = fake({ history: [missing()], retriedGroup: { Status: 'PP_QUEUED' }, status: 'invalid' });
+            const outcome = await adapter.runRetry('4', { method: 'retry-failed' });
+            expect(outcome).toMatchObject({ state: 'processing', stage: 'queued for post-processing' });
+            expect(outcome.heldBy).toBeUndefined();
         });
 
         it('picks retry-failed when the par check failed, even for an unpack failure', async () => {

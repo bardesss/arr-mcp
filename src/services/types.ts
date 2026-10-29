@@ -1619,8 +1619,16 @@ export type RetryOutcome = {
     state: 'downloading' | 'processing' | 'finished';
     status: string; // fenced
     event?: HistoryEventType; // when state is 'finished'
-    /** What holds a job in the queue besides its own pause: the client's paused queue, or SABnzbd's wait for post-processing, which ends by itself. */
-    heldBy?: PauseState['heldBy'];
+    /**
+     * What holds a job in the queue besides its own pause (`QueueHold`): one
+     * downloading, the client's paused queue or SABnzbd's wait for
+     * post-processing, which ends by itself; an NZBGet one in post-processing,
+     * a paused queue holding the repair files it asked for, paused
+     * post-processing, or both.
+     */
+    heldBy?: QueueHold;
+    /** Where post-processing has a job being processed, in words, when the client says (NZBGet: "queued for post-processing"). */
+    stage?: string;
     /** A job in the queue that the client pauses itself, which needs its own resume. */
     pausedItself?: true;
 };
@@ -1634,8 +1642,18 @@ export const RESUME_HELD_QUEUE = 'resume the queue with pause_downloads (`action
 /** SABnzbd's switch that pauses its queue while it post-processes. */
 export const SAB_WAIT_SWITCH = '"Pause Downloading During Post-Processing"';
 
-/** SABnzbd's wait for post-processing, as pause_downloads and retry_download word it (`sabWaiting`). */
+/** SABnzbd's wait for post-processing, in the words every tool that names it uses (`sabWaiting`). */
 export const sabWaits = (client: string): string => `${client} pauses its queue while it post-processes (${SAB_WAIT_SWITCH})`;
+
+/**
+ * What holds an NZBGet download in post-processing, as pause_downloads and
+ * retry_download word it: a paused queue holding the repair files it asked
+ * for, which `resume` says how to end, and paused post-processing.
+ */
+export const NZBGET_POST_HOLDS = {
+    queue: (client: string, resume: string): string => `${client}'s whole queue is paused, which holds the repair files it asked for: resume that ${resume}.`,
+    postPaused: (client: string): string => `${client}'s post-processing is paused: resume that in ${client}.`
+};
 
 export interface RetryCapable {
     /** Refuses anything that did not fail. `hasPassword` only decides whether an encrypted queue job is a target. */
@@ -1901,7 +1919,8 @@ export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRe
  * *of*, "the SABnzbd queue", "2 torrents", so a preview can say it. `heldBy`,
  * on a one-item read from SABnzbd or NZBGet, is what else holds that item, so
  * resuming the item alone does not start it; on SABnzbd's whole queue, the
- * wait for post-processing its rows show, with `paused` false.
+ * wait for post-processing it shows, with `paused` true only where a pause by
+ * hand shows beside it.
  * `postProcessing`, on a one-item read from NZBGet, is a download in
  * post-processing, whose repair files NZBGet pauses and unpauses itself: where
  * it is, in words, and whether NZBGet's post-processing is paused; `heldBy` is
