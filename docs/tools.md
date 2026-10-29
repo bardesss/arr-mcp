@@ -12,7 +12,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files |
 | `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
-| `get_queue` | What is downloading, across all four download paths |
+| `get_queue` | What is downloading, across the *arr queues and every download client |
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet and Bazarr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included |
