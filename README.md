@@ -226,7 +226,8 @@ them off. The cards are read-only for now.
   imports for it. `stack_health` reports its disks, failing health checks and
   last library scan, and `get_wanted` and `get_calendar` list its albums.
   `trigger_search`, `get_releases` and `grab_release` search its indexers for an
-  artist or its albums.
+  artist or its albums, and `fix_metadata` rewrites an artist's file tags from
+  Lidarr's metadata.
 - Docker, or Node 24+ to run from source
 - An MCP client. Protocol revision `2026-07-28` is the native one; clients on a
   2025-era revision are still served

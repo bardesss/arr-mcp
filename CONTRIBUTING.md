@@ -248,7 +248,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with twenty-six capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr — the rest of it.** The adapter has shipped, with twenty-seven capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists, `search_media` finds them, and its discover
   source (`lookup_media`) finds artists to add. `MediaAddCapable` and
   `MetadataProfileCapable`, so `add_media` adds one by its MusicBrainz id, with
@@ -256,7 +256,8 @@ small, shaped change, and a service in no slot at all is a different product.
   `update_media` changes an artist's profiles, root folder, monitoring and tags
   later, through the Artist Editor. The lookup, add and editor fixtures were
   captured on a 3.1.6.5079 test instance. `MediaDeleteCapable`, so
-  `delete_media` deletes an artist.
+  `delete_media` deletes an artist. `TagRepairCapable`, so `fix_metadata`
+  rewrites the tags in an artist's files from Lidarr's metadata.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
   album's flag. `MonitorStateCapable`, so that flag is read before it is changed
@@ -296,15 +297,17 @@ small, shaped change, and a service in no slot at all is a different product.
   films and series key on integer TMDB, TVDB and IMDb ids. Jellyfin publishes the
   same GUID on an album artist and Plex on an artist in a music section, so the
   join works — and it is namespaced by kind, so an MBID can never collide with
-  the integer spaces. `get_media_details` answers for an artist. `diagnose` and
-  `fix_metadata` still read the film and series chain, and refuse an artist —
-  by query or by Lidarr id — naming `get_media_details` with `detail: "full"`
-  for the albums and `get_library`'s `kind: "artist"` for the artist list,
-  rather than reporting it as absent. The music read is its own source in a
-  library build, so a failed or absent one reports `unknown` presence rather than
-  claiming every artist is `arr_only`. It runs only when a Lidarr is configured:
-  with no artist row to join to, it would add the whole music collection as
-  `jellyfin_only`.
+  the integer spaces. `get_media_details` answers for an artist by Lidarr id,
+  and refuses one asked for by title, naming `get_media_details` with
+  `detail: "full"` for the albums and `get_library`'s `kind: "artist"` for the
+  artist list, rather than reporting it as absent. `diagnose` walks an artist,
+  by name or by Lidarr id. `fix_metadata` repairs an artist's music by
+  rewriting the tags in its files from Lidarr, by `id: "lidarr:<artistId>"`;
+  an artist asked for by name is not retagged. The music read is its own source
+  in a library build, so a failed or absent one reports `unknown` presence
+  rather than claiming every artist is `arr_only`. It runs only when a Lidarr is
+  configured: with no artist row to join to, it would add the whole music
+  collection as `jellyfin_only`.
 
   **What its API does not say out loud.** Three media levels, so `resource:
   'movie' | 'series'` in the shared `arr*.ts` helpers does not apply. Two

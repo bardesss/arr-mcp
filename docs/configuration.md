@@ -277,9 +277,10 @@ server holds as `jellyfin_only` and answer "what does no *arr manage?" with the
 whole music collection.
 
 `diagnose` walks a Lidarr artist too, by name or by Lidarr artist id; see "Lidarr
-artists" under `diagnose` in [tools.md](tools.md). `get_media_details` and
-`fix_metadata` still refuse an artist, naming `get_media_details` with
+artists" under `diagnose` in [tools.md](tools.md). `get_media_details` asked
+for an artist by title refuses it, naming `get_media_details` with
 `service: "lidarr"` and `detail: "full"` as the route that holds the albums.
+`fix_metadata` retags an artist's files by Lidarr id, as below.
 
 **It is not read-only.** `set_monitoring` writes two different things, and
 `level` says which one:
@@ -308,7 +309,10 @@ folder's default when none is named), and Lidarr's own `monitor` values and
 metadata profile, root folder, monitoring and tags through Lidarr's Artist
 Editor, which starts no refresh, so a new metadata profile applies at the
 artist's next one. `delete_media` deletes a whole artist, with Lidarr's own
-`deleteFiles` and `addImportListExclusion`. The lookup, add and editor fixtures
+`deleteFiles` and `addImportListExclusion`. `fix_metadata` with
+`id: "lidarr:<artistId>"` rewrites the tags inside an artist's files from
+Lidarr's metadata, previewing Lidarr's own retag list, and `get_history` reads
+each retagged file as `retagged`. The lookup, add, editor and retag fixtures
 were captured on a 3.1.6.5079 test instance.
 
 `trigger_scan` rescans the library or refreshes one artist (the rescan after it

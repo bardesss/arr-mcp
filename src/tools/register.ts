@@ -231,7 +231,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         bothIds(context.mediaServers),
         library
     );
-    registerFixMetadata(server, write, context.mediaServers, library, undefined, adapters.find(hasBookMetadata));
+    registerFixMetadata(server, write, context.mediaServers, library, undefined, adapters.find(hasBookMetadata), adapters);
     registerRemoveBlocklistItem(server, write, adapters);
     registerManageIndexer(server, write, adapters);
 }

@@ -24,9 +24,8 @@ import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './typ
  * Lidarr names its own (`EntityHistoryEventType`, read from Lidarr 3.1.0):
  * three imports — `artistFolderImported`, `trackFileImported` and
  * `downloadImported` — and `albumImportIncomplete` beside `downloadFailed`, a
- * download that arrived but could not all be imported. `trackFileRetagged`
- * has no counterpart here and stays `unknown`, with `rawEvent` saying what it
- * was.
+ * download that arrived but could not all be imported. `trackFileRetagged`,
+ * a file whose embedded tags Lidarr rewrote, is `retagged`.
  */
 const EVENT: Record<string, HistoryEventType> = {
     grabbed: 'grabbed',
@@ -44,6 +43,7 @@ const EVENT: Record<string, HistoryEventType> = {
     episodeFileRenamed: 'renamed',
     movieFileRenamed: 'renamed',
     trackFileRenamed: 'renamed',
+    trackFileRetagged: 'retagged',
     downloadIgnored: 'ignored'
 };
 
@@ -79,18 +79,24 @@ type RawHistory = {
  * 4.0.19) and `History.cs` (Radarr 4.0.0 and 6.4.4).
  *
  * One value per type, because Sonarr 4.0.0 binds a single `int? eventType`.
- * `unknown` and `subtitle` have none and are filtered here instead.
+ * `unknown` has none and is filtered here instead. Any other type with no
+ * code for a service, such as `subtitle`, the other services' types, or
+ * `retagged` on Radarr, Sonarr and Whisparr, is one none of that service's
+ * rows maps to, so it is answered without a read: filtering locally would
+ * read the whole history, which a live Sonarr capture put at 12,614 records,
+ * to find nothing.
  *
  * Lidarr is the exception: it binds `int[] eventType` (`HistoryController`,
  * Lidarr 3.1.0) and spreads one type over several codes, so it is sent every
  * code for the type. `EntityHistory.cs`: ArtistFolderImported 2,
  * TrackFileImported 3 and DownloadImported 8 are imports; DownloadFailed 4
- * and AlbumImportIncomplete 7 are failures; DownloadIgnored is 10.
+ * and AlbumImportIncomplete 7 are failures; TrackFileRetagged is 9 and
+ * DownloadIgnored 10.
  */
 const EVENT_CODE: Record<ArrKind, Partial<Record<HistoryEventType, number | readonly number[]>>> = {
     movie: { grabbed: 1, imported: 3, failed: 4, deleted: 6, renamed: 8, ignored: 9 },
     series: { grabbed: 1, imported: 3, failed: 4, deleted: 5, renamed: 6, ignored: 7 },
-    artist: { grabbed: 1, imported: [2, 3, 8], failed: [4, 7], deleted: 5, renamed: 6, ignored: 10 }
+    artist: { grabbed: 1, imported: [2, 3, 8], failed: [4, 7], deleted: 5, renamed: 6, retagged: 9, ignored: 10 }
 };
 
 /**
@@ -105,6 +111,7 @@ export async function readArrHistory(
     opts: HistoryQuery
 ): Promise<Window<HistoryEntry>> {
     const code = opts.eventType === undefined ? undefined : EVENT_CODE[kind][opts.eventType];
+    if (opts.eventType !== undefined && opts.eventType !== 'unknown' && code === undefined) return { items: [], total: 0 };
     let pages = await readHistoryPages(http, service, kind, opts, code);
     // Radarr 4 filters history through `filterKey`/`filterValue` and ignores a
     // bare `eventType`, so a filter sent upstream is checked, not trusted.

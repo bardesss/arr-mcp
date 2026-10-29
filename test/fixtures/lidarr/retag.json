@@ -1,0 +1,113 @@
+[
+  {
+    "artistId": 101,
+    "albumId": 102,
+    "trackNumbers": [
+      1
+    ],
+    "trackFileId": 1001,
+    "path": "/music/Artist 1/Album 1/Track 1.mp3",
+    "changes": [
+      {
+        "field": "Media Format",
+        "newValue": "newValue 1.1"
+      },
+      {
+        "field": "Date",
+        "newValue": "newValue 1.2"
+      },
+      {
+        "field": "Original Release Date",
+        "newValue": "newValue 1.3"
+      },
+      {
+        "field": "Label",
+        "newValue": "newValue 1.4"
+      },
+      {
+        "field": "Genres",
+        "oldValue": "oldValue 1.5",
+        "newValue": "newValue 1.5"
+      },
+      {
+        "field": "Image Size",
+        "oldValue": "oldValue 1.6",
+        "newValue": "newValue 1.6"
+      }
+    ]
+  },
+  {
+    "artistId": 101,
+    "albumId": 102,
+    "trackNumbers": [
+      2
+    ],
+    "trackFileId": 1002,
+    "path": "/music/Artist 1/Album 1/Track 2.mp3",
+    "changes": [
+      {
+        "field": "Media Format",
+        "newValue": "newValue 2.1"
+      },
+      {
+        "field": "Date",
+        "newValue": "newValue 2.2"
+      },
+      {
+        "field": "Original Release Date",
+        "newValue": "newValue 2.3"
+      },
+      {
+        "field": "Label",
+        "newValue": "newValue 2.4"
+      },
+      {
+        "field": "Genres",
+        "oldValue": "oldValue 2.5",
+        "newValue": "newValue 2.5"
+      },
+      {
+        "field": "Image Size",
+        "oldValue": "oldValue 2.6",
+        "newValue": "newValue 2.6"
+      }
+    ]
+  },
+  {
+    "artistId": 101,
+    "albumId": 102,
+    "trackNumbers": [
+      3
+    ],
+    "trackFileId": 1003,
+    "path": "/music/Artist 1/Album 1/Track 3.mp3",
+    "changes": [
+      {
+        "field": "Media Format",
+        "newValue": "newValue 3.1"
+      },
+      {
+        "field": "Date",
+        "newValue": "newValue 3.2"
+      },
+      {
+        "field": "Original Release Date",
+        "newValue": "newValue 3.3"
+      },
+      {
+        "field": "Label",
+        "newValue": "newValue 3.4"
+      },
+      {
+        "field": "Genres",
+        "oldValue": "oldValue 3.5",
+        "newValue": "newValue 3.5"
+      },
+      {
+        "field": "Image Size",
+        "oldValue": "oldValue 3.6",
+        "newValue": "newValue 3.6"
+      }
+    ]
+  }
+]

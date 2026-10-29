@@ -71,6 +71,8 @@ const FOLLOWABLE = new Set([
     'RefreshArtist',
     'RenameArtist',
     'ManualImport',
+    // Lidarr's, which `fix_metadata` posts for music.
+    'RetagFiles',
     'ApplicationIndexerSync'
 ]);
 
