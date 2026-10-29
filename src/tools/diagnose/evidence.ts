@@ -4,7 +4,7 @@ import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
 import { deadline, TIMED_OUT, type Deadline } from '../../core/timeout.ts';
 import { rankTitle, RANK_NONE } from '../../core/titleMatch.ts';
-import { isArrItem, isFilmOrSeries, type ArrItem, type ExternalIds, type LibraryKind } from '../../core/resolver.ts';
+import { ARR_KIND, isArrItem, isFilmOrSeries, type ArrItem, type ExternalIds, type LibraryKind } from '../../core/resolver.ts';
 import {
     hasCleanup,
     hasCleanuparr,
@@ -620,7 +620,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             ...(lastImportAt === undefined ? {} : { lastImportAt }),
             ...(albums === undefined ? {} : { albums }),
             libraryDegraded,
-            degraded
+            degraded,
+            arrs: deps.adapters.filter(a => ARR_KIND[a.type] !== undefined).map(a => a.id)
         };
     } finally {
         budget.clear();

@@ -22,7 +22,8 @@ const buildChain = (query: string, ev: Evidence): Diagnosis => chain(query, ev, 
 
 type EvidenceOverride = { [K in keyof Evidence]?: Evidence[K] | undefined };
 
-const fence = (title: string, service = 'radarr'): string => fenceText(title, { service: service as Parameters<typeof fenceText>[1]['service'], field: 'title' });
+const fence = (title: string, service = 'radarr', field = 'title'): string =>
+    fenceText(title, { service: service as Parameters<typeof fenceText>[1]['service'], field });
 
 /**
  * Every queue fixture used to pass an unfenced release title, while all
@@ -73,6 +74,7 @@ const healthy = (over: EvidenceOverride = {}): Evidence => {
         subtitles: null,
         libraryDegraded: [],
         degraded: [],
+        arrs: ['lidarr', 'radarr', 'sonarr'],
         ...over
     };
     // Same reasoning as `item()`: an override to `undefined` clears the key
@@ -408,7 +410,8 @@ describe('buildChain — certainty', () => {
             scanCapable: true,
             cleanuparr: null,
             libraryDegraded: [],
-            degraded: ['seerr']
+            degraded: ['seerr'],
+            arrs: ['radarr']
         });
 
         expect(d.verdict.stage).toBe('file');
@@ -504,7 +507,8 @@ describe('buildChain — certainty', () => {
             scanCapable: true,
             cleanuparr: null,
             libraryDegraded: ['radarr'],
-            degraded: []
+            degraded: [],
+            arrs: ['radarr']
         });
         expect(d.verdict).toMatchObject({ stage: 'resolve', certain: false });
         expect(d.degraded).toEqual(['radarr']);
@@ -2538,8 +2542,8 @@ describe('buildChain — a Lidarr artist', () => {
     });
 
     // A media server named by id reports no kind, so the film stands in, and
-    // any *arr could hold it.
-    it('counts every unread *arr when the kind was only guessed', () => {
+    // an *arr of another kind could hold it.
+    it('counts an unread *arr of another kind when the kind was only guessed', () => {
         const guessed = item({ acquisition: undefined, presence: 'jellyfin_only' });
         const d = buildChain('some film', healthy({ item: guessed, itemKindGuessed: true, libraryDegraded: ['sonarr'] }));
         expect(stepFor(d, 'managed')).toMatchObject({ status: 'unknown', service: 'sonarr' });
@@ -2548,6 +2552,17 @@ describe('buildChain — a Lidarr artist', () => {
         // The film's kind was known: Sonarr cannot hold it.
         const known = buildChain('some film', healthy({ item: guessed, libraryDegraded: ['sonarr'] }));
         expect(stepFor(known, 'managed')?.status).toBe('blocked');
+    });
+
+    // A film or series id rules music out, and with it Lidarr; an item with none may be music.
+    it.each<[MergedItem['ids'], string]>([
+        [{ tmdb: 550 }, 'blocked'],
+        [{ imdb: 'tt0000550' }, 'blocked'],
+        [{}, 'unknown']
+    ])('counts an unread Lidarr for a guessed kind only when the ids could be music (%j)', (ids, status) => {
+        const guessed = item({ title: fence('Some Title', 'jellyfin', 'Name'), ids, acquisition: undefined, presence: 'jellyfin_only' });
+        const d = buildChain('some title', healthy({ item: guessed, itemKindGuessed: true, libraryDegraded: ['lidarr'] }));
+        expect(stepFor(d, 'managed')?.status).toBe(status);
     });
 
     it('lets a blocked request stay the verdict while an *arr of its kind is unread', () => {
@@ -2706,5 +2721,86 @@ describe('buildChain — the names it points at', () => {
         const text = JSON.stringify(verdicts.map(v => ({ remedy: v.remedy, next_steps: v.next_steps })));
         expect(text).not.toMatch(/(?<![A-Za-z0-9_])(diagnose|stack_health)(?![A-Za-z0-9_])/);
         expect(text).toContain('diagnose_media');
+    });
+});
+
+describe('buildChain — the managed remedy names the *arrs this stack runs', () => {
+    const shaped = {
+        movie: { title: 'Some Film', ids: { tmdb: 550 } },
+        series: { title: 'Some Show', ids: { tvdb: 1 } },
+        artist: { title: 'Some Artist', ids: { mbid: '00000000-0000-4000-8000-000000000001' } }
+    } as const;
+    // A title nothing manages is the media server's; one an *arr has is that instance's.
+    const unmanaged = (kind: keyof typeof shaped, arrs: string[], over: EvidenceOverride = {}) =>
+        buildChain(
+            'some title',
+            healthy({
+                item: item({ kind, title: fence(shaped[kind].title, 'jellyfin', 'Name'), ids: shaped[kind].ids, year: undefined, acquisition: undefined, presence: 'jellyfin_only' }),
+                arrs,
+                ...over
+            })
+        );
+
+    it.each<[keyof typeof shaped, string[], string]>([
+        ['movie', ['radarr', 'sonarr'], 'Add it to Radarr.'],
+        ['movie', ['radarr', 'radarr/4k'], 'Add it to Radarr.'],
+        ['series', ['radarr', 'sonarr', 'sonarr/4k', 'whisparr'], 'Add it to Sonarr or Whisparr.'],
+        ['series', ['radarr'], 'No Sonarr or Whisparr is configured here to manage it.'],
+        ['movie', [], 'No Radarr is configured here to manage it.'],
+        ['artist', ['lidarr/two'], 'Add it to Lidarr.'],
+        ['artist', ['radarr', 'sonarr'], 'No Lidarr is configured here to manage it.']
+    ])('for an unmanaged %s, with %j configured', (kind, arrs, remedy) => {
+        const d = unmanaged(kind, arrs);
+        expect(d.verdict).toMatchObject({ stage: 'managed', certain: true, remedy });
+    });
+
+    // A media server's id gives no kind, so any *arr could manage it, Lidarr aside for an item
+    // with a film or series id, which a music item does not carry (`jellyfin.ts`, `plex.ts`).
+    it.each<[string[], MergedItem['ids'], string]>([
+        [['radarr', 'sonarr'], { tmdb: 550 }, 'Add it to Radarr or Sonarr.'],
+        [['radarr', 'lidarr'], { tmdb: 550 }, 'Add it to Radarr.'],
+        [['lidarr'], { tvdb: 1 }, 'No Radarr, Sonarr or Whisparr is configured here to manage it.'],
+        [['radarr', 'lidarr'], {}, 'Add it to Radarr or Lidarr.'],
+        [[], {}, 'No Radarr, Sonarr, Whisparr or Lidarr is configured here to manage it.']
+    ])('names the configured *arrs that could manage it when the kind was only guessed (%j, ids %j)', (arrs, ids, remedy) => {
+        const guessed = item({ title: fence('Some Title', 'jellyfin', 'Name'), ids, year: undefined, acquisition: undefined, presence: 'jellyfin_only' });
+        const d = buildChain('some title', healthy({ item: guessed, itemKindGuessed: true, arrs }));
+        expect(d.verdict).toMatchObject({ stage: 'managed', certain: true, remedy });
+    });
+
+    it.each<[string, 'movie' | 'series' | 'artist', string]>([
+        ['radarr/hd', 'movie', 'Radarr'],
+        ['sonarr', 'series', 'Sonarr'],
+        ['whisparr', 'series', 'Whisparr'],
+        ['lidarr', 'artist', 'Lidarr']
+    ])('names the *arr that has it but does not monitor it (%s)', (service, kind, name) => {
+        const has = item({
+            kind,
+            title: fence(shaped[kind].title, service),
+            ids: shaped[kind].ids,
+            year: undefined,
+            playback: undefined,
+            presence: 'arr_only',
+            acquisition: { service, id: '5', monitored: false, hasFile: false }
+        });
+        const d = buildChain('some title', healthy({ item: has, arrs: [service] }));
+        expect(d.verdict).toMatchObject({ stage: 'managed', remedy: `Turn monitoring on for it in ${name}.` });
+    });
+
+    // Seerr hands a film to Radarr and a series to Sonarr, whatever else the stack runs.
+    it.each<['movie' | 'series', string]>([
+        ['movie', 'Radarr'],
+        ['series', 'Sonarr']
+    ])('names the *arr Seerr hands the request for a %s to', (kind, name) => {
+        const d = buildChain(
+            'some title',
+            healthy({
+                item: item({ kind, title: fence(shaped[kind].title, 'jellyfin', 'Name'), ids: shaped[kind].ids, year: undefined, acquisition: undefined, presence: 'jellyfin_only' }),
+                request: { status: 'pending', id: 12, mayRespond: true },
+                arrs: ['whisparr']
+            })
+        );
+        expect(d.verdict.stage).toBe('request');
+        expect(d.verdict.next_steps?.[0]).toMatchObject({ tool: 'respond_to_request', why: `Approving hands the request to ${name} to search for it.` });
     });
 });

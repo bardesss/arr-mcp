@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
+import { fenceText } from '../src/core/fence.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
@@ -639,6 +640,23 @@ describe('diagnose', () => {
         const d = await buildDiagnose(deps, { service: 'jellyfin', id: 'abc123' });
         expect(d.steps.find(s => s.stage === 'managed')).toMatchObject({ status: 'unknown', service: 'sonarr' });
         expect(d.verdict).toMatchObject({ stage: 'managed', certain: false });
+    });
+
+    it('lists the configured *arr instances, and no other service, for the managed remedy', async () => {
+        const adapters = [
+            stub('radarr/4k', { listLibrary: async () => [] }),
+            stub('whisparr', { listLibrary: async () => [] }),
+            stub('sabnzbd', {}),
+            stub('jellyfin', {
+                listUserLibrary: async () => [],
+                getMediaDetails: async () => ({ service: 'jellyfin', kind: 'item', id: 'abc123', title: fenceText('A Title', { service: 'jellyfin', field: 'Name' }), ids: { tmdb: 900 } })
+            })
+        ];
+        const deps = { adapters, library: new LibraryLoader(adapters, undefined) };
+        const evidence = await collectEvidence(deps, { service: 'jellyfin', id: 'abc123' });
+        expect(evidence.arrs).toEqual(['radarr/4k', 'whisparr']);
+        const d = await buildDiagnose(deps, { service: 'jellyfin', id: 'abc123' });
+        expect(d.verdict).toMatchObject({ stage: 'managed', remedy: 'Add it to Radarr or Whisparr.' });
     });
 
     it('Finding F: diagnoses a Jellyfin item as the series Sonarr already manages, not a fabricated unmanaged movie', async () => {
