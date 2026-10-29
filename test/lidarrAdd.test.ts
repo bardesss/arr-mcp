@@ -316,7 +316,10 @@ describe('add_media on Lidarr', () => {
         expect(noAlbums).not.toContain('Albums Lidarr discovers later');
         const said = async (rule: string) =>
             (await addMedia([adapter])({ ...base, metadata_profile: 'None', monitor_new_items: rule })).structuredContent.effects.join(' ');
-        expect(await said('all')).toContain('every album that brings is monitored (`all`), and Lidarr then searches the released ones');
+        // Up to 3.2.0.5144 every released album is searched; later builds only those from the last 180 days.
+        const all = await said('all');
+        expect(all).toContain('every album that brings is monitored (`all`). Lidarr then searches the released ones while the artist is monitored');
+        expect(all).toContain('in Lidarr newer than 3.2.0.5144, only those released in the last 180 days; older ones wait for RSS sync or trigger_search');
         expect(await said('none')).toContain('the albums that brings are not monitored (`none`).');
         expect(noAlbums).not.toContain('it is added with');
         expect(noAlbums).toContain('The None metadata profile gives the artist no albums, so nothing is searched.');
