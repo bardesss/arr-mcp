@@ -192,6 +192,13 @@ describe('stack_health logs', () => {
         expect(full.degraded).toEqual(['radarr']);
     });
 
+    it('flags a log whose database is off, without marking the service degraded', async () => {
+        const adapter = withLogs(async () => ({ entries: [], read: 0, total: 0, logDbEnabled: false }));
+        const full = await buildStackHealth([adapter], { detail: 'full', limit: 50 });
+        expect(full.logs?.lines).toEqual([{ service: 'radarr', read: 0, total: 0, logDbEnabled: false }]);
+        expect(full.degraded).toEqual([]);
+    });
+
     it('sorts by the moment, whichever way a service writes its times', async () => {
         const seen = (lastSeen: string) => ({ ...line, lastSeen });
         const adapter = withLogs(async () => ({

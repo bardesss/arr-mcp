@@ -223,8 +223,9 @@ them off. The cards are read-only for now.
   Artists join to Jellyfin and Plex on the MusicBrainz artist id. `get_queue`,
   `get_history` and `get_blocklist` include Lidarr, `remove_queue_item` and
   `clean_queue` take a Lidarr download, and `trigger_scan` rescans and renames,
-  and `import_download` imports for it. `stack_health` reports its disks, failing health checks and
-  last library scan, and `get_wanted` and `get_calendar` list its albums.
+  and `import_download` imports for it. `stack_health` reports its disks, failing health checks,
+  last library scan and, at `detail: "full"`, its recent warnings and errors.
+  `get_wanted` and `get_calendar` list its albums.
   `trigger_search`, `get_releases` and `grab_release` search its indexers for an
   artist or its albums, and `fix_metadata` rewrites an artist's file tags from
   Lidarr's metadata.

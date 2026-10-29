@@ -46,7 +46,7 @@ describe('*arr adapter capabilities', () => {
         ['lidarr', () => new LidarrAdapter(cfg), [
             'hasArtistMonitor', 'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace',
             'hasHealthChecks', 'hasHistory', 'hasImportExclusions', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan',
-            'hasManualImport', 'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasMetadataProfiles',
+            'hasLogs', 'hasManualImport', 'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasMetadataProfiles',
             'hasMonitorState', 'hasMonitoring', 'hasQueue', 'hasQueueRemove', 'hasReleaseGrab',
             'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger', 'hasTagRepair', 'hasWanted'
         ]]

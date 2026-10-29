@@ -255,7 +255,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with twenty-seven capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr — the rest of it.** The adapter has shipped, with twenty-eight capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists, `search_media` finds them, and its discover
   source (`search_media` with `source: "discover"`) finds artists to add. `MediaAddCapable` and
   `MetadataProfileCapable`, so `add_media` adds one by its MusicBrainz id, with
@@ -282,7 +282,10 @@ small, shaped change, and a service in no slot at all is a different product.
   commands it queues. `DiskSpaceCapable`, `HealthCheckCapable` and
   `ScanStateCapable` are the shared `arr*` system reads, so `stack_health` also
   reports Lidarr's disks, failing health checks and last `RescanFolders` (its
-  disk scan). `WantedCapable` and `CalendarCapable`, so `get_wanted` and
+  disk scan). `LogCapable` is the shared `arrRecentLogs`, so `stack_health` at
+  `detail: "full"` lists Lidarr's recent warnings and errors; the log fixture
+  was captured from 3.1.6.5079.
+  `WantedCapable` and `CalendarCapable`, so `get_wanted` and
   `get_calendar` list albums: a wanted row names its artist as `id` and the
   album as `albumId`, and the wanted cutoff fixture was captured from Lidarr
   3.1.0.4875. `SearchTriggerCapable`, `ReleaseSearchCapable` and
@@ -290,7 +293,7 @@ small, shaped change, and a service in no slot at all is a different product.
   or some of its albums, and `get_releases` and `grab_release` list and grab the
   releases for the artist or one album; the release fixture was captured from
   an album search on Lidarr 3.1.6.5079.
-  All 21 capture endpoints were exercised against a live Lidarr 3.1.6.5079 and
+  All 22 capture endpoints were exercised against a live Lidarr 3.1.6.5079 and
   the fixtures are committed, but two still have no rows: tag and indexer are
   empty on a fresh instance. Tags are read anyway, with the shared `readTags`
   and the spec's `id` and `label`: `add_media` matches a tag it is given, and

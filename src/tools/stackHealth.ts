@@ -29,7 +29,7 @@ import { buildSeedingRules, type SeedingRules } from './seedingRules.ts';
 import { groupDisks, humanBytes } from '../core/disks.ts';
 
 /** How much of one instance's log `logs` was folded from. */
-type LogLines = { service: string; read: number; total: number };
+type LogLines = { service: string; read: number; total: number; logDbEnabled?: false };
 
 type Shaped<T> = { items: T[]; total: number; returned: number; offset: number; truncated: boolean };
 
@@ -286,9 +286,9 @@ export async function buildStackHealth(
 
             if (logResult.status === 'fulfilled') {
                 if (logResult.value !== undefined) {
-                    const { entries, read, total } = logResult.value;
+                    const { entries, read, total, logDbEnabled } = logResult.value;
                     logs.push(...entries);
-                    logLines.push({ service: adapter.id, read, total });
+                    logLines.push({ service: adapter.id, read, total, ...(logDbEnabled === false ? { logDbEnabled } : {}) });
                 }
             } else {
                 logger.warn({ service: adapter.id }, 'log read failed');
@@ -501,10 +501,10 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
         .optional()
         .describe('When Cleanuparr removes a download and what the removal does. Only at `detail: "full"`, with Cleanuparr configured.'),
     logs: TruncationSchema.extend({
-        lines: z.array(z.unknown()).describe('Per instance, how many log lines were `read` and the `total` the log holds. `total` above counts folded rows from those lines, not the log.')
+        lines: z.array(z.unknown()).describe('Per instance, how many log lines were `read` and the `total` the log holds; `logDbEnabled: false`, with both 0, when its log database is turned off. `total` above counts folded rows from those lines, not the log.')
     })
         .optional()
-        .describe('Recent warnings and errors from each Radarr, Sonarr, Prowlarr, Seerr and Bazarr log, identical lines folded with a count. Only at `detail: "full"`.'),
+        .describe('Recent warnings and errors from each service\'s own log, identical lines folded with a count. Only at `detail: "full"`.'),
     ...(withPrimary
         ? { primaryMediaServer: z.string().describe('The media server tools default to when `service` is not given.') }
         : {}),

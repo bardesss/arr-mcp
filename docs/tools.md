@@ -803,24 +803,28 @@ not a fault — and bounded like `scans` rather than sharing the `limit` budget.
 ### Why is it failing?
 
 At `detail: "full"`, `logs` lists the recent warnings and errors each Radarr,
-Sonarr, Whisparr, Prowlarr, Seerr and Bazarr wrote to its own log, newest first. A health
-check says *what* is broken ("download client unavailable"); the log line says
-*why* ("Name does not resolve (qbittorrent:8080)", a path it cannot write).
+Sonarr, Whisparr, Lidarr, Prowlarr, Seerr and Bazarr wrote to its own log,
+newest first. A health check says *what* is broken ("download client
+unavailable"); the log line says *why* ("Name does not resolve
+(qbittorrent:8080)", a path it cannot write).
 
 The last 50 warning-or-worse lines are read per instance, and lines that differ
 only in a date-time are folded into one row: `level`, `logger`, `message`,
-`exceptionType`, `count`, `firstSeen` and `lastSeen`. `message` is the newest line
-as written. A client test that fails every two seconds writes the same pair of
-lines dozens of times, and an RSS warning quoting the period it missed differs
-only in its times; on the recorded fixture, 20 lines fold into 3. Hosts, ports,
-IP addresses and other numbers stay in the comparison, so `server1:8080` and
-`server2:8080` stay apart. `logs` is an envelope with its own `limit` budget. A
-log that cannot be read marks the instance `degraded`.
+`exceptionType`, `count`, `firstSeen` and `lastSeen`. `message` is the newest
+line as written. A client test that fails every two seconds writes the same pair
+of lines dozens of times, and an RSS warning quoting the period it missed
+differs only in its times; on Radarr's recorded fixture, 20 lines fold into 3.
+Hosts, ports, IP addresses and other numbers stay in the comparison, so
+`server1:8080` and `server2:8080` stay apart. `logs` is an envelope with its own
+`limit` budget. A log that cannot be read marks the instance `degraded`.
 
 Those lines are not the whole log. `logs.lines` gives each instance's `read` and
-`total`; `count` and `firstSeen` stop at what was read, and a retry storm can push
-the line that explains it out of the window. There is no time limit either, so an
-old line may no longer apply: `lastSeen` says how old it is.
+`total`; `count` and `firstSeen` stop at what was read, and a retry storm can
+push the line that explains it out of the window. There is no time limit either,
+so an old line may no longer apply: `lastSeen` says how old it is. An *arr whose
+log database is turned off (its `LogDbEnabled` setting) serves no log lines over
+its API, though it still writes its log files: its row in `logs.lines` says
+`logDbEnabled: false`, with both 0, and it is not `degraded`.
 
 The services differ in a few ways. Seerr's `errorMessage` is appended to `message`,
 because that is where it says why, and the rest of what a Seerr line was logged

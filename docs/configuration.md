@@ -260,6 +260,11 @@ recent; the whole library is then read only when the daily `RefreshArtist`
 updates some metadata. A new install sets the time when it creates the task, so
 for up to a day it reports a scan that has not run.
 
+At `detail: "full"`, `stack_health` also lists its recent warnings and errors,
+read from `/api/v1/log` and folded the way Radarr's and Sonarr's are. From
+2.8.1.4482 Lidarr can turn its log database off (`LogDbEnabled`); its row in
+`logs.lines` then says `logDbEnabled: false`.
+
 `get_media_details` on an artist lists the albums under it, each with its Lidarr
 album id, type, year (when Lidarr has a release date), monitoring and file
 state. That is where the id for
@@ -343,11 +348,10 @@ search on a 3.1.6.5079 test instance. The `trigger_search` previews, the album
 release search and a grab were exercised against 2.1.3.3927, and the previews
 and the album release search against 3.1.6.5079.
 
-Everything else is still out of reach: no delete. Of the 21 capture endpoints
-exercised against a live Lidarr 3.1.6.5079, two still have no rows behind them
-(tag and indexer). Nothing reads indexers. Tags are read by the spec's `id`
-and `label`: `add_media` matches a tag it is given, and `stack_health` lists
-them at `detail: "full"`.
+Of the 22 capture endpoints exercised against a live Lidarr 3.1.6.5079, two
+still have no rows behind them (tag and indexer). Nothing reads indexers. Tags
+are read by the spec's `id` and `label`: `add_media` matches a tag it is given,
+and `stack_health` lists them at `detail: "full"`.
 
 The version floor is 2.1.3. The two monitoring write endpoints were captured on
 2.1.3.3927, the add on 3.1.6.5079, and the read fixtures come from 3.1.6.5079,

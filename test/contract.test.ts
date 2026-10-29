@@ -472,6 +472,14 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { path: '/api/v1/health', method: 'get', fixture: 'test/fixtures/lidarr/health.json', fields: ['source', 'type', 'message'] },
             { path: '/api/v1/system/task', method: 'get', fixture: 'test/fixtures/lidarr/system-task.json', fields: ['taskName', 'lastExecution'] },
             {
+                // `stack_health` at `detail: "full"`. The captured page has no
+                // `exceptionType`, which the adapter also reads.
+                path: '/api/v1/log',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/log.json',
+                fields: ['totalRecords', 'records.time', 'records.level', 'records.logger', 'records.message']
+            },
+            {
                 // `readArrWanted` with `kind: 'artist'`. `id` is the album and
                 // `artistId` the artist, Sonarr's episode/series trap one level up.
                 path: '/api/v1/wanted/missing',

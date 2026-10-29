@@ -385,11 +385,12 @@ export function anonymiseNzbgetLog(body: unknown): unknown {
 }
 
 /**
- * Radarr's and Sonarr's log (`/api/v3/log`). A message or stack trace can name
- * a host, an indexer, a release or a path, so each is replaced. Identical lines
- * get the same text, because folding them is what the fixture is for. Ids,
- * times and `totalRecords` are synthetic, so nothing says how long the log is or
- * when it ran. `level`, `logger` and `exceptionType` stay: the service's own
+ * Radarr's and Sonarr's log (`/api/v3/log`), and Prowlarr's and Lidarr's
+ * (`/api/v1/log`). A message or stack trace can name a host, an indexer, a
+ * release or a path, so each is replaced. Identical lines get the same text,
+ * because folding them is what the fixture is for. Ids, times and
+ * `totalRecords` are synthetic, so nothing says how long the log is or when it
+ * ran. `level`, `logger` and `exceptionType` stay: the service's own
  * vocabulary.
  */
 export function anonymiseArrLog(body: unknown): unknown {

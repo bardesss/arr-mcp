@@ -209,6 +209,16 @@ describe('arr recent logs', () => {
         expect([q.get('level'), q.get('sortKey'), q.get('sortDirection')]).toEqual(['warn', 'time', 'descending']);
     });
 
+    // With `LogDbEnabled` off, `LogController` answers `new PagingResource<LogResource>()`.
+    it('says the log database is off, rather than reporting a log with no warnings', async () => {
+        const read = (body: unknown) => new RadarrAdapter(keyed(7878), serving({ '/api/v3/log': body })).getRecentLogs();
+        const off = { page: 0, pageSize: 0, sortDirection: 'default', totalRecords: 0, records: [] };
+        const empty = { page: 1, pageSize: 50, sortKey: 'time', sortDirection: 'descending', totalRecords: 0, records: [] };
+
+        expect(await read(off)).toEqual({ entries: [], read: 0, total: 0, logDbEnabled: false });
+        expect(await read(empty)).toEqual({ entries: [], read: 0, total: 0 });
+    });
+
     it.each([
         ['apikey=secret123&offset=0', 'apikey=(removed)&offset=0'],
         ['X-Api-Key: secret123 refused', 'X-Api-Key: (removed) refused'],

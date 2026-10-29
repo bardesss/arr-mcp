@@ -135,6 +135,7 @@ describe('LidarrAdapter', () => {
             'getMediaDetails',
             'getMonitorState',
             'getQueue',
+            'getRecentLogs',
             'getScanState',
             'getVersion',
             'grabRecorded',
