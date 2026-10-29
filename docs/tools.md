@@ -476,28 +476,31 @@ the wait when no row reads `queued` and one not paused itself, and not at Force
 priority, reads `downloading` or `propagating`; where its rows cannot tell, the
 switch and the history are read, as `pause_downloads` says. A download not
 paused itself is then told to wait, and to resume the queue if it stays paused,
-with no step; one paused itself is told that too, and resumed by its id. When it
-reads a pause by hand instead, the queue's remedy adds that SABnzbd may be
-waiting so as well. NZBGet pauses a download's extra repair files on
-add, and the *arrs read a download whose paused files are all it has left as
-paused, into post-processing, so a row there (`verifying`, `repairing`,
-`extracting`, `moving`) is told to wait, unless something holds it. NZBGet's
-paused post-processing can hold it, waiting for it, in a par check or repair, or
-running a script: then it is told to resume post-processing in NZBGet. A paused
-queue can hold repair files a repair asked for: then it is told to resume the
-queue, and post-processing in NZBGet as well when that is paused too. Any other
-client row gets no resume, since qBittorrent's resume without an `id` restarts
-every torrent: one in progress is told that nothing there holds the download
-back, and one whose status the adapter could not map only to check the client. A
-torrent stopped with nothing left to download has finished: it waits on the
-import like a seeding one. A release the *arr holds back and has sent to no
-client (`delay`: a delay profile, a usenet minimum age, an indexer disabled
-after failures or another release already pending, among others) blocks with no
-remedy, like a download in progress, and `downloadClientUnavailable`, a release
-the *arr could not send, asks you to check its download clients. A message on an
-*arr's row that is not in trouble (NZBGet's PAR status on a finished download,
-"qBittorrent is downloading metadata") is not read as a fault; a row still on
-its way shows it after "Still downloading".
+with no step; one paused itself is told that too, and resumed by its id. For up
+to ten seconds after the wait ends, a queue paused by hand can still read as the
+wait, since a history read that shows a download in post-processing is shared
+that long (see `pause_downloads`). When it reads a pause by hand instead, the
+queue's remedy adds that SABnzbd may be waiting so as well. NZBGet pauses a
+download's extra repair files on add, and the *arrs read a download whose paused
+files are all it has left as paused, into post-processing, so a row there
+(`verifying`, `repairing`, `extracting`, `moving`) is told to wait, unless
+something holds it. NZBGet's paused post-processing can hold it, waiting for it,
+in a par check or repair, or running a script: then it is told to resume
+post-processing in NZBGet. A paused queue can hold repair files a repair asked
+for: then it is told to resume the queue, and post-processing in NZBGet as well
+when that is paused too. Any other client row gets no resume, since
+qBittorrent's resume without an `id` restarts every torrent: one in progress is
+told that nothing there holds the download back, and one whose status the
+adapter could not map only to check the client. A torrent stopped with nothing
+left to download has finished: it waits on the import like a seeding one. A
+release the *arr holds back and has sent to no client (`delay`: a delay profile,
+a usenet minimum age, an indexer disabled after failures or another release
+already pending, among others) blocks with no remedy, like a download in
+progress, and `downloadClientUnavailable`, a release the *arr could not send,
+asks you to check its download clients. A message on an *arr's row that is not
+in trouble (NZBGet's PAR status on a finished download, "qBittorrent is
+downloading metadata") is not read as a fault; a row still on its way shows it
+after "Still downloading".
 
 A finished download waiting on its import is read by the *arr's own import
 state (`importState` in get_queue). At `importBlocked` the *arr stopped and does
@@ -2724,11 +2727,11 @@ shows none is not kept, since post-processing can start at any moment. A pause
 is sent, and keeps the queue paused once the wait ends, unless a `queued` row
 shows it paused by hand already; a resume is sent too, since a manual pause can
 lie behind the wait, and its preview says that downloading starts once the wait
-ends. A pause by hand with no `queued` row that leaves the rows looking like the
-wait, or that comes while the switch is on and a download is in post-processing,
-reads the same way, since neither tells the two apart: a second pause is then
-offered, and `diagnose_media` still says SABnzbd resumes by itself. An `id` the
-client does not have is refused as not found.
+ends, if SABnzbd is waiting. A pause by hand with no `queued` row that leaves
+the rows looking like the wait, or that comes while the switch is on and a
+download is in post-processing, reads the same way, since neither tells the two
+apart: a second pause is then offered, and `diagnose_media` still says SABnzbd
+resumes by itself. An `id` the client does not have is refused as not found.
 
 **Unverified live** (qBittorrent): pause, resume and the speed limit.
 
@@ -2788,12 +2791,15 @@ behind the wait. A job the client pauses itself is told to resume it by its `id`
 queue's hold with one more status read, and SABnzbd, when its queue reads
 paused, with a read of the whole queue where the first read does not settle it,
 since the job's own row often cannot tell the wait from a pause, and of its
-switch and history where the rows cannot tell (see `pause_downloads`). An NZBGet
-download the retry finds in post-processing is said to be there, in the words of
-its stage (`stage`, such as "queued for post-processing"), with a paused queue
-holding the repair files it asked for (`queue_paused`) and paused
-post-processing (`post_processing_paused`) named; one done with post-processing
-is followed to its history, which says how it ended.
+switch and history where the rows cannot tell (see `pause_downloads`). For up to
+ten seconds after the wait ends, a job in a queue paused by hand can still be
+said to wait for it (`post_processing_wait`), since a history read that shows a
+download in post-processing is shared that long. An NZBGet download the retry
+finds in post-processing is said to be there, in the words of its stage
+(`stage`, such as "queued for post-processing"), with a paused queue holding the
+repair files it asked for (`queue_paused`) and paused post-processing
+(`post_processing_paused`) named; one done with post-processing is followed to
+its history, which says how it ended.
 
 **Remove Failed must be off.** Radarr and Sonarr's "Remove Failed" setting
 (Settings, Download Clients, on by default) deletes a failed job from the client

@@ -12,7 +12,7 @@ import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import type { DownloadTrace, RetryOutcome, RetryTarget, ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
-import { registerRetryDownload } from '../src/tools/retryDownload.ts';
+import { holdOf, registerRetryDownload } from '../src/tools/retryDownload.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
@@ -483,5 +483,19 @@ describe('retry_download', () => {
         const h = harness();
         const { structuredContent } = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', password: 'x' });
         expect(structuredContent.effects.join(' ')).toMatch(/added from a URL/);
+    });
+});
+
+describe('holdOf', () => {
+    it.each<[Parameters<typeof holdOf>[0], ReturnType<typeof holdOf>]>([
+        [{ queue_paused: true }, 'queue'],
+        [{ post_processing_wait: true }, 'postProcessing'],
+        [{ post_processing_paused: true }, 'postPaused'],
+        [{ queue_paused: true, post_processing_paused: true }, 'queueAndPostPaused'],
+        [{}, undefined],
+        // No hold has both, so neither one-flag hold is a match.
+        [{ queue_paused: true, post_processing_wait: true }, undefined]
+    ])('reads %j back as %s', (flags, hold) => {
+        expect(holdOf(flags)).toBe(hold);
     });
 });

@@ -164,6 +164,12 @@ const HOLD_FIELDS: Readonly<Record<QueueHold, readonly HoldFlag[]>> = {
 const HOLD_FLAGS = ['queue_paused', 'post_processing_wait', 'post_processing_paused'] as const;
 type HoldFlag = (typeof HOLD_FLAGS)[number];
 
+/** The hold whose fields are exactly the flags set, whatever their order: how `applied` reads a result's hold back. */
+export const holdOf = (flags: Partial<Record<HoldFlag, true>>): QueueHold | undefined =>
+    (Object.keys(HOLD_FIELDS) as QueueHold[]).find(hold =>
+        HOLD_FLAGS.every(flag => (flags[flag] === true) === HOLD_FIELDS[hold].includes(flag))
+    );
+
 /** Where it ended up, in words. A finished rerun with no event is one an *arr
  *  already took out of the client's history, not a failure. */
 const describeOutcome = (outcome: Pick<RetryOutcome, 'id' | 'state' | 'status' | 'stage' | 'event' | 'heldBy' | 'pausedItself'>, client: string) => {
@@ -275,8 +281,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 describeOutcome(
                     {
                         ...r,
-                        // The hold whose fields are exactly the ones set, whatever their order.
-                        ...withHold((Object.keys(HOLD_FIELDS) as QueueHold[]).find(hold => HOLD_FLAGS.every(flag => (r[flag] === true) === HOLD_FIELDS[hold].includes(flag)))),
+                        ...withHold(holdOf(r)),
                         ...(r.paused_itself === true ? { pausedItself: true } : {})
                     },
                     r.service
