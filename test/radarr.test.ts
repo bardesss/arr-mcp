@@ -107,12 +107,17 @@ describe('RadarrAdapter', () => {
         expect(state.lastCompleted).toBeUndefined();
     });
 
-    it('coerces a non-string health check type', async () => {
+    // `HealthCheckResult` is Ok 0, Notice 1, Warning 2, Error 3; a number outside it is only coerced.
+    it('reads a numeric health check type as the enum value, and leaves out an Ok one', async () => {
         const checks = await adapter({
-            '/api/v3/health': [{ source: 'DownloadClientCheck', type: 2, message: 'no client' }]
+            '/api/v3/health': [0, 1, 2, 3, 7].map(type => ({ source: `Check${type}`, type, message: 'm' }))
         }).getFailedHealthChecks();
-        expect(checks[0]?.type).toBe('2');
-        expect(typeof checks[0]?.type).toBe('string');
+        expect(checks.map(c => [c.source, c.type])).toEqual([
+            ['Check1', 'notice'],
+            ['Check2', 'warning'],
+            ['Check3', 'error'],
+            ['Check7', '7']
+        ]);
     });
 
     it('advertises disk, health and scan capabilities to the type guards', () => {

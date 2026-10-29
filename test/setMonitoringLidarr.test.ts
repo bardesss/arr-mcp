@@ -212,6 +212,18 @@ describe('update_media on every lidarr artist', () => {
         expect(String(preview.structuredContent.effects)).not.toContain('albums 1 monitored');
     });
 
+    // A flag no artist carries is left out of the count rather than shown as 0.
+    it.each([
+        [true, 'artists 2 monitored.'],
+        [false, 'artists 2 unmonitored.']
+    ])('names only the flag every artist carries (monitored %s)', async (monitored, counted) => {
+        const h = updateTool({ ...DEFAULT_ROUTES, '/api/v1/artist': ARTISTS.map(a => ({ ...a, monitored })) });
+        const preview = await h.update({ service: 'lidarr', monitor_new_items: 'none' });
+
+        expect(String(preview.structuredContent.effects)).toContain(`new-album policy 1 all, 1 none; ${counted}`);
+        expect(String(preview.structuredContent.effects)).not.toMatch(/\b0 (un)?monitored/);
+    });
+
     /**
      * Lidarr's editor answers a write naming nothing with a 200, so a mistyped
      * id would otherwise come back as a settled library. The refusal stays a

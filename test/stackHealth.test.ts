@@ -14,6 +14,7 @@ import type {
 import type { ServiceInstance } from '../src/config/instances.ts';
 import { buildStackHealth, registerStackHealth } from '../src/tools/stackHealth.ts';
 import { buildInstanceOptions, registerGetInstanceOptions } from '../src/tools/instanceOptions.ts';
+import { flush } from './helpers/flush.ts';
 
 /** What `ArrAdapter` used to name, now spelled as the capabilities it is. */
 type ArrLike = ServiceAdapter & DiskSpaceCapable & HealthCheckCapable;
@@ -591,8 +592,6 @@ describe('get_stack_health', () => {
 describe('get_stack_health failures order', () => {
     const check = (service: string, source: string, type: string): HealthCheck => ({ service, source, type, message: `${source} failed` });
     const named = (items: readonly HealthCheck[]) => items.map(f => `${f.service} ${f.source}`);
-
-    const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
     /** An instance whose checks wait on a gate the test opens, so the test sets which instance answers first. */
     const gated = (id: string, checks: HealthCheck[]) => {

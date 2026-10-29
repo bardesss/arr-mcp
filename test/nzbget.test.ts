@@ -1394,7 +1394,7 @@ describe('NzbgetAdapter', () => {
             const { adapter } = fake({ history: [missing()], retriedGroup: group, status });
             const outcome = await adapter.runRetry('4', { method: 'retry-failed' });
             expect(outcome).toMatchObject({ state: 'downloading' });
-            expect(outcome.queuePaused).toBe(queuePaused);
+            expect(outcome.heldBy).toBe(queuePaused === true ? 'queue' : undefined);
             expect(outcome.pausedItself).toBe(pausedItself);
             expect(outcome.status).toContain(pausedItself === true ? 'paused' : 'downloading');
         });

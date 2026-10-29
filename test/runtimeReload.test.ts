@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WriteAudit } from '../src/core/audit.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
+import { flush } from './helpers/flush.ts';
 
 // The first load taken while `hold` is set reads the file, reports `read`, then waits for `hold`.
 const gate = vi.hoisted(() => ({ hold: undefined as Promise<void> | undefined, read: undefined as (() => void) | undefined, calls: 0, failBuild: false }));
@@ -52,8 +53,6 @@ const seeded = async () => {
     return { dir, runtime: Runtime.fromConfig(config, audit, { configDir: dir }) };
 };
 
-const settle = () => new Promise(resolve => setImmediate(resolve));
-
 afterEach(async () => {
     gate.failBuild = false;
     audit.close();
@@ -75,7 +74,7 @@ describe('Runtime.reload', () => {
         await read;
         await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: second\nservices: {}\n', 'utf8');
         const second = runtime.reload();
-        for (let i = 0; i < 5; i++) await settle();
+        for (let i = 0; i < 5; i++) await flush();
         expect(gate.calls).toBe(1);
 
         release();

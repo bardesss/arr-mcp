@@ -4,6 +4,7 @@ import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RECENT_REJECTION_WINDOW, buildGetIndexers, summarizeIndexers } from '../src/tools/getIndexers.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
+import { flush } from './helpers/flush.ts';
 import { serving } from './helpers/serve.ts';
 
 const config: KeyedServiceConfig = {
@@ -322,15 +323,23 @@ describe('several Prowlarrs', () => {
                 records: Array.from({ length: RECENT_REJECTION_WINDOW }, () => ({ indexerId: 1, date: '2026-08-04T22:10:00Z', successful: false, data: { query: 'q', reason: 'r' } }))
             }
         };
-        const flush = () => new Promise<void>(resolve => setImmediate(resolve));
-        /** A Prowlarr whose rejections, once read, wait on a gate the test opens; `answered` settles when they are handed over. */
+        /** A Prowlarr whose rejections, once read, wait on a gate the test opens; `answered` settles when they are handed over, or when its indexers cannot be read and it never gets that far. */
         const gated = (name: string) => {
             const adapter = new ProwlarrAdapter({ ...config, name }, serving(sameMoment));
+            const indexers = adapter.getIndexers.bind(adapter);
             const read = adapter.getRecentRejections.bind(adapter);
             let release!: () => void;
             const gate = new Promise<void>(resolve => (release = resolve));
             let answer!: () => void;
             const answered = new Promise<void>(resolve => (answer = resolve));
+            adapter.getIndexers = async () => {
+                try {
+                    return await indexers();
+                } catch (err) {
+                    answer();
+                    throw err;
+                }
+            };
             adapter.getRecentRejections = async limit => {
                 try {
                     const rows = await read(limit);

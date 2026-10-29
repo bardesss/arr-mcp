@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasPause, hasSpeedLimit, type PauseState, type ServiceAdapter } from '../services/types.ts';
+import { hasPause, hasSpeedLimit, SAB_WAIT_SWITCH, sabWaits, type PauseState, type ServiceAdapter } from '../services/types.ts';
 import { turtleModeRefusal } from '../services/transmission.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
@@ -65,9 +65,6 @@ const PauseDownloadsInput = z.object({
         )
 });
 
-/** SABnzbd's switch that pauses its queue while it post-processes. */
-const SWITCH = '"Pause Downloading During Post-Processing"';
-
 /**
  * What else holds one SABnzbd or NZBGet item, for its resume preview and for
  * the no-op of an item not paused itself: its client's paused queue, which this
@@ -81,8 +78,8 @@ const HOLD_TEXT: Readonly<Record<NonNullable<PauseState['heldBy']>, (client: str
         effect: `${client}'s whole queue is paused too, so it starts downloading only once that is resumed, with this tool and no \`id\`.`
     }),
     postProcessing: client => ({
-        noop: `${client} pauses its queue while it post-processes (${SWITCH}), and resumes by itself; if it stays paused, resume it with this tool and no \`id\`.`,
-        effect: `${client} pauses its queue while it post-processes (${SWITCH}), so it starts downloading once that ends; if the queue stays paused, resume it with this tool and no \`id\`.`
+        noop: `${sabWaits(client)}, and resumes by itself; if it stays paused, resume it with this tool and no \`id\`.`,
+        effect: `${sabWaits(client)}, so it starts downloading once that ends; if the queue stays paused, resume it with this tool and no \`id\`.`
     })
 };
 
@@ -94,9 +91,9 @@ const HOLD_TEXT: Readonly<Record<NonNullable<PauseState['heldBy']>, (client: str
  */
 const WAIT_TEXT = {
     pause: (scope: string, client: string) =>
-        `Pauses ${scope} on ${client} by hand. Its rows show it waiting on post-processing (${SWITCH}), after which it would resume by itself; this keeps it paused after.`,
+        `Pauses ${scope} on ${client} by hand. Its rows show it waiting on post-processing (${SAB_WAIT_SWITCH}), after which it would resume by itself; this keeps it paused after.`,
     resume: (client: string) =>
-        `If ${client} is only waiting on post-processing (${SWITCH}), as its rows show, this does not end that, and downloading starts once it ends.`
+        `If ${client} is only waiting on post-processing (${SAB_WAIT_SWITCH}), as its rows show, this does not end that, and downloading starts once it ends.`
 };
 
 /** The first line of a resume preview: what restarts, and what still holds it. */

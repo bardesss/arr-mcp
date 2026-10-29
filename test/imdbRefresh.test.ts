@@ -5,6 +5,7 @@ import { createGzip } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ImdbDataset, type DatasetStatus } from '../src/metadata/imdbDataset.ts';
 import { ingestOnce, linesOf, startRefresh } from '../src/metadata/refresh.ts';
+import { flush } from './helpers/flush.ts';
 
 /**
  * The one file that touches the network, driven against a stubbed `fetch`
@@ -223,7 +224,7 @@ describe('the weekly schedule', () => {
             },
             intervalMs: 1000
         });
-        await new Promise(r => setImmediate(r));
+        await flush();
         expect(started).toBe(1);
         await stop();
     });
@@ -319,7 +320,7 @@ describe('the weekly schedule', () => {
                 started += 1;
             }
         });
-        await new Promise(r => setImmediate(r));
+        await flush();
         expect(started).toBe(1);
         await stop();
     });
@@ -332,7 +333,7 @@ describe('the weekly schedule', () => {
                 await new Promise(r => setTimeout(r, 20));
             }
         });
-        await new Promise(r => setImmediate(r));
+        await flush();
         await stop();
         expect(seen?.aborted).toBe(true);
     });
@@ -345,7 +346,7 @@ describe('the weekly schedule', () => {
         });
         let secondStarted = 0;
         const stopFirst = startRefresh(ds, { ingest: () => first }); // ignores the abort, as a terminating worker still running would
-        await new Promise(r => setImmediate(r));
+        await flush();
         void stopFirst();
         const stopSecond = startRefresh(ds, {
             ingest: async () => {

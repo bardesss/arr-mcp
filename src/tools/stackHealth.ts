@@ -176,8 +176,9 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
 /**
  * Where a failing check sorts in `failures`: errors, warnings and notices in
  * that order, then any other `type` (Radarr, Sonarr, Whisparr, Lidarr and
- * Prowlarr pass on whatever the service sends). A `limit` that cuts the list
- * drops any other type first, then notices, then warnings, then errors.
+ * Prowlarr pass on any other value the service sends, as text). A `limit`
+ * that cuts the list drops any other type first, then notices, then warnings,
+ * then errors.
  */
 const FAILURE_RANK = new Map([
     ['error', 0],

@@ -355,7 +355,7 @@ describe('retry_download', () => {
             id: 'SABnzbd_nzo_new',
             state: 'downloading',
             status,
-            ...(queuePaused === undefined ? {} : { queuePaused }),
+            ...(queuePaused === undefined ? {} : { heldBy: 'queue' as const }),
             ...(pausedItself === undefined ? {} : { pausedItself })
         });
         const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
@@ -368,19 +368,53 @@ describe('retry_download', () => {
         expect(result.paused_itself).toBe(pausedItself);
     });
 
-    // Only a job back in the queue waits on what holds it, so a processing one carries neither mark.
-    it('leaves the queue marks off a job being processed', async () => {
+    // SABnzbd's wait for another download's post-processing ends by itself; a pause by hand can look the
+    // same from the rows, so the resume line stays, after the wait is named.
+    it.each<[true | undefined, string, string]>([
+        [
+            undefined,
+            'Downloading',
+            "It is in sabnzbd's queue (Downloading), and sabnzbd pauses its queue while it post-processes (\"Pause Downloading During Post-Processing\"), so the job starts once that ends; resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."
+        ],
+        [
+            true,
+            'Paused',
+            "It is in sabnzbd's queue (Paused), but paused itself, and sabnzbd pauses its queue while it post-processes (\"Pause Downloading During Post-Processing\"): resume it with pause_downloads (`action: \"resume\"` and `id` \"SABnzbd_nzo_new\"), and it starts once that ends; resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."
+        ]
+    ])('words a job the wait for post-processing holds (itself %s)', async (pausedItself, status, sentence) => {
         const h = harness();
-        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_new', state: 'processing', status: 'Extracting', queuePaused: true, pausedItself: true });
+        h.run.mockResolvedValue({
+            target: FAILED,
+            id: 'SABnzbd_nzo_new',
+            state: 'downloading',
+            status,
+            heldBy: 'postProcessing',
+            ...(pausedItself === undefined ? {} : { pausedItself })
+        });
+        const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
+        const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
+
+        expect(applied.content[0]?.text ?? '').toContain(sentence);
+        const result = applied.structuredContent.result as Record<string, unknown>;
+        expect(result.post_processing_wait).toBe(true);
+        expect(result).not.toHaveProperty('queue_paused');
+        expect(result.paused_itself).toBe(pausedItself);
+    });
+
+    // Only a job back in the queue waits on what holds it, so a processing one carries neither mark.
+    it.each(['queue', 'postProcessing'] as const)('leaves the queue marks off a job being processed (held by %s)', async heldBy => {
+        const h = harness();
+        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_new', state: 'processing', status: 'Extracting', heldBy, pausedItself: true });
         const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
         const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
 
         const text = applied.content[0]?.text ?? '';
         expect(text).toContain('It is being processed (Extracting).');
-        expect(text).not.toMatch(/whole queue is paused|paused itself/);
+        expect(text).not.toMatch(/whole queue is paused|paused itself|post-processes/);
         const result = applied.structuredContent.result as Record<string, unknown>;
         expect(result).toMatchObject({ state: 'processing' });
         expect(result).not.toHaveProperty('queue_paused');
+        expect(result).not.toHaveProperty('post_processing_wait');
         expect(result).not.toHaveProperty('paused_itself');
     });
 

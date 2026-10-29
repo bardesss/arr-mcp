@@ -4,6 +4,7 @@ import { logger } from '../src/core/logger.ts';
 import type { CatalogEntry } from '../src/discovery/catalog.ts';
 import { Discovery } from '../src/discovery/run.ts';
 import type { Found, ProbeOpts } from '../src/discovery/probe.ts';
+import { flush } from './helpers/flush.ts';
 
 const AUTH = { bearer_token: 'a'.repeat(64), username: 'admin', allowed_hosts: [] };
 const config: Config = ConfigSchema.parse({ auth: AUTH, services: {} });
@@ -134,8 +135,6 @@ describe('clear', () => {
         expect(d.current()).toBeUndefined();
     });
 });
-
-const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
 describe('sweep', () => {
     it('starts at once, advances, and finishes', async () => {

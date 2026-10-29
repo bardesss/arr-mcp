@@ -2724,8 +2724,9 @@ The preview picks what to send from the job itself and shows it:
 - **SABnzbd, paused encrypted job in the queue:** `password` is set and the job
   resumes. It is found by SABnzbd's ENCRYPTED label, which SABnzbd translates,
   so it is not recognised on a non-English UI. An encrypted job that is not
-  paused itself is refused, as running, or as held by SABnzbd's paused queue,
-  which the refusal names.
+  paused itself is refused, as running, as held by SABnzbd's paused queue, or
+  as waiting while SABnzbd post-processes another download, which the refusal
+  names.
 - **NZBGet:** `password`, if given, is stored in the job's `*Unpack:Password`
   parameter. A job with missing articles then has them fetched again
   (`HistoryRetryFailed`); one that has every article but failed to unpack (a
@@ -2750,9 +2751,14 @@ failed download, is not.
 that none recorded it), and repeats the two-copies warning when the preview
 found a replacement. A job in the client's queue that its paused queue holds is
 said to wait there (`queue_paused` in the result), not to be downloading, with
-the call that resumes the queue. A job the client pauses itself is told to
-resume it by its `id` (`paused_itself`), and one held both ways is told both.
-NZBGet answers the queue's hold with one more status read.
+the call that resumes the queue. One that SABnzbd's wait for another download's
+post-processing holds is said to start once that ends
+(`post_processing_wait`), with the same call in case the rows hide a pause by
+hand. A job the client pauses itself is told to resume it by its `id`
+(`paused_itself`), and one held both ways is told both. NZBGet answers the
+queue's hold with one more status read, and SABnzbd, when its queue reads
+paused, with a read of the whole queue where the first read does not settle
+it, since the job's own row often cannot tell the wait from a pause.
 
 **Remove Failed must be off.** Radarr and Sonarr's "Remove Failed" setting
 (Settings, Download Clients, on by default) deletes a failed job from the client

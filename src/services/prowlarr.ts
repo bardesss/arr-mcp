@@ -6,7 +6,7 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { postArrCommand, readArrCommands } from './arrCommands.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
-import { arrRecentLogs } from './arrSystem.ts';
+import { arrFailedHealthChecks, arrRecentLogs } from './arrSystem.ts';
 import type { components } from './generated/prowlarr.ts';
 import {
     diagnoseConnection,
@@ -40,7 +40,6 @@ import {
 import { compareVersions, parseVersion } from './versions.ts';
 
 type RawStatus = components['schemas']['SystemResource'];
-type RawHealthCheck = components['schemas']['HealthResource'];
 type RawField = { name?: string; value?: unknown; type?: string; privacy?: string };
 type RawIndexer = {
     id?: number;
@@ -307,16 +306,8 @@ export class ProwlarrAdapter
         await this.#http.delete(`/api/v1/indexer/${id}`);
     }
 
-    async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        const all = await this.#http.get<RawHealthCheck[]>('/api/v1/health');
-        return all
-            .filter(c => c.type !== 'ok')
-            .map(c => ({
-                service: this.id,
-                source: c.source ?? 'unknown',
-                type: String(c.type ?? 'warning'),
-                message: fenceText(c.message ?? '', { service: this.id, field: 'message' })
-            }));
+    getFailedHealthChecks(): Promise<HealthCheck[]> {
+        return arrFailedHealthChecks(this.#http, this.id);
     }
 
     /**

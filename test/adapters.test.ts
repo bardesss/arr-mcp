@@ -100,14 +100,23 @@ describe('SonarrAdapter', () => {
         expect([hasDiskSpace(adapter), hasHealthChecks(adapter), hasScanState(adapter)]).toEqual([true, true, true]);
     });
 
-    it('coerces a non-string health check type', async () => {
-        const withNumericType = new SonarrAdapter(
-            keyed(8989),
-            serving({ '/api/v3/health': [{ source: 'DownloadClientCheck', type: 2, message: 'no client' }] })
-        );
-        const [check] = await withNumericType.getFailedHealthChecks();
-        expect(check?.type).toBe('2');
-        expect(typeof check?.type).toBe('string');
+    it('reads a numeric health check type as the enum value, for Sonarr and Prowlarr alike', async () => {
+        const body = [
+            { source: 'DownloadClientCheck', type: 2, message: 'no client' },
+            { source: 'IndexerStatusCheck', type: 0, message: 'fine' }
+        ];
+        const sonarr = await new SonarrAdapter(keyed(8989), serving({ '/api/v3/health': body, '/api/v3/config/naming': {} })).getFailedHealthChecks();
+        const prowlarr = await new ProwlarrAdapter(keyed(9696), serving({ '/api/v1/health': body })).getFailedHealthChecks();
+        expect(sonarr.map(c => c.type)).toEqual(['warning']);
+        expect(prowlarr.map(c => c.type)).toEqual(['warning']);
+    });
+
+    // Prowlarr's health read is the shared one, so a body that is not a list is refused the same way.
+    it('refuses a health body that is not a list, for Prowlarr too', async () => {
+        await expect(new ProwlarrAdapter(keyed(9696), serving({ '/api/v1/health': {} })).getFailedHealthChecks()).rejects.toMatchObject({
+            kind: 'UpstreamError',
+            message: expect.stringContaining('expected a JSON array from /api/v1/health') as unknown
+        });
     });
 
     // Health text quotes indexer and client names, which anyone with the UI can set.

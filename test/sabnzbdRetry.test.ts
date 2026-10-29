@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
+import type { RetryOutcome } from '../src/services/types.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
 /**
@@ -143,15 +144,34 @@ describe('sabnzbd findRetryTarget', () => {
 
     // Under a paused queue a job resumed after its password keeps waiting there: Queued under a manual
     // pause, Downloading during the wait for post-processing (`build_queue`).
-    it.each(['Queued', 'Downloading'])('says a paused queue holds an encrypted %s job, rather than that it is running', async status => {
+    it.each([
+        ['Queued', "It is not paused itself, so there is nothing to unlock, but SABnzbd's whole queue is paused, so it waits there: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."],
+        ['Downloading', 'It is not paused itself, so there is nothing to unlock; SABnzbd pauses its queue while it post-processes ("Pause Downloading During Post-Processing"), so the job starts once that ends; resume the queue with pause_downloads (`action: "resume"` without an `id`) if it stays paused.']
+    ])('says what holds an encrypted %s job under a paused queue, rather than that it is running', async (status, remedy) => {
         const { adapter, requests } = fixed([{ nzo_id: 'q1', filename: 'Show.S01E01', status, priority: 'Normal', labels: ['ENCRYPTED'] }], [], undefined, true);
 
         const error = await caught(adapter.findRetryTarget('q1', { hasPassword: true }));
 
         expect(error.message).toMatch(/is encrypted but not paused/);
-        expect(error.remedy).toBe(
-            "It is not paused itself, so there is nothing to unlock, but SABnzbd's whole queue is paused, so it waits there: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."
-        );
+        expect(error.remedy).toBe(remedy);
+        expect(writesIn(requests)).toHaveLength(0);
+    });
+
+    // On 4.x the read by id has the one job, so the wait shows only in the whole queue.
+    it('names the wait for an encrypted Force job from the whole queue', async () => {
+        const { adapter, requests } = recording(params => {
+            if (params.get('mode') !== 'queue') return { history: { slots: [] } };
+            const slots = [
+                { nzo_id: 'q1', filename: 'Show.S01E01', status: 'Downloading', priority: 'Force', labels: ['ENCRYPTED'] },
+                { nzo_id: 'SABnzbd_nzo_other', status: 'Downloading', priority: 'Normal' }
+            ];
+            const only = params.get('nzo_ids');
+            return { queue: { paused: true, slots: only === null ? slots : slots.filter(s => s.nzo_id === only) } };
+        });
+
+        const error = await caught(adapter.findRetryTarget('q1', { hasPassword: true }));
+
+        expect(error.remedy).toMatch(/^It is not paused itself, so there is nothing to unlock; SABnzbd pauses its queue while it post-processes/);
         expect(writesIn(requests)).toHaveLength(0);
     });
 
@@ -253,8 +273,84 @@ describe('sabnzbd runRetry', () => {
 
         const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
         expect(outcome.state).toBe('downloading');
-        expect(outcome.queuePaused).toBe(held);
+        expect(outcome.heldBy).toBe(held === true ? 'queue' : undefined);
         expect(outcome.pausedItself).toBe(pausedItself);
+    });
+
+    // On 4.x `nzo_ids` filters the queue to the one job, and whether SABnzbd is waiting for another
+    // download's post-processing shows only in the other slots (`sabWaiting`). During the wait no slot
+    // reads Queued and every one not paused itself reads Downloading (or Propagating); under a pause by
+    // hand one not at Force reads Queued and one at Force Downloading (`build_queue`). So a queue that
+    // reads paused is read again, whole, unless the read by id already decides.
+    describe('the queue around a retried job', () => {
+        /** SABnzbd's queue: filtered by `nzo_ids` as 4.x does unless `filters` is false, and refused whole with `refuseWhole`. */
+        const around = (retried: Slot, others: Slot[], paused: boolean, opts: { filters?: boolean; refuseWhole?: boolean; emptyWhole?: boolean } = {}) => {
+            let sent = false;
+            return recording(params => {
+                const mode = params.get('mode');
+                if (mode === 'retry') {
+                    sent = true;
+                    return { nzo_id: 'SABnzbd_nzo_new' };
+                }
+                if (mode === 'queue') {
+                    const all = sent ? [{ nzo_id: 'SABnzbd_nzo_new', filename: 'Some.Movie.2020', ...retried }, ...others] : others;
+                    const only = params.get('nzo_ids');
+                    if (only === null && opts.refuseWhole === true) return { status: false, error: 'not now' };
+                    if (only === null && opts.emptyWhole === true) return {};
+                    return { queue: { paused, slots: only === null || opts.filters === false ? all : all.filter(s => s.nzo_id === only) } };
+                }
+                return { history: { slots: sent ? [] : [failed] } };
+            });
+        };
+        const other = (status: string): Slot => ({ nzo_id: 'SABnzbd_nzo_other', status, priority: 'Normal' });
+        const wholeReads = (requests: Recorded[]) => requests.filter(r => r.params.get('mode') === 'queue' && !r.params.has('nzo_ids') && !r.params.has('name'));
+
+        it.each<[string, string, Slot, Pick<RetryOutcome, 'heldBy' | 'pausedItself'>, boolean]>([
+            ['downloading', 'Downloading', { status: 'Downloading', priority: 'Normal' }, { heldBy: 'postProcessing' }, true],
+            ['at Force priority', 'Downloading', { status: 'Downloading', priority: 'Force' }, { heldBy: 'postProcessing' }, true],
+            ['paused itself', 'Downloading', { status: 'Paused', priority: 'Normal' }, { heldBy: 'postProcessing', pausedItself: true }, true],
+            ['at Force priority', 'Queued', { status: 'Downloading', priority: 'Force' }, {}, true],
+            ['paused itself', 'Queued', { status: 'Paused', priority: 'Normal' }, { heldBy: 'queue', pausedItself: true }, true],
+            ['queued', 'Queued', { status: 'Queued', priority: 'Normal' }, { heldBy: 'queue' }, false]
+        ])('reads what holds a job %s, with another %s', async (_job, beside, retried, marks, readsWhole) => {
+            const { adapter, requests } = around(retried, [other(beside)], true);
+            const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
+            expect(outcome.state).toBe('downloading');
+            expect({ heldBy: outcome.heldBy, pausedItself: outcome.pausedItself }).toEqual({ heldBy: undefined, pausedItself: undefined, ...marks });
+            expect(wholeReads(requests).length > 0).toBe(readsWhole);
+        });
+
+        // 3.0.0 ignores `nzo_ids`, so its answer already holds the other slots.
+        it('reads no more when the read by id answered the whole queue', async () => {
+            const { adapter, requests } = around({ status: 'Downloading', priority: 'Force' }, [other('Downloading')], true, { filters: false });
+            const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
+            expect(outcome.heldBy).toBe('postProcessing');
+            expect(wholeReads(requests)).toHaveLength(0);
+        });
+
+        // The retry has landed by then, so the outcome must still come back. With no other slots to read, the
+        // paused flag is read as a pause by hand, whose remedy says to resume the queue if it stays paused.
+        it.each<[string, string, true | undefined, { refuseWhole?: boolean; emptyWhole?: boolean }]>([
+            ['Normal', 'refused', true, { refuseWhole: true }],
+            ['Force', 'refused', undefined, { refuseWhole: true }],
+            ['Normal', 'empty', true, { emptyWhole: true }]
+        ])('reads a %s job as under a pause by hand when the whole queue read is %s', async (priority, _read, held, opts) => {
+            const { adapter } = around({ status: 'Downloading', priority }, [other('Downloading')], true, opts);
+            const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
+            expect(outcome.state).toBe('downloading');
+            expect(outcome.heldBy).toBe(held === true ? 'queue' : undefined);
+        });
+
+        // Only a job that can still be waiting needs the other slots.
+        it.each([
+            ['the queue is not paused', { status: 'Downloading', priority: 'Normal' }, false],
+            ['the job is being processed', { status: 'Extracting', priority: 'Normal' }, true]
+        ])('reads only the filtered queue when %s', async (_why, retried, paused) => {
+            const { adapter, requests } = around(retried, [other('Downloading')], paused);
+            const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
+            expect(outcome.heldBy).toBeUndefined();
+            expect(wholeReads(requests)).toHaveLength(0);
+        });
     });
 
     it('refuses an answer with no nzo_id, even one that says status: true', async () => {
