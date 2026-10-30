@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.48.1](https://github.com/bardesss/arr-mcp/compare/v1.48.0...v1.48.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* **resolver:** resolve a title asked with an episode or a bare year ([#404](https://github.com/bardesss/arr-mcp/issues/404)) ([4e12931](https://github.com/bardesss/arr-mcp/commit/4e12931de2c5a81076e2c9ba09c68658d7a1e10a))
+
 ## [1.48.0](https://github.com/bardesss/arr-mcp/compare/v1.47.0...v1.48.0) (2026-10-30)
 
 
