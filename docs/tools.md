@@ -24,7 +24,7 @@ off until you turn them on — see [writes](writes.md).
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
-| `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, or put a mislabeled Sonarr file on the right episode |
+| `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, or rerun NZBGet's post-processing |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
@@ -714,7 +714,11 @@ as `reason`.
 `failed` and `DELETED/*` becomes `deleted`. NZBGet keeps no failure message,
 only a status code per post-processing stage, so `reason` is the status plus
 the stages that did not succeed, for example
-`FAILURE/PAR (ParStatus FAILURE)`.
+`FAILURE/PAR (ParStatus FAILURE)`. A row also carries `downloadId` (except at
+`detail: "minimal"`), the id `trigger_scan`'s `postprocess` takes to run its
+post-processing again. It is the `drone` id an *arr stamped on the NZB, or
+NZBGet's own id for one added by hand, and is left out when it is not shaped
+like an id.
 
 **Bazarr** contributes `subtitle` rows: what it actually downloaded, and from
 which provider (in `quality`, as `language · provider`). It is its own event
@@ -1531,7 +1535,7 @@ rejects the call without it.
 
 ## `trigger_scan`
 
-Four actions, one idea: make a service reconcile itself with what is on disk.
+Five actions, one idea: make a service reconcile itself with what is on disk.
 
 | Call | What it does |
 | --- | --- |
@@ -1540,8 +1544,9 @@ Four actions, one idea: make a service reconcile itself with what is on disk.
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
 | `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
+| `action: "postprocess"` + `download_id` | Reruns NZBGet's post-processing on a finished download that is still in its history. |
 
-Everything here queues a command and returns, except `remap` — see below.
+Everything here queues a command and returns, except `remap` and `postprocess` — see below.
 `stack_health`'s `commands` list says whether it has finished; do not assume it
 has.
 
@@ -1605,6 +1610,51 @@ Three outcomes that look alike and are not:
 The import re-reads the candidates when it runs rather than trusting the
 preview's list, so a download whose files have changed in between imports what
 is there now or fails — never a path that no longer exists.
+
+### Running NZBGet's post-processing again
+
+When a post-processing script is wrong, every download it touched is stuck: an
+unpack that never happened leaves Radarr or Sonarr with "No files found are
+eligible for import" on each one, and fixing the script does nothing for the
+downloads it already handled. `action: "postprocess"` is NZBGet's "post-process
+again" for one of them.
+
+The flow is `get_queue` → the stuck row's `downloadId` → `trigger_scan` with
+`service: "nzbget"` and `action: "postprocess"`. NZBGet's own rows in
+`get_history` carry the same `downloadId`. The id is the `drone` parameter an
+*arr stamps on the NZB it sends; for an NZB added by hand it is NZBGet's own
+id.
+
+The preview names the download, the folder post-processing runs in (NZBGet's
+`DestDir`, plus where the files were moved afterwards when that differs) and the
+post-processing scripts enabled for it, because those scripts are what runs.
+The confirmation binds to that exact history item: if the same id names a
+different one by the time it is confirmed, for example because the release was
+grabbed again, the token is rejected and nothing runs. A download already in
+NZBGet's queue is refused, so a rerun never starts on top of another.
+
+Once confirmed, NZBGet repeats repair and unpack as it is configured, then those
+scripts. Radarr or Sonarr still imports the result: on its next queue check, or
+straight away with `action: "import"`.
+
+It only works while the download's folder still exists. When the folder has
+been moved or deleted, NZBGet still answers the request with success and logs
+`Could not post-process again <name>: destination directory … doesn't exist`
+instead. So the answer alone proves nothing. This watches, for a few seconds,
+for one of four things:
+
+- the download in NZBGet's queue: the rerun is still going, and `get_queue`
+  shows it until it finishes;
+- the download back in history after this rerun: the rerun finished, and the
+  answer gives the status it finished on, saying so plainly when it failed
+  again;
+- the download gone from both after NZBGet showed this rerun running or filed
+  it: a quick rerun whose result an *arr already imported and removed from
+  NZBGet's history, which the answer says so the *arr is checked instead;
+- the logged refusal for exactly this download: an error naming the missing
+  folder.
+
+If none of them happens, it reports an error rather than success.
 
 ### Putting a mislabeled file on the right episode
 

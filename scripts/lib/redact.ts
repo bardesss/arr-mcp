@@ -349,6 +349,41 @@ function anonymiseNzbgetRow(row: unknown, index: number): unknown {
     return out;
 }
 
+/**
+ * NZBGet's refusal of "post-process again" keeps its wording, because
+ * trigger_scan's postprocess matches on it; only the release name and the
+ * folder are replaced. Every other line is replaced whole.
+ */
+const NZBGET_REFUSAL = /^Could not post-process again (.+?): destination directory (.+) doesn't exist$/;
+function anonymiseNzbgetLogText(text: string, n: number): string {
+    return NZBGET_REFUSAL.test(text)
+        ? `Could not post-process again nzbget item ${n}: destination directory /media/nzbget/Item ${n} doesn't exist`
+        : `Fixture message ${n}`;
+}
+
+/**
+ * NZBGet's message log (`log`). Every `Text` can name a release, a path or a
+ * news server, so each is replaced (a refusal keeps its wording); ids and times are renumbered in order, so
+ * nothing says how long the log is or when it ran. `Kind` (INFO, WARNING,
+ * ERROR) stays: it is NZBGet's own vocabulary.
+ */
+export function anonymiseNzbgetLog(body: unknown): unknown {
+    if (!isFixtureRow(body) || !Array.isArray(body.result)) return body;
+    return {
+        ...body,
+        result: body.result.map((row: unknown, index) =>
+            isFixtureRow(row)
+                ? {
+                      ...row,
+                      ...(typeof row.ID === 'number' ? { ID: index + 1 } : {}),
+                      ...(typeof row.Time === 'number' ? { Time: 1_700_000_000 + 60 * index } : {}),
+                      ...(typeof row.Text === 'string' ? { Text: anonymiseNzbgetLogText(row.Text, index + 1) } : {})
+                  }
+                : row
+        )
+    };
+}
+
 /** Anonymises queue/history rows inside an NZBGet JSON-RPC response. */
 export function anonymiseNzbgetRows(body: unknown): unknown {
     if (Array.isArray(body)) return syntheticNzbgetNumbers(body.map((row, index) => anonymiseNzbgetRow(row, index)));
@@ -374,6 +409,24 @@ const NZBGET_TIME_KEYS = new Set(['ServerTime', 'MinPostTime', 'MaxPostTime', 'H
 const NZBGET_ARTICLE_KEYS = new Set(['TotalArticles', 'SuccessArticles', 'FailedArticles']);
 const NZBGET_FILE_COUNT_KEYS = new Set(['FileCount', 'RemainingFileCount', 'RemainingParCount']);
 const NZBGET_ID_KEYS = new Set(['NZBID', 'ID', 'FirstID', 'LastID']);
+
+// Shared across one capture run, so a download keeps one synthetic id in
+// both the queue and the history capture. Nothing of the real id survives.
+const nzbgetIds = new Map<number, number>();
+
+/** Clears the shared id map. Tests call it so each starts from id 101. */
+export function resetNzbgetIds(): void {
+    nzbgetIds.clear();
+}
+
+function nzbgetId(value: number): number {
+    let mapped = nzbgetIds.get(value);
+    if (mapped === undefined) {
+        mapped = 101 + nzbgetIds.size;
+        nzbgetIds.set(value, mapped);
+    }
+    return mapped;
+}
 const NZBGET_RATE_KEYS = ['DownloadRate', 'AverageDownloadRate'];
 const FIXTURE_EPOCH = 1_700_000_000;
 
@@ -389,7 +442,7 @@ function ranks(values: number[]): Map<number, number> {
  * each `<x>Lo`/`<x>Hi`/`<x>MB` triple stays one consistent size. A Hi half
  * with its top bit set is NZBGet's "not measured" marker and is kept. Sizes,
  * post and history times, article and file counts can each fingerprint a
- * release or a setup; download ids (100 and up) become 100 plus their last two digits, so the same
+ * release or a setup; download ids (100 and up) are renumbered from 101 in the order first seen, so the same
  * download keeps the same id in queue and history captures.
  */
 function syntheticNzbgetNumbers(node: unknown): unknown {
@@ -453,7 +506,8 @@ function syntheticNzbgetNumbers(node: unknown): unknown {
             const value = num(key);
             if (value === undefined) continue;
             if (NZBGET_TIME_KEYS.has(key)) out[key] = value === 0 ? 0 : FIXTURE_EPOCH + 3600 * (timeRank.get(value) ?? 0);
-            else if (NZBGET_ID_KEYS.has(key) && value >= 100) out[key] = 100 + (value % 100);
+            else if (NZBGET_ID_KEYS.has(key) && value >= 100) out[key] = nzbgetId(value);
+            else if (key === 'MessageCount' && value > 0) out[key] = 10;
             else if (key.endsWith('TimeSec') && value > 0) out[key] = 60;
             else if (key === 'CriticalHealth' && value > 0) out[key] = 900;
             else if (key === 'PostStageProgress' && value > 0) out[key] = 500;

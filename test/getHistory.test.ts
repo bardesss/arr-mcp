@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type * as z from 'zod/v4';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
+import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
@@ -195,6 +196,30 @@ describe('get_history', () => {
         const many = { records: repeat(RADARR_HISTORY.records[0]!, 300) };
         const result = await buildGetHistory([radarr(many)], { detail: 'standard', limit: 50 });
         expect(result).toMatchObject({ total: 300, returned: 50, truncated: true });
+    });
+
+    // What trigger_scan's postprocess takes, so it has to survive the default
+    // detail level, not only `full`.
+    it('carries NZBGet\'s downloadId at the default detail, and drops it at minimal', async () => {
+        const nzbget = new NzbgetAdapter(
+            { url: 'http://192.0.2.10:6789', username: 'u', password: 'p', timeout_ms: 10_000, permissions: { safe_write: false, destructive: false } },
+            (async (_input: unknown, init?: RequestInit) => {
+                const { id } = JSON.parse(String(init?.body)) as { id: number };
+                return jsonResponse({
+                    jsonrpc: '2.0',
+                    result: [
+                        { ID: 4, NZBID: 4, NZBName: 'Some.Release', Status: 'FAILURE/UNPACK', HistoryTime: 1_786_000_000, Parameters: [{ Name: 'drone', Value: 'drone-abc' }] }
+                    ],
+                    id
+                });
+            }) as unknown as typeof fetch
+        );
+
+        const standard = await buildGetHistory([nzbget], { detail: 'standard', limit: 50 });
+        const minimal = await buildGetHistory([nzbget], { detail: 'minimal', limit: 50 });
+
+        expect(standard.items[0]).toMatchObject({ service: 'nzbget', downloadId: 'drone-abc' });
+        expect(minimal.items[0]).not.toHaveProperty('downloadId');
     });
 
     it('returns id, at, event, title and mediaId only at detail: minimal', async () => {

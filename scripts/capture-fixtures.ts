@@ -45,6 +45,7 @@ import {
     anonymisePlexIdentity,
     anonymisePlexSections,
     anonymiseNzbgetHealth,
+    anonymiseNzbgetLog,
     anonymiseNzbgetRows,
     anonymiseNzbgetStatus,
     createAccountIdMapper,
@@ -929,6 +930,14 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: '/jsonrpc',
             body: { jsonrpc: '2.0', method: 'systemhealth', params: [], id: 5 },
             anonymise: anonymiseNzbgetHealth
+        },
+        {
+            // trigger_scan's postprocess reads the log: NZBGet reports a
+            // refused "post-process again" there and nowhere else.
+            name: 'log',
+            path: '/jsonrpc',
+            body: { jsonrpc: '2.0', method: 'log', params: [0, 5], id: 6 },
+            anonymise: anonymiseNzbgetLog
         }
     ],
     transmission: [{ name: 'session-get', path: '/transmission/rpc', body: { method: 'session-get' } }],
