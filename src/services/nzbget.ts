@@ -1,6 +1,6 @@
 import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
-import { basicAuth } from '../core/auth.ts';
+import { basicAuth, decodeOrRaw } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -24,6 +24,10 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
+    type RetryCapable,
+    type RetryMethod,
+    type RetryOutcome,
+    type RetryTarget,
     type ServiceAdapter,
     type SpeedLimit,
     type SpeedLimitCapable
@@ -84,6 +88,8 @@ type RawHistory = {
     DeleteStatus?: string;
     MarkStatus?: string;
     UrlStatus?: string;
+    /** Per mille of articles downloaded; 1000 is all of them. */
+    Health?: number;
     Parameters?: RawParameter[];
 };
 type RawLogMessage = { ID?: unknown; Kind?: unknown; Text?: unknown };
@@ -131,16 +137,24 @@ const droneParameter = (parameters: unknown): string | undefined => {
 };
 
 /**
+ * The DELETED/* details that are a failed download, not someone's choice:
+ * HEALTH is NZBGet aborting a download with too many missing articles (Radarr
+ * counts it as failed too), BAD a download marked bad, SCAN an NZB that could
+ * not be parsed. MANUAL, DUPE, COPY and GOOD stay deletions.
+ */
+const FAILED_DELETIONS = new Set(['HEALTH', 'BAD', 'SCAN']);
+
+/**
  * `Status` is `<KIND>/<DETAIL>`: SUCCESS/*, FAILURE/*, DELETED/* and
  * WARNING/* (see NzbInfo::MakeTextStatus). A WARNING is neither an import nor
  * a failure — a damaged or password-protected download waiting on a human —
  * so it stays `unknown` with its raw status kept.
  */
 const historyEvent = (status: string): HistoryEventType => {
-    const kind = status.split('/')[0]?.toUpperCase();
+    const [kind, detail] = status.toUpperCase().split('/');
     if (kind === 'SUCCESS') return 'imported';
     if (kind === 'FAILURE') return 'failed';
-    if (kind === 'DELETED') return 'deleted';
+    if (kind === 'DELETED') return detail !== undefined && FAILED_DELETIONS.has(detail) ? 'failed' : 'deleted';
     return 'unknown';
 };
 
@@ -242,6 +256,50 @@ const historyReason = (row: RawHistory, status: string): string => {
     return stages.length === 0 ? status : `${status} (${stages.join(', ')})`;
 };
 
+/** HistoryCoordinator::HistoryRetry's lines (21.0) for a HistoryRetryFailed:
+ *  it logs the start, or a refusal when the item is not an NZB or its
+ *  DestDir is gone, and the editqueue call answers `true` either way. */
+const RETRY_STARTED = 'Retrying failed articles for';
+const RETRY_REFUSED = 'Could not retry failed articles for';
+
+/** The parameter Unpack.cpp reads the archive password from. 21.0's
+ *  HistorySetParameter splits its text at the first `=`, so a password that
+ *  contains `=` survives whole. */
+const UNPACK_PASSWORD = '*Unpack:Password';
+
+const RETRY_MISSING_REMEDY =
+    'Take a current id from get_history or get_queue. If Radarr or Sonarr grabbed it, its "Remove Failed" setting (Settings → Download Clients) deletes failed downloads from NZBGet; turn it off to keep them retryable.';
+
+/**
+ * Which retry a failed history row needs, or `undefined` when neither helps.
+ * Missing articles have to be fetched again (HistoryRetryFailed); a download
+ * whose articles are all there but would not unpack, usually for want of a
+ * password, needs only post-processing again.
+ */
+const retryMethod = (row: RawHistory): RetryMethod | undefined => {
+    const status = (row.Status ?? '').toUpperCase();
+    const par = (row.ParStatus ?? '').toUpperCase();
+    const unpack = (row.UnpackStatus ?? '').toUpperCase();
+    if (['DELETED/HEALTH', 'FAILURE/HEALTH', 'FAILURE/PAR'].includes(status) || par === 'FAILURE') return 'retry-failed';
+    // Articles missing and no par repair made up for them: no par files, or
+    // none checked. A repaired download (ParStatus SUCCESS) has them all.
+    if (par !== 'SUCCESS' && typeof row.Health === 'number' && row.Health < 1000) return 'retry-failed';
+    // The par check found enough blocks but did not repair (ParRepair off):
+    // post-processing again runs the repair on the files already there.
+    if (status === 'WARNING/REPAIRABLE' || par === 'REPAIR_POSSIBLE') return 'postprocess';
+    const complete = par === 'SUCCESS' || (par !== 'FAILURE' && row.Health === 1000);
+    // SPACE is a full disk during unpack; once space is freed, unpacking
+    // again succeeds like it does after a missing password.
+    const locked = unpack === 'FAILURE' || unpack === 'PASSWORD' || unpack === 'SPACE' || status === 'WARNING/PASSWORD';
+    return complete && locked ? 'postprocess' : undefined;
+};
+
+/** The statuses that are a failure at all; anything else did not fail. */
+const isFailedStatus = (status: string): boolean => {
+    const upper = status.toUpperCase();
+    return upper.startsWith('FAILURE/') || upper.startsWith('WARNING/') || upper === 'DELETED/HEALTH';
+};
+
 /** XmlRpc.cpp answers code 1 ("Invalid procedure") for an unknown method,
  *  which is what a server older than v26 says to `systemhealth`, and for
  *  `systemhealth` with `SystemHealthCheck=no`. Either way there is no report. */
@@ -276,26 +334,32 @@ export class NzbgetAdapter
         PauseCapable,
         SpeedLimitCapable,
         HistoryCapable,
-        PostProcessCapable
+        PostProcessCapable,
+        RetryCapable
 {
     readonly type: ServiceId = 'nzbget';
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
+    /** Basic auth needs a username; without one nothing is sent at all. */
+    readonly #passwordOnly: boolean;
     #nextRpcId = 1;
 
     constructor(config: ConfigByService['nzbget'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('nzbget', config.name);
+        // A username in the URL (`http://nzbget@host`) pairs with the
+        // configured password; userinfo alone would send an empty one.
+        const urlUsername = decodeOrRaw(new URL(config.url).username);
+        const username = (config.username ?? '') === '' && urlUsername !== '' ? urlUsername : config.username;
         // WebServer.cpp answers a 401 before reading the POST body but keeps
         // the connection open, so the next request on it fails. Without
         // keep-alive NZBGet closes after each reply.
-        this.#http = new ServiceHttp(this.id, config, basicAuth(config), fetchImpl, { closeConnection: true });
-        this.#passwordOnly = config.password !== undefined && config.password !== '' && (config.username ?? '') === '';
+        this.#http = new ServiceHttp(this.id, config, basicAuth({ username, password: config.password }), fetchImpl, {
+            closeConnection: true
+        });
+        this.#passwordOnly = config.password !== undefined && config.password !== '' && (username ?? '') === '';
     }
-
-    /** Basic auth needs a username; without one nothing is sent at all. */
-    readonly #passwordOnly: boolean;
 
     async #call<T>(method: string, params: unknown[]): Promise<RpcResponse<T>> {
         if (this.#passwordOnly) {
@@ -390,7 +454,7 @@ export class NzbgetAdapter
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
         const body = await this.#call<RawHealthReport>('systemhealth', []);
         if (body.error != null) {
-            if (body.error?.code === RPC_NO_REPORT) return [];
+            if (body.error.code === RPC_NO_REPORT) return [];
             throw this.#rpcError('systemhealth', body.error);
         }
         const report = body.result;
@@ -438,11 +502,13 @@ export class NzbgetAdapter
      * NZBGet has no per-item ETA. It is derived the way the *arrs derive it:
      * items download in queue order at the current rate, so each item's ETA
      * is everything ahead of it plus its own unpaused remainder. A paused
-     * item (or a paused queue) has no ETA.
+     * item (or a paused queue), and one with nothing left to download, has
+     * no ETA.
      */
     async getQueue(): Promise<QueueItem[]> {
         const [status, groups] = await Promise.all([this.#status(), this.#groups()]);
         const rate = int64(status.DownloadRateHi, status.DownloadRateLo) ?? status.DownloadRate ?? 0;
+        const queuePaused = status.ServerPaused === true || status.DownloadPaused === true || status.Download2Paused === true;
         let ahead = 0;
         return groups
             .filter((group): group is RawGroup & { NZBID: number } => typeof group.NZBID === 'number')
@@ -450,14 +516,9 @@ export class NzbgetAdapter
                 const size = int64(group.FileSizeHi, group.FileSizeLo, group.FileSizeMB);
                 const remaining = int64(group.RemainingSizeHi, group.RemainingSizeLo, group.RemainingSizeMB);
                 const paused = int64(group.PausedSizeHi, group.PausedSizeLo, group.PausedSizeMB) ?? 0;
+                const own = remaining === undefined ? 0 : remaining - paused;
                 let eta: number | undefined;
-                if (
-                    remaining !== undefined &&
-                    status.DownloadPaused !== true &&
-                    !(remaining === paused && remaining !== 0) &&
-                    rate > 0
-                ) {
-                    const own = Math.max(0, remaining - paused);
+                if (!queuePaused && own > 0 && rate > 0) {
                     eta = Math.round((ahead + own) / rate);
                     ahead += own;
                 }
@@ -573,8 +634,10 @@ export class NzbgetAdapter
         const rows = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray));
         return rows.flatMap(row => {
             // A row that cannot be dated is dropped rather than stamped with
-            // the epoch, as for SABnzbd.
+            // the epoch, as for SABnzbd; one with no id cannot be referred to.
             if (typeof row.HistoryTime !== 'number' || !Number.isFinite(row.HistoryTime)) return [];
+            const id = row.NZBID ?? row.ID;
+            if (typeof id !== 'number') return [];
             const at = new Date(row.HistoryTime * 1000).toISOString();
             if (opts.since !== undefined && at < opts.since) return [];
 
@@ -582,7 +645,7 @@ export class NzbgetAdapter
             const event = historyEvent(status);
             const entry: HistoryEntry = {
                 service: this.id,
-                id: String(row.NZBID ?? row.ID ?? ''),
+                id: String(id),
                 at,
                 event,
                 rawEvent: status,
@@ -726,7 +789,20 @@ export class NzbgetAdapter
                 remedy: 'Check that the download is still in NZBGet\'s history — take a current id from get_history.'
             });
         }
+        return this.#watchPostProcess(row, target, { mark, label: `download ${downloadId}` });
+    }
 
+    /**
+     * Watches a `HistoryProcess` just sent for proof it ran, shared by
+     * runPostProcess and runRetry. `mark` is the newest log id from before
+     * the send, so only that request's messages are read; `label` names the
+     * download in the errors.
+     */
+    async #watchPostProcess(
+        row: RawHistory & { ID: number },
+        target: PostProcessTarget,
+        { mark, label }: { mark: number; label: string }
+    ): Promise<PostProcessOutcome> {
         // PrePostProcessor.cpp writes "Could not post-process again <NZBName>: …".
         // Matching the whole prefix keeps `Some.Release.REPACK`'s refusal, or
         // one whose path merely contains this name, from reading as this one's.
@@ -798,12 +874,170 @@ export class NzbgetAdapter
         }
 
         if (started) {
-            throw new ServiceError('UpstreamError', this.id, `NZBGet started post-processing download ${downloadId} again, but had not filed a result when the wait ran out`, {
+            throw new ServiceError('UpstreamError', this.id, `NZBGet started post-processing ${label} again, but had not filed a result when the wait ran out`, {
                 remedy: 'It was not reported as done. get_queue and get_history show where it stands now.'
             });
         }
-        throw new ServiceError('UpstreamError', this.id, `NZBGet accepted the request for download ${downloadId} but showed no sign of post-processing it`, {
+        throw new ServiceError('UpstreamError', this.id, `NZBGet accepted the request for ${label} but showed no sign of post-processing it`, {
             remedy: "It was not reported as done, because it may not have run. The usual cause is that the download's folder no longer exists; NZBGet's Messages page says for certain."
+        });
+    }
+
+    /**
+     * The failed history row an id names, and what retrying it means. The id
+     * is the history id get_history shows. NZBGet ignores `hasPassword`: an
+     * encrypted download fails into history like any other, and nothing in
+     * the queue waits for a password.
+     */
+    async findRetryTarget(id: string, _opts: { hasPassword: boolean }): Promise<RetryTarget> {
+        return (await this.#retryRow(id)).target;
+    }
+
+    async #retryRow(id: string): Promise<{ row: RawHistory & { ID: number }; target: RetryTarget }> {
+        const numericId = asIntegerId(id, this.id);
+        const rows = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray)).filter(
+            (r): r is RawHistory & { ID: number } => r.ID === numericId
+        );
+        const row = rows.find(r => r.Kind === undefined || r.Kind === 'NZB');
+        if (row === undefined) {
+            if (rows.length > 0) {
+                throw new ServiceError('NotFound', this.id, `history item ${id} is ${describeKind(rows[0]?.Kind)}, not a download`, {
+                    remedy: 'Only a downloaded NZB can be retried. Take a failed id from get_history.'
+                });
+            }
+            if ((await this.#groups()).some(group => group.NZBID === numericId)) {
+                throw new ServiceError('NotFound', this.id, `download ${id} has not failed; it is still in the queue`, {
+                    remedy: 'Check its progress with get_queue. Only a failed download can be retried.'
+                });
+            }
+            throw new ServiceError('NotFound', this.id, `nothing in NZBGet's history has id "${id}"`, { remedy: RETRY_MISSING_REMEDY });
+        }
+
+        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const raw = row.Status ?? 'unknown';
+        if (!isFailedStatus(raw)) {
+            throw new ServiceError('NotFound', this.id, `download ${id} did not fail; only a failed download can be retried`, {
+                remedy: `NZBGet shows it as ${fence(raw, 'Status')}. Take a failed id from get_history.`
+            });
+        }
+        const method = retryMethod(row);
+        if (method === undefined) {
+            throw new ServiceError('NotFound', this.id, `download ${id} failed in a way a retry cannot fix`, {
+                remedy: `NZBGet shows it as ${fence(historyReason(row, raw), 'Status')}. A retry only fetches missing articles again, or unpacks again once every article is there. Fix the cause in NZBGet, or grab another release.`
+            });
+        }
+        return {
+            row,
+            target: {
+                id,
+                title: fence(row.NZBNicename ?? row.Name ?? row.NZBName ?? '', 'NZBNicename'),
+                where: 'history',
+                status: fence(raw, 'Status'),
+                reason: fence(historyReason(row, raw), 'Status'),
+                ...historyDownloadId(row),
+                method
+            }
+        };
+    }
+
+    /**
+     * Re-resolves the row first, so one that changed since the preview is
+     * refused rather than sent the wrong edit. The password travels only in
+     * the JSON-RPC params, and is set before anything runs, so nothing
+     * unpacks without it.
+     */
+    async runRetry(id: string, opts: { method: RetryMethod; password?: string }): Promise<RetryOutcome> {
+        const { row, target } = await this.#retryRow(id);
+        if (target.method !== opts.method) {
+            throw new ServiceError('NotFound', this.id, `download ${id} now needs "${target.method}", not "${opts.method}"`, {
+                remedy: 'It changed since the preview. Preview retry_download again.'
+            });
+        }
+        if (opts.password !== undefined && opts.password !== '') await this.#setUnpackPassword(row, id, opts.password);
+        return opts.method === 'postprocess' ? this.#retryPostProcess(row, target) : this.#retryFailed(row, target);
+    }
+
+    /** NZBGet's error text and the cause are dropped: a server could quote the
+     *  parameter, password and all, back in either. */
+    async #setUnpackPassword(row: RawHistory & { ID: number }, id: string, password: string): Promise<void> {
+        const refused = (kind: 'UpstreamError' | 'AuthFailed') =>
+            new ServiceError(kind, this.id, `NZBGet refused to set the unpack password on download ${id}`, {
+                remedy: "Nothing was retried. Check the download is still in NZBGet's history (take a current id from get_history) and that this login may edit it."
+            });
+        let ok: boolean;
+        try {
+            ok = await this.#rpc<boolean>('editqueue', ['HistorySetParameter', 0, `${UNPACK_PASSWORD}=${password}`, [row.ID]], isBoolean);
+        } catch (err) {
+            throw refused(err instanceof ServiceError && err.kind === 'AuthFailed' ? 'AuthFailed' : 'UpstreamError');
+        }
+        if (!ok) throw refused('UpstreamError');
+    }
+
+    async #retryPostProcess(row: RawHistory & { ID: number }, target: RetryTarget): Promise<RetryOutcome> {
+        const mark = await this.#lastLogId();
+        const ok = await this.#rpc<boolean>('editqueue', ['HistoryProcess', 0, '', [row.ID]], isBoolean);
+        if (!ok) {
+            throw new ServiceError('UpstreamError', this.id, `NZBGet refused to post-process download ${target.id} again`, {
+                remedy: "Check that the download is still in NZBGet's history — take a current id from get_history."
+            });
+        }
+        const seen = await this.#watchPostProcess(row, this.#postProcessTarget(row), { mark, label: `download ${target.id}` });
+        if (seen.state === 'running') return { target, id: target.id, state: 'processing', status: seen.status };
+        if (seen.state === 'finished') return { target, id: target.id, state: 'finished', event: seen.event, status: seen.status };
+        // Filed and already gone from history: an *arr took the result.
+        return { target, id: target.id, state: 'finished', status: 'removed' };
+    }
+
+    /**
+     * 21.0's HistoryRetryFailed (HistoryCoordinator::HistoryRetry with
+     * resetFailed) checks only that the row is an NZB and its DestDir exists,
+     * never its status, and moves it back to the queue under the same NZBID.
+     * It answers `true` even when it refuses, so the queue is the proof.
+     */
+    async #retryFailed(row: RawHistory & { ID: number }, target: RetryTarget): Promise<RetryOutcome> {
+        const mark = await this.#lastLogId();
+        const ok = await this.#rpc<boolean>('editqueue', ['HistoryRetryFailed', 0, '', [row.ID]], isBoolean);
+        if (!ok) {
+            throw new ServiceError('UpstreamError', this.id, `NZBGet refused to retry download ${target.id}`, {
+                remedy: "Check that the download is still in NZBGet's history — take a current id from get_history."
+            });
+        }
+
+        const name = row.NZBName ?? row.Name;
+        const named = name !== undefined && name !== '';
+        const nzbId = row.NZBID ?? row.ID;
+        const status = (raw: string) => fenceText(raw, { service: this.id, field: 'Status' });
+        let started = false;
+        for (let poll = 0; poll < POST_PROCESS_POLLS; poll++) {
+            if (poll > 0) await delay(POST_PROCESS_POLL_MS);
+            const [messages, groups] = await Promise.all([
+                this.#rpc<unknown[]>('log', [mark + 1, 0], isArray).then(rows => objectsIn<RawLogMessage>(rows)),
+                this.#groups()
+            ]);
+            for (const m of messages) {
+                if (!named || typeof m.Text !== 'string') continue;
+                // The whole prefix, so a look-alike name's refusal is not this one's.
+                if (m.Kind === 'ERROR' && m.Text.startsWith(`${RETRY_REFUSED} ${name}:`)) {
+                    throw new ServiceError('UpstreamError', this.id, fenceText(m.Text, { service: this.id, field: 'log' }), {
+                        remedy: "NZBGet only retries a download whose folder still exists, and that folder has been moved or deleted. Nothing was retried. Grab the release again instead."
+                    });
+                }
+                if (m.Text === `${RETRY_STARTED} ${name}`) started = true;
+            }
+            const queued = groups.find(group => group.NZBID === nzbId);
+            if (queued !== undefined) return { target, id: target.id, state: 'downloading', status: status(queueStatus(queued.Status)) };
+        }
+
+        // With nothing left to fetch it can be filed again between polls.
+        if (started) {
+            const filed = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray)).find(r => r.ID === row.ID);
+            if (filed !== undefined && typeof filed.HistoryTime === 'number' && filed.HistoryTime > (row.HistoryTime ?? 0)) {
+                const raw = filed.Status ?? 'unknown';
+                return { target, id: target.id, state: 'finished', event: historyEvent(raw), status: status(raw) };
+            }
+        }
+        throw new ServiceError('UpstreamError', this.id, `NZBGet accepted the retry of download ${target.id}, but it never appeared in the queue`, {
+            remedy: "It was not reported as retried. The usual cause is that the download's folder no longer exists; NZBGet's Messages page says for certain."
         });
     }
 

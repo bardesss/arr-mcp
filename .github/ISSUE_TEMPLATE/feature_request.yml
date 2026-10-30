@@ -10,7 +10,7 @@ body:
         the work; the code that answers it is the easy half.
 
         This matters because the answer is often a new parameter or a new field
-        on a tool that already exists. Twenty-two tools is close to the ceiling
+        on a tool that already exists. Forty tools is the ceiling
         — model accuracy degrades measurably past roughly forty — so new
         capability extends an existing tool before it adds one. A request framed
         as a question can be answered that way. One framed as a tool name
