@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.48.0](https://github.com/bardesss/arr-mcp/compare/v1.47.0...v1.48.0) (2026-10-30)
+
+
+### Features
+
+* **nzbget:** run post-processing again from trigger_scan ([#395](https://github.com/bardesss/arr-mcp/issues/395)) ([b9dc530](https://github.com/bardesss/arr-mcp/commit/b9dc5301dab63c7d62fd488052a93438f88e32e9))
+* retry failed usenet downloads on SABnzbd and NZBGet ([#403](https://github.com/bardesss/arr-mcp/issues/403)) ([560e55b](https://github.com/bardesss/arr-mcp/commit/560e55b7ace79dd22c716e55bfd2b66da42b5f15))
+
+
+### Bug Fixes
+
+* **nzbget:** count health-aborted downloads as failed and tidy queue ETAs ([#400](https://github.com/bardesss/arr-mcp/issues/400)) ([665459d](https://github.com/bardesss/arr-mcp/commit/665459db4b06339de5613c23146a73c949a5a912))
+
 ## [1.47.0](https://github.com/bardesss/arr-mcp/compare/v1.46.0...v1.47.0) (2026-10-29)
 
 
