@@ -453,7 +453,21 @@ export class LibraryIndex {
             const hits = this.#ranked(dated[1]).filter(i => i.year === year);
             if (hits.length > 0) return hits;
         }
-        return this.#ranked(query);
+        const hits = this.#ranked(query);
+        if (hits.length > 0) return hits;
+
+        // People ask the way release names read: "Shogun 2024 S04E03" (#308).
+        // Only tried when the whole query matched nothing, so "Blade Runner
+        // 2049" and "1917" keep matching their own titles.
+        const episode = /^(.*\S)\s+(?:[Ss]\d{1,3}(?:[Ee]\d{1,4}(?:-?[Ee]?\d{1,4})?)?|\d{1,2}x\d{1,3})$/.exec(query);
+        if (episode?.[1] !== undefined) return this.search(episode[1]);
+
+        const bareYear = /^(.*\S)\s+(\d{4})$/.exec(query);
+        if (bareYear?.[1] !== undefined) {
+            const year = Number(bareYear[2]);
+            return this.#ranked(bareYear[1]).filter(i => i.year === year);
+        }
+        return [];
     }
 
     #ranked(query: string): MergedItem[] {
