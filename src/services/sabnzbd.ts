@@ -411,6 +411,14 @@ export class SabnzbdAdapter
             const paused = (queued.status ?? '').toLowerCase() === 'paused';
 
             if (isEncrypted(queued)) {
+                // The label outlives the pause: `resume()` sets `encrypted = 2`
+                // and the label stays. A running job has nothing to unlock,
+                // and a watch on it would "succeed" without any write landing.
+                if (!paused) {
+                    throw new ServiceError('NotFound', this.id, `download ${id} is encrypted but not paused`, {
+                        remedy: 'It is already running in SABnzbd, so there is nothing to unlock. Check its progress with get_queue.'
+                    });
+                }
                 if (!opts.hasPassword) {
                     throw new ServiceError('NotFound', this.id, `download ${id} is paused because it is encrypted`, {
                         remedy: 'Pass `password` with the archive password from the site the NZB came from; SABnzbd cannot unpack it without one.'

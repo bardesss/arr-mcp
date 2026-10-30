@@ -126,6 +126,21 @@ describe('sabnzbd findRetryTarget', () => {
         await expect(adapter.findRetryTarget('q1', { hasPassword: true })).resolves.toMatchObject({ method: 'unlock' });
     });
 
+    // The label survives resume(), so a running job still carries it.
+    it('refuses an encrypted job that is already downloading, without sending anything', async () => {
+        const { adapter, requests } = fixed(
+            [{ nzo_id: 'q1', filename: 'Show.S01E01', status: 'Downloading', labels: ['ENCRYPTED'] }],
+            []
+        );
+
+        const error = await caught(adapter.findRetryTarget('q1', { hasPassword: true }));
+
+        expect(error.kind).toBe('NotFound');
+        expect(error.remedy).toMatch(/already running/);
+        await expect(adapter.runRetry('q1', { method: 'unlock', password: 'hunter2' })).rejects.toThrow(/nothing to unlock/);
+        expect(writesIn(requests)).toHaveLength(0);
+    });
+
     // The label is translated: on a non-English UI a paused job may be
     // encrypted with no way to tell from the API.
     it('refuses a paused job it cannot confirm is encrypted, pointing at SABnzbd\'s own UI', async () => {
@@ -243,6 +258,54 @@ describe('sabnzbd runRetry', () => {
         expect(error.kind).toBe('UpstreamError');
         expect(error.message).not.toContain('hunter2');
         expect(error.remedy ?? '').not.toContain('hunter2');
+    });
+
+    it('reports a refused rename as UpstreamError without echoing the password', async () => {
+        const { adapter, requests } = fixed(
+            [{ nzo_id: 'q1', filename: 'Show.S01E01', status: 'Paused', labels: ['ENCRYPTED'] }],
+            [],
+            () => ({ status: false, error: 'cannot rename to hunter2' })
+        );
+
+        const error = await caught(adapter.runRetry('q1', { method: 'unlock', password: 'hunter2' }));
+
+        expect(error.kind).toBe('UpstreamError');
+        expect(error.message).not.toContain('hunter2');
+        expect(error.remedy ?? '').not.toContain('hunter2');
+        expect(requests.some(r => r.params.get('name') === 'resume')).toBe(false);
+    });
+
+    // 3.0.0 and later: the filename is already the plain name.
+    it('sends a 3.x plain filename back unchanged as value2', async () => {
+        let resumed = false;
+        const { adapter, requests } = recording(params => {
+            const name = params.get('name');
+            if (name === 'rename') return { status: true };
+            if (name === 'resume') {
+                resumed = true;
+                return { status: true, nzo_ids: ['q1'] };
+            }
+            if (params.get('mode') === 'queue') {
+                return {
+                    queue: {
+                        slots: [
+                            {
+                                nzo_id: 'q1',
+                                filename: 'Show.S01E01.1080p / Part 2',
+                                status: resumed ? 'Downloading' : 'Paused',
+                                labels: ['ENCRYPTED']
+                            }
+                        ]
+                    }
+                };
+            }
+            return { history: { slots: [] } };
+        });
+
+        await expect(adapter.runRetry('q1', { method: 'unlock', password: 'hunter2' })).resolves.toMatchObject({ state: 'downloading' });
+
+        const rename = requests.find(r => r.params.get('name') === 'rename');
+        expect(new URLSearchParams(rename?.body).get('value2')).toBe('Show.S01E01.1080p / Part 2');
     });
 
     it('refuses a method the preview did not decide', async () => {
