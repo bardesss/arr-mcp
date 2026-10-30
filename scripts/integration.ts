@@ -868,7 +868,7 @@ if (withTmdb?.ids?.tmdb !== undefined) {
  * pause_downloads names one client, so this picks the first configured one
  * rather than assuming any particular stack has SABnzbd.
  */
-const client = (['sabnzbd', 'transmission', 'qbittorrent'] as const).find(
+const client = (['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'] as const).find(
     id => config.services?.[id] !== undefined
 );
 if (client !== undefined) {

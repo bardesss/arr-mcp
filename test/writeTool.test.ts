@@ -169,20 +169,29 @@ describe('write tool harness — preview and confirm', () => {
     // again *without* `confirm`, which contradicts the usable token in the very
     // next sentence. A model that follows the remedy throws away a good token
     // and spends another preview. The diagnosis stays in `confirm_error`.
+    // #312: the text said only "(foreign)", which is all a client that drops
+    // structuredContent ever sees.
+    it('says why the token was rejected in the text', async () => {
+        const { content } = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
+        expect(content[0]?.text).toContain('not a confirmation token issued by this server');
+    });
+
     it('gives one next action on a rejection, not two', async () => {
         const { content, structuredContent } = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
         const text = content[0]?.text ?? '';
 
         expect(text).toContain(structuredContent.confirm_token);
         expect(text).not.toContain('without `confirm`');
-        expect(structuredContent.confirm_error).toContain('without `confirm`');
+        // #312: confirm_error said to call again without `confirm`, the text to
+        // use the fresh token. Both now carry the reason alone.
+        expect(structuredContent.confirm_error).toBe('That is not a confirmation token issued by this server.');
     });
 
     // The token is the last thing in both texts on purpose. A reader clipping
     // it out takes the trailing word or the final backticked span, and prose
     // after the token defeats both — `unwrap` strips punctuation, not a clause.
     it('ends both the preview and the rejection with the token itself', async () => {
-        const ending = /`v1\.[\w.-]+`\.?$/u;
+        const ending = /`v2\.[\w.-]+`\.?$/u;
 
         const preview = await harness.call('delete_media', { id: '5' });
         expect(preview.content[0]?.text.trimEnd()).toMatch(ending);

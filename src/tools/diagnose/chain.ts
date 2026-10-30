@@ -1,7 +1,7 @@
 import type { ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import { unfenced } from '../../core/titleMatch.ts';
-import type { MergedItem } from '../../core/resolver.ts';
+import type { FilmOrSeries, MergedItem } from '../../core/resolver.ts';
 import type { HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
 
 export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan';
@@ -16,7 +16,7 @@ export type Step = { stage: Stage; service?: string; status: StepStatus; detail:
  * wrong about a service that was down.
  */
 export type Evidence = {
-    item: MergedItem | undefined;
+    item: FilmOrSeries | undefined;
     request: { status: RequestStatus | 'unknown' } | null | undefined;
     /**
      * `items` is what the collector actually read, `partial` names the clients
@@ -240,7 +240,7 @@ const QUEUE_IMPORT_REMEDY =
 
 /** The download clients `queue` evidence can come from, so `degraded` folds
  *  into "could not fully look" the way `scan` and `indexers` already do. */
-const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'whisparr', 'sabnzbd', 'transmission', 'qbittorrent'];
+const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'whisparr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
 
 type QueueResult = { step: Step; remedy?: string };
 
@@ -754,7 +754,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     };
 }
 
-const resolvedOf = (item: MergedItem): NonNullable<Diagnosis['resolved']> => ({
+const resolvedOf = (item: FilmOrSeries): NonNullable<Diagnosis['resolved']> => ({
     title: item.title,
     ...(item.year === undefined ? {} : { year: item.year }),
     kind: item.kind,

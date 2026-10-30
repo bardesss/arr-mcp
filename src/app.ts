@@ -73,7 +73,7 @@ const LIST_CACHE_TTL_MS = 60 * 60 * 1000;
  * that a list reports the whole count rather than the window, and that a write
  * happens in two calls rather than one.
  */
-const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Whisparr scenes, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd, Transmission and qBittorrent downloads.
+const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Whisparr scenes, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd, NZBGet, Transmission and qBittorrent downloads.
 
 Reading:
 - \`get_library\` is the join across Radarr, Sonarr, Whisparr and Jellyfin — the only tool that can say a file one service believes in is missing from the other.

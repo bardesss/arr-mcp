@@ -22,21 +22,27 @@ services:
     url: http://192.168.1.20:8081
     username: "…"
     password: "…"
+  nzbget:
+    url: http://192.168.1.20:6789
+    username: "…"            # NZBGet's ControlUsername / ControlPassword
+    password: "…"
 ```
 
-All thirteen service ids: `radarr`, `sonarr`, `whisparr`, `prowlarr`, `bazarr`, `jellyfin`,
-`seerr`, `sabnzbd`, `transmission`, `qbittorrent`, `plex`, `profilarr`, `cleanuparr`. Configure only what you run —
+All fifteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
+`jellyfin`, `seerr`, `sabnzbd`, `nzbget`, `transmission`, `qbittorrent`, `plex`,
+`profilarr`, `cleanuparr`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
 
-A misspelled key, an unknown service, or an `api_key` on a torrent client
-**fails at startup with the offending field named**, rather than being silently
+A misspelled key, an unknown service, or an `api_key` on a torrent client or
+NZBGet **fails at startup with the offending field named**, rather than being silently
 ignored.
 
-Both credential fields are optional on either client: Transmission's RPC is
-often unauthenticated on a LAN, and qBittorrent can bypass authentication for
-localhost. Leave them out and nothing logs in.
+Both credential fields are optional on either torrent client and on NZBGet:
+Transmission's RPC is often unauthenticated on a LAN, qBittorrent can bypass
+authentication for localhost, and NZBGet runs without a login when its control
+password is empty. Leave them out and nothing logs in.
 
 Each service also takes an optional `permissions` block. Both flags default to
 false, so the config above is read-only — see [writes](writes.md).
@@ -112,20 +118,21 @@ every other service here follows.
 `trigger_scan` refreshes every Plex library, the same `safe` tier as a
 Jellyfin scan. There is no Plex `set_watched`.
 
-`fix_metadata` can repair Plex metadata, but only once you opt in:
+`fix_metadata` can repair Plex metadata. Like any destructive write it needs
+`destructive`, and Plex has its own switch on top, on by default:
 
 ```yaml
 services:
   plex:
-    allow_metadata_repair: true   # default false
+    allow_metadata_repair: false   # default true; set false to keep the repair off
     permissions:
       destructive: true
 ```
 
-It is off by default because the first live test only half passed: films were
-repaired, series were not. Jellyfin needs no such setting, and `allow_metadata_repair` on any
-other service is refused at startup. The Plex card on the config page has a
-checkbox for it, marked experimental. See
+Film and series repairs have both been checked against a live Plex server, with
+the after-check reporting each one correctly. Jellyfin needs no such setting, and
+`allow_metadata_repair` on any other service is refused at startup. The Plex card
+on the config page has a checkbox for it. See
 [Repairing on Plex](tools.md#repairing-on-plex).
 
 `default_user` behaves differently here than on Jellyfin, and it is worth
@@ -181,6 +188,79 @@ user. A Plex secondary with none is read as the token's owner. A Jellyfin
 secondary with none, or either one with a `default_user` that matches nobody, is
 not read, and `get_library` says so in its `note`. Jellyfin's
 `allow_other_users` and Plex's `allow_metadata_repair` stay on their own blocks.
+
+## Lidarr
+
+```yaml
+services:
+  lidarr:
+    url: http://192.168.1.20:8686
+    api_key: "…"
+```
+
+Single instance only. Lidarr answers on `/api/v1`, where Radarr and Sonarr
+answer on `/api/v3`.
+
+A configured Lidarr connects, appears in `stack_health`, reports its version,
+and lists its **artists** in `get_library` as `kind: "artist"`, with the album
+count, genres, monitoring, quality profile, file state and the artist's
+MusicBrainz id. One row per artist, the way Sonarr rows on a series: a library of
+1,578 artists is 1,578 rows rather than 36,170 album rows.
+
+`get_media_details` on an artist lists the albums under it, each with its Lidarr
+album id, type, year, monitoring and file state. That is where the id for
+`set_monitoring` with `level: "album"` comes from.
+
+**An artist joins to a media server.** Lidarr's `foreignArtistId`, Jellyfin's
+`ProviderIds.MusicBrainzArtist` on an album artist, and Plex's `mbid://` guid on
+an artist in a music section are the same value, matched case-insensitively, so
+an artist reports a real `presence`. A media server with no music library, or a
+music read that failed, reports `unknown`, never `arr_only`, which would claim
+the server looked and found nothing.
+
+The media server's music read runs only when a Lidarr is configured. With no
+Lidarr there is no artist row to join to, so the read would add every artist the
+server holds as `jellyfin_only` and answer "what does no *arr manage?" with the
+whole music collection.
+
+`diagnose` does not follow music: it reads the film and series chain, and refuses
+an artist rather than reporting it absent. The refusal names `get_media_details`
+with `service: "lidarr"`, the artist id and `detail: "full"`, which is the route
+that holds the albums, and `get_library` with `kind: "artist"` for the artist
+list. Both a query that matches an artist and a Lidarr artist id are refused
+the same way.
+
+**It is not read-only.** `set_monitoring` writes two different things, and
+`level` says which one:
+
+| `level` | Addresses | Writes |
+| --- | --- | --- |
+| `album` | one album, by `id` from `get_media_details` | that album's own monitor flag |
+| `artist` | `artists` (one id, a list, or omit for every artist) | `monitored`, `monitor_new_items`, or both, across those artists |
+
+The artist flag is not the album flag. A live library held an artist reading
+`monitored: false` while an album under it stayed `monitored: true`, so the two
+are separate flags. The write side agrees on both supported versions. Four
+editor writes on 2.1.3.3927, of `monitored` and `monitorNewItems` separately
+and together, left the artist's two albums with exactly the flags they had, and
+the same four on 3.1.6.5079 left that artist's four albums as they were.
+`level: "artist"` writes the artist's own flag, and `level: "album"` writes the
+album's. `monitor_new_items` is the standing rule Lidarr applies to albums it
+discovers later, and `none` is the only value that stops the wanted list growing
+by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
+`MoveArtist` job in the runs that were captured.
+
+Everything else is still out of reach: no queue, no calendar, no wanted list,
+no release search, no delete. All 21 capture endpoints were exercised against a
+live Lidarr 3.1.6.5079, but seven came back empty on a library with no download
+activity, so nothing claims them.
+
+The version floor is 2.1.3. The two write endpoints were captured on 2.1.3.3927,
+and the read fixtures come from 3.1.6.5079. A volunteer exercised the adapter's
+reads and writes on 2.1.3.3927 and 3.1.0.4875.
+
+`CONTRIBUTING.md` lists the endpoints that still need a capture against a library
+with real activity before their row shapes are proven.
 
 ## Profilarr
 
@@ -266,7 +346,8 @@ block.
 
 **Six services stay single.** Jellyfin and Plex because each is one server,
 and [running both](#plex-and-jellyfin-together) is a different thing from
-running two of one. Seerr because a
+running two of one. Lidarr because music libraries are rarely split, so a
+second instance would merge silently into every read. Seerr because a
 request carries the identity of the person who made it, and a second Seerr makes
 "which one do I ask" a guess with an approver on the other end of it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
@@ -275,7 +356,7 @@ profile config, so two of them would mean two sources of truth. Cleanuparr
 because one instance cleans one stack.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
-Transmission and qBittorrent.
+NZBGet, Transmission and qBittorrent.
 
 Two download clients, one behind a VPN and one not:
 

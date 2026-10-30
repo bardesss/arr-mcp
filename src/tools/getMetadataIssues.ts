@@ -5,6 +5,7 @@ import {
     movieRemedy,
     pinnedToProvider,
     summariseSeries,
+    type ManagedFolder,
     type Remedy
 } from '../core/episodeMismatch.ts';
 import { fenceText } from '../core/fence.ts';
@@ -15,7 +16,8 @@ import { unfenced } from '../core/titleMatch.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasMetadataInspect, hasUserLibrary, type ServiceAdapter } from '../services/types.ts';
 import { bothIds, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
-import { plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
+import { managedFolders, mergedHow, plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
+import type { LibraryLoader } from './library.ts';
 
 /**
  * The discovery half of `fix_metadata`.
@@ -102,6 +104,9 @@ const FIX: Record<Remedy, string> = {
         'The disagreeing field is locked on the item, so neither fix_metadata nor a refresh will change it. If the locked value is wrong, unlock it on the item in the media server, then run fix_metadata.'
 };
 
+const FILM_YEAR_INSPECT =
+    "Look before acting: Plex already matched this film, and a repair re-matches it to the same id while the Plex Movie agent keeps Plex's own year, so fix_metadata is not expected to change it. Check the year in Radarr and the file name; if Plex matched a different film of the same name, use Fix Match in Plex.";
+
 const fixFor = (remedy: Remedy, adapter: ServiceAdapter, repairAllowed: boolean): string =>
     remedy === 'refresh_metadata' && adapter.type === 'plex' && !repairAllowed
         ? `${FIX[remedy]} The repair is off on this Plex until services.plex.allow_metadata_repair is set.`
@@ -113,7 +118,7 @@ const fixFor = (remedy: Remedy, adapter: ServiceAdapter, repairAllowed: boolean)
 const advisoryNote = (v: { shifted: number; specials: number; languages: number }): string =>
     (v.shifted === 0
         ? ''
-        : ` ${v.shifted} carry the title the server gives the episode next to them: a different episode order rather than a wrong match, which a rematch did not move on a real library.`) +
+        : ` ${v.shifted} carry the title the server gives another episode in the same season: a different episode order rather than a wrong match, which a rematch did not move on a real library.`) +
     (v.specials === 0 ? '' : ` ${v.specials} are specials (season 0), which sources number differently, so treat those as a hint.`) +
     (v.languages === 0
         ? ''
@@ -147,7 +152,7 @@ export function metadataIssueLine(issue: MetadataIssue): string {
 export async function buildGetMetadataIssues(
     adapters: readonly ServiceAdapter[],
     identity: IdentityResolver | undefined,
-    opts: { detail: DetailLevel; limit: number; offset: number; user?: string; permissions?: PermissionSource }
+    opts: { detail: DetailLevel; limit: number; offset: number; user?: string; permissions?: PermissionSource; library?: LibraryLoader }
 ): Promise<GetMetadataIssuesResult> {
     const adapter = adapters.find(a => hasMetadataInspect(a) && hasUserLibrary(a));
     const empty = { items: [], total: 0, returned: 0, offset: 0, truncated: false, itemsScanned: 0 };
@@ -168,7 +173,10 @@ export async function buildGetMetadataIssues(
     const notComparable: string[] = [];
     let scanned = 0;
     let skipped = 0;
-
+    // Read once, and only when a series is flagged.
+    let folders: Promise<ManagedFolder[]> | undefined;
+    const sonarrFolders = (): Promise<ManagedFolder[]> =>
+        (folders ??= opts.library === undefined ? Promise.resolve([]) : managedFolders(opts.library));
 
     // Films first, and in one request: they need no per-title read, so the
     // whole film half of the library costs what a single series costs.
@@ -180,7 +188,7 @@ export async function buildGetMetadataIssues(
             const record = movies.find(m => m.id === mismatch.id);
             const pinned = record !== undefined && pinnedToProvider(record) ? 1 : 0;
             const lockedCount = mismatch.locked === true ? 1 : 0;
-            const remedy = movieRemedy(mismatch.reasons, pinned === 1, lockedCount === 1);
+            const remedy = movieRemedy(mismatch.reasons, pinned === 1, lockedCount === 1, { keepsOwnYear: adapter.type === 'plex' });
 
             issues.push({
                 service: adapter.id,
@@ -194,7 +202,7 @@ export async function buildGetMetadataIssues(
                 pinned,
                 locked: lockedCount,
                 remedy,
-                fix: fixFor(remedy, adapter, repairAllowed),
+                fix: remedy === 'inspect' && mismatch.reasons.includes('year') ? FILM_YEAR_INSPECT : fixFor(remedy, adapter, repairAllowed),
                 examples: [
                     fenceText(
                         `${unfenced(mismatch.path).split(/[/\\]/).at(-1) ?? ''} → ${unfenced(mismatch.serverTitle)}${mismatch.serverYear === undefined ? '' : ` (${mismatch.serverYear})`}`,
@@ -228,8 +236,9 @@ export async function buildGetMetadataIssues(
             }
 
             scanned += 1;
-            const { rows: episodes } = await withLocks(adapter, listed, findMismatches);
-            const verdict = summariseSeries(episodes);
+            const { rows: episodes, mismatches } = await withLocks(adapter, listed, findMismatches);
+            if (mismatches.length === 0) continue;
+            const verdict = summariseSeries(episodes, await sonarrFolders());
             if (verdict === undefined) continue;
 
             const examples = findMismatches(episodes)
@@ -251,7 +260,10 @@ export async function buildGetMetadataIssues(
                 languages: verdict.languages,
                 specials: verdict.specials,
                 remedy: verdict.remedy,
-                fix: fixFor(verdict.remedy, adapter, repairAllowed) + advisoryNote(verdict),
+                fix:
+                    verdict.mergedFrom === undefined
+                        ? fixFor(verdict.remedy, adapter, repairAllowed) + advisoryNote(verdict)
+                        : `Look before acting: ${mergedHow(adapter, verdict.mergedFrom)}`,
                 // Re-fenced after the basename split, for the reason
                 // fixMetadata's own formatter documents: the closing marker
                 // contains a slash, so splitting a fenced path on separators
@@ -285,7 +297,8 @@ export async function buildGetMetadataIssues(
 export function registerGetMetadataIssues(
     server: McpServer,
     servers: MediaServers,
-    permissions?: PermissionSource
+    permissions?: PermissionSource,
+    library?: LibraryLoader
 ): void {
     server.registerTool(
         'get_metadata_issues',
@@ -301,7 +314,7 @@ export function registerGetMetadataIssues(
         },
         async ({ detail, limit, offset, service }) => {
             const chosen = pickMediaServer(servers, service);
-            const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, ...(permissions === undefined ? {} : { permissions }) });
+            const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, ...(permissions === undefined ? {} : { permissions }), ...(library === undefined ? {} : { library }) });
 
             const rename = result.items.filter(i => i.remedy === 'rename_files').length;
             const look = result.items.filter(i => i.remedy === 'inspect').length;

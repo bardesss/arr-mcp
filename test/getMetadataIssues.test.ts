@@ -9,6 +9,7 @@ import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { instancesOf } from './helpers/instances.ts';
 import { buildGetMetadataIssues, registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import type { LibraryLoader } from '../src/tools/library.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { serving } from './helpers/serve.ts';
 
@@ -160,6 +161,59 @@ describe('get_metadata_issues', () => {
     it('fences the examples, which are server-supplied paths and titles', async () => {
         const result = await sweep(adapterWith({ DTF: [unmatched(4)] }));
         expect(result.items[0]?.examples?.[0]).toContain('<<untrusted:');
+    });
+
+    /** #312: Plex merged two Sonarr series' folders into one item. */
+    describe('one item holding two Sonarr series', () => {
+        const at = (folder: string, e: EpisodeRecord): EpisodeRecord => ({ ...e, path: (e.path ?? '').replace('/tv/Some Show/', `/volume1/tv/${folder}/`) });
+        const merged = { Merged: [at('Some Show', healthy(1)), at('Some Show (2026)', unmatched(2))] };
+        const sonarr = (paths: string[]) =>
+            ({
+                load: async () => ({
+                    index: {
+                        all: () =>
+                            paths.map((path, n) => ({
+                                kind: 'series',
+                                title: path.split('/').at(-1),
+                                ids: { tvdb: 1000 + n },
+                                acquisition: { service: 'sonarr', id: String(n + 1), monitored: true, hasFile: true, path },
+                                presence: 'both'
+                            }))
+                    },
+                    degraded: []
+                })
+            }) as unknown as LibraryLoader;
+        const plex = () => ({ ...adapterWith(merged), id: 'plex', type: 'plex' }) as unknown as ServiceAdapter;
+
+        it('sends it to inspect and says to Split it in Plex', async () => {
+            const result = await buildGetMetadataIssues([plex()], identity, {
+                detail: 'full',
+                limit: 50,
+                offset: 0,
+                library: sonarr(['/tv/Some Show', '/tv/Some Show (2026)'])
+            });
+            expect(result.items[0]?.remedy).toBe('inspect');
+            expect(result.items[0]?.fix).toContain('2 Sonarr series (Some Show, Some Show (2026))');
+            expect(result.items[0]?.fix).toContain('Split');
+            expect(result.items[0]?.fix).not.toContain('allow_metadata_repair');
+        });
+
+        it('keeps refresh_metadata with no Sonarr', async () => {
+            for (const library of [undefined, sonarr([])]) {
+                const result = await buildGetMetadataIssues([plex()], identity, {
+                    detail: 'full',
+                    limit: 50,
+                    offset: 0,
+                    ...(library === undefined ? {} : { library })
+                });
+                expect(result.items[0]?.remedy).toBe('refresh_metadata');
+            }
+        });
+
+        it('keeps refresh_metadata when one Sonarr series holds every folder', async () => {
+            const result = await buildGetMetadataIssues([plex()], identity, { detail: 'full', limit: 50, offset: 0, library: sonarr(['/tv/Some Show']) });
+            expect(result.items[0]?.remedy).toBe('refresh_metadata');
+        });
     });
 
     /** No media server is a configuration, not a failure — `degraded` is for
@@ -451,7 +505,38 @@ describe('advisory findings', () => {
             )
         ).items;
         expect(issue).toMatchObject({ shifted: 3, remedy: 'inspect' });
-        expect(issue?.fix).toContain('3 carry the title the server gives the episode next to them');
+        expect(issue?.fix).toContain('3 carry the title the server gives another episode in the same season');
+    });
+});
+
+/** #312 on 1.44.0: five Plex films flagged on year, none of which a repair moved. */
+describe('films a Plex repair cannot move', () => {
+    const plex = (movies: MovieRecord[]): ServiceAdapter => ({ ...(adapterWith({}, [], movies) as object), id: 'plex', type: 'plex' }) as unknown as ServiceAdapter;
+    const matched: MovieRecord = {
+        id: 'p1',
+        name: 'Fixture Musical',
+        year: 1993,
+        path: '/movies/Fixture Musical (1996)/Fixture Musical (1996).mkv',
+        providerIds: { Tmdb: '9001' }
+    };
+
+    it('sends a matched Plex film whose year alone disagrees to inspect', async () => {
+        const [row] = (await sweep(plex([matched]))).items;
+        expect(row).toMatchObject({ kind: 'movie', remedy: 'inspect' });
+        expect(row?.fix).toContain('year');
+        expect(row?.fix).not.toContain('wording only');
+    });
+
+    it('still re-identifies an unmatched Plex film', async () => {
+        const { providerIds: _p, ...unmatched } = matched;
+        const [row] = (await sweep(plex([unmatched]))).items;
+        expect(row).toMatchObject({ remedy: 'refresh_metadata' });
+    });
+
+    // Jellyfin refreshes a film from TMDB, so a stale year there can move.
+    it('leaves the same film on Jellyfin to a refresh', async () => {
+        const [row] = (await sweep(adapterWith({}, [], [matched]))).items;
+        expect(row).toMatchObject({ remedy: 'refresh_metadata' });
     });
 });
 
@@ -464,7 +549,7 @@ describe('language findings', () => {
             episode: n,
             path: `/tv/Show/Season 01/Show - S01E0${n} - ${file}.mkv`
         });
-        const [issue] = (await sweep(adapterWith({ Espookys: [at(1, 'The Sea Monster', 'El monstruo marino')] }))).items;
+        const [issue] = (await sweep(adapterWith({ Espookys: [at(1, 'The Monster of the Sea', 'El monstruo del mar')] }))).items;
         expect(issue).toMatchObject({ languages: 1, remedy: 'inspect' });
         expect(issue?.fix).toContain('1 have the filename and the server title in different languages');
     });

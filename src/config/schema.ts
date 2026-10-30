@@ -5,11 +5,13 @@ export const ServiceIdSchema = z.enum([
     'radarr',
     'sonarr',
     'whisparr',
+    'lidarr',
     'prowlarr',
     'bazarr',
     'jellyfin',
     'seerr',
     'sabnzbd',
+    'nzbget',
     'transmission',
     'qbittorrent',
     'plex',
@@ -67,6 +69,7 @@ export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
  */
 export const MULTI_INSTANCE: readonly ServiceId[] = [
     'bazarr',
+    'nzbget',
     'prowlarr',
     'qbittorrent',
     'radarr',
@@ -163,18 +166,18 @@ const MultiUserServiceSchema = z.strictObject({
 });
 export type MultiUserServiceConfig = z.infer<typeof MultiUserServiceSchema>;
 
-/** Plex alone gets the repair switch: its repair is unverified against a live server (#203). */
+/** Plex alone gets the repair switch; Jellyfin repairs without one. */
 const PlexServiceSchema = z.strictObject({
     ...MultiUserServiceSchema.shape,
-    allow_metadata_repair: z.boolean().default(false)
+    allow_metadata_repair: z.boolean().default(true)
 });
 export type PlexServiceConfig = z.infer<typeof PlexServiceSchema>;
 
 /**
- * The two torrent clients, neither of which has an API key: Transmission takes
- * HTTP Basic, qBittorrent a login that returns a cookie. Both credential parts
- * are optional because a LAN Transmission is commonly unauthenticated and
- * qBittorrent can bypass auth for localhost.
+ * The services without an API key: Transmission and NZBGet take HTTP Basic,
+ * qBittorrent a login that returns a cookie. Both credential parts are optional
+ * because a LAN Transmission is commonly unauthenticated and qBittorrent can
+ * bypass auth for localhost.
  */
 const CredentialServiceSchema = z.strictObject({
     ...BaseServiceShape,
@@ -234,9 +237,11 @@ export type ConfigByService = {
     radarr: For<'radarr', Instanced<KeyedServiceConfig>>;
     sonarr: For<'sonarr', Instanced<KeyedServiceConfig>>;
     whisparr: For<'whisparr', Instanced<KeyedServiceConfig>>;
+    lidarr: For<'lidarr', Instanced<KeyedServiceConfig>>;
     bazarr: For<'bazarr', Instanced<KeyedServiceConfig>>;
     prowlarr: For<'prowlarr', Instanced<KeyedServiceConfig>>;
     sabnzbd: For<'sabnzbd', Instanced<KeyedServiceConfig>>;
+    nzbget: For<'nzbget', Instanced<CredentialServiceConfig>>;
     jellyfin: For<'jellyfin', MultiUserServiceConfig>;
     seerr: For<'seerr', MultiUserServiceConfig>;
     plex: For<'plex', PlexServiceConfig>;
@@ -277,9 +282,14 @@ const ServicesSchema = z
         // Single only: V2 and Eros are separate service ids, so the one
         // deployment that would want two Whisparrs is already two keys.
         whisparr: singleOnly(KeyedServiceSchema).optional(),
+        // Single only: a second Radarr is a quality tier, and music libraries
+        // are rarely split that way. Refusing it fails closed rather than
+        // letting a second instance merge silently into every read.
+        lidarr: singleOnly(KeyedServiceSchema).optional(),
         bazarr: MultiInstanceServiceSchema.optional(),
         prowlarr: MultiInstanceServiceSchema.optional(),
         sabnzbd: MultiInstanceServiceSchema.optional(),
+        nzbget: MultiInstanceCredentialSchema.optional(),
         jellyfin: singleOnly(MultiUserServiceSchema).optional(),
         seerr: singleOnly(MultiUserServiceSchema).optional(),
         transmission: MultiInstanceCredentialSchema.optional(),

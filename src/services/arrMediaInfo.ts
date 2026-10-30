@@ -55,7 +55,7 @@ export async function audioLanguagesByFileId(
     const found = new Map<number, string>();
 
     try {
-        const files = await http.get<RawFile[]>(`/api/v3/episodefile?seriesId=${encodeURIComponent(seriesId)}`);
+        const files = await http.get<RawFile[]>(`${http.apiRoot}/episodefile?seriesId=${encodeURIComponent(seriesId)}`);
         if (!Array.isArray(files)) return found;
 
         for (const file of files) {

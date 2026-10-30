@@ -8,12 +8,12 @@ off until you turn them on — see [writes](writes.md).
 | `diagnose` | Why is this not playable? |
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
 | `search_media` | What do I have, what exists, what can I get? |
-| `get_media_details` | Everything about one item |
+| `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files |
-| `get_library` | What's in my library — joined across Radarr, Sonarr and Jellyfin, and where the three disagree |
+| `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
-| `get_queue` | What is downloading, across all four download paths |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd and Bazarr did |
+| `get_queue` | What is downloading, across the *arr queues and every download client |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet and Bazarr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included |
 | `get_calendar` | What is due, and what just aired |
@@ -26,7 +26,7 @@ off until you turn them on — see [writes](writes.md).
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
 | `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, or put a mislabeled Sonarr file on the right episode |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
-| `set_monitoring` | Turn Sonarr or Whisparr monitoring on or off — a whole series, one season, or specific episodes |
+| `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `clean_queue` | Clear out completed downloads whose film or series no longer exists |
 | `delete_media` | Remove this film or series, optionally from disk |
@@ -126,7 +126,7 @@ revision every list result carries a `ttlMs`, and `tools/list`,
 are static by construction: every tool, prompt and resource is registered
 unconditionally, so nothing a configuration edit does can change what is in
 them. A client that honours the hint stops reloading the whole surface every
-session. The three resources are different — each carries its own hint, and
+session. The four resources are different, each carries its own hint, and
 `arr://health`'s is deliberately zero, because a pinned health snapshot
 saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
@@ -292,6 +292,12 @@ and, under `playback`, `itemId` — the media server's own id, which is what
 `media_servers.jellyfin.itemId` instead, as
 [below](#which-media-server-has-it).
 
+**An artist's `acquisition.id` is Lidarr's artist id**, which `set_monitoring`
+takes with `level: "artist"`. An album id is not on a library row at all: take it
+from `get_media_details` on the artist, and pass it with `level: "album"`. Lidarr
+cannot search releases here, so neither id works with `get_releases` or
+`grab_release`.
+
 Before this, a caller had the external ids and nothing a write would accept,
 so answering "delete this" meant a second `search_media(source: "library")` hop
 to find the id for a title `get_library` had just returned.
@@ -321,6 +327,46 @@ asking for a series' IMDb rating with the dataset off finds nothing.
 Asking for a combination that cannot exist returns a refusal explaining why, not
 an empty list. Asking for one that needs the dataset says so in
 `ratingCoverage.note` rather than reporting a bare zero.
+
+### Music, from Lidarr
+
+Lidarr adds a third `kind`, `artist`, and it joins to a media server on the
+MusicBrainz artist id — the one id both Jellyfin and Plex publish for an artist.
+
+| Field | Meaning for an artist |
+| --- | --- |
+| `title` | The artist name, fenced like every other service string |
+| `ids.mbid` | The artist's MusicBrainz id: Lidarr's `foreignArtistId`, Jellyfin's `ProviderIds.MusicBrainzArtist`, Plex's `mbid://` guid. Matched case-insensitively |
+| `albumCount` | How many albums Lidarr holds for the artist. The albums themselves are in `get_media_details` |
+| `acquisition.id` | Lidarr's artist id, which `set_monitoring` takes with `level: "artist"` |
+| `acquisition.status` | Lidarr's own artist status — `continuing` or `ended` — passed through |
+| `acquisition.addedAt` | When Lidarr added the artist, so `sort: "added"` works |
+| `acquisition.hasFile` | At least one track of any album is on disk, the same meaning `has_file` has for a series |
+| `acquisition.path` | The artist's folder |
+| `presence` | `both`, `arr_only`, `jellyfin_only` or `unknown`, read exactly as for a film. A media server whose music read did not run reports `unknown`, never `arr_only` |
+
+An artist carries **no** rating and no item-level quality, so `min_rating`,
+`rating_source`, `sort: "rating"` and `quality` are refused when `kind:
+"artist"` names the question. Without a kind they drop artists, which is what an
+absent field means everywhere else here. `watched` and `watched_by` drop
+artists the same way, because no music watch state is read: left in, an artist
+counts as unwatched and `watched: false` answers with the whole music
+collection. With `kind: "artist"` named, they are refused instead. `sort:
+"added"` works, because Lidarr reports an added date for an artist.
+
+The media server's music read runs only when a Lidarr is configured. With no
+Lidarr there is no artist row to join to, so the read would only add every
+artist the server holds as `jellyfin_only`.
+
+**Album ids are one call down.** `get_media_details` on an artist returns its
+`albums`, each with the Lidarr album `id` that `set_monitoring` takes with `level:
+"album"`. Nothing in `get_library` returns an album id, because the library does
+not row on albums.
+
+`search_media` with `source: "library"` finds an artist by **name** — "do I have
+any Daft Punk" is a library question, and the artist row answers it.
+`source: "discover"` returns nothing from Lidarr: its lookup endpoints answer
+with artists to add, and nothing here adds music.
 
 ### Sorting
 
@@ -522,7 +568,7 @@ returns for it would help.
 
 `set_watched`, below, remains Jellyfin-only, whichever server is primary. The
 Plex adapter writes with `trigger_scan` and `fix_metadata`, and `fix_metadata`
-is off by default there, see [Repairing on Plex](#repairing-on-plex).
+has its own switch there, see [Repairing on Plex](#repairing-on-plex).
 
 ### When no media server is configured
 
@@ -542,6 +588,13 @@ join rather than a finding about the library.
 Each Radarr or Sonarr row carries `downloadId`, the download client's own id
 for that grab. It is what `trigger_scan`'s `import` action takes, and it is the
 link between "this is stuck at `importBlocked`" and doing something about it.
+
+NZBGet rows come from its own queue (`listgroups`). Sizes arrive in megabytes
+and are converted to bytes. The ETA is worked out from the current download
+rate and everything ahead in the queue, and a paused item gets none. A row's
+`downloadId` is the `drone` post-processing parameter Radarr and Sonarr attach
+to their grabs, so it matches the *arr row for the same download; a grab
+added by hand falls back to NZBGet's own `NZBID`.
 
 A blocked row also carries `statusMessages`, the service's own reasons, one per
 line and fenced. A file the service rejected leads with its filename. They
@@ -595,9 +648,9 @@ has not been run against a live instance; `private` needs 5.0 or later.
 imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
-through it. `get_history` merges Radarr's and Sonarr's own history logs with SABnzbd's and
-Bazarr's, and is the only tool that can answer "why did last night's download
-fail".
+through it. `get_history` merges Radarr's and Sonarr's own history logs with SABnzbd's,
+NZBGet's and Bazarr's, and is the only tool that can answer "why did last
+night's download fail".
 
 Both services' events are normalised to one vocabulary — `grabbed`,
 `imported`, `failed`, `deleted`, `renamed`, `ignored` — because they mostly
@@ -626,7 +679,7 @@ case-insensitively. Passing `id` with
 `service: cleanuparr` is refused, because Cleanuparr does not keep history per
 movie or series.
 
-### The two services below the *arrs
+### The services below the *arrs
 
 **SABnzbd** contributes its own history: what happened to a download after it
 left the queue, one layer below the *arr that asked for it. When Radarr says it
@@ -635,13 +688,20 @@ the answer, and it is here. Its rows map onto the same vocabulary — `Completed
 becomes `imported`, `Failed` becomes `failed` — and carry the `fail_message`
 as `reason`.
 
+**NZBGet** contributes its history in the same role. Its `Status` is
+`<KIND>/<DETAIL>`: `SUCCESS/*` becomes `imported`, `FAILURE/*` becomes
+`failed` and `DELETED/*` becomes `deleted`. NZBGet keeps no failure message,
+only a status code per post-processing stage, so `reason` is the status plus
+the stages that did not succeed, for example
+`FAILURE/PAR (ParStatus FAILURE)`.
+
 **Bazarr** contributes `subtitle` rows: what it actually downloaded, and from
 which provider (in `quality`, as `language · provider`). It is its own event
 type on purpose — a downloaded subtitle is not an `imported` grab, and calling
 it one would put it in the answer to "what did Radarr import last night".
 
-Both refuse a `service` + `id` scope rather than answering an empty list:
-neither knows what a Radarr movie id or a Sonarr series id means, and an empty
+All three refuse a `service` + `id` scope rather than answering an empty list:
+none of them knows what a Radarr movie id or a Sonarr series id means, and an empty
 answer would read as "nothing ever happened to that film". Bazarr's rows are
 also dropped rather than dated when its timestamp cannot be read — it has
 shipped two different shapes and neither is ISO 8601, and this list is sorted
@@ -977,25 +1037,48 @@ before comparing. A rerun moved three more: a multi-episode file
 (`S04E10-E11`) matches every episode in its range, specials whose file and
 server both say season 0 are never a numbering finding, and an episode whose
 title belongs to the episode next to it is marked as shifted (Cowboy Bebop,
-TNG and 20 more series on that library).
+TNG and 20 more series on that library). The rerun on 1.44.0 widened that to
+any episode in the same season, for shifts of two or more and reordered
+seasons (Goof Troop, Tales from the Crypt). A file that names two segments,
+`Bats in the Basement (Mario and the Beanstalk)`, is checked on both halves.
 
 An episode whose filename and server title are in different languages is
-marked too (Los Espookys: `El monstruo marino` shown as "The Sea Monster").
-The language is guessed from function words such as `el`, `the`, `der` or
-`het`, for English, Spanish, French, German, Italian, Portuguese and Dutch. A
-title gets a language only when one clearly wins, so short titles and ties make
-no claim at all.
+marked too (`El monstruo del mar` shown as "The Monster of the Sea"). The
+language is guessed from function words such as `el`, `the`, `der` or `het`,
+for English, Spanish, French, German, Italian, Portuguese and Dutch. A title
+gets a language only when at least two of its function words point at one
+language, one of them a word no other language on the list uses, and it
+clearly wins. "Wrath as a Lightning" is not Portuguese: `as` and `a` are
+English too. A title too short to place on its own takes the series' language
+when it has a function word of that language, so a Spanish series of
+two-word titles still reads as Spanish. A title with no function words at all
+takes it only when the other side is clearly another language by its own
+words ("One Man's Many Faces" against "Las Muchas Caras de Un Hombre").
 
 Shifted episodes, specials and language differences are real disagreements that
 a rematch does not fix, so they are counted in `shifted`, `specials` and
 `languages`, and never on their own push a series to `refresh_metadata`. A
 rematch was measured not to move a shifted series. Placeholder titles in the
 server are the other finding a repair cannot fix.
+
+A Plex film matched to a provider id whose year alone disagrees with its file
+gets `inspect`, not `refresh_metadata`. The repair re-matches the id Plex
+already holds and the Plex Movie agent keeps Plex's own year, so on the #312
+library none of those years moved. On Jellyfin the same film still gets
+`refresh_metadata`, because Jellyfin refreshes a film's year from TMDB.
 Plex episodes are never treated as pinned: their provider ids follow from the
 show's match rather than identifying the episode on its own, so a title-only
 finding on Plex comes back as `refresh_metadata`. If the sweep flags something
 on a Plex library that is actually fine, please open an issue with the filename
 and the title Plex shows.
+
+A series item whose files sit in the folders of more than one Sonarr series
+gets `inspect` too, whatever its mismatches say. That is separate shows merged
+into one item (two folders, two TVDB ids), and a repair would re-identify it
+against the id it already holds. The row says to use Split on the item in Plex,
+and `fix_metadata` previews the same without offering a token. Folders are
+matched by name and parent folders, so Sonarr and the media server can mount
+the disk at different roots. With no Sonarr configured nothing changes.
 
 With two media servers it sweeps the primary; `service` picks the other.
 
@@ -1202,10 +1285,10 @@ read fails, the result is `NOT VERIFIED` and says so, rather than an error.
 
 ### Repairing on Plex
 
-Plex repair is **off by default**, because nobody has run it against a live
-Plex server yet. Turn it on with `services.plex.allow_metadata_repair: true`
-(the experimental checkbox on the Plex card in the config UI), plus
-`permissions.destructive: true` as for any destructive write. The two are
+Plex repair is on by default, behind `permissions.destructive: true` as for any
+destructive write. Film and series repairs have both been checked against a live
+Plex server. Switch it off with `services.plex.allow_metadata_repair: false` (the
+checkbox on the Plex card in the config UI). The two are
 separate switches: `stack_health` and `arr://instances` report
 `permissions.destructive` as `config.yaml` and your token allow, and know nothing of
 `allow_metadata_repair`, which `fix_metadata` checks on top of it. While it is
@@ -1264,8 +1347,10 @@ the configuration mistakes that make a profile unable to do what it looks
 like it does. Read-only, and deliberately so: Profilarr owns quality profiles
 and custom formats, re-syncing them from its own git source, so a direct
 write here would be reverted on the next sync or reported back as drift.
-Every `remedy` names a change to make **in Profilarr**, never one this tool
-performs.
+Every `remedy` is a change to make **in Profilarr** when it syncs the profile,
+or in the arr itself when it does not, never one this tool performs.
+Profilarr's API says how many profiles it syncs to each arr but not which, so
+the remedy names both places.
 
 Six finding kinds, each carrying a `confidence`:
 
@@ -1274,7 +1359,7 @@ Six finding kinds, each carrying a `confidence`:
 | `unreachable_floor` | certain | The profile's minimum custom format score is higher than every positive score in it adds up to. Nothing can satisfy it. |
 | `knife_edge_floor` | certain | The minimum is exactly that total. Every positive format must match, and one negative match rejects the release. |
 | `subset_format_scored` | certain | A scored format matches a strict subset of the languages an unscored one does — the wider format would have scored and does not. |
-| `language_preferred_not_required` | likely | A language format is scored but the profile has no minimum, so a release in any language still passes. |
+| `language_preferred_not_required` | likely | A language format is scored, but the other formats reach the minimum without it (or there is no minimum), so a release in any language still passes. |
 | `dialect_sibling_missing` | likely | A required format covers one half of a dialect pair (Dutch/Flemish, Portuguese/Brazilian, Spanish/Latino) but not the other, rejecting that half outright. |
 | `profilarr_drift` | certain | Profilarr's saved profiles have drifted from what this Radarr/Sonarr instance currently holds. |
 
@@ -1317,7 +1402,7 @@ says plainly that nothing was pulled rather than reporting a completed sync.
 ## `pause_downloads`
 
 The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
-download client — SABnzbd, Transmission or qBittorrent — or one item in its
+download client — SABnzbd, NZBGet, Transmission or qBittorrent — or one item in its
 queue when `id` is given.
 
 `action: "limit"` throttles instead of stopping: `speed_limit_kbps` is the cap
@@ -1326,7 +1411,8 @@ in KB/s, and `0` removes it. Always client-wide, never per item.
 Each client speaks a different unit, and the wrong one throttles a stack to
 nothing — SABnzbd reads a bare number as a *percentage* of the configured line
 speed, qBittorrent wants bytes per second, Transmission wants KB/s behind an
-enable flag it keeps separately. The tool boundary is KB/s and each adapter
+enable flag it keeps separately, and NZBGet's `rate` takes KB/s while its
+`status` reports the limit in bytes per second. The tool boundary is KB/s and each adapter
 converts at its own edge. Clearing on Transmission zeroes the number as well as
 the flag, so a stale cap cannot come back the next time anything enables it.
 
@@ -1345,7 +1431,7 @@ enabling `safe_write` on SABnzbd quietly enabled it on Transmission too.
 Pausing everything is one call per client.
 
 Already-paused is a no-op, with no token and no confirmation prompt. Only
-SABnzbd publishes a client-wide paused flag; for the two torrent clients
+SABnzbd and NZBGet publish a client-wide paused flag; for the two torrent clients
 "paused" means every torrent is stopped, and a client holding no torrents at
 all reads as *not* paused — nothing to pause is a different state from
 everything paused, and treating them alike would refuse a legitimate call.
@@ -1591,7 +1677,8 @@ is set to — `quality_profile`, `root_folder`, `monitored`, `tags`, Radarr's
 `minimum_availability`, Sonarr's `series_type`.
 
 It is also **the only way to change a Radarr item's monitoring**.
-`set_monitoring` is Sonarr's per-season tool and has never covered films.
+`set_monitoring` is Sonarr's per-season tool and has never covered films. It
+refuses Lidarr too, where monitoring is set through `set_monitoring` itself.
 
 Takes `service` and `id`, never a title — `acquisition.id` on a `get_library`
 or `get_media_details` record. `stack_health` at `detail: "full"` lists the
@@ -1627,13 +1714,14 @@ people actually ask are rarely one call.
 | `best_in_library` | What's the best thing I own? |
 | `whats_new` | What happened this week? |
 
-**Three resources**, which a client can attach once rather than re-fetch:
+**Four resources**, which a client can attach once rather than re-fetch:
 
 | Resource | Holds |
 | --- | --- |
 | `arr://instances` | Every instance id and what it may do — the values other tools accept as `instance` |
 | `arr://health` | A stack verdict, stamped with when it was taken |
 | `arr://library/summary` | Total, on disk, still wanted |
+| `arr://lidarr/monitoring` | Every Lidarr artist's monitoring policy: who will keep discovering albums, and who carries the artist flag |
 
 **Client support for both is uneven, so nothing is reachable only through
 them.** A prompt is a sequence of tool calls the model could have made anyway,

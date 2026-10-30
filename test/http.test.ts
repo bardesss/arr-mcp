@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import type { BaseServiceConfig } from '../src/config/schema.ts';
 import { apiKeyHeader, embyToken, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
+import { readQualityProfiles } from '../src/services/arrAdd.ts';
 
 const config: BaseServiceConfig = {
     url: 'http://192.168.1.20:7878',
@@ -61,6 +62,95 @@ describe('ServiceHttp request shaping', () => {
             return json({ result: 'success' });
         });
         await client.post('/transmission/rpc', { method: 'session-get' });
+    });
+
+    it('leaves the connection header to the runtime by default', async () => {
+        const client = http(async (_input: string, init?: RequestInit) => {
+            expect(new Headers(init?.headers).get('Connection')).toBeNull();
+            return json({});
+        });
+        await client.get('/api/v3/system/status');
+    });
+
+    it('asks for Connection: close on every request when told to, after a failure too', async () => {
+        const seen: (string | null)[] = [];
+        let calls = 0;
+        const client = new ServiceHttp(
+            'nzbget',
+            config,
+            apiKeyHeader('X-Api-Key', 'secret'),
+            (async (_input: string, init?: RequestInit) => {
+                seen.push(new Headers(init?.headers).get('Connection'));
+                return ++calls === 1 ? new Response('', { status: 401 }) : json({});
+            }) as unknown as typeof fetch,
+            { closeConnection: true }
+        );
+        await expect(client.post('/jsonrpc', {})).rejects.toMatchObject({ kind: 'AuthFailed' });
+        await client.get('/jsonrpc');
+        expect(seen).toEqual(['close', 'close']);
+    });
+});
+
+/**
+ * The API version segment the shared `arr*.ts` helpers build their paths under.
+ * Radarr, Sonarr and Whisparr answer `/api/v3`; Lidarr answers `/api/v1`. The
+ * default is what keeps every existing adapter on the path it used before the
+ * parameter existed.
+ */
+describe('ServiceHttp api root', () => {
+    it('defaults to /api/v3, which is what the existing adapters rely on', () => {
+        expect(http(() => json({})).apiRoot).toBe('/api/v3');
+    });
+
+    it('exposes a root given at construction', () => {
+        const client = new ServiceHttp(
+            'lidarr',
+            config,
+            apiKeyHeader('X-Api-Key', 'k'),
+            (async () => json({})) as typeof fetch,
+            { apiRoot: '/api/v1' }
+        );
+        expect(client.apiRoot).toBe('/api/v1');
+    });
+
+    it('is what a shared helper puts in front of the resource path', async () => {
+        const seen: string[] = [];
+        const fetchImpl = async (input: string) => {
+            seen.push(String(input));
+            return json([]);
+        };
+        const v3 = new ServiceHttp('sonarr', config, apiKeyHeader('X-Api-Key', 'k'), fetchImpl as typeof fetch);
+        const v1 = new ServiceHttp(
+            'lidarr',
+            config,
+            apiKeyHeader('X-Api-Key', 'k'),
+            fetchImpl as typeof fetch,
+            { apiRoot: '/api/v1' }
+        );
+
+        await readQualityProfiles(v3, 'sonarr');
+        await readQualityProfiles(v1, 'lidarr');
+
+        expect(seen).toEqual([
+            'http://192.168.1.20:7878/api/v3/qualityprofile',
+            'http://192.168.1.20:7878/api/v1/qualityprofile'
+        ]);
+    });
+
+    it('does not change the path a caller passes in full', async () => {
+        const seen: string[] = [];
+        const client = new ServiceHttp(
+            'lidarr',
+            config,
+            apiKeyHeader('X-Api-Key', 'k'),
+            (async (input: string) => {
+                seen.push(String(input));
+                return json({});
+            }) as typeof fetch,
+            { apiRoot: '/api/v1' }
+        );
+        await client.get('/api/v1/system/status');
+        expect(seen[0]).toBe('http://192.168.1.20:7878/api/v1/system/status');
     });
 });
 

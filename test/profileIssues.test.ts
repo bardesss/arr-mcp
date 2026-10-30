@@ -97,6 +97,40 @@ describe('likely rules', () => {
         expect(found[0]?.confidence).toBe('likely');
     });
 
+    it('flags a language the other formats can reach the minimum without', () => {
+        const found = languagePreferenceFindings(
+            profile({
+                name: '1080p Balanced',
+                minFormatScore: 200000,
+                formatItems: [{ name: 'English Audio', score: 10000 }, { name: 'WEB Tier 01', score: 5000000 }]
+            }),
+            [lang('English Audio', [1])]
+        );
+        expect(found.map(f => f.kind)).toEqual(['language_preferred_not_required']);
+        expect(found[0]?.detail).toContain('200000');
+    });
+
+    it('is quiet when the language format is needed to reach the minimum', () => {
+        expect(languagePreferenceFindings(
+            profile({
+                minFormatScore: 200000,
+                formatItems: [{ name: 'English Audio', score: 200000 }, { name: 'WEB Tier 01', score: 50000 }]
+            }),
+            [lang('English Audio', [1])]
+        )).toEqual([]);
+    });
+
+    it('is quiet when the language formats are only needed together', () => {
+        // Either alone can go, but not both: a release must match at least one of them.
+        expect(languagePreferenceFindings(
+            profile({
+                minFormatScore: 100,
+                formatItems: [{ name: 'English', score: 100 }, { name: 'Dutch', score: 100 }, { name: 'WEB', score: 50 }]
+            }),
+            [lang('English', [1]), lang('Dutch', [7])]
+        )).toEqual([]);
+    });
+
     it('is quiet on a TRaSH-style preference profile with no language format', () => {
         expect(languagePreferenceFindings(
             profile({ name: 'WEB-2160p', minFormatScore: 0, formatItems: [{ name: 'Bluray Tier 01', score: 1000 }] }),
@@ -183,6 +217,26 @@ describe('instance join', () => {
             instances
         );
         expect(found?.id).toBe('sonarr/4k');
+    });
+});
+
+describe('remedy', () => {
+    const sonarr = {
+        id: 'sonarr',
+        type: 'sonarr',
+        testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 1 }),
+        getVersion: async () => '4.0.0',
+        readProfileDiagnostics: async () => ({
+            profiles: [{ name: 'Any', minFormatScore: 0, formatItems: [{ name: 'English Audio', score: 10000 }] }],
+            formats: [lang('English Audio', [1])],
+            languages: []
+        })
+    } as const;
+
+    it('names the arr alongside Profilarr, since Profilarr may not sync the profile', async () => {
+        const result = await buildGetProfileIssues([sonarr as never], { detail: 'full', limit: 10 }, []);
+        const remedy = result.items.find(i => i.kind === 'language_preferred_not_required')?.remedy;
+        expect(remedy).toMatch(/^In Profilarr if it syncs this profile, otherwise in Sonarr, /);
     });
 });
 

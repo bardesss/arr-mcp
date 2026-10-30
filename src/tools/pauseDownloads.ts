@@ -25,7 +25,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasPause(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot be paused`, {
-            remedy: 'Only the download clients pause: sabnzbd, transmission and qbittorrent. Radarr and Sonarr have no pause — they keep grabbing, and the grabs queue up in whichever client is configured.'
+            remedy: 'Only the download clients pause: sabnzbd, nzbget, transmission and qbittorrent. Radarr and Sonarr have no pause — they keep grabbing, and the grabs queue up in whichever client is configured.'
         });
     }
     return adapter;
@@ -37,7 +37,7 @@ const findLimitAdapter = (adapters: readonly ServiceAdapter[], service: ServiceI
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasSpeedLimit(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no download speed limit to set`, {
-            remedy: 'Only the download clients throttle: sabnzbd, transmission and qbittorrent.'
+            remedy: 'Only the download clients throttle: sabnzbd, nzbget, transmission and qbittorrent.'
         });
     }
     return adapter;
@@ -52,9 +52,9 @@ export function registerPauseDownloads(
         name: 'pause_downloads',
         title: 'Pause, resume or throttle a download client',
         description:
-            'Pauses, resumes or throttles one download client — SABnzbd, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews by default — call again with the returned `confirm` token to apply it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('sabnzbd, transmission or qbittorrent.'),
+            service: ServiceIdSchema.describe('sabnzbd, nzbget, transmission or qbittorrent.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z
                 .enum(['pause', 'resume', 'limit'])

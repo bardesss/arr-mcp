@@ -133,7 +133,7 @@ trigger_search { service: "radarr", id: "5" }
 > - May grab and start downloading a release, which will appear in get_queue.
 >
 > To apply this, call trigger_search again with the same arguments plus
-> `confirm` set to `v1.mjuohs00.TMzBfBIC42G0BspuPZX0rWd6n9rK_blflWv69_cuVXk`.
+> `confirm` set to `v2.Hq3xV9aB.mjuohs00.TMzBfBIC42G0BspuPZX0rWd6n9rK_blflWv69_cuVXk`.
 
 The token is in the text as well as in the `confirm_token` field of
 `structuredContent`, because not every client forwards the structured half to
@@ -143,8 +143,10 @@ handshake it can never complete.
 Tokens are single-use, expire after five minutes, and are cryptographically
 bound to the exact operation and arguments previewed — a token issued for one
 film cannot be replayed against another, and a token from a `delete_media`
-preview that left files on disk cannot be used to wipe them. Restarting arr-mcp
-invalidates any outstanding ones.
+preview that left files on disk cannot be used to wipe them. A token only works
+in the arr-mcp process that issued it, so restarting invalidates any outstanding
+ones, and a token taken to a second instance is refused as coming from another
+process.
 
 A destructive preview says what it costs in the units that matter:
 
@@ -218,6 +220,44 @@ with it, not just the one you asked for.
 Episode ids for both tools come from `get_media_details`, whose `episodes` also
 carry `episodeFileId` — the file each episode is on, when it has one — which is
 how `delete_episode_files` resolves a target without a second read.
+
+### Lidarr: the artist flag is not the album flag
+
+On Lidarr, `set_monitoring` takes `level`, because an album id and an artist id
+are different namespaces and Lidarr cannot tell them apart.
+
+`level: "album"` writes one album's own flag, and takes `id` from the `albums` of
+a `get_media_details` read on the artist. `level: "artist"` takes `artists` (one
+id, a list, or omit for every artist) or an artist row's `acquisition.id`, and
+writes the artist-level policy: `monitored`, `monitor_new_items`, or both.
+
+Three things the preview says, because each one was found rather than assumed:
+
+- **The artist flag is not the album flag.** A live library had an artist
+  reading `monitored: false` with an album under it still `monitored: true`,
+  and the write side agrees. On 2.1.3.3927 an artist was set to
+  `monitored: false`, to `true`, to `monitorNewItems: "none"`, and to both, and
+  in every case its two albums kept exactly the flags they had. The same four
+  writes on 3.1.6.5079, with `monitorNewItems: "all"` in place of `"none"`,
+  left an artist's four albums as they were. An album's own flag is what
+  decides whether that album is searched for, and `level: "album"` is how it
+  is set.
+- **`monitor_new_items` decides the future.** It is `all`, `new` or `none`, and
+  `none` is the only value under which the wanted list cannot grow by itself.
+  An artist added later carries Lidarr's own default, which this tool does not
+  read or set.
+- **The write names the artists the preview showed.** The confirmation token is
+  signed over the resolved id list, so an artist added between the preview and
+  the confirmation changes the signature and the old token is refused. The
+  alternative was a write that reached an artist nobody was shown.
+
+`arr://lidarr/monitoring` reports the same distribution without a write.
+
+At the artist level the adapter writes the bulk editor endpoint only. The
+single-artist `PUT /api/v1/artist/{id}` queues a `MoveArtist` job on every call,
+even with `moveFiles=false` and an unchanged path, which is a library move
+nobody asked for. The editor endpoint queued none in three runs against
+2.1.3.3927, and the album monitor endpoint queued none either.
 
 ## The audit trail
 

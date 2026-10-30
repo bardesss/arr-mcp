@@ -7,7 +7,15 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
-import { addArrMedia, lookupArrForAdd, readQualityProfiles, readRootFolders, readTags, SONARR_ADD } from './arrAdd.ts';
+import {
+    addArrMedia,
+    lookupArrForAdd,
+    readProfileNames,
+    readQualityProfiles,
+    readRootFolders,
+    readTags,
+    SONARR_ADD
+} from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
@@ -380,7 +388,7 @@ export class SonarrAdapter
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(range));
+        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(this.#http.apiRoot, range));
         return readSonarrCalendar(episodes, this.id);
     }
 
@@ -500,19 +508,6 @@ export class SonarrAdapter
         this.#libraryCache.clear();
     }
 
-    /** Profile id → fenced name, cached beside the library read. Empty on
-     *  failure — see Radarr's copy of this. */
-    async #profileNames(): Promise<Map<number, string>> {
-        try {
-            const profiles = await this.#libraryCache.get('profiles', LIBRARY_TTL_MS, () =>
-                readQualityProfiles(this.#http, this.id)
-            );
-            return new Map(profiles.map(p => [p.id, p.display]));
-        } catch {
-            return new Map();
-        }
-    }
-
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         const term = query.toLowerCase();
 
@@ -580,7 +575,7 @@ export class SonarrAdapter
     /** The whole series library in one call, via `#allSeries` — the same read
      *  `search(_, 'library')` shares. */
     async listLibrary(): Promise<IndexInput[]> {
-        const [series, profileNames] = await Promise.all([this.#allSeries(), this.#profileNames()]);
+        const [series, profileNames] = await Promise.all([this.#allSeries(), readProfileNames(this.#http, this.id, this.#libraryCache)]);
 
         return series.map(s => {
             const seasons = this.#seasonsOf(s);

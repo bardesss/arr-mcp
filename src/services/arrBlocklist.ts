@@ -29,7 +29,7 @@ export async function readArrBlocklist(
     service: string,
     kind: 'movie' | 'series'
 ): Promise<BlocklistEntry[]> {
-    const records = await pageArr<RawBlocklist>(http, '/api/v3/blocklist');
+    const records = await pageArr<RawBlocklist>(http, `${http.apiRoot}/blocklist`);
     const fence = (value: string, field: string) => fenceText(value, { service, field });
 
     return records
@@ -57,5 +57,5 @@ export async function readArrBlocklist(
  * `remove_queue_item`'s is.
  */
 export async function removeArrBlocklistItem(http: ServiceHttp, id: string): Promise<void> {
-    await http.delete(`/api/v3/blocklist/${encodeURIComponent(id)}`);
+    await http.delete(`${http.apiRoot}/blocklist/${encodeURIComponent(id)}`);
 }

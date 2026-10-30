@@ -57,7 +57,7 @@ export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].s
 const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'plex', 'seerr']);
 /** The media servers; when both are configured, one is primary. */
 const MEDIA_SERVERS: readonly ServiceId[] = ['jellyfin', 'plex'];
-const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent'];
+const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent', 'nzbget'];
 const NO_API_KEY: ReadonlySet<string> = new Set(NO_API_KEY_IDS);
 
 type AnyService = {
@@ -263,14 +263,10 @@ function instanceCard(
             ? html`${checkbox(
                   `${p}.allow_metadata_repair`,
                   'allow_metadata_repair',
-                  'allow_metadata_repair — let fix_metadata repair Plex metadata (experimental)',
-                  (service as { allow_metadata_repair?: boolean }).allow_metadata_repair ?? false
+                  'allow_metadata_repair — let fix_metadata repair Plex metadata',
+                  (service as { allow_metadata_repair?: boolean }).allow_metadata_repair ?? true
               )}
-              <p class="note">
-                  Experimental: this repair has not been run against a real Plex server yet, and needs destructive
-                  as well. Reports are welcome on
-                  <a href="https://github.com/bardesss/arr-mcp/issues/312">#312</a>.
-              </p>`
+              <p class="note">On by default. The repair also needs destructive.</p>`
             : raw('')}
 
         <div class="row" style="margin-top:1rem">

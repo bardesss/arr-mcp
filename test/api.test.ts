@@ -208,7 +208,7 @@ describe('GET /app multi-user fields', () => {
         expect(JSON.parse(text)).toMatchObject({
             defaultUser: 'alice',
             allowOtherUsers: false,
-            allowMetadataRepair: false,
+            allowMetadataRepair: true,
             apiKeySet: true
         });
     });

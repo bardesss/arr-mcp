@@ -10,9 +10,13 @@ import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
 
-const stub = (id: 'radarr' | 'sonarr', items: IndexInput[]): ServiceAdapter =>
+const stub = (id: 'radarr' | 'sonarr' | 'lidarr', items: IndexInput[]): ServiceAdapter =>
     ({
         id,
+        // Real adapters set `type` alongside `id`, and the music read is gated
+        // on a configured Lidarr, so a double without one is a double of
+        // nothing this code runs against.
+        type: id,
         testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
         getVersion: async () => '1.0.0',
         listLibrary: async () => items
@@ -32,7 +36,10 @@ const jellyfinStub = (): ServiceAdapter =>
         id: 'jellyfin',
         testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 }),
         getVersion: async () => '10.0.0',
-        listUserLibrary: async () => []
+        listUserLibrary: async () => [],
+        // A real media server answers both halves. The separate read is what
+        // `musicGathered` reports on, so a stub without it is a test of that.
+        listUserMusic: async () => []
     }) as unknown as ServiceAdapter;
 
 const healthyJellyfinIdentity = { resolve: async () => ({ id: 'u1', name: 'Someone' }) } as unknown as IdentityResolver;
@@ -869,5 +876,106 @@ describe('missing_from', () => {
             limit: 50
         });
         expect(result.items[0]?.media_servers).toEqual({ plex: { present: false } });
+    });
+});
+describe('music from Lidarr', () => {
+    const artist = (over: Partial<IndexInput> = {}): IndexInput => ({
+        kind: 'artist',
+        title: 'Daft Punk',
+        albumCount: 4,
+        genres: ['Electronic'],
+        ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' },
+        acquisition: { service: 'lidarr', id: '4', monitored: true, hasFile: false, status: 'ended' },
+        ...over
+    });
+    const musicLoader = (items: IndexInput[]) =>
+        new LibraryLoader([stub('lidarr', items), jellyfinStub()], healthyJellyfinIdentity);
+
+    it('lists artists beside films, as their own kind', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), base);
+
+        expect(result.total).toBe(2);
+        expect(result.items.map(i => i.kind).sort()).toEqual(['artist', 'movie']);
+    });
+
+    it('filters to artists, and keeps the album count at minimal detail', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), {
+            detail: 'minimal',
+            limit: 50,
+            kind: 'artist'
+        });
+
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0]).toMatchObject({ kind: 'artist', title: 'Daft Punk', albumCount: 4 });
+    });
+
+    it('filters an artist by genre', async () => {
+        const result = await buildGetLibrary(musicLoader([artist()]), { ...base, kind: 'artist', genre: 'electronic' });
+
+        expect(result.items).toHaveLength(1);
+    });
+
+    it.each([
+        ['quality', { quality: 'Lossless' }],
+        ['min_rating', { min_rating: 8 }],
+        ['rating_source', { rating_source: 'imdb' as const }],
+        ['sort: rating', { sort: 'rating' as const }],
+        ['watched', { watched: true }]
+    ])('refuses %s for artists rather than matching nothing', async (_label, filter) => {
+        await expect(buildGetLibrary(musicLoader([artist()]), { ...base, kind: 'artist', ...filter })).rejects.toThrow(
+            /artist/i
+        );
+    });
+
+    it('still lets those filters run when no kind is named, by excluding artists', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), { ...base, quality: 'Bluray-1080p' });
+
+        expect(result.items.map(i => i.kind)).toEqual(['movie']);
+    });
+
+    /**
+     * `presence` used to be refused for music, because no media-server music
+     * read existed. An artist joins on the MusicBrainz artist id, so it holds a
+     * real answer now, and the filter has to accept it.
+     */
+    it('filters an artist by presence, which it holds like a film', async () => {
+        const result = await buildGetLibrary(musicLoader([artist()]), { ...base, kind: 'artist', presence: 'arr_only' });
+
+        expect(result.items.map(i => i.kind)).toEqual(['artist']);
+    });
+
+    /**
+     * The subtle half of the join: a media server that cannot answer for music
+     * must not let `arr_only` stand. That value claims the server looked and
+     * found nothing, and this server was never asked.
+     */
+    it('reports unknown, not arr_only, when no music read exists to ask', async () => {
+        const noMusic = { ...jellyfinStub(), listUserMusic: undefined } as unknown as ServiceAdapter;
+        const loader = new LibraryLoader([stub('lidarr', [artist()]), noMusic], healthyJellyfinIdentity);
+
+        const result = await buildGetLibrary(loader, base);
+
+        expect(result.items[0]?.presence).toBe('unknown');
+    });
+
+    it('reports arr_only when the music read ran and did not have the artist', async () => {
+        const result = await buildGetLibrary(musicLoader([artist()]), base);
+
+        expect(result.items[0]?.presence).toBe('arr_only');
+    });
+
+    it('leaves an artist out of watched: false, because it has no watch state', async () => {
+        // Left in, every artist counts as unwatched and the answer to "what
+        // have I not watched" becomes the whole music collection. The film
+        // stays, which is what makes this a filter rather than an empty list.
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), { ...base, watched: false });
+
+        expect(result.items.map(i => i.kind)).toEqual(['movie']);
+    });
+
+    it('leaves an artist out of watched_by too, since no music watch state is read', async () => {
+        const result = await buildGetLibrary(musicLoader([film(), artist()]), { ...base, watched_by: 'Someone' });
+
+        expect(result.items.map(i => i.kind)).toEqual(['movie']);
     });
 });

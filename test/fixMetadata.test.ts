@@ -81,6 +81,8 @@ function harness(
         /** No media-server adapter at all. */
         adapters?: 'none';
         degraded?: string[];
+        /** More series in the index, as a second Sonarr series would be. */
+        others?: MergedItem[];
     } = {}
 ) {
     const config = opts.config ?? jellyfinConfig();
@@ -138,7 +140,7 @@ function harness(
 
     const loader = {
         load: async () => ({
-            index: { search: () => [opts.item ?? seriesItem()], all: () => [opts.item ?? seriesItem()] },
+            index: { search: () => [opts.item ?? seriesItem()], all: () => [opts.item ?? seriesItem(), ...(opts.others ?? [])] },
             degraded: opts.degraded ?? []
         }),
         invalidate: vi.fn()
@@ -216,6 +218,39 @@ describe('fix_metadata', () => {
     it('refuses rather than reporting a clean result when no paths came back', async () => {
         const h = harness({ episodes: [{ Id: episodeId(1), Name: 'No path here', IndexNumber: 1, ParentIndexNumber: 1 }] });
         await expect(h.call({ query: 'Dragon Ball Kai' })).rejects.toThrow(/no file paths/i);
+    });
+
+    /** #312: one item holding two Sonarr series, where only a split helps. */
+    describe('one item holding two Sonarr series', () => {
+        const managed = (title: string, tvdb: number, path: string) =>
+            seriesItem({ title, ids: { tvdb }, acquisition: { service: 'sonarr', id: String(tvdb), monitored: true, hasFile: true, path } });
+        const newer = {
+            ...healthy(3),
+            Name: 'Some Show',
+            Path: '/storage/tv/Some Show (2026)/Season 01/Some Show - S01E03 - Missouri Mutual Life.mkv'
+        };
+
+        it('says to separate it and offers no re-identify', async () => {
+            const h = harness({
+                episodes: [healthy(1), newer],
+                item: managed('Some Show', TVDB, '/tv/Some Show'),
+                others: [managed('Some Show (2026)', 99001, '/tv/Some Show (2026)')]
+            });
+            const { structuredContent } = await h.call({ query: 'Some Show' });
+
+            expect(structuredContent.noop).toBe(true);
+            expect(structuredContent.confirm_token).toBeUndefined();
+            expect(structuredContent.summary).not.toContain('Re-identify');
+            expect(structuredContent.effects.join('\n')).toContain('2 Sonarr series (Some Show, Some Show (2026))');
+        });
+
+        it('offers the repair as before with no Sonarr', async () => {
+            const h = harness({ episodes: [healthy(1), newer] });
+            const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+
+            expect(structuredContent.summary).toContain('Re-identify');
+            expect(structuredContent.confirm_token).toBeDefined();
+        });
     });
 
     describe('films', () => {
@@ -393,7 +428,7 @@ describe('episodes pinned to their own provider ids', () => {
         });
         const h = harness({ episodes: [at(1, 'Stray Dog Strut', 'Asteroid Blues'), at(2, 'Honky Tonk Women', 'Stray Dog Strut')] });
         const effects = (await h.call({ query: 'Dragon Ball Kai' })).structuredContent.effects.join('\n');
-        expect(effects).toContain('2 of the 2 mismatching episodes carry the title Jellyfin gives the episode next to them');
+        expect(effects).toContain('2 of the 2 mismatching episodes carry the title Jellyfin gives another episode in the same season');
     });
 
     it('says when the filename and the title are in different languages', async () => {
@@ -401,10 +436,10 @@ describe('episodes pinned to their own provider ids', () => {
             episodes: [
                 {
                     Id: episodeId(31),
-                    Name: 'The Sea Monster',
+                    Name: 'The Monster of the Sea',
                     IndexNumber: 1,
                     ParentIndexNumber: 1,
-                    Path: '/storage/tv/Some Show/Season 01/Some Show - S01E01 - El monstruo marino [Bluray-1080p].mkv'
+                    Path: '/storage/tv/Some Show/Season 01/Some Show - S01E01 - El monstruo del mar [Bluray-1080p].mkv'
                 }
             ]
         });
@@ -576,7 +611,7 @@ function plexHarness(
 }
 
 const PLEX_OFF_REMEDY =
-    'Set services.plex.allow_metadata_repair: true in config.yaml to allow it. On a live Plex it has repaired films but not yet series, see docs/tools.md.';
+    'Set services.plex.allow_metadata_repair: true in config.yaml, or tick it on the Plex card, to allow it.';
 
 describe('fix_metadata on Plex', () => {
     const confirmed = async (h: ReturnType<typeof plexHarness>, query = 'Fixture show 2') => {
@@ -629,6 +664,15 @@ describe('fix_metadata on Plex', () => {
         expect(note).toMatch(/Matched to .*Fixture show 2.* \(2001\)\./);
     });
 
+    /** #312 on 1.44.4: only `structuredContent` said whether it worked (#234). */
+    it('puts the verdict in the text', async () => {
+        const fixed = { ...plexEpisode(1), title: 'Some other words' };
+        const result = await confirmed(plexHarness({ repaired: [fixed] }));
+        const { note } = result.structuredContent.result as { note: string };
+
+        expect(result.content[0]?.text).toContain(note);
+    });
+
     it('says a numbering mismatch on Plex usually needs a rename, not a rematch', async () => {
         const h = plexHarness({ episodes: [{ ...plexEpisode(1), index: 7 }] });
         const effects = (await h.call({ query: 'Fixture show 2' })).structuredContent.effects.join('\n');
@@ -667,6 +711,39 @@ describe('fix_metadata on Plex', () => {
             agent: 'tv.plex.agents.movie'
         });
         expect(h.writes().map(w => w.path)).toEqual(['/library/metadata/900200/match', '/library/metadata/900200/refresh']);
+    });
+
+    /** #312: Cannibal! The Musical kept Plex's year after a repair. The Plex
+     *  Movie agent takes the year from Plex's own metadata, not from TMDB. */
+    describe('a film Plex already matched to the id the repair pins', () => {
+        const film = {
+            ratingKey: '900300',
+            type: 'movie',
+            title: 'Fixture musical',
+            year: 1993,
+            librarySectionID: 1,
+            Guid: [{ id: 'tmdb://903' }],
+            Media: [{ Part: [{ file: '/library/movies/Fixture musical (1996)/Fixture musical (1996).mkv' }] }]
+        };
+        const preview = async () => {
+            const h = plexHarness({
+                item: plexSeries({ kind: 'movie', title: 'Fixture musical', ids: { tmdb: 903 }, playback: { user: 'Sam', itemId: '900300' } }),
+                films: [film]
+            });
+            return (await h.call({ query: 'Fixture musical' })).structuredContent;
+        };
+
+        it('does not say the year comes from TMDB', async () => {
+            const { summary } = await preview();
+            expect(summary).not.toContain('against TMDB');
+            expect(summary).toContain("Plex's own metadata");
+        });
+
+        it('says the year is not expected to move', async () => {
+            const effects = (await preview()).effects.join('\n');
+            expect(effects).toContain('already matched to TMDB 903');
+            expect(effects).toContain('not expected to change the year');
+        });
     });
 
     it('only refreshes when no provider id is known', async () => {

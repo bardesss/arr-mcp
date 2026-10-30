@@ -20,9 +20,9 @@ type RawLanguage = { id?: number; name?: string | null };
  */
 export async function readArrProfileDiagnostics(http: ServiceHttp): Promise<ProfileDiagnosticsData> {
     const [profiles, formats, languages] = await Promise.all([
-        http.get<RawProfile[]>('/api/v3/qualityprofile'),
-        http.get<RawCustomFormat[]>('/api/v3/customformat'),
-        http.get<RawLanguage[]>('/api/v3/language')
+        http.get<RawProfile[]>(`${http.apiRoot}/qualityprofile`),
+        http.get<RawCustomFormat[]>(`${http.apiRoot}/customformat`),
+        http.get<RawLanguage[]>(`${http.apiRoot}/language`)
     ]);
 
     return {

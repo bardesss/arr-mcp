@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fenceText } from '../src/core/fence.ts';
-import type { MergedItem } from '../src/core/resolver.ts';
+import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
+import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { buildChain, type Evidence } from '../src/tools/diagnose/chain.ts';
 
 /**
@@ -29,7 +30,7 @@ const QUEUE_TITLE_FIELD: Record<string, string> = { radarr: 'title', sonarr: 'ti
 const queueTitle = (service: string, title: string): string =>
     fenceText(title, { service: service as Parameters<typeof fenceText>[1]['service'], field: QUEUE_TITLE_FIELD[service] ?? 'title' });
 
-const item = (over: ItemOverride = {}): MergedItem => {
+const item = (over: ItemOverride = {}): FilmOrSeries => {
     const merged: Record<string, unknown> = {
         kind: 'movie',
         title: fence('Some Film'),
@@ -46,7 +47,7 @@ const item = (over: ItemOverride = {}): MergedItem => {
     for (const key of Object.keys(merged)) {
         if (merged[key] === undefined) delete merged[key];
     }
-    return merged as MergedItem;
+    return merged as FilmOrSeries;
 };
 
 /** Everything looked at, nothing wrong: the baseline every case perturbs. */
@@ -325,7 +326,7 @@ describe('buildChain — a symptom does not outrank a chain that is not actually
 });
 
 describe('buildChain — title matching (I3)', () => {
-    const noFileFor = (title: string, year: number): MergedItem =>
+    const noFileFor = (title: string, year: number): FilmOrSeries =>
         item({ title: fence(title), year, acquisition: { service: 'radarr', monitored: true, hasFile: false } });
 
     const shortTitleCases: Array<[title: string, year: number, release: string]> = [
@@ -750,7 +751,7 @@ describe('buildChain — punctuated titles (N3 regression)', () => {
     // splitting on the other means neither ever produces matching tokens —
     // every hyphenated or apostrophed title matched nothing, and the queue
     // and indexer stages went blind for them.
-    const noFileFor = (title: string, year: number): MergedItem =>
+    const noFileFor = (title: string, year: number): FilmOrSeries =>
         item({ title: fence(title), year, acquisition: { service: 'radarr', monitored: true, hasFile: false } });
 
     const punctuatedCases: Array<[title: string, year: number, release: string]> = [
@@ -772,7 +773,7 @@ describe('buildChain — punctuated titles (N3 regression)', () => {
 });
 
 describe("buildChain — the year guard ignores the title's own year words (N4)", () => {
-    const noFileFor = (title: string, year: number): MergedItem =>
+    const noFileFor = (title: string, year: number): FilmOrSeries =>
         item({ title: fence(title), year, acquisition: { service: 'radarr', monitored: true, hasFile: false } });
 
     const titleYearCases: Array<[title: string, year: number, release: string]> = [
@@ -935,7 +936,7 @@ describe('buildChain — a series file signal is ambiguous, so request/managed s
     // got turned off" — under a confident "is available in Jellyfin and
     // playable", with no remedy and no mention: the exact failure the aside
     // (N7) exists to prevent, in a stage the aside does not cover.
-    const seriesOnDisk = (over: ItemOverride = {}): MergedItem =>
+    const seriesOnDisk = (over: ItemOverride = {}): FilmOrSeries =>
         item({
             kind: 'series',
             title: fence('Some Show'),
@@ -1141,6 +1142,60 @@ describe('buildChain — queue status classification (N5, N6)', () => {
             expect(d.verdict.remedy).toMatch(/import/i);
         }
     );
+
+    // NZBGet reports post-processing as its own stages. Each is healthy
+    // progress, and PP_FINISHED is a finished download waiting on the *arr.
+    const nzbgetRow = async (status: string) => {
+        const fetchImpl = (async (_input: unknown, init?: RequestInit) => {
+            const { method, id } = JSON.parse(String(init?.body)) as { method: string; id: number };
+            const result =
+                method === 'listgroups'
+                    ? [{ NZBID: 1, NZBNicename: 'Some.Film.2026', Status: status, FileSizeMB: 10, RemainingSizeMB: 0 }]
+                    : { DownloadRate: 0 };
+            return new Response(JSON.stringify({ jsonrpc: '2.0', result, id }), { headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const adapter = new NzbgetAdapter(
+            { url: 'http://192.0.2.10:6789', username: 'u', password: 'p', timeout_ms: 10_000, permissions: { safe_write: false, destructive: false } },
+            fetchImpl
+        );
+        const [row] = await adapter.getQueue();
+        if (row === undefined) throw new Error('no queue row');
+        return { ...row, title: queueTitle('nzbget', 'Some.Film.2026') };
+    };
+
+    it.each([
+        'QUEUED',
+        'DOWNLOADING',
+        'FETCHING',
+        'PP_QUEUED',
+        'LOADING_PARS',
+        'VERIFYING_SOURCES',
+        'REPAIRING',
+        'VERIFYING_REPAIRED',
+        'RENAMING',
+        'UNPACKING',
+        'MOVING',
+        'EXECUTING_SCRIPT'
+    ])('reads NZBGet status %s as healthy progress, not a fault', async status => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: noFile,
+            queue: { items: [await nzbgetRow(status)], partial: [] }
+        });
+        expect(d.verdict.stage).toBe('queue');
+        expect(d.verdict.remedy).toBeUndefined();
+        expect(d.verdict.summary).toMatch(/still downloading/i);
+    });
+
+    it('reads NZBGet PP_FINISHED as finished and waiting on import', async () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: noFile,
+            queue: { items: [await nzbgetRow('PP_FINISHED')], partial: [] }
+        });
+        expect(d.verdict.summary).not.toMatch(/still downloading/i);
+        expect(d.verdict.summary).toMatch(/import/i);
+    });
 
     it('classifies SABnzbd status "propagating" as active (healthy), not a fault', () => {
         const d = buildChain('some film', {

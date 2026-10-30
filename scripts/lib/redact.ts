@@ -206,11 +206,261 @@ export function redact(node: unknown, secrets: string[], hosts: string[]): unkno
  *  capture-fixtures.ts works with. */
 export type Row = Record<string, unknown>;
 
+/** A response row, as opposed to an array, a scalar, null, or undefined. */
+export const isRow = (value: unknown): value is Row =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Keeps a field present and typed, but replaces a string value. Checks
  *  `typeof`, not truthiness, so an empty string is replaced too — Plex's
  *  `/accounts` can return rows with `name: ''`. */
 export function replaceIfString(value: unknown, replacement: string): unknown {
     return typeof value === 'string' ? replacement : value;
+}
+
+/**
+ * The placeholder a scrubbed URL becomes. A fixture must still show that the
+ * field *is* a URL, so a bare empty string would lose the shape the contract
+ * test reads.
+ */
+export const ANONYMOUS_URL = 'https://indexer.example.test/';
+
+/**
+ * Cover-art entries: the local `/MediaCover/…` path and the upstream CDN URL,
+ * both of which embed a slug that resolves back to the real item.
+ *
+ * Shared because a nested `images[]` appears at several depths — an artist, an
+ * album, and each entry of a band's `members[]` — and every one of them needs
+ * the same two fields replaced.
+ */
+export function anonymiseImages(images: unknown): unknown {
+    return Array.isArray(images)
+        ? (images as Row[]).map(image => ({
+              ...image,
+              // Only where the entry carried the field: a key set to
+              // `undefined` survives in memory and vanishes in JSON, so an
+              // invented one would make a scrubber look like it had scrubbed
+              // something the service never sent.
+              ...(image.url === undefined ? {} : { url: replaceIfString(image.url, '/MediaCover/1/poster.jpg') }),
+              ...(image.remoteUrl === undefined ? {} : { remoteUrl: replaceIfString(image.remoteUrl, ANONYMOUS_URL) })
+          }))
+        : images;
+}
+
+const ANONYMOUS_FIXTURE_URL = 'https://indexer.example.test/';
+
+const NZBGET_IDENTITY_KEYS = new Set([
+    'NZBFilename',
+    'NZBName',
+    'NZBNicename',
+    'Filename',
+    'FileName',
+    'Path',
+    'Directory',
+    'Destination',
+    'DestDir',
+    'FinalDir',
+    'TempDir',
+    'DupeKey',
+    'Text',
+    'PostInfoText',
+    'ErrorMessage',
+    'Message',
+    'URL',
+    'Url',
+    'url',
+    'NZBURL',
+    'NZBUrl',
+    'Tracker',
+    'Comment',
+    'Username',
+    'UserName',
+    'Email',
+    'Account',
+    'Category',
+    'Group',
+    'Source'
+]);
+
+const isFixtureRow = (value: unknown): value is Row => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const fixtureUrl = (value: string): string => value.replace(/https?:\/\/[^\s"',\]]+/gi, ANONYMOUS_FIXTURE_URL);
+
+function fixtureIdentityValue(key: string, index: number, prefix: string): string {
+    const n = index + 1;
+    if (/url|uri|tracker/i.test(key)) return ANONYMOUS_FIXTURE_URL;
+    if (/path|directory|destination|filename|dir$/i.test(key)) return `/media/${prefix}/Item ${n}/File ${n}.bin`;
+    if (/message|error|reason|postinfo|comment|^text$/i.test(key)) return `Fixture message ${n}`;
+    return `${prefix} item ${n}`;
+}
+
+function anonymiseFixtureIdentity(node: unknown, keys: Set<string>, index: number, prefix: string): unknown {
+    if (Array.isArray(node)) return node.map(value => anonymiseFixtureIdentity(value, keys, index, prefix));
+    if (node === null || typeof node !== 'object') return node;
+
+    return Object.fromEntries(
+        Object.entries(node as Row).map(([key, value]) => {
+            if (typeof value === 'string' && keys.has(key)) return [key, fixtureIdentityValue(key, index, prefix)];
+            // Any other string can still embed a URL, such as an indexer link
+            // with account ids in it.
+            if (typeof value === 'string') return [key, fixtureUrl(value)];
+            return [key, anonymiseFixtureIdentity(value, keys, index, prefix)];
+        })
+    );
+}
+
+/**
+ * NZBGet's `systemhealth` report. Section, option and alert source names are
+ * config keys and stay; every `Message` can quote a configured path or news
+ * server host, so each is replaced.
+ */
+export function anonymiseNzbgetHealth(body: unknown): unknown {
+    let n = 0;
+    const walk = (node: unknown): unknown => {
+        if (Array.isArray(node)) return node.map(walk);
+        if (!isFixtureRow(node)) return typeof node === 'string' ? fixtureUrl(node) : node;
+        return Object.fromEntries(
+            Object.entries(node).map(([key, value]) => [
+                key,
+                key === 'Message' && typeof value === 'string' ? `Fixture message ${++n}` : walk(value)
+            ])
+        );
+    };
+    return walk(body);
+}
+
+/**
+ * One NZBGet queue/history row. `Name` is only identity at row level (the
+ * history's display name); inside `Parameters` it is a post-processing
+ * parameter name such as `drone`, which the adapter reads by name — so those
+ * names are kept and only their values are anonymised.
+ */
+function anonymiseNzbgetRow(row: unknown, index: number): unknown {
+    if (!isFixtureRow(row)) return anonymiseFixtureIdentity(row, NZBGET_IDENTITY_KEYS, index, 'nzbget');
+    const { Parameters: parameters, ...rest } = row;
+    const out = anonymiseFixtureIdentity(rest, NZBGET_IDENTITY_KEYS, index, 'nzbget') as Row;
+    if (typeof out.Name === 'string') out.Name = `nzbget item ${index + 1}`;
+    if (Array.isArray(parameters)) {
+        out.Parameters = (parameters as unknown[]).map((p): unknown =>
+            isFixtureRow(p) && typeof p.Value === 'string'
+                ? { ...p, Value: p.Name === 'drone' ? `nzbget-download-${index + 1}` : `nzbget value ${index + 1}` }
+                : p
+        );
+    }
+    return out;
+}
+
+/** Anonymises queue/history rows inside an NZBGet JSON-RPC response. */
+export function anonymiseNzbgetRows(body: unknown): unknown {
+    if (Array.isArray(body)) return syntheticNzbgetNumbers(body.map((row, index) => anonymiseNzbgetRow(row, index)));
+    if (!isFixtureRow(body) || !Array.isArray(body.result)) return body;
+    return {
+        ...body,
+        result: syntheticNzbgetNumbers(body.result.map((row, index) => anonymiseNzbgetRow(row, index)))
+    };
+}
+
+/**
+ * NZBGet's `status`. Every field is a number or flag, but the real ones
+ * describe the operator's setup: disk sizes, monthly volume, average speed,
+ * server clock and uptime. They are replaced with the same synthetic values
+ * as queue and history rows. Flags and limits stay as captured.
+ */
+export function anonymiseNzbgetStatus(body: unknown): unknown {
+    return syntheticNzbgetNumbers(body);
+}
+
+const MIB = 2 ** 20;
+const NZBGET_TIME_KEYS = new Set(['ServerTime', 'MinPostTime', 'MaxPostTime', 'HistoryTime']);
+const NZBGET_ARTICLE_KEYS = new Set(['TotalArticles', 'SuccessArticles', 'FailedArticles']);
+const NZBGET_FILE_COUNT_KEYS = new Set(['FileCount', 'RemainingFileCount', 'RemainingParCount']);
+const NZBGET_ID_KEYS = new Set(['NZBID', 'ID', 'FirstID', 'LastID']);
+const NZBGET_RATE_KEYS = ['DownloadRate', 'AverageDownloadRate'];
+const FIXTURE_EPOCH = 1_700_000_000;
+
+/** Rank of each distinct non-zero value, smallest first, from 1. */
+function ranks(values: number[]): Map<number, number> {
+    const distinct = [...new Set(values.filter(v => v !== 0))].sort((a, b) => a - b);
+    return new Map(distinct.map((v, i) => [v, i + 1]));
+}
+
+/**
+ * Replaces NZBGet's real numbers with synthetic ones that keep the shape the
+ * adapter reads: zero stays zero, equal values stay equal, order is kept, and
+ * each `<x>Lo`/`<x>Hi`/`<x>MB` triple stays one consistent size. A Hi half
+ * with its top bit set is NZBGet's "not measured" marker and is kept. Sizes,
+ * post and history times, article and file counts can each fingerprint a
+ * release or a setup; download ids (100 and up) become 100 plus their last two digits, so the same
+ * download keeps the same id in queue and history captures.
+ */
+function syntheticNzbgetNumbers(node: unknown): unknown {
+    const isNum = (row: Row, key: string): boolean => typeof row[key] === 'number';
+    const sizeBasesOf = (row: Row): string[] =>
+        Object.keys(row)
+            .filter(key => key.endsWith('MB') && isNum(row, key))
+            .map(key => key.slice(0, -2))
+            .filter(base => isNum(row, `${base}Lo`) && isNum(row, `${base}Hi`) && (row[`${base}Hi`] as number) < 0x80000000);
+
+    // Times and sizes are ranked across the whole response, so one row's
+    // post time or size still compares the same way with another row's.
+    const times: number[] = [];
+    const sizes: number[] = [];
+    const collect = (n: unknown): void => {
+        if (Array.isArray(n)) return n.forEach(collect);
+        if (!isFixtureRow(n)) return;
+        for (const base of sizeBasesOf(n)) sizes.push(n[`${base}MB`] as number);
+        for (const [key, value] of Object.entries(n)) {
+            if (NZBGET_TIME_KEYS.has(key) && typeof value === 'number') times.push(value);
+            else collect(value);
+        }
+    };
+    collect(node);
+    const timeRank = ranks(times);
+    const sizeRank = ranks(sizes);
+
+    const walk = (n: unknown): unknown => {
+        if (Array.isArray(n)) return n.map(walk);
+        if (!isFixtureRow(n)) return n;
+        const out: Row = {};
+        for (const [key, value] of Object.entries(n)) out[key] = walk(value);
+
+        const num = (key: string): number | undefined => (typeof out[key] === 'number' ? (out[key]) : undefined);
+        for (const base of sizeBasesOf(n)) {
+            const mb = 1024 * (sizeRank.get(n[`${base}MB`] as number) ?? 0);
+            const bytes = mb * MIB;
+            out[`${base}MB`] = mb;
+            out[`${base}Lo`] = bytes % 2 ** 32;
+            out[`${base}Hi`] = Math.floor(bytes / 2 ** 32);
+        }
+
+        for (const base of NZBGET_RATE_KEYS) {
+            if (num(base) === undefined || num(base) === 0) continue;
+            out[base] = MIB;
+            if (num(`${base}Lo`) !== undefined) out[`${base}Lo`] = MIB;
+            if (num(`${base}Hi`) !== undefined) out[`${base}Hi`] = 0;
+        }
+
+        const groups: [Set<string>, number][] = [
+            [NZBGET_ARTICLE_KEYS, 100],
+            [NZBGET_FILE_COUNT_KEYS, 10]
+        ];
+        for (const [keys, step] of groups) {
+            const present = [...keys].filter(key => num(key) !== undefined);
+            const rank = ranks(present.map(key => num(key) as number));
+            for (const key of present) out[key] = step * (rank.get(num(key) as number) ?? 0);
+        }
+
+        for (const key of Object.keys(out)) {
+            const value = num(key);
+            if (value === undefined) continue;
+            if (NZBGET_TIME_KEYS.has(key)) out[key] = value === 0 ? 0 : FIXTURE_EPOCH + 3600 * (timeRank.get(value) ?? 0);
+            else if (NZBGET_ID_KEYS.has(key) && value >= 100) out[key] = 100 + (value % 100);
+            else if (key.endsWith('TimeSec') && value > 0) out[key] = 60;
+            else if (key === 'CriticalHealth' && value > 0) out[key] = 900;
+            else if (key === 'PostStageProgress' && value > 0) out[key] = 500;
+        }
+        return out;
+    };
+    return walk(node);
 }
 
 type MetadataContainer = { MediaContainer?: { Metadata?: Row[] } };

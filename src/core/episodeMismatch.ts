@@ -93,7 +93,7 @@ export type Mismatch = {
     locked?: boolean;
     /**
      * Real, but not something a rematch fixes. `shifted`: the file carries the
-     * title the server gives the episode next to it, a different episode
+     * title the server gives another episode in the same season, a different episode
      * order (Cowboy Bebop, TNG and 20 more on one Plex library; a rematch did
      * not move them). `special`: both sides say season 0, which sources number
      * differently. `language`: the file and the server title are in different
@@ -227,6 +227,22 @@ const wideFileTitle = (path: string): string | undefined => titleFields(path, SQ
 
 const SQUARE_BRACKETED = /\[[^\]]*\]/g;
 
+/**
+ * The title, then each parenthesised segment substantial enough to stand as
+ * a title of its own. Super Mario Bros. Super Show! names both halves,
+ * `Bats in the Basement (Mario and the Beanstalk)`, and the server titles
+ * the next episode after the second (#312).
+ */
+function fileTitleParts(path: string): string[] {
+    const title = extractFileTitle(path);
+    if (title === undefined) return [];
+    const wide = titleFields(path, SQUARE_BRACKETED)?.[0] ?? '';
+    const halves = [...wide.matchAll(/\(([^)]*)\)/g)]
+        .map(m => m[1]?.trim() ?? '')
+        .filter(h => contentWords(h).size >= MIN_WORDS);
+    return [title, ...halves];
+}
+
 function titleFields(path: string, stripped: RegExp): string[] | undefined {
     // Dots are the scene separator, so they become spaces before anything else
     // looks at words. Left as dots, `1080p.BluRay.x264` is one long token that
@@ -353,7 +369,9 @@ const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
  * `de` or `en` alone never decides anything.
  */
 const LANGUAGE_WORDS: Record<string, ReadonlySet<string>> = {
-    en: new Set(['the', 'of', 'and', 'with', 'from', 'for', 'to', 'in', 'is', 'at', 'on', 'my', 'your', 'his', 'who', 'what']),
+    // `a`, `as`, `no` and `do` are here so they count as shared: "Wrath as a
+    // Lightning" read as Portuguese (#312).
+    en: new Set(['the', 'of', 'and', 'with', 'from', 'for', 'to', 'in', 'is', 'at', 'on', 'my', 'your', 'his', 'who', 'what', 'a', 'an', 'as', 'no', 'do']),
     es: new Set(['el', 'la', 'los', 'las', 'del', 'y', 'con', 'por', 'para', 'una', 'un', 'que', 'en', 'es', 'al', 'mi', 'su', 'sin', 'de', 'a']),
     fr: new Set(['le', 'la', 'les', 'des', 'du', 'et', 'avec', 'pour', 'une', 'un', 'dans', 'sur', 'est', 'au', 'aux', 'que', 'de', 'en', 'sans', 'mon', 'ma']),
     de: new Set(['der', 'die', 'das', 'und', 'mit', 'von', 'ein', 'eine', 'im', 'ist', 'zu', 'den', 'dem', 'auf', 'fur', 'nicht', 'in']),
@@ -362,25 +380,40 @@ const LANGUAGE_WORDS: Record<string, ReadonlySet<string>> = {
     nl: new Set(['de', 'het', 'een', 'van', 'en', 'met', 'voor', 'op', 'is', 'niet', 'zijn', 'mijn', 'naar', 'in'])
 };
 
+const sharedWords = (() => {
+    const seen = new Map<string, number>();
+    for (const set of Object.values(LANGUAGE_WORDS)) for (const w of set) seen.set(w, (seen.get(w) ?? 0) + 1);
+    return new Set([...seen].filter(([, n]) => n > 1).map(([w]) => w));
+})();
+
 /** The language a title's function words point at, or undefined unless one
- *  language clearly wins. Short titles with none stay undefined. */
-export function guessLanguage(title: string): string | undefined {
-    const words = unfenced(title)
+ *  language clearly wins on at least two of them, one of which no other
+ *  language uses. Skeleton Crew read "of" as English and "as" as Portuguese
+ *  (#312). */
+const functionWords = (title: string): string[] =>
+    unfenced(title)
         .normalize('NFD')
         .replace(/\p{M}/gu, '')
         .toLowerCase()
         .split(/[^\p{L}]+/u);
-    const scores = Object.entries(LANGUAGE_WORDS)
-        .map(([language, set]) => [language, words.filter(w => set.has(w)).length] as const)
-        .sort((x, y) => y[1] - x[1]);
-    const [best, next] = scores;
-    return best !== undefined && best[1] > 0 && best[1] > (next?.[1] ?? 0) ? best[0] : undefined;
-}
 
-const inDifferentLanguages = (a: string, b: string): boolean => {
-    const [x, y] = [guessLanguage(a), guessLanguage(b)];
-    return x !== undefined && y !== undefined && x !== y;
-};
+const hasWordOf = (title: string, language: string): boolean =>
+    functionWords(title).some(w => LANGUAGE_WORDS[language]?.has(w) === true);
+
+const hasAnyFunctionWord = (title: string): boolean =>
+    Object.keys(LANGUAGE_WORDS).some(language => hasWordOf(title, language));
+
+export function guessLanguage(title: string): string | undefined {
+    const words = functionWords(title);
+    const scores = Object.entries(LANGUAGE_WORDS)
+        .map(([language, set]) => {
+            const hits = words.filter(w => set.has(w));
+            return { language, total: hits.length, own: hits.filter(w => !sharedWords.has(w)).length };
+        })
+        .sort((x, y) => y.total - x.total);
+    const [best, next] = scores;
+    return best !== undefined && best.total >= 2 && best.own >= 1 && best.total > (next?.total ?? 0) ? best.language : undefined;
+}
 
 /** Every content word of the shorter title appears in the longer one. */
 function titlesMatch(a: string, b: string): boolean {
@@ -441,7 +474,38 @@ export type SeriesVerdict = {
     specials: number;
     languages: number;
     remedy: Remedy;
+    /** Titles of the managed series whose folders this one item holds. */
+    mergedFrom?: string[];
 };
+
+/** A series folder a Sonarr manages. `key` tells two series apart. */
+export type ManagedFolder = { key: string; title: string; path: string };
+
+/**
+ * The managed series whose folders hold these episodes' files. Matched on the
+ * folder name and as many parents as agree, because the media server and
+ * Sonarr often mount the same disk at different roots.
+ */
+export function managedSeriesOf(items: readonly EpisodeRecord[], folders: readonly ManagedFolder[]): ManagedFolder[] {
+    const owners = new Map<string, ManagedFolder>();
+    for (const item of items) {
+        if (item.path === undefined || item.path.trim() === '') continue;
+        const dirs = segments(item.path).slice(0, -1);
+        let best: { folder: ManagedFolder; score: number } | undefined;
+        let tied = false;
+        for (const folder of folders) {
+            const own = segments(folder.path);
+            const at = dirs.lastIndexOf(own.at(-1) ?? '');
+            if (at < 0) continue;
+            let score = 0;
+            while (score < own.length && score <= at && own[own.length - 1 - score] === dirs[at - score]) score += 1;
+            if (best === undefined || score > best.score) [best, tied] = [{ folder, score }, false];
+            else if (score === best.score && folder.key !== best.folder.key) tied = true;
+        }
+        if (best !== undefined && !tied && !owners.has(best.folder.key)) owners.set(best.folder.key, best.folder);
+    }
+    return [...owners.values()];
+}
 
 /**
  * Which way a *series* disagreement points.
@@ -473,13 +537,21 @@ const seriesRemedy = (numbering: number, locked: number, repairable: number, mis
  *  is exactly the repair — the opposite of what the episode rule
  * would have said, since every matched film carries provider ids.
  */
-export const movieRemedy = (reasons: readonly MismatchReason[], pinned: boolean, locked = false): Remedy => {
+export const movieRemedy = (
+    reasons: readonly MismatchReason[],
+    pinned: boolean,
+    locked = false,
+    server: { keepsOwnYear?: boolean } = {}
+): Remedy => {
     if (locked) return 'unlock_fields';
+    // Plex: a repair re-pins the id Plex already holds and the Plex Movie
+    // agent keeps its own year, so a matched film's year does not move (#312).
+    if (server.keepsOwnYear === true && pinned && reasons.length === 1 && reasons[0] === 'year') return 'inspect';
     if (reasons.includes('year')) return 'refresh_metadata';
     return pinned ? 'inspect' : 'refresh_metadata';
 };
 
-export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict | undefined {
+export function summariseSeries(items: readonly EpisodeRecord[], folders: readonly ManagedFolder[] = []): SeriesVerdict | undefined {
     const compared = items.filter(i => i.path !== undefined && i.path.trim() !== '').length;
     const mismatches = findMismatches(items);
     if (mismatches.length === 0) return undefined;
@@ -497,6 +569,10 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         const record = byId.get(m.id);
         return m.advisory === undefined && !(record !== undefined && pinnedToProvider(record));
     }).length;
+    // Two shows in one item: a repair re-identifies against the id it already
+    // holds, and only splitting the item fixes it (#312).
+    const owners = managedSeriesOf(items, folders);
+    const merged = owners.length > 1;
 
     return {
         compared,
@@ -508,7 +584,8 @@ export function summariseSeries(items: readonly EpisodeRecord[]): SeriesVerdict 
         shifted: mismatches.filter(m => m.advisory === 'shifted').length,
         specials: mismatches.filter(m => m.advisory === 'special').length,
         languages: mismatches.filter(m => m.advisory === 'language').length,
-        remedy: seriesRemedy(numbering, locked, repairable, mismatches.length)
+        remedy: merged ? 'inspect' : seriesRemedy(numbering, locked, repairable, mismatches.length),
+        ...(merged ? { mergedFrom: owners.map(o => o.title) } : {})
     };
 }
 
@@ -601,17 +678,36 @@ export function findMovieMismatches(items: readonly MovieRecord[]): Mismatch[] {
  */
 export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
     const out: Mismatch[] = [];
-    // Both directions, so the ends of a shifted run count too: the first
-    // episode's server title is the next file's title, the last episode's
-    // file title is the previous server title.
-    const byNumber = new Map(items.map(i => [`${i.season}:${i.episode}`, { name: i.name, file: i.path === undefined ? undefined : extractFileTitle(i.path) }]));
-    const neighbourHas = (item: EpisodeRecord, fileTitle: string): boolean =>
+    // Any episode in the same season, not just the neighbours: Goof Troop was
+    // out by two and Cowboy Bebop reordered (#312). Both directions, so the
+    // ends of a shifted run count too.
+    const others = items.map(i => ({ id: i.id, season: i.season, name: i.name, files: i.path === undefined ? [] : fileTitleParts(i.path) }));
+    const seasonHas = (item: EpisodeRecord, files: readonly string[]): boolean =>
         item.season !== undefined &&
-        item.episode !== undefined &&
-        [item.episode - 1, item.episode + 1].some(n => {
-            const next = byNumber.get(`${item.season}:${n}`);
-            return next !== undefined && (titlesMatch(next.name, fileTitle) || (next.file !== undefined && titlesMatch(item.name, next.file)));
-        });
+        others.some(
+            o =>
+                o.id !== item.id &&
+                o.season === item.season &&
+                (files.some(f => titlesMatch(o.name, f)) || o.files.some(f => titlesMatch(item.name, f)))
+        );
+
+    // A title too short to place on its own takes the series' language:
+    // Los Espookys has one function word per title but is Spanish throughout (#312).
+    const seriesFileLanguage = guessLanguage(others.flatMap(o => o.files.slice(0, 1)).join(' '));
+    const seriesServerLanguage = guessLanguage(items.map(i => i.name).join(' '));
+    // A title with no function words at all only takes it when the other side
+    // is placed by its own words in another language: "One Man's Many Faces"
+    // against "Las Muchas Caras de Un Hombre".
+    const placed = (title: string, series: string | undefined, other: string | undefined): string | undefined =>
+        guessLanguage(title) ??
+        (series !== undefined && (hasWordOf(title, series) || (other !== undefined && other !== series && !hasAnyFunctionWord(title)))
+            ? series
+            : undefined);
+    const inDifferentLanguages = (serverTitle: string, fileTitle: string): boolean => {
+        const file = placed(fileTitle, seriesFileLanguage, guessLanguage(serverTitle));
+        const server = placed(serverTitle, seriesServerLanguage, guessLanguage(fileTitle));
+        return file !== undefined && server !== undefined && file !== server;
+    };
 
     for (const item of items) {
         const path = item.path;
@@ -642,7 +738,7 @@ export function findMismatches(items: readonly EpisodeRecord[]): Mismatch[] {
             ? 'special'
             : numberingOff || fileTitle === undefined
               ? undefined
-              : neighbourHas(item, fileTitle)
+              : seasonHas(item, fileTitleParts(path))
                 ? 'shifted'
                 : inDifferentLanguages(item.name, fileTitle)
                   ? 'language'

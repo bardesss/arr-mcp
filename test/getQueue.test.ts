@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, CredentialServiceConfig } from '../src/config/schema.ts';
 import { parseTimeleft } from '../src/services/arrQueue.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
-import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
+import { parseSabTimeleft, SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
@@ -140,6 +140,25 @@ describe('parseTimeleft', () => {
     it('returns undefined for something that is not a TimeSpan', () => {
         expect(parseTimeleft('soon')).toBeUndefined();
         expect(parseTimeleft(undefined)).toBeUndefined();
+    });
+});
+
+describe('parseSabTimeleft', () => {
+    it('reads the plain and day-prefixed forms', () => {
+        expect(parseSabTimeleft('0:05:00')).toBe(300);
+        expect(parseSabTimeleft('1:02:03:04')).toBe(86_400 + 2 * 3600 + 3 * 60 + 4);
+    });
+
+    it('treats 0:00:00 as no estimate', () => {
+        // SABnzbd's placeholder for paused, stalled or zero-speed slots; a real
+        // estimate is never below 0:00:01.
+        expect(parseSabTimeleft('0:00:00')).toBeUndefined();
+    });
+
+    it('rejects anything that is not a SABnzbd clock', () => {
+        for (const value of ['', ' ', '1::00', '0:05', '1:2:3:4:5', '0:05:0x', undefined]) {
+            expect(parseSabTimeleft(value)).toBeUndefined();
+        }
     });
 });
 
@@ -343,6 +362,26 @@ describe('get_queue', () => {
             remainingBytes: Math.round(1024 * 1024 ** 2),
             etaSeconds: 300
         });
+    });
+
+    it('keeps a SABnzbd ETA once timeleft includes a day', async () => {
+        const queued = {
+            queue: {
+                slots: [{ ...SAB_QUEUE.queue.slots[0]!, nzo_id: 'SABnzbd_nzo_long', timeleft: '1:02:03:04' }]
+            }
+        };
+        const result = await buildGetQueue([new SabnzbdAdapter(keyed(8080), servingModes({ queue: queued }))], opts);
+        expect(result.items[0]?.etaSeconds).toBe(86_400 + 2 * 3600 + 3 * 60 + 4);
+    });
+
+    it('leaves the ETA off a paused SABnzbd slot', async () => {
+        const queued = {
+            queue: {
+                slots: [{ ...SAB_QUEUE.queue.slots[0]!, status: 'Paused', timeleft: '0:00:00' }]
+            }
+        };
+        const result = await buildGetQueue([new SabnzbdAdapter(keyed(8080), servingModes({ queue: queued }))], opts);
+        expect(result.items[0]).not.toHaveProperty('etaSeconds');
     });
 
     it('translates Transmission numeric status codes into words', async () => {

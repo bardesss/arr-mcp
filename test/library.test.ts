@@ -31,6 +31,9 @@ const watched = (tmdb: number, user: string): IndexInput => ({
 const stub = (id: ServiceAdapter['id'], extra: Record<string, unknown>): ServiceAdapter =>
     ({
         id,
+        // As every real adapter does; the music read is gated on a configured
+        // Lidarr, which this is how the loader recognises.
+        type: id.split('/')[0],
         testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
         getVersion: async () => '1.0.0',
         ...extra
@@ -456,6 +459,58 @@ describe('a secondary media server', () => {
             undefined,
             { primaryId: 'jellyfin', secondary: { id: 'plex', identity: plexIdentity } }
         );
+
+    /**
+     * Music reads separately from films, and the secondary's music is not read
+     * at all. Stamping `present: false` from a read that never ran is the false
+     * claim `missing_from` would read as "this server does not have it".
+     */
+    it('stamps an artist from the music read only, and only when it ran', async () => {
+        const artist = (mbid: string): IndexInput => ({
+            kind: 'artist',
+            title: 'Daft Punk',
+            ids: { mbid },
+            acquisition: { service: 'lidarr', monitored: true, hasFile: false }
+        });
+        const load = (music: IndexInput[] | undefined) =>
+            new LibraryLoader(
+                [
+                    stub('lidarr', { listLibrary: async () => [artist('mb-1')] }),
+                    stub('jellyfin', {
+                        listUserLibrary: async () => [],
+                        ...(music === undefined ? {} : { listUserMusic: async () => music })
+                    }),
+                    plex([])
+                ],
+                identity(someone),
+                new TtlCache(),
+                undefined,
+                { primaryId: 'jellyfin', secondary: { id: 'plex', identity: identity(other) } }
+            ).load();
+
+        const asked = await load([]);
+        expect(asked.index.find({ mbid: 'mb-1' })?.media_servers).toEqual({ jellyfin: { present: false } });
+        expect(asked.index.find({ mbid: 'mb-1' })?.presence).toBe('arr_only');
+
+        const neverAsked = await load(undefined);
+        expect(neverAsked.index.find({ mbid: 'mb-1' })?.media_servers).toEqual({});
+        expect(neverAsked.index.find({ mbid: 'mb-1' })?.presence).toBe('unknown');
+    });
+
+    it('does not read the media server music half without a Lidarr', async () => {
+        // With no Lidarr there is no artist row to join to, so the music read
+        // would only add every artist the server holds as `jellyfin_only` —
+        // the whole music collection answering "what does no *arr manage?".
+        const listUserMusic = vi.fn(async () => []);
+        const snapshot = await new LibraryLoader(
+            [radarr(), stub('jellyfin', { listUserLibrary: async () => [], listUserMusic })],
+            identity(someone)
+        ).load();
+
+        expect(listUserMusic).not.toHaveBeenCalled();
+        expect(snapshot.counts['jellyfin:music']).toBeUndefined();
+        expect(snapshot.degraded).toEqual([]);
+    });
 
     it('marks what each server has, with its own item id', async () => {
         const { index } = await loader([onPlex(551, 'p551')]).load();

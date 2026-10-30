@@ -85,6 +85,16 @@ describe('assertVersionSupported', () => {
         expect(err.detail).toContain('3.0.0.0');
     });
 
+    /**
+     * The Lidarr floor moved down to 2.1.3 on the strength of two write
+     * captures, so pin the boundary itself. The captured-map test below only
+     * proves 3.1.6 passes, which was true of the old floor too.
+     */
+    it('rejects Lidarr below 2.1.3, and accepts 2.1.3', () => {
+        expect(() => assertVersionSupported('lidarr', '2.1.3')).not.toThrow();
+        expect(rejection(() => assertVersionSupported('lidarr', '2.1.2')).kind).toBe('VersionUnsupported');
+    });
+
     it('rejects Jellyfin 10.8, whose API lacks three routes the adapter calls', () => {
         // `/Items/{itemId}`, `/UserPlayedItems/{itemId}` and `/UserItems/Resume`
         // all arrived in 10.9.0, alongside the deprecation of the per-user
@@ -107,7 +117,7 @@ describe('assertVersionSupported', () => {
     });
 
     it('has a floor for every service', () => {
-        const services = ['radarr', 'sonarr', 'whisparr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'transmission', 'qbittorrent', 'plex', 'profilarr', 'cleanuparr'];
+        const services = ['radarr', 'sonarr', 'whisparr', 'lidarr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'plex', 'profilarr', 'cleanuparr'];
         for (const s of services) expect(MINIMUM_VERSIONS[s as keyof typeof MINIMUM_VERSIONS]).toBeTruthy();
     });
 
@@ -141,9 +151,11 @@ describe('assertVersionSupported against captured evidence', () => {
         jellyfin: (read('test/fixtures/jellyfin/system-info.json') as { Version: string }).Version,
         seerr: (read('test/fixtures/seerr/status.json') as { version: string }).version,
         sabnzbd: (read('test/fixtures/sabnzbd/version.json') as { version: string }).version,
+        nzbget: (read('test/fixtures/nzbget/version.json') as { result: string }).result,
         transmission: (read('test/fixtures/transmission/session-get.json') as { arguments: { version: string } }).arguments.version,
         qbittorrent: (read('test/fixtures/qbittorrent/version.json') as { version: string }).version,
         plex: '1.0.0',
+        lidarr: (read('test/fixtures/lidarr/system-status.json') as { version: string }).version,
         whisparr: (read('test/fixtures/whisparr/system-status.json') as { version: string }).version,
         profilarr: (read('test/fixtures/profilarr/status.json') as { version: string }).version,
         cleanuparr: (read('test/fixtures/cleanuparr/status.json') as { application: { version: string } }).application.version

@@ -31,6 +31,12 @@ export const ICONS: Record<ServiceId, string> = {
             '<path d="M2.5 9.5v-4a1 1 0 0 1 1-1h17a1 1 0 0 1 1 1v4"/>' +
             '<path d="m8 4.5-3 5M14 4.5l-3 5M20 4.5l-3 5"/>'
     ),
+    // A beamed pair of notes: audio is the category, and at 20px a note head is
+    // the only audio glyph that survives. Not Lidarr's own mark, which is a brand.
+    lidarr: draw(
+        '<circle cx="7" cy="17" r="2.5"/><circle cx="17" cy="14.5" r="2.5"/>' +
+            '<path d="M9.5 17V6M19.5 14.5V3.5"/><path d="m9.5 6 10-2.5"/>'
+    ),
     prowlarr: draw('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="m12 12 6-6"/>'),
     // A bubble rather than a captions screen: the tail is the one thing here
     // that breaks a rectangle's outline, and Sonarr and Jellyfin are already
@@ -57,6 +63,7 @@ export const ICONS: Record<ServiceId, string> = {
         '<path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284"/>' +
             '<path d="M12 13v8"/><path d="m8 17 4 4 4-4"/>'
     ),
+    nzbget: draw('<path d="M5 4h14v5H5zM5 15h14v5H5z"/><path d="M8 9v6M12 9v6M16 9v6"/>'),
     transmission: draw(
         '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>'
     ),

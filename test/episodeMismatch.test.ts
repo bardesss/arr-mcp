@@ -8,6 +8,7 @@ import {
     extractFileTitle,
     movieRemedy,
     parseMovieFile,
+    managedSeriesOf,
     summariseSeries,
     type EpisodeRecord
 } from '../src/core/episodeMismatch.ts';
@@ -600,6 +601,17 @@ describe('movieRemedy', () => {
         expect(movieRemedy(['year'], true)).toBe('refresh_metadata');
     });
 
+    /** #312: the Plex Movie agent keeps its own year, and a repair re-pins the
+     *  id Plex already holds, so a matched film's year did not move. */
+    it('sends a matched Plex film whose year alone disagrees to inspect', () => {
+        expect(movieRemedy(['year'], true, false, { keepsOwnYear: true })).toBe('inspect');
+    });
+
+    it('still re-identifies an unmatched Plex film, or one whose title disagrees too', () => {
+        expect(movieRemedy(['year'], false, false, { keepsOwnYear: true })).toBe('refresh_metadata');
+        expect(movieRemedy(['year', 'title'], true, false, { keepsOwnYear: true })).toBe('refresh_metadata');
+    });
+
     it('refuses to name a fix for a matched title-only disagreement', () => {
         expect(movieRemedy(['title'], true)).toBe('inspect');
     });
@@ -637,6 +649,57 @@ describe('advisory findings from a real Plex library', () => {
 
     it('does not call a title shifted when no neighbour carries it', () => {
         expect(findMismatches([at(1, 1, 'Stray Dog Strut', 'Asteroid Blues')])[0]?.advisory).toBeUndefined();
+    });
+
+    /** #312 on 1.44.1: Super Mario Bros. Super Show! files name both segments,
+     *  and the server titles each episode after the second one. */
+    it('finds a shifted title in the second half of a two-part file name', () => {
+        const found = findMismatches([
+            at(1, 7, 'Plumber Picnic Panic', 'Bats in the Basement (Fixture and the Beanstalk)'),
+            at(1, 8, 'Fixture and the Beanstalk', 'Lighthouse Rescue (Love Them and Leave Them)'),
+            at(1, 9, 'Love Them and Leave Them', 'Volcano Rumble (Koopa Kitchen)')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual(['shifted', 'shifted', 'shifted']);
+    });
+
+    it('does not call a one-word second half a shift', () => {
+        const found = findMismatches([
+            at(1, 1, 'Plumber Picnic Panic', 'Bats in the Basement (Fixture)'),
+            at(1, 2, 'Fixture Goes Fishing', 'Fixture Goes Fishing')
+        ]);
+        expect(found[0]?.advisory).toBeUndefined();
+    });
+
+    /** #312 on 1.44.0: shifts further than one place still went to a refresh. */
+    it('marks a file whose title is two episodes away as shifted', () => {
+        const found = findMismatches([
+            at(1, 1, 'Lighthouse Keeper', 'Volcano Picnic'),
+            at(1, 2, 'Marble Staircase', 'Harbour Ghost'),
+            at(1, 3, 'Volcano Picnic', 'Lighthouse Keeper')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual(['shifted', undefined, 'shifted']);
+    });
+
+    it('marks episodes in a different order as shifted', () => {
+        const found = findMismatches([
+            at(1, 1, 'Copper Kettle', 'Silver Spoon'),
+            at(1, 2, 'Paper Lantern', 'Copper Kettle'),
+            at(1, 5, 'Silver Spoon', 'Velvet Curtain'),
+            at(1, 8, 'Velvet Curtain', 'Paper Lantern')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual(['shifted', 'shifted', 'shifted', 'shifted']);
+        expect(summariseSeries([
+            at(1, 1, 'Copper Kettle', 'Silver Spoon'),
+            at(1, 2, 'Paper Lantern', 'Copper Kettle')
+        ])).toMatchObject({ shifted: 2, remedy: 'inspect' });
+    });
+
+    it('does not look for the title in another season', () => {
+        const found = findMismatches([
+            at(1, 1, 'Lighthouse Keeper', 'Volcano Picnic'),
+            at(2, 4, 'Volcano Picnic', 'Harbour Ghost')
+        ]);
+        expect(found[0]?.advisory).toBeUndefined();
     });
 
     it('reads a multi-episode file as a range', () => {
@@ -694,8 +757,8 @@ describe('titles in different languages', () => {
         ep({ id: `l${n}`, name, season: 1, episode: n, path: `/tv/Show/Season 01/Show - S01E0${n} - ${file}.mkv` });
 
     it('guesses a language from function words', () => {
-        expect(guessLanguage('El monstruo marino')).toBe('es');
-        expect(guessLanguage('The Sea Monster')).toBe('en');
+        expect(guessLanguage('El monstruo del mar')).toBe('es');
+        expect(guessLanguage('The Monster of the Sea')).toBe('en');
         expect(guessLanguage('El Carnicero en el Coche')).toBe('es');
         expect(guessLanguage('Het huis van de familie')).toBe('nl');
         expect(guessLanguage('Le chat dans la maison')).toBe('fr');
@@ -709,18 +772,78 @@ describe('titles in different languages', () => {
         expect(guessLanguage('Death in Los Angeles')).toBeUndefined();
     });
 
+    /** #312: Skeleton Crew read "of" as English and "as" as Portuguese. */
+    it('needs two function words before a guess counts', () => {
+        expect(guessLanguage('El monstruo marino')).toBeUndefined();
+        expect(guessLanguage('Coming of Age')).toBeUndefined();
+        expect([undefined, 'en']).toContain(guessLanguage('Very Interesting, as an Orbital Problem'));
+        expect(findMismatches([at(3, 'Coming of Age', 'Very Interesting, as an Orbital Problem')])[0]?.advisory).toBeUndefined();
+    });
+
+    /** #312 on 1.44.1: Bleach read "as" and "a" as Portuguese. Both are English too. */
+    it('does not count words other languages share with English', () => {
+        expect(guessLanguage('Wrath as a Lightning')).toBeUndefined();
+        expect(guessLanguage('Do No Harm')).toBeUndefined();
+        expect(findMismatches([at(5, 'Wrath as a Lightning', 'Penetrate the Center with an Enormous Bombshell')])[0]?.advisory).toBeUndefined();
+    });
+
+    /** #312 on 1.44.1: Los Espookys' titles are too short to place one by one. */
+    it('places short titles by the language of the whole series', () => {
+        const found = findMismatches([
+            at(1, 'The Sea Monster', 'El monstruo marino'),
+            at(2, 'The Haunted Fixture', 'La casa embrujada'),
+            at(3, 'The Ghosts of the Night', 'Los fantasmas de las sombras'),
+            at(4, 'The Fixture Parade', 'Un desfile en el pueblo')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual(['language', 'language', 'language', 'language']);
+    });
+
+    /** #312 on 1.44.4: Los Espookys S02E04, "One Man's Many Faces", has no
+     *  function words for the series fallback to go on. */
+    it('places a title with no function words when the other side is clearly the other language', () => {
+        const found = findMismatches([
+            at(1, 'The Sea Monster', 'El monstruo marino'),
+            at(2, 'The Haunted Fixture', 'La casa embrujada'),
+            at(3, "One Fixture's Many Faces", 'Las muchas caras de un hombre')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual(['language', 'language', 'language']);
+    });
+
+    it('does not place a title with no function words against one that is only placed by its series', () => {
+        const found = findMismatches([
+            at(1, 'The Sea Monster of the Deep', 'El monstruo marino'),
+            at(2, 'Fixture Parade Night', 'Noche del desfile')
+        ]);
+        expect(found[1]?.advisory).toBeUndefined();
+    });
+
+    it('does not mark short titles in a series whose two sides share a language', () => {
+        const found = findMismatches([
+            at(1, 'The Sea Monster', 'Asteroid Blues'),
+            at(2, 'The Haunted Fixture', 'Stray Dog Strut'),
+            at(3, 'The Ghosts of the Night', 'Death of the Party')
+        ]);
+        expect(found.map(m => m.advisory)).toEqual([undefined, undefined, undefined]);
+    });
+
+    it('does not read short English titles as another language', () => {
+        for (const title of ['A Fixture Day at the Beach', 'Fixture Night in Town', 'O Fixture Captain', 'Fixture Kings as Thieves', 'Fixture Day of Days']) {
+            expect([undefined, 'en'], title).toContain(guessLanguage(title));
+        }
+    });
+
     it('marks a filename and a server title in different languages', () => {
-        const [found] = findMismatches([at(1, 'The Sea Monster', 'El monstruo marino')]);
+        const [found] = findMismatches([at(1, 'The Monster of the Sea', 'El monstruo del mar')]);
         expect(found).toMatchObject({ reasons: ['title'], advisory: 'language' });
     });
 
     it('sends a series of only those to inspect', () => {
-        const verdict = summariseSeries([at(1, 'The Sea Monster', 'El monstruo marino'), at(2, 'The Butcher in the Car', 'El Carnicero en el Coche')]);
+        const verdict = summariseSeries([at(1, 'The Monster of the Sea', 'El monstruo del mar'), at(2, 'The Butcher in the Car', 'El Carnicero en el Coche')]);
         expect(verdict).toMatchObject({ mismatches: 2, languages: 2, remedy: 'inspect' });
     });
 
     it('still sends a series with an ordinary mismatch to the repair', () => {
-        const verdict = summariseSeries([at(1, 'The Sea Monster', 'El monstruo marino'), at(2, 'The Fixture Show', 'Completely Unrelated Words')]);
+        const verdict = summariseSeries([at(1, 'The Monster of the Sea', 'El monstruo del mar'), at(2, 'The Fixture Show', 'Completely Unrelated Words')]);
         expect(verdict).toMatchObject({ languages: 1, remedy: 'refresh_metadata' });
     });
 
@@ -737,5 +860,42 @@ describe('titles in different languages', () => {
         const found = findMismatches([ep({ id: 'n', name: 'The Sea Monster', season: 1, episode: 2, path: '/tv/Show/Season 01/Show - S01E05 - El monstruo marino.mkv' })]);
         expect(found[0]?.reasons).toContain('numbering');
         expect(found[0]?.advisory).toBeUndefined();
+    });
+});
+
+/** #312: Plex merged two Sonarr series' folders into one item. */
+describe('managedSeriesOf', () => {
+    const older = { key: 'tvdb:1001', title: 'Some Show', path: '/tv/Some Show' };
+    const newer = { key: 'tvdb:1002', title: 'Some Show (2026)', path: '/tv/Some Show (2026)' };
+    const at = (id: string, folder: string, title: string) =>
+        ep({ id, name: title, season: 1, episode: 1, path: `/volume1/tv/${folder}/Season 01/Show - S01E01 - ${title}.mkv` });
+
+    it('names every managed series whose folder holds a file, across a different mount', () => {
+        const owners = managedSeriesOf([at('a', 'Some Show', 'Pilot Episode'), at('b', 'Some Show (2026)', 'Return Episode')], [older, newer]);
+        expect(owners.map(o => o.key)).toEqual(['tvdb:1001', 'tvdb:1002']);
+    });
+
+    it('prefers the folder whose parents also match when two share a name', () => {
+        const elsewhere = { key: 'tvdb:1003', title: 'Some Show', path: '/kids/Some Show' };
+        expect(managedSeriesOf([at('a', 'Some Show', 'Pilot Episode')], [elsewhere, older]).map(o => o.key)).toEqual(['tvdb:1001']);
+    });
+
+    it('sends a series spanning two managed folders to inspect', () => {
+        const verdict = summariseSeries(
+            [
+                at('a', 'Some Show', 'Pilot Episode'),
+                ep({ id: 'b', name: 'Some Show', season: 1, episode: 2, path: '/volume1/tv/Some Show (2026)/Season 01/Show - S01E02 - Missouri Mutual Life.mkv' })
+            ],
+            [older, newer]
+        );
+        expect(verdict).toMatchObject({ remedy: 'inspect', mergedFrom: ['Some Show', 'Some Show (2026)'] });
+    });
+
+    it('keeps the old remedy with no managed folders', () => {
+        const verdict = summariseSeries([
+            ep({ id: 'b', name: 'Some Show', season: 1, episode: 2, path: '/volume1/tv/Some Show (2026)/Season 01/Show - S01E02 - Missouri Mutual Life.mkv' })
+        ]);
+        expect(verdict?.remedy).toBe('refresh_metadata');
+        expect(verdict?.mergedFrom).toBeUndefined();
     });
 });

@@ -804,7 +804,7 @@ export type SeasonMonitoring = { season: number; monitored: boolean };
 
 export type MediaDetails = {
     service: string;
-    kind: 'movie' | 'series' | 'item';
+    kind: 'movie' | 'series' | 'item' | 'artist';
     id: string;
     title: string;
     year?: number;
@@ -819,14 +819,35 @@ export type MediaDetails = {
     sizeBytes?: number;
     quality?: string;
     path?: string;
-    ids: { tmdb?: number; tvdb?: number; imdb?: string };
+    ids: { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
     /** Flattened from each service's nested shape to `source → value`. */
     ratings?: Record<string, number>;
     episodes?: EpisodeSummary[];
     episodeCount?: number;
     episodesTruncated?: boolean;
+    /** Artists only. The albums under the artist, and the count of them. */
+    albums?: AlbumSummary[];
+    albumCount?: number;
+    albumsTruncated?: boolean;
     /** Series only. Sonarr's per-season monitoring, as reported by Sonarr. */
     seasons?: SeasonMonitoring[];
+};
+
+/**
+ * One album under an artist, as `get_media_details` reports it.
+ *
+ * `id` is Lidarr's album id, which is what `set_monitoring` takes with `level:
+ * "album"`. That is the whole point of reading an artist this way: the library
+ * lists artists, so the album ids a write needs are one call down.
+ */
+export type AlbumSummary = {
+    id: string;
+    title: string;
+    year?: number;
+    albumType?: string;
+    monitored: boolean;
+    hasFile: boolean;
+    mbid?: string;
 };
 
 export interface MediaDetailCapable {
@@ -841,11 +862,12 @@ export type SearchSource = 'library' | 'discover' | 'indexers';
 export type SearchHit = {
     service: string;
     source: SearchSource;
-    kind: 'movie' | 'series' | 'item' | 'release';
+    /** `artist` is Lidarr's, and it appears for `source: 'library'` only. */
+    kind: 'movie' | 'series' | 'item' | 'release' | 'artist';
     id: string;
     title: string;
     year?: number;
-    ids: { tmdb?: number; tvdb?: number; imdb?: string };
+    ids: { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
     /**
      * Ratings by source, on each source's native scale — same shape as
      * `MediaDetails.ratings`, which this is the not-yet-owned counterpart to.
@@ -1117,6 +1139,80 @@ export interface MonitoringCapable {
 
 export const hasMonitoring = (a: ServiceAdapter): a is ServiceAdapter & MonitoringCapable =>
     typeof (a as Partial<MonitoringCapable>).setMonitoring === 'function';
+
+/**
+ * What one item currently reports for its own monitoring, read back so a
+ * monitoring write previews against what the service holds instead of issuing a
+ * PUT into the dark, and so a bad id fails here rather than as a silent success.
+ *
+ * Sonarr and Whisparr already answer this through `MediaDetailsCapable`. Lidarr
+ * albums cannot: `get_media_details` walks the film and series chain and
+ * refuses an album on purpose, so an album needs a narrower read that returns
+ * the two facts `set_monitoring` actually consumes and nothing else.
+ */
+export type MonitorState = { label: string; monitored: boolean };
+
+export interface MonitorStateCapable {
+    getMonitorState(id: string): Promise<MonitorState>;
+    /**
+     * Refuses a season or an episode list on an item this service monitors
+     * whole.
+     *
+     * Two callers need the same rule. `set_monitoring` calls it during `plan`,
+     * before a confirmation token is issued, so a caller never approves a write
+     * that can only fail. `setMonitoring` calls it again, so a direct caller
+     * meets the rule too. The message lives in the adapter that owns it.
+     */
+    refusePartialSelection(selection: {
+        readonly season?: number | undefined;
+        readonly episodeIds?: readonly string[] | undefined;
+    }): void;
+}
+
+export const hasMonitorState = (a: ServiceAdapter): a is ServiceAdapter & MonitorStateCapable =>
+    typeof (a as Partial<MonitorStateCapable>).getMonitorState === 'function' &&
+    // Both members, as `hasArtistMonitor` does: the tool calls the guard, not
+    // just the read, and a double that claims only the read would otherwise
+    // reach a `TypeError` at plan time instead of a clean "cannot describe its
+    // own items" refusal.
+    typeof (a as Partial<MonitorStateCapable>).refusePartialSelection === 'function';
+
+/** Lidarr's `NewItemMonitorTypes`. `none` is the only value that does not grow
+ *  the wanted list on its own as Lidarr discovers new albums. */
+export type ArtistMonitorNewItems = 'all' | 'none' | 'new';
+
+/**
+ * An artist's standing monitoring policy: the half of Lidarr's monitoring that
+ * decides the *future* rather than the present.
+ *
+ * `monitored` is each artist's own flag. It does not stand in for the albums
+ * under it: a live library held an artist reading `monitored: false` with an
+ * album beneath it still `monitored: true`. `monitorNewItems` is the rule Lidarr
+ * applies to albums it discovers later, so a library is not stable while any
+ * artist carries anything other than `none` — unmonitoring albums under such an
+ * artist is a treadmill.
+ */
+export type ArtistMonitorPolicy = {
+    artistId: string;
+    artistName: string;
+    monitored: boolean;
+    /** `unknown` when Lidarr reported a value outside its own enum, or none at
+     *  all. Reported rather than defaulted to `none`: a policy that cannot be
+     *  read is not a policy that is off. */
+    monitorNewItems: ArtistMonitorNewItems | 'unknown';
+};
+
+export interface ArtistMonitorCapable {
+    listArtistMonitorPolicies(): Promise<ArtistMonitorPolicy[]>;
+    setArtistMonitorPolicy(
+        artistIds: string[],
+        policy: { monitored?: boolean; monitorNewItems?: ArtistMonitorNewItems }
+    ): Promise<void>;
+}
+
+export const hasArtistMonitor = (a: ServiceAdapter): a is ServiceAdapter & ArtistMonitorCapable =>
+    typeof (a as Partial<ArtistMonitorCapable>).listArtistMonitorPolicies === 'function' &&
+    typeof (a as Partial<ArtistMonitorCapable>).setArtistMonitorPolicy === 'function';
 
 /** One file on disk. `sizeBytes` is omitted when Sonarr did not report one —
  *  a preview saying "0 bytes" would read as "nothing to lose". */
@@ -1403,6 +1499,20 @@ export interface LibraryCapable {
 
 export const hasLibrary = (a: ServiceAdapter): a is ServiceAdapter & LibraryCapable =>
     typeof (a as Partial<LibraryCapable>).listLibrary === 'function';
+
+/**
+ * A media server's music half.
+ *
+ * Separate from `UserLibraryCapable` so one failing read degrades by name in a
+ * library build. Films and series must not disappear because a music library
+ * was slow or broken, and `musicGathered` cannot name a half it cannot isolate.
+ */
+export interface UserMusicCapable {
+    listUserMusic(user: ServiceUser): Promise<IndexInput[]>;
+}
+
+export const hasUserMusic = (a: ServiceAdapter): a is ServiceAdapter & UserMusicCapable =>
+    typeof (a as Partial<UserMusicCapable>).listUserMusic === 'function';
 
 /**
  * Separate from LibraryCapable because Jellyfin's half is per-user:

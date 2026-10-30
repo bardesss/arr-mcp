@@ -1,5 +1,82 @@
 # Changelog
 
+## [1.47.0](https://github.com/bardesss/arr-mcp/compare/v1.46.0...v1.47.0) (2026-10-29)
+
+
+### Features
+
+* add Lidarr as a managed service ([#397](https://github.com/bardesss/arr-mcp/issues/397)) ([86c3d1a](https://github.com/bardesss/arr-mcp/commit/86c3d1af5ef602836a570650b2571204de6f3b23))
+
+## [1.46.0](https://github.com/bardesss/arr-mcp/compare/v1.45.1...v1.46.0) (2026-10-29)
+
+
+### Features
+
+* add NZBGet as a download client ([#391](https://github.com/bardesss/arr-mcp/issues/391)) ([66286e4](https://github.com/bardesss/arr-mcp/commit/66286e463f723ba7a0c6e9601de193a207e4466b))
+
+
+### Bug Fixes
+
+* **deps:** bump @hono/node-server from 2.1.1 to 2.1.3 ([#393](https://github.com/bardesss/arr-mcp/issues/393)) ([582d758](https://github.com/bardesss/arr-mcp/commit/582d75862028b4f04990f1ef817b90e53fcd3b45))
+
+## [1.45.1](https://github.com/bardesss/arr-mcp/compare/v1.45.0...v1.45.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* **deps:** bump zod from 4.6.5 to 4.6.7 ([#387](https://github.com/bardesss/arr-mcp/issues/387)) ([cfc8026](https://github.com/bardesss/arr-mcp/commit/cfc8026a5015a2dd94124f00f483f836db8f1c06))
+
+## [1.45.0](https://github.com/bardesss/arr-mcp/compare/v1.44.5...v1.45.0) (2026-10-24)
+
+
+### Features
+
+* Plex metadata repair is on by default ([#386](https://github.com/bardesss/arr-mcp/issues/386)) ([ef75937](https://github.com/bardesss/arr-mcp/commit/ef7593737ab31a15aef2cae4ec6d6f9f0e94dec7))
+
+
+### Bug Fixes
+
+* **deps:** bump @vitest/mocker and vitest ([#384](https://github.com/bardesss/arr-mcp/issues/384)) ([2625fba](https://github.com/bardesss/arr-mcp/commit/2625fba1312e4a3048ebe618095403334aa2b118))
+
+## [1.44.5](https://github.com/bardesss/arr-mcp/compare/v1.44.4...v1.44.5) (2026-10-23)
+
+
+### Bug Fixes
+
+* fix_metadata verdict in the text, and three more gaps from the 1.44.4 rerun ([#381](https://github.com/bardesss/arr-mcp/issues/381)) ([c301c2a](https://github.com/bardesss/arr-mcp/commit/c301c2a15c7a919646283509088b5c982e686a2e)), closes [#312](https://github.com/bardesss/arr-mcp/issues/312)
+* **metadata:** send a Plex item merging two Sonarr series to inspect ([#382](https://github.com/bardesss/arr-mcp/issues/382)) ([b2a0620](https://github.com/bardesss/arr-mcp/commit/b2a06203233036f4d5afdcec683a6e762da7bcfb)), closes [#312](https://github.com/bardesss/arr-mcp/issues/312)
+
+## [1.44.4](https://github.com/bardesss/arr-mcp/compare/v1.44.3...v1.44.4) (2026-10-21)
+
+
+### Bug Fixes
+
+* **deps:** bump @modelcontextprotocol/server from 2.1.0 to 2.3.1 ([#377](https://github.com/bardesss/arr-mcp/issues/377)) ([96fc576](https://github.com/bardesss/arr-mcp/commit/96fc576179b2caf46cc1ed80fe4ef6d23d5d77fd))
+* **deps:** bump hono from 4.13.9 to 4.13.13 ([#380](https://github.com/bardesss/arr-mcp/issues/380)) ([3052018](https://github.com/bardesss/arr-mcp/commit/305201879ad7ca6fccc0d0b0daca5807c8828a63))
+
+## [1.44.3](https://github.com/bardesss/arr-mcp/compare/v1.44.2...v1.44.3) (2026-10-20)
+
+
+### Bug Fixes
+
+* drop the ETA on paused SABnzbd slots ([#376](https://github.com/bardesss/arr-mcp/issues/376)) ([9e01db4](https://github.com/bardesss/arr-mcp/commit/9e01db4a458b097a97bb154718da5a57f08ad45e))
+* keep SABnzbd queue ETAs past 24 hours ([#374](https://github.com/bardesss/arr-mcp/issues/374)) ([fba60fc](https://github.com/bardesss/arr-mcp/commit/fba60fcfa0950adcc68e6915cdc5a961e38896b3)), closes [#371](https://github.com/bardesss/arr-mcp/issues/371)
+
+## [1.44.2](https://github.com/bardesss/arr-mcp/compare/v1.44.1...v1.44.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* close the detector gaps from the 1.44.1 rerun ([#372](https://github.com/bardesss/arr-mcp/issues/372)) ([e7aba8a](https://github.com/bardesss/arr-mcp/commit/e7aba8a4fbf7d1f96ce4b4e2988e1ba7b8fcaaff)), closes [#312](https://github.com/bardesss/arr-mcp/issues/312)
+
+## [1.44.1](https://github.com/bardesss/arr-mcp/compare/v1.44.0...v1.44.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* close the Plex metadata detector gaps from the 1.44.0 rerun ([#369](https://github.com/bardesss/arr-mcp/issues/369)) ([b5a1c7d](https://github.com/bardesss/arr-mcp/commit/b5a1c7ddec4ac7922d0b32c5fa3d29d8eaaa3ab7)), closes [#312](https://github.com/bardesss/arr-mcp/issues/312)
+* language_preferred_not_required fires whenever the floor doesn't need the language ([#368](https://github.com/bardesss/arr-mcp/issues/368)) ([6455b6c](https://github.com/bardesss/arr-mcp/commit/6455b6c816adf9702ee0aa239453245f9ee07fd7)), closes [#367](https://github.com/bardesss/arr-mcp/issues/367)
+
 ## [1.44.0](https://github.com/bardesss/arr-mcp/compare/v1.43.0...v1.44.0) (2026-10-09)
 
 

@@ -1,0 +1,173 @@
+{
+  "version": "1.1",
+  "id": 5,
+  "result": {
+    "Alerts": [],
+    "Sections": [
+      {
+        "Name": "Paths",
+        "Issues": [],
+        "Options": [],
+        "Subsections": []
+      },
+      {
+        "Name": "NewsServers",
+        "Issues": [],
+        "Options": [],
+        "Subsections": [
+          {
+            "Name": "Server1",
+            "Options": []
+          },
+          {
+            "Name": "Server2",
+            "Options": []
+          }
+        ]
+      },
+      {
+        "Name": "Display",
+        "Issues": [],
+        "Options": [
+          {
+            "Name": "CursesNzbName",
+            "Severity": "Info",
+            "Message": "Fixture message 1"
+          }
+        ],
+        "Subsections": []
+      },
+      {
+        "Name": "Logging",
+        "Issues": [],
+        "Options": [],
+        "Subsections": []
+      },
+      {
+        "Name": "ExtensionScripts",
+        "Issues": [],
+        "Options": [],
+        "Subsections": []
+      },
+      {
+        "Name": "Connection",
+        "Issues": [],
+        "Options": [],
+        "Subsections": []
+      },
+      {
+        "Name": "DownloadQueue",
+        "Issues": [],
+        "Options": [
+          {
+            "Name": "ContinuePartial",
+            "Severity": "Info",
+            "Message": "Fixture message 2"
+          }
+        ],
+        "Subsections": []
+      },
+      {
+        "Name": "Security",
+        "Issues": [],
+        "Options": [
+          {
+            "Name": "ControlIP",
+            "Severity": "Info",
+            "Message": "Fixture message 3"
+          },
+          {
+            "Name": "ControlPassword",
+            "Severity": "Warning",
+            "Message": "Fixture message 4"
+          },
+          {
+            "Name": "SecureCert",
+            "Severity": "Warning",
+            "Message": "Fixture message 5"
+          },
+          {
+            "Name": "SecureKey",
+            "Severity": "Warning",
+            "Message": "Fixture message 6"
+          }
+        ],
+        "Subsections": []
+      },
+      {
+        "Name": "IncomingNzbs",
+        "Issues": [],
+        "Options": [
+          {
+            "Name": "AppendCategoryDir",
+            "Severity": "Info",
+            "Message": "Fixture message 7"
+          }
+        ],
+        "Subsections": []
+      },
+      {
+        "Name": "CheckAndRepair",
+        "Issues": [],
+        "Options": [],
+        "Subsections": []
+      },
+      {
+        "Name": "Unpack",
+        "Issues": [],
+        "Options": [
+          {
+            "Name": "Unpack",
+            "Severity": "Warning",
+            "Message": "Fixture message 8"
+          },
+          {
+            "Name": "UnpackCleanupDisk",
+            "Severity": "Info",
+            "Message": "Fixture message 9"
+          }
+        ],
+        "Subsections": []
+      },
+      {
+        "Name": "Scheduler",
+        "Issues": [],
+        "Options": [],
+        "Subsections": []
+      },
+      {
+        "Name": "Categories",
+        "Issues": [],
+        "Options": [],
+        "Subsections": [
+          {
+            "Name": "Category1",
+            "Options": []
+          },
+          {
+            "Name": "Category2",
+            "Options": []
+          },
+          {
+            "Name": "Category3",
+            "Options": []
+          },
+          {
+            "Name": "Category4",
+            "Options": []
+          },
+          {
+            "Name": "Category5",
+            "Options": []
+          }
+        ]
+      },
+      {
+        "Name": "Feeds",
+        "Issues": [],
+        "Options": [],
+        "Subsections": []
+      }
+    ]
+  }
+}

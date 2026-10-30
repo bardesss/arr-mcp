@@ -48,17 +48,27 @@ export type WriteIntent = {
     args?: Record<string, unknown>;
 };
 
-export type ConfirmFailure = 'expired' | 'mismatch' | 'used' | 'malformed';
+export type ConfirmFailure = 'expired' | 'mismatch' | 'foreign' | 'used' | 'malformed';
 
 export type ConfirmResult = { ok: true } | { ok: false; failure: ConfirmFailure; remedy: string };
 
+/** The diagnosis alone, for a caller that hands back a fresh token and so
+ *  must not repeat the "call again without `confirm`" half of the remedy. */
+export const CONFIRM_REASON: Record<ConfirmFailure, string> = {
+    expired: `The confirmation token has expired (they last ${CONFIRM_TTL_MS / 1000}s).`,
+    mismatch: 'That confirmation token was issued for a different operation or different arguments.',
+    foreign:
+        'That confirmation token was issued by another arr-mcp process, or by this one before it restarted. Tokens only work in the process that issued them.',
+    used: 'That confirmation token has already been used.',
+    malformed: 'That is not a confirmation token issued by this server.'
+};
+
 const REMEDY: Record<ConfirmFailure, string> = {
-    expired: `The confirmation token has expired (they last ${CONFIRM_TTL_MS / 1000}s). Call this tool again without \`confirm\` to preview the operation and get a fresh token.`,
-    mismatch:
-        'That confirmation token was issued for a different operation or different arguments. Call this tool again without `confirm` to preview *this* operation and use the token it returns — do not reuse a token from an earlier preview.',
-    used: 'That confirmation token has already been used. Tokens are single-use so a write cannot be applied twice; call this tool again without `confirm` if you genuinely intend to repeat the operation.',
-    malformed:
-        'That is not a confirmation token issued by this server. Call this tool again without `confirm` to preview the operation and use the token it returns verbatim.'
+    expired: `${CONFIRM_REASON.expired} Call this tool again without \`confirm\` to preview the operation and get a fresh token.`,
+    mismatch: `${CONFIRM_REASON.mismatch} Call this tool again without \`confirm\` to preview *this* operation and use the token it returns — do not reuse a token from an earlier preview.`,
+    foreign: `${CONFIRM_REASON.foreign} Call this tool again without \`confirm\` to preview the operation here and use the token it returns.`,
+    used: `${CONFIRM_REASON.used} Tokens are single-use so a write cannot be applied twice; call this tool again without \`confirm\` if you genuinely intend to repeat the operation.`,
+    malformed: `${CONFIRM_REASON.malformed} Call this tool again without \`confirm\` to preview the operation and use the token it returns verbatim.`
 };
 
 /**
@@ -93,7 +103,7 @@ const intentPayload = (intent: WriteIntent): string =>
  *
  * The preview names the token inside backticks and ends the sentence with a
  * period, so what returns is frequently the token with one or both still
- * attached. None of it can belong to a token — `v1.<base36>.<base64url>` holds
+ * attached. None of it can belong to a token — `v2.<keyId>.<base36>.<base64url>` holds
  * no whitespace, quotes or punctuation — so removing it concedes nothing: the
  * HMAC still decides, and a wrong token fails exactly as it did before.
  * Refusing these is the expensive option, because the refusal reissues a token
@@ -127,6 +137,7 @@ export class ConfirmTokens {
     readonly #key: Buffer;
     readonly #now: Clock;
     readonly #ttlMs: number;
+    readonly #keyId: string;
     /** token signature → the moment it stops mattering that it was used. */
     readonly #consumed = new Map<string, number>();
 
@@ -134,13 +145,16 @@ export class ConfirmTokens {
         this.#key = opts.key ?? randomBytes(32);
         this.#now = opts.clock ?? Date.now;
         this.#ttlMs = opts.ttlMs ?? CONFIRM_TTL_MS;
+        this.#keyId = createHmac('sha256', this.#key).update('key-id').digest('base64url').slice(0, 8);
     }
 
-    /** `v1.<issuedAt>.<signature>` — the timestamp is in the clear because it is
-     *  covered by the signature, so it cannot be edited to extend a token's life. */
+    /** `v2.<keyId>.<issuedAt>.<signature>`. The timestamp is in the clear because
+     *  it is covered by the signature, so it cannot be edited to extend a token's
+     *  life. The key id names the issuing process, so a token from another one
+     *  can be told apart from one for different arguments. */
     issue(intent: WriteIntent): string {
         const issuedAt = this.#now();
-        return `v1.${issuedAt.toString(36)}.${this.#sign(intent, issuedAt)}`;
+        return `v2.${this.#keyId}.${issuedAt.toString(36)}.${this.#sign(intent, issuedAt)}`;
     }
 
     /**
@@ -155,10 +169,13 @@ export class ConfirmTokens {
         this.#sweep();
 
         const parts = unwrap(presented).split('.');
-        if (parts.length !== 3 || parts[0] !== 'v1') return { ok: false, failure: 'malformed', remedy: REMEDY.malformed };
+        // A v1 token can only come from an older process.
+        if (parts.length === 3 && parts[0] === 'v1') return { ok: false, failure: 'foreign', remedy: REMEDY.foreign };
+        if (parts.length !== 4 || parts[0] !== 'v2') return { ok: false, failure: 'malformed', remedy: REMEDY.malformed };
+        if (parts[1] !== this.#keyId) return { ok: false, failure: 'foreign', remedy: REMEDY.foreign };
 
-        const issuedAt = Number.parseInt(parts[1] ?? '', 36);
-        const signature = parts[2] ?? '';
+        const issuedAt = Number.parseInt(parts[2] ?? '', 36);
+        const signature = parts[3] ?? '';
         if (!Number.isFinite(issuedAt) || signature === '') {
             return { ok: false, failure: 'malformed', remedy: REMEDY.malformed };
         }
