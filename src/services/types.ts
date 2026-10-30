@@ -1032,6 +1032,10 @@ export const hasPostProcess = (a: ServiceAdapter): a is ServiceAdapter & PostPro
 /** What a retry will send, decided by the preview and bound into the token. */
 export type RetryMethod = 'unlock' | 'retry' | 'postprocess' | 'retry-failed';
 
+/** The failed job as the preview saw it. It is resolved again on confirm, so
+ *  a job that changed in between is refused instead of sent the wrong write;
+ *  `downloadId` is carried because the *arrs know a job by it, not by the
+ *  client's own id. */
 export type RetryTarget = {
     id: string; // the client's id, as given
     title: string; // fenced
@@ -1042,6 +1046,9 @@ export type RetryTarget = {
     method: RetryMethod;
 };
 
+/** Where the job stood once the client showed it acted: the proof a client's
+ *  `true` cannot give. `id` is separate from the target's because a SABnzbd
+ *  retry re-queues the job under a new one. */
 export type RetryOutcome = {
     target: RetryTarget;
     id: string; // the id from now on (SABnzbd `retry` gives a new one)
@@ -1060,6 +1067,9 @@ export interface RetryCapable {
 export const hasRetry = (a: ServiceAdapter): a is ServiceAdapter & RetryCapable =>
     typeof (a as Partial<RetryCapable>).runRetry === 'function';
 
+/** What one *arr recorded about a download id. A retry cannot see whether an
+ *  *arr already gave up on the job and grabbed something else; this is how
+ *  the preview warns of a second copy before it is fetched. */
 export type DownloadTrace = {
     service: string; // the *arr's adapter id
     title: string; // fenced sourceTitle of the original grab
