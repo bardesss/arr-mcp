@@ -166,7 +166,7 @@ describe('sabnzbd runRetry', () => {
             const mode = params.get('mode');
             if (mode === 'retry') {
                 retried = true;
-                return { status: true, nzo_id: 'SABnzbd_nzo_new' };
+                return { nzo_id: 'SABnzbd_nzo_new' };
             }
             if (mode === 'queue') {
                 return { queue: { slots: retried ? [{ nzo_id: 'SABnzbd_nzo_new', filename: 'Some.Movie.2020', status: 'Downloading' }] : [] } };
@@ -188,13 +188,48 @@ describe('sabnzbd runRetry', () => {
         expect(JSON.stringify(outcome)).not.toContain('hunter2');
     });
 
+    // `_api_retry` answers `report(keyword="nzo_id", data=...)`, and `report()`
+    // adds no `status` when it has data: a bare `{"nzo_id": ...}` is success.
+    // A build that did add `status: true` is accepted too.
+    it.each([
+        ['the bare nzo_id SABnzbd answers a retry with', { nzo_id: 'SABnzbd_nzo_new' }],
+        ['an nzo_id with status: true', { status: true, nzo_id: 'SABnzbd_nzo_new' }]
+    ])('accepts %s', async (_shape, answer) => {
+        let retried = false;
+        const { adapter } = recording(params => {
+            const mode = params.get('mode');
+            if (mode === 'retry') {
+                retried = true;
+                return answer;
+            }
+            if (mode === 'queue') {
+                return { queue: { slots: retried ? [{ nzo_id: 'SABnzbd_nzo_new', filename: 'Some.Movie.2020', status: 'Queued' }] : [] } };
+            }
+            return { history: { slots: retried ? [] : [failed] } };
+        });
+
+        await expect(adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' })).resolves.toMatchObject({
+            id: 'SABnzbd_nzo_new',
+            state: 'downloading'
+        });
+    });
+
+    it('refuses an answer with no nzo_id, even one that says status: true', async () => {
+        const { adapter } = fixed([], [failed], () => ({ status: true }));
+
+        const error = await caught(adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' }));
+
+        expect(error.kind).toBe('UpstreamError');
+        expect(error.message).toMatch(/refused to retry/);
+    });
+
     it('reports a retry that failed again as finished with a failed event', async () => {
         let retried = false;
         const { adapter } = recording(params => {
             const mode = params.get('mode');
             if (mode === 'retry') {
                 retried = true;
-                return { status: true, nzo_id: 'new' };
+                return { nzo_id: 'new' };
             }
             if (mode === 'queue') return { queue: { slots: [] } };
             return { history: { slots: retried ? [{ ...failed, nzo_id: 'new' }] : [failed] } };
@@ -204,6 +239,48 @@ describe('sabnzbd runRetry', () => {
 
         expect(outcome).toMatchObject({ id: 'new', state: 'finished', event: 'failed' });
         expect(outcome.status).toContain('Failed');
+    });
+
+    // A password retry has every article, so it can leave the queue within
+    // the watch and land in history while it is still unpacking.
+    it.each(['Extracting', 'Verifying', 'Repairing', 'Moving', 'Running', 'Queued'])(
+        'reports a new job in history as %s as still processing, not imported',
+        async status => {
+            let retried = false;
+            const { adapter } = recording(params => {
+                const mode = params.get('mode');
+                if (mode === 'retry') {
+                    retried = true;
+                    return { nzo_id: 'new' };
+                }
+                if (mode === 'queue') return { queue: { slots: [] } };
+                return { history: { slots: retried ? [{ ...failed, nzo_id: 'new', status }] : [failed] } };
+            });
+
+            const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
+
+            expect(outcome).toMatchObject({ id: 'new', state: 'processing' });
+            expect(outcome.event).toBeUndefined();
+            expect(outcome.status).toContain(status);
+        }
+    );
+
+    it('reports a new job in history as Completed as finished and imported', async () => {
+        let retried = false;
+        const { adapter } = recording(params => {
+            const mode = params.get('mode');
+            if (mode === 'retry') {
+                retried = true;
+                return { nzo_id: 'new' };
+            }
+            if (mode === 'queue') return { queue: { slots: [] } };
+            return { history: { slots: retried ? [{ ...failed, nzo_id: 'new', status: 'Completed' }] : [failed] } };
+        });
+
+        await expect(adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' })).resolves.toMatchObject({
+            state: 'finished',
+            event: 'imported'
+        });
     });
 
     it('unlocks an encrypted queue job: rename with value3, then resume, and watches it leave Paused', async () => {
@@ -317,7 +394,7 @@ describe('sabnzbd runRetry', () => {
 
     it('errors when the new job never appears', async () => {
         vi.useFakeTimers();
-        const { adapter, requests } = fixed([], [failed], () => ({ status: true, nzo_id: 'never' }));
+        const { adapter, requests } = fixed([], [failed], () => ({ nzo_id: 'never' }));
 
         const outcome = expect(adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' })).rejects.toThrow(/never/);
         await vi.runAllTimersAsync();

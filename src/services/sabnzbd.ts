@@ -484,6 +484,11 @@ export class SabnzbdAdapter
      * watched. The password reaches the new job only on the repair path; a
      * job that was fetched from a URL is re-fetched and gets none.
      *
+     * Success is a bare `{"nzo_id": ...}`: `_api_retry` answers through
+     * `report(keyword="nzo_id", data=...)`, which adds `status` only when it
+     * has no data. A failure is `{"status": false, "error": ...}`. Either way
+     * the watch below is the proof, not the answer.
+     *
      * A refusal's `error` is dropped when a password was sent, in case
      * SABnzbd ever quotes it back.
      */
@@ -495,7 +500,7 @@ export class SabnzbdAdapter
             ...(password ? { password } : {})
         });
 
-        if (body.status !== true || typeof body.nzo_id !== 'string' || body.nzo_id === '') {
+        if (body.status === false || typeof body.nzo_id !== 'string' || body.nzo_id === '') {
             const fixed = 'SABnzbd gave no new job. Check it is still in history as Failed — take a current id from get_history.';
             throw new ServiceError('UpstreamError', this.id, `SABnzbd refused to retry ${target.id}`, {
                 remedy: password || !body.error ? fixed : this.#fence(body.error, 'error')
@@ -585,13 +590,13 @@ export class SabnzbdAdapter
         const filed = await this.#historySlot(id);
         if (filed === undefined) return undefined;
         const raw = filed.status ?? 'unknown';
-        return {
-            target,
-            id,
-            state: 'finished',
-            status: this.#fence(raw, 'status'),
-            event: raw === 'Failed' ? 'failed' : 'imported'
-        };
+        const status = this.#fence(raw, 'status');
+        // History also holds jobs still in post-processing (Extracting,
+        // Repairing, Moving…). Only Completed and Failed are an end; calling
+        // an unpack in progress "imported" would be wrong if it then fails.
+        if (raw === 'Completed') return { target, id, state: 'finished', status, event: 'imported' };
+        if (raw === 'Failed') return { target, id, state: 'finished', status, event: 'failed' };
+        return { target, id, state: 'processing', status };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
