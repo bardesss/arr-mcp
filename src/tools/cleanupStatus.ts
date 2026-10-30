@@ -40,9 +40,7 @@ const part = (c: { scope: string; seasonNumber?: number; episodeNumber?: number 
         ? `season ${c.seasonNumber} `
         : c.scope === 'episode' && c.seasonNumber !== undefined && c.episodeNumber !== undefined
           ? `S${String(c.seasonNumber).padStart(2, '0')}E${String(c.episodeNumber).padStart(2, '0')} `
-          : c.scope === 'version'
-            ? 'one version '
-            : '';
+          : '';
 
 /** "Reclaimerr deleted it on 2026-11-02 under rule X." */
 export function removalSentence(service: string, r: CleanupRemoval): string {

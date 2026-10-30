@@ -205,7 +205,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
                 : {
                       autoDelete: {
                           enabled: stats.auto_delete_task_enabled === true,
-                          ...(text(stats.next_auto_delete_at) === undefined ? {} : { nextAt: stats.next_auto_delete_at as string })
+                          ...(text(stats.next_auto_delete_at) === undefined ? {} : { nextAt: utc(stats.next_auto_delete_at) })
                       },
                       totals: {
                           candidates: stats.candidates_total ?? 0,
@@ -272,11 +272,12 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         const reasons = [text(c?.lifecycle_reason) ?? text(e.payload?.reason ?? undefined), text(c?.reason), text(p?.reason)].filter(
             (r): r is string => r !== undefined
         );
-        const named = this.#ruleNames(c?.matched_rule_ids, rules);
+        // Raw names: the whole reason is fenced once below.
+        const named = (c?.matched_rule_ids ?? []).map(id => rules?.get(id)?.name ?? `#${id}`);
         return {
             service: this.id,
             id: e.id ?? '',
-            at: e.occurred_at ?? '',
+            at: utc(e.occurred_at),
             event: EVENT[e.type ?? ''] ?? 'unknown',
             rawEvent: e.type ?? '',
             title: fence(c?.title ?? p?.title ?? '', 'title'),
@@ -303,8 +304,8 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             ...(text(c.reason) === undefined ? {} : { reason: fence(c.reason as string, 'reason') }),
             operation: c.delete_operation === 'move' ? 'move' : 'delete',
             state,
-            ...(text(c.auto_delete_eligible_at) === undefined ? {} : { eligibleAt: c.auto_delete_eligible_at as string }),
-            ...(text(c.auto_delete_postponed_until) === undefined ? {} : { postponedUntil: c.auto_delete_postponed_until as string }),
+            ...(text(c.auto_delete_eligible_at) === undefined ? {} : { eligibleAt: utc(c.auto_delete_eligible_at) }),
+            ...(text(c.auto_delete_postponed_until) === undefined ? {} : { postponedUntil: utc(c.auto_delete_postponed_until) }),
             ...(blockers.length === 0 ? {} : { blockers }),
             ...(num(c.delete_attempts) === undefined || c.delete_attempts === 0 ? {} : { deleteAttempts: c.delete_attempts as number }),
             ...(text(c.last_delete_error) === undefined ? {} : { lastDeleteError: fence(c.last_delete_error as string, 'error') })
@@ -321,7 +322,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             ...optionalNum('seasonNumber', p.season_number),
             ...optionalNum('episodeNumber', p.episode_number),
             permanent: p.permanent === true,
-            ...(text(p.expires_at) === undefined ? {} : { expiresAt: p.expires_at as string }),
+            ...(text(p.expires_at) === undefined ? {} : { expiresAt: utc(p.expires_at) }),
             ...(text(p.reason) === undefined ? {} : { reason: fence(p.reason as string, 'reason') })
         };
     }
@@ -330,7 +331,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         const c = e.payload?.candidate ?? {};
         const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
         return {
-            at: e.occurred_at ?? '',
+            at: utc(e.occurred_at),
             kind: kindOf(c.media_type),
             scope: c.scope ?? kindOf(c.media_type),
             title: fence(c.title ?? '', 'title'),
@@ -429,6 +430,12 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         if ((await this.#grantedScopes()).has(scope)) return;
         throw new ServiceError('AuthFailed', this.id, `the API token lacks the ${scope} scope`, { remedy: SCOPES_REMEDY });
     }
+}
+
+/** Reclaimerr stores UTC but serialises some timestamps without an offset; say so, or they read as local time. */
+function utc(v: string | null | undefined): string {
+    if (typeof v !== 'string' || v === '') return '';
+    return /(?:Z|[+-]\d{2}:?\d{2})$/.test(v) ? v : `${v}Z`;
 }
 
 function optionalNum<K extends string>(key: K, v: number | null | undefined): Partial<Record<K, number>> {
