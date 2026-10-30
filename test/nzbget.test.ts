@@ -196,6 +196,28 @@ describe('NzbgetAdapter', () => {
             expect(paused.every(i => i.etaSeconds === undefined)).toBe(true);
             expect(idle.every(i => i.etaSeconds === undefined)).toBe(true);
         });
+
+        // readPauseState counts all three flags as paused, so the ETA has to too.
+        it('gives no ETA while the server or the legacy second queue is paused', async () => {
+            const server = await queueWith({ DownloadRate: MB, ServerPaused: true }, groups).getQueue();
+            const legacy = await queueWith({ DownloadRate: MB, Download2Paused: true }, groups).getQueue();
+
+            expect(server.every(i => i.etaSeconds === undefined)).toBe(true);
+            expect(legacy.every(i => i.etaSeconds === undefined)).toBe(true);
+        });
+
+        // Fully downloaded and now unpacking: there is nothing left to wait for.
+        it('gives no ETA to an item with nothing left to download', async () => {
+            const items = await queueWith({ DownloadRate: MB }, [
+                { NZBID: 1, Status: 'DOWNLOADING', FileSizeMB: 10, RemainingSizeMB: 10, PausedSizeMB: 0 },
+                { NZBID: 2, Status: 'UNPACKING', FileSizeMB: 20, RemainingSizeMB: 0, PausedSizeMB: 0 }
+            ]).getQueue();
+
+            expect(items.map(i => [i.id, i.etaSeconds])).toEqual([
+                ['1', 10],
+                ['2', undefined]
+            ]);
+        });
     });
 
     it('parks the item with GroupParkDelete when its files are to be kept', async () => {
@@ -298,6 +320,19 @@ describe('NzbgetAdapter', () => {
         expect(diagnosis.error?.remedy).toMatch(/username/);
         expect(diagnosis.error?.remedy).toMatch(/nzbget/);
         expect(requests).toHaveLength(0);
+    });
+
+    it('takes the username from the URL when only the password is configured', async () => {
+        const { fetchImpl, requests } = rpcRecording(request => json({ jsonrpc: '2.0', result: '26.3', id: request.id }));
+        const { username: _username, ...passwordOnly } = config;
+
+        await expect(
+            new NzbgetAdapter({ ...passwordOnly, url: 'http://nzbget@192.0.2.10:6789' }, fetchImpl).getVersion()
+        ).resolves.toBe('26.3');
+
+        expect(requests[0]?.headers.get('Authorization')).toBe(
+            `Basic ${Buffer.from('nzbget:nzb-password').toString('base64')}`
+        );
     });
 
     it('reads disk space from a v21-shaped status, which has no total or Hi/Lo rate', async () => {
@@ -435,6 +470,56 @@ describe('NzbgetAdapter', () => {
 
         await expect(adapter.readHistory({ id: '8', want: 1 })).rejects.toMatchObject({ kind: 'NotFound' });
         expect(requests).toHaveLength(1);
+    });
+
+    // Radarr's own NZBGet client counts DeleteStatus HEALTH as a failure: the
+    // download was aborted because too many articles were missing.
+    it('reads health-aborted, bad and unparseable deletions as failures', async () => {
+        const row = (NZBID: number, Status: string) => ({ ID: NZBID, NZBID, Name: `R${NZBID}`, HistoryTime: 1_786_000_000, Status });
+        const { fetchImpl } = rpcRecording(request =>
+            json({
+                jsonrpc: '2.0',
+                result: [
+                    row(1, 'DELETED/HEALTH'),
+                    row(2, 'DELETED/BAD'),
+                    row(3, 'DELETED/SCAN'),
+                    row(4, 'DELETED/MANUAL'),
+                    row(5, 'DELETED/DUPE'),
+                    row(6, 'DELETED/COPY'),
+                    row(7, 'DELETED/GOOD')
+                ],
+                id: request.id
+            })
+        );
+
+        const result = await new NzbgetAdapter(config, fetchImpl).readHistory({ want: 1 });
+
+        expect(result.map(e => [e.rawEvent, e.event])).toEqual([
+            ['DELETED/HEALTH', 'failed'],
+            ['DELETED/BAD', 'failed'],
+            ['DELETED/SCAN', 'failed'],
+            ['DELETED/MANUAL', 'deleted'],
+            ['DELETED/DUPE', 'deleted'],
+            ['DELETED/COPY', 'deleted'],
+            ['DELETED/GOOD', 'deleted']
+        ]);
+    });
+
+    it('drops a history row with no id rather than returning an empty one', async () => {
+        const { fetchImpl } = rpcRecording(request =>
+            json({
+                jsonrpc: '2.0',
+                result: [
+                    { Name: 'No.Id', HistoryTime: 1_786_000_000, Status: 'SUCCESS/ALL' },
+                    { ID: 5, Name: 'Has.Id', HistoryTime: 1_786_000_000, Status: 'SUCCESS/ALL' }
+                ],
+                id: request.id
+            })
+        );
+
+        const result = await new NzbgetAdapter(config, fetchImpl).readHistory({ want: 1 });
+
+        expect(result.map(e => e.id)).toEqual(['5']);
     });
 
     describe('health checks', () => {

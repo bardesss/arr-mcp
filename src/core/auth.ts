@@ -30,7 +30,7 @@ export interface AuthStrategy {
 }
 
 /** A `%` not followed by two hex digits is sent as typed. */
-function decodeOrRaw(part: string): string {
+export function decodeOrRaw(part: string): string {
     try {
         return decodeURIComponent(part);
     } catch {
