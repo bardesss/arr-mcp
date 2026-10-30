@@ -33,6 +33,11 @@ export const TESTED_MINOR = '0.6';
 export const NEEDED_SCOPES = ['system:read', 'candidates:read', 'rules:read', 'events:read', 'protections:read'] as const;
 type Scope = (typeof NEEDED_SCOPES)[number];
 const WRITE_SCOPES = ['candidates:manage', 'protections:manage', 'tasks:run'];
+const IMPLIED = [
+    ['candidates:read', 'candidates:manage'],
+    ['protections:read', 'protections:manage'],
+    ['tasks:read', 'tasks:run']
+] as const;
 const SCOPES_REMEDY = `Create a token in Reclaimerr's Settings → Integrations with ${NEEDED_SCOPES.join(', ')} and nothing else.`;
 
 type RawDiscovery = { granted_scopes?: string[] };
@@ -417,7 +422,12 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
 
     async #grantedScopes(): Promise<Set<string>> {
         if (this.#scopes === undefined || Date.now() - this.#scopes.at > SCOPES_TTL_MS) {
-            const value = this.#http.get<RawDiscovery>(RECLAIMERR_API).then(body => new Set(body.granted_scopes ?? []));
+            const value = this.#http.get<RawDiscovery>(RECLAIMERR_API).then(body => {
+                const granted = new Set(body.granted_scopes ?? []);
+                // Reclaimerr lists what was ticked; a :manage scope also answers its :read routes.
+                for (const [read, manage] of IMPLIED) if (granted.has(manage)) granted.add(read);
+                return granted;
+            });
             value.catch(() => {
                 this.#scopes = undefined;
             });
