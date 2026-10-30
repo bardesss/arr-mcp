@@ -629,8 +629,12 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fields: [
                     'result.ID',
                     'result.NZBID',
+                    'result.Kind',
                     'result.Name',
+                    'result.NZBName',
                     'result.NZBNicename',
+                    'result.DestDir',
+                    'result.FinalDir',
                     'result.HistoryTime',
                     'result.Status',
                     'result.ParStatus',
@@ -648,7 +652,8 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // Most sections send empty lists, so option fields are checked in nzbget.test.ts.
                 fixture: 'test/fixtures/nzbget/systemhealth.json',
                 fields: ['result.Alerts', 'result.Sections.Name', 'result.Sections.Issues', 'result.Sections.Options', 'result.Sections.Subsections']
-            }
+            },
+            { fixture: 'test/fixtures/nzbget/log.json', fields: ['result.ID', 'result.Kind', 'result.Text'] }
         ]
     },
     transmission: {

@@ -94,6 +94,12 @@ episode naming format for the length of two commands and puts it back — the
 preview says so, and [tools.md](tools.md#putting-a-mislabeled-file-on-the-right-episode)
 describes what bounds it.
 
+Its `postprocess` action is safe for the same reason as `rename` and `import`:
+it reruns NZBGet's post-processing on one finished download, and the scripts
+that run are the operator's own, the same ones NZBGet runs on every download.
+They can unpack, rename or delete files in that download's folder, so the
+preview names the folder and the scripts before anything runs.
+
 `grab_release` with a `magnet` is safe because `remove_queue_item` undoes it,
 but it is the one write where the thing being downloaded was chosen by the
 caller rather than found by an indexer. The link is validated before it reaches
