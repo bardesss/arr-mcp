@@ -134,7 +134,7 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
-read, and on the twenty writes `destructiveHint`, taken from the same permission
+read, and on the twenty-one writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
 about, reads those rather than guessing from forty similarly-shaped
