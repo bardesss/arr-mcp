@@ -1132,7 +1132,7 @@ describe('NzbgetAdapter', () => {
                 groups?: Row[];
                 setParameter?: boolean | 'rpcError';
                 onProcess?: 'queue' | 'removed';
-                onRetry?: 'queue' | 'refuse';
+                onRetry?: 'queue' | 'refuse' | 'nothing' | 'refiled';
             } = {}
         ) => {
             const state = {
@@ -1170,6 +1170,15 @@ describe('NzbgetAdapter', () => {
                             }
                         }
                         if (command === 'HistoryRetryFailed') {
+                            if (opts.onRetry === 'nothing') return ok(true);
+                            if (opts.onRetry === 'refiled') {
+                                // Nothing left to fetch: back in history before a poll sees the queue.
+                                state.log.push({ ID: 12, Kind: 'INFO', Text: `Retrying failed articles for ${String(target.NZBName)}` });
+                                state.history = state.history.map(r =>
+                                    r === target ? { ...r, Status: 'SUCCESS/ALL', ParStatus: 'SUCCESS', UnpackStatus: 'SUCCESS', Health: 1000, HistoryTime: 1_700_000_100 } : r
+                                );
+                                return ok(true);
+                            }
                             if (opts.onRetry === 'refuse') {
                                 state.log.push({
                                     ID: 12,
@@ -1291,6 +1300,48 @@ describe('NzbgetAdapter', () => {
             expect(error).toMatchObject({ kind: 'UpstreamError' });
             expect((error as Error).message).toMatch(/doesn't exist/);
             expect((error as { remedy?: string }).remedy).toMatch(/Nothing was retried/);
+        });
+
+        // HistoryRetryFailed answers true even when it does nothing.
+        it('reports a retry-failed that answered true and then showed no sign of running as an error', async () => {
+            vi.useFakeTimers();
+            const { adapter, requests } = fake({ history: [missing()], onRetry: 'nothing' });
+
+            const outcome = adapter.runRetry('4', { method: 'retry-failed' }).catch((e: unknown) => e);
+            await vi.runAllTimersAsync();
+            const error = await outcome;
+
+            expect(error).toMatchObject({ kind: 'UpstreamError' });
+            expect((error as Error).message).toMatch(/never appeared in the queue/);
+            expect((error as { remedy?: string }).remedy).toMatch(/not reported as retried/);
+            expect(requests.filter(r => r.rpc.method === 'listgroups')).toHaveLength(20);
+        });
+
+        it('reports a retry-failed that started and was filed again between polls as finished', async () => {
+            vi.useFakeTimers();
+            const { adapter } = fake({ history: [missing()], onRetry: 'refiled' });
+
+            const outcome = adapter.runRetry('4', { method: 'retry-failed' });
+            await vi.runAllTimersAsync();
+
+            await expect(outcome).resolves.toMatchObject({ id: '4', state: 'finished', event: 'imported' });
+            expect((await outcome).status).toContain('SUCCESS/ALL');
+        });
+
+        it('picks postprocess for WARNING/REPAIRABLE, where par found enough to repair', async () => {
+            const repairable = row({ Status: 'WARNING/REPAIRABLE', ParStatus: 'REPAIR_POSSIBLE', UnpackStatus: 'NONE', Health: 1000 });
+
+            await expect(fake({ history: [repairable] }).adapter.findRetryTarget('4', { hasPassword: false })).resolves.toMatchObject({
+                method: 'postprocess'
+            });
+        });
+
+        it('picks postprocess for an unpack that ran out of disk space', async () => {
+            const full = row({ Status: 'FAILURE/UNPACK', ParStatus: 'SUCCESS', UnpackStatus: 'SPACE', Health: 1000 });
+
+            await expect(fake({ history: [full] }).adapter.findRetryTarget('4', { hasPassword: false })).resolves.toMatchObject({
+                method: 'postprocess'
+            });
         });
 
         it('never puts the password in an error', async () => {

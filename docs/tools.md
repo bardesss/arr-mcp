@@ -1403,8 +1403,9 @@ row. The preview picks what to send from the job itself and shows it:
   so it is not recognised on a non-English UI.
 - **NZBGet:** `password`, if given, is stored in the job's `*Unpack:Password`
   parameter. A job with missing articles then has them fetched again
-  (`HistoryRetryFailed`); one that only failed to unpack has post-processing run
-  again (`HistoryProcess`).
+  (`HistoryRetryFailed`); one that has every article but failed to unpack (a
+  missing password, a full disk) or was left repairable by the par check has
+  post-processing run again (`HistoryProcess`).
 
 Give `password` when the failure was an encrypted archive; it comes from the site
 the NZB came from. It is never shown back, and the audit log redacts it. When a

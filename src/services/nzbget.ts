@@ -284,8 +284,13 @@ const retryMethod = (row: RawHistory): RetryMethod | undefined => {
     // Articles missing and no par repair made up for them: no par files, or
     // none checked. A repaired download (ParStatus SUCCESS) has them all.
     if (par !== 'SUCCESS' && typeof row.Health === 'number' && row.Health < 1000) return 'retry-failed';
+    // The par check found enough blocks but did not repair (ParRepair off):
+    // post-processing again runs the repair on the files already there.
+    if (status === 'WARNING/REPAIRABLE' || par === 'REPAIR_POSSIBLE') return 'postprocess';
     const complete = par === 'SUCCESS' || (par !== 'FAILURE' && row.Health === 1000);
-    const locked = unpack === 'FAILURE' || unpack === 'PASSWORD' || status === 'WARNING/PASSWORD';
+    // SPACE is a full disk during unpack; once space is freed, unpacking
+    // again succeeds like it does after a missing password.
+    const locked = unpack === 'FAILURE' || unpack === 'PASSWORD' || unpack === 'SPACE' || status === 'WARNING/PASSWORD';
     return complete && locked ? 'postprocess' : undefined;
 };
 
