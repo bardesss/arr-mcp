@@ -8,11 +8,13 @@ import {
     hasLibraryScan,
     hasManualImport,
     hasMediaDetails,
+    hasPostProcess,
     type EpisodeRemapCapable,
     type LibraryMaintenanceCapable,
     type ImportMapping,
     type LibraryScanCapable,
     type ManualImportCapable,
+    type PostProcessCapable,
     type ServiceAdapter
 } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
@@ -87,6 +89,23 @@ const findImportAdapter = (
     return adapter;
 };
 
+/** Running post-processing again is a download client's job: NZBGet's. */
+const findPostProcessAdapter = (
+    adapters: readonly ServiceAdapter[],
+    service: ServiceId,
+    instance?: string
+): ServiceAdapter & PostProcessCapable => {
+    const adapter = resolveInstance(adapters, service, instance);
+
+    if (!hasPostProcess(adapter)) {
+        throw new ServiceError('NotFound', service, `${service} cannot run post-processing again`, {
+            remedy: 'postprocess is for nzbget: it reruns NZBGet\'s post-processing on a finished download. For a download Radarr or Sonarr never took, use action "import" on that *arr instead.'
+        });
+    }
+
+    return adapter;
+};
+
 /** Only Sonarr has episodes to put a file in. */
 const findRemapAdapter = (
     adapters: readonly ServiceAdapter[],
@@ -132,17 +151,17 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Scan for new files',
         description:
-            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again. `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. Everything here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr item, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again. `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe(
-                'radarr, sonarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps.'
+                'radarr, sonarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps, or nzbget for action: "postprocess".'
             ),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z
-                .enum(['scan', 'rename', 'import', 'remap'])
+                .enum(['scan', 'rename', 'import', 'remap', 'postprocess'])
                 .default('scan')
                 .describe(
-                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`.'
+                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`.'
                 ),
             id: z
                 .string()
@@ -156,7 +175,7 @@ export function registerTriggerScan(
                 .min(1)
                 .optional()
                 .describe(
-                    'The download client\'s own id, as `downloadId` on a get_queue row. Required for action: "import", ignored otherwise.'
+                    'The download client\'s own id, as `downloadId` on a get_queue row (or, for nzbget, on a get_history row). Required for action: "import" and action: "postprocess", ignored otherwise.'
                 ),
             reassignments: z
                 .array(
@@ -245,6 +264,52 @@ export function registerTriggerScan(
                         `${adapter.id} records nothing in its own history for this; the audit log here is the only trace.`
                     ],
                     args: { service, action, id, reassignments, ...(instance === undefined ? {} : { instance }) }
+                };
+            }
+
+            if (action === 'postprocess') {
+                if (download_id === undefined) {
+                    throw new Error(
+                        'postprocess needs a `download_id`: the `downloadId` on the stuck get_queue row, or on the nzbget row in get_history.'
+                    );
+                }
+
+                const adapter = findPostProcessAdapter(adapters, service, instance);
+                const target = await adapter.findPostProcessTarget(download_id);
+                const where =
+                    target.folder === undefined
+                        ? `in its download folder, which ${adapter.id} does not name`
+                        : `in ${target.folder}`;
+
+                return {
+                    // The history item itself, not the id that found it: the
+                    // same drone id can name a newer item by the time this is
+                    // confirmed, and the token must not carry over to it.
+                    target: `${adapter.id}:history/${target.historyId}`,
+                    summary: `Run post-processing again on ${target.title} in ${adapter.id}.`,
+                    effects: [
+                        `Reruns ${adapter.id}'s post-processing on ${target.title} (now ${target.status}), ${where}: repair and unpack as ${adapter.id} is configured, then ${
+                            target.scripts.length === 0
+                                ? 'no scripts, because none are enabled for this download'
+                                : `the scripts enabled for it: ${target.scripts.join(', ')}`
+                        }. These are the same steps ${adapter.id} ran when the download first finished.`,
+                        'Scripts can unpack, rename or delete files in that folder.',
+                        `It needs that folder to still exist. If it has been moved or deleted, ${adapter.id} refuses, and this reports the refusal rather than success.`,
+                        ...(target.finalFolder === undefined
+                            ? []
+                            : [`The finished files were moved on to ${target.finalFolder}; post-processing does not run there.`]),
+                        'Radarr or Sonarr still has to import the result: on its next queue check, or straight away with action "import" on it.'
+                    ],
+                    args: {
+                        service,
+                        action,
+                        downloadId: download_id,
+                        historyId: target.historyId,
+                        ...(target.historyTime === undefined ? {} : { historyTime: target.historyTime }),
+                        ...(target.folder === undefined ? {} : { folder: target.folder }),
+                        scripts: target.scripts,
+                        ...(instance === undefined ? {} : { instance })
+                    }
                 };
             }
 
@@ -366,7 +431,7 @@ export function registerTriggerScan(
             };
         },
 
-        async apply(_plan, { service, instance, action, id, download_id, reassignments, mapping }) {
+        async apply(plan, { service, instance, action, id, download_id, reassignments, mapping }) {
             if (action === 'remap' && id !== undefined && reassignments !== undefined) {
                 const remapper = findRemapAdapter(adapters, service, instance);
                 const { renamed, blocked, caughtInWindow } = await remapper.runEpisodeRemap(id, reassignments);
@@ -390,6 +455,22 @@ export function registerTriggerScan(
                     `The reassignment is correct and complete either way — only those filenames are behind, and ${remapper.id} plays by the reassignment, not the name. ` +
                     `If the holder is a file this remap also moved, running trigger_scan with action "rename" and id ${id} again finishes it, once per link in the chain.${caught}`
                 );
+            }
+
+            if (action === 'postprocess' && download_id !== undefined) {
+                const processor = findPostProcessAdapter(adapters, service, instance);
+                const outcome = await processor.runPostProcess(download_id, String(plan.args?.historyId));
+                const { title } = outcome.target;
+                if (outcome.state === 'running') {
+                    return `${processor.id} is post-processing ${title} again, now ${outcome.status}. It keeps running in the background: get_queue shows it until it is back in history, and get_history then says how it finished. Radarr or Sonarr imports the result on its next queue check, or use action "import" on it then.`;
+                }
+                if (outcome.state === 'removed') {
+                    return `${processor.id} ran post-processing again on ${title}, and it is no longer in ${processor.id}'s queue or history: Radarr or Sonarr usually imports a finished download and removes it from the client. Check get_queue and get_history on the *arr to see whether it was imported.`;
+                }
+                if (outcome.event === 'imported') {
+                    return `${processor.id} ran post-processing again on ${title}, and it finished as ${outcome.status}. Radarr or Sonarr imports the result on its next queue check, or use action "import" on it now.`;
+                }
+                return `${processor.id} ran post-processing again on ${title}, and it finished as ${outcome.status}: it did not succeed this time either, so whatever broke it before still does. Nothing new is there to import. get_history has the stages that failed.`;
             }
 
             if (action === 'import' && download_id !== undefined) {

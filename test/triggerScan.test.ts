@@ -5,6 +5,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
+import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
@@ -785,5 +786,161 @@ describe('trigger_scan remapping episodes', () => {
     it('refuses a service with no episodes', async () => {
         const h = harness();
         await expect(h.call({ ...SWAP, service: 'jellyfin', dry_run: true })).rejects.toThrow(/no episodes/);
+    });
+});
+
+/**
+ * NZBGet's "post-process again", for a download a broken script left
+ * unimportable. Driven through the tool with the real adapter, so the preview,
+ * the confirm and NZBGet's log-only refusal are checked end to end.
+ */
+describe('trigger_scan postprocess on nzbget', () => {
+    const credential = {
+        url: 'http://192.0.2.10:6789',
+        username: 'u',
+        password: 'p',
+        timeout_ms: 10_000,
+        permissions: { safe_write: true, destructive: false }
+    };
+    const HISTORY_ROW = {
+        ID: 4,
+        NZBID: 4,
+        Kind: 'NZB',
+        NZBName: 'Some.Release',
+        NZBNicename: 'Some.Release',
+        Status: 'SUCCESS/UNPACK',
+        HistoryTime: 1_700_000_000,
+        DestDir: '/downloads/completed/Some.Release',
+        Parameters: [
+            { Name: 'drone', Value: 'drone-abc' },
+            { Name: 'Example.py:', Value: 'yes' }
+        ]
+    };
+
+    type Behaviour = 'running' | 'folderGone' | 'finishedFailed' | 'removedFast';
+    const nzbget = (behaviour: Behaviour | boolean, history: Record<string, unknown>[] = [{ ...HISTORY_ROW }]) => {
+        const mode: Behaviour = behaviour === true ? 'folderGone' : behaviour === false ? 'running' : behaviour;
+        const methods: string[] = [];
+        const log = [{ ID: 1, Kind: 'INFO', Text: 'earlier' }];
+        let groups: unknown[] = [];
+        const impl = (async (_input: unknown, init?: RequestInit) => {
+            const { method, params, id } = JSON.parse(String(init?.body)) as { method: string; params: unknown[]; id: number };
+            methods.push(method);
+            let result: unknown = true;
+            if (method === 'history') result = history;
+            if (method === 'listgroups') result = groups;
+            if (method === 'log') result = (params[0] as number) === 0 ? log.slice(-1) : log.filter(m => m.ID >= (params[0] as number));
+            if (method === 'editqueue') {
+                if (mode === 'folderGone') {
+                    log.push({ ID: 2, Kind: 'ERROR', Text: "Could not post-process again Some.Release: destination directory /downloads/completed/Some.Release doesn't exist" });
+                } else if (mode === 'removedFast') {
+                    log.push({ ID: 2, Kind: 'INFO', Text: 'Post-processing again Some.Release' });
+                    history.splice(0, history.length);
+                } else if (mode === 'finishedFailed') {
+                    Object.assign(history[0] ?? {}, { HistoryTime: 1_700_000_060, Status: 'FAILURE/UNPACK' });
+                } else {
+                    groups = [{ NZBID: 4, Status: 'EXECUTING_SCRIPT' }];
+                }
+            }
+            return jsonResponse({ jsonrpc: '2.0', result, id });
+        }) as unknown as typeof fetch;
+        return { adapter: new NzbgetAdapter(credential, impl), methods, history };
+    };
+
+    const call = (adapter: ServiceAdapter) =>
+        harness({ adapters: [adapter], permissions: { nzbget: credential as unknown as AnyServiceConfig } }).call;
+
+    it('previews the download, its folder and its scripts, and changes nothing', async () => {
+        const { adapter, methods } = nzbget(false);
+
+        const { structuredContent } = await call(adapter)({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc' });
+
+        const effects = structuredContent.effects.join(' ');
+        expect(structuredContent.summary).toContain('Some.Release');
+        expect(effects).toContain('/downloads/completed/Some.Release');
+        expect(effects).toContain('Example.py');
+        expect(effects).toMatch(/refuses, and this reports the refusal/);
+        expect(methods).not.toContain('editqueue');
+    });
+
+    it('reruns it once confirmed and says where it stands', async () => {
+        const { adapter, methods } = nzbget(false);
+        const tool = call(adapter);
+
+        const preview = await tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc' });
+        const done = await tool({
+            service: 'nzbget',
+            action: 'postprocess',
+            download_id: 'drone-abc',
+            confirm: preview.structuredContent.confirm_token
+        });
+
+        expect(done.structuredContent.applied).toBe(true);
+        expect(String(done.structuredContent.result)).toMatch(/post-processing .*again, now .*moving/);
+        expect(methods.filter(m => m === 'editqueue')).toHaveLength(1);
+    });
+
+    it('surfaces the refusal when the folder is gone instead of reporting success', async () => {
+        const { adapter } = nzbget(true);
+        const tool = call(adapter);
+
+        const preview = await tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc' });
+        await expect(
+            tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc', confirm: preview.structuredContent.confirm_token })
+        ).rejects.toThrow(/doesn't exist/);
+    });
+
+    it('says plainly when the rerun finished and failed again', async () => {
+        const { adapter } = nzbget('finishedFailed');
+        const tool = call(adapter);
+
+        const preview = await tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc' });
+        const done = await tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc', confirm: preview.structuredContent.confirm_token });
+
+        expect(String(done.structuredContent.result)).toMatch(/FAILURE\/UNPACK.*did not succeed/);
+        expect(String(done.structuredContent.result)).not.toMatch(/imports the result/);
+    });
+
+    it('says a rerun ran and was cleared from history when an *arr already took it', async () => {
+        vi.useFakeTimers();
+        try {
+            const { adapter } = nzbget('removedFast');
+            const tool = call(adapter);
+            const preview = await tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc' });
+            const pending = tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc', confirm: preview.structuredContent.confirm_token });
+            await vi.runAllTimersAsync();
+            const done = await pending;
+
+            expect(done.structuredContent.applied).toBe(true);
+            expect(String(done.structuredContent.result)).toMatch(/no longer in nzbget's queue or history/);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    // The token binds the history item, not the id that found it: a newer item
+    // with the same drone id must not inherit the approval for the old one.
+    it('rejects the token when the id names a different history item by the time it is confirmed', async () => {
+        const { adapter, methods, history } = nzbget('running');
+        const tool = call(adapter);
+
+        const preview = await tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc' });
+        history.push({ ...HISTORY_ROW, ID: 8, NZBID: 8, HistoryTime: 1_700_000_500, DestDir: '/downloads/completed/Other.Folder' });
+        const second = await tool({ service: 'nzbget', action: 'postprocess', download_id: 'drone-abc', confirm: preview.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(false);
+        expect(methods).not.toContain('editqueue');
+    });
+
+    it('needs a download_id', async () => {
+        await expect(call(nzbget(false).adapter)({ service: 'nzbget', action: 'postprocess', dry_run: true })).rejects.toThrow(
+            /download_id/
+        );
+    });
+
+    it('refuses a service that cannot post-process, pointing at import', async () => {
+        await expect(
+            harness().call({ service: 'jellyfin', action: 'postprocess', download_id: 'x', dry_run: true })
+        ).rejects.toThrow(/cannot run post-processing again/);
     });
 });

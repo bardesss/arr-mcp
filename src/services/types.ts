@@ -431,6 +431,10 @@ export type HistoryEntry = {
      *  release-grab tooling needs it verbatim. */
     guid?: string;
     indexerId?: number;
+    /** Download clients only: the id `get_queue` and the *arrs use for this
+     *  download, which is what `trigger_scan`'s `postprocess` takes. Not
+     *  fenced, for the same reason as `guid`. */
+    downloadId?: string;
 };
 
 /** The first rows of a longer list, and how long that list is. */
@@ -979,6 +983,51 @@ export interface ManualImportCapable {
 
 export const hasManualImport = (a: ServiceAdapter): a is ServiceAdapter & ManualImportCapable =>
     typeof (a as Partial<ManualImportCapable>).runManualImport === 'function';
+
+/** A finished download still in a download client's history, as
+ *  `trigger_scan`'s `postprocess` previews it. Every string is fenced. */
+export type PostProcessTarget = {
+    /** The client's own history id, which the rerun is addressed to. */
+    historyId: string;
+    /** When it was filed into history, so a confirmation cannot apply to a
+     *  rerun or refile that happened after the preview. */
+    historyTime?: number;
+    title: string;
+    /** The client's own status for it, e.g. `SUCCESS/UNPACK`. */
+    status: string;
+    /** The folder post-processing runs in, which has to still exist. Absent
+     *  when the client does not say. */
+    folder?: string;
+    /** Where the finished download was moved afterwards, when that differs. */
+    finalFolder?: string;
+    /** The post-processing scripts enabled for this download; empty when none are. */
+    scripts: string[];
+};
+
+/** Where a rerun stood once the client showed it had run: still in the
+ *  queue, back in history with the status it finished on, or already gone
+ *  from both. */
+export type PostProcessOutcome =
+    | { target: PostProcessTarget; state: 'running'; status: string }
+    | { target: PostProcessTarget; state: 'finished'; event: HistoryEventType; status: string }
+    /** It ran and is now in neither the queue nor history: an *arr
+     *  usually imported it and removed it from the client's history. */
+    | { target: PostProcessTarget; state: 'removed' };
+
+/** Post-processing run again on a finished download: NZBGet's
+ *  "post-process again". */
+export interface PostProcessCapable {
+    /** Refuses a download that is already being processed. */
+    findPostProcessTarget(downloadId: string): Promise<PostProcessTarget>;
+    /** Runs it on exactly the history item the preview showed, and refuses if
+     *  the id now resolves to another. Resolves only once the client shows the
+     *  rerun ran; a rerun it accepted and then refused, or showed no sign of
+     *  running, is an error. */
+    runPostProcess(downloadId: string, historyId: string): Promise<PostProcessOutcome>;
+}
+
+export const hasPostProcess = (a: ServiceAdapter): a is ServiceAdapter & PostProcessCapable =>
+    typeof (a as Partial<PostProcessCapable>).runPostProcess === 'function';
 
 /** One file already in the library, and the episode a person says it really is.
  *  `path` is relative to the series folder, as Sonarr names it, or absolute. */
