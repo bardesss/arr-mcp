@@ -446,6 +446,38 @@ describe('LibraryIndex search', () => {
         });
     });
 
+    /** #308: "<Series> 2024 S04E03" resolved to nothing, while "<Series>" resolved. */
+    describe('a query that names an episode or a bare year', () => {
+        const shows = LibraryIndex.build([
+            arr({ kind: 'series', title: 'Shogun', year: 2024, ids: { tvdb: 20 } }),
+            arr({ kind: 'series', title: 'Shogun', year: 1980, ids: { tvdb: 21 } }),
+            arr({ kind: 'series', title: 'Doctor Who (2005)', year: 2005, ids: { tvdb: 22 } }),
+            arr({ title: '1917', year: 2019, ids: { tmdb: 23 } })
+        ]);
+        const years = (query: string): (number | undefined)[] => shows.search(query).map(i => i.year);
+
+        it('resolves the series when the query ends in an episode', () => {
+            expect(years('Shogun 2024 S04E03')).toEqual([2024]);
+            expect(years('Shogun S01E01')).toEqual([2024, 1980]);
+            expect(years('shogun s1e10-e11')).toEqual([2024, 1980]);
+            expect(years('Shogun 1x03')).toEqual([2024, 1980]);
+            expect(years('Shogun S02')).toEqual([2024, 1980]);
+        });
+
+        it('reads a bare trailing year as the year', () => {
+            expect(years('Shogun 1980')).toEqual([1980]);
+        });
+
+        it('matches nothing when no title has that year', () => {
+            expect(shows.search('Shogun 1999')).toEqual([]);
+        });
+
+        it('still matches a title that carries the year or the number itself', () => {
+            expect(shows.search('Doctor Who 2005 S13E01').map(i => unfenced(i.title))).toEqual(['Doctor Who (2005)']);
+            expect(shows.search('1917').map(i => unfenced(i.title))).toEqual(['1917']);
+        });
+    });
+
     it('matches through a leading article the caller omitted', () => {
         expect(plainTitle(index.search('the matrix')[0])).toBe('The Matrix');
     });
