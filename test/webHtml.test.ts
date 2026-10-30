@@ -230,6 +230,25 @@ describe('the write audit', () => {
         expect(page).toContain('not json at all');
     });
 
+    /**
+     * A bulk write names every id it touched. `set_monitoring` across the
+     * artists of a 1,578-artist Lidarr carries about 11 KB of ids, and this page
+     * renders 300 rows, so one such write would push the page into megabytes.
+     * The row keeps the list; the cell says how long it is.
+     */
+    it('bounds a long id list instead of printing every id', () => {
+        const ids = Array.from({ length: 1578 }, (_, i) => String(i + 1));
+        const page = auditPage({
+            csrf: 'test-csrf',
+            version: '1.4.1',
+            rows: [row({ args: JSON.stringify({ level: 'artist', artist_ids: ids }) })]
+        });
+
+        expect(page).toContain('[1578 items]');
+        expect(page).not.toContain('&quot;1578&quot;');
+        expect(page.length).toBeLessThan(60_000);
+    });
+
     // A log's value is that nothing goes missing from it, so a shape nobody
     // expected is a reason to print it, not to skip the row.
     it('survives arguments that are valid JSON but not an object', () => {

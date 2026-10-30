@@ -1,0 +1,1499 @@
+{
+  "status": "ended",
+  "ended": true,
+  "artistName": "Daft Punk",
+  "foreignArtistId": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+  "tadbId": 0,
+  "discogsId": 0,
+  "artistType": "Group",
+  "disambiguation": "French electronic duo",
+  "links": [
+    {
+      "url": "https://daftpunk.com/",
+      "name": "daftpunk"
+    },
+    {
+      "url": "https://www.discogs.com/artist/1289",
+      "name": "discogs"
+    },
+    {
+      "url": "http://musicmoz.org/Bands_and_Artists/D/Daft_Punk/",
+      "name": "musicmoz"
+    },
+    {
+      "url": "https://www.imdb.com/name/nm1386916/",
+      "name": "imdb"
+    },
+    {
+      "url": "https://myspace.com/daftpunk",
+      "name": "myspace"
+    },
+    {
+      "url": "https://www.bbc.co.uk/music/artists/056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+      "name": "bbc"
+    },
+    {
+      "url": "https://www.allmusic.com/artist/mn0000667669",
+      "name": "allmusic"
+    },
+    {
+      "url": "https://www.last.fm/music/Daft+Punk",
+      "name": "last"
+    },
+    {
+      "url": "http://viaf.org/viaf/131208258",
+      "name": "viaf"
+    },
+    {
+      "url": "https://www.wikidata.org/wiki/Q185828",
+      "name": "wikidata"
+    },
+    {
+      "url": "http://emimusic.jp/daftpunk",
+      "name": "emimusic"
+    },
+    {
+      "url": "http://sonymusic.co.jp/daftpunk",
+      "name": "sonymusic"
+    },
+    {
+      "url": "https://secondhandsongs.com/artist/2933",
+      "name": "secondhandsongs"
+    },
+    {
+      "url": "https://rateyourmusic.com/artist/daft-punk",
+      "name": "rateyourmusic"
+    },
+    {
+      "url": "https://commons.wikimedia.org/wiki/File:Daftpunklapremiere2010.jpg",
+      "name": "wikimedia"
+    },
+    {
+      "url": "https://twitter.com/daftpunk",
+      "name": "twitter"
+    },
+    {
+      "url": "https://www.deezer.com/artist/27",
+      "name": "deezer"
+    },
+    {
+      "url": "https://open.spotify.com/artist/4tZwfgrHOc3mvqYlEYSvVi",
+      "name": "spotify"
+    },
+    {
+      "url": "https://genius.com/artists/Daft-punk",
+      "name": "genius"
+    },
+    {
+      "url": "http://mouskni.com/artists/daft-punk/",
+      "name": "mouskni"
+    },
+    {
+      "url": "https://imvdb.com/n/daft-punk",
+      "name": "imvdb"
+    },
+    {
+      "url": "https://tidal.com/artist/8847",
+      "name": "tidal"
+    },
+    {
+      "url": "https://www.instagram.com/daftpunk/",
+      "name": "instagram"
+    },
+    {
+      "url": "https://d-nb.info/gnd/10198300-1",
+      "name": "d-nb"
+    },
+    {
+      "url": "http://id.loc.gov/authorities/names/no97063566",
+      "name": "loc"
+    },
+    {
+      "url": "https://catalogue.bnf.fr/ark:/12148/cb139764066",
+      "name": "bnf"
+    },
+    {
+      "url": "https://www.dailymotion.com/daftpunk",
+      "name": "dailymotion"
+    },
+    {
+      "url": "https://www.songkick.com/artists/368193",
+      "name": "songkick"
+    },
+    {
+      "url": "https://soundcloud.com/daftpunkofficialmusic",
+      "name": "soundcloud"
+    },
+    {
+      "url": "https://www.cdjapan.co.jp/person/700202980",
+      "name": "cdjapan"
+    },
+    {
+      "url": "https://www.musik-sammler.de/artist/2854/",
+      "name": "musik-sammler"
+    },
+    {
+      "url": "https://www.musixmatch.com/artist/Daft-Punk",
+      "name": "musixmatch"
+    },
+    {
+      "url": "https://muzikum.eu/en/daft-punk/lyrics",
+      "name": "muzikum"
+    },
+    {
+      "url": "https://us.napster.com/artist/daft-punk",
+      "name": "napster"
+    },
+    {
+      "url": "https://www.junodownload.com/artists/Daft+Punk/releases/",
+      "name": "junodownload"
+    },
+    {
+      "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+      "name": "qobuz"
+    },
+    {
+      "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+      "name": "qobuz"
+    },
+    {
+      "url": "https://ra.co/dj/daftpunk",
+      "name": "ra"
+    },
+    {
+      "url": "http://soundtrackcollector.com/composer/10148/",
+      "name": "soundtrackcollector"
+    },
+    {
+      "url": "https://www.whosampled.com/Daft-Punk/",
+      "name": "whosampled"
+    },
+    {
+      "url": "https://www.twitch.tv/daftpunk",
+      "name": "twitch"
+    },
+    {
+      "url": "https://vgmdb.net/artist/13389",
+      "name": "vgmdb"
+    },
+    {
+      "url": "https://www.muziekweb.nl/Link/M00000098950/POPULAR/",
+      "name": "muziekweb"
+    },
+    {
+      "url": "https://www.setlist.fm/setlists/daft-punk-bd6d5a2.html",
+      "name": "setlist"
+    },
+    {
+      "url": "https://www.youtube.com/channel/UC_kRDKYrUlrbtrSiyu5Tflg",
+      "name": "youtube"
+    },
+    {
+      "url": "https://www.tiktok.com/@daftpunk",
+      "name": "tiktok"
+    },
+    {
+      "url": "https://www.45cat.com/artist/daft-punk",
+      "name": "45cat"
+    },
+    {
+      "url": "https://www.livefans.jp/artists/2584",
+      "name": "livefans"
+    },
+    {
+      "url": "https://mora.jp/artist/332271/",
+      "name": "mora"
+    },
+    {
+      "url": "https://music.youtube.com/channel/UCRr1xG_2WIDs18a6cIiCxeA",
+      "name": "youtube"
+    },
+    {
+      "url": "https://www.discogs.com/artist/7618671",
+      "name": "discogs"
+    },
+    {
+      "url": "https://www.deezer.com/artist/1477045",
+      "name": "deezer"
+    },
+    {
+      "url": "https://id.oclc.org/worldcat/entity/E39QQPVp836qD8MJb64BpRQfkt",
+      "name": "oclc"
+    },
+    {
+      "url": "https://daft.fm/artists/daft-punk/",
+      "name": "daft"
+    },
+    {
+      "url": "https://www.bandsintown.com/a/263",
+      "name": "bandsintown"
+    },
+    {
+      "url": "https://itunes.apple.com/fr/artist/id5468295",
+      "name": "apple"
+    },
+    {
+      "url": "https://music.apple.com/fr/artist/5468295",
+      "name": "apple"
+    },
+    {
+      "url": "https://music.apple.com/fr/artist/5468295",
+      "name": "apple"
+    },
+    {
+      "url": "https://music.amazon.fr/artists/B001E8WS3O",
+      "name": "amazon"
+    },
+    {
+      "url": "https://www.worldcat.org/identities/lccn-no97063566/",
+      "name": "worldcat"
+    },
+    {
+      "url": "https://www.idref.fr/080492193",
+      "name": "idref"
+    },
+    {
+      "url": "https://jaxsta.com/profile/0c43a427-4e1e-4986-8079-4b7a7359702e",
+      "name": "jaxsta"
+    },
+    {
+      "url": "https://music.yandex.com/artist/13905",
+      "name": "yandex"
+    },
+    {
+      "url": "https://www.facebook.com/daftpunk",
+      "name": "facebook"
+    },
+    {
+      "url": "https://www.beatport.com/artist/daft-punk/3547",
+      "name": "beatport"
+    },
+    {
+      "url": "https://www.theaudiodb.com/artist/111492-Daft-Punk",
+      "name": "theaudiodb"
+    },
+    {
+      "url": "https://ototoy.jp/_/default/a/321671",
+      "name": "ototoy"
+    },
+    {
+      "url": "https://id.ndl.go.jp/auth/ndlna/001155868",
+      "name": "go"
+    },
+    {
+      "url": "https://www.goodreads.com/author/show/1032817",
+      "name": "goodreads"
+    },
+    {
+      "url": "https://open.qobuz.com/artist/36819",
+      "name": "qobuz"
+    },
+    {
+      "url": "https://open.qobuz.com/artist/36819",
+      "name": "qobuz"
+    },
+    {
+      "url": "https://ototoy.jp/_/default/a/875226",
+      "name": "ototoy"
+    }
+  ],
+  "nextAlbum": null,
+  "lastAlbum": {
+    "title": "Random Access Memories",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "aa997ea0-2936-40bd-884d-3af8a0e064dc",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 0,
+    "duration": 16196600,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "ratings": {
+      "votes": 42,
+      "value": 8.1
+    },
+    "releaseDate": "2013-05-17T00:00:00Z",
+    "releases": [
+      {
+        "id": 67,
+        "albumId": 4,
+        "foreignReleaseId": "8ecfafd1-89a8-423a-968f-3fff47f0b0f9",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 6616285,
+        "trackCount": 22,
+        "mediumCount": 2,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          },
+          {
+            "mediumNumber": 2,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "10th anniversary edition",
+        "country": [
+          "United States"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "2xCD",
+        "monitored": false
+      },
+      {
+        "id": 68,
+        "albumId": 4,
+        "foreignReleaseId": "158f94bf-d77f-4055-afa4-8fc7e0b2a004",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4464000,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "Brazil"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "CD",
+        "monitored": false
+      },
+      {
+        "id": 69,
+        "albumId": 4,
+        "foreignReleaseId": "b3484b6e-3daf-400c-be4a-f72a10cd66cd",
+        "title": "ランダム・アクセス・メモリーズ",
+        "status": "Pseudo-Release",
+        "duration": 4728000,
+        "trackCount": 14,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "Unknown",
+            "mediumFormat": "Unknown"
+          }
+        ],
+        "disambiguation": "",
+        "country": [],
+        "label": [],
+        "format": "Unknown",
+        "monitored": false
+      },
+      {
+        "id": 70,
+        "albumId": 4,
+        "foreignReleaseId": "e69e2f55-a2c0-472e-b30b-f43b565b3fbe",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4477288,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "Canada"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "CD",
+        "monitored": false
+      },
+      {
+        "id": 71,
+        "albumId": 4,
+        "foreignReleaseId": "bbfc83ad-826f-4957-893d-a808105c828b",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4464000,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "Australia"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "CD",
+        "monitored": false
+      },
+      {
+        "id": 72,
+        "albumId": 4,
+        "foreignReleaseId": "1f1710cf-17cf-4a5e-80df-d39ce2b191b9",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4464000,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "South Korea"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "CD",
+        "monitored": false
+      },
+      {
+        "id": 73,
+        "albumId": 4,
+        "foreignReleaseId": "4867ceba-ffe7-40c0-a093-45be6c03c655",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4464000,
+        "trackCount": 13,
+        "mediumCount": 2,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          },
+          {
+            "mediumNumber": 2,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "France",
+          "Germany",
+          "Italy",
+          "United Kingdom",
+          "United States"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "2x12\" Vinyl",
+        "monitored": false
+      },
+      {
+        "id": 74,
+        "albumId": 4,
+        "foreignReleaseId": "42662b17-c1a3-4ae7-9060-da4513798f7f",
+        "title": "Random Access Memories",
+        "status": "Withdrawn",
+        "duration": 4468000,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "disambiguation": "24bit/88.2kHz",
+        "country": [
+          "Japan"
+        ],
+        "label": [
+          "Sony Records International",
+          "Sony Records International"
+        ],
+        "format": "Digital Media",
+        "monitored": false
+      },
+      {
+        "id": 75,
+        "albumId": 4,
+        "foreignReleaseId": "36e2aede-346d-4931-8565-78d810d167c7",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4464000,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "disambiguation": "Apple Digital Master",
+        "country": [
+          "United States",
+          "[Worldwide]"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "Digital Media",
+        "monitored": false
+      },
+      {
+        "id": 76,
+        "albumId": 4,
+        "foreignReleaseId": "c7e5cfae-3313-40d5-88c8-cea90656eb45",
+        "title": "Random Access Memories",
+        "status": "Bootleg",
+        "duration": 5362000,
+        "trackCount": 15,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "disambiguation": "1/2\" 15 IPS",
+        "country": [
+          "[Worldwide]"
+        ],
+        "label": [
+          "[no label]"
+        ],
+        "format": "Digital Media",
+        "monitored": false
+      },
+      {
+        "id": 77,
+        "albumId": 4,
+        "foreignReleaseId": "86b962b4-6cfb-48fc-a313-a58424fcb317",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 5372000,
+        "trackCount": 15,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "USB Flash Drive"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "United States"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "USB Flash Drive",
+        "monitored": false
+      },
+      {
+        "id": 78,
+        "albumId": 4,
+        "foreignReleaseId": "873e0cbd-f696-4e79-9868-e469274bbbe4",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 5372000,
+        "trackCount": 15,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "USB Flash Drive"
+          }
+        ],
+        "disambiguation": "USB FLAC, 24-bit / 88.2kHz",
+        "country": [
+          "United States"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "USB Flash Drive",
+        "monitored": false
+      },
+      {
+        "id": 79,
+        "albumId": 4,
+        "foreignReleaseId": "79215cdf-4764-4dee-b0b9-fec1643df7c5",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4739557,
+        "trackCount": 14,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "Japan"
+        ],
+        "label": [
+          "Sony Records International"
+        ],
+        "format": "CD",
+        "monitored": false
+      },
+      {
+        "id": 80,
+        "albumId": 4,
+        "foreignReleaseId": "fc1eb6d6-1c46-429a-8332-4f881c541ae7",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 11418000,
+        "trackCount": 30,
+        "mediumCount": 4,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          },
+          {
+            "mediumNumber": 2,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          },
+          {
+            "mediumNumber": 3,
+            "mediumName": "",
+            "mediumFormat": "10\" Vinyl"
+          },
+          {
+            "mediumNumber": 4,
+            "mediumName": "",
+            "mediumFormat": "USB Flash Drive"
+          }
+        ],
+        "disambiguation": "limited box set edition",
+        "country": [
+          "United States"
+        ],
+        "label": [
+          "Columbia",
+          "Columbia"
+        ],
+        "format": "2x12\" Vinyl, 10\" Vinyl, USB Flash Drive",
+        "monitored": false
+      },
+      {
+        "id": 81,
+        "albumId": 4,
+        "foreignReleaseId": "6940fcdf-6e70-4764-8782-18e2c1e600de",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 6616285,
+        "trackCount": 22,
+        "mediumCount": 2,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          },
+          {
+            "mediumNumber": 2,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "10th anniversary edition",
+        "country": [
+          "Europe"
+        ],
+        "label": [
+          "Columbia",
+          "Legacy",
+          "Sony Music"
+        ],
+        "format": "2xCD",
+        "monitored": false
+      },
+      {
+        "id": 82,
+        "albumId": 4,
+        "foreignReleaseId": "5000a285-b67e-4cfc-b54b-2b98f1810d2e",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4464000,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "[Worldwide]"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "Digital Media",
+        "monitored": false
+      },
+      {
+        "id": 83,
+        "albumId": 4,
+        "foreignReleaseId": "a8308466-dd18-4912-9192-ccd0eb1878e0",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4477288,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "United States"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "CD",
+        "monitored": false
+      },
+      {
+        "id": 84,
+        "albumId": 4,
+        "foreignReleaseId": "f6758afb-ecff-410e-8979-b131cfa3c6d3",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4477288,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "France",
+          "Germany",
+          "Netherlands",
+          "United Kingdom"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "CD",
+        "monitored": false
+      },
+      {
+        "id": 85,
+        "albumId": 4,
+        "foreignReleaseId": "ecf72e5a-e378-485e-bb87-7ebbd0430a79",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4461000,
+        "trackCount": 13,
+        "mediumCount": 2,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          },
+          {
+            "mediumNumber": 2,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          }
+        ],
+        "disambiguation": "",
+        "country": [
+          "Europe"
+        ],
+        "label": [
+          "Columbia",
+          "Sony Music"
+        ],
+        "format": "2x12\" Vinyl",
+        "monitored": false
+      },
+      {
+        "id": 86,
+        "albumId": 4,
+        "foreignReleaseId": "4375c18f-f160-44d0-ae2b-795f1dd5870f",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 6600000,
+        "trackCount": 22,
+        "mediumCount": 3,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Vinyl"
+          },
+          {
+            "mediumNumber": 2,
+            "mediumName": "",
+            "mediumFormat": "Vinyl"
+          },
+          {
+            "mediumNumber": 3,
+            "mediumName": "",
+            "mediumFormat": "Vinyl"
+          }
+        ],
+        "disambiguation": "10th anniversary edition",
+        "country": [
+          "United States"
+        ],
+        "label": [
+          "Rough Trade"
+        ],
+        "format": "3xVinyl",
+        "monitored": false
+      },
+      {
+        "id": 87,
+        "albumId": 4,
+        "foreignReleaseId": "ec116461-5b0d-4c98-bb44-a4de5de63076",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 4464000,
+        "trackCount": 13,
+        "mediumCount": 1,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "disambiguation": "88.2kHz/24‐bit",
+        "country": [
+          "[Worldwide]"
+        ],
+        "label": [
+          "Columbia"
+        ],
+        "format": "Digital Media",
+        "monitored": false
+      },
+      {
+        "id": 88,
+        "albumId": 4,
+        "foreignReleaseId": "bd104f75-c502-40cf-b46a-83a0535984d4",
+        "title": "Random Access Memories",
+        "status": "Bootleg",
+        "duration": 16196600,
+        "trackCount": 49,
+        "mediumCount": 4,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          },
+          {
+            "mediumNumber": 2,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          },
+          {
+            "mediumNumber": 3,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          },
+          {
+            "mediumNumber": 4,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "disambiguation": "Complete Audiophile Edition",
+        "country": [],
+        "label": [],
+        "format": "4xDigital Media",
+        "monitored": true
+      },
+      {
+        "id": 89,
+        "albumId": 4,
+        "foreignReleaseId": "e65fcfb0-02dc-407c-ab28-8168dafcb999",
+        "title": "Random Access Memories",
+        "status": "Official",
+        "duration": 6610659,
+        "trackCount": 22,
+        "mediumCount": 2,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          },
+          {
+            "mediumNumber": 2,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "disambiguation": "10th anniversary edition",
+        "country": [
+          "[Worldwide]"
+        ],
+        "label": [
+          "Columbia",
+          "Legacy"
+        ],
+        "format": "2xDigital Media",
+        "monitored": false
+      }
+    ],
+    "genres": [
+      "Electronic",
+      "Disco",
+      "Funk",
+      "Electro",
+      "French House",
+      "Pop",
+      "Nu Disco",
+      "Synth Funk",
+      "Club",
+      "Electro-Disco",
+      "Dance",
+      "Electronica",
+      "House",
+      "Progressive House",
+      "Synth-Pop"
+    ],
+    "mediumCount": 4,
+    "media": [
+      {
+        "mediumNumber": 1,
+        "mediumName": "",
+        "mediumFormat": "Digital Media"
+      },
+      {
+        "mediumNumber": 2,
+        "mediumName": "",
+        "mediumFormat": "Digital Media"
+      },
+      {
+        "mediumNumber": 3,
+        "mediumName": "",
+        "mediumFormat": "Digital Media"
+      },
+      {
+        "mediumNumber": 4,
+        "mediumName": "",
+        "mediumFormat": "Digital Media"
+      }
+    ],
+    "artist": {
+      "status": "ended",
+      "ended": true,
+      "artistName": "Daft Punk",
+      "foreignArtistId": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+      "tadbId": 0,
+      "discogsId": 0,
+      "artistType": "Group",
+      "disambiguation": "French electronic duo",
+      "links": [
+        {
+          "url": "https://daftpunk.com/",
+          "name": "daftpunk"
+        },
+        {
+          "url": "https://www.discogs.com/artist/1289",
+          "name": "discogs"
+        },
+        {
+          "url": "http://musicmoz.org/Bands_and_Artists/D/Daft_Punk/",
+          "name": "musicmoz"
+        },
+        {
+          "url": "https://www.imdb.com/name/nm1386916/",
+          "name": "imdb"
+        },
+        {
+          "url": "https://myspace.com/daftpunk",
+          "name": "myspace"
+        },
+        {
+          "url": "https://www.bbc.co.uk/music/artists/056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+          "name": "bbc"
+        },
+        {
+          "url": "https://www.allmusic.com/artist/mn0000667669",
+          "name": "allmusic"
+        },
+        {
+          "url": "https://www.last.fm/music/Daft+Punk",
+          "name": "last"
+        },
+        {
+          "url": "http://viaf.org/viaf/131208258",
+          "name": "viaf"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q185828",
+          "name": "wikidata"
+        },
+        {
+          "url": "http://emimusic.jp/daftpunk",
+          "name": "emimusic"
+        },
+        {
+          "url": "http://sonymusic.co.jp/daftpunk",
+          "name": "sonymusic"
+        },
+        {
+          "url": "https://secondhandsongs.com/artist/2933",
+          "name": "secondhandsongs"
+        },
+        {
+          "url": "https://rateyourmusic.com/artist/daft-punk",
+          "name": "rateyourmusic"
+        },
+        {
+          "url": "https://commons.wikimedia.org/wiki/File:Daftpunklapremiere2010.jpg",
+          "name": "wikimedia"
+        },
+        {
+          "url": "https://twitter.com/daftpunk",
+          "name": "twitter"
+        },
+        {
+          "url": "https://www.deezer.com/artist/27",
+          "name": "deezer"
+        },
+        {
+          "url": "https://open.spotify.com/artist/4tZwfgrHOc3mvqYlEYSvVi",
+          "name": "spotify"
+        },
+        {
+          "url": "https://genius.com/artists/Daft-punk",
+          "name": "genius"
+        },
+        {
+          "url": "http://mouskni.com/artists/daft-punk/",
+          "name": "mouskni"
+        },
+        {
+          "url": "https://imvdb.com/n/daft-punk",
+          "name": "imvdb"
+        },
+        {
+          "url": "https://tidal.com/artist/8847",
+          "name": "tidal"
+        },
+        {
+          "url": "https://www.instagram.com/daftpunk/",
+          "name": "instagram"
+        },
+        {
+          "url": "https://d-nb.info/gnd/10198300-1",
+          "name": "d-nb"
+        },
+        {
+          "url": "http://id.loc.gov/authorities/names/no97063566",
+          "name": "loc"
+        },
+        {
+          "url": "https://catalogue.bnf.fr/ark:/12148/cb139764066",
+          "name": "bnf"
+        },
+        {
+          "url": "https://www.dailymotion.com/daftpunk",
+          "name": "dailymotion"
+        },
+        {
+          "url": "https://www.songkick.com/artists/368193",
+          "name": "songkick"
+        },
+        {
+          "url": "https://soundcloud.com/daftpunkofficialmusic",
+          "name": "soundcloud"
+        },
+        {
+          "url": "https://www.cdjapan.co.jp/person/700202980",
+          "name": "cdjapan"
+        },
+        {
+          "url": "https://www.musik-sammler.de/artist/2854/",
+          "name": "musik-sammler"
+        },
+        {
+          "url": "https://www.musixmatch.com/artist/Daft-Punk",
+          "name": "musixmatch"
+        },
+        {
+          "url": "https://muzikum.eu/en/daft-punk/lyrics",
+          "name": "muzikum"
+        },
+        {
+          "url": "https://us.napster.com/artist/daft-punk",
+          "name": "napster"
+        },
+        {
+          "url": "https://www.junodownload.com/artists/Daft+Punk/releases/",
+          "name": "junodownload"
+        },
+        {
+          "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+          "name": "qobuz"
+        },
+        {
+          "url": "https://www.qobuz.com/fr-fr/interpreter/daft-punk/36819",
+          "name": "qobuz"
+        },
+        {
+          "url": "https://ra.co/dj/daftpunk",
+          "name": "ra"
+        },
+        {
+          "url": "http://soundtrackcollector.com/composer/10148/",
+          "name": "soundtrackcollector"
+        },
+        {
+          "url": "https://www.whosampled.com/Daft-Punk/",
+          "name": "whosampled"
+        },
+        {
+          "url": "https://www.twitch.tv/daftpunk",
+          "name": "twitch"
+        },
+        {
+          "url": "https://vgmdb.net/artist/13389",
+          "name": "vgmdb"
+        },
+        {
+          "url": "https://www.muziekweb.nl/Link/M00000098950/POPULAR/",
+          "name": "muziekweb"
+        },
+        {
+          "url": "https://www.setlist.fm/setlists/daft-punk-bd6d5a2.html",
+          "name": "setlist"
+        },
+        {
+          "url": "https://www.youtube.com/channel/UC_kRDKYrUlrbtrSiyu5Tflg",
+          "name": "youtube"
+        },
+        {
+          "url": "https://www.tiktok.com/@daftpunk",
+          "name": "tiktok"
+        },
+        {
+          "url": "https://www.45cat.com/artist/daft-punk",
+          "name": "45cat"
+        },
+        {
+          "url": "https://www.livefans.jp/artists/2584",
+          "name": "livefans"
+        },
+        {
+          "url": "https://mora.jp/artist/332271/",
+          "name": "mora"
+        },
+        {
+          "url": "https://music.youtube.com/channel/UCRr1xG_2WIDs18a6cIiCxeA",
+          "name": "youtube"
+        },
+        {
+          "url": "https://www.discogs.com/artist/7618671",
+          "name": "discogs"
+        },
+        {
+          "url": "https://www.deezer.com/artist/1477045",
+          "name": "deezer"
+        },
+        {
+          "url": "https://id.oclc.org/worldcat/entity/E39QQPVp836qD8MJb64BpRQfkt",
+          "name": "oclc"
+        },
+        {
+          "url": "https://daft.fm/artists/daft-punk/",
+          "name": "daft"
+        },
+        {
+          "url": "https://www.bandsintown.com/a/263",
+          "name": "bandsintown"
+        },
+        {
+          "url": "https://itunes.apple.com/fr/artist/id5468295",
+          "name": "apple"
+        },
+        {
+          "url": "https://music.apple.com/fr/artist/5468295",
+          "name": "apple"
+        },
+        {
+          "url": "https://music.apple.com/fr/artist/5468295",
+          "name": "apple"
+        },
+        {
+          "url": "https://music.amazon.fr/artists/B001E8WS3O",
+          "name": "amazon"
+        },
+        {
+          "url": "https://www.worldcat.org/identities/lccn-no97063566/",
+          "name": "worldcat"
+        },
+        {
+          "url": "https://www.idref.fr/080492193",
+          "name": "idref"
+        },
+        {
+          "url": "https://jaxsta.com/profile/0c43a427-4e1e-4986-8079-4b7a7359702e",
+          "name": "jaxsta"
+        },
+        {
+          "url": "https://music.yandex.com/artist/13905",
+          "name": "yandex"
+        },
+        {
+          "url": "https://www.facebook.com/daftpunk",
+          "name": "facebook"
+        },
+        {
+          "url": "https://www.beatport.com/artist/daft-punk/3547",
+          "name": "beatport"
+        },
+        {
+          "url": "https://www.theaudiodb.com/artist/111492-Daft-Punk",
+          "name": "theaudiodb"
+        },
+        {
+          "url": "https://ototoy.jp/_/default/a/321671",
+          "name": "ototoy"
+        },
+        {
+          "url": "https://id.ndl.go.jp/auth/ndlna/001155868",
+          "name": "go"
+        },
+        {
+          "url": "https://www.goodreads.com/author/show/1032817",
+          "name": "goodreads"
+        },
+        {
+          "url": "https://open.qobuz.com/artist/36819",
+          "name": "qobuz"
+        },
+        {
+          "url": "https://open.qobuz.com/artist/36819",
+          "name": "qobuz"
+        },
+        {
+          "url": "https://ototoy.jp/_/default/a/875226",
+          "name": "ototoy"
+        }
+      ],
+      "nextAlbum": null,
+      "lastAlbum": null,
+      "images": [],
+      "path": "/music/Daft Punk",
+      "qualityProfileId": 1,
+      "metadataProfileId": 1,
+      "monitored": true,
+      "monitorNewItems": "all",
+      "genres": [
+        "Electronic",
+        "House",
+        "French House",
+        "Dance",
+        "Disco",
+        "Electro",
+        "Electronica",
+        "Electro House",
+        "Techno",
+        "Nu Disco",
+        "French Electro",
+        "Club",
+        "Electronic Rock",
+        "Funk",
+        "Synth-Pop",
+        "Jackin House",
+        "Electroclash",
+        "Pop",
+        "R&B",
+        "Trap",
+        "Edm",
+        "Organic House"
+      ],
+      "cleanName": "daftpunk",
+      "sortName": "daft punk",
+      "tags": [],
+      "added": "2026-10-27T04:14:06Z",
+      "ratings": {
+        "votes": 27,
+        "value": 9.3
+      },
+      "id": 1
+    },
+    "images": [
+      {
+        "coverType": "cover",
+        "remoteUrl": "https://indexer.example.test/",
+        "extension": ".jpg"
+      },
+      {
+        "coverType": "disc",
+        "remoteUrl": "https://indexer.example.test/",
+        "extension": ".jpg"
+      }
+    ],
+    "links": [
+      {
+        "url": "http://www.randomaccessmemories.com/",
+        "name": "randomaccessmemories"
+      },
+      {
+        "url": "https://www.wikidata.org/wiki/Q8119033",
+        "name": "wikidata"
+      },
+      {
+        "url": "https://www.discogs.com/master/556257",
+        "name": "discogs"
+      },
+      {
+        "url": "https://www.allmusic.com/album/mw0002521619",
+        "name": "allmusic"
+      },
+      {
+        "url": "http://thequietus.com/articles/12374-daft-punk-random-access-memories-review",
+        "name": "thequietus"
+      },
+      {
+        "url": "https://rateyourmusic.com/release/album/daft_punk/random_access_memories/",
+        "name": "rateyourmusic"
+      },
+      {
+        "url": "http://pitchfork.com/reviews/albums/18028-daft-punk-random-access-memories/",
+        "name": "pitchfork"
+      },
+      {
+        "url": "https://www.offiziellecharts.de/charts/album-details-215083",
+        "name": "offiziellecharts"
+      },
+      {
+        "url": "https://pitchfork.com/reviews/albums/daft-punk-random-access-memories-10th-anniversary-edition/",
+        "name": "pitchfork"
+      },
+      {
+        "url": "https://www.last.fm/music/Daft+Punk/Random+Access+Memories",
+        "name": "last"
+      }
+    ],
+    "id": 4
+  },
+  "images": [
+    {
+      "coverType": "fanart",
+      "url": "/MediaCover/1/poster.jpg",
+      "remoteUrl": "https://indexer.example.test/",
+      "extension": ".jpg"
+    },
+    {
+      "coverType": "clearlogo",
+      "url": "/MediaCover/1/poster.jpg",
+      "remoteUrl": "https://indexer.example.test/",
+      "extension": ".png"
+    },
+    {
+      "coverType": "banner",
+      "url": "/MediaCover/1/poster.jpg",
+      "remoteUrl": "https://indexer.example.test/",
+      "extension": ".jpg"
+    },
+    {
+      "coverType": "poster",
+      "url": "/MediaCover/1/poster.jpg",
+      "remoteUrl": "https://indexer.example.test/",
+      "extension": ".jpg"
+    }
+  ],
+  "path": "/music/Daft Punk",
+  "qualityProfileId": 1,
+  "metadataProfileId": 1,
+  "monitored": true,
+  "monitorNewItems": "all",
+  "rootFolderPath": "/music",
+  "genres": [
+    "Electronic",
+    "House",
+    "French House",
+    "Dance",
+    "Disco",
+    "Electro",
+    "Electronica",
+    "Electro House",
+    "Techno",
+    "Nu Disco",
+    "French Electro",
+    "Club",
+    "Electronic Rock",
+    "Funk",
+    "Synth-Pop",
+    "Jackin House",
+    "Electroclash",
+    "Pop",
+    "R&B",
+    "Trap",
+    "Edm",
+    "Organic House"
+  ],
+  "cleanName": "daftpunk",
+  "sortName": "daft punk",
+  "tags": [],
+  "added": "2026-10-27T04:14:06Z",
+  "ratings": {
+    "votes": 27,
+    "value": 9.3
+  },
+  "statistics": {
+    "albumCount": 4,
+    "trackFileCount": 0,
+    "trackCount": 108,
+    "totalTrackCount": 108,
+    "sizeOnDisk": 0,
+    "percentOfTracks": 0
+  },
+  "id": 1
+}

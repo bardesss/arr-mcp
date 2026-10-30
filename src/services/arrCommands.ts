@@ -28,7 +28,7 @@ export async function postArrCommand(
     service: string,
     body: Record<string, unknown> & { name: string }
 ): Promise<CommandHandle> {
-    const queued = await http.post<RawCommand>('/api/v3/command', body);
+    const queued = await http.post<RawCommand>(`${http.apiRoot}/command`, body);
     return {
         service,
         commandId: queued.id ?? 0,
@@ -87,7 +87,7 @@ export async function readArrCommands(
     service: string,
     now: number = Date.now()
 ): Promise<CommandStatus[]> {
-    const rows = await http.get<RawCommand[]>('/api/v3/command');
+    const rows = await http.get<RawCommand[]>(`${http.apiRoot}/command`);
 
     return rows
         .filter((c): c is RawCommand & { id: number } => typeof c.id === 'number')
@@ -195,7 +195,7 @@ export async function awaitArrCommand(
     const deadline = Date.now() + COMMAND_WAIT_MS;
 
     for (;;) {
-        const row = await http.get<RawCommandDetail>(`/api/v3/command/${commandId}`);
+        const row = await http.get<RawCommandDetail>(`${http.apiRoot}/command/${commandId}`);
         const status = (row.status ?? 'unknown').toLowerCase();
         if (SETTLED.has(status)) {
             return {

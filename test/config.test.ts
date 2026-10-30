@@ -462,6 +462,25 @@ describe('profilarr', () => {
     });
 });
 
+describe('lidarr', () => {
+    it('accepts a single lidarr block', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { lidarr: { url: 'http://lidarr:8686', api_key: 'k' } }
+        });
+        expect(parsed.services.lidarr?.url).toBe('http://lidarr:8686');
+    });
+
+    it('refuses a list of lidarr instances', () => {
+        expect(() =>
+            ConfigSchema.parse({
+                auth: AUTH,
+                services: { lidarr: [{ url: 'http://a:8686', api_key: 'k' }] }
+            })
+        ).toThrow(/single block/);
+    });
+});
+
 describe('per-service config shapes', () => {
     it('accepts transmission with username and password and no api_key', () => {
         const parsed = ConfigSchema.parse({

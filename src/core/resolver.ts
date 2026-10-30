@@ -1,6 +1,20 @@
 import { RANK_NONE, literalTitle, rankTitle, unfenced } from './titleMatch.ts';
 
-export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string };
+export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
+
+/**
+ * What a merged row can be. `artist` is Lidarr's, and it joins to a media server
+ * on the MusicBrainz artist id, which is why a music row can carry `presence`
+ * like a film or a series.
+ */
+export type LibraryKind = 'movie' | 'series' | 'artist';
+
+/**
+ * A merged row with a kind the film-and-series readers accept. Narrower than
+ * `MergedItem`, so a caller that has been through `filmOrSeriesMatch` can pass
+ * its row to a type that names only those two without a cast.
+ */
+export type FilmOrSeries = MergedItem & { kind: 'movie' | 'series' };
 
 /**
  * Named sources rather than a loose map, which would accept a source name that
@@ -56,9 +70,17 @@ export type SeasonSummary = {
 };
 
 export type MergedItem = {
-    kind: 'movie' | 'series';
+    kind: LibraryKind;
     title: string;
     year?: number;
+    /**
+     * Artists only: how many albums Lidarr holds for it.
+     *
+     * An artist row cannot carry its albums — that is what makes the library
+     * 1,600 rows rather than 36,000 — so this one count is what a caller gets
+     * instead, and `get_media_details` is where the albums themselves are.
+     */
+    albumCount?: number;
     /**
      * Absent from the record and required because `genre` is a `get_library`
      * filter, and no other field in the merged shape could answer one.
@@ -79,9 +101,10 @@ export type MergedItem = {
         /**
          * The managing service's own status word — `continuing`, `ended` or
          * `upcoming` from Sonarr, `announced`, `inCinemas` or `released` from
-         * Radarr. Passed through rather than normalised: the two vocabularies
-         * describe different things, and one shared spelling would invent a
-         * third meaning neither service holds.
+         * Radarr, and the album type (`Album`, `EP`, `Single`) from Lidarr,
+         * which has no run status to report. Passed through rather than
+         * normalised: the vocabularies describe different things, and one
+         * shared spelling would invent a third meaning none of them holds.
          */
         status?: string;
         monitored: boolean;
@@ -127,6 +150,10 @@ export type MergedItem = {
      * A degraded or unconfigured media server gets `unknown`, never
      * `arr_only` — that claim asserts the server looked and did not find it.
      *
+     * An artist reads like a film or a series: Jellyfin and Plex both publish
+     * the MusicBrainz artist id, so music joins on it. An artist found on both
+     * sides is `both`, and one the server never saw is `arr_only`.
+     *
      * Named for Jellyfin from when it was the only media server. Now that
      * Plex is a second one, the literal stays `jellyfin_only` regardless —
      * it is a frozen output contract, and a rename would break every saved
@@ -156,17 +183,31 @@ export type BuildOptions = {
      * owns the fetch, so it passes in which one this was.
      */
     playbackGathered?: boolean;
+    /**
+     * Whether the media server's *music* half was gathered.
+     *
+     * Separate from `playbackGathered` because the two reads fail separately. A
+     * music read that failed while films succeeded would otherwise let every
+     * artist read `arr_only` — a claim that the server looked and found nothing,
+     * which nobody made. Absent means the same as `playbackGathered`: assume the
+     * half was read.
+     */
+    musicGathered?: boolean;
 };
 
 /**
  * Namespaced so a film with tmdb 550 never merges with a series carrying
  * tvdb 550 — unrelated id spaces that happen to collide numerically.
  */
-const keysOf = (kind: MergedItem['kind'], ids: ExternalIds): string[] => {
+const keysOf = (kind: LibraryKind, ids: ExternalIds): string[] => {
     const out: string[] = [];
     if (ids.tmdb !== undefined) out.push(`${kind}:tmdb:${ids.tmdb}`);
     if (ids.tvdb !== undefined) out.push(`${kind}:tvdb:${ids.tvdb}`);
     if (ids.imdb !== undefined) out.push(`${kind}:imdb:${ids.imdb}`);
+    // MusicBrainz ids are GUIDs, so they cannot collide with the integer
+    // spaces above even without the kind prefix. Kept prefixed anyway:
+    // `keysOf` is the one place that decides what identity means here.
+    if (ids.mbid !== undefined) out.push(`${kind}:mbid:${ids.mbid.toLowerCase()}`);
     return out;
 };
 
@@ -206,6 +247,64 @@ function mergeInto(target: MergedItem, input: IndexInput): void {
     if (input.ratings !== undefined) target.ratings = { ...target.ratings, ...input.ratings };
 }
 
+export const isFilmOrSeries = (item: MergedItem): item is FilmOrSeries =>
+    item.kind === 'movie' || item.kind === 'series';
+
+/**
+ * The refusal for an artist that reached a film-and-series reader.
+ *
+ * Names the route that holds the albums: `get_media_details` on the Lidarr
+ * artist, which is where an album id comes from. A pointer to `get_library`
+ * alone sent a caller after an album id no library row carries.
+ */
+export const artistRefusal = (name: string): Error =>
+    new Error(
+        `"${name}" is a Lidarr artist, and this tool reads the film and series chain. For its albums and their ids, use get_media_details with service: "lidarr", the artist id and detail: "full". get_library with kind: "artist" lists artists with their album count, profile and file state.`
+    );
+
+/**
+ * The best match among films and series, for the readers whose question is
+ * about that chain: `get_media_details`, `fix_metadata` and `diagnose`.
+ *
+ * An artist must not shadow a film that happens to share its title, which the
+ * ranking alone cannot prevent. And when an artist is the only thing that
+ * matched, this throws rather than letting the caller answer "nothing in your
+ * library matches" — that sentence would be false about a library this server
+ * has just read the artist from.
+ */
+export function filmOrSeriesMatch(hits: readonly MergedItem[], query: string): FilmOrSeries | undefined {
+    const best = hits.find(isFilmOrSeries) ?? hits[0];
+    if (best === undefined) return undefined;
+    if (!isFilmOrSeries(best)) throw artistRefusal(query);
+    return best;
+}
+
+/**
+ * What `presence` a fully merged item gets.
+ *
+ * Read as a list of cases rather than nested conditionals: there are four
+ * outcomes and one of them is reached from two directions, which is exactly the
+ * shape a conditional chain hides.
+ */
+const presenceVerdict = (
+    item: MergedItem,
+    playbackGathered: boolean,
+    musicGathered: boolean
+): MergedItem['presence'] => {
+    const managed = item.acquisition !== undefined;
+    // An artist's server half is the music read, not the film one.
+    const serverGathered = item.kind === 'artist' ? musicGathered : playbackGathered;
+    const played = item.playback !== undefined;
+
+    if (managed && played) return 'both';
+    // Played but unmanaged is media the servers hold and no *arr does.
+    if (played) return 'jellyfin_only';
+    if (!managed) return 'unknown';
+    // `arr_only` claims the media server looked and found nothing — not a claim
+    // to make when it was never read.
+    return serverGathered ? 'arr_only' : 'unknown';
+};
+
 /**
  * the shared join. Records merge when **any** strong id matches, which is what
  * handles Radarr knowing only `tmdbId` while Jellyfin knows only `Imdb`.
@@ -225,6 +324,7 @@ export class LibraryIndex {
 
     static build(inputs: readonly IndexInput[], opts: BuildOptions = {}): LibraryIndex {
         const playbackGathered = opts.playbackGathered ?? true;
+        const musicGathered = opts.musicGathered ?? playbackGathered;
         const byKey = new Map<string, MergedItem>();
         const items: MergedItem[] = [];
 
@@ -303,18 +403,7 @@ export class LibraryIndex {
 
         const finalByKey = new Map<string, MergedItem>();
         for (const item of merged) {
-            item.presence =
-                item.acquisition !== undefined && item.playback !== undefined
-                    ? 'both'
-                    : item.acquisition !== undefined
-                      ? // `arr_only` claims the media server looked and found
-                        // nothing — not a claim to make when it was never read.
-                        playbackGathered
-                          ? 'arr_only'
-                          : 'unknown'
-                      : item.playback !== undefined
-                        ? 'jellyfin_only'
-                        : 'unknown';
+            item.presence = presenceVerdict(item, playbackGathered, musicGathered);
             // Here rather than in `absorb` for the reason `presence` is here:
             // this is the first point at which an item is fully merged, and a
             // verdict computed mid-merge would be computed against half the
@@ -344,8 +433,8 @@ export class LibraryIndex {
      * colliding), and without `kind` the first one indexed wins, silently
      * hiding the other.
      */
-    find(ids: ExternalIds, kind?: 'movie' | 'series'): MergedItem | undefined {
-        const kinds = kind !== undefined ? [kind] : (['movie', 'series'] as const);
+    find(ids: ExternalIds, kind?: LibraryKind): MergedItem | undefined {
+        const kinds = kind !== undefined ? [kind] : (['movie', 'series', 'artist'] as const);
         for (const k of kinds) {
             for (const key of keysOf(k, ids)) {
                 const hit = this.#byKey.get(key);

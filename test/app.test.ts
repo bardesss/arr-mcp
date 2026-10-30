@@ -1180,12 +1180,13 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         ]);
     });
 
-    it('advertises the three resources', async () => {
+    it('advertises the four resources', async () => {
         const { resources } = (await list('resources/list')) as { resources: { uri: string }[] };
         expect(resources.map(r => r.uri).sort()).toEqual([
             'arr://health',
             'arr://instances',
-            'arr://library/summary'
+            'arr://library/summary',
+            'arr://lidarr/monitoring'
         ]);
     });
 

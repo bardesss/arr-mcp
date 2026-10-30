@@ -63,7 +63,7 @@ export async function findArrReleases(
     // which here means a second full synchronous poll of every configured
     // indexer stacked on the first — the exact "starts a second sweep" this
     // tool's own description warns a caller against causing by retrying.
-    const raw = await http.get<RawRelease[]>(`/api/v3/release?${query}`, {
+    const raw = await http.get<RawRelease[]>(`${http.apiRoot}/release?${query}`, {
         timeoutMs: RELEASE_SEARCH_TIMEOUT_MS,
         retry: false
     });
@@ -73,7 +73,7 @@ export async function findArrReleases(
     // response shape) would throw a bare TypeError out of `.filter` instead
     // of the ServiceError vocabulary every other failure here uses.
     if (!Array.isArray(raw)) {
-        throw new ServiceError('UpstreamError', service, '/api/v3/release did not return an array');
+        throw new ServiceError('UpstreamError', service, `${http.apiRoot}/release did not return an array`);
     }
 
     const fence = (value: string, field: string) => fenceText(value, { service, field });
@@ -116,5 +116,5 @@ export async function grabArrRelease(
     http: ServiceHttp,
     opts: { guid: string; indexerId: number }
 ): Promise<void> {
-    await http.post('/api/v3/release', { guid: opts.guid, indexerId: opts.indexerId }, true);
+    await http.post(`${http.apiRoot}/release`, { guid: opts.guid, indexerId: opts.indexerId }, true);
 }

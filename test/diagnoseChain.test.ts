@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fenceText } from '../src/core/fence.ts';
-import type { MergedItem } from '../src/core/resolver.ts';
+import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { buildChain, type Evidence } from '../src/tools/diagnose/chain.ts';
 
@@ -30,7 +30,7 @@ const QUEUE_TITLE_FIELD: Record<string, string> = { radarr: 'title', sonarr: 'ti
 const queueTitle = (service: string, title: string): string =>
     fenceText(title, { service: service as Parameters<typeof fenceText>[1]['service'], field: QUEUE_TITLE_FIELD[service] ?? 'title' });
 
-const item = (over: ItemOverride = {}): MergedItem => {
+const item = (over: ItemOverride = {}): FilmOrSeries => {
     const merged: Record<string, unknown> = {
         kind: 'movie',
         title: fence('Some Film'),
@@ -47,7 +47,7 @@ const item = (over: ItemOverride = {}): MergedItem => {
     for (const key of Object.keys(merged)) {
         if (merged[key] === undefined) delete merged[key];
     }
-    return merged as MergedItem;
+    return merged as FilmOrSeries;
 };
 
 /** Everything looked at, nothing wrong: the baseline every case perturbs. */
@@ -325,7 +325,7 @@ describe('buildChain — a symptom does not outrank a chain that is not actually
 });
 
 describe('buildChain — title matching (I3)', () => {
-    const noFileFor = (title: string, year: number): MergedItem =>
+    const noFileFor = (title: string, year: number): FilmOrSeries =>
         item({ title: fence(title), year, acquisition: { service: 'radarr', monitored: true, hasFile: false } });
 
     const shortTitleCases: Array<[title: string, year: number, release: string]> = [
@@ -748,7 +748,7 @@ describe('buildChain — punctuated titles (N3 regression)', () => {
     // splitting on the other means neither ever produces matching tokens —
     // every hyphenated or apostrophed title matched nothing, and the queue
     // and indexer stages went blind for them.
-    const noFileFor = (title: string, year: number): MergedItem =>
+    const noFileFor = (title: string, year: number): FilmOrSeries =>
         item({ title: fence(title), year, acquisition: { service: 'radarr', monitored: true, hasFile: false } });
 
     const punctuatedCases: Array<[title: string, year: number, release: string]> = [
@@ -770,7 +770,7 @@ describe('buildChain — punctuated titles (N3 regression)', () => {
 });
 
 describe("buildChain — the year guard ignores the title's own year words (N4)", () => {
-    const noFileFor = (title: string, year: number): MergedItem =>
+    const noFileFor = (title: string, year: number): FilmOrSeries =>
         item({ title: fence(title), year, acquisition: { service: 'radarr', monitored: true, hasFile: false } });
 
     const titleYearCases: Array<[title: string, year: number, release: string]> = [
@@ -933,7 +933,7 @@ describe('buildChain — a series file signal is ambiguous, so request/managed s
     // got turned off" — under a confident "is available in Jellyfin and
     // playable", with no remedy and no mention: the exact failure the aside
     // (N7) exists to prevent, in a stage the aside does not cover.
-    const seriesOnDisk = (over: ItemOverride = {}): MergedItem =>
+    const seriesOnDisk = (over: ItemOverride = {}): FilmOrSeries =>
         item({
             kind: 'series',
             title: fence('Some Show'),

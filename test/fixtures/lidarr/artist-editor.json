@@ -1,0 +1,209 @@
+[
+  {
+    "artistMetadataId": 6,
+    "status": "continuing",
+    "ended": false,
+    "artistName": "Artist 1",
+    "foreignArtistId": "00000000-0000-4000-8000-000000000001",
+    "tadbId": 0,
+    "discogsId": 0,
+    "artistType": "Person",
+    "disambiguation": "",
+    "links": [
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-1"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-2"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-3"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-4"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-5"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-6"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-7"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-8"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-9"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-10"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-11"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-12"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-13"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-14"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-15"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-16"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-17"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-18"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-19"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-20"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-21"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-22"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-23"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-24"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-25"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-26"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-27"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-28"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-29"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-30"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-31"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-32"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-33"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-34"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-35"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-36"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-37"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-38"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-39"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-40"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-41"
+      },
+      {
+        "url": "https://indexer.example.test/",
+        "name": "link-42"
+      }
+    ],
+    "images": [],
+    "path": "/media/lidarr/Artist 1",
+    "qualityProfileId": 1,
+    "metadataProfileId": 1,
+    "monitored": true,
+    "monitorNewItems": "none",
+    "genres": [
+      "Genre 1"
+    ],
+    "cleanName": "artist1",
+    "sortName": "artist 1",
+    "tags": [],
+    "added": "2024-01-01T01:00:00Z",
+    "ratings": {
+      "votes": 10,
+      "value": 8
+    },
+    "statistics": {
+      "albumCount": 0,
+      "trackFileCount": 0,
+      "trackCount": 0,
+      "totalTrackCount": 0,
+      "sizeOnDisk": 0,
+      "percentOfTracks": 0
+    },
+    "id": 5
+  }
+]

@@ -206,11 +206,44 @@ export function redact(node: unknown, secrets: string[], hosts: string[]): unkno
  *  capture-fixtures.ts works with. */
 export type Row = Record<string, unknown>;
 
+/** A response row, as opposed to an array, a scalar, null, or undefined. */
+export const isRow = (value: unknown): value is Row =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Keeps a field present and typed, but replaces a string value. Checks
  *  `typeof`, not truthiness, so an empty string is replaced too — Plex's
  *  `/accounts` can return rows with `name: ''`. */
 export function replaceIfString(value: unknown, replacement: string): unknown {
     return typeof value === 'string' ? replacement : value;
+}
+
+/**
+ * The placeholder a scrubbed URL becomes. A fixture must still show that the
+ * field *is* a URL, so a bare empty string would lose the shape the contract
+ * test reads.
+ */
+export const ANONYMOUS_URL = 'https://indexer.example.test/';
+
+/**
+ * Cover-art entries: the local `/MediaCover/…` path and the upstream CDN URL,
+ * both of which embed a slug that resolves back to the real item.
+ *
+ * Shared because a nested `images[]` appears at several depths — an artist, an
+ * album, and each entry of a band's `members[]` — and every one of them needs
+ * the same two fields replaced.
+ */
+export function anonymiseImages(images: unknown): unknown {
+    return Array.isArray(images)
+        ? (images as Row[]).map(image => ({
+              ...image,
+              // Only where the entry carried the field: a key set to
+              // `undefined` survives in memory and vanishes in JSON, so an
+              // invented one would make a scrubber look like it had scrubbed
+              // something the service never sent.
+              ...(image.url === undefined ? {} : { url: replaceIfString(image.url, '/MediaCover/1/poster.jpg') }),
+              ...(image.remoteUrl === undefined ? {} : { remoteUrl: replaceIfString(image.remoteUrl, ANONYMOUS_URL) })
+          }))
+        : images;
 }
 
 const ANONYMOUS_FIXTURE_URL = 'https://indexer.example.test/';

@@ -2,7 +2,8 @@ import type { ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
-import type { MergedItem } from '../../core/resolver.ts';
+import { artistRefusal, filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../../core/resolver.ts';
+import { unfenced } from '../../core/titleMatch.ts';
 import {
     hasIndexers,
     hasMediaDetails,
@@ -51,7 +52,7 @@ async function resolveItem(
     target: DiagnoseTarget,
     degraded: string[],
     libraryDegraded: string[]
-): Promise<MergedItem | undefined> {
+): Promise<FilmOrSeries | undefined> {
     // the gate lives in the loader's identity resolver, and a refusal
     // propagates out of diagnose rather than becoming a degraded stage — this
     // call is deliberately not wrapped in `probe`.
@@ -105,6 +106,13 @@ async function resolveItem(
             return undefined;
         }
 
+        // An artist reached by id, which the film chain has no answer for.
+        // Without this the artist row failed `isFilmOrSeries` and fell through
+        // to a synthesised `kind: 'movie'` item carrying Lidarr acquisition,
+        // which the chain then checked against Radarr's queue and indexers.
+        // The query path refuses the same case in `filmOrSeriesMatch`.
+        if (details.kind === 'artist') throw artistRefusal(unfenced(details.title));
+
         // Jellyfin's MediaDetails never says 'movie' or 'series' — it is the
         // one adapter that reports `kind: 'item'` for everything. Passing a
         // *wrong* kind to `find` is worse than passing none: it restricts the
@@ -112,9 +120,9 @@ async function resolveItem(
         // the other (a series id would scan only movie keys and never find
         // it). `undefined` here makes `find` scan both, exactly as it already
         // does for every caller that does not know the kind in advance.
-        const searchKind = details.kind === 'item' ? undefined : details.kind;
+        const searchKind = details.kind === 'movie' || details.kind === 'series' ? details.kind : undefined;
         const joined = snapshot.index.find(details.ids, searchKind);
-        if (joined !== undefined) return joined;
+        if (joined !== undefined && isFilmOrSeries(joined)) return joined;
 
         // The id was valid and the index does not contain it — a real state,
         // not an error: the service holding it may be the one that failed to
@@ -122,11 +130,10 @@ async function resolveItem(
         // when the caller just handed us its id.
         //
         // `searchKind` (not a fresh coercion) decides the synthesised kind
-        // too: for Radarr/Sonarr it is the kind they actually reported: for
-        // Jellyfin's ambiguous 'item' — reachable only when *no* index entry
-        // matched under either kind — there is no signal left to disambiguate,
-        // so 'movie' is the least-committal default already implied by
-        // `MergedItem.kind` having no third option.
+        // too: for Radarr/Sonarr it is the kind they actually reported. A
+        // media-server 'item' leaves no signal to disambiguate, and this chain
+        // reads films and series, so 'movie' is the least-committal default.
+        // An 'artist' never reaches here — it was refused above.
         //
         // A media server contributes watch state and never acquisition, so it
         // is the capability that decides the shape, not the service's name —
@@ -156,7 +163,7 @@ async function resolveItem(
         };
     }
 
-    return target.query === undefined ? undefined : snapshot.index.search(target.query)[0];
+    return target.query === undefined ? undefined : filmOrSeriesMatch(snapshot.index.search(target.query), target.query);
 }
 
 export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget): Promise<Evidence> {
