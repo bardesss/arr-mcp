@@ -23,7 +23,12 @@ const time = (date: string | undefined): number => (date === undefined ? Number.
 /**
  * What a Radarr or Sonarr did with one download id: whether it marked the
  * download failed, and whether it then grabbed (and imported) a replacement
- * for the same media. One page of 50 records per read is deliberate.
+ * for the same media. Each read is one page of the newest 50 records: a
+ * replacement worth warning about is recent, and the preview should not wait
+ * on paging through years of history for one film or series.
+ *
+ * Every server-side filter is checked again here (the download id, the
+ * media id), so a build that ignores one gives no false warning.
  */
 export async function traceArrDownload(
     http: ServiceHttp,
@@ -35,10 +40,9 @@ export async function traceArrDownload(
     const read = async (query: string): Promise<RawTraceRecord[]> =>
         (await http.get<Page>(`${http.apiRoot}/history?${query}&${PAGE}`)).records ?? [];
 
-    // The service matches `downloadId` loosely on some builds; keep only exact ones.
-    const own = (await read(`downloadId=${encodeURIComponent(downloadId)}`)).filter(
-        r => r.downloadId === undefined || r.downloadId === downloadId
-    );
+    // The service matches `downloadId` loosely on some builds; keep only exact
+    // ones. A record with no id at all is not evidence this download exists.
+    const own = (await read(`downloadId=${encodeURIComponent(downloadId)}`)).filter(r => r.downloadId === downloadId);
     if (own.length === 0) return undefined;
 
     const grab = own.find(r => r.eventType === 'grabbed') ?? own[0];
@@ -66,6 +70,7 @@ export async function traceArrDownload(
                 r.eventType === 'grabbed' &&
                 r.downloadId !== undefined &&
                 r.downloadId !== downloadId &&
+                mediaOf(r) === mediaId &&
                 time(r.date) > failedTime &&
                 (kind === 'movie' || episodes.size === 0 || (r.episodeId !== undefined && episodes.has(r.episodeId)))
         )
@@ -76,7 +81,7 @@ export async function traceArrDownload(
     if (next?.downloadId === undefined || next.date === undefined) return trace;
 
     const imported = (await read(`downloadId=${encodeURIComponent(next.downloadId)}`)).some(
-        r => r.eventType === 'downloadFolderImported'
+        r => r.eventType === 'downloadFolderImported' && r.downloadId === next.downloadId
     );
     return {
         ...trace,
