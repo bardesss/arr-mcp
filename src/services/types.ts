@@ -1029,6 +1029,52 @@ export interface PostProcessCapable {
 export const hasPostProcess = (a: ServiceAdapter): a is ServiceAdapter & PostProcessCapable =>
     typeof (a as Partial<PostProcessCapable>).runPostProcess === 'function';
 
+/** What a retry will send, decided by the preview and bound into the token. */
+export type RetryMethod = 'unlock' | 'retry' | 'postprocess' | 'retry-failed';
+
+export type RetryTarget = {
+    id: string; // the client's id, as given
+    title: string; // fenced
+    where: 'queue' | 'history';
+    status: string; // fenced, the client's own word
+    reason?: string; // fenced failure message / stage summary
+    downloadId?: string; // what an *arr knows it by (nzo_id, or NZBGet drone ?? NZBID)
+    method: RetryMethod;
+};
+
+export type RetryOutcome = {
+    target: RetryTarget;
+    id: string; // the id from now on (SABnzbd `retry` gives a new one)
+    state: 'downloading' | 'processing' | 'finished';
+    status: string; // fenced
+    event?: HistoryEventType; // when state is 'finished'
+};
+
+export interface RetryCapable {
+    /** Refuses anything that did not fail. `hasPassword` only decides whether an encrypted queue job is a target. */
+    findRetryTarget(id: string, opts: { hasPassword: boolean }): Promise<RetryTarget>;
+    /** Sends `method` to `id` and watches until the client shows it acted. */
+    runRetry(id: string, opts: { method: RetryMethod; password?: string }): Promise<RetryOutcome>;
+}
+
+export const hasRetry = (a: ServiceAdapter): a is ServiceAdapter & RetryCapable =>
+    typeof (a as Partial<RetryCapable>).runRetry === 'function';
+
+export type DownloadTrace = {
+    service: string; // the *arr's adapter id
+    title: string; // fenced sourceTitle of the original grab
+    failedAt?: string; // ISO, from its downloadFailed record
+    replacement?: { title: string; grabbedAt: string; imported: boolean }; // newest later grab for the same media
+};
+
+export interface DownloadTraceCapable {
+    /** `undefined` when this *arr never grabbed that download id. */
+    traceDownload(downloadId: string): Promise<DownloadTrace | undefined>;
+}
+
+export const hasDownloadTrace = (a: ServiceAdapter): a is ServiceAdapter & DownloadTraceCapable =>
+    typeof (a as Partial<DownloadTraceCapable>).traceDownload === 'function';
+
 /** One file already in the library, and the episode a person says it really is.
  *  `path` is relative to the series folder, as Sonarr names it, or absolute. */
 export type EpisodeReassignment = { path: string; season: number; episode: number };
