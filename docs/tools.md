@@ -1415,15 +1415,22 @@ the password; the preview says so.
 **Moved on.** The preview checks whether Radarr or Sonarr has already grabbed a
 replacement for the same media and whether it was imported. If so it warns that
 retrying may leave two copies, and does not refuse. Whisparr and Lidarr are not
-checked, and the preview says that too. A Radarr or Sonarr that cannot be reached is
-named rather than treated as "no replacement".
+checked; when one is configured, the preview says that too. A Radarr or Sonarr that
+cannot be reached is named rather than treated as "no replacement".
+
+**After the retry.** The result says which *arr is tracking the download (or that
+none recorded it), and repeats the two-copies warning when the preview found a
+replacement.
 
 **Remove Failed must be off.** Radarr and Sonarr's "Remove Failed" setting
 (Settings, Download Clients, on by default) deletes a failed job from the client
 as soon as it fails, so there is nothing left to retry. Their grabs are only
 retryable with it off.
 
-If no *arr imports the result, `trigger_scan` with `action: "import"` does. Safe
+If no *arr imports the result, `trigger_scan` with `action: "import"` does; the
+result names the `download_id` to give it (the new nzo_id after a SABnzbd retry,
+the `drone` id for an NZBGet download an *arr grabbed). The hint is left out
+when the retry failed again or the job is already gone from the client. Safe
 tier; see [writes.md](writes.md).
 
 ## `discover_media`
