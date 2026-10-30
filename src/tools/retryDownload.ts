@@ -99,12 +99,16 @@ function movedOnLines(view: ArrView, adapters: readonly ServiceAdapter[]): strin
 }
 
 /** The result's lines about the *arrs: who is tracking it, and the
- *  two-copies warning again, since the model may not pass the preview on. */
-function arrLines(view: ArrView): string[] {
+ *  two-copies warning again, since the model may not pass the preview on.
+ *  `renewed` is a SABnzbd retry's new nzo_id: the *arr only ever saw the old
+ *  one, so it is not tracking the retried job. */
+function arrLines(view: ArrView, renewed: boolean): string[] {
     const tracking = view.traces.map(t => t.service);
+    const tracked = `${tracking.join(' and ')} ${tracking.length === 1 ? 'is' : 'are'} tracking this download.`;
+    const original = `${tracking.join(' and ')} recorded the original grab; the retried job has a new id ${tracking.length === 1 ? 'it does' : 'they do'} not know.`;
     const lines =
         tracking.length > 0
-            ? [`${tracking.join(' and ')} ${tracking.length === 1 ? 'is' : 'are'} tracking this download.`]
+            ? [renewed ? original : tracked]
             : view.unreachable.length > 0
               ? [`No *arr that could be checked recorded this download; could not check ${view.unreachable.join(' or ')}.`]
               : ['No *arr recorded this download, so none will import it on its own.'];
@@ -225,7 +229,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
             const lines = [`Applied. ${plan.summary}`];
             if (r.previous_id !== undefined) lines.push(`Its id is now ${r.id}.`);
             lines.push(describeOutcome(r, r.service));
-            if (view !== undefined) lines.push(...arrLines(view));
+            if (view !== undefined) lines.push(...arrLines(view, r.previous_id !== undefined));
             if (importable(r)) {
                 lines.push(`If Radarr or Sonarr does not import it, trigger_scan with action: "import" and download_id: "${r.download_id}" does.`);
             }

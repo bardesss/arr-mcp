@@ -273,6 +273,8 @@ describe('retry_download', () => {
                 replacement: { title: 'Some.Movie.2020.2160p', grabbedAt: '2026-10-29T11:00:00Z', imported: false }
             })
         });
+        // Same id after the run (an unlock), so Radarr still knows the job.
+        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_abc', state: 'downloading', status: 'Downloading' });
         const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
         const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
 
@@ -283,6 +285,20 @@ describe('retry_download', () => {
         expect(applied.structuredContent.result).toMatchObject({ tracked_by: ['radarr'] });
         // One trace per plan: the preview's and the confirm's, none extra for the result.
         expect(h.trace).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not say Radarr is tracking a retried job that got a new id', async () => {
+        const h = harness({
+            trace: async () => ({ service: 'radarr', title: 'Some.Movie.2020.1080p', failedAt: '2026-10-29T10:00:00Z' })
+        });
+        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_new', state: 'downloading', status: 'Downloading' });
+        const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
+        const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
+
+        const text = applied.content[0]?.text ?? '';
+        expect(text).not.toMatch(/is tracking this download/);
+        expect(text).toMatch(/radarr recorded the original grab; the retried job has a new id it does not know/);
+        expect(text).toContain('download_id: "SABnzbd_nzo_new"');
     });
 
     it('says no *arr recorded the download when none traced it', async () => {
