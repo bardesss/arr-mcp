@@ -392,6 +392,24 @@ describe('stack_health Cleanuparr rules', () => {
         expect(rules.notes).toContain("Cleanuparr's clients \"A\" and \"B\" both point at transmission, so neither's rules are applied to get_queue.");
         expect(rules.notes.some(n => n.includes('matches no configured'))).toBe(false);
     });
+
+    it("names Cleanuparr's rules as the only limit for indexers without criteria", async () => {
+        const rule = { id: 'r', name: 'Private: 30 days', priority: 1, categories: ['radarr'], trackerPatterns: [], tagsAny: [], tagsAll: [], privacy: 'private', maxSeedHours: 720, unsupported: [], deleteSourceFiles: true, action: 'delete' };
+        const seeding = (enforced: boolean) => ({ sets: [{ client: 'qBittorrent', clientType: 'qBittorrent', endpoint: 'qbit.example:8080', rules: [rule] }], dryRun: false, enforced, ignored: [] });
+        const cleanuparr = (enforced: boolean) => ({ id: 'cleanuparr', type: 'cleanuparr', getSeedingRules: async () => seeding(enforced) }) as unknown as ServiceAdapter;
+        const qbit = { id: 'qbittorrent', type: 'qbittorrent', endpoint: 'qbit.example:8080', getSeedLimits: async () => ({ service: 'qbittorrent', action: 'stop' }) } as unknown as ServiceAdapter;
+        const radarr = { id: 'radarr', type: 'radarr', getSeedCriteria: async () => [{ service: 'radarr', indexer: 'Tracker A' }, { service: 'radarr', indexer: 'Tracker B' }] } as unknown as ServiceAdapter;
+
+        const covered = await buildSeedingRules([cleanuparr(true), qbit, radarr], () => {});
+        expect(covered.notes.filter(n => n.includes('Tracker'))).toEqual([
+            '"Tracker A", "Tracker B" set no seed ratio or time and no torrent client has a default limit, ' +
+                "so Cleanuparr's rules are the only limit. A torrent in a category no rule covers seeds until someone stops it; " +
+                'get_queue at detail "full" says which rule covers each torrent, or why none does.'
+        ]);
+
+        const unscheduled = await buildSeedingRules([cleanuparr(false), qbit, radarr], () => {});
+        expect(unscheduled.notes.filter(n => n.includes('seed until someone stops them'))).toHaveLength(2);
+    });
 });
 
 describe('Cleanuparr seeding wording', () => {

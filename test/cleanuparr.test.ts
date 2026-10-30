@@ -17,6 +17,9 @@ export function stub(routes: Record<string, unknown>, seen: string[] = []): type
     }) as unknown as typeof fetch;
 }
 
+/** The event pages a history read asked for, without its client-list read. */
+const eventsRead = (seen: string[]) => seen.filter(s => s.includes('/api/events'));
+
 describe('CleanuparrAdapter', () => {
     it('reads the version from /api/status and drops the build part', async () => {
         const adapter = new CleanuparrAdapter(config, stub({ '/api/status': fixture('status') }));
@@ -198,7 +201,7 @@ describe('CleanuparrAdapter history', () => {
     it('maps events to history rows and drops Seeker searches', async () => {
         const adapter = new CleanuparrAdapter(config, stub({ '/api/events': fixture('events') }));
         const { items, total } = (await adapter.readHistory({})) as { items: HistoryEntry[]; total: number };
-        expect(items.map(i => i.event)).toEqual(['stopped', 'deleted', 'strike', 'strike', 'unknown']);
+        expect(items.map(i => i.event)).toEqual(['stopped', 'deleted', 'strike', 'strike', 'recategorised']);
         expect(total).toBe(5);
         expect(items[0]).toMatchObject({ service: 'cleanuparr', id: 'e1', rawEvent: 'DownloadStopped', downloadId: 'aaaa1111', dryRun: true });
         expect(items[1]).toMatchObject({ downloadId: 'bbbb2222', strikeCount: 3 });
@@ -211,15 +214,15 @@ describe('CleanuparrAdapter history', () => {
         const seen: string[] = [];
         const adapter = new CleanuparrAdapter(config, stub({ '/api/events': { items: [], page: 1, pageSize: 50, totalCount: 0, totalPages: 0 } }, seen));
         await adapter.readHistory({ since: '2026-10-01T00:00:00Z', eventType: 'stopped' });
-        expect(seen[0]).toContain('fromDate=2026-10-01T00%3A00%3A00Z');
-        expect(seen[0]).toContain('eventType=DownloadStopped');
+        expect(eventsRead(seen)[0]).toContain('fromDate=2026-10-01T00%3A00%3A00Z');
+        expect(eventsRead(seen)[0]).toContain('eventType=DownloadStopped');
     });
 
     it('filters strike locally and counts only what matched', async () => {
         const seen: string[] = [];
         const adapter = new CleanuparrAdapter(config, stub({ '/api/events': fixture('events') }, seen));
         const { items, total } = (await adapter.readHistory({ eventType: 'strike', want: 1 })) as { items: HistoryEntry[]; total: number };
-        expect(seen[0]).not.toContain('eventType=');
+        expect(eventsRead(seen)[0]).not.toContain('eventType=');
         expect(items.map(i => i.id)).toEqual(['e3', 'e4']);
         expect(total).toBe(2);
     });
@@ -241,7 +244,7 @@ describe('CleanuparrAdapter history', () => {
         const body = { items: [{ id: 'x', eventType: 'OtherEvent', timestamp: 't' }], page: 1, pageSize: 1, totalCount: 9999, totalPages: 9999 };
         const adapter = new CleanuparrAdapter(config, stub({ '/api/events': body }, seen));
         const read = (await adapter.readHistory({ eventType: 'strike' })) as { items: HistoryEntry[]; total: number };
-        expect(seen).toHaveLength(50);
+        expect(eventsRead(seen)).toHaveLength(50);
         expect(read.total).toBe(read.items.length);
     });
 
@@ -250,12 +253,13 @@ describe('CleanuparrAdapter history', () => {
         let calls = 0;
         const fetchImpl = (async (input: string | URL | Request) => {
             seen.push(String(input));
+            if (!String(input).includes('/api/events')) return new Response('{}', { status: 200 });
             calls += 1;
             const items = calls === 1 ? [{ id: 'x', eventType: 'StalledStrike', timestamp: 't' }] : [];
             return new Response(JSON.stringify({ items, totalCount: 1000, totalPages: 1000 }), { status: 200 });
         }) as unknown as typeof fetch;
         const read = (await new CleanuparrAdapter(config, fetchImpl).readHistory({ eventType: 'strike' })) as { items: HistoryEntry[]; total: number };
-        expect(seen).toHaveLength(2);
+        expect(eventsRead(seen)).toHaveLength(2);
         expect(read.items).toHaveLength(1);
     });
 
@@ -265,5 +269,50 @@ describe('CleanuparrAdapter history', () => {
         const read = (await adapter.readHistory({ eventType: 'stopped', want: 1 })) as { items: HistoryEntry[]; total: number };
         expect(read.items).toHaveLength(1);
         expect(read.total).toBe(250);
+    });
+});
+
+const real = (name: string): unknown => fixture(`2.10.12/${name}`);
+const QBIT_ID = '839d2aed-2a78-444f-813b-774598a79756';
+
+describe('against Cleanuparr 2.10.12 with one qBittorrent', () => {
+    const routes = {
+        '/api/status': real('status'),
+        '/api/jobs': real('jobs'),
+        '/api/status/download-client': real('status-download-client'),
+        [`/api/seeding-rules/${QBIT_ID}`]: real('seeding-rules'),
+        '/api/configuration/download_cleaner': real('configuration-download_cleaner'),
+        '/api/configuration/general': { dryRun: false, ignoredDownloads: [] },
+        '/api/events': real('events')
+    };
+
+    it('reads its version', async () => {
+        expect(await new CleanuparrAdapter(config, stub(routes)).getVersion()).toBe('2.10.12');
+    });
+
+    it('reads the three rules in priority order, with 0 as a real limit', async () => {
+        const seeding = await new CleanuparrAdapter(config, stub(routes)).getSeedingRules();
+        expect(seeding).toMatchObject({ dryRun: false, enforced: true, ignored: [] });
+        expect(seeding.sets).toHaveLength(1);
+        const [set] = seeding.sets;
+        expect(set?.clientType).toBe('qBittorrent');
+        expect(set?.client).toContain('qBittorrent VPN');
+        expect(set?.rules.map(r => [r.privacy, r.maxRatio, r.maxSeedHours])).toEqual([
+            ['public', 0, 0],
+            ['private', undefined, 720],
+            ['private', undefined, 72]
+        ]);
+        expect(set?.rules[2]?.categories).toEqual(['cleanuparr-dead']);
+    });
+
+    it('maps every event type it emitted, keeping categories and the deleted client', async () => {
+        const { items } = (await new CleanuparrAdapter(config, stub(routes)).readHistory({})) as { items: HistoryEntry[] };
+        expect(items.map(i => i.event)).toEqual(['recovered', 'strike', 'recategorised', 'deleted']);
+        expect(items[1]).toMatchObject({ strikeCount: 1, downloadId: '<hash>' });
+        expect(items[2]).toMatchObject({ oldCategory: 'tv-sonarr', newCategory: 'cleanuparr-dead' });
+        expect(items[2]?.downloadClient).toContain('qBittorrent VPN');
+        expect(items[3]).toMatchObject({ clientRemoved: true });
+        expect(items[3]?.downloadClient).toBeUndefined();
+        expect(items[3]?.reason).toContain('MaxSeedTimeReached');
     });
 });

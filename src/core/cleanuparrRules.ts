@@ -5,6 +5,13 @@
 
 export type RulePrivacy = 'public' | 'private' | 'both';
 export type RuleAction = 'delete' | 'stop' | 'unknown';
+export type UnmatchedReason =
+    | 'no category'
+    | 'category not in any rule'
+    | 'tracker not in any rule'
+    | 'tags not in any rule'
+    | 'privacy unknown'
+    | 'privacy mismatch';
 
 export type CleanuparrRule = {
     id: string;
@@ -31,6 +38,7 @@ export type TorrentFacts = {
     category: string;
     tags: string[];
     trackerDomains: string[];
+    savePath?: string;
     private?: boolean;
     stopped: boolean;
     seeding: boolean;
@@ -38,20 +46,39 @@ export type TorrentFacts = {
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-function matches(t: TorrentFacts, r: CleanuparrRule): boolean {
-    if (!r.categories.some(c => same(c, t.category))) return false;
-    if (r.trackerPatterns.length > 0 && !t.trackerDomains.some(d => r.trackerPatterns.some(p => d.toLowerCase().endsWith(p.toLowerCase())))) {
-        return false;
-    }
-    if (!r.unsupported.includes('tagsAny') && r.tagsAny.length > 0 && !r.tagsAny.some(tag => t.tags.some(x => same(x, tag)))) return false;
-    if (!r.unsupported.includes('tagsAll') && r.tagsAll.length > 0 && !r.tagsAll.every(tag => t.tags.some(x => same(x, tag)))) return false;
-    if (r.privacy === 'both') return true;
-    if (t.private === undefined) return false;
-    return r.privacy === (t.private ? 'private' : 'public');
-}
+const category = (t: TorrentFacts, r: CleanuparrRule) => r.categories.some(c => same(c, t.category));
+const tracker = (t: TorrentFacts, r: CleanuparrRule) =>
+    r.trackerPatterns.length === 0 || t.trackerDomains.some(d => r.trackerPatterns.some(p => d.toLowerCase().endsWith(p.toLowerCase())));
+const tags = (t: TorrentFacts, r: CleanuparrRule) =>
+    (r.unsupported.includes('tagsAny') || r.tagsAny.length === 0 || r.tagsAny.some(tag => t.tags.some(x => same(x, tag)))) &&
+    (r.unsupported.includes('tagsAll') || r.tagsAll.length === 0 || r.tagsAll.every(tag => t.tags.some(x => same(x, tag))));
+const privacy = (t: TorrentFacts, r: CleanuparrRule) =>
+    r.privacy === 'both' || (t.private !== undefined && r.privacy === (t.private ? 'private' : 'public'));
+
+/** In Cleanuparr's order, so the first filter to empty the list is the one to blame. */
+const FILTERS = [
+    ['category not in any rule', category],
+    ['tracker not in any rule', tracker],
+    ['tags not in any rule', tags],
+    ['privacy mismatch', privacy]
+] as const;
+
+const matches = (t: TorrentFacts, r: CleanuparrRule): boolean => FILTERS.every(([, f]) => f(t, r));
 
 export function matchRule(t: TorrentFacts, rules: readonly CleanuparrRule[]): CleanuparrRule | undefined {
     return [...rules].sort((a, b) => a.priority - b.priority).find(r => matches(t, r));
+}
+
+/** Why no rule matched: the filter that ruled out the last rules still standing. */
+export function unmatchedReason(t: TorrentFacts, rules: readonly CleanuparrRule[]): UnmatchedReason {
+    if (t.category === '') return 'no category';
+    let left = [...rules];
+    for (const [reason, f] of FILTERS) {
+        const kept = left.filter(r => f(t, r));
+        if (kept.length === 0) return reason === 'privacy mismatch' && t.private === undefined ? 'privacy unknown' : reason;
+        left = kept;
+    }
+    return 'category not in any rule';
 }
 
 export function skipReason(

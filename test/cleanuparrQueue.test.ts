@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { CleanuparrRule } from '../src/core/cleanuparrRules.ts';
-import { annotateCleanuparr } from '../src/tools/cleanuparrQueue.ts';
+import { annotateCleanuparr, currentStrikes } from '../src/tools/cleanuparrQueue.ts';
 import { buildGetQueue } from '../src/tools/getQueue.ts';
-import type { CleanuparrSeeding, QueueItem, ServiceAdapter } from '../src/services/types.ts';
+import type { CleanuparrSeeding, HistoryEntry, QueueItem, ServiceAdapter } from '../src/services/types.ts';
 
 const rule = (over: Partial<CleanuparrRule>): CleanuparrRule => ({
     id: 'r', name: 'Public: stop now', priority: 1, categories: ['complete'], trackerPatterns: [], tagsAny: [], tagsAll: [],
@@ -144,5 +144,94 @@ describe('get_queue and Cleanuparr', () => {
         expect(result.degraded).toEqual(['cleanuparr']);
         expect(result.items).toHaveLength(1);
         expect(result.items[0]?.seeding?.cleanuparr).toBeUndefined();
+    });
+});
+
+const ev = (over: Partial<HistoryEntry>): HistoryEntry => ({ service: 'cleanuparr', id: 'e', at: 't', event: 'strike', title: 'x', downloadId: 'aaa', ...over });
+
+const withEvents = (s: CleanuparrSeeding, events: HistoryEntry[] | Error): ServiceAdapter =>
+    ({
+        ...(cleanuparr(s) as object),
+        readHistory: async () => {
+            if (events instanceof Error) throw events;
+            return { items: events, total: events.length };
+        }
+    }) as unknown as ServiceAdapter;
+
+const facts = (over: Partial<NonNullable<QueueItem['torrent']>>): NonNullable<QueueItem['torrent']> => ({
+    hash: 'aaa', category: 'complete', tags: [], trackerDomains: [], private: true, stopped: false, seeding: true, ...over
+});
+
+describe('unmatched torrents', () => {
+    it('says no category for an uncategorised torrent', async () => {
+        const items = [row({ torrent: facts({ category: '' }) })];
+        await annotateCleanuparr(items, [cleanuparr(seeding()), transmission], () => {});
+        expect(items[0]?.seeding?.cleanuparr).toEqual({ unmatched: 'no category' });
+        expect(items[0]?.seeding?.limitSource).toBeUndefined();
+    });
+
+    it('says the category is in no rule', async () => {
+        const items = [row({ torrent: facts({ category: 'cross-seed' }) })];
+        await annotateCleanuparr(items, [cleanuparr(seeding()), transmission], () => {});
+        expect(items[0]?.seeding?.cleanuparr).toEqual({ unmatched: 'category not in any rule' });
+    });
+
+    it('says privacy mismatch, or unknown when the client did not say', async () => {
+        const only = seeding({ sets: [{ client: 'Transmission', clientType: 'Transmission', endpoint: 'transmission.example:9091', rules: [rule({})] }] });
+        const priv = [row({ torrent: facts({}) })];
+        await annotateCleanuparr(priv, [cleanuparr(only), transmission], () => {});
+        expect(priv[0]?.seeding?.cleanuparr).toEqual({ unmatched: 'privacy mismatch' });
+        const { private: _p, ...unsure } = facts({});
+        const unknown = [row({ torrent: unsure })];
+        await annotateCleanuparr(unknown, [cleanuparr(only), transmission], () => {});
+        expect(unknown[0]?.seeding?.cleanuparr).toEqual({ unmatched: 'privacy unknown' });
+    });
+
+    it('shows category and tags at full detail, and the save path only when no rule matched', async () => {
+        const unmatched = row({ id: '1', torrent: facts({ category: 'tv', tags: ['x'], savePath: '/downloads/tv' }) });
+        const matched = row({ id: '2', torrent: facts({ hash: 'bbb', private: false, savePath: '/downloads/complete' }) });
+        const client = { id: 'transmission', type: 'transmission', endpoint: 'transmission.example:9091', getQueue: async () => structuredClone([unmatched, matched]) } as unknown as ServiceAdapter;
+        const full = await buildGetQueue([cleanuparr(seeding()), client], { detail: 'full', limit: 10 });
+        const byId = new Map(full.items.map(i => [i.id, i]));
+        expect(byId.get('1')).toMatchObject({ category: 'tv', tags: ['x'], savePath: '/downloads/tv' });
+        expect(byId.get('2')).toMatchObject({ category: 'complete' });
+        expect(byId.get('2')).not.toHaveProperty('savePath');
+        expect(byId.get('2')).not.toHaveProperty('tags');
+        expect(byId.get('1')).not.toHaveProperty('torrent');
+        const standard = await buildGetQueue([client], { detail: 'standard', limit: 10 });
+        expect(standard.items[0]).not.toHaveProperty('category');
+    });
+});
+
+describe('strikes on queue rows', () => {
+    it('keeps the newest strike and drops one a later reset cleared', () => {
+        const strikes = currentStrikes([
+            ev({ downloadId: 'aaa', rawEvent: 'DeadTorrentStrike', strikeCount: 2 }),
+            ev({ downloadId: 'aaa', rawEvent: 'DeadTorrentStrike', strikeCount: 1 }),
+            ev({ downloadId: 'bbb', event: 'recovered', rawEvent: 'StrikeReset' }),
+            ev({ downloadId: 'bbb', rawEvent: 'StalledStrike', strikeCount: 1 })
+        ]);
+        expect(strikes.get('aaa')).toMatchObject({ count: 2, reason: 'dead torrent' });
+        expect(strikes.has('bbb')).toBe(false);
+    });
+
+    it('puts strikes on torrent rows by hash and on *arr rows by download id', async () => {
+        const arr = { service: 'sonarr', id: '9', title: 'x', status: 'downloading', downloadId: 'CCC' } as QueueItem;
+        const items = [row({}), arr];
+        const events = [
+            ev({ downloadId: 'aaa', rawEvent: 'DeadTorrentStrike', strikeCount: 1 }),
+            ev({ downloadId: 'ccc', rawEvent: 'StalledStrike', strikeCount: 2, dryRun: true })
+        ];
+        await annotateCleanuparr(items, [withEvents(seeding(), events), transmission], () => {});
+        expect(items[0]?.strikes).toEqual({ count: 1, reason: 'dead torrent' });
+        expect(items[1]?.strikes).toEqual({ count: 2, reason: 'stalled', dryRun: true });
+    });
+
+    it('still judges rules when the events cannot be read, and marks Cleanuparr degraded', async () => {
+        const degraded: string[] = [];
+        const items = [row({})];
+        await annotateCleanuparr(items, [withEvents(seeding(), new Error('down')), transmission], id => degraded.push(id));
+        expect(items[0]?.seeding?.limitSource).toBe('cleanuparr');
+        expect(degraded).toEqual(['cleanuparr']);
     });
 });

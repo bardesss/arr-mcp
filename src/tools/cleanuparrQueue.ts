@@ -1,6 +1,50 @@
 import { logger } from '../core/logger.ts';
-import { matchRule, ruleVerdict, skipReason } from '../core/cleanuparrRules.ts';
-import { hasCleanuparr, hasTorrentEndpoint, type CleanuparrRuleSet, type QueueItem, type ServiceAdapter } from '../services/types.ts';
+import { matchRule, ruleVerdict, skipReason, unmatchedReason } from '../core/cleanuparrRules.ts';
+import {
+    hasCleanuparr,
+    hasHistory,
+    hasTorrentEndpoint,
+    type CleanuparrRuleSet,
+    type HistoryEntry,
+    type QueueItem,
+    type ServiceAdapter
+} from '../services/types.ts';
+
+/** How far back strikes are read: Cleanuparr resets or acts on a download long before this. */
+export const STRIKE_WINDOW_MS = 30 * 86_400_000;
+
+const STRIKE_REASON: Record<string, string> = {
+    StalledStrike: 'stalled',
+    FailedImportStrike: 'failed import',
+    SlowSpeedStrike: 'slow speed',
+    SlowTimeStrike: 'slow time',
+    DownloadingMetadataStrike: 'stuck metadata',
+    DeadTorrentStrike: 'dead torrent'
+};
+
+export type Strikes = { count: number; reason: string; rawEvent: string; dryRun?: true };
+
+/**
+ * Each download's standing strikes, from events newest first: the latest
+ * strike counts unless a reset came after it.
+ */
+export function currentStrikes(events: readonly HistoryEntry[]): Map<string, Strikes> {
+    const decided = new Map<string, Strikes | null>();
+    for (const e of events) {
+        if (e.downloadId === undefined || decided.has(e.downloadId)) continue;
+        if (e.event === 'recovered') decided.set(e.downloadId, null);
+        else if (e.event === 'strike' && e.strikeCount !== undefined) {
+            const raw = e.rawEvent ?? '';
+            decided.set(e.downloadId, {
+                count: e.strikeCount,
+                reason: STRIKE_REASON[raw] ?? raw,
+                rawEvent: raw,
+                ...(e.dryRun === true ? { dryRun: true as const } : {})
+            });
+        }
+    }
+    return new Map([...decided].filter((kv): kv is [string, Strikes] => kv[1] !== null));
+}
 
 /** Which client each rule set points at. A client two sets point at is a conflict, never guessed. */
 export function resolveRuleSets(
@@ -33,14 +77,28 @@ export async function annotateCleanuparr(
     const source = adapters.find(hasCleanuparr);
     if (source === undefined) return;
 
-    let seeding;
-    try {
-        seeding = await source.getSeedingRules();
-    } catch (err) {
-        logger.warn({ service: source.id, err }, 'cleanuparr rules unavailable; leaving queue rows as the client reports them');
+    const since = new Date(Date.now() - STRIKE_WINDOW_MS).toISOString();
+    const [rules, events] = await Promise.allSettled([
+        source.getSeedingRules(),
+        hasHistory(source) ? source.readHistory({ since, want: 500 }) : Promise.resolve({ items: [], total: 0 })
+    ]);
+    if (events.status === 'fulfilled') {
+        const strikes = currentStrikes(Array.isArray(events.value) ? events.value : events.value.items);
+        for (const item of items) {
+            const id = item.torrent?.hash ?? item.downloadId?.toLowerCase();
+            const hit = id === undefined ? undefined : strikes.get(id);
+            if (hit !== undefined) item.strikes = { count: hit.count, reason: hit.reason, ...(hit.dryRun === true ? { dryRun: true as const } : {}) };
+        }
+    } else {
+        logger.warn({ service: source.id, err: events.reason }, 'cleanuparr strikes unavailable; queue rows carry none');
+        markDegraded(source.id);
+    }
+    if (rules.status === 'rejected') {
+        logger.warn({ service: source.id, err: rules.reason }, 'cleanuparr rules unavailable; leaving queue rows as the client reports them');
         markDegraded(source.id);
         return;
     }
+    const seeding = rules.value;
 
     const bySet = mapRuleSets(seeding.sets, adapters);
     const inArrQueue = new Set(items.flatMap(i => (i.torrent === undefined && i.downloadId !== undefined ? [i.downloadId.toLowerCase()] : [])));
@@ -49,7 +107,10 @@ export async function annotateCleanuparr(
         const set = bySet.get(item.service);
         if (set === undefined || item.torrent === undefined || item.seeding === undefined) continue;
         const rule = matchRule(item.torrent, set.rules);
-        if (rule === undefined) continue;
+        if (rule === undefined) {
+            item.seeding.cleanuparr = { unmatched: unmatchedReason(item.torrent, set.rules) };
+            continue;
+        }
 
         const skipped = skipReason(item.torrent, rule, { inArrQueue, ignored: seeding.ignored });
         if (skipped !== undefined) {

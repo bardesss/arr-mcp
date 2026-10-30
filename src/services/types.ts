@@ -1,5 +1,5 @@
 import type { ServiceId } from '../config/schema.ts';
-import type { CleanuparrRule, RuleAction, TorrentFacts } from '../core/cleanuparrRules.ts';
+import type { CleanuparrRule, RuleAction, TorrentFacts, UnmatchedReason } from '../core/cleanuparrRules.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
@@ -323,6 +323,12 @@ export type QueueItem = {
     private?: boolean;
     /** Torrent clients only, and only once the download has finished. */
     seeding?: SeedingState;
+    /** Torrent clients only, at `detail: "full"`: what Cleanuparr's rules match on. Not fenced, like rule categories. */
+    category?: string;
+    tags?: string[];
+    savePath?: string;
+    /** Cleanuparr's strikes on this download since its last reset, at `detail: "full"`. */
+    strikes?: { count: number; reason: string; dryRun?: true };
     /** Internal: what Cleanuparr's rules match on. Never returned by a tool. */
     torrent?: TorrentFacts;
 };
@@ -359,7 +365,9 @@ export type CleanuparrVerdict =
           notEnforced?: true;
           uncertain?: string;
       }
-    | { skipped: string };
+    | { skipped: string }
+    /** No rule covers it, and the first filter that ruled every rule out. */
+    | { unmatched: UnmatchedReason };
 
 /** A torrent client's default seed limits. Absent means none. */
 export type ClientSeedLimits = {
@@ -452,7 +460,9 @@ export const HISTORY_EVENT_TYPES = [
     'subtitle',
     'unknown',
     'strike',
-    'stopped'
+    'stopped',
+    'recovered',
+    'recategorised'
 ] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
@@ -490,6 +500,13 @@ export type HistoryEntry = {
     strikeCount?: number;
     /** Cleanuparr only: logged under dry run, nothing was done. */
     dryRun?: true;
+    /** Cleanuparr `recategorised` only. Category names, not prose, so not fenced. */
+    oldCategory?: string;
+    newCategory?: string;
+    /** Cleanuparr only: the download client the event names, fenced. */
+    downloadClient?: string;
+    /** Cleanuparr only: that client has since been deleted from Cleanuparr. */
+    clientRemoved?: true;
 };
 
 /** The first rows of a longer list, and how long that list is. */

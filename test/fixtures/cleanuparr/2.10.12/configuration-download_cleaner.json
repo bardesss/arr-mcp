@@ -1,0 +1,133 @@
+{
+  "enabled": true,
+  "cronExpression": "0 0/5 * ? * * *",
+  "useAdvancedScheduling": false,
+  "ignoredDownloads": [],
+  "clients": [
+    {
+      "downloadClientId": "839d2aed-2a78-444f-813b-774598a79756",
+      "downloadClientName": "qBittorrent VPN",
+      "downloadClientEnabled": true,
+      "downloadClientTypeName": "qBittorrent",
+      "seedingRules": [
+        {
+          "id": "55b71f85-7b38-4d7d-ac92-5e9202008305",
+          "name": "Public : suppression immédiate",
+          "categories": [
+            "radarr",
+            "tv-sonarr",
+            "cross-seed-link",
+            "cleanuparr-dead",
+            "cleanuparr-unlinked"
+          ],
+          "trackerPatterns": [],
+          "tagsAny": [],
+          "tagsAll": [],
+          "priority": 1,
+          "privacyType": "Public",
+          "maxRatio": 0,
+          "minSeedTime": 0,
+          "maxSeedTime": 0,
+          "minSeeders": 0,
+          "maxInactiveDays": -1,
+          "deleteSourceFiles": true,
+          "action": "Delete"
+        },
+        {
+          "id": "22715f14-b1a8-48d5-afc5-e792ada5e309",
+          "name": "Privé : 30 jours de seed",
+          "categories": [
+            "radarr",
+            "tv-sonarr",
+            "cross-seed-link",
+            "cleanuparr-unlinked"
+          ],
+          "trackerPatterns": [],
+          "tagsAny": [],
+          "tagsAll": [],
+          "priority": 2,
+          "privacyType": "Private",
+          "maxRatio": -1,
+          "minSeedTime": 0,
+          "maxSeedTime": 720,
+          "minSeeders": 0,
+          "maxInactiveDays": -1,
+          "deleteSourceFiles": true,
+          "action": "Delete"
+        },
+        {
+          "id": "21c8d085-878a-404a-b389-ad148ea1b975",
+          "name": "Privé mort : 3 jours de seed",
+          "categories": [
+            "cleanuparr-dead"
+          ],
+          "trackerPatterns": [],
+          "tagsAny": [],
+          "tagsAll": [],
+          "priority": 3,
+          "privacyType": "Private",
+          "maxRatio": -1,
+          "minSeedTime": 0,
+          "maxSeedTime": 72,
+          "minSeeders": 0,
+          "maxInactiveDays": -1,
+          "deleteSourceFiles": true,
+          "action": "Delete"
+        }
+      ],
+      "unlinkedConfig": {
+        "enabled": true,
+        "targetCategory": "cleanuparr-unlinked",
+        "useTag": false,
+        "ignoredRootDirs": [],
+        "categories": [
+          "radarr",
+          "tv-sonarr"
+        ]
+      },
+      "deadTorrentConfig": {
+        "enabled": true,
+        "targetCategory": "cleanuparr-dead",
+        "useTag": false,
+        "maxStrikes": 3,
+        "categories": [
+          "radarr",
+          "tv-sonarr",
+          "cross-seed-link"
+        ]
+      },
+      "orphanedFilesConfig": {
+        "enabled": true,
+        "scanDirectories": [
+          "/downloads",
+          "/downloads/complete",
+          "/downloads/complete/radarr",
+          "/downloads/complete/sonarr",
+          "/downloads/cross-seed/<tracker 1>",
+          "/downloads/cross-seed/<tracker 2>",
+          "/downloads/cross-seed/<tracker 3>",
+          "/downloads/cross-seed/<tracker 4>",
+          "/downloads/cross-seed/<tracker 5>"
+        ],
+        "orphanedDirectory": "/downloads/orphaned",
+        "excludePatterns": [
+          "radarr",
+          "sonarr",
+          "tv-sonarr",
+          "cleanuparr-*",
+          "movies",
+          "shows",
+          "complete",
+          "cross-seed",
+          "incomplete",
+          "orphaned",
+          "anime",
+          "books",
+          "soulseek"
+        ],
+        "minFileAgeHours": 24,
+        "purgeAfterHours": 24
+      }
+    }
+  ]
+}

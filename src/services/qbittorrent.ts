@@ -61,6 +61,7 @@ type RawTorrent = {
     category?: string;
     tags?: string;
     tracker?: string;
+    save_path?: string;
 };
 
 type RawMainData = { server_state?: { free_space_on_disk?: number } };
@@ -174,6 +175,7 @@ function torrentOf(t: RawTorrent & { hash: string }): { torrent: TorrentFacts } 
             category: t.category ?? '',
             tags: (t.tags ?? '').split(',').map(s => s.trim()).filter(s => s !== ''),
             trackerDomains,
+            ...(t.save_path ? { savePath: t.save_path } : {}),
             ...(typeof t.private === 'boolean' ? { private: t.private } : {}),
             stopped: STOPPED.has(t.state ?? ''),
             seeding: t.amount_left === 0

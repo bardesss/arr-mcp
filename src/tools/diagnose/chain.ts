@@ -1,11 +1,13 @@
 import type { ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import { unfenced } from '../../core/titleMatch.ts';
+import { currentStrikes } from '../cleanuparrQueue.ts';
 import type { FilmOrSeries, MergedItem } from '../../core/resolver.ts';
 import type { HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
 
 export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan';
-export type StepStatus = 'ok' | 'blocked' | 'unknown' | 'skipped';
+/** `warning` is worth a look but blocks nothing. */
+export type StepStatus = 'ok' | 'warning' | 'blocked' | 'unknown' | 'skipped';
 
 export type Step = { stage: Stage; service?: string; status: StepStatus; detail: string };
 
@@ -198,6 +200,7 @@ const QUEUE_ACTIVE = new Set([
 ]);
 
 const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'queued to seed']);
+const SEEDING = new Set(['seeding', 'queued to seed']);
 
 type QueueClass = 'active' | 'importPending' | 'fault' | 'indeterminate';
 
@@ -256,10 +259,10 @@ const STRIKE_KIND: Record<string, string> = {
 /** Only a strike on this row's own download counts. */
 function strikeNoteFor(row: QueueItem, events: Evidence['cleanuparr']): string {
     const rowId = (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
-    const strike = rowId === undefined ? undefined : (events ?? []).find(e => e.event === 'strike' && e.downloadId === rowId);
-    if (strike?.strikeCount === undefined) return '';
-    const kind = STRIKE_KIND[strike.rawEvent ?? ''] ?? '';
-    return ` ${strike.strikeCount} strikes${kind} from Cleanuparr so far${strike.dryRun === true ? ' (dry run)' : ''}.`;
+    const strike = rowId === undefined ? undefined : currentStrikes(events ?? []).get(rowId);
+    if (strike === undefined) return '';
+    const kind = STRIKE_KIND[strike.rawEvent] ?? '';
+    return ` ${strike.count} strikes${kind} from Cleanuparr so far${strike.dryRun === true ? ' (dry run)' : ''}.`;
 }
 
 function queueStep(ev: Evidence, item: MergedItem): QueueResult {
@@ -315,6 +318,18 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
                 detail: `Download ${row.status}${row.errorMessage === undefined ? '' : `: ${row.errorMessage}`}.${strikeNote}`
             },
             remedy: QUEUE_FAULT_REMEDY
+        };
+    }
+
+    // A torrent still seeding a file that is already in the library has nothing left to import.
+    if (cls === 'importPending' && item.acquisition?.hasFile === true && SEEDING.has(row.status.toLowerCase())) {
+        return {
+            step: {
+                stage: 'queue',
+                service: row.service,
+                status: strikeNote === '' ? 'ok' : 'warning',
+                detail: `Seeding, and the file is already imported.${strikeNote}`
+            }
         };
     }
 

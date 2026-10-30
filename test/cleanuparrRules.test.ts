@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchRule, ruleVerdict, skipReason, type CleanuparrRule, type TorrentFacts } from '../src/core/cleanuparrRules.ts';
+import { matchRule, ruleVerdict, skipReason, unmatchedReason, type CleanuparrRule, type TorrentFacts } from '../src/core/cleanuparrRules.ts';
 
 const rule = (over: Partial<CleanuparrRule> = {}): CleanuparrRule => ({
     id: 'r', name: 'Rule', priority: 1, categories: ['tv'], trackerPatterns: [], tagsAny: [], tagsAll: [],
@@ -139,5 +139,22 @@ describe('ruleVerdict', () => {
     it('declines to judge rules that need seeders or activity it cannot see', () => {
         expect(ruleVerdict(rule({ maxRatio: 0, minSeeders: 5 }), { ratio: 1 })).toEqual({ over: false, uncertain: 'needs the seeder count' });
         expect(ruleVerdict(rule({ maxRatio: 0, maxInactiveDays: 3 }), { ratio: 1 })).toEqual({ over: false, uncertain: 'needs the last activity time' });
+    });
+});
+
+describe('unmatchedReason', () => {
+    it('blames the filter that ruled out the last rules standing', () => {
+        expect(unmatchedReason(torrent({ category: '' }), [rule()])).toBe('no category');
+        expect(unmatchedReason(torrent({ category: 'movies' }), [rule()])).toBe('category not in any rule');
+        expect(unmatchedReason(torrent(), [rule({ trackerPatterns: ['other.org'] })])).toBe('tracker not in any rule');
+        expect(unmatchedReason(torrent(), [rule({ tagsAny: ['keep'] })])).toBe('tags not in any rule');
+        expect(unmatchedReason(torrent(), [rule({ privacy: 'private' })])).toBe('privacy mismatch');
+        expect(unmatchedReason(torrent({ private: undefined }), [rule({ privacy: 'private' })])).toBe('privacy unknown');
+    });
+
+    it('follows the rules that pass each filter, not every rule', () => {
+        // One rule has the category but the wrong tracker; the other the tracker but the wrong category.
+        const rules = [rule({ trackerPatterns: ['other.org'] }), rule({ id: 'b', categories: ['movies'] })];
+        expect(unmatchedReason(torrent(), rules)).toBe('tracker not in any rule');
     });
 });

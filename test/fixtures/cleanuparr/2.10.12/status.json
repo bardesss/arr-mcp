@@ -1,0 +1,32 @@
+{
+  "application": {
+    "version": "2.10.12.0",
+    "startTime": "2026-10-23T07:27:56.0766699+00:00",
+    "upTime": "6.03:32:41.0995407",
+    "memoryUsageMB": 249.71,
+    "processorTime": "00:48:30.9724280"
+  },
+  "mediaManagers": {
+    "Sonarr": {
+      "instanceCount": 1
+    },
+    "Radarr": {
+      "instanceCount": 1
+    },
+    "Lidarr": {
+      "instanceCount": 0
+    },
+    "Readarr": {
+      "instanceCount": 0
+    },
+    "Whisparr": {
+      "instanceCount": 0
+    },
+    "Sportarr": {
+      "instanceCount": 0
+    },
+    "LazyLibrarian": {
+      "instanceCount": 0
+    }
+  }
+}

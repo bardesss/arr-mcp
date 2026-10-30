@@ -128,6 +128,7 @@ function torrentOf(t: RawTorrent): { torrent?: TorrentFacts } {
             category,
             tags: t.labels ?? [],
             trackerDomains,
+            ...(t.downloadDir ? { savePath: t.downloadDir } : {}),
             ...(typeof t.isPrivate === 'boolean' ? { private: t.isPrivate } : {}),
             stopped: t.status === 0,
             seeding: t.leftUntilDone === 0 && (t.status === 5 || t.status === 6 || t.status === 0)

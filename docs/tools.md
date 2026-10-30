@@ -183,7 +183,10 @@ file on disk means the removal was since replaced. A dry run is shown as "would
 have removed or stopped it" and does not block the verdict. While a download
 client cannot be reached, the queue stage is unknown instead, since a new grab
 could be on that client. A download still in the queue that Cleanuparr has
-struck carries its strike count and kind in the queue stage.
+struck carries its strike count and kind in the queue stage, unless a later
+reset cleared them. A torrent still seeding a file that is already in the
+library is `ok`, or `warning` when it has strikes; `warning` never blocks the
+verdict.
 
 ## `stack_health`
 
@@ -234,7 +237,9 @@ row is usually the one that decides.
 Prowlarr's, matched on the `"<name> (Prowlarr)"` name sync gives it. The copy is
 what the app applies. The other is a torrent indexer with no criteria while no
 client has a default either, meaning its grabs seed until someone stops them.
-Which torrents are actually past their limit is `get_queue`'s answer, not this
+When an enforced Cleanuparr rule set limits seeding on one of the clients, those
+indexers get one note instead, saying Cleanuparr's rules are the only limit and
+that a torrent in a category no rule covers still seeds on. Which torrents are actually past their limit is `get_queue`'s answer, not this
 one. Absent when nothing configured seeds.
 
 ### Cleanuparr
@@ -631,6 +636,18 @@ Instead of a rule it can carry `{ skipped: reason }`: the torrent is not
 seeding, is ignored in Cleanuparr, is still in an *arr queue, is already
 stopped, or the rule's action is unknown.
 
+A torrent on a mapped client that no rule covers carries `{ unmatched: reason }`,
+the first filter that ruled every rule out, in Cleanuparr's order: `no category`,
+`category not in any rule`, `tracker not in any rule`, `tags not in any rule`,
+then `privacy mismatch`, or `privacy unknown` when the client did not say whether
+the torrent is private. Torrent rows carry their `category` and `tags`, and an
+unmatched one its `savePath` too, so the reason can be checked.
+
+A download Cleanuparr has struck, torrent or *arr row, carries `strikes`: the
+`count` since its last reset, the `reason` (`stalled`, `slow speed`,
+`dead torrent` and so on) and `dryRun` when Cleanuparr only logged it. They come
+from the last 30 days of its events.
+
 When the rule applies and is certain, `overLimit` is judged against it, not the
 client's limit, and `limitSource: "cleanuparr"` says so. When it is uncertain,
 the client's own verdict stays. Rules only reach a client whose host, port and
@@ -640,7 +657,8 @@ type match one of Cleanuparr's; see
 Neither client can express a rule like "public trackers stop now, private ones
 seed to 1.0". `private` is there so that question can still be asked of the
 queue. The qBittorrent side is written against its source at release-5.2.4 and
-has not been run against a live instance; `private` needs 5.0 or later.
+was checked live on 5.3.0 beside Cleanuparr 2.10.12; `private` needs 5.0 or
+later.
 
 ## `get_history`
 
@@ -667,10 +685,13 @@ setup it will not read as English.
 ### Cleanuparr
 
 Cleanuparr contributes what it did to downloads. Its event types are `strike`
-(a download was struck for stalling, being slow or failing to import), `stopped`,
-`deleted`, `imported` and `unknown`. Its rows carry `downloadId`, `strikeCount`
-where it has one, and `dryRun: true` when it only logged the action. A `reason`
-is fenced like any other upstream text.
+(a download was struck for stalling, being slow or failing to import),
+`recovered` (its strikes were reset), `recategorised` (with `oldCategory` and
+`newCategory`), `stopped`, `deleted`, `imported` and `unknown`. Its rows carry
+`downloadId`, `strikeCount` where it has one, and `dryRun: true` when it only
+logged the action. `downloadClient` names the client the event happened on;
+`clientRemoved: true` takes its place when that client has since been deleted
+from Cleanuparr. A `reason` is fenced like any other upstream text.
 
 `downloadId` is lowercased and links a row to the *arr grab it belongs to.
 Radarr and Sonarr rows now carry the same `downloadId`, also lowercased.

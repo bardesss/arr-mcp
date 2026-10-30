@@ -1506,4 +1506,26 @@ describe('buildChain — Cleanuparr', () => {
         expect(step?.status).toBe('skipped');
         expect(step?.detail).not.toContain('Cleanuparr');
     });
+
+    it('warns, without blocking, on a torrent still seeding a file already imported', () => {
+        const seeding = { ...downloading, service: 'qbittorrent', status: 'seeding' };
+        const struck = buildChain('some film', healthy({ queue: { items: [seeding], partial: [] }, cleanuparr: [strike('DeadTorrentStrike')] }));
+        expect(stepFor(struck, 'queue')).toMatchObject({ status: 'warning', detail: expect.stringContaining('2 strikes as a dead torrent') });
+        expect(struck.verdict.stage).toBe('playable');
+        const clean = stepFor(buildChain('some film', healthy({ queue: { items: [seeding], partial: [] }, cleanuparr: [] })), 'queue');
+        expect(clean?.status).toBe('ok');
+    });
+
+    it('still blocks a seeding torrent whose file is not in the library', () => {
+        const seeding = { ...downloading, service: 'qbittorrent', status: 'seeding' };
+        const noFile = item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } });
+        const step = stepFor(buildChain('some film', healthy({ item: noFile, queue: { items: [seeding], partial: [] }, cleanuparr: [] })), 'queue');
+        expect(step?.status).toBe('blocked');
+    });
+
+    it('drops strikes a later reset cleared', () => {
+        const reset = { ...base, id: 'e9', at: '2026-10-09T12:00:00+00:00', event: 'recovered', rawEvent: 'StrikeReset', downloadId: 'aaaa1111' } as const;
+        const step = stepFor(buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, cleanuparr: [reset, strike('StalledStrike')] })), 'queue');
+        expect(step?.detail).not.toContain('strikes');
+    });
 });

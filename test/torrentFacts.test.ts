@@ -44,6 +44,7 @@ describe('Transmission torrent facts', () => {
             category: 'complete',
             tags: ['x'],
             trackerDomains: ['tracker.example.org'],
+            savePath: '/data/downloads/complete/',
             private: true,
             stopped: false,
             seeding: true

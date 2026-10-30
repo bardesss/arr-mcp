@@ -22,10 +22,20 @@ export type GetQueueResult = {
 };
 
 const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
-    const { torrent: _t, ...visible } = q;
-    if (detail === 'full') return visible;
+    const { torrent, ...visible } = q;
+    if (detail === 'full') {
+        if (torrent === undefined) return visible;
+        // The save path only where it helps explain why no Cleanuparr rule matched: 500 of them blow the budget.
+        const unmatched = q.seeding?.cleanuparr !== undefined && 'unmatched' in q.seeding.cleanuparr;
+        return {
+            ...visible,
+            ...(torrent.category === '' ? {} : { category: torrent.category }),
+            ...(torrent.tags.length === 0 ? {} : { tags: torrent.tags }),
+            ...(unmatched && torrent.savePath !== undefined ? { savePath: torrent.savePath } : {})
+        };
+    }
     if (detail === 'minimal') return { service: q.service, id: q.id, title: q.title, status: q.status };
-    const { errorMessage: _e, private: _p, seeding: _s, ...rest } = visible;
+    const { errorMessage: _e, private: _p, seeding: _s, strikes: _k, ...rest } = visible;
     return rest;
 };
 
@@ -41,6 +51,9 @@ export function queueLine(item: QueueItem): string {
     if (item.orphaned === true) facts.push('orphaned');
     if (item.errorMessage !== undefined && item.errorMessage !== '') facts.push(item.errorMessage);
     if (item.statusMessages !== undefined) facts.push(...item.statusMessages);
+    if (item.strikes !== undefined) {
+        facts.push(`${item.strikes.count} Cleanuparr strike${item.strikes.count === 1 ? '' : 's'} (${item.strikes.reason}${item.strikes.dryRun === true ? ', dry run' : ''})`);
+    }
     if (item.seeding?.overLimit === true && item.status.startsWith('seeding')) {
         const c = item.seeding.cleanuparr !== undefined && 'rule' in item.seeding.cleanuparr ? item.seeding.cleanuparr : undefined;
         const marks = [...(c?.dryRun === true ? ['dry run'] : []), ...(c?.notEnforced === true ? ['not scheduled'] : [])];
@@ -87,7 +100,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             title: 'Download queue',
             annotations: READ_ONLY,
             description:
-                'Everything currently downloading or stalled, merged across Radarr, Sonarr, SABnzbd, NZBGet, Transmission and qBittorrent. Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data. A Radarr or Sonarr row also carries `downloadId`, the download client\'s own id for that grab — pass it to `trigger_scan` with `action: "import"` when a finished download is sitting at `importState: "importBlocked"` and never got imported. Such a row also carries `statusMessages`, the service\'s own reasons, fenced: a title mismatch or an unknown episode fails the same way on every retry and has to be fixed in the service itself. At `detail: "full"`, a finished torrent carries `seeding`: its ratio, seconds seeded, the limit the client applies to it (absent means none), whether that limit is its own or the client default, and `overLimit`. Torrents also carry `private`. The rules themselves are in `stack_health` at `detail: "full"`. When Cleanuparr is configured, a torrent it governs also carries `seeding.cleanuparr`: the rule that applies (matched the way Cleanuparr matches it), its limits, and whether Cleanuparr will act on it (`dryRun`, `notEnforced`), or why Cleanuparr skips it. `overLimit` is then judged against that rule and `limitSource` says so.',
+                'Everything currently downloading or stalled, merged across Radarr, Sonarr, SABnzbd, NZBGet, Transmission and qBittorrent. Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data. A Radarr or Sonarr row also carries `downloadId`, the download client\'s own id for that grab — pass it to `trigger_scan` with `action: "import"` when a finished download is sitting at `importState: "importBlocked"` and never got imported. Such a row also carries `statusMessages`, the service\'s own reasons, fenced: a title mismatch or an unknown episode fails the same way on every retry and has to be fixed in the service itself. At `detail: "full"`, a finished torrent carries `seeding`: its ratio, seconds seeded, the limit the client applies to it (absent means none), whether that limit is its own or the client default, and `overLimit`. Torrents also carry `private`. The rules themselves are in `stack_health` at `detail: "full"`. When Cleanuparr is configured, a torrent it governs also carries `seeding.cleanuparr`: the rule that applies (matched the way Cleanuparr matches it), its limits, and whether Cleanuparr will act on it (`dryRun`, `notEnforced`), or why Cleanuparr skips it. A torrent no rule covers carries `seeding.cleanuparr.unmatched`, the filter that ruled every rule out (`no category`, `category not in any rule`, `tracker not in any rule`, `tags not in any rule`, `privacy unknown`, `privacy mismatch`); torrents carry `category` and `tags`, and an unmatched one its `savePath`, so you can see why. A download Cleanuparr has struck carries `strikes`: the count since its last reset and the reason. `overLimit` is then judged against that rule and `limitSource` says so.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
         },

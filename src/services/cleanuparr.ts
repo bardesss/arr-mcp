@@ -63,6 +63,9 @@ type RawEvent = {
     failedImportReasons?: string[];
     deleteReason?: string | null;
     cleanReason?: string | null;
+    downloadClientId?: string | null;
+    oldCategory?: string | null;
+    newCategory?: string | null;
 };
 type RawPage<T> = { items?: T[]; totalCount?: number; totalPages?: number };
 
@@ -76,12 +79,19 @@ const EVENT: Record<string, HistoryEventType> = {
     SlowTimeStrike: 'strike',
     DeadTorrentStrike: 'strike',
     DownloadStopped: 'stopped',
-    ForceImported: 'imported'
+    ForceImported: 'imported',
+    StrikeReset: 'recovered',
+    CategoryChanged: 'recategorised'
 };
 /** One upstream type per filter value, so the service filters before paging. */
-const UPSTREAM: Partial<Record<HistoryEventType, string>> = { stopped: 'DownloadStopped', imported: 'ForceImported' };
+const UPSTREAM: Partial<Record<HistoryEventType, string>> = {
+    stopped: 'DownloadStopped',
+    imported: 'ForceImported',
+    recovered: 'StrikeReset',
+    recategorised: 'CategoryChanged'
+};
 /** Everything else Cleanuparr never emits, so a filter for it reads nothing. */
-const EMITTED = new Set<HistoryEventType>(['deleted', 'strike', 'stopped', 'imported', 'unknown']);
+const EMITTED = new Set<HistoryEventType>(['deleted', 'strike', 'stopped', 'imported', 'recovered', 'recategorised', 'unknown']);
 /** Seeker's own searches are about no download, and would crowd out the rest. */
 const DROPPED = new Set(['SearchTriggered']);
 const PAGE_SIZE = 100;
@@ -120,8 +130,8 @@ function ruleOf(r: RawRule, service: string): CleanuparrRule {
 }
 
 /**
- * Hand-written against the source at tag v2.10.9: Cleanuparr publishes no
- * API reference, and minor releases may break this contract.
+ * Hand-written against the source at tag v2.10.9 and checked live on 2.10.12:
+ * Cleanuparr publishes no API reference, and minor releases may break this contract.
  */
 export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, CleanuparrCapable, HistoryCapable {
     readonly type: ServiceId = 'cleanuparr';
@@ -242,12 +252,17 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             ...(upstream === undefined ? [] : [`eventType=${upstream}`]),
             `pageSize=${PAGE_SIZE}`
         ];
+        // Without the client list, events just go unlabelled.
+        const clients = await this.#clients().then(
+            list => new Map(list.map(c => [c.id, c.name])),
+            () => undefined
+        );
         const items: HistoryEntry[] = [];
         let dropped = 0;
         for (let page = 1; ; page += 1) {
             const body = await this.#http.get<RawPage<RawEvent>>(`${CLEANUPARR_API}/events?${[...base, `page=${page}`].join('&')}`);
             for (const e of body.items ?? []) {
-                const entry = this.#entryOf(e);
+                const entry = this.#entryOf(e, clients);
                 if (entry === undefined) dropped += 1;
                 else if (opts.eventType === undefined || entry.event === opts.eventType) items.push(entry);
             }
@@ -260,7 +275,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
         }
     }
 
-    #entryOf(e: RawEvent): HistoryEntry | undefined {
+    #entryOf(e: RawEvent, clients: Map<string, string> | undefined): HistoryEntry | undefined {
         if (e.id === undefined || e.eventType === undefined || DROPPED.has(e.eventType)) return undefined;
         const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
         const reasons = [e.deleteReason, e.cleanReason, ...(e.failedImportReasons ?? [])].filter((r): r is string => typeof r === 'string' && r !== '');
@@ -274,8 +289,18 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             ...(reasons.length === 0 ? {} : { reason: fence(reasons.join('; '), 'reason') }),
             ...(e.itemHash ? { downloadId: e.itemHash.toLowerCase() } : {}),
             ...(typeof e.strikeCount === 'number' ? { strikeCount: e.strikeCount } : {}),
-            ...(e.isDryRun === true ? { dryRun: true as const } : {})
+            ...(e.isDryRun === true ? { dryRun: true as const } : {}),
+            ...(e.oldCategory ? { oldCategory: e.oldCategory } : {}),
+            ...(e.newCategory ? { newCategory: e.newCategory } : {}),
+            ...this.#clientOf(e.downloadClientId, clients)
         };
+    }
+
+    /** A deleted client takes its name with it, so only the fact of its removal is left. */
+    #clientOf(id: string | null | undefined, clients: Map<string, string> | undefined): Pick<HistoryEntry, 'downloadClient' | 'clientRemoved'> {
+        if (!id || clients === undefined) return {};
+        const name = clients.get(id);
+        return name === undefined ? { clientRemoved: true } : { downloadClient: fenceText(name, { service: this.id, field: 'client' }) };
     }
 
     /** The client list without credentials. `/api/configuration/download_client` has passwords. */

@@ -28,7 +28,8 @@ const describe = (c: IndexerSeedCriteria): string =>
         c.seedTimeSeconds === undefined ? 'no seed time' : `${c.seedTimeSeconds / 60} min`
     ].join(', ');
 
-function notesFor(clients: ClientSeedLimits[], indexers: IndexerSeedCriteria[], prowlarrIds: Set<string>): string[] {
+/** `cleanuparrLimits`: an enforced Cleanuparr rule set limits seeding on at least one client. */
+function notesFor(clients: ClientSeedLimits[], indexers: IndexerSeedCriteria[], prowlarrIds: Set<string>, cleanuparrLimits: boolean): string[] {
     const notes: string[] = [];
     const prowlarr = indexers.filter(i => prowlarrIds.has(i.service));
     const apps = indexers.filter(i => !prowlarrIds.has(i.service));
@@ -46,7 +47,15 @@ function notesFor(clients: ClientSeedLimits[], indexers: IndexerSeedCriteria[], 
     }
 
     const clientLimited = clients.some(c => c.ratioLimit !== undefined || c.seedingLimitSeconds !== undefined);
-    if (clients.length > 0 && !clientLimited) {
+    const unlimited = apps.filter(i => i.seedRatio === undefined && i.seedTimeSeconds === undefined);
+    if (clients.length > 0 && !clientLimited && cleanuparrLimits && unlimited.length > 0) {
+        // Which category an indexer's grabs land in is the *arr's to say, so the per-torrent answer is get_queue's.
+        notes.push(
+            `${unlimited.map(i => `"${i.indexer}"`).join(', ')} set no seed ratio or time and no torrent client has a default limit, ` +
+                "so Cleanuparr's rules are the only limit. A torrent in a category no rule covers seeds until someone stops it; " +
+                'get_queue at detail "full" says which rule covers each torrent, or why none does.'
+        );
+    } else if (clients.length > 0 && !clientLimited) {
         for (const i of apps) {
             if (i.seedRatio !== undefined || i.seedTimeSeconds !== undefined) continue;
             notes.push(
@@ -123,11 +132,14 @@ export async function buildSeedingRules(
         .sort((a, b) => a.service.localeCompare(b.service) || a.indexer.localeCompare(b.indexer));
     clientRows.sort((a, b) => a.service.localeCompare(b.service));
 
-    const notes = notesFor(clientRows, indexerRows, prowlarrIds);
     const { mapped, conflicts } =
         cleanuparr === undefined
             ? { mapped: new Map<string, CleanuparrRuleSet>(), conflicts: new Map<string, CleanuparrRuleSet[]>() }
             : resolveRuleSets(cleanuparr.sets, adapters);
+    const cleanuparrLimits =
+        cleanuparr?.enforced === true &&
+        [...mapped.values()].some(set => set.rules.some(r => r.maxRatio !== undefined || r.maxSeedHours !== undefined));
+    const notes = notesFor(clientRows, indexerRows, prowlarrIds, cleanuparrLimits);
     const sets = (cleanuparr?.sets ?? []).map(set => {
         const service = [...mapped].find(([, s]) => s === set)?.[0];
         return service === undefined ? set : { ...set, service };
