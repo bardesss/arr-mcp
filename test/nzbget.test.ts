@@ -1263,6 +1263,14 @@ describe('NzbgetAdapter', () => {
             await expect(fake({ history: [parFailed] }).adapter.findRetryTarget('4', { hasPassword: true })).resolves.toMatchObject({ method: 'retry-failed' });
         });
 
+        it('picks retry-failed for missing articles without par files', async () => {
+            const noPar = row({ Status: 'FAILURE/UNPACK', ParStatus: 'NONE', UnpackStatus: 'FAILURE', Health: 850 });
+            const repaired = row({ Status: 'FAILURE/UNPACK', ParStatus: 'SUCCESS', UnpackStatus: 'PASSWORD', Health: 850 });
+
+            await expect(fake({ history: [noPar] }).adapter.findRetryTarget('4', { hasPassword: false })).resolves.toMatchObject({ method: 'retry-failed' });
+            await expect(fake({ history: [repaired] }).adapter.findRetryTarget('4', { hasPassword: true })).resolves.toMatchObject({ method: 'postprocess' });
+        });
+
         it('falls back to the NZBID as the downloadId for an NZB added by hand', async () => {
             const target = await fake({ history: [missing({ Parameters: [] })] }).adapter.findRetryTarget('4', { hasPassword: false });
 
@@ -1282,6 +1290,7 @@ describe('NzbgetAdapter', () => {
 
             expect(error).toMatchObject({ kind: 'UpstreamError' });
             expect((error as Error).message).toMatch(/doesn't exist/);
+            expect((error as { remedy?: string }).remedy).toMatch(/Nothing was retried/);
         });
 
         it('never puts the password in an error', async () => {

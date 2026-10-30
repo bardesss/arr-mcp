@@ -281,6 +281,9 @@ const retryMethod = (row: RawHistory): RetryMethod | undefined => {
     const par = (row.ParStatus ?? '').toUpperCase();
     const unpack = (row.UnpackStatus ?? '').toUpperCase();
     if (['DELETED/HEALTH', 'FAILURE/HEALTH', 'FAILURE/PAR'].includes(status) || par === 'FAILURE') return 'retry-failed';
+    // Articles missing and no par repair made up for them: no par files, or
+    // none checked. A repaired download (ParStatus SUCCESS) has them all.
+    if (par !== 'SUCCESS' && typeof row.Health === 'number' && row.Health < 1000) return 'retry-failed';
     const complete = par === 'SUCCESS' || (par !== 'FAILURE' && row.Health === 1000);
     const locked = unpack === 'FAILURE' || unpack === 'PASSWORD' || status === 'WARNING/PASSWORD';
     return complete && locked ? 'postprocess' : undefined;
@@ -1011,7 +1014,7 @@ export class NzbgetAdapter
                 // The whole prefix, so a look-alike name's refusal is not this one's.
                 if (m.Kind === 'ERROR' && m.Text.startsWith(`${RETRY_REFUSED} ${name}:`)) {
                     throw new ServiceError('UpstreamError', this.id, fenceText(m.Text, { service: this.id, field: 'log' }), {
-                        remedy: "NZBGet only retries a download whose folder still exists, and that folder has been moved or deleted. Nothing was changed. Grab the release again instead."
+                        remedy: "NZBGet only retries a download whose folder still exists, and that folder has been moved or deleted. Nothing was retried. Grab the release again instead."
                     });
                 }
                 if (m.Text === `${RETRY_STARTED} ${name}`) started = true;
