@@ -1,6 +1,6 @@
 # Tools
 
-Thirty-nine of them. The first nineteen read; the last twenty write, and are
+Forty of them. The first nineteen read; the last twenty-one write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -137,7 +137,7 @@ tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
 read, and on the twenty writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from thirty-nine similarly-shaped
+about, reads those rather than guessing from forty similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -1414,7 +1414,7 @@ the password; the preview says so.
 **Moved on.** The preview checks whether Radarr or Sonarr has already grabbed a
 replacement for the same media and whether it was imported. If so it warns that
 retrying may leave two copies, and does not refuse. Whisparr and Lidarr are not
-checked, and the preview says that too. A tracker that cannot be reached is
+checked, and the preview says that too. A Radarr or Sonarr that cannot be reached is
 named rather than treated as "no replacement".
 
 **Remove Failed must be off.** Radarr and Sonarr's "Remove Failed" setting
@@ -1731,7 +1731,7 @@ no-op, and a request naming no field at all is refused rather than previewed.
 
 ## Prompts and resources
 
-Thirty-eight tools do not tell you which one to reach for, and the questions
+Forty tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:
