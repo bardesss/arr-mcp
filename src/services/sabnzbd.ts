@@ -17,6 +17,10 @@ import {
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
+    type RetryCapable,
+    type RetryMethod,
+    type RetryOutcome,
+    type RetryTarget,
     type ServiceAdapter,
     type SpeedLimit,
     type SpeedLimitCapable
@@ -61,6 +65,9 @@ type RawSlot = {
     mb?: string;
     mbleft?: string;
     timeleft?: string;
+    /** 3.0.0 and later list flags such as `ENCRYPTED` here, beside a plain
+     *  `filename`; 2.x prefixed the filename instead (`ENCRYPTED / name`). */
+    labels?: string[];
 };
 
 const BYTES_PER_MB = 1024 ** 2;
@@ -98,6 +105,37 @@ const gigabytesToBytes = (value: string | undefined): number | undefined => {
     return Number.isFinite(parsed) ? Math.round(parsed * BYTES_PER_GB) : undefined;
 };
 
+/** How long a retry or unlock is watched for proof SABnzbd acted: 20 × 250 ms. */
+const RETRY_POLL_MS = 250;
+const RETRY_POLLS = 20;
+
+const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+/** The 2.x display form, where the label was baked into the queue name. */
+const ENCRYPTED_PREFIX = 'ENCRYPTED / ';
+
+/**
+ * Whether SABnzbd flagged the slot as encrypted. Since 3.0.0 `build_queue`
+ * sets `filename` to the plain `final_name` and the flag lives in `labels`;
+ * the prefix check covers 2.x.
+ *
+ * The label is `T("ENCRYPTED")` — translated into SABnzbd's UI language — so
+ * on a non-English SABnzbd it is not recognised here. `findRetryTarget`
+ * refuses such a paused slot rather than guessing.
+ */
+const isEncrypted = (slot: RawSlot): boolean =>
+    (slot.labels ?? []).some(l => l.toUpperCase() === 'ENCRYPTED') || (slot.filename ?? '').startsWith(ENCRYPTED_PREFIX);
+
+/** The job's real name, which is what a rename has to send back unchanged. */
+const plainName = (filename: string | undefined): string =>
+    (filename ?? '').startsWith(ENCRYPTED_PREFIX) ? (filename ?? '').slice(ENCRYPTED_PREFIX.length) : (filename ?? '');
+
+/** Queue statuses SABnzbd shows while post-processing rather than downloading. */
+const PROCESSING_STATUSES = new Set(['verifying', 'repairing', 'extracting', 'moving', 'running']);
+
+const MISSING_REMEDY =
+    'Take a current id from get_history or get_queue. If Radarr or Sonarr grabbed it, its "Remove Failed" setting (Settings → Download Clients) deletes failed downloads from SABnzbd; turn it off to keep them retryable.';
+
 export class SabnzbdAdapter
     implements
         ServiceAdapter,
@@ -106,7 +144,8 @@ export class SabnzbdAdapter
         QueueRemoveCapable,
         PauseCapable,
         SpeedLimitCapable,
-        HistoryCapable
+        HistoryCapable,
+        RetryCapable
 {
     readonly type: ServiceId = 'sabnzbd';
     readonly instance: string | undefined;
@@ -329,6 +368,222 @@ export class SabnzbdAdapter
                     }
                 ];
             });
+    }
+
+    /**
+     * One queue slot by id. `nzo_ids` filters server-side from 4.x on, but
+     * 3.0.0's `_api_queue_default` ignores it and answers the whole queue, so
+     * the match is always made here.
+     */
+    async #queueSlot(id: string): Promise<RawSlot | undefined> {
+        const body = await this.#http.get<RawQueue>(`/api?mode=queue&nzo_ids=${encodeURIComponent(id)}&output=json`);
+        return (body.queue?.slots ?? []).find(s => s.nzo_id === id);
+    }
+
+    /**
+     * One history slot by id. No `limit`: 3.0.0's `build_history` ignores
+     * `nzo_ids`, and a limit would hide an older failure from it.
+     */
+    async #historySlot(id: string): Promise<RawHistorySlot | undefined> {
+        const body = await this.#http.get<RawHistory>(`/api?mode=history&nzo_ids=${encodeURIComponent(id)}&output=json`);
+        return (body.history?.slots ?? []).find(s => s.nzo_id === id);
+    }
+
+    #fence(value: string, field: string): string {
+        return fenceText(value, { service: this.id, field });
+    }
+
+    /**
+     * The two things SABnzbd can do for a stuck job: re-queue a failed one
+     * from history (`retry`), or give a job it paused as encrypted its
+     * password (`unlock`). Anything else is refused before a write is offered.
+     */
+    async findRetryTarget(id: string, opts: { hasPassword: boolean }): Promise<RetryTarget> {
+        const queued = await this.#queueSlot(id);
+        if (queued !== undefined) {
+            const base = {
+                id,
+                title: this.#fence(plainName(queued.filename), 'filename'),
+                where: 'queue' as const,
+                status: this.#fence(queued.status ?? 'unknown', 'status'),
+                downloadId: id
+            };
+            const paused = (queued.status ?? '').toLowerCase() === 'paused';
+
+            if (isEncrypted(queued)) {
+                if (!opts.hasPassword) {
+                    throw new ServiceError('NotFound', this.id, `download ${id} is paused because it is encrypted`, {
+                        remedy: 'Pass `password` with the archive password from the site the NZB came from; SABnzbd cannot unpack it without one.'
+                    });
+                }
+                return { ...base, method: 'unlock' };
+            }
+            if (paused && opts.hasPassword) {
+                // The ENCRYPTED label is translated, so a non-English SABnzbd
+                // can hide it. Without it, a password would be a guess.
+                throw new ServiceError('NotFound', this.id, `download ${id} is paused, but not flagged as encrypted`, {
+                    remedy: "Encryption could not be confirmed — the label may be in another language on a non-English SABnzbd. If it is encrypted, set its password and resume it from SABnzbd's own UI."
+                });
+            }
+            throw new ServiceError('NotFound', this.id, `download ${id} has not failed; it is still in the queue`, {
+                remedy: 'Check its progress with get_queue. Only a failed download, or one paused as encrypted, can be retried.'
+            });
+        }
+
+        const filed = await this.#historySlot(id);
+        if (filed === undefined) {
+            throw new ServiceError('NotFound', this.id, `nothing in the queue or history has id "${id}"`, {
+                remedy: MISSING_REMEDY
+            });
+        }
+        if (filed.status !== 'Failed') {
+            throw new ServiceError('NotFound', this.id, `download ${id} did not fail; only a failed download can be retried`, {
+                remedy: `SABnzbd shows it as ${this.#fence(filed.status ?? 'unknown', 'status')}. Take a failed id from get_history.`
+            });
+        }
+        return {
+            id,
+            title: this.#fence(filed.name ?? '', 'name'),
+            where: 'history',
+            status: this.#fence(filed.status, 'status'),
+            ...(filed.fail_message ? { reason: this.#fence(filed.fail_message, 'fail_message') } : {}),
+            downloadId: id,
+            method: 'retry'
+        };
+    }
+
+    /**
+     * Re-resolves the target first, so a job that changed since the preview
+     * is refused rather than sent the wrong write. The password only ever
+     * travels in a POST form body: SABnzbd's API reads POST fields like query
+     * ones, and a URL ends up in proxy and access logs.
+     */
+    async runRetry(id: string, opts: { method: RetryMethod; password?: string }): Promise<RetryOutcome> {
+        const target = await this.findRetryTarget(id, { hasPassword: opts.password !== undefined && opts.password !== '' });
+        if (target.method !== opts.method) {
+            throw new ServiceError('NotFound', this.id, `download ${id} now needs "${target.method}", not "${opts.method}"`, {
+                remedy: 'It changed since the preview. Preview retry_download again.'
+            });
+        }
+        return opts.method === 'unlock'
+            ? this.#unlock(target, opts.password as string)
+            : this.#retry(target, opts.password);
+    }
+
+    /**
+     * `mode=retry` (3.0.0 `_api_retry` → `retry_job`) removes the history row
+     * and queues the job again under a **new** nzo_id, which is what is
+     * watched. The password reaches the new job only on the repair path; a
+     * job that was fetched from a URL is re-fetched and gets none.
+     *
+     * A refusal's `error` is dropped when a password was sent, in case
+     * SABnzbd ever quotes it back.
+     */
+    async #retry(target: RetryTarget, password: string | undefined): Promise<RetryOutcome> {
+        const body = await this.#http.postForm<{ status?: boolean; nzo_id?: string; error?: string }>('/api', {
+            mode: 'retry',
+            value: target.id,
+            output: 'json',
+            ...(password ? { password } : {})
+        });
+
+        if (body.status !== true || typeof body.nzo_id !== 'string' || body.nzo_id === '') {
+            const fixed = 'SABnzbd gave no new job. Check it is still in history as Failed — take a current id from get_history.';
+            throw new ServiceError('UpstreamError', this.id, `SABnzbd refused to retry ${target.id}`, {
+                remedy: password || !body.error ? fixed : this.#fence(body.error, 'error')
+            });
+        }
+
+        const newId = body.nzo_id;
+        for (let poll = 0; poll < RETRY_POLLS; poll++) {
+            if (poll > 0) await delay(RETRY_POLL_MS);
+            const seen = await this.#whereNow(target, newId);
+            if (seen !== undefined) return seen;
+        }
+        throw new ServiceError('UpstreamError', this.id, `SABnzbd accepted the retry, but the new job ${newId} never appeared`, {
+            remedy: 'Check get_queue and get_history; SABnzbd may still be fetching the NZB again.'
+        });
+    }
+
+    /**
+     * Renames the job to its own name with the password as `value3`, which
+     * 3.0.0's `change_name` hands to `set_final_name_and_scan_password`. With
+     * an explicit password that skips `scan_password`, so the name is stored
+     * as sent and the `{{password}}` form never enters it.
+     *
+     * Then a resume: `NzbObject.resume()` sets `encrypted = 2`, and the
+     * assembler only checks for encryption while `encrypted == 0`, so the
+     * job is not paused again — even if the password is wrong, which surfaces
+     * later as an unpack failure in history.
+     */
+    async #unlock(target: RetryTarget, password: string): Promise<RetryOutcome> {
+        // Read again for the raw name: the target only carries it fenced.
+        const slot = await this.#queueSlot(target.id);
+        if (slot === undefined) {
+            throw new ServiceError('NotFound', this.id, `download ${target.id} left the queue`, { remedy: MISSING_REMEDY });
+        }
+        const renamed = await this.#http.postForm<{ status?: boolean }>('/api', {
+            mode: 'queue',
+            name: 'rename',
+            value: target.id,
+            value2: plainName(slot.filename),
+            value3: password,
+            output: 'json'
+        });
+        if (renamed.status !== true) {
+            throw new ServiceError('UpstreamError', this.id, `SABnzbd refused to set the password on ${target.id}`, {
+                remedy: 'Nothing was resumed. Check the job is still in the queue — take a current id from get_queue.'
+            });
+        }
+
+        const resumed = await this.#http.getAsWrite<{ status?: boolean; error?: string }>(
+            `/api?mode=queue&name=resume&value=${encodeURIComponent(target.id)}&output=json`
+        );
+        if (resumed.status !== true) {
+            throw new ServiceError('UpstreamError', this.id, `SABnzbd set the password but refused to resume ${target.id}`, {
+                remedy: resumed.error
+                    ? this.#fence(resumed.error, 'error')
+                    : 'Resume it with pause_downloads, or from SABnzbd\'s own UI.'
+            });
+        }
+
+        for (let poll = 0; poll < RETRY_POLLS; poll++) {
+            if (poll > 0) await delay(RETRY_POLL_MS);
+            const seen = await this.#whereNow(target, target.id, true);
+            if (seen !== undefined) return seen;
+        }
+        throw new ServiceError('UpstreamError', this.id, `download ${target.id} is still paused after the resume`, {
+            remedy: 'Check get_queue; if it stays paused, resume it from SABnzbd\'s own UI.'
+        });
+    }
+
+    /**
+     * Where `id` stands now, or `undefined` while there is no proof yet. For
+     * an unlock, a slot still `Paused` is not proof.
+     */
+    async #whereNow(target: RetryTarget, id: string, pausedIsPending = false): Promise<RetryOutcome | undefined> {
+        const queued = await this.#queueSlot(id);
+        if (queued !== undefined) {
+            const raw = queued.status ?? 'unknown';
+            if (pausedIsPending && raw.toLowerCase() === 'paused') return undefined;
+            return {
+                target,
+                id,
+                state: PROCESSING_STATUSES.has(raw.toLowerCase()) ? 'processing' : 'downloading',
+                status: this.#fence(raw, 'status')
+            };
+        }
+
+        const filed = await this.#historySlot(id);
+        if (filed === undefined) return undefined;
+        const raw = filed.status ?? 'unknown';
+        return {
+            target,
+            id,
+            state: 'finished',
+            status: this.#fence(raw, 'status'),
+            event: raw === 'Failed' ? 'failed' : 'imported'
+        };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
