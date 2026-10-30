@@ -328,7 +328,7 @@ export type QueueItem = {
     tags?: string[];
     savePath?: string;
     /** Cleanuparr's strikes on this download since its last reset, at `detail: "full"`. */
-    strikes?: { count: number; reason: string; dryRun?: true };
+    strikes?: { count: number; reason: string; lastAt: string; dryRun?: true };
     /** Internal: what Cleanuparr's rules match on. Never returned by a tool. */
     torrent?: TorrentFacts;
 };

@@ -1516,6 +1516,13 @@ describe('buildChain — Cleanuparr', () => {
         expect(clean?.status).toBe('ok');
     });
 
+    it("treats qBittorrent's seeding with no peers as seeding", () => {
+        const dead = { ...downloading, service: 'qbittorrent', status: 'seeding (no peers)' };
+        const d = buildChain('some film', healthy({ queue: { items: [dead], partial: [] }, cleanuparr: [strike('DeadTorrentStrike')] }));
+        expect(stepFor(d, 'queue')?.status).toBe('warning');
+        expect(d.verdict.stage).toBe('playable');
+    });
+
     it('still blocks a seeding torrent whose file is not in the library', () => {
         const seeding = { ...downloading, service: 'qbittorrent', status: 'seeding' };
         const noFile = item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } });

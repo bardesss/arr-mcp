@@ -22,16 +22,18 @@ const STRIKE_REASON: Record<string, string> = {
     DeadTorrentStrike: 'dead torrent'
 };
 
-export type Strikes = { count: number; reason: string; rawEvent: string; dryRun?: true };
+export type Strikes = { count: number; reason: string; rawEvent: string; at: string; dryRun?: true };
 
 /**
  * Each download's standing strikes, from events newest first: the latest
- * strike counts unless a reset came after it.
+ * strike counts unless a reset came after it. A strike on a client since
+ * deleted from Cleanuparr is skipped: the torrent may have moved to another
+ * client, where Cleanuparr counts afresh.
  */
 export function currentStrikes(events: readonly HistoryEntry[]): Map<string, Strikes> {
     const decided = new Map<string, Strikes | null>();
     for (const e of events) {
-        if (e.downloadId === undefined || decided.has(e.downloadId)) continue;
+        if (e.downloadId === undefined || decided.has(e.downloadId) || e.clientRemoved === true) continue;
         if (e.event === 'recovered') decided.set(e.downloadId, null);
         else if (e.event === 'strike' && e.strikeCount !== undefined) {
             const raw = e.rawEvent ?? '';
@@ -39,6 +41,7 @@ export function currentStrikes(events: readonly HistoryEntry[]): Map<string, Str
                 count: e.strikeCount,
                 reason: STRIKE_REASON[raw] ?? raw,
                 rawEvent: raw,
+                at: e.at,
                 ...(e.dryRun === true ? { dryRun: true as const } : {})
             });
         }
@@ -87,7 +90,7 @@ export async function annotateCleanuparr(
         for (const item of items) {
             const id = item.torrent?.hash ?? item.downloadId?.toLowerCase();
             const hit = id === undefined ? undefined : strikes.get(id);
-            if (hit !== undefined) item.strikes = { count: hit.count, reason: hit.reason, ...(hit.dryRun === true ? { dryRun: true as const } : {}) };
+            if (hit !== undefined) item.strikes = { count: hit.count, reason: hit.reason, lastAt: hit.at, ...(hit.dryRun === true ? { dryRun: true as const } : {}) };
         }
     } else {
         logger.warn({ service: source.id, err: events.reason }, 'cleanuparr strikes unavailable; queue rows carry none');

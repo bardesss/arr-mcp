@@ -290,7 +290,8 @@ services:
 The key is under Settings > Account > API Key in Cleanuparr. Single instance
 only, because one Cleanuparr cleans one stack. Read-only: arr-mcp only ever
 sends GET requests to it, and never reads its download client settings, which
-hold client passwords. Written against Cleanuparr 2.10.x. A newer minor is
+hold client passwords. `permissions` are read as off whatever the file says, so
+`stack_health` never reports a write it cannot make. Written against Cleanuparr 2.10.x. A newer minor is
 untested, and `stack_health` flags it.
 
 It covers torrent clients only. Its findings appear in `stack_health`, its

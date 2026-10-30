@@ -185,8 +185,8 @@ client cannot be reached, the queue stage is unknown instead, since a new grab
 could be on that client. A download still in the queue that Cleanuparr has
 struck carries its strike count and kind in the queue stage, unless a later
 reset cleared them. A torrent still seeding a file that is already in the
-library is `ok`, or `warning` when it has strikes; `warning` never blocks the
-verdict.
+library is `ok`, or `warning` when it has strikes, including qBittorrent's
+`seeding (no peers)`; `warning` never blocks the verdict.
 
 ## `stack_health`
 
@@ -645,8 +645,10 @@ unmatched one its `savePath` too, so the reason can be checked.
 
 A download Cleanuparr has struck, torrent or *arr row, carries `strikes`: the
 `count` since its last reset, the `reason` (`stalled`, `slow speed`,
-`dead torrent` and so on) and `dryRun` when Cleanuparr only logged it. They come
-from the last 30 days of its events.
+`dead torrent` and so on), `lastAt`, when the latest one landed, and `dryRun`
+when Cleanuparr only logged it. They come from the last 30 days of its events.
+Strikes on a client since deleted from Cleanuparr are left out: a torrent moved
+to another client starts its count afresh there.
 
 When the rule applies and is certain, `overLimit` is judged against it, not the
 client's limit, and `limitSource: "cleanuparr"` says so. When it is uncertain,

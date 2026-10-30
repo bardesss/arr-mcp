@@ -215,6 +215,16 @@ describe('strikes on queue rows', () => {
         expect(strikes.has('bbb')).toBe(false);
     });
 
+    it('skips strikes from a client since deleted from Cleanuparr', () => {
+        const strikes = currentStrikes([
+            ev({ downloadId: 'aaa', rawEvent: 'DeadTorrentStrike', strikeCount: 3, at: '2026-10-20T00:00:00Z', clientRemoved: true }),
+            ev({ downloadId: 'bbb', rawEvent: 'DeadTorrentStrike', strikeCount: 3, at: '2026-10-20T00:00:00Z', clientRemoved: true }),
+            ev({ downloadId: 'bbb', rawEvent: 'DeadTorrentStrike', strikeCount: 1, at: '2026-10-18T00:00:00Z', downloadClient: 'qBittorrent' })
+        ]);
+        expect(strikes.has('aaa')).toBe(false);
+        expect(strikes.get('bbb')).toMatchObject({ count: 1, at: '2026-10-18T00:00:00Z' });
+    });
+
     it('puts strikes on torrent rows by hash and on *arr rows by download id', async () => {
         const arr = { service: 'sonarr', id: '9', title: 'x', status: 'downloading', downloadId: 'CCC' } as QueueItem;
         const items = [row({}), arr];
@@ -223,8 +233,8 @@ describe('strikes on queue rows', () => {
             ev({ downloadId: 'ccc', rawEvent: 'StalledStrike', strikeCount: 2, dryRun: true })
         ];
         await annotateCleanuparr(items, [withEvents(seeding(), events), transmission], () => {});
-        expect(items[0]?.strikes).toEqual({ count: 1, reason: 'dead torrent' });
-        expect(items[1]?.strikes).toEqual({ count: 2, reason: 'stalled', dryRun: true });
+        expect(items[0]?.strikes).toEqual({ count: 1, reason: 'dead torrent', lastAt: 't' });
+        expect(items[1]?.strikes).toEqual({ count: 2, reason: 'stalled', lastAt: 't', dryRun: true });
     });
 
     it('still judges rules when the events cannot be read, and marks Cleanuparr degraded', async () => {

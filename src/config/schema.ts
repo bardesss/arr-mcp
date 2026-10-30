@@ -51,6 +51,15 @@ const ApiKeyShape = { api_key: z.string().min(1, 'api_key must not be empty') };
 
 /** Radarr, Sonarr, Prowlarr, Bazarr, SABnzbd — an API key and nothing more. */
 const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape });
+
+/** Services arr-mcp never writes to. */
+export const READ_ONLY_SERVICES: ReadonlySet<string> = new Set(['cleanuparr']);
+
+/**
+ * Write flags on a service nothing writes to would be reported as granted
+ * while granting nothing, so they are read as off whatever the file says.
+ */
+const ReadOnlyKeyedServiceSchema = KeyedServiceSchema.transform(c => ({ ...c, permissions: { safe_write: false, destructive: false } }));
 export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
 
 /**
@@ -299,7 +308,7 @@ const ServicesSchema = z
         // so two of them would mean two sources of truth.
         profilarr: singleOnly(KeyedServiceSchema).optional(),
         // Single only: one Cleanuparr cleans one stack.
-        cleanuparr: singleOnly(KeyedServiceSchema).optional()
+        cleanuparr: singleOnly(ReadOnlyKeyedServiceSchema).optional()
     })
     .superRefine((services, ctx) => {
         /**

@@ -180,8 +180,8 @@ function requestStep(ev: Evidence): Step {
  * "complete" contains none of those substrings. It misreads
  * `downloadClientUnavailable` and `warning`/`delay` the same way.
  *
- * The vocabulary is what the adapters actually emit, lowercased. `seeding` and
- * `queued to seed` mean the file is fully on disk, so they are import-pending
+ * The vocabulary is what the adapters actually emit, lowercased. `seeding`,
+ * qBittorrent's `seeding (no peers)` and `queued to seed` mean the file is fully on disk, so they are import-pending
  * rather than active; `propagating` is SABnzbd finalising a healthy download,
  * so it stays active.
  */
@@ -199,8 +199,8 @@ const QUEUE_ACTIVE = new Set([
     'propagating'
 ]);
 
-const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'queued to seed']);
-const SEEDING = new Set(['seeding', 'queued to seed']);
+const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'seeding (no peers)', 'queued to seed']);
+const SEEDING = new Set(['seeding', 'seeding (no peers)', 'queued to seed']);
 
 type QueueClass = 'active' | 'importPending' | 'fault' | 'indeterminate';
 
