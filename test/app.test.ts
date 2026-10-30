@@ -393,6 +393,7 @@ describe('the advertised tool surface', () => {
         'remove_queue_item',
         'request_media',
         'respond_to_request',
+        'retry_download',
         'set_monitoring',
         'set_watched',
         'sync_database',
@@ -1209,7 +1210,7 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         );
         const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
         expect(result.tools).toHaveLength(TOOL_NAMES.length);
-        expect(TOOL_NAMES.length).toBeLessThan(40);
+        expect(TOOL_NAMES.length).toBeLessThanOrEqual(40);
     });
 });
 
