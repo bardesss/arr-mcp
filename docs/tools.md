@@ -631,7 +631,9 @@ as `reason`.
 
 **NZBGet** contributes its history in the same role. Its `Status` is
 `<KIND>/<DETAIL>`: `SUCCESS/*` becomes `imported`, `FAILURE/*` becomes
-`failed` and `DELETED/*` becomes `deleted`. NZBGet keeps no failure message,
+`failed` and `DELETED/*` becomes `deleted`, except that `DELETED/HEALTH` (aborted
+because too many articles were missing), `DELETED/BAD` and `DELETED/SCAN` are
+`failed`. NZBGet keeps no failure message,
 only a status code per post-processing stage, so `reason` is the status plus
 the stages that did not succeed, for example
 `FAILURE/PAR (ParStatus FAILURE)`. A row also carries `downloadId` (except at

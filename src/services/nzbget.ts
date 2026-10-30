@@ -1,6 +1,6 @@
 import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
-import { basicAuth } from '../core/auth.ts';
+import { basicAuth, decodeOrRaw } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -131,16 +131,24 @@ const droneParameter = (parameters: unknown): string | undefined => {
 };
 
 /**
+ * The DELETED/* details that are a failed download, not someone's choice:
+ * HEALTH is NZBGet aborting a download with too many missing articles (Radarr
+ * counts it as failed too), BAD a download marked bad, SCAN an NZB that could
+ * not be parsed. MANUAL, DUPE, COPY and GOOD stay deletions.
+ */
+const FAILED_DELETIONS = new Set(['HEALTH', 'BAD', 'SCAN']);
+
+/**
  * `Status` is `<KIND>/<DETAIL>`: SUCCESS/*, FAILURE/*, DELETED/* and
  * WARNING/* (see NzbInfo::MakeTextStatus). A WARNING is neither an import nor
  * a failure — a damaged or password-protected download waiting on a human —
  * so it stays `unknown` with its raw status kept.
  */
 const historyEvent = (status: string): HistoryEventType => {
-    const kind = status.split('/')[0]?.toUpperCase();
+    const [kind, detail] = status.toUpperCase().split('/');
     if (kind === 'SUCCESS') return 'imported';
     if (kind === 'FAILURE') return 'failed';
-    if (kind === 'DELETED') return 'deleted';
+    if (kind === 'DELETED') return detail !== undefined && FAILED_DELETIONS.has(detail) ? 'failed' : 'deleted';
     return 'unknown';
 };
 
@@ -282,20 +290,25 @@ export class NzbgetAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
+    /** Basic auth needs a username; without one nothing is sent at all. */
+    readonly #passwordOnly: boolean;
     #nextRpcId = 1;
 
     constructor(config: ConfigByService['nzbget'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
         this.id = instanceId('nzbget', config.name);
+        // A username in the URL (`http://nzbget@host`) pairs with the
+        // configured password; userinfo alone would send an empty one.
+        const urlUsername = decodeOrRaw(new URL(config.url).username);
+        const username = (config.username ?? '') === '' && urlUsername !== '' ? urlUsername : config.username;
         // WebServer.cpp answers a 401 before reading the POST body but keeps
         // the connection open, so the next request on it fails. Without
         // keep-alive NZBGet closes after each reply.
-        this.#http = new ServiceHttp(this.id, config, basicAuth(config), fetchImpl, { closeConnection: true });
-        this.#passwordOnly = config.password !== undefined && config.password !== '' && (config.username ?? '') === '';
+        this.#http = new ServiceHttp(this.id, config, basicAuth({ username, password: config.password }), fetchImpl, {
+            closeConnection: true
+        });
+        this.#passwordOnly = config.password !== undefined && config.password !== '' && (username ?? '') === '';
     }
-
-    /** Basic auth needs a username; without one nothing is sent at all. */
-    readonly #passwordOnly: boolean;
 
     async #call<T>(method: string, params: unknown[]): Promise<RpcResponse<T>> {
         if (this.#passwordOnly) {
@@ -390,7 +403,7 @@ export class NzbgetAdapter
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
         const body = await this.#call<RawHealthReport>('systemhealth', []);
         if (body.error != null) {
-            if (body.error?.code === RPC_NO_REPORT) return [];
+            if (body.error.code === RPC_NO_REPORT) return [];
             throw this.#rpcError('systemhealth', body.error);
         }
         const report = body.result;
@@ -438,11 +451,13 @@ export class NzbgetAdapter
      * NZBGet has no per-item ETA. It is derived the way the *arrs derive it:
      * items download in queue order at the current rate, so each item's ETA
      * is everything ahead of it plus its own unpaused remainder. A paused
-     * item (or a paused queue) has no ETA.
+     * item (or a paused queue), and one with nothing left to download, has
+     * no ETA.
      */
     async getQueue(): Promise<QueueItem[]> {
         const [status, groups] = await Promise.all([this.#status(), this.#groups()]);
         const rate = int64(status.DownloadRateHi, status.DownloadRateLo) ?? status.DownloadRate ?? 0;
+        const queuePaused = status.ServerPaused === true || status.DownloadPaused === true || status.Download2Paused === true;
         let ahead = 0;
         return groups
             .filter((group): group is RawGroup & { NZBID: number } => typeof group.NZBID === 'number')
@@ -450,14 +465,9 @@ export class NzbgetAdapter
                 const size = int64(group.FileSizeHi, group.FileSizeLo, group.FileSizeMB);
                 const remaining = int64(group.RemainingSizeHi, group.RemainingSizeLo, group.RemainingSizeMB);
                 const paused = int64(group.PausedSizeHi, group.PausedSizeLo, group.PausedSizeMB) ?? 0;
+                const own = remaining === undefined ? 0 : remaining - paused;
                 let eta: number | undefined;
-                if (
-                    remaining !== undefined &&
-                    status.DownloadPaused !== true &&
-                    !(remaining === paused && remaining !== 0) &&
-                    rate > 0
-                ) {
-                    const own = Math.max(0, remaining - paused);
+                if (!queuePaused && own > 0 && rate > 0) {
                     eta = Math.round((ahead + own) / rate);
                     ahead += own;
                 }
@@ -573,8 +583,10 @@ export class NzbgetAdapter
         const rows = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray));
         return rows.flatMap(row => {
             // A row that cannot be dated is dropped rather than stamped with
-            // the epoch, as for SABnzbd.
+            // the epoch, as for SABnzbd; one with no id cannot be referred to.
             if (typeof row.HistoryTime !== 'number' || !Number.isFinite(row.HistoryTime)) return [];
+            const id = row.NZBID ?? row.ID;
+            if (typeof id !== 'number') return [];
             const at = new Date(row.HistoryTime * 1000).toISOString();
             if (opts.since !== undefined && at < opts.since) return [];
 
@@ -582,7 +594,7 @@ export class NzbgetAdapter
             const event = historyEvent(status);
             const entry: HistoryEntry = {
                 service: this.id,
-                id: String(row.NZBID ?? row.ID ?? ''),
+                id: String(id),
                 at,
                 event,
                 rawEvent: status,
