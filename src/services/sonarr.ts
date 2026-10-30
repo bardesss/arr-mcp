@@ -18,6 +18,7 @@ import {
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { traceArrDownload } from './arrDownloadTrace.ts';
 import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import {
     listArrImportCandidates,
@@ -45,6 +46,8 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type DownloadTrace,
+    type DownloadTraceCapable,
     type HealthCheck,
     type HealthCheckCapable,
     type HistoryCapable,
@@ -180,6 +183,7 @@ export class SonarrAdapter
         MonitoringCapable,
         EpisodeFileCapable,
         HistoryCapable,
+        DownloadTraceCapable,
         WantedCapable,
         ReleaseSearchCapable,
         ProfileDiagnosticsCapable,
@@ -227,6 +231,10 @@ export class SonarrAdapter
 
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
         return readArrHistory(this.#http, this.id, 'series', opts);
+    }
+
+    async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {
+        return traceArrDownload(this.#http, this.id, 'series', downloadId);
     }
 
     async readWanted(scope: WantedScope, want?: number): Promise<Window<WantedItem>> {

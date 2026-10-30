@@ -41,6 +41,7 @@ import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
 import { registerManageIndexer } from './manageIndexer.ts';
 import { registerPauseDownloads } from './pauseDownloads.ts';
+import { registerRetryDownload } from './retryDownload.ts';
 import { registerRemoveBlocklistItem } from './removeBlocklistItem.ts';
 import { registerRemoveQueueItem } from './removeQueueItem.ts';
 import { registerRequestMedia } from './requestMedia.ts';
@@ -205,6 +206,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGrabRelease(server, write, adapters);
     registerRequestMedia(server, write, adapters, seerrIdentity);
     registerPauseDownloads(server, write, adapters);
+    registerRetryDownload(server, write, adapters);
     registerSyncDatabase(server, write, adapters);
     registerSetWatched(
         server,
@@ -260,6 +262,7 @@ export const TOOL_NAMES = [
     'grab_release',
     'request_media',
     'pause_downloads',
+    'retry_download',
     'sync_database',
     'set_watched',
     'fix_metadata',
