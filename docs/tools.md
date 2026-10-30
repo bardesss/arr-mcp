@@ -1,6 +1,6 @@
 # Tools
 
-Thirty-nine of them. The first nineteen read; the last twenty write, and are
+Forty of them. The first nineteen read; the last twenty-one write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -27,6 +27,7 @@ off until you turn them on — see [writes](writes.md).
 | `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, or rerun NZBGet's post-processing |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
+| `retry_download` | Try this failed usenet download again, with its password if it needs one |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `clean_queue` | Clear out completed downloads whose film or series no longer exists |
 | `delete_media` | Remove this film or series, optionally from disk |
@@ -133,10 +134,10 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
-read, and on the twenty writes `destructiveHint`, taken from the same permission
+read, and on the twenty-one writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from thirty-nine similarly-shaped
+about, reads those rather than guessing from forty similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -1388,6 +1389,50 @@ instance**: there is no qBittorrent on the stack these adapters were probed
 against. v5 renamed `pause`/`resume` to `stop`/`start`, so both verbs are
 attempted — the new one first, the old one only if it 404s.
 
+## `retry_download`
+
+"This download failed, try it again", on the usenet client that holds the files:
+SABnzbd or NZBGet. `id` is the one on that client's `get_history` or `get_queue`
+row. The preview picks what to send from the job itself and shows it:
+
+- **SABnzbd, failed job in history:** retried with `mode=retry`. SABnzbd gives the
+  retried job a **new id**, and the result says so (`previous_id`), so take the
+  new one from there.
+- **SABnzbd, paused encrypted job in the queue:** `password` is set and the job
+  resumes. It is found by SABnzbd's ENCRYPTED label, which SABnzbd translates,
+  so it is not recognised on a non-English UI.
+- **NZBGet:** `password`, if given, is stored in the job's `*Unpack:Password`
+  parameter. A job with missing articles then has them fetched again
+  (`HistoryRetryFailed`); one that has every article but failed to unpack (a
+  missing password, a full disk) or was left repairable by the par check has
+  post-processing run again (`HistoryProcess`).
+
+Give `password` when the failure was an encrypted archive; it comes from the site
+the NZB came from. It is never shown back, and the audit log redacts it. When a
+SABnzbd job was added from a URL, a retry fetches the NZB again and may not keep
+the password; the preview says so.
+
+**Moved on.** The preview checks whether Radarr or Sonarr has already grabbed a
+replacement for the same media and whether it was imported. If so it warns that
+retrying may leave two copies, and does not refuse. Whisparr and Lidarr are not
+checked; when one is configured, the preview says that too. A Radarr or Sonarr that
+cannot be reached is named rather than treated as "no replacement".
+
+**After the retry.** The result says which *arr is tracking the download (or that
+none recorded it), and repeats the two-copies warning when the preview found a
+replacement.
+
+**Remove Failed must be off.** Radarr and Sonarr's "Remove Failed" setting
+(Settings, Download Clients, on by default) deletes a failed job from the client
+as soon as it fails, so there is nothing left to retry. Their grabs are only
+retryable with it off.
+
+If no *arr imports the result, `trigger_scan` with `action: "import"` does; the
+result names the `download_id` to give it (the new nzo_id after a SABnzbd retry,
+the `drone` id for an NZBGet download an *arr grabbed). The hint is left out
+when the retry failed again or the job is already gone from the client. Safe
+tier; see [writes.md](writes.md).
+
 ## `discover_media`
 
 `similar_to` takes a TMDB numeric id and answers from Seerr's
@@ -1694,7 +1739,7 @@ no-op, and a request naming no field at all is refused rather than previewed.
 
 ## Prompts and resources
 
-Thirty-eight tools do not tell you which one to reach for, and the questions
+Forty tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

@@ -39,6 +39,7 @@ re-monitor it.
 | `grab_release` | safe | `safe_write` |
 | `request_media` | safe | `safe_write` |
 | `pause_downloads` | safe | `safe_write` |
+| `retry_download` | safe | `safe_write` |
 | `set_watched` | safe | `safe_write` |
 | `remove_blocklist_item` | safe | `safe_write` |
 | `manage_indexer` | safe to add, edit, disable or enable; destructive to delete | `safe_write`, or `destructive` for `delete` |
@@ -123,6 +124,12 @@ that is a permission property rather than a missing convenience: every write's
 tier is checked against exactly one resolved service id, so a tool spanning
 three clients would have to nominate one of them for that check — and enabling
 `safe_write` on SABnzbd would then quietly enable it on Transmission.
+
+`retry_download` is safe because it re-downloads at most what is missing and
+deletes nothing. The worst outcome is a second copy of something Radarr or
+Sonarr already replaced, which the preview warns about and which
+`remove_queue_item` or a delete undoes. The `password` argument is redacted in
+the audit log, and the preview, the summary and the result never show it.
 
 ## The confirmation handshake
 

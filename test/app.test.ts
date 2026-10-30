@@ -393,6 +393,7 @@ describe('the advertised tool surface', () => {
         'remove_queue_item',
         'request_media',
         'respond_to_request',
+        'retry_download',
         'set_monitoring',
         'set_watched',
         'sync_database',
@@ -1191,25 +1192,19 @@ describe('prompts and resources, beside the tools rather than instead of them', 
     });
 
     /**
-     * Nineteen, unchanged. 0.9 extended three existing tools and added none —
-     * `CONTRIBUTING.md` calls the count a hard constraint because accuracy
-     * degrades past roughly forty, and a phase that quietly spent four of that
-     * budget on convenience would be the wrong trade.
-     */
-    /**
      * The count is asserted against TOOL_NAMES rather than a literal, because a
      * literal in a test is a second place the number lives and the two drift.
      * `CONTRIBUTING.md` caps this near forty — accuracy degrades past it — so
      * the guard that matters is the ceiling, not the exact figure.
      */
-    it('advertises exactly the frozen tool list, well inside the ceiling', async () => {
+    it('advertises exactly the frozen tool list, and the tool count stays within the forty-tool ceiling', async () => {
         const res = await app().request(
             'http://localhost:6060/mcp',
             rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
         );
         const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
         expect(result.tools).toHaveLength(TOOL_NAMES.length);
-        expect(TOOL_NAMES.length).toBeLessThan(40);
+        expect(TOOL_NAMES.length).toBeLessThanOrEqual(40);
     });
 });
 

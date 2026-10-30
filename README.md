@@ -48,7 +48,7 @@ part it could not check rather than guessing across the hole.
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
-| 📚 **Thirty-nine tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
+| 📚 **Forty tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
 
 Nothing else in this space does the last five at all.
 
@@ -141,7 +141,7 @@ ARM NAS runs the same build as everything else.
 
 ## What you can ask it
 
-Thirty-eight tools, but you never name them — you ask, and the model picks:
+Forty tools, but you never name them — you ask, and the model picks:
 
 > *"What's downloading right now, and is anything stuck?"*
 > *"What aired this week that I haven't watched?"*
@@ -164,7 +164,7 @@ Thirty-eight tools, but you never name them — you ask, and the model picks:
 
 | | |
 | --- | --- |
-| **[Tools](docs/tools.md)** | All thirty-nine, what each answers, and the fields whose meaning is not obvious |
+| **[Tools](docs/tools.md)** | All forty, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, the eight services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
@@ -244,7 +244,7 @@ not solve. Found something? [SECURITY.md](SECURITY.md).
 
 arr-mcp is glue; the hard parts belong to other people. Nearly every service it
 speaks to is free software maintained largely by volunteers — [Radarr](https://radarr.video),
-[Sonarr](https://sonarr.tv), [Whisparr](https://github.com/Whisparr/Whisparr),
+[Sonarr](https://sonarr.tv), [Whisparr](https://github.com/Whisparr/Whisparr), [Lidarr](https://lidarr.audio),
 [Prowlarr](https://prowlarr.com),
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
