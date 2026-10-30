@@ -3,7 +3,8 @@ import { servicesOnly } from '../../core/gather.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { currentStrikes } from '../cleanuparrQueue.ts';
 import type { FilmOrSeries, MergedItem } from '../../core/resolver.ts';
-import type { HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
+import type { CleanupRemoval, CleanupStatus, HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
+import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
 
 export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan';
 /** `warning` is worth a look but blocks nothing. */
@@ -49,6 +50,8 @@ export type Evidence = {
     scanCapable: boolean;
     /** Cleanuparr events for this item's downloads, newest first. null: not configured. */
     cleanuparr: HistoryEntry[] | null | undefined;
+    /** Reclaimerr's view of this title: candidates, protections, removals. null: not configured. */
+    cleanup?: CleanupStatus | null | undefined;
     /**
      * Download-history rows whose release name matches the query, read only
      * when the query resolved to nothing: an item removed from Radarr whose
@@ -727,10 +730,13 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
                       detail: `${acquisition.service} has it, but it is not monitored.`
                   }
         );
+        const removed = acquisition.hasFile ? undefined : wholeRemoval(ev.cleanup);
         steps.push(
             acquisition.hasFile
                 ? { stage: 'file', service: acquisition.service, status: 'ok', detail: 'A file is on disk.' }
-                : { stage: 'file', service: acquisition.service, status: 'blocked', detail: 'No file on disk yet.' }
+                : removed !== undefined
+                  ? { stage: 'file', service: acquisition.service, status: 'blocked', detail: `No file on disk: ${removalSentence(ev.cleanup?.service ?? 'the cleanup service', removed)}` }
+                  : { stage: 'file', service: acquisition.service, status: 'blocked', detail: 'No file on disk yet.' }
         );
     }
 
@@ -819,7 +825,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // appears at all. A confirmed file is what lets the true wording say
     // "does not block the file already on disk"; its absence gets the
     // "may be the actual cause" wording instead, not silence.
-    const aside = queueAside(queueResult, fileIsOk);
+    const aside = queueAside(queueResult, fileIsOk) + cleanupAside(ev, byStage.get('file')?.detail);
 
     if (verdictStage === undefined) {
         // The positive claim "is available in <server> and playable" is only
@@ -853,12 +859,14 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
             : blocking.stage === 'file'
               // The `file` step always carries the managing service: it is only
               // pushed on the branch where `acquisition` is defined.
-              ? fileRemedy(
-                    blocking.service as string,
-                    ev,
-                    byStage.get('queue')?.status ?? 'unknown',
-                    byStage.get('indexers')?.status ?? 'unknown'
-                )
+              ? wholeRemoval(ev.cleanup) !== undefined && acquisition?.hasFile === false
+                  ? `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then search for it in ${blocking.service as string}.`
+                  : fileRemedy(
+                        blocking.service as string,
+                        ev,
+                        byStage.get('queue')?.status ?? 'unknown',
+                        byStage.get('indexers')?.status ?? 'unknown'
+                    )
               : blocking.stage === 'library' || blocking.stage === 'scan'
                 ? libraryRemedy(blocking.stage, ev.mediaServer as string)
                 : REMEDIES[blocking.stage];
@@ -889,6 +897,31 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
         },
         degraded: allDegraded(ev)
     };
+}
+
+/** A removal of the title itself, not of one season or episode, which leaves the rest on disk. */
+function wholeRemoval(cleanup: CleanupStatus | null | undefined): CleanupRemoval | undefined {
+    return cleanup?.removals.find(r => r.scope === 'movie' || r.scope === 'version' || r.scope === 'series');
+}
+
+/**
+ * What the cleanup service is about to do to this title, or did to part of it.
+ * Not a stage: a deletion that has not happened blocks nothing, but someone
+ * asking about a title should hear it is about to go.
+ */
+function cleanupAside(ev: Evidence, fileDetail: string | undefined): string {
+    const cleanup = ev.cleanup;
+    if (cleanup === null || cleanup === undefined) return '';
+    const upcoming = upcomingSentence(cleanup.service, cleanup.candidates);
+    if (upcoming !== undefined) return ` (Also: ${upcoming})`;
+    const latest = cleanup.removals[0];
+    if (latest === undefined) return '';
+    // A file on disk after a whole-title removal means it came back since.
+    if (ev.item?.acquisition?.hasFile === true && wholeRemoval({ ...cleanup, removals: [latest] }) !== undefined) return '';
+    const sentence = removalSentence(cleanup.service, latest);
+    // Already the file step's own detail, which the verdict quotes.
+    if (fileDetail?.includes(sentence) === true) return '';
+    return ` (Also: ${sentence})`;
 }
 
 const resolvedOf = (item: FilmOrSeries): NonNullable<Diagnosis['resolved']> => ({

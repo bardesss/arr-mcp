@@ -10,7 +10,8 @@ import { logger } from '../core/logger.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
-import { hasMediaDetails, type EpisodeSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
+import { hasMediaDetails, type CleanupStatus, type EpisodeSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
+import { removalSentence, upcomingSentence, withCleanup } from './cleanupStatus.ts';
 import type { LibraryLoader } from './library.ts';
 import { withBoth } from './mediaServers.ts';
 
@@ -175,13 +176,14 @@ export async function resolveMediaDetails(
     // The explicit id wins when both are given: an id is unambiguous and a
     // title is not.
     if (opts.service !== undefined && opts.id !== undefined) {
-        return buildGetMediaDetails(adapters, {
+        const details = await buildGetMediaDetails(adapters, {
             service: opts.service,
             ...(opts.instance === undefined ? {} : { instance: opts.instance }),
             id: opts.id,
             detail: opts.detail,
             limit: opts.limit
         }, dataset);
+        return withCleanup(adapters, details);
     }
 
     if (opts.query === undefined) {
@@ -190,7 +192,7 @@ export async function resolveMediaDetails(
         throw new Error('Name either a query (a title) or both service and id.');
     }
 
-    return buildResolvedMediaDetails(loader, opts.query, { adapters, detail: opts.detail, limit: opts.limit });
+    return withCleanup(adapters, await buildResolvedMediaDetails(loader, opts.query, { adapters, detail: opts.detail, limit: opts.limit }));
 }
 
 export function registerGetMediaDetails(
@@ -206,7 +208,7 @@ export function registerGetMediaDetails(
             title: 'Media details',
             annotations: READ_ONLY,
             description:
-                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full returns its episodes on **either** form: the raw view lists them from that service, and the title form fetches them from the Sonarr that manages the series — so a series no Sonarr manages carries none. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known. Both forms — by title and by `service` plus `id` — carry `seasons[].monitored`, Sonarr’s own per-season monitoring flag, absent rather than false when no Sonarr manages the series. Check it before delete_episode_files: deleting the files of a season that is still monitored makes Sonarr search for them again and re-download exactly what was removed. Anything with a file also carries `audioLanguages` — the track languages the service read off the file itself, like `jpn/eng`. That is what answers “is the English dub here”: a `MULTi` or `Dual Audio` in a release name says what the grab was labelled, not what landed on disk. It sits on each episode row for a series, which needs detail: full, and on the record itself for a film.' +
+                'Everything known about one item. Give a title as `query` for the merged record — acquisition, watch state, ratings and presence joined across services — or `service` plus `id` for one service’s raw view, which is how you inspect a join that looks wrong — the explicit id wins if both are given. A series at detail: full returns its episodes on **either** form: the raw view lists them from that service, and the title form fetches them from the Sonarr that manages the series — so a series no Sonarr manages carries none. Asked by title, a series also carries `seasons`: per-season `watched` and `lastPlayed` from Jellyfin, `onDisk`, `aired` and `total` from Sonarr, and `complete`, which is absent rather than false whenever it cannot be known. Both forms — by title and by `service` plus `id` — carry `seasons[].monitored`, Sonarr’s own per-season monitoring flag, absent rather than false when no Sonarr manages the series. Check it before delete_episode_files: deleting the files of a season that is still monitored makes Sonarr search for them again and re-download exactly what was removed. Anything with a file also carries `audioLanguages` — the track languages the service read off the file itself, like `jpn/eng`. That is what answers “is the English dub here”: a `MULTi` or `Dual Audio` in a release name says what the grab was labelled, not what landed on disk. It sits on each episode row for a series, which needs detail: full, and on the record itself for a film. With Reclaimerr configured, `cleanup` says what its rules matched in this title and when it will be deleted or moved (`candidates`, soonest first), what protects it (`protections`) and what it already removed in the last year (`removals`) — absent when Reclaimerr has nothing on it.' +
                 withBoth(mediaServerIds, 'With two media servers, `media_servers` says which has it and under which `itemId`.'),
             /**
              * One item, and the only tool answering in two different shapes:
@@ -267,7 +269,13 @@ export function registerGetMediaDetails(
                             ? `, ${result.episodeCount} episode(s) — ask for detail: full to list them.`
                             : `, ${result.episodes.length} of ${result.episodeCount} episode(s).`);
 
-            return { content: [{ type: 'text', text: summary }], structuredContent: result };
+            const cleanup = 'cleanup' in result ? (result.cleanup as CleanupStatus) : undefined;
+            const cleanupNote =
+                cleanup === undefined
+                    ? ''
+                    : ` ${upcomingSentence(cleanup.service, cleanup.candidates) ?? (cleanup.removals[0] === undefined ? '' : removalSentence(cleanup.service, cleanup.removals[0]))}`.trimEnd();
+
+            return { content: [{ type: 'text', text: summary + cleanupNote }], structuredContent: result };
         }
     );
 }
