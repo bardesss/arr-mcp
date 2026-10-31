@@ -309,7 +309,10 @@ been exercised against a real instance. [qBittorrent](../../issues/147) has an
 adapter too, exercised against a real 5.2.3 server in [#195](../../issues/195)
 for login and health only. Cleanuparr was tested by its requester on a live
 2.10.12 with qBittorrent 5.3.0 in [#308](../../issues/308), and those captures
-are its fixtures; its Transmission path has not met a real instance. Whichever you take on, your testing is the only
+are its fixtures; its Transmission path has not met a real instance. Reclaimerr
+was tested by its requester on a live 0.6.5 in [#402](../../issues/402), and
+those captures are its fixtures; it has not yet deleted anything there, so its
+deletion events are tested on a captured candidate inside a constructed event. Whichever you take on, your testing is the only
 testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
@@ -503,7 +506,9 @@ read by hand.
 
 Radarr, Sonarr, Whisparr, Prowlarr, Jellyfin, Seerr and Profilarr are generated.
 Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent, Plex and Cleanuparr publish no usable spec
-and are hand-written against recorded fixtures.
+and are hand-written against recorded fixtures. Reclaimerr publishes OpenAPI at
+`/api/v1/openapi.json`, but its adapter reads seven endpoints and is
+hand-written too, against fixtures captured from 0.6.5.
 
 ### The nightly compatibility check
 

@@ -205,6 +205,16 @@ after 3 strikes." `history` holds the row behind each one. Nothing matching
 leaves today's answer, and a history source that could not be read sets
 `certain: false`. A query that resolves never triggers this read.
 
+With Reclaimerr configured, `diagnose` looks the title up there by its TMDB id.
+When the managing *arr has no file and Reclaimerr deleted or moved the whole
+title in the last year, the file stage says so, with the date and the rule, and
+`remedy` says to protect it in Reclaimerr before searching again, since the same
+rule would otherwise delete it again. A removal of one season or episode leaves
+the rest on disk, so it is only mentioned in the summary. When a rule has the
+title scheduled for deletion, or eligible at the next deletion run, the summary
+says so with the date and the rule. Neither blocks a playable verdict, and a
+Reclaimerr that cannot be read only adds it to `degraded`.
+
 ## `stack_health`
 
 With more than one instance of a service, each is reported separately. With
@@ -344,6 +354,27 @@ Paths are fenced. Categories and patterns are not, the same as rule categories.
   compared and stops there, without flagging each directory.
 
 The client's torrents are read once and serve both this and the rule coverage above.
+
+### Reclaimerr
+
+With Reclaimerr configured, its health findings join the failing checks: a
+status other than `ok`, no main media server (rules based on watch history
+cannot match), a candidate whose deletion failed (with the attempt count and
+Reclaimerr's error), an API token missing one of the read scopes arr-mcp uses or
+carrying a write scope it does not need, and a Reclaimerr minor newer than 0.6
+(flagged as untested).
+
+At `full`, `cleanup` says what its rules will do: `candidates`, soonest first
+(`eligible` goes at the next run of the deletion task, then `scheduled` by
+`eligibleAt`, then `postponed`, `disabled` and `canceled`), each with its
+scope, the rules that matched it, `operation` (`delete` or `move`), `blockers`
+and any failed deletion. `rules` lists every rule with its outcome
+(`candidate`, `protect` or `match`), `protections` counts the active
+protections, `totals` gives the reclaimable and reclaimed bytes, and
+`autoDelete.enabled` says whether the deletion task runs at all: when it is
+off, nothing is deleted on its own whatever the dates say. The candidate list
+takes the call's `limit`; `total` is always the full count. The summary line
+says how many are set to go and when the first one is.
 
 ### Did that command finish?
 
@@ -825,6 +856,18 @@ Radarr and Sonarr rows now carry the same `downloadId`, also lowercased.
 case-insensitively. Passing `id` with
 `service: cleanuparr` is refused, because Cleanuparr does not keep history per
 movie or series.
+
+### Reclaimerr
+
+Reclaimerr contributes its cleanup lifecycle, read from its event feed:
+`scheduled` (a rule matched and a deletion date was set), `deleted` (deleted or
+moved; `rawEvent` says which), `protected` (a candidate protected, or a
+protection created through its API) and `unknown` for a cancel, a postpone or a
+timer reset. `reason` carries the rule names and Reclaimerr's own reason,
+fenced. Its feed is oldest first, so without `since` arr-mcp reads the last 7
+days and widens to 30, 180 and 730 until it holds the rows asked for. Passing
+`id` with `service: reclaimerr` is refused: its events are per candidate, not
+per movie or series, and `get_media_details` shows one title's cleanup state.
 
 ### The services below the *arrs
 
