@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.50.0](https://github.com/bardesss/arr-mcp/compare/v1.49.0...v1.50.0) (2026-10-31)
+
+
+### Features
+
+* **stack_health:** show what Cleanuparr's Queue Cleaner and Malware Blocker remove ([#413](https://github.com/bardesss/arr-mcp/issues/413)) ([a6a7574](https://github.com/bardesss/arr-mcp/commit/a6a75743fb2d6aa2978c6e1d4cb4b47544202316))
+
 ## [1.49.0](https://github.com/bardesss/arr-mcp/compare/v1.48.1...v1.49.0) (2026-10-31)
 
 
