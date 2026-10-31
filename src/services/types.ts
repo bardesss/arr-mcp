@@ -327,8 +327,8 @@ export type QueueItem = {
     category?: string;
     tags?: string[];
     savePath?: string;
-    /** Cleanuparr's strikes on this download since its last reset, at `detail: "full"`. */
-    strikes?: { count: number; reason: string; lastAt: string; dryRun?: true };
+    /** Cleanuparr's strikes on this download, one per kind since that kind's last reset, at `detail: "full"`. Real ones first, then the highest count. */
+    strikes?: { count: number; reason: string; lastAt: string; dryRun?: true }[];
     /** Internal: what Cleanuparr's rules match on. Never returned by a tool. */
     torrent?: TorrentFacts;
 };
@@ -500,6 +500,8 @@ export type HistoryEntry = {
     downloadId?: string;
     /** Cleanuparr only. */
     strikeCount?: number;
+    /** Cleanuparr only: the kind of strike counted or reset, e.g. `DeadTorrent`. Cleanuparr counts each kind apart. */
+    strikeType?: string;
     /** Cleanuparr only: logged under dry run, nothing was done. */
     dryRun?: true;
     /** Cleanuparr `recategorised` only. Category names, not prose, so not fenced. */

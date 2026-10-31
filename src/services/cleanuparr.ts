@@ -31,6 +31,21 @@ type RawHealth = { entries?: Record<string, RawHealthEntry> };
 type RawArrStatus = Record<string, Array<{ name?: string; isConnected?: boolean; message?: string }>>;
 export type RawClientStatus = { id: string; name: string; type: string; host: string; enabled: boolean; isConnected: boolean };
 type RawJob = { jobType?: string; status?: string };
+
+/** A job that is running or done is still on its schedule; `Not Scheduled`, `Paused` and `Error` are not. */
+const ON_SCHEDULE = new Set(['Scheduled', 'Running', 'Complete']);
+
+/** Cleanuparr's StrikeType values: a strike's event is the type plus `Strike`, a reset names the type in its message. */
+const STRIKE_TYPES = new Set(['Stalled', 'DownloadingMetadata', 'FailedImport', 'SlowSpeed', 'SlowTime', 'DeadTorrent']);
+
+function strikeTypeOf(e: { eventType?: string; message?: string | null }): string | undefined {
+    if (e.eventType === 'StrikeReset') {
+        const named = /'(\w+)' strike\(s\) reset/.exec(e.message ?? '')?.[1];
+        return named !== undefined && STRIKE_TYPES.has(named) ? named : undefined;
+    }
+    const type = e.eventType?.endsWith('Strike') === true ? e.eventType.slice(0, -'Strike'.length) : undefined;
+    return type !== undefined && STRIKE_TYPES.has(type) ? type : undefined;
+}
 export type RawGeneral = { dryRun?: boolean; ignoredDownloads?: string[] };
 
 type RawRule = {
@@ -196,7 +211,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             if (c.enabled && !c.isConnected) out.push(check('clients', 'error', fence(`Download client "${c.name}" is not connected`)));
         }
         // The Download Cleaner is covered by the seeding rules note, which knows whether any rules exist.
-        if ((jobs ?? []).some(j => j.jobType === 'QueueCleaner' && j.status !== 'Scheduled')) {
+        if ((jobs ?? []).some(j => j.jobType === 'QueueCleaner' && !ON_SCHEDULE.has(j.status ?? ''))) {
             out.push(check('jobs', 'warning', 'Queue Cleaner is not scheduled, so its rules are not enforced'));
         }
         if (general?.dryRun === true) out.push(check('general', 'warning', 'Dry run is on: Cleanuparr logs what it would do and does nothing'));
@@ -232,7 +247,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
         return {
             sets,
             dryRun: general.dryRun === true,
-            enforced: jobs.some(j => j.jobType === 'DownloadCleaner' && j.status === 'Scheduled'),
+            enforced: jobs.some(j => j.jobType === 'DownloadCleaner' && ON_SCHEDULE.has(j.status ?? '')),
             ignored: [...(general.ignoredDownloads ?? []), ...(cleaner.ignoredDownloads ?? [])].filter(v => v.trim() !== '')
         };
     }
@@ -278,6 +293,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
     #entryOf(e: RawEvent, clients: Map<string, string> | undefined): HistoryEntry | undefined {
         if (e.id === undefined || e.eventType === undefined || DROPPED.has(e.eventType)) return undefined;
         const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const strikeType = strikeTypeOf(e);
         const reasons = [e.deleteReason, e.cleanReason, ...(e.failedImportReasons ?? [])].filter((r): r is string => typeof r === 'string' && r !== '');
         return {
             service: this.id,
@@ -289,6 +305,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             ...(reasons.length === 0 ? {} : { reason: fence(reasons.join('; '), 'reason') }),
             ...(e.itemHash ? { downloadId: e.itemHash.toLowerCase() } : {}),
             ...(typeof e.strikeCount === 'number' ? { strikeCount: e.strikeCount } : {}),
+            ...(strikeType === undefined ? {} : { strikeType }),
             ...(e.isDryRun === true ? { dryRun: true as const } : {}),
             ...(e.oldCategory ? { oldCategory: e.oldCategory } : {}),
             ...(e.newCategory ? { newCategory: e.newCategory } : {}),

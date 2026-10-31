@@ -9,6 +9,7 @@ export type UnmatchedReason =
     | 'no category'
     | 'category not in any rule'
     | 'tracker not in any rule'
+    | 'tracker unknown'
     | 'tags not in any rule'
     | 'privacy unknown'
     | 'privacy mismatch';
@@ -52,8 +53,8 @@ const tracker = (t: TorrentFacts, r: CleanuparrRule) =>
 const tags = (t: TorrentFacts, r: CleanuparrRule) =>
     (r.unsupported.includes('tagsAny') || r.tagsAny.length === 0 || r.tagsAny.some(tag => t.tags.some(x => same(x, tag)))) &&
     (r.unsupported.includes('tagsAll') || r.tagsAll.length === 0 || r.tagsAll.every(tag => t.tags.some(x => same(x, tag))));
-const privacy = (t: TorrentFacts, r: CleanuparrRule) =>
-    r.privacy === 'both' || (t.private !== undefined && r.privacy === (t.private ? 'private' : 'public'));
+// Cleanuparr reads a torrent the client says nothing about as public, so a public rule takes it.
+const privacy = (t: TorrentFacts, r: CleanuparrRule) => r.privacy === 'both' || r.privacy === ((t.private ?? false) ? 'private' : 'public');
 
 /** In Cleanuparr's order, so the first filter to empty the list is the one to blame. */
 const FILTERS = [
@@ -75,7 +76,12 @@ export function unmatchedReason(t: TorrentFacts, rules: readonly CleanuparrRule[
     let left = [...rules];
     for (const [reason, f] of FILTERS) {
         const kept = left.filter(r => f(t, r));
-        if (kept.length === 0) return reason === 'privacy mismatch' && t.private === undefined ? 'privacy unknown' : reason;
+        if (kept.length === 0) {
+            if (reason === 'privacy mismatch' && t.private === undefined) return 'privacy unknown';
+            // qBittorrent names only a tracker that is working right now; Cleanuparr reads them all.
+            if (reason === 'tracker not in any rule' && t.trackerDomains.length === 0) return 'tracker unknown';
+            return reason;
+        }
         left = kept;
     }
     return 'category not in any rule';

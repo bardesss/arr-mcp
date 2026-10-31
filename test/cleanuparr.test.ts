@@ -67,6 +67,12 @@ describe('CleanuparrAdapter health', () => {
         expect(checks.every(c => c.service === 'cleanuparr')).toBe(true);
     });
 
+    it('does not call a Queue Cleaner unscheduled while it is running', async () => {
+        const jobs = [{ jobType: 'QueueCleaner', status: 'Running' }];
+        const checks = await new CleanuparrAdapter(config, stub(healthRoutes({ '/api/jobs': jobs }))).getFailedHealthChecks();
+        expect(checks.some(c => c.message.includes('Queue Cleaner'))).toBe(false);
+    });
+
     it('warns on a minor version newer than the tested one', async () => {
         const adapter = new CleanuparrAdapter(config, stub(healthRoutes({ '/api/status': { application: { version: '2.11.0.0' } } })));
         const checks = await adapter.getFailedHealthChecks();
@@ -179,6 +185,14 @@ describe('CleanuparrAdapter seeding rules', () => {
         );
         const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/jobs': jobs })));
         expect((await adapter.getSeedingRules()).enforced).toBe(false);
+    });
+
+    it('counts a running or just finished Download Cleaner as scheduled', async () => {
+        for (const status of ['Running', 'Complete']) {
+            const jobs = (fixture('jobs') as Array<{ jobType: string; status: string }>).map(j => (j.jobType === 'DownloadCleaner' ? { ...j, status } : j));
+            const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/jobs': jobs })));
+            expect((await adapter.getSeedingRules()).enforced).toBe(true);
+        }
     });
 
     it('maps an action it does not know to unknown', async () => {
@@ -308,7 +322,9 @@ describe('against Cleanuparr 2.10.12 with one qBittorrent', () => {
     it('maps every event type it emitted, keeping categories and the deleted client', async () => {
         const { items } = (await new CleanuparrAdapter(config, stub(routes)).readHistory({})) as { items: HistoryEntry[] };
         expect(items.map(i => i.event)).toEqual(['recovered', 'strike', 'recategorised', 'deleted']);
-        expect(items[1]).toMatchObject({ strikeCount: 1, downloadId: '<hash>' });
+        expect(items[0]).toMatchObject({ strikeType: 'DeadTorrent' });
+        expect(items[1]).toMatchObject({ strikeCount: 1, downloadId: '<hash>', strikeType: 'DeadTorrent' });
+        expect(items[2]?.strikeType).toBeUndefined();
         expect(items[2]).toMatchObject({ oldCategory: 'tv-sonarr', newCategory: 'cleanuparr-dead' });
         expect(items[2]?.downloadClient).toContain('qBittorrent VPN');
         expect(items[3]).toMatchObject({ clientRemoved: true });

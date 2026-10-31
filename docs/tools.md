@@ -629,9 +629,12 @@ A torrent that a Cleanuparr rule governs carries `seeding.cleanuparr`: `rule`
 (its name), `action` (`delete`, `stop` or `unknown`), the limits it sets
 (`ratioLimit`, `seedingLimitSeconds`, `minSeedSeconds`), and flags that only
 appear as `true` or text when relevant. `dryRun` means Cleanuparr only logs.
-`notEnforced` means its Download Cleaner is not scheduled. `uncertain` says why
-the rule cannot be judged from here, for example when it filters on seeder
-count or last activity.
+`notEnforced` means its Download Cleaner is not scheduled (one that is running
+right now counts as scheduled). `uncertain` says why the rule cannot be judged
+from here: it filters on seeder count or last activity, or a tracker rule above
+it might be Cleanuparr's pick but the client named no working tracker.
+qBittorrent names only a tracker that is working right now, while Cleanuparr
+reads them all.
 
 Instead of a rule it can carry `{ skipped: reason }`: the torrent is not
 seeding, is ignored in Cleanuparr, is still in an *arr queue, is already
@@ -639,21 +642,27 @@ stopped, or the rule's action is unknown.
 
 A torrent on a mapped client that no rule covers carries `{ unmatched: reason }`,
 the first filter that ruled every rule out, in Cleanuparr's order: `no category`,
-`category not in any rule`, `tracker not in any rule`, `tags not in any rule`,
-then `privacy mismatch`, or `privacy unknown` when the client did not say whether
-the torrent is private. Torrent rows carry their `category` and `tags`, and an
+`category not in any rule`, `tracker not in any rule` (or `tracker unknown` when
+the client named no working tracker), `tags not in any rule`, then
+`privacy mismatch`, or `privacy unknown` when the client did not say whether
+the torrent is private. Cleanuparr reads such a torrent as public, so a public
+rule takes it and only a private one leaves it unmatched. Torrent rows carry their `category` and `tags`, and an
 unmatched one its `savePath` too, so the reason can be checked.
 
-A download Cleanuparr has struck, torrent or *arr row, carries `strikes`: the
-`count` since its last reset, the `reason` (`stalled`, `slow speed`,
-`dead torrent` and so on), `lastAt`, when the latest one landed, and `dryRun`
-when Cleanuparr only logged it. They come from the last 30 days of its events.
+A download Cleanuparr has struck, torrent or *arr row, carries `strikes`, one
+entry per kind of strike, since Cleanuparr counts and resets each kind on its own
+and dry-run strikes apart from real ones. Each has the `count` since that kind's
+last reset, the `reason` (`stalled`, `slow speed`, `dead torrent` and so on),
+`lastAt`, when the latest one landed, and `dryRun` when Cleanuparr only logged
+it. Real strikes come first, then the highest count. They come from the last 30
+days of its events.
 Strikes on a client since deleted from Cleanuparr are left out: a torrent moved
 to another client starts its count afresh there.
 
 When the rule applies and is certain, `overLimit` is judged against it, not the
 client's limit, and `limitSource: "cleanuparr"` says so. When it is uncertain,
-the client's own verdict stays. Rules only reach a client whose host, port and
+or the rule sets neither a ratio nor a time limit, the client's own verdict
+stays. Rules only reach a client whose host, port and
 type match one of Cleanuparr's; see
 [Cleanuparr](configuration.md#cleanuparr).
 

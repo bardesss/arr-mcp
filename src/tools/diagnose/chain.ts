@@ -259,10 +259,10 @@ const STRIKE_KIND: Record<string, string> = {
 /** Only a strike on this row's own download counts. */
 function strikeNoteFor(row: QueueItem, events: Evidence['cleanuparr']): string {
     const rowId = (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
-    const strike = rowId === undefined ? undefined : currentStrikes(events ?? []).get(rowId);
-    if (strike === undefined) return '';
-    const kind = STRIKE_KIND[strike.rawEvent] ?? '';
-    return ` ${strike.count} strikes${kind} from Cleanuparr so far${strike.dryRun === true ? ' (dry run)' : ''}.`;
+    const strikes = rowId === undefined ? undefined : currentStrikes(events ?? []).get(rowId);
+    if (strikes === undefined) return '';
+    const each = strikes.map(s => `${s.count} strikes${STRIKE_KIND[s.rawEvent] ?? ''}${s.dryRun === true ? ' (dry run)' : ''}`);
+    return ` ${each.join(', ')} from Cleanuparr so far.`;
 }
 
 function queueStep(ev: Evidence, item: MergedItem): QueueResult {

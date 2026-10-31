@@ -37,11 +37,12 @@ describe('matchRule', () => {
         expect(matchRule(torrent({ tags: [] }), [rule({ tagsAny: ['x'], unsupported: ['tagsAny'] })])).toBeDefined();
     });
 
-    it('matches privacy, and an unknown privacy only matches both', () => {
+    it('matches privacy, and reads an unknown privacy as public the way Cleanuparr does', () => {
         expect(matchRule(torrent({ private: false }), [rule({ privacy: 'public' })])).toBeDefined();
         expect(matchRule(torrent({ private: true }), [rule({ privacy: 'public' })])).toBeUndefined();
         expect(matchRule(torrent({ private: true }), [rule({ privacy: 'private' })])).toBeDefined();
-        expect(matchRule(torrent({ private: undefined }), [rule({ privacy: 'public' })])).toBeUndefined();
+        expect(matchRule(torrent({ private: undefined }), [rule({ privacy: 'public' })])).toBeDefined();
+        expect(matchRule(torrent({ private: undefined }), [rule({ privacy: 'private' })])).toBeUndefined();
         expect(matchRule(torrent({ private: undefined }), [rule({ privacy: 'both' })])).toBeDefined();
     });
 
@@ -150,6 +151,11 @@ describe('unmatchedReason', () => {
         expect(unmatchedReason(torrent(), [rule({ tagsAny: ['keep'] })])).toBe('tags not in any rule');
         expect(unmatchedReason(torrent(), [rule({ privacy: 'private' })])).toBe('privacy mismatch');
         expect(unmatchedReason(torrent({ private: undefined }), [rule({ privacy: 'private' })])).toBe('privacy unknown');
+    });
+
+    it('says the tracker is unknown when the client named none', () => {
+        expect(unmatchedReason(torrent({ trackerDomains: [] }), [rule({ trackerPatterns: ['example.org'] })])).toBe('tracker unknown');
+        expect(unmatchedReason(torrent({ trackerDomains: ['other.net'] }), [rule({ trackerPatterns: ['example.org'] })])).toBe('tracker not in any rule');
     });
 
     it('follows the rules that pass each filter, not every rule', () => {

@@ -92,6 +92,27 @@ describe('annotateCleanuparr', () => {
         expect(items[0]?.seeding?.limitSource).toBeUndefined();
         expect(items[0]?.seeding?.cleanuparr).toMatchObject({ uncertain: expect.any(String) });
     });
+
+    it('keeps the client judgement when the rule has no ratio or time limit', async () => {
+        const items = [row({ seeding: { ratio: 3, seedingSeconds: 600, ratioLimit: 2, overLimit: true } })];
+        const { maxRatio: _m, ...noLimits } = rule({});
+        const s = seeding({ sets: [{ client: 'T', clientType: 'Transmission', endpoint: 'transmission.example:9091', rules: [noLimits] }] });
+        await annotateCleanuparr(items, [cleanuparr(s), transmission], () => {});
+        expect(items[0]?.seeding?.overLimit).toBe(true);
+        expect(items[0]?.seeding?.limitSource).toBeUndefined();
+        expect(items[0]?.seeding?.cleanuparr).toMatchObject({ rule: 'Public: stop now' });
+    });
+
+    it('is uncertain when a tracker rule above the match could apply and the client named no tracker', async () => {
+        const items = [row({})];
+        const s = seeding({ sets: [{ client: 'T', clientType: 'Transmission', endpoint: 'transmission.example:9091', rules: [
+            rule({ id: 't', name: 'Tracker', priority: 0, trackerPatterns: ['example.org'] }),
+            rule({})
+        ] }] });
+        await annotateCleanuparr(items, [cleanuparr(s), transmission], () => {});
+        expect(items[0]?.seeding?.cleanuparr).toMatchObject({ rule: 'Public: stop now', uncertain: "needs the torrent's trackers" });
+        expect(items[0]?.seeding?.limitSource).toBeUndefined();
+    });
 });
 
 describe('annotateCleanuparr edge cases', () => {
@@ -182,9 +203,17 @@ describe('unmatched torrents', () => {
         await annotateCleanuparr(priv, [cleanuparr(only), transmission], () => {});
         expect(priv[0]?.seeding?.cleanuparr).toEqual({ unmatched: 'privacy mismatch' });
         const { private: _p, ...unsure } = facts({});
+        const privateOnly = seeding({ sets: [{ client: 'Transmission', clientType: 'Transmission', endpoint: 'transmission.example:9091', rules: [rule({ privacy: 'private' })] }] });
         const unknown = [row({ torrent: unsure })];
-        await annotateCleanuparr(unknown, [cleanuparr(only), transmission], () => {});
+        await annotateCleanuparr(unknown, [cleanuparr(privateOnly), transmission], () => {});
         expect(unknown[0]?.seeding?.cleanuparr).toEqual({ unmatched: 'privacy unknown' });
+    });
+
+    it('lets a public rule take a torrent of unknown privacy, as Cleanuparr does', async () => {
+        const { private: _p, ...unsure } = facts({});
+        const items = [row({ torrent: unsure })];
+        await annotateCleanuparr(items, [cleanuparr(seeding()), transmission], () => {});
+        expect(items[0]?.seeding?.cleanuparr).toMatchObject({ rule: 'Public: stop now' });
     });
 
     it('shows category and tags at full detail, and the save path only when no rule matched', async () => {
@@ -211,8 +240,29 @@ describe('strikes on queue rows', () => {
             ev({ downloadId: 'bbb', event: 'recovered', rawEvent: 'StrikeReset' }),
             ev({ downloadId: 'bbb', rawEvent: 'StalledStrike', strikeCount: 1 })
         ]);
-        expect(strikes.get('aaa')).toMatchObject({ count: 2, reason: 'dead torrent' });
+        expect(strikes.get('aaa')).toMatchObject([{ count: 2, reason: 'dead torrent' }]);
         expect(strikes.has('bbb')).toBe(false);
+    });
+
+    it('counts each kind of strike apart, and a reset clears only its own kind', () => {
+        const strikes = currentStrikes([
+            ev({ rawEvent: 'DeadTorrentStrike', strikeType: 'DeadTorrent', strikeCount: 1, at: '4' }),
+            ev({ event: 'recovered', rawEvent: 'StrikeReset', strikeType: 'SlowSpeed', at: '3' }),
+            ev({ rawEvent: 'SlowSpeedStrike', strikeType: 'SlowSpeed', strikeCount: 2, at: '2' }),
+            ev({ rawEvent: 'StalledStrike', strikeType: 'Stalled', strikeCount: 3, at: '1' })
+        ]);
+        expect(strikes.get('aaa')).toEqual([
+            { count: 3, reason: 'stalled', rawEvent: 'StalledStrike', at: '1' },
+            { count: 1, reason: 'dead torrent', rawEvent: 'DeadTorrentStrike', at: '4' }
+        ]);
+    });
+
+    it('keeps dry-run strikes apart from real ones and lists the real ones first', () => {
+        const strikes = currentStrikes([
+            ev({ rawEvent: 'StalledStrike', strikeType: 'Stalled', strikeCount: 4, dryRun: true }),
+            ev({ rawEvent: 'StalledStrike', strikeType: 'Stalled', strikeCount: 2 })
+        ]);
+        expect(strikes.get('aaa')?.map(s => [s.count, s.dryRun])).toEqual([[2, undefined], [4, true]]);
     });
 
     it('skips strikes from a client since deleted from Cleanuparr', () => {
@@ -222,7 +272,7 @@ describe('strikes on queue rows', () => {
             ev({ downloadId: 'bbb', rawEvent: 'DeadTorrentStrike', strikeCount: 1, at: '2026-10-18T00:00:00Z', downloadClient: 'qBittorrent' })
         ]);
         expect(strikes.has('aaa')).toBe(false);
-        expect(strikes.get('bbb')).toMatchObject({ count: 1, at: '2026-10-18T00:00:00Z' });
+        expect(strikes.get('bbb')).toMatchObject([{ count: 1, at: '2026-10-18T00:00:00Z' }]);
     });
 
     it('puts strikes on torrent rows by hash and on *arr rows by download id', async () => {
@@ -233,8 +283,8 @@ describe('strikes on queue rows', () => {
             ev({ downloadId: 'ccc', rawEvent: 'StalledStrike', strikeCount: 2, dryRun: true })
         ];
         await annotateCleanuparr(items, [withEvents(seeding(), events), transmission], () => {});
-        expect(items[0]?.strikes).toEqual({ count: 1, reason: 'dead torrent', lastAt: 't' });
-        expect(items[1]?.strikes).toEqual({ count: 2, reason: 'stalled', lastAt: 't', dryRun: true });
+        expect(items[0]?.strikes).toEqual([{ count: 1, reason: 'dead torrent', lastAt: 't' }]);
+        expect(items[1]?.strikes).toEqual([{ count: 2, reason: 'stalled', lastAt: 't', dryRun: true }]);
     });
 
     it('still judges rules when the events cannot be read, and marks Cleanuparr degraded', async () => {

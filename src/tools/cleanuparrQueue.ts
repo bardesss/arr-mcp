@@ -25,28 +25,46 @@ const STRIKE_REASON: Record<string, string> = {
 export type Strikes = { count: number; reason: string; rawEvent: string; at: string; dryRun?: true };
 
 /**
- * Each download's standing strikes, from events newest first: the latest
- * strike counts unless a reset came after it. A strike on a client since
- * deleted from Cleanuparr is skipped: the torrent may have moved to another
- * client, where Cleanuparr counts afresh.
+ * Each download's standing strikes, from events newest first. Cleanuparr
+ * counts each kind of strike apart, and dry-run strikes apart from real ones,
+ * so each pair keeps its latest count unless a reset of that kind came after
+ * it. A reset that does not name its kind clears everything before it. A
+ * strike on a client since deleted from Cleanuparr is skipped: the torrent may
+ * have moved to another client, where Cleanuparr counts afresh.
+ *
+ * Per download, real strikes come first, then the highest count.
  */
-export function currentStrikes(events: readonly HistoryEntry[]): Map<string, Strikes> {
-    const decided = new Map<string, Strikes | null>();
+export function currentStrikes(events: readonly HistoryEntry[]): Map<string, Strikes[]> {
+    const decided = new Map<string, Map<string, Strikes | null>>();
+    const closed = new Set<string>();
     for (const e of events) {
-        if (e.downloadId === undefined || decided.has(e.downloadId) || e.clientRemoved === true) continue;
-        if (e.event === 'recovered') decided.set(e.downloadId, null);
-        else if (e.event === 'strike' && e.strikeCount !== undefined) {
-            const raw = e.rawEvent ?? '';
-            decided.set(e.downloadId, {
-                count: e.strikeCount,
-                reason: STRIKE_REASON[raw] ?? raw,
-                rawEvent: raw,
-                at: e.at,
-                ...(e.dryRun === true ? { dryRun: true as const } : {})
-            });
+        const id = e.downloadId;
+        if (id === undefined || closed.has(id) || e.clientRemoved === true) continue;
+        if (e.event !== 'recovered' && (e.event !== 'strike' || e.strikeCount === undefined)) continue;
+        if (e.event === 'recovered' && e.strikeType === undefined) {
+            closed.add(id);
+            continue;
         }
+        const raw = e.rawEvent ?? '';
+        const key = `${e.strikeType ?? raw}|${e.dryRun === true ? 'dry' : 'real'}`;
+        const kinds = decided.get(id) ?? new Map<string, Strikes | null>();
+        decided.set(id, kinds);
+        if (kinds.has(key)) continue;
+        kinds.set(
+            key,
+            e.event === 'recovered' || e.strikeCount === undefined
+                ? null
+                : { count: e.strikeCount, reason: STRIKE_REASON[raw] ?? raw, rawEvent: raw, at: e.at, ...(e.dryRun === true ? { dryRun: true as const } : {}) }
+        );
     }
-    return new Map([...decided].filter((kv): kv is [string, Strikes] => kv[1] !== null));
+    const out = new Map<string, Strikes[]>();
+    for (const [id, kinds] of decided) {
+        const standing = [...kinds.values()]
+            .filter((s): s is Strikes => s !== null)
+            .sort((a, b) => Number(a.dryRun === true) - Number(b.dryRun === true) || b.count - a.count);
+        if (standing.length > 0) out.set(id, standing);
+    }
+    return out;
 }
 
 /** Which client each rule set points at. A client two sets point at is a conflict, never guessed. */
@@ -90,7 +108,7 @@ export async function annotateCleanuparr(
         for (const item of items) {
             const id = item.torrent?.hash ?? item.downloadId?.toLowerCase();
             const hit = id === undefined ? undefined : strikes.get(id);
-            if (hit !== undefined) item.strikes = { count: hit.count, reason: hit.reason, lastAt: hit.at, ...(hit.dryRun === true ? { dryRun: true as const } : {}) };
+            if (hit !== undefined) item.strikes = hit.map(s => ({ count: s.count, reason: s.reason, lastAt: s.at, ...(s.dryRun === true ? { dryRun: true as const } : {}) }));
         }
     } else {
         logger.warn({ service: source.id, err: events.reason }, 'cleanuparr strikes unavailable; queue rows carry none');
@@ -122,10 +140,16 @@ export async function annotateCleanuparr(
         }
 
         const verdict = ruleVerdict(rule, item.seeding);
+        // qBittorrent names only a tracker that is working right now, so a rule above this one may be Cleanuparr's pick.
+        const trackerDoubt =
+            item.torrent.trackerDomains.length === 0 && set.rules.some(r => r.priority < rule.priority && r.trackerPatterns.length > 0);
+        const uncertain = verdict.uncertain ?? (trackerDoubt ? 'needs the torrent\'s trackers' : undefined);
+        // A rule without a ratio or time limit never acts on either, so the client's own limit still decides.
+        const keepClient = uncertain !== undefined || (rule.maxRatio === undefined && rule.maxSeedHours === undefined);
         const { overLimit: clientOver, ...rest } = item.seeding;
         item.seeding = {
             ...rest,
-            ...(verdict.uncertain === undefined ? { limitSource: 'cleanuparr' as const } : {}),
+            ...(keepClient ? {} : { limitSource: 'cleanuparr' as const }),
             ...(verdict.over ? { overLimit: true as const } : {}),
             cleanuparr: {
                 rule: rule.name,
@@ -135,10 +159,9 @@ export async function annotateCleanuparr(
                 ...(rule.minSeedHours === undefined ? {} : { minSeedSeconds: rule.minSeedHours * 3600 }),
                 ...(seeding.dryRun ? { dryRun: true as const } : {}),
                 ...(seeding.enforced ? {} : { notEnforced: true as const }),
-                ...(verdict.uncertain === undefined ? {} : { uncertain: verdict.uncertain })
+                ...(uncertain === undefined ? {} : { uncertain })
             }
         };
-        // An uncertain verdict keeps the client's own judgement.
-        if (verdict.uncertain !== undefined && clientOver === true) item.seeding.overLimit = true;
+        if (keepClient && clientOver === true) item.seeding.overLimit = true;
     }
 }
