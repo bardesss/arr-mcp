@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.49.0](https://github.com/bardesss/arr-mcp/compare/v1.48.1...v1.49.0) (2026-10-31)
+
+
+### Features
+
+* add a read-only Cleanuparr adapter ([#366](https://github.com/bardesss/arr-mcp/issues/366)) ([276dd92](https://github.com/bardesss/arr-mcp/commit/276dd92a9188c9a99b1de26df4e5cef85ce478c7))
+* **diagnose:** search download history when a title is in no library ([#410](https://github.com/bardesss/arr-mcp/issues/410)) ([6197eff](https://github.com/bardesss/arr-mcp/commit/6197eff7ccbfb9175c1b12f5221373854bce65fc))
+* **get_queue:** say when a Cleanuparr rule falls due ([#411](https://github.com/bardesss/arr-mcp/issues/411)) ([eb11cd2](https://github.com/bardesss/arr-mcp/commit/eb11cd2e50bcdf1c6ede00b0feaa60e486b004d6))
+* **stack_health:** check Cleanuparr rule coverage against the torrents ([#409](https://github.com/bardesss/arr-mcp/issues/409)) ([b0ebbb9](https://github.com/bardesss/arr-mcp/commit/b0ebbb96347195847088375446b6acb95b136909))
+* **stack_health:** report Cleanuparr's cleaner modules and where they leave gaps ([#412](https://github.com/bardesss/arr-mcp/issues/412)) ([668876b](https://github.com/bardesss/arr-mcp/commit/668876b7f9534ce2160e65b19778b3634205dca1))
+
+
+### Bug Fixes
+
+* **lidarr:** let get_media_details return an artist ([#406](https://github.com/bardesss/arr-mcp/issues/406)) ([3c5b337](https://github.com/bardesss/arr-mcp/commit/3c5b337c65b985f7ee13124aa5423d6c9a7ce606))
+
 ## [1.48.1](https://github.com/bardesss/arr-mcp/compare/v1.48.0...v1.48.1) (2026-10-30)
 
 
