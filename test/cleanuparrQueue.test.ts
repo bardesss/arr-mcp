@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CleanuparrRule } from '../src/core/cleanuparrRules.ts';
-import { annotateCleanuparr, currentStrikes } from '../src/tools/cleanuparrQueue.ts';
-import { buildGetQueue } from '../src/tools/getQueue.ts';
+import { annotateCleanuparr, currentStrikes, dueWithin } from '../src/tools/cleanuparrQueue.ts';
+import { buildGetQueue, dueText, queueLine } from '../src/tools/getQueue.ts';
 import type { CleanuparrSeeding, HistoryEntry, QueueItem, ServiceAdapter } from '../src/services/types.ts';
 
 const rule = (over: Partial<CleanuparrRule>): CleanuparrRule => ({
@@ -293,5 +293,96 @@ describe('strikes on queue rows', () => {
         await annotateCleanuparr(items, [withEvents(seeding(), new Error('down')), transmission], id => degraded.push(id));
         expect(items[0]?.seeding?.limitSource).toBe('cleanuparr');
         expect(degraded).toEqual(['cleanuparr']);
+    });
+});
+
+describe('when a Cleanuparr rule falls due', () => {
+    const NOW = Date.parse('2026-10-29T11:00:00Z');
+    const at = (seconds: number) => new Date(NOW + seconds * 1000).toISOString().replace('.000Z', 'Z');
+    const only = (r: CleanuparrRule, over: Partial<CleanuparrSeeding> = {}) =>
+        seeding({ sets: [{ client: 'T', clientType: 'Transmission', endpoint: 'transmission.example:9091', rules: [r] }], ...over });
+    const due = async (r: CleanuparrRule, over: Partial<CleanuparrSeeding> = {}) => {
+        const items = [row({})];
+        await annotateCleanuparr(items, [cleanuparr(only(r, over)), transmission], () => {});
+        const c = items[0]?.seeding?.cleanuparr;
+        return c !== undefined && 'rule' in c ? c : undefined;
+    };
+
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(NOW);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('projects a seed-time limit from the time still to seed', async () => {
+        const { maxRatio: _m, ...timeOnly } = rule({ maxSeedHours: 2, action: 'delete' });
+        expect((await due(timeOnly))?.dueAt).toBe(at(7200 - 600));
+    });
+
+    it('is due at the next run once past the rule, or now when the run is unknown or overdue', async () => {
+        expect((await due(rule({}), { nextRunAt: '2026-10-29T11:05:00.000Z' }))?.dueAt).toBe('2026-10-29T11:05:00Z');
+        expect((await due(rule({})))?.dueAt).toBe(at(0));
+        expect((await due(rule({}), { nextRunAt: '2026-10-29T10:55:00.000Z' }))?.dueAt).toBe(at(0));
+    });
+
+    it('waits for the next run when the limit is reached before it', async () => {
+        const { maxRatio: _m, ...timeOnly } = rule({ maxSeedHours: 0.25 });
+        expect((await due(timeOnly, { nextRunAt: '2026-10-29T11:30:00Z' }))?.dueAt).toBe('2026-10-29T11:30:00Z');
+    });
+
+    it('says nothing for a ratio still to climb', async () => {
+        expect((await due(rule({ maxRatio: 1 })))?.dueAt).toBeUndefined();
+    });
+
+    it('projects the minimum seed time when the ratio is already over and only that holds it back', async () => {
+        expect((await due(rule({ minSeedHours: 1 })))?.dueAt).toBe(at(3600 - 600));
+    });
+
+    it('takes the sooner of seed time and a ratio held back by the minimum', async () => {
+        expect((await due(rule({ minSeedHours: 2, maxSeedHours: 1 })))?.dueAt).toBe(at(3600 - 600));
+    });
+
+    it('says nothing when the cleaner is not scheduled or the verdict is uncertain', async () => {
+        expect((await due(rule({}), { enforced: false }))?.dueAt).toBeUndefined();
+        expect((await due(rule({ minSeeders: 3 })))?.dueAt).toBeUndefined();
+    });
+
+    it('still projects in dry run, marked as such', async () => {
+        expect(await due(rule({}), { dryRun: true })).toMatchObject({ dueAt: at(0), dryRun: true });
+    });
+
+    it('totals what falls due within a week per action, across the whole queue', async () => {
+        const { maxRatio: _m, ...week } = rule({ id: 'w', name: 'Week', categories: ['week'], maxSeedHours: 24 * 6, action: 'delete' });
+        const { maxRatio: _n, ...month } = rule({ id: 'm', name: 'Month', categories: ['month'], maxSeedHours: 24 * 30, action: 'delete' });
+        const rows = [
+            row({ id: '1', sizeBytes: 2 * 1024 ** 3 }),
+            row({ id: '2', sizeBytes: 1024 ** 3, torrent: facts({ hash: 'b', category: 'week', private: false }) }),
+            row({ id: '3', sizeBytes: 5 * 1024 ** 3, torrent: facts({ hash: 'c', category: 'month', private: false }) })
+        ];
+        const client = { ...transmission, getQueue: async () => structuredClone(rows) } as unknown as ServiceAdapter;
+        const set = seeding({ sets: [{ client: 'T', clientType: 'Transmission', endpoint: 'transmission.example:9091', rules: [rule({}), week, month] }] });
+        const result = await buildGetQueue([cleanuparr(set), client], { detail: 'full', limit: 1 });
+        expect(result.returned).toBe(1);
+        expect(result.cleanuparrDue).toEqual({ days: 7, stop: { count: 1, sizeBytes: 2 * 1024 ** 3 }, delete: { count: 1, sizeBytes: 1024 ** 3 } });
+        expect(dueText(result.cleanuparrDue!)).toBe('Cleanuparr is due to delete 1 (1.0 GB) and stop 1 (2.0 GB) in the next 7 days.');
+        const standard = await buildGetQueue([cleanuparr(set), client], { detail: 'standard', limit: 10 });
+        expect(standard).not.toHaveProperty('cleanuparrDue');
+    });
+
+    it('reports nothing due when nothing is, and flags dry run when something is', async () => {
+        expect(dueWithin([row({})], NOW)).toBeUndefined();
+        const items = [row({ sizeBytes: 300 * 1024 ** 2 })];
+        await annotateCleanuparr(items, [cleanuparr(only(rule({}), { dryRun: true })), transmission], () => {});
+        const summary = dueWithin(items, NOW);
+        expect(summary).toEqual({ days: 7, stop: { count: 1, sizeBytes: 300 * 1024 ** 2 }, dryRun: true });
+        expect(dueText(summary!)).toBe('Cleanuparr is due to stop 1 (300 MB) in the next 7 days (dry run, so it only logs).');
+    });
+
+    it('names the action and its due time in the row line', async () => {
+        const items = [row({})];
+        await annotateCleanuparr(items, [cleanuparr(only(rule({}), { nextRunAt: '2026-10-29T11:05:00Z' })), transmission], () => {});
+        expect(queueLine(items[0]!)).toContain('past Cleanuparr rule "Public: stop now", Cleanuparr stop due 2026-10-29T11:05:00Z');
     });
 });

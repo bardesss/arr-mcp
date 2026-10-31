@@ -364,6 +364,12 @@ export type CleanuparrVerdict =
           dryRun?: true;
           notEnforced?: true;
           uncertain?: string;
+          /**
+           * When `action` falls due: the next Download Cleaner run once the
+           * torrent is past the rule, or the moment it will reach the rule's
+           * seed time. Only for a certain, scheduled rule the clock can reach.
+           */
+          dueAt?: string;
       }
     | { skipped: string }
     /** No rule covers it, and the first filter that ruled every rule out. */
@@ -403,6 +409,8 @@ export type CleanuparrSeeding = {
     dryRun: boolean;
     /** The Download Cleaner job is scheduled. Unscheduled rules are never applied. */
     enforced: boolean;
+    /** When the scheduled Download Cleaner runs next, from its job. Absent when it is not scheduled or did not say. */
+    nextRunAt?: string;
     ignored: string[];
 };
 

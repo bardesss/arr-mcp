@@ -30,7 +30,7 @@ type RawHealthEntry = { status?: string; description?: string };
 type RawHealth = { entries?: Record<string, RawHealthEntry> };
 type RawArrStatus = Record<string, Array<{ name?: string; isConnected?: boolean; message?: string }>>;
 export type RawClientStatus = { id: string; name: string; type: string; host: string; enabled: boolean; isConnected: boolean };
-type RawJob = { jobType?: string; status?: string };
+type RawJob = { jobType?: string; status?: string; nextRunTime?: string | null };
 
 /** A job that is running or done is still on its schedule; `Not Scheduled`, `Paused` and `Error` are not. */
 const ON_SCHEDULE = new Set(['Scheduled', 'Running', 'Complete']);
@@ -262,10 +262,13 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
                 };
             })
         );
+        const cleanerJob = jobs.find(j => j.jobType === 'DownloadCleaner' && ON_SCHEDULE.has(j.status ?? ''));
+        const nextRun = cleanerJob?.nextRunTime == null ? NaN : Date.parse(cleanerJob.nextRunTime);
         return {
             sets,
             dryRun: general.dryRun === true,
-            enforced: jobs.some(j => j.jobType === 'DownloadCleaner' && ON_SCHEDULE.has(j.status ?? '')),
+            enforced: cleanerJob !== undefined,
+            ...(Number.isNaN(nextRun) ? {} : { nextRunAt: new Date(nextRun).toISOString() }),
             ignored: [...(general.ignoredDownloads ?? []), ...(cleaner.ignoredDownloads ?? [])].filter(v => v.trim() !== '')
         };
     }

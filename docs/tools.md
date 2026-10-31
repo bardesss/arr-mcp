@@ -713,6 +713,33 @@ stays. Rules only reach a client whose host, port and
 type match one of Cleanuparr's; see
 [Cleanuparr](configuration.md#cleanuparr).
 
+#### When a rule falls due
+
+A rule that is certain and scheduled (no `uncertain`, no `notEnforced`) also
+carries `dueAt`, to the second, when its `action` falls due. It is named for
+the action rather than for removal because a `stop` rule stops the torrent and
+leaves it in the client.
+
+- Past the rule already: the Download Cleaner's next run, read from its job, or
+  now when Cleanuparr gave none or that run is already behind.
+- A seed-time limit still ahead: now plus the seed time left. If the next run
+  comes later than that, it is the next run.
+- A ratio already reached, held back only by the minimum seed time: now plus
+  the minimum time left.
+- A ratio still to climb depends on upload, which no clock projects, so such a
+  rule gets no `dueAt` until the torrent is past it.
+
+A limit reached after the next run is acted on at the first run after it, which
+only the cron could name, so `dueAt` is then the moment the limit is reached
+and Cleanuparr acts at most one interval later. In dry run it is still given,
+beside `dryRun`, because it says when Cleanuparr would log the action.
+
+The answer also carries `cleanuparrDue` when anything falls due within 7 days:
+`count` and `sizeBytes` per action (`delete`, `stop`), plus `dryRun` when
+Cleanuparr only logs. It covers the whole queue, not just the returned page, and
+the summary line says it in one sentence, such as "Cleanuparr is due to delete
+3 (12.4 GB) and stop 1 (700 MB) in the next 7 days."
+
 Neither client can express a rule like "public trackers stop now, private ones
 seed to 1.0". `private` is there so that question can still be asked of the
 queue. The qBittorrent side is written against its source at release-5.2.4 and
