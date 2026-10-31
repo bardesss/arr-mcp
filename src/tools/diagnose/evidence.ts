@@ -223,7 +223,11 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // (queue, indexers, scan, media details) is checked the same way, and
     // duck-typing is what lets a test double stand in for the real adapter.
     const seerr = deps.adapters.find(hasRequests);
-    const queueAdapters = deps.adapters.filter(hasQueue);
+    // Lidarr's queue is left out: `diagnose` refuses an artist (`artistRefusal`
+    // above), so what it diagnoses is a film or a series. A Lidarr row could
+    // only match one by title, and an unreachable Lidarr would leave a film's
+    // queue "only partially known".
+    const queueAdapters = deps.adapters.filter(hasQueue).filter(a => a.type !== 'lidarr');
     const queueConfigured = queueAdapters.length > 0;
     const prowlarrs = deps.adapters.filter(hasIndexers);
     const prowlarrConfigured = prowlarrs.length > 0;
