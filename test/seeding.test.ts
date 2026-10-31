@@ -432,3 +432,81 @@ describe('Cleanuparr seeding wording', () => {
         expect(line({ notEnforced: true })).toContain('past Cleanuparr rule "R" (not scheduled)');
     });
 });
+
+describe('stack_health Cleanuparr coverage', () => {
+    const rule = (over: object = {}) => ({ id: 'r', name: 'Keep 30 days', priority: 1, categories: ['radarr', 'tv-sonarr', 'cleanuparr-dead'], trackerPatterns: [], tagsAny: [], tagsAll: [], privacy: 'both', maxSeedHours: 720, unsupported: [], deleteSourceFiles: true, action: 'delete', ...over });
+    const cleanuparr = (sets: object[], ignored: string[] = []) =>
+        ({ id: 'cleanuparr', type: 'cleanuparr', getSeedingRules: async () => ({ sets, dryRun: false, enforced: true, ignored }) }) as unknown as ServiceAdapter;
+    const set = (over: object = {}) => ({ client: 'qBittorrent VPN', clientType: 'qBittorrent', endpoint: '192.0.2.10:8081', rules: [rule()], targetCategories: ['cleanuparr-dead'], ...over });
+    const torrent = (n: number, category: string) => ({ ...finished, hash: n.toString(16).padStart(40, '0'), category });
+
+    it('counts the torrents no rule covers, by why, and names the categories', async () => {
+        const torrents = [
+            ...Array.from({ length: 45 }, (_, i) => torrent(i, '')),
+            torrent(100, 'cross-seed'),
+            torrent(101, 'cross-seed'),
+            torrent(102, 'books'),
+            torrent(103, 'radarr'),
+            torrent(104, 'linux')
+        ];
+        const rules = await buildSeedingRules([cleanuparr([set()], ['linux']), qbit(torrents)], () => {});
+        expect(rules.coverage).toEqual([{ service: 'qbittorrent', torrents: 50, uncovered: 48, ignored: 1 }]);
+        expect(rules.notes).toContain(
+            '48 of 50 torrents on qbittorrent match no Cleanuparr rule, so the Download Cleaner never removes them: ' +
+                '45 have no category; give them one a rule covers; ' +
+                '3 are in categories no rule names, "cross-seed (2)", "books (1)"; add those to a rule or recategorise the torrents.'
+        );
+        // cleanuparr-dead is where Dead moves torrents, so its being empty is normal.
+        expect(rules.notes).toContain(
+            'Cleanuparr\'s rules for qbittorrent name a category no torrent there is in: "tv-sonarr". A typo, or a category renamed in the client, leaves a rule matching nothing.'
+        );
+        expect(rules.cleanuparr?.[0]).not.toHaveProperty('targetCategories');
+    });
+
+    it('says nothing when every torrent is covered, and still reports the count', async () => {
+        const rules = await buildSeedingRules([cleanuparr([set({ rules: [rule({ categories: ['radarr'] })] })]), qbit([torrent(1, 'radarr')])], () => {});
+        expect(rules.coverage).toEqual([{ service: 'qbittorrent', torrents: 1, uncovered: 0 }]);
+        expect(rules.notes.some(n => n.includes('match no Cleanuparr rule') || n.includes('no torrent there'))).toBe(false);
+    });
+
+    it('names a torrent client Cleanuparr does not know, and a Cleanuparr client that does nothing', async () => {
+        const rules = await buildSeedingRules([cleanuparr([set({ endpoint: 'elsewhere.example:8080', rules: [], modulesOff: true })]), qbit([])], () => {});
+        expect(rules.notes.some(n => n.startsWith('qbittorrent is not a download client in Cleanuparr') && n.includes('192.0.2.10:8081') && n.includes('Unlinked, Dead and Orphaned'))).toBe(true);
+        expect(rules.notes).toContain('Cleanuparr\'s client "qBittorrent VPN" has no seeding rules and Unlinked, Dead and Orphaned are all off, so the Download Cleaner does nothing with it.');
+        expect(rules.cleanuparr?.[0]).not.toHaveProperty('modulesOff');
+        expect(rules.coverage).toBeUndefined();
+    });
+
+    it('says a client with no rules removes nothing, even with its other modules on', async () => {
+        const rules = await buildSeedingRules([cleanuparr([set({ rules: [] })]), qbit([torrent(1, 'radarr')])], () => {});
+        expect(rules.notes).toContain('Cleanuparr\'s client "qBittorrent VPN" has no seeding rules, so the Download Cleaner never removes its torrents.');
+        expect(rules.coverage).toBeUndefined();
+    });
+
+    it('marks the client degraded and keeps the rest when its torrents cannot be read', async () => {
+        const down = new QbittorrentAdapter(credentials(8081), serving({}));
+        const degraded: string[] = [];
+        const rules = await buildSeedingRules([cleanuparr([set()]), down], id => degraded.push(id));
+        expect(degraded).toContain('qbittorrent');
+        expect(rules.coverage).toBeUndefined();
+        expect(rules.cleanuparr?.[0]?.service).toBe('qbittorrent');
+    });
+
+    it('reads categories from the download dir on Transmission', async () => {
+        const sets = [set({ clientType: 'Transmission', endpoint: '192.0.2.10:9091', rules: [rule({ categories: ['tv'] })], targetCategories: [] })];
+        const torrents = [{ ...seeded, hashString: 'b'.repeat(40), downloadDir: '/downloads/tv/' }, { ...seeded, id: 4, hashString: 'c'.repeat(40), downloadDir: '/downloads/books' }];
+        const rules = await buildSeedingRules([cleanuparr(sets), transmission(torrents)], () => {});
+        expect(rules.coverage).toEqual([{ service: 'transmission', torrents: 2, uncovered: 1 }]);
+        expect(rules.notes.some(n => n.includes('"books (1)"'))).toBe(true);
+    });
+
+    it('stays within its token budget with 500 torrents in 500 categories', async () => {
+        const torrents = Array.from({ length: 500 }, (_, i) => torrent(i, `category-${i}`));
+        const sets = [set({ rules: Array.from({ length: 50 }, (_, i) => rule({ id: `r${i}`, priority: i, categories: Array.from({ length: 20 }, (_, j) => `rule-${i}-${j}`) })) })];
+        const result = await buildStackHealth([cleanuparr(sets), qbit(torrents)], { detail: 'full', limit: 500 });
+        const coverage = result.seedingRules?.notes.filter(n => n.includes('match no Cleanuparr rule') || n.includes('no torrent there')) ?? [];
+        expect(coverage).toHaveLength(2);
+        expect(coverage.every(n => n.length < 600)).toBe(true);
+        expectWithinBudget(result, 40_000);
+    });
+});
