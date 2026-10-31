@@ -1,7 +1,11 @@
+import { isIgnored, matchRule, unmatchedReason, type TorrentFacts, type UnmatchedReason } from '../core/cleanuparrRules.ts';
+import { stripDangerous } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import { resolveRuleSets } from './cleanuparrQueue.ts';
 import {
     hasCleanuparr,
+    hasQueue,
+    hasTorrentEndpoint,
     hasSeedCriteria,
     hasSeedLimits,
     type CleanuparrSeeding,
@@ -15,8 +19,19 @@ export type SeedingRules = {
     clients: ClientSeedLimits[];
     indexers: IndexerSeedCriteria[];
     cleanuparr?: Array<CleanuparrRuleSet & { service?: string }>;
+    /** Per torrent client a Cleanuparr rule set maps to: how many of its torrents no rule covers. */
+    coverage?: CleanuparrCoverage[];
     /** Where the rules contradict each other or leave a gap. */
     notes: string[];
+};
+
+export type CleanuparrCoverage = {
+    service: string;
+    torrents: number;
+    /** Torrents no rule matches, so the Download Cleaner never removes them. Ignored ones are not counted. */
+    uncovered: number;
+    /** Torrents on Cleanuparr's ignore list. */
+    ignored?: number;
 };
 
 /** Prowlarr names each synced copy `"<name> (Prowlarr)"`. */
@@ -103,6 +118,98 @@ function cleanuparrNotes(
     return notes;
 }
 
+const quoted = (names: readonly string[], max: number): string => {
+    const shown = names.slice(0, max).map(n => `"${stripDangerous(n)}"`).join(', ');
+    return names.length > max ? `${shown} and ${names.length - max} more` : shown;
+};
+
+/** What each reason means for the user, after the count. */
+const REASON_TEXT: Record<Exclude<UnmatchedReason, 'category not in any rule'>, string> = {
+    'no category': 'have no category; give them one a rule covers',
+    'tracker not in any rule': "have no tracker the rules' tracker patterns match",
+    'tracker unknown': 'report no working tracker, so a rule with tracker patterns may still cover them',
+    'tags not in any rule': 'lack the tags the rules require',
+    'privacy mismatch': 'fail the public/private setting of every rule that would otherwise take them',
+    'privacy unknown': 'have a public/private flag the client does not report, so whether a rule covers them is unknown'
+};
+
+/**
+ * Counts, never a torrent list: one note per client says how many torrents no
+ * rule covers and why, and one says which rule categories no torrent is in.
+ * Categories come from the torrents themselves, as Cleanuparr sees them, so a
+ * category the client defines but no torrent uses counts as absent.
+ */
+function coverageOf(
+    service: string,
+    set: CleanuparrRuleSet,
+    torrents: readonly TorrentFacts[],
+    ignoredList: readonly string[]
+): { row: CleanuparrCoverage; notes: string[] } {
+    const notes: string[] = [];
+    let ignored = 0;
+    const reasons = new Map<UnmatchedReason, number>();
+    const unnamed = new Map<string, number>();
+    for (const t of torrents) {
+        if (isIgnored(t, ignoredList)) {
+            ignored += 1;
+            continue;
+        }
+        if (matchRule(t, set.rules) !== undefined) continue;
+        const reason = unmatchedReason(t, set.rules);
+        reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+        if (reason === 'category not in any rule') unnamed.set(t.category, (unnamed.get(t.category) ?? 0) + 1);
+    }
+    const uncovered = [...reasons.values()].reduce((a, b) => a + b, 0);
+    if (uncovered > 0) {
+        const parts = [...reasons]
+            .sort((a, b) => b[1] - a[1])
+            .map(([reason, n]) => {
+                if (reason !== 'category not in any rule') return `${n} ${REASON_TEXT[reason]}`;
+                const cats = [...unnamed].sort((a, b) => b[1] - a[1]).map(([c, k]) => `${c} (${k})`);
+                return `${n} are in categories no rule names, ${quoted(cats, 5)}; add those to a rule or recategorise the torrents`;
+            });
+        notes.push(`${uncovered} of ${torrents.length} torrents on ${service} match no Cleanuparr rule, so the Download Cleaner never removes them: ${parts.join('; ')}.`);
+    }
+    const seen = new Set(torrents.map(t => t.category.toLowerCase()));
+    // Unlinked and Dead move torrents into these, so an empty one is normal.
+    const targets = new Set((set.targetCategories ?? []).map(c => c.toLowerCase()));
+    const named = [...new Map(set.rules.flatMap(r => r.categories).map(c => [c.toLowerCase(), c])).values()];
+    const unused = named.filter(c => !seen.has(c.toLowerCase()) && !targets.has(c.toLowerCase()));
+    if (unused.length > 0 && torrents.length > 0) {
+        notes.push(
+            `Cleanuparr's rules for ${service} name ${unused.length === 1 ? 'a category' : 'categories'} no torrent there is in: ${quoted(unused, 10)}. ` +
+                'A typo, or a category renamed in the client, leaves a rule matching nothing.'
+        );
+    }
+    return { row: { service, torrents: torrents.length, uncovered, ...(ignored === 0 ? {} : { ignored }) }, notes };
+}
+
+/** Clients and rule sets that leave torrents with nothing to clean them. */
+function gapNotes(
+    seeding: CleanuparrSeeding,
+    mapped: Map<string, CleanuparrRuleSet>,
+    conflicts: Map<string, CleanuparrRuleSet[]>,
+    adapters: readonly ServiceAdapter[]
+): string[] {
+    const notes: string[] = [];
+    for (const a of adapters) {
+        if (!hasTorrentEndpoint(a) || mapped.has(a.id) || conflicts.has(a.id)) continue;
+        notes.push(
+            `${a.id} is not a download client in Cleanuparr: no enabled client there has its type and ${a.endpoint}, so Cleanuparr cleans none of its torrents. ` +
+                'Deleting a client in Cleanuparr drops its seeding rules and its Unlinked, Dead and Orphaned settings with it, so they have to be set up again.'
+        );
+    }
+    for (const set of seeding.sets) {
+        if (set.rules.length > 0) continue;
+        notes.push(
+            set.modulesOff === true
+                ? `Cleanuparr's client "${set.client}" has no seeding rules and Unlinked, Dead and Orphaned are all off, so the Download Cleaner does nothing with it.`
+                : `Cleanuparr's client "${set.client}" has no seeding rules, so the Download Cleaner never removes its torrents.`
+        );
+    }
+    return notes;
+}
+
 /** Settled per service: one unreachable client must not hide the others. */
 export async function buildSeedingRules(
     adapters: readonly ServiceAdapter[],
@@ -142,14 +249,37 @@ export async function buildSeedingRules(
     const notes = notesFor(clientRows, indexerRows, prowlarrIds, cleanuparrLimits);
     const sets = (cleanuparr?.sets ?? []).map(set => {
         const service = [...mapped].find(([, s]) => s === set)?.[0];
-        return service === undefined ? set : { ...set, service };
+        // The coverage check's inputs stay internal.
+        const { modulesOff: _off, targetCategories: _targets, ...shown } = set;
+        return service === undefined ? shown : { ...shown, service };
     });
-    if (cleanuparr !== undefined) notes.push(...cleanuparrNotes(cleanuparr, mapped, conflicts, clientRows));
+    const coverage: CleanuparrCoverage[] = [];
+    if (cleanuparr !== undefined) {
+        notes.push(...cleanuparrNotes(cleanuparr, mapped, conflicts, clientRows));
+        notes.push(...gapNotes(cleanuparr, mapped, conflicts, adapters));
+        // The whole torrent list of each mapped client: one call each, like get_queue.
+        const reads = await Promise.all(
+            [...mapped].map(async ([service, set]) => {
+                const adapter = adapters.find(a => a.id === service);
+                if (adapter === undefined || !hasQueue(adapter) || set.rules.length === 0) return undefined;
+                const items = await read(service, () => adapter.getQueue());
+                if (items === undefined) return undefined;
+                return coverageOf(service, set, items.flatMap(i => (i.torrent === undefined ? [] : [i.torrent])), cleanuparr.ignored);
+            })
+        );
+        for (const r of reads) {
+            if (r === undefined) continue;
+            coverage.push(r.row);
+            notes.push(...r.notes);
+        }
+        coverage.sort((a, b) => a.service.localeCompare(b.service));
+    }
 
     return {
         clients: clientRows,
         indexers: indexerRows,
         ...(sets.length > 0 ? { cleanuparr: sets } : {}),
+        ...(coverage.length > 0 ? { coverage } : {}),
         notes
     };
 }

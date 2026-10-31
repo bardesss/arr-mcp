@@ -147,6 +147,26 @@ describe('CleanuparrAdapter seeding rules', () => {
         expect(seeding.ignored).toEqual(['linux-isos', 'abcdef0123456789abcdef0123456789abcdef01']);
     });
 
+    it('reads which categories Unlinked and Dead move torrents into, from a live 2.10.12', async () => {
+        const live = (name: string) => fixture(`2.10.12/${name}`);
+        const routes = {
+            '/api/status/download-client': live('status-download-client'),
+            '/api/seeding-rules/839d2aed-2a78-444f-813b-774598a79756': live('seeding-rules'),
+            '/api/jobs': live('jobs'),
+            '/api/configuration/general': fixture('configuration-general'),
+            '/api/configuration/download_cleaner': live('configuration-download_cleaner')
+        };
+        const [set] = (await new CleanuparrAdapter(config, stub(routes)).getSeedingRules()).sets;
+        expect(set?.targetCategories).toEqual(['cleanuparr-unlinked', 'cleanuparr-dead']);
+        expect(set?.modulesOff).toBeUndefined();
+
+        const off = structuredClone(live('configuration-download_cleaner')) as { clients: Array<Record<string, { enabled: boolean; useTag?: boolean }>> };
+        for (const key of ['unlinkedConfig', 'deadTorrentConfig', 'orphanedFilesConfig']) off.clients[0]![key]!.enabled = false;
+        const [quiet] = (await new CleanuparrAdapter(config, stub({ ...routes, '/api/configuration/download_cleaner': off })).getSeedingRules()).sets;
+        expect(quiet?.modulesOff).toBe(true);
+        expect(quiet?.targetCategories).toBeUndefined();
+    });
+
     it('drops blank entries from the ignore list', async () => {
         const cleaner = { ...(fixture('configuration-download_cleaner') as object), ignoredDownloads: ['', '  ', ' keep '] };
         const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/configuration/download_cleaner': cleaner })));

@@ -258,6 +258,37 @@ shares a client with another set, has no `service` and `notes` says why.
 `notes` also says when a rule's ratio differs from the client's own, and when
 the Download Cleaner is not scheduled, which means none of the rules run.
 
+`seedingRules.coverage` checks the rules against the torrents. For each
+torrent client a rule set maps to, it reads the client's torrents (one call,
+the same read as `get_queue`) and gives `torrents`, `uncovered` (no rule
+matches, so the Download Cleaner never removes them) and `ignored` (on
+Cleanuparr's ignore list, so not counted as uncovered). Counts only, never a
+torrent list. When some are uncovered, `notes` breaks the count down by why:
+no category, a category no rule names (the five biggest, with counts), a
+tracker, tag or public/private filter. A torrent the client reports no working
+tracker or no private flag for is counted, and the note says a rule may still
+cover it. On Transmission the category is the last folder of the download dir,
+as Cleanuparr reads it.
+
+`notes` also names:
+
+- rule categories no torrent on the client is in, which is usually a typo or a
+  category renamed in the client. Categories come from the torrents, so one the
+  client defines but nothing uses counts as absent. The categories Unlinked and
+  Dead move torrents into are left out, since those are often empty.
+- a Cleanuparr client with no seeding rules, and whether Unlinked, Dead and
+  Orphaned are all off too, in which case the Download Cleaner does nothing
+  with it.
+- a configured torrent client that no enabled Cleanuparr client matches on type
+  and `host:port`. Deleting a client in Cleanuparr drops its rules and its
+  Unlinked, Dead and Orphaned settings, so this is what that looks like
+  afterwards. It also fires when Cleanuparr reaches the client under a different
+  host than arr-mcp does.
+
+A client whose torrents could not be read gets no `coverage` row and joins
+`degraded`. Which rule covers a particular torrent is `get_queue`'s answer at
+`detail: "full"`.
+
 ### Did that command finish?
 
 `commands` is every **followable** task a service has queued or running, plus
