@@ -354,4 +354,20 @@ describe('against Cleanuparr 2.10.12 with one qBittorrent', () => {
         expect(items[3]?.downloadClient).toBeUndefined();
         expect(items[3]?.reason).toContain('MaxSeedTimeReached');
     });
+
+    it('reads an errored-download strike and its reset, new in 2.10.11', async () => {
+        const events = {
+            items: [
+                { id: '2', timestamp: '2026-10-31T06:10:00Z', eventType: 'StrikeReset', message: "'Errored' strike(s) reset", itemHash: 'abc' },
+                { id: '1', timestamp: '2026-10-31T06:05:00Z', eventType: 'ErroredStrike', strikeCount: 1, itemHash: 'abc' }
+            ],
+            totalCount: 2,
+            totalPages: 1
+        };
+        const { items } = (await new CleanuparrAdapter(config, stub({ ...routes, '/api/events': events })).readHistory({})) as { items: HistoryEntry[] };
+        expect(items.map(i => [i.event, i.strikeType])).toEqual([
+            ['recovered', 'Errored'],
+            ['strike', 'Errored']
+        ]);
+    });
 });

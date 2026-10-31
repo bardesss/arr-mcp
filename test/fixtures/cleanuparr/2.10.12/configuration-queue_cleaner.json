@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "cronExpression": "0 0/5 * ? * * *",
+  "useAdvancedScheduling": false,
+  "failedImport": {
+    "maxStrikes": 3,
+    "ignorePrivate": false,
+    "deletePrivate": false,
+    "skipIfNotFoundInClient": true,
+    "patterns": [],
+    "patternMode": "Exclude",
+    "changeCategory": false,
+    "forceImport": false,
+    "forceImportMaxTries": 3
+  },
+  "ignoredDownloads": [],
+  "processNoContentId": false,
+  "downloadingMetadataMaxStrikes": 3,
+  "errored": {
+    "maxStrikes": 3,
+    "ignorePrivate": false,
+    "deletePrivate": false,
+    "changeCategory": false
+  }
+}

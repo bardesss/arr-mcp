@@ -355,7 +355,8 @@ const STRIKE_KIND: Record<string, string> = {
     SlowSpeedStrike: ' for being slow',
     SlowTimeStrike: ' for being slow',
     DownloadingMetadataStrike: ' for stuck metadata',
-    DeadTorrentStrike: ' as a dead torrent'
+    DeadTorrentStrike: ' as a dead torrent',
+    ErroredStrike: ' for a client error'
 };
 
 /** Only a strike on this row's own download counts. */
