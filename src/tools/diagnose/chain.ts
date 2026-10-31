@@ -1,11 +1,13 @@
 import type { ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import { unfenced } from '../../core/titleMatch.ts';
+import { currentStrikes } from '../cleanuparrQueue.ts';
 import type { FilmOrSeries, MergedItem } from '../../core/resolver.ts';
-import type { IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
+import type { HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
 
 export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan';
-export type StepStatus = 'ok' | 'blocked' | 'unknown' | 'skipped';
+/** `warning` is worth a look but blocks nothing. */
+export type StepStatus = 'ok' | 'warning' | 'blocked' | 'unknown' | 'skipped';
 
 export type Step = { stage: Stage; service?: string; status: StepStatus; detail: string };
 
@@ -45,6 +47,8 @@ export type Evidence = {
     mediaServer?: string;
     /** Whether that media server can report scan state at all. */
     scanCapable: boolean;
+    /** Cleanuparr events for this item's downloads, newest first. null: not configured. */
+    cleanuparr: HistoryEntry[] | null | undefined;
     /**
      * Library-read reachability, separate from `degraded` below, which is
      * *probe* reachability. A service can fail one without the other: a failing
@@ -112,7 +116,7 @@ const titleWords = (item: MergedItem): string[] => {
  *   name splits on it ("Spider.Man.2002" → spider, man, 2002), so neither ever
  *   produced the same tokens. `tokenize` splits both sides identically.
  */
-const mentions = (haystack: string, item: MergedItem): boolean => {
+export const mentions = (haystack: string, item: MergedItem): boolean => {
     const words = titleWords(item);
     if (words.length === 0) return false;
 
@@ -176,8 +180,8 @@ function requestStep(ev: Evidence): Step {
  * "complete" contains none of those substrings. It misreads
  * `downloadClientUnavailable` and `warning`/`delay` the same way.
  *
- * The vocabulary is what the adapters actually emit, lowercased. `seeding` and
- * `queued to seed` mean the file is fully on disk, so they are import-pending
+ * The vocabulary is what the adapters actually emit, lowercased. `seeding`,
+ * qBittorrent's `seeding (no peers)` and `queued to seed` mean the file is fully on disk, so they are import-pending
  * rather than active; `propagating` is SABnzbd finalising a healthy download,
  * so it stays active.
  */
@@ -195,7 +199,8 @@ const QUEUE_ACTIVE = new Set([
     'propagating'
 ]);
 
-const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'queued to seed']);
+const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'seeding (no peers)', 'queued to seed']);
+const SEEDING = new Set(['seeding', 'seeding (no peers)', 'queued to seed']);
 
 type QueueClass = 'active' | 'importPending' | 'fault' | 'indeterminate';
 
@@ -242,6 +247,24 @@ const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'whisparr', 's
 
 type QueueResult = { step: Step; remedy?: string };
 
+const STRIKE_KIND: Record<string, string> = {
+    StalledStrike: ' for stalling',
+    FailedImportStrike: ' for failed imports',
+    SlowSpeedStrike: ' for being slow',
+    SlowTimeStrike: ' for being slow',
+    DownloadingMetadataStrike: ' for stuck metadata',
+    DeadTorrentStrike: ' as a dead torrent'
+};
+
+/** Only a strike on this row's own download counts. */
+function strikeNoteFor(row: QueueItem, events: Evidence['cleanuparr']): string {
+    const rowId = (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
+    const strikes = rowId === undefined ? undefined : currentStrikes(events ?? []).get(rowId);
+    if (strikes === undefined) return '';
+    const each = strikes.map(s => `${s.count} strikes${STRIKE_KIND[s.rawEvent] ?? ''}${s.dryRun === true ? ' (dry run)' : ''}`);
+    return ` ${each.join(', ')} from Cleanuparr so far.`;
+}
+
 function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     if (!ev.queueConfigured) return { step: SKIPPED('queue', 'No download client is configured.') };
     if (ev.queue === undefined) return { step: { stage: 'queue', status: 'unknown', detail: 'No download client could be reached.' } };
@@ -254,24 +277,37 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     // every download client had answered in full.
     const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => QUEUE_SERVICES.some(t => s === t || s.startsWith(`${t}/`)))])];
     const mine = items.filter(q => mentions(q.title, item));
+    // A file on disk means whatever Cleanuparr removed was replaced since.
+    const removals = item.acquisition?.hasFile === true ? [] : (ev.cleanuparr ?? []).filter(e => e.event === 'deleted' || e.event === 'stopped');
+    const acted = removals.find(e => e.dryRun !== true) ?? removals[0];
 
     if (mine.length === 0) {
-        if (effectivePartial.length > 0) {
-            // A row for this item could be sitting on the client that failed
-            // to answer — a partial read cannot rule that out, so this is
-            // "could not fully look", not "looked and found nothing".
+        // A row for this item could be sitting on the client that failed
+        // to answer — a partial read cannot rule that out, so this is
+        // "could not fully look", not "looked and found nothing". That holds
+        // for a Cleanuparr removal too: a re-grab could be on that client.
+        const unreachable = `${effectivePartial.join(', ')} could not be reached, so the queue is only partially known.`;
+        if (acted !== undefined) {
+            const verb = acted.event === 'deleted' ? 'removed' : 'stopped';
+            const strikes = acted.strikeCount === undefined ? '' : `, ${acted.strikeCount} strikes`;
+            const why = acted.reason === undefined ? '' : `: ${acted.reason}`;
+            const said =
+                acted.dryRun === true
+                    ? `Cleanuparr would have ${verb} it on ${acted.at.slice(0, 10)}${why} (dry run, nothing was done).`
+                    : `Cleanuparr ${verb} it on ${acted.at.slice(0, 10)}${why}${strikes}.`;
+            if (effectivePartial.length > 0) return { step: { stage: 'queue', status: 'unknown', detail: `${said} ${unreachable}` } };
+            if (acted.dryRun === true) return { step: SKIPPED('queue', said) };
             return {
-                step: {
-                    stage: 'queue',
-                    status: 'unknown',
-                    detail: `${effectivePartial.join(', ')} could not be reached, so the queue is only partially known.`
-                }
+                step: { stage: 'queue', service: 'cleanuparr', status: 'blocked', detail: said },
+                remedy: 'Check the queue cleaner and seeding rules in Cleanuparr for the rule that fired, then search for it again.'
             };
         }
+        if (effectivePartial.length > 0) return { step: { stage: 'queue', status: 'unknown', detail: unreachable } };
         return { step: SKIPPED('queue', 'Nothing matching it is in any download queue.') };
     }
 
     const { row, cls } = pickQueueRow(mine);
+    const strikeNote = strikeNoteFor(row, ev.cleanuparr);
 
     if (cls === 'fault') {
         return {
@@ -279,15 +315,27 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
                 stage: 'queue',
                 service: row.service,
                 status: 'blocked',
-                detail: `Download ${row.status}${row.errorMessage === undefined ? '' : `: ${row.errorMessage}`}.`
+                detail: `Download ${row.status}${row.errorMessage === undefined ? '' : `: ${row.errorMessage}`}.${strikeNote}`
             },
             remedy: QUEUE_FAULT_REMEDY
         };
     }
 
+    // A torrent still seeding a file that is already in the library has nothing left to import.
+    if (cls === 'importPending' && item.acquisition?.hasFile === true && SEEDING.has(row.status.toLowerCase())) {
+        return {
+            step: {
+                stage: 'queue',
+                service: row.service,
+                status: strikeNote === '' ? 'ok' : 'warning',
+                detail: `Seeding, and the file is already imported.${strikeNote}`
+            }
+        };
+    }
+
     if (cls === 'importPending') {
         return {
-            step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Downloaded, but not yet imported by ${row.service}.` },
+            step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Downloaded, but not yet imported by ${row.service}.${strikeNote}` },
             remedy: QUEUE_IMPORT_REMEDY
         };
     }
@@ -311,7 +359,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     const eta = row.etaSeconds === undefined ? '' : ` — about ${Math.round(row.etaSeconds / 60)} minute(s) left`;
     // A download genuinely in progress is not a fault: there is nothing to
     // fix, so no remedy — see QueueResult's optional `remedy`.
-    return { step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Still downloading${eta}.` } };
+    return { step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Still downloading${eta}.${strikeNote}` } };
 }
 
 function indexerStep(ev: Evidence, item: MergedItem): Step {

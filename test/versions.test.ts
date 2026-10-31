@@ -117,7 +117,7 @@ describe('assertVersionSupported', () => {
     });
 
     it('has a floor for every service', () => {
-        const services = ['radarr', 'sonarr', 'whisparr', 'lidarr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'plex', 'profilarr'];
+        const services = ['radarr', 'sonarr', 'whisparr', 'lidarr', 'prowlarr', 'bazarr', 'jellyfin', 'seerr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'plex', 'profilarr', 'cleanuparr'];
         for (const s of services) expect(MINIMUM_VERSIONS[s as keyof typeof MINIMUM_VERSIONS]).toBeTruthy();
     });
 
@@ -157,7 +157,8 @@ describe('assertVersionSupported against captured evidence', () => {
         plex: '1.0.0',
         lidarr: (read('test/fixtures/lidarr/system-status.json') as { version: string }).version,
         whisparr: (read('test/fixtures/whisparr/system-status.json') as { version: string }).version,
-        profilarr: (read('test/fixtures/profilarr/status.json') as { version: string }).version
+        profilarr: (read('test/fixtures/profilarr/status.json') as { version: string }).version,
+        cleanuparr: (read('test/fixtures/cleanuparr/status.json') as { application: { version: string } }).application.version
     };
 
     for (const [service, version] of Object.entries(captured)) {

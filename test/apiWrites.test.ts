@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -541,5 +542,67 @@ describe('a hand edit that no longer loads', () => {
         } finally {
             detachLogStore();
         }
+    });
+});
+
+describe('cleanuparr app', () => {
+    const URL_ = 'http://cleanuparr.example:11011';
+    const fixture = (name: string): unknown =>
+        JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures', 'cleanuparr', `${name}.json`), 'utf8'));
+    const routes: Record<string, unknown> = {
+        '/api/status': fixture('status'),
+        '/health/detailed': fixture('health-detailed'),
+        '/api/status/arrs': fixture('status-arrs'),
+        '/api/status/download-client': fixture('status-download-client'),
+        '/api/jobs': fixture('jobs'),
+        '/api/configuration/general': fixture('configuration-general')
+    };
+    const answerWithFixtures = () =>
+        vi.spyOn(globalThis, 'fetch').mockImplementation(input => {
+            const body = routes[new URL(String(input)).pathname];
+            return Promise.resolve(
+                body === undefined
+                    ? new Response('not found', { status: 404 })
+                    : new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
+            );
+        });
+    const add = () => api('/app', json('POST', { type: 'cleanuparr', url: URL_, apiKey: 'k' }));
+
+    it('adds it and lists it with the key marked set, never shown', async () => {
+        expect((await add()).status).toBe(201);
+        const text = await (await api('/app')).text();
+        const entry = (JSON.parse(text) as Record<string, unknown>[]).find(a => a.type === 'cleanuparr');
+        expect(entry).toMatchObject({ id: 'cleanuparr', apiKeySet: true });
+        expect(entry).not.toHaveProperty('apiKey');
+        expect(text).not.toContain('"k"');
+    });
+
+    it('refuses a second one without a name', async () => {
+        await add();
+        const res = await add();
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { message: string }).message).toMatch(/cleanuparr/);
+    });
+
+    it('tests a new one against /api/status and reports its version', async () => {
+        answerWithFixtures();
+        const res = await api('/app/test', json('POST', { type: 'cleanuparr', url: URL_, apiKey: 'k' }));
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ ok: true, app: 'cleanuparr', version: '2.10.9' });
+        expect(stack.runtime.config.services.cleanuparr).toBeUndefined();
+    });
+
+    it('shows up in the health read', async () => {
+        answerWithFixtures();
+        await seedApi({ extra: [`  cleanuparr: { url: '${URL_}', api_key: 'k' }`] });
+        const body = (await (await api('/health')).json()) as { app: string; type: string; ok: boolean; version?: string }[];
+        expect(body.find(h => h.app === 'cleanuparr')).toMatchObject({ type: 'cleanuparr', ok: true, version: '2.10.9' });
+    });
+
+    it('removes it', async () => {
+        await add();
+        expect((await api('/app/cleanuparr', { method: 'DELETE' })).status).toBe(200);
+        expect(stack.runtime.config.services.cleanuparr).toBeUndefined();
+        expect((await api('/app/cleanuparr')).status).toBe(404);
     });
 });

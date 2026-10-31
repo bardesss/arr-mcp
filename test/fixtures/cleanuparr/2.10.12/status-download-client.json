@@ -1,0 +1,12 @@
+{
+  "Clients": [
+    {
+      "id": "839d2aed-2a78-444f-813b-774598a79756",
+      "name": "qBittorrent VPN",
+      "type": "qBittorrent",
+      "host": "<host>",
+      "enabled": true,
+      "isConnected": true
+    }
+  ]
+}
