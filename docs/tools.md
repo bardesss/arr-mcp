@@ -189,6 +189,22 @@ reset cleared them. A torrent still seeding a file that is already in the
 library is `ok`, or `warning` when it has strikes, including qBittorrent's
 `seeding (no peers)`; `warning` never blocks the verdict.
 
+When a query matches nothing in the library, `diagnose` searches download
+history by release name before answering "Nothing in your stack matches". This
+covers a film removed from Radarr whose torrent Cleanuparr then cleaned: no
+library has it, but Cleanuparr's events do. It reads Cleanuparr's events (the
+last 30 days, at most 500) and the own history of each download client that
+keeps one, which today is SABnzbd and NZBGet; a torrent client keeps nothing
+once a torrent is removed. A release matches when the query's title words lead
+its name, ignoring case, dots, underscores and a leading article. A year or
+episode in the query (`Shogun 2024 S01E03`) must not be contradicted by the
+release, and a season pack matches any episode of its season. The verdict stays
+at `resolve`, and the summary says what happened to up to three matching
+releases, for example "Cleanuparr removed … on 2026-10-27: MaxSeedTimeReached,
+after 3 strikes." `history` holds the row behind each one. Nothing matching
+leaves today's answer, and a history source that could not be read sets
+`certain: false`. A query that resolves never triggers this read.
+
 ## `stack_health`
 
 With more than one instance of a service, each is reported separately. With

@@ -13,6 +13,7 @@ import {
     hasRequests,
     hasScanState,
     hasUserLibrary,
+    type HistoryEntry,
     type IndexerRejection,
     type MediaRequest,
     type QueueItem,
@@ -21,7 +22,7 @@ import {
 } from '../../services/types.ts';
 import type { LibraryLoader } from '../library.ts';
 import { resolveInstance } from '../resolveInstance.ts';
-import { mentions, type Evidence } from './chain.ts';
+import { mentions, releaseMentions, type Evidence } from './chain.ts';
 
 export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; instance?: string; user?: string };
 
@@ -34,6 +35,31 @@ export type DiagnoseDeps = {
 
 const RECENT_REJECTION_LIMIT = 50;
 const CLEANUPARR_WINDOW_MS = 30 * 86_400_000;
+const CLEANUPARR_EVENT_LIMIT = 500;
+/** The download clients whose own history outlives the queue. A torrent client
+ *  keeps none once the torrent is removed, so only the usenet clients have one
+ *  today; `hasHistory` decides, so a client that gains one is read too. */
+const CLIENT_SERVICES: readonly ServiceId[] = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
+
+const rowsOf = (read: HistoryEntry[] | { items: HistoryEntry[] } | undefined): HistoryEntry[] =>
+    read === undefined ? [] : Array.isArray(read) ? read : read.items;
+
+/**
+ * The fallback for a query that resolved to nothing: download history searched
+ * by release name. An item removed from Radarr whose torrent Cleanuparr then
+ * cleaned is in no library, and its history is the only record left of what
+ * happened. Bounded like the item path: the same 30 days and 500 Cleanuparr
+ * events, and one history read per client.
+ */
+async function historyByName(adapters: readonly ServiceAdapter[], query: string, degraded: string[]): Promise<HistoryEntry[] | undefined> {
+    const sources = adapters.filter(hasHistory).filter(a => hasCleanuparr(a) || CLIENT_SERVICES.includes(a.type));
+    if (sources.length === 0) return undefined;
+    const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
+    const reads = await Promise.all(
+        sources.map(a => probe(a.id, degraded, () => a.readHistory(hasCleanuparr(a) ? { since, want: CLEANUPARR_EVENT_LIMIT } : { since })))
+    );
+    return reads.flatMap(rowsOf).filter(r => releaseMentions(r.title, query));
+}
 
 /**
  * Every probe returns `undefined` on failure and records the service in
@@ -329,11 +355,13 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             cleanuparr = [];
         } else {
             const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
-            const events = await probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: 500 }));
+            const events = await probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: CLEANUPARR_EVENT_LIMIT }));
             const list = events === undefined ? undefined : Array.isArray(events) ? events : events.items;
             cleanuparr = list?.filter(e => e.downloadId !== undefined && ids.has(e.downloadId));
         }
     }
+
+    const history = item === undefined && target.query !== undefined ? await historyByName(deps.adapters, target.query, degraded) : undefined;
 
     degraded.sort();
     libraryDegraded.sort();
@@ -349,6 +377,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         ...(mediaServer === undefined ? {} : { mediaServer }),
         scanCapable: scanAdapter !== undefined,
         cleanuparr,
+        ...(history === undefined ? {} : { history }),
         libraryDegraded,
         degraded
     };

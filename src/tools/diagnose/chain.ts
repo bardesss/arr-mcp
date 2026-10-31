@@ -50,6 +50,13 @@ export type Evidence = {
     /** Cleanuparr events for this item's downloads, newest first. null: not configured. */
     cleanuparr: HistoryEntry[] | null | undefined;
     /**
+     * Download-history rows whose release name matches the query, read only
+     * when the query resolved to nothing: an item removed from Radarr whose
+     * torrent Cleanuparr then cleaned is in no library, only in history.
+     * Absent when it was not read; a source that failed is in `degraded`.
+     */
+    history?: HistoryEntry[];
+    /**
      * Library-read reachability, separate from `degraded` below, which is
      * *probe* reachability. A service can fail one without the other: a failing
      * `getScanState` on the media server must not erase a library read that
@@ -66,6 +73,8 @@ export type Diagnosis = {
     resolved?: { title: string; year?: number; kind: 'movie' | 'series'; ids: MergedItem['ids'] };
     steps: Step[];
     verdict: { stage: Stage | 'playable'; summary: string; remedy?: string; certain: boolean };
+    /** Unresolved queries only: the row that explains each matching release, newest first. */
+    history?: HistoryEntry[];
     degraded: string[];
 };
 
@@ -141,6 +150,99 @@ export const mentions = (haystack: string, item: MergedItem): boolean => {
 
     return true;
 };
+
+const YEAR_TOKEN = /^(19|20)\d{2}$/;
+
+/** `s04e03`, `s04` or `4x03`, as `tokenize` leaves them. */
+function episodeOf(token: string): { season: number; episode?: number } | undefined {
+    const m = /^(?:s(\d{1,3})(?:e(\d{1,4}))?|(\d{1,2})x(\d{1,3}))$/.exec(token);
+    if (m === null) return undefined;
+    const episode = m[2] ?? m[4];
+    return { season: Number(m[1] ?? m[3]), ...(episode === undefined ? {} : { episode: Number(episode) }) };
+}
+
+const withoutArticle = (words: string[]): string[] =>
+    words.length > 1 && LEADING_ARTICLE.has(words[0] as string) ? words.slice(1) : words;
+
+/**
+ * Whether a release name is plausibly what a person asked for, when there is
+ * no library item to compare against — the history fallback below. The query
+ * is read the way the resolver reads one: title words, then an optional bare
+ * year, then an optional episode ("Shogun 2024 S01E03").
+ *
+ * Stricter than `mentions` in one way: the title words must *lead* the release
+ * name, as they do in every scene name, so "Office" cannot match
+ * "Something.About.The.Office". A year or episode the query names must not be
+ * contradicted by the release; a release that names neither is not a
+ * contradiction, and a season pack matches any episode of its season.
+ */
+export const releaseMentions = (haystack: string, query: string): boolean => {
+    let words = tokenize(unfenced(query));
+    const asked = words.length > 1 ? episodeOf(words.at(-1) as string) : undefined;
+    if (asked !== undefined) words = words.slice(0, -1);
+    // Not for a one-word query: "1917" is a title, not a year.
+    const year = words.length > 1 && YEAR_TOKEN.test(words.at(-1) as string) ? words.at(-1) : undefined;
+    if (year !== undefined) words = words.slice(0, -1);
+    words = withoutArticle(words);
+    if (words.length === 0) return false;
+
+    const hay = withoutArticle(tokenize(unfenced(haystack)));
+    if (!words.every((w, i) => hay[i] === w)) return false;
+    const rest = hay.slice(words.length);
+
+    if (year !== undefined) {
+        const years = rest.filter(w => YEAR_TOKEN.test(w));
+        if (years.length > 0 && !years.includes(year)) return false;
+    }
+    if (asked !== undefined) {
+        const found = rest.map(episodeOf).filter(e => e !== undefined);
+        const same = found.some(e => e.season === asked.season && (asked.episode === undefined || e.episode === undefined || e.episode === asked.episode));
+        if (!same) return false;
+    }
+    return true;
+};
+
+/** Releases named in the summary; the rest are in `history`. */
+const HISTORY_RELEASES_SHOWN = 3;
+
+/**
+ * One sentence per release for the history fallback. Cleanuparr removing or
+ * stopping it is the answer when it did; a client's own outcome otherwise.
+ */
+function releaseSentence(rows: readonly HistoryEntry[]): { row: HistoryEntry; said: string } {
+    const removals = rows.filter(e => e.service === 'cleanuparr' && (e.event === 'deleted' || e.event === 'stopped'));
+    const acted = removals.find(e => e.dryRun !== true) ?? removals[0];
+    if (acted !== undefined) {
+        const verb = acted.event === 'deleted' ? 'removed' : 'stopped';
+        const why = acted.reason === undefined ? '' : `: ${acted.reason}`;
+        const counts = rows.filter(e => e.event === 'strike').map(e => e.strikeCount ?? 0);
+        const strikeCount = acted.strikeCount ?? (counts.length === 0 ? undefined : Math.max(...counts));
+        const strikes = strikeCount === undefined || strikeCount === 0 ? '' : `, after ${strikeCount} strikes`;
+        const said =
+            acted.dryRun === true
+                ? `Cleanuparr would have ${verb} ${acted.title} on ${acted.at.slice(0, 10)}${why} (dry run, nothing was done).`
+                : `Cleanuparr ${verb} ${acted.title} on ${acted.at.slice(0, 10)}${why}${strikes}.`;
+        return { row: acted, said };
+    }
+    const row = rows[0] as HistoryEntry;
+    if (row.service === 'cleanuparr' && row.event === 'strike') {
+        const count = row.strikeCount === undefined ? '' : ` ${row.strikeCount} times`;
+        return { row, said: `Cleanuparr struck ${row.title}${count}${STRIKE_KIND[row.rawEvent ?? ''] ?? ''}, last on ${row.at.slice(0, 10)}.` };
+    }
+    const what = row.event === 'imported' ? 'completed' : row.event === 'failed' || row.event === 'deleted' ? row.event : `logged ${row.rawEvent ?? row.event} for`;
+    const why = row.reason === undefined ? '' : `: ${row.reason}`;
+    return { row, said: `${row.service} ${what} ${row.title} on ${row.at.slice(0, 10)}${why}.` };
+}
+
+/** Rows newest first, grouped by download, most recently active release first. */
+function releasesOf(rows: readonly HistoryEntry[]): HistoryEntry[][] {
+    const groups = new Map<string, HistoryEntry[]>();
+    for (const row of [...rows].sort((a, b) => Date.parse(b.at) - Date.parse(a.at))) {
+        const key = row.downloadId ?? `${row.service}:${unfenced(row.title).toLowerCase()}`;
+        groups.set(key, [...(groups.get(key) ?? []), row]);
+    }
+    return [...groups.values()];
+}
 
 function requestStep(ev: Evidence): Step {
     // True both when Seerr itself could not be reached and when it answered
@@ -558,21 +660,41 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     const steps: Step[] = [];
 
     if (ev.item === undefined) {
-        steps.push({ stage: 'resolve', status: 'blocked', detail: 'No configured service knows this title.' });
+        const releases = releasesOf(ev.history ?? []).map(releaseSentence);
+        const shown = releases.slice(0, HISTORY_RELEASES_SHOWN);
+        const more = releases.length - shown.length;
+        steps.push({
+            stage: 'resolve',
+            status: 'blocked',
+            detail:
+                releases.length === 0
+                    ? 'No configured service knows this title.'
+                    : 'No configured service knows this title, but download history has a release by that name.'
+        });
         for (const stage of DISPLAY_ORDER.slice(1)) steps.push(SKIPPED(stage, 'Not reached — the item was never identified.'));
 
+        const summary =
+            releases.length === 0
+                ? `Nothing in your stack matches "${query}".`
+                : `Nothing in your library matches "${query}", but download history does. ${shown.map(r => r.said).join(' ')}${
+                      more > 0 ? ` ${more} more matching release(s) in \`history\`.` : ''
+                  }`;
         return {
             query,
             steps,
             verdict: {
                 stage: 'resolve',
-                summary: `Nothing in your stack matches "${query}".`,
-                remedy: REMEDIES.resolve as string,
+                summary,
+                remedy:
+                    releases.length === 0
+                        ? (REMEDIES.resolve as string)
+                        : 'Nothing manages it now, so nothing will grab it again. If you still want it, find it with lookup_media and add it with add_media; get_history shows the full trail.',
                 // Not knowing about it and not being able to look are different
                 // answers, and a degraded library service means the second —
                 // whether the library read itself failed or a diagnose probe did.
                 certain: certaintyDegraded(ev).length === 0
             },
+            ...(releases.length === 0 ? {} : { history: releases.map(r => r.row) }),
             degraded: allDegraded(ev)
         };
     }

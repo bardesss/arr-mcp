@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { fenceText } from '../src/core/fence.ts';
 import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
-import { buildChain, type Evidence } from '../src/tools/diagnose/chain.ts';
+import type { HistoryEntry } from '../src/services/types.ts';
+import { buildChain, releaseMentions, type Evidence } from '../src/tools/diagnose/chain.ts';
 
 /**
  * Unlike `Partial<MergedItem>`, this lets a caller override a field to
@@ -1534,5 +1535,103 @@ describe('buildChain — Cleanuparr', () => {
         const reset = { ...base, id: 'e9', at: '2026-10-09T12:00:00+00:00', event: 'recovered', rawEvent: 'StrikeReset', downloadId: 'aaaa1111' } as const;
         const step = stepFor(buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, cleanuparr: [reset, strike('StalledStrike')] })), 'queue');
         expect(step?.detail).not.toContain('strikes');
+    });
+});
+
+describe('releaseMentions', () => {
+    it.each([
+        ['Some Film', 'Some.Film.2026.1080p.WEB-DL'],
+        ['some film', 'Some_Film_2026_2160p'],
+        ['The Office', 'Office.US.S02E01.720p'],
+        ['Some Film 2026', 'Some.Film.2026.1080p'],
+        ['Some Film (2026)', 'Some Film 2026 1080p'],
+        ['Shogun 2024 S01E03', 'Shogun.2024.S01E03.1080p'],
+        ['Shogun S01E03', 'Shogun.S01.1080p.WEB'],
+        ['Shogun 1x03', 'Shogun.S01E03.1080p'],
+        ['Blade Runner 2049', 'Blade.Runner.2049.2017.1080p'],
+        ['1917', '1917.2019.1080p'],
+        ['Some Film 2026', 'Some.Film.1080p']
+    ])('%s matches %s', (query, release) => {
+        expect(releaseMentions(fenceText(release, { service: 'cleanuparr', field: 'itemTitle' }), query)).toBe(true);
+    });
+
+    it.each([
+        ['Alien', 'Aliens.1986.1080p'],
+        ['Office', 'Something.About.The.Office.2020'],
+        ['Dune 2021', 'Dune.Part.Two.2024.1080p'],
+        ['Blade Runner 2049', 'Blade.Runner.1982.1080p'],
+        ['Shogun S01E03', 'Shogun.S01E05.1080p'],
+        ['Shogun S01E03', 'Shogun.S02.1080p'],
+        ['???', 'Some.Film.2026']
+    ])('%s does not match %s', (query, release) => {
+        expect(releaseMentions(release, query)).toBe(false);
+    });
+});
+
+describe('buildChain — download history for an unresolved query', () => {
+    const row = (over: Partial<HistoryEntry> = {}): HistoryEntry => ({
+        service: 'cleanuparr',
+        id: 'e1',
+        at: '2026-10-27T05:45:10+00:00',
+        event: 'deleted',
+        title: fenceText('Some.Film.2026.1080p', { service: 'cleanuparr', field: 'itemTitle' }),
+        downloadId: 'aaaa1111',
+        ...over
+    });
+    const unresolved = (history: HistoryEntry[]) => buildChain('some film', healthy({ item: undefined, history }));
+
+    it('keeps the old answer when history has nothing', () => {
+        const d = unresolved([]);
+        expect(d.verdict.summary).toBe('Nothing in your stack matches "some film".');
+        expect(d.verdict.remedy).toMatch(/search_media/);
+        expect(d.history).toBeUndefined();
+    });
+
+    it('says what Cleanuparr did to the release, with its reason and strikes', () => {
+        const d = unresolved([
+            row({ reason: fenceText('MaxSeedTimeReached', { service: 'cleanuparr', field: 'reason' }) }),
+            row({ id: 'e0', at: '2026-10-26T00:00:00+00:00', event: 'strike', strikeCount: 3, strikeType: 'Stalled' })
+        ]);
+        expect(d.verdict.stage).toBe('resolve');
+        expect(d.verdict.summary).toMatch(/Cleanuparr removed .*Some\.Film\.2026\.1080p.* on 2026-10-27: .*MaxSeedTimeReached.*, after 3 strikes\./);
+        expect(d.verdict.remedy).toMatch(/add_media/);
+        expect(d.history?.map(h => h.id)).toEqual(['e1']);
+        expect(d.resolved).toBeUndefined();
+        expect(d.steps[0]?.detail).toMatch(/download history/);
+    });
+
+    it('keeps the fence on the release name', () => {
+        expect(unresolved([row()]).verdict.summary).toContain('<<untrusted:cleanuparr.itemTitle>>');
+    });
+
+    it('reports a dry run as what would have happened', () => {
+        expect(unresolved([row({ dryRun: true })]).verdict.summary).toMatch(/would have removed .* \(dry run, nothing was done\)/);
+    });
+
+    it('falls back to a client’s own outcome when Cleanuparr did nothing to it', () => {
+        const { downloadId: _, ...sab } = row({
+            service: 'sabnzbd',
+            id: 'SABnzbd_nzo_1',
+            event: 'failed',
+            reason: fenceText('Out of retention', { service: 'sabnzbd', field: 'fail_message' })
+        });
+        expect(unresolved([sab]).verdict.summary).toMatch(/sabnzbd failed .*Some\.Film.* on 2026-10-27: .*Out of retention/);
+    });
+
+    it('says how often Cleanuparr struck a release it has not removed', () => {
+        const d = unresolved([row({ event: 'strike', rawEvent: 'StalledStrike', strikeCount: 2 })]);
+        expect(d.verdict.summary).toMatch(/Cleanuparr struck .*Some\.Film.* 2 times for stalling, last on 2026-10-27\./);
+    });
+
+    it('names at most three releases and counts the rest', () => {
+        const rows = ['a', 'b', 'c', 'd'].map((k, i) => row({ id: k, downloadId: k, at: `2026-10-2${i}T00:00:00Z` }));
+        const d = unresolved(rows);
+        expect(d.verdict.summary.match(/Cleanuparr removed/g)).toHaveLength(3);
+        expect(d.verdict.summary).toMatch(/1 more matching release/);
+        expect(d.history?.map(h => h.id)).toEqual(['d', 'c', 'b', 'a']);
+    });
+
+    it('is uncertain when a history source could not be read', () => {
+        expect(buildChain('some film', healthy({ item: undefined, history: [row()], degraded: ['sabnzbd'] })).verdict.certain).toBe(false);
     });
 });
