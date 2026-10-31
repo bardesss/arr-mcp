@@ -1,0 +1,40 @@
+{
+  "searchEnabled": false,
+  "searchInterval": 10,
+  "proactiveSearchEnabled": false,
+  "selectionStrategy": "BalancedWeighted",
+  "useRoundRobin": true,
+  "postReleaseGraceHours": 6,
+  "instances": [
+    {
+      "arrInstanceId": "14a25b1a-5efb-4597-a38a-58b609549233",
+      "instanceName": "[arrglue] Sonarr",
+      "instanceType": "Sonarr",
+      "enabled": false,
+      "skipTags": [],
+      "lastProcessedAt": null,
+      "arrInstanceEnabled": true,
+      "activeDownloadLimit": 3,
+      "ignoreStruckDownloads": false,
+      "minCycleTimeDays": 7,
+      "monitoredOnly": true,
+      "useCutoff": false,
+      "useCustomFormatScore": false
+    },
+    {
+      "arrInstanceId": "5a9ae16d-9664-4fdc-af35-042e659e77f1",
+      "instanceName": "[arrglue] Radarr",
+      "instanceType": "Radarr",
+      "enabled": false,
+      "skipTags": [],
+      "lastProcessedAt": null,
+      "arrInstanceEnabled": true,
+      "activeDownloadLimit": 3,
+      "ignoreStruckDownloads": false,
+      "minCycleTimeDays": 7,
+      "monitoredOnly": true,
+      "useCutoff": false,
+      "useCustomFormatScore": false
+    }
+  ]
+}

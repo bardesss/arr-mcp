@@ -358,6 +358,7 @@ everything else this server asks Cleanuparr.
 | --- | --- | --- |
 | `FailedImport` | the *arr reports an import it cannot finish | `patterns` gives the mode and how many patterns there are, not the patterns. `forceImport` means Cleanuparr tries the import first. |
 | `DownloadingMetadata` | qBittorrent is still fetching metadata | qBittorrent only. |
+| `Errored` | the torrent client reports the download as errored | Cleanuparr asks the client to resume it on every strike. Cleanuparr 2.10.11 and later. |
 | `Stalled` | one row per enabled stall rule, `rule` is its name | |
 | `Slow` | one row per enabled slow rule, with `minSpeed` and `maxTimeHours` | |
 
@@ -388,11 +389,9 @@ client, which ends its seeding. On a private tracker that can count as a
 hit-and-run. It also names a cleaner whose settings could not be read; when
 neither can, Cleanuparr is named in `degraded` instead.
 
-Two things it cannot see. Each *arr can override the failed-import strike count
+One thing it cannot see: each *arr can override the failed-import strike count
 in Cleanuparr, including turning failed imports on when the global count is 0,
 and that setting is served together with the *arr's API key, so it is not read.
-And none of these responses has been recorded from a live Cleanuparr yet. The
-shapes come from the 2.10.9 source.
 
 ### Did that command finish?
 

@@ -454,7 +454,7 @@ export type PrivateTorrentHandling = 'skipped' | 'kept_in_client' | 'deleted_fro
 
 /** One strike kind, or one stall or slow rule, and what Cleanuparr does when its count is reached. */
 export type CleanuparrStrikeLimit = {
-    strike: 'FailedImport' | 'DownloadingMetadata' | 'Stalled' | 'Slow';
+    strike: 'FailedImport' | 'DownloadingMetadata' | 'Errored' | 'Stalled' | 'Slow';
     /** A stall or slow rule's name, fenced. */
     rule?: string;
     maxStrikes: number;

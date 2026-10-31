@@ -43,7 +43,7 @@ type RawJob = { jobType?: string; status?: string; nextRunTime?: string | null }
 const ON_SCHEDULE = new Set(['Scheduled', 'Running', 'Complete']);
 
 /** Cleanuparr's StrikeType values: a strike's event is the type plus `Strike`, a reset names the type in its message. */
-const STRIKE_TYPES = new Set(['Stalled', 'DownloadingMetadata', 'FailedImport', 'SlowSpeed', 'SlowTime', 'DeadTorrent']);
+const STRIKE_TYPES = new Set(['Stalled', 'DownloadingMetadata', 'FailedImport', 'SlowSpeed', 'SlowTime', 'DeadTorrent', 'Errored']);
 
 function strikeTypeOf(e: { eventType?: string; message?: string | null }): string | undefined {
     if (e.eventType === 'StrikeReset') {
@@ -176,6 +176,7 @@ const EVENT: Record<string, HistoryEventType> = {
     SlowSpeedStrike: 'strike',
     SlowTimeStrike: 'strike',
     DeadTorrentStrike: 'strike',
+    ErroredStrike: 'strike',
     DownloadStopped: 'stopped',
     ForceImported: 'imported',
     StrikeReset: 'recovered',
@@ -242,6 +243,8 @@ type RawQueueCleaner = {
     ignoredDownloads?: string[];
     processNoContentId?: boolean;
     downloadingMetadataMaxStrikes?: number;
+    /** Since 2.10.11; absent on older builds. */
+    errored?: { maxStrikes?: number; ignorePrivate?: boolean; deletePrivate?: boolean; changeCategory?: boolean };
 };
 type RawQueueRule = {
     name?: string;
@@ -341,6 +344,18 @@ function queueCleanerOf(
             privateTorrents: 'deleted_from_client'
         });
     }
+    // Any torrent client. Each strike asks the client to resume the download first.
+    const errored = config.errored ?? {};
+    if ((errored.maxStrikes ?? 0) > 0) {
+        const changeCategory = errored.changeCategory === true;
+        strikes.push({
+            strike: 'Errored',
+            maxStrikes: errored.maxStrikes ?? 0,
+            atLimit: changeCategory ? 'change_category' : 'remove',
+            appliesTo: errored.ignorePrivate === true ? 'public' : 'both',
+            ...(errored.ignorePrivate === true ? {} : { privateTorrents: privateOf(changeCategory, errored.deletePrivate === true) })
+        });
+    }
     strikes.push(...rules.stall.filter(r => r.enabled !== false).map(r => queueRuleOf(r, 'Stalled', service)));
     strikes.push(...rules.slow.filter(r => r.enabled !== false).map(r => queueRuleOf(r, 'Slow', service)));
     return {
@@ -378,6 +393,7 @@ function malwareBlockerOf(config: RawMalwareBlocker, scheduled: boolean | undefi
 const STRIKE_LABEL: Record<CleanuparrStrikeLimit['strike'], string> = {
     FailedImport: 'failed-import strikes',
     DownloadingMetadata: 'metadata strikes',
+    Errored: 'errored-download strikes',
     Stalled: 'stall rule',
     Slow: 'slow rule'
 };

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
 import type { ConnectionDiagnosis, ServiceAdapter } from '../src/services/types.ts';
@@ -14,15 +16,14 @@ function stub(routes: Record<string, unknown>, seen: string[] = []): typeof fetc
     }) as unknown as typeof fetch;
 }
 
+const fixture = (name: string): unknown =>
+    JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures', 'cleanuparr', '2.10.12', `${name}.json`), 'utf8'));
+
 /*
- * NOT CAPTURED. No live Queue Cleaner, queue rule, Malware Blocker or Seeker
- * response has been recorded yet, so these bodies are written from the response
- * records at Cleanuparr tag v2.10.9 (QueueCleanerConfigResponse,
- * StallRuleResponse, SlowRuleResponse, ContentBlockerConfigResponse,
- * SeekerConfigResponse), camelCased and with enums as strings as the 2.10.12
- * captures show. They stay inline rather than under test/fixtures/ so nobody
- * mistakes them for a recording. Replace them with `npm run capture -- cleanuparr`
- * output once someone with a Queue Cleaner configured runs it.
+ * The captured 2.10.12 responses (#308) are under test/fixtures/ and checked
+ * first. These inline bodies vary the same shapes to reach settings that
+ * capture leaves off: include patterns, whitelists, local blocklists, private
+ * deletion. They leave out `errored`, as builds before 2.10.11 do.
  */
 const queueCleaner = (over: Record<string, unknown> = {}) => ({
     enabled: true,
@@ -101,6 +102,81 @@ const without = (...paths: string[]): Record<string, unknown> => {
     for (const p of paths) delete r[p];
     return r;
 };
+
+describe('CleanuparrAdapter removal rules, captured from 2.10.12', () => {
+    const captured = () =>
+        new CleanuparrAdapter(
+            config,
+            stub({
+                '/api/configuration/queue_cleaner': fixture('configuration-queue_cleaner'),
+                '/api/queue-rules/stall': fixture('queue-rules-stall'),
+                '/api/queue-rules/slow': fixture('queue-rules-slow'),
+                '/api/configuration/malware_blocker': fixture('configuration-malware_blocker'),
+                '/api/configuration/seeker': fixture('configuration-seeker'),
+                '/api/jobs': fixture('jobs')
+            })
+        ).getRemovalRules();
+
+    it('reads every strike limit the reporter set', async () => {
+        const out = await captured();
+        const strikes = out.queueCleaner?.strikes ?? [];
+        expect(strikes.map(s => s.strike)).toEqual(['FailedImport', 'DownloadingMetadata', 'Errored', 'Stalled', 'Slow']);
+        expect(strikes[0]).toEqual({
+            strike: 'FailedImport',
+            maxStrikes: 3,
+            atLimit: 'remove',
+            appliesTo: 'both',
+            privateTorrents: 'kept_in_client',
+            patterns: { mode: 'exclude', count: 0 }
+        });
+        expect(strikes[2]).toEqual({ strike: 'Errored', maxStrikes: 3, atLimit: 'remove', appliesTo: 'both', privateTorrents: 'kept_in_client' });
+        expect(strikes[3]).toMatchObject({ strike: 'Stalled', maxStrikes: 6, appliesTo: 'both', privateTorrents: 'kept_in_client' });
+        expect(strikes[3]?.rule).toContain('Bloqués : 30 min sans progrès');
+        // maxTimeHours 0 is no time limit.
+        expect(strikes[4]).toMatchObject({ strike: 'Slow', maxStrikes: 12, minSpeed: '50KB' });
+        expect(strikes[4]).not.toHaveProperty('maxTimeHours');
+        expect(strikes[4]).not.toHaveProperty('completion');
+    });
+
+    it('says a removal is blocklisted but not searched again, with Seeker off', async () => {
+        const out = await captured();
+        expect(out.queueCleaner).toMatchObject({
+            enabled: true,
+            scheduled: true,
+            schedule: '0 0/5 * ? * * *',
+            onRemoval: { blocklisted: true, searchesAgain: false },
+            processNoContentId: false,
+            ignoredCount: 0
+        });
+    });
+
+    it('reads the Malware Blocker, with no note since private torrents stay in the client', async () => {
+        const out = await captured();
+        expect(out.malwareBlocker).toEqual({
+            enabled: true,
+            scheduled: true,
+            schedule: '0/5 * * ? * * *',
+            blocklists: [
+                { arr: 'sonarr', type: 'blacklist', source: 'raw.githubusercontent.com' },
+                { arr: 'radarr', type: 'blacklist', source: 'raw.githubusercontent.com' }
+            ],
+            removesWhen: 'all_files_blocked',
+            privateTorrents: 'kept_in_client',
+            processNoContentId: true,
+            ignoredCount: 0
+        });
+        expect(out.notes).toEqual([]);
+    });
+
+    it('notes errored-download strikes that delete private torrents', async () => {
+        const body = fixture('configuration-queue_cleaner') as Record<string, unknown>;
+        const out = await read({ '/api/configuration/queue_cleaner': { ...body, errored: { maxStrikes: 5, deletePrivate: true } } });
+        expect(out.notes).toEqual([
+            "Queue Cleaner's errored-download strikes deletes a private torrent and its files from the download client after 5 strikes, " +
+                'which ends its seeding and can count as a hit-and-run on a private tracker.'
+        ]);
+    });
+});
 
 describe('CleanuparrAdapter removal rules', () => {
     it('lists every strike limit with what happens at the limit', async () => {

@@ -19,7 +19,8 @@ const STRIKE_REASON: Record<string, string> = {
     SlowSpeedStrike: 'slow speed',
     SlowTimeStrike: 'slow time',
     DownloadingMetadataStrike: 'stuck metadata',
-    DeadTorrentStrike: 'dead torrent'
+    DeadTorrentStrike: 'dead torrent',
+    ErroredStrike: 'errored'
 };
 
 export type Strikes = { count: number; reason: string; rawEvent: string; at: string; dryRun?: true };
