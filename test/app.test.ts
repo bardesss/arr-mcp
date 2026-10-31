@@ -7,6 +7,7 @@ import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ProfileDiagnosticsCapable, ServiceAdapter } from '../src/services/types.ts';
@@ -597,6 +598,72 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
         expect(text).toContain('HTTP 404 at /api/v3/movie/999999');
         expect(text).not.toMatch(/base path/i);
         expect(text).toMatch(/id/i);
+    });
+});
+
+/**
+ * Through the SDK, not the builder: the tool's `outputSchema` is checked only
+ * on this path, and an artist failed it. A builder test passes the same
+ * artist untouched, which is how this went unnoticed.
+ */
+describe('get_media_details answers for a Lidarr artist', () => {
+    const lidarrConfig = {
+        url: 'http://192.0.2.10:8686',
+        api_key: 'k',
+        timeout_ms: 10_000,
+        permissions: { safe_write: false, destructive: false }
+    };
+
+    const ROUTES: Record<string, unknown> = {
+        '/api/v1/artist/4': {
+            id: 4,
+            artistName: 'Artist 4',
+            foreignArtistId: '00000000-0000-4000-8000-000000000004',
+            status: 'continuing',
+            monitored: true,
+            statistics: { trackFileCount: 1, albumCount: 1, sizeOnDisk: 1000 }
+        },
+        '/api/v1/album': [
+            {
+                id: 12,
+                title: 'Album 12',
+                releaseDate: '2001-01-01T00:00:00Z',
+                albumType: 'Album',
+                monitored: true,
+                foreignAlbumId: '00000000-0000-4000-8000-000000000012',
+                statistics: { trackFileCount: 1 }
+            }
+        ]
+    };
+    const lidarrFetch: typeof fetch = async input => {
+        const path = new URL(String(input)).pathname;
+        return path in ROUTES ? jsonResponse(ROUTES[path]) : jsonResponse({ message: 'not found' }, 404);
+    };
+
+    it('returns the artist with its albums by service and id', async () => {
+        const app = appWith(config, [new LidarrAdapter(lidarrConfig, lidarrFetch)]);
+        const res = await app.request(
+            'http://localhost:6060/mcp',
+            rpc(
+                {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'tools/call',
+                    params: { name: 'get_media_details', arguments: { service: 'lidarr', id: '4', detail: 'full', limit: 50 } }
+                },
+                { Authorization: `Bearer ${TOKEN}` }
+            )
+        );
+
+        const result = (await rpcPayload(res)).result as {
+            isError?: boolean;
+            content?: { text: string }[];
+            structuredContent?: { kind?: string; albums?: { id: string }[] };
+        };
+        expect(result.content?.[0]?.text ?? '').not.toMatch(/validation/i);
+        expect(result.isError).not.toBe(true);
+        expect(result.structuredContent?.kind).toBe('artist');
+        expect(result.structuredContent?.albums?.map(a => a.id)).toEqual(['12']);
     });
 });
 
