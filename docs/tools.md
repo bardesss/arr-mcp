@@ -189,6 +189,22 @@ reset cleared them. A torrent still seeding a file that is already in the
 library is `ok`, or `warning` when it has strikes, including qBittorrent's
 `seeding (no peers)`; `warning` never blocks the verdict.
 
+When a query matches nothing in the library, `diagnose` searches download
+history by release name before answering "Nothing in your stack matches". This
+covers a film removed from Radarr whose torrent Cleanuparr then cleaned: no
+library has it, but Cleanuparr's events do. It reads Cleanuparr's events (the
+last 30 days, at most 500) and the own history of each download client that
+keeps one, which today is SABnzbd and NZBGet; a torrent client keeps nothing
+once a torrent is removed. A release matches when the query's title words lead
+its name, ignoring case, dots, underscores and a leading article. A year or
+episode in the query (`Shogun 2024 S01E03`) must not be contradicted by the
+release, and a season pack matches any episode of its season. The verdict stays
+at `resolve`, and the summary says what happened to up to three matching
+releases, for example "Cleanuparr removed … on 2026-10-27: MaxSeedTimeReached,
+after 3 strikes." `history` holds the row behind each one. Nothing matching
+leaves today's answer, and a history source that could not be read sets
+`certain: false`. A query that resolves never triggers this read.
+
 ## `stack_health`
 
 With more than one instance of a service, each is reported separately. With
@@ -258,6 +274,37 @@ shares a client with another set, has no `service` and `notes` says why.
 `notes` also says when a rule's ratio differs from the client's own, and when
 the Download Cleaner is not scheduled, which means none of the rules run.
 
+`seedingRules.coverage` checks the rules against the torrents. For each
+torrent client a rule set maps to, it reads the client's torrents (one call,
+the same read as `get_queue`) and gives `torrents`, `uncovered` (no rule
+matches, so the Download Cleaner never removes them) and `ignored` (on
+Cleanuparr's ignore list, so not counted as uncovered). Counts only, never a
+torrent list. When some are uncovered, `notes` breaks the count down by why:
+no category, a category no rule names (the five biggest, with counts), a
+tracker, tag or public/private filter. A torrent the client reports no working
+tracker or no private flag for is counted, and the note says a rule may still
+cover it. On Transmission the category is the last folder of the download dir,
+as Cleanuparr reads it.
+
+`notes` also names:
+
+- rule categories no torrent on the client is in, which is usually a typo or a
+  category renamed in the client. Categories come from the torrents, so one the
+  client defines but nothing uses counts as absent. The categories Unlinked and
+  Dead move torrents into are left out, since those are often empty.
+- a Cleanuparr client with no seeding rules, and whether Unlinked, Dead and
+  Orphaned are all off too, in which case the Download Cleaner does nothing
+  with it.
+- a configured torrent client that no enabled Cleanuparr client matches on type
+  and `host:port`. Deleting a client in Cleanuparr drops its rules and its
+  Unlinked, Dead and Orphaned settings, so this is what that looks like
+  afterwards. It also fires when Cleanuparr reaches the client under a different
+  host than arr-mcp does.
+
+A client whose torrents could not be read gets no `coverage` row and joins
+`degraded`. Which rule covers a particular torrent is `get_queue`'s answer at
+`detail: "full"`.
+
 Each set also carries the Download Cleaner's three per-client modules, when
 Cleanuparr reports them. A module that is off is just `{ "enabled": false }`.
 
@@ -296,7 +343,7 @@ Paths are fenced. Categories and patterns are not, the same as rule categories.
   directories lies inside any scan directory, the note says the two cannot be
   compared and stops there, without flagging each directory.
 
-The client's torrent list is only read when an orphan scan is on.
+The client's torrents are read once and serve both this and the rule coverage above.
 
 ### Did that command finish?
 
@@ -705,6 +752,33 @@ or the rule sets neither a ratio nor a time limit, the client's own verdict
 stays. Rules only reach a client whose host, port and
 type match one of Cleanuparr's; see
 [Cleanuparr](configuration.md#cleanuparr).
+
+#### When a rule falls due
+
+A rule that is certain and scheduled (no `uncertain`, no `notEnforced`) also
+carries `dueAt`, to the second, when its `action` falls due. It is named for
+the action rather than for removal because a `stop` rule stops the torrent and
+leaves it in the client.
+
+- Past the rule already: the Download Cleaner's next run, read from its job, or
+  now when Cleanuparr gave none or that run is already behind.
+- A seed-time limit still ahead: now plus the seed time left. If the next run
+  comes later than that, it is the next run.
+- A ratio already reached, held back only by the minimum seed time: now plus
+  the minimum time left.
+- A ratio still to climb depends on upload, which no clock projects, so such a
+  rule gets no `dueAt` until the torrent is past it.
+
+A limit reached after the next run is acted on at the first run after it, which
+only the cron could name, so `dueAt` is then the moment the limit is reached
+and Cleanuparr acts at most one interval later. In dry run it is still given,
+beside `dryRun`, because it says when Cleanuparr would log the action.
+
+The answer also carries `cleanuparrDue` when anything falls due within 7 days:
+`count` and `sizeBytes` per action (`delete`, `stop`), plus `dryRun` when
+Cleanuparr only logs. It covers the whole queue, not just the returned page, and
+the summary line says it in one sentence, such as "Cleanuparr is due to delete
+3 (12.4 GB) and stop 1 (700 MB) in the next 7 days."
 
 Neither client can express a rule like "public trackers stop now, private ones
 seed to 1.0". `private` is there so that question can still be asked of the

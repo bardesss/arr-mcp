@@ -232,12 +232,11 @@ describe('stack_health cleaner modules', () => {
         expect(rules.notes.filter(n => n.includes('orphans'))).toEqual([expect.stringContaining('books/epub')]);
     });
 
-    it('reads no queue when no orphan scan is on', async () => {
-        let read = false;
-        const client = { ...qbit([]), getQueue: async () => ((read = true), []) } as unknown as ServiceAdapter;
-        const off = cleaner(c => (c.orphanedFilesConfig.enabled = false));
-        await buildSeedingRules([cleanuparr({ '/api/configuration/download_cleaner': off }), client], () => {});
-        expect(read).toBe(false);
+    it('reads the torrents once when both the rule coverage and the orphan scan need them', async () => {
+        let reads = 0;
+        const client = { ...qbit([]), getQueue: async () => ((reads += 1), []) } as unknown as ServiceAdapter;
+        await buildSeedingRules([cleanuparr({}), client], () => {});
+        expect(reads).toBe(1);
     });
 
     it('marks a client whose queue cannot be read as degraded, and keeps the module notes', async () => {

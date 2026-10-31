@@ -144,7 +144,27 @@ describe('CleanuparrAdapter seeding rules', () => {
         const seeding = await adapter.getSeedingRules();
         expect(seeding.dryRun).toBe(true);
         expect(seeding.enforced).toBe(true);
+        expect(seeding.nextRunAt).toBe('2026-10-09T14:00:00.000Z');
         expect(seeding.ignored).toEqual(['linux-isos', 'abcdef0123456789abcdef0123456789abcdef01']);
+    });
+
+    it('reads which categories Unlinked and Dead move torrents into, from a live 2.10.12', async () => {
+        const live = (name: string) => fixture(`2.10.12/${name}`);
+        const routes = {
+            '/api/status/download-client': live('status-download-client'),
+            '/api/seeding-rules/839d2aed-2a78-444f-813b-774598a79756': live('seeding-rules'),
+            '/api/jobs': live('jobs'),
+            '/api/configuration/general': fixture('configuration-general'),
+            '/api/configuration/download_cleaner': live('configuration-download_cleaner')
+        };
+        const [set] = (await new CleanuparrAdapter(config, stub(routes)).getSeedingRules()).sets;
+        expect(set?.unlinked).toMatchObject({ enabled: true, target: 'cleanuparr-unlinked' });
+        expect(set?.deadTorrents).toMatchObject({ enabled: true, target: 'cleanuparr-dead' });
+
+        const off = structuredClone(live('configuration-download_cleaner')) as { clients: Array<Record<string, { enabled: boolean; useTag?: boolean }>> };
+        for (const key of ['unlinkedConfig', 'deadTorrentConfig', 'orphanedFilesConfig']) off.clients[0]![key]!.enabled = false;
+        const [quiet] = (await new CleanuparrAdapter(config, stub({ ...routes, '/api/configuration/download_cleaner': off })).getSeedingRules()).sets;
+        expect([quiet?.unlinked, quiet?.deadTorrents, quiet?.orphanedFiles]).toEqual([{ enabled: false }, { enabled: false }, { enabled: false }]);
     });
 
     it('drops blank entries from the ignore list', async () => {
@@ -184,7 +204,10 @@ describe('CleanuparrAdapter seeding rules', () => {
             j.jobType === 'DownloadCleaner' ? { ...j, status: 'Not Scheduled' } : j
         );
         const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/jobs': jobs })));
-        expect((await adapter.getSeedingRules()).enforced).toBe(false);
+        const seeding = await adapter.getSeedingRules();
+        expect(seeding.enforced).toBe(false);
+        // A next run Cleanuparr will not take says nothing about when a rule acts.
+        expect(seeding.nextRunAt).toBeUndefined();
     });
 
     it('counts a running or just finished Download Cleaner as scheduled', async () => {
