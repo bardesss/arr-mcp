@@ -1,0 +1,15 @@
+[
+  {
+    "resetStrikesOnProgress": true,
+    "minimumProgress": null,
+    "id": "06ebf6bf-566f-4158-b85d-5b9bc8e173a3",
+    "name": "Bloqués : 30 min sans progrès",
+    "enabled": true,
+    "maxStrikes": 6,
+    "privacyType": "Both",
+    "minCompletionPercentage": 0,
+    "maxCompletionPercentage": 100,
+    "deletePrivateTorrentsFromClient": false,
+    "changeCategory": false
+  }
+]

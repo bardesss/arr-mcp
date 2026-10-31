@@ -345,6 +345,54 @@ Paths are fenced. Categories and patterns are not, the same as rule categories.
 
 The client's torrents are read once and serve both this and the rule coverage above.
 
+#### Why did my download disappear?
+
+Also at `full`, `cleanuparrRemovals` says when the Queue Cleaner and the
+Malware Blocker take a download away, and what that does. It is read-only, like
+everything else this server asks Cleanuparr.
+
+`queueCleaner` has `enabled`, `scheduled` (from Cleanuparr's job list),
+`schedule` (the cron expression) and one `strikes` row per limit that is on:
+
+| `strike` | Counted when | Notes |
+| --- | --- | --- |
+| `FailedImport` | the *arr reports an import it cannot finish | `patterns` gives the mode and how many patterns there are, not the patterns. `forceImport` means Cleanuparr tries the import first. |
+| `DownloadingMetadata` | qBittorrent is still fetching metadata | qBittorrent only. |
+| `Errored` | the torrent client reports the download as errored | Cleanuparr asks the client to resume it on every strike. Cleanuparr 2.10.11 and later. |
+| `Stalled` | one row per enabled stall rule, `rule` is its name | |
+| `Slow` | one row per enabled slow rule, with `minSpeed` and `maxTimeHours` | |
+
+Each row has `maxStrikes`, `atLimit` (`remove` takes it out of the *arr queue,
+`change_category` leaves it in the client under another category), `appliesTo`
+(`public`, `private` or `both`) and, when private torrents are judged,
+`privateTorrents`: `kept_in_client` or `deleted_from_client`. A metadata stall
+always deletes from the client, whatever the privacy, because Cleanuparr's
+qBittorrent check asks for it. `completion` shows a rule's completion range when
+it is narrower than 0–100%.
+
+`onRemoval` says what every removal does. The *arr always blocklists the
+release, and `searchesAgain` says whether Seeker search is on, which decides if
+a new search is queued. Even with search on, Cleanuparr skips the search for a
+download the *arr cannot tie to a film or episode, and for one that keeps
+coming back after it passed its limit. `ignoredCount` counts the Queue Cleaner's own ignore list, not
+the general one.
+
+`malwareBlocker` lists the `blocklists` turned on per *arr: `type` is
+`blacklist` or `whitelist`, and `source` is the host of a URL list or `file`
+for a local one. The rest of the URL is dropped in case it carries a token.
+Blocked files are skipped in the client. `removesWhen` says whether the whole
+download goes when `all_files_blocked` or as soon as `any_file_blocked`.
+`privateTorrents` is `skipped`, `kept_in_client` or `deleted_from_client`.
+
+`notes` flags a setting that deletes a private torrent and its files from the
+client, which ends its seeding. On a private tracker that can count as a
+hit-and-run. It also names a cleaner whose settings could not be read; when
+neither can, Cleanuparr is named in `degraded` instead.
+
+One thing it cannot see: each *arr can override the failed-import strike count
+in Cleanuparr, including turning failed imports on when the global count is 0,
+and that setting is served together with the *arr's API key, so it is not read.
+
 ### Did that command finish?
 
 `commands` is every **followable** task a service has queued or running, plus
