@@ -39,6 +39,7 @@ export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
                         .boolean()
                         .describe('False when a step could not be checked. Report the verdict as provisional and say what was missed rather than guessing across the hole.')
                 }),
+                history: z.array(z.unknown()).optional().describe('Only when nothing in the library matched: the download-history row behind each release whose name matches, newest first.'),
                 degraded: z.array(z.string())
             }),
             inputSchema: toolInput({
