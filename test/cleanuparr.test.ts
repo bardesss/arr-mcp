@@ -158,14 +158,13 @@ describe('CleanuparrAdapter seeding rules', () => {
             '/api/configuration/download_cleaner': live('configuration-download_cleaner')
         };
         const [set] = (await new CleanuparrAdapter(config, stub(routes)).getSeedingRules()).sets;
-        expect(set?.targetCategories).toEqual(['cleanuparr-unlinked', 'cleanuparr-dead']);
-        expect(set?.modulesOff).toBeUndefined();
+        expect(set?.unlinked).toMatchObject({ enabled: true, target: 'cleanuparr-unlinked' });
+        expect(set?.deadTorrents).toMatchObject({ enabled: true, target: 'cleanuparr-dead' });
 
         const off = structuredClone(live('configuration-download_cleaner')) as { clients: Array<Record<string, { enabled: boolean; useTag?: boolean }>> };
         for (const key of ['unlinkedConfig', 'deadTorrentConfig', 'orphanedFilesConfig']) off.clients[0]![key]!.enabled = false;
         const [quiet] = (await new CleanuparrAdapter(config, stub({ ...routes, '/api/configuration/download_cleaner': off })).getSeedingRules()).sets;
-        expect(quiet?.modulesOff).toBe(true);
-        expect(quiet?.targetCategories).toBeUndefined();
+        expect([quiet?.unlinked, quiet?.deadTorrents, quiet?.orphanedFiles]).toEqual([{ enabled: false }, { enabled: false }, { enabled: false }]);
     });
 
     it('drops blank entries from the ignore list', async () => {
