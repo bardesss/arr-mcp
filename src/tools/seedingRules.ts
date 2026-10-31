@@ -130,7 +130,7 @@ const REASON_TEXT: Record<Exclude<UnmatchedReason, 'category not in any rule'>, 
     'tracker unknown': 'report no working tracker, so a rule with tracker patterns may still cover them',
     'tags not in any rule': 'lack the tags the rules require',
     'privacy mismatch': 'fail the public/private setting of every rule that would otherwise take them',
-    'privacy unknown': 'have a public/private flag the client does not report, so whether a rule covers them is unknown'
+    'privacy unknown': 'do not say whether they are private; Cleanuparr reads them as public, and only private rules would take them'
 };
 
 /**
