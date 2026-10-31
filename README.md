@@ -249,7 +249,7 @@ speaks to is free software maintained largely by volunteers — [Radarr](https:/
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
 [NZBGet](https://nzbget.com), [Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
-[Profilarr](https://github.com/Dictionarry-Hub/profilarr) — as are the libraries it is built
+[Profilarr](https://github.com/Dictionarry-Hub/profilarr), [Cleanuparr](https://github.com/Cleanuparr/Cleanuparr) — as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),
 [Vitest](https://vitest.dev), [yaml](https://eemeli.org/yaml/) and

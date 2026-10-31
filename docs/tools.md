@@ -13,7 +13,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet and Bazarr did |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr and Cleanuparr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included |
 | `get_calendar` | What is due, and what just aired |
@@ -670,7 +670,7 @@ imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
 through it. `get_history` merges Radarr's and Sonarr's own history logs with SABnzbd's,
-NZBGet's and Bazarr's, and is the only tool that can answer "why did last
+NZBGet's, Bazarr's and Cleanuparr's, and is the only tool that can answer "why did last
 night's download fail".
 
 Both services' events are normalised to one vocabulary — `grabbed`,
