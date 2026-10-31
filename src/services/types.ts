@@ -392,7 +392,39 @@ export type CleanuparrRuleSet = {
     /** `host:port` Cleanuparr reaches it on, matched against `TorrentEndpoint.endpoint`. */
     endpoint?: string;
     rules: CleanuparrRule[];
+    /** The Download Cleaner's per-client modules. Absent when Cleanuparr did not report them. */
+    unlinked?: UnlinkedModule;
+    deadTorrents?: DeadTorrentModule;
+    orphanedFiles?: OrphanedFilesModule;
+    /** Internal: the orphan scan's paths unfenced, for comparing with save paths. Never returned by a tool. */
+    orphanScan?: { scanDirectories: string[]; orphanedDirectory: string };
 };
+
+/** Moves a finished torrent with no hardlinks out of `categories` into `target`, a category or, with `useTag`, a tag. */
+export type UnlinkedModule =
+    | { enabled: false }
+    | { enabled: true; categories: string[]; target: string; useTag?: true; ignoredRootDirs?: string[] };
+
+/** Moves a finished torrent reporting no seeders on `maxStrikes` runs in a row out of `categories` into `target`. */
+export type DeadTorrentModule =
+    | { enabled: false }
+    | { enabled: true; categories: string[]; target: string; useTag?: true; maxStrikes: number };
+
+/**
+ * Moves each entry directly inside a scan directory that no torrent claims, is
+ * not excluded and is older than `minFileAgeHours` into `orphanedDirectory`.
+ * Absent `purgeAfterHours` means that directory is never purged.
+ */
+export type OrphanedFilesModule =
+    | { enabled: false }
+    | {
+          enabled: true;
+          scanDirectories: string[];
+          orphanedDirectory: string;
+          excludePatterns: string[];
+          minFileAgeHours: number;
+          purgeAfterHours?: number;
+      };
 
 export type CleanuparrSeeding = {
     sets: CleanuparrRuleSet[];

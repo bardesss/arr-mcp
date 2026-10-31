@@ -1,7 +1,9 @@
 import { logger } from '../core/logger.ts';
+import { coverageNotes, moduleNotes, normalisePath } from './cleanuparrModules.ts';
 import { resolveRuleSets } from './cleanuparrQueue.ts';
 import {
     hasCleanuparr,
+    hasQueue,
     hasSeedCriteria,
     hasSeedLimits,
     type CleanuparrSeeding,
@@ -14,7 +16,7 @@ import {
 export type SeedingRules = {
     clients: ClientSeedLimits[];
     indexers: IndexerSeedCriteria[];
-    cleanuparr?: Array<CleanuparrRuleSet & { service?: string }>;
+    cleanuparr?: Array<Omit<CleanuparrRuleSet, 'orphanScan'> & { service?: string }>;
     /** Where the rules contradict each other or leave a gap. */
     notes: string[];
 };
@@ -97,10 +99,41 @@ function cleanuparrNotes(
             );
         }
     }
-    if (!seeding.enforced && seeding.sets.some(s => s.rules.length > 0)) {
+    for (const set of seeding.sets) notes.push(...moduleNotes(set));
+    const modules = [
+        ['Unlinked', (s: CleanuparrRuleSet) => s.unlinked?.enabled === true],
+        ['Dead Torrents', (s: CleanuparrRuleSet) => s.deadTorrents?.enabled === true],
+        ['Orphaned Files', (s: CleanuparrRuleSet) => s.orphanedFiles?.enabled === true]
+    ] as const;
+    const idle = modules.filter(([, on]) => seeding.sets.some(on)).map(([name]) => name);
+    if (!seeding.enforced && idle.length > 0) {
+        const named = idle.length === 1 ? `the ${idle[0]} module` : `the ${idle.slice(0, -1).join(', ')} and ${idle.at(-1)} modules`;
+        const rules = seeding.sets.some(s => s.rules.length > 0) ? 'its seeding rules and ' : '';
+        notes.push(`Cleanuparr's Download Cleaner is not scheduled, so none of ${rules}${named} run.`);
+    } else if (!seeding.enforced && seeding.sets.some(s => s.rules.length > 0)) {
         notes.push("Cleanuparr's Download Cleaner is not scheduled, so none of its seeding rules are applied.");
     }
     return notes;
+}
+
+/** Save directories of each client an orphan scan is mapped to, against that scan. Only read when there is one. */
+async function orphanCoverage(
+    adapters: readonly ServiceAdapter[],
+    mapped: Map<string, CleanuparrRuleSet>,
+    read: <T>(id: string, fetch: () => Promise<T>) => Promise<T | undefined>
+): Promise<string[]> {
+    const scanned = [...mapped].filter(([, set]) => set.orphanedFiles?.enabled === true && set.orphanScan !== undefined);
+    const saves = await Promise.all(
+        scanned.map(async ([service, set]) => {
+            const adapter = adapters.find(a => a.id === service);
+            const queue = adapter !== undefined && hasQueue(adapter) ? await read(service, () => adapter.getQueue()) : undefined;
+            const dirs = [...new Set((queue ?? []).flatMap(q => (q.torrent?.savePath === undefined ? [] : [q.torrent.savePath])))];
+            return { set, saves: { service, dirs }, read: queue !== undefined };
+        })
+    );
+    // Cleanuparr claims save paths across every client it scans for.
+    const claimed = new Set(saves.flatMap(s => s.saves.dirs.map(normalisePath)));
+    return saves.filter(s => s.read).flatMap(s => coverageNotes(s.set, s.saves, claimed));
 }
 
 /** Settled per service: one unreachable client must not hide the others. */
@@ -140,11 +173,16 @@ export async function buildSeedingRules(
         cleanuparr?.enforced === true &&
         [...mapped.values()].some(set => set.rules.some(r => r.maxRatio !== undefined || r.maxSeedHours !== undefined));
     const notes = notesFor(clientRows, indexerRows, prowlarrIds, cleanuparrLimits);
-    const sets = (cleanuparr?.sets ?? []).map(set => {
-        const service = [...mapped].find(([, s]) => s === set)?.[0];
+    const sets = (cleanuparr?.sets ?? []).map(original => {
+        // The unfenced scan paths are for the coverage notes only.
+        const { orphanScan: _internal, ...set } = original;
+        const service = [...mapped].find(([, s]) => s === original)?.[0];
         return service === undefined ? set : { ...set, service };
     });
-    if (cleanuparr !== undefined) notes.push(...cleanuparrNotes(cleanuparr, mapped, conflicts, clientRows));
+    if (cleanuparr !== undefined) {
+        notes.push(...cleanuparrNotes(cleanuparr, mapped, conflicts, clientRows));
+        notes.push(...(await orphanCoverage(adapters, mapped, read)));
+    }
 
     return {
         clients: clientRows,

@@ -258,6 +258,46 @@ shares a client with another set, has no `service` and `notes` says why.
 `notes` also says when a rule's ratio differs from the client's own, and when
 the Download Cleaner is not scheduled, which means none of the rules run.
 
+Each set also carries the Download Cleaner's three per-client modules, when
+Cleanuparr reports them. A module that is off is just `{ "enabled": false }`.
+
+- `unlinked`: torrents in `categories` whose files have no hardlinks are moved
+  to `target`, a category, or a tag when `useTag` is set. `ignoredRootDirs` is
+  where hardlinks are not counted.
+- `deadTorrents`: torrents in `categories` that report no seeders on
+  `maxStrikes` runs in a row are moved to `target`, the same way.
+- `orphanedFiles`: each entry directly inside a `scanDirectories` entry that no
+  torrent claims, whose name matches no `excludePatterns` glob, and that is older
+  than `minFileAgeHours`, is moved into `orphanedDirectory`. That directory is
+  emptied of anything older than `purgeAfterHours`. Absent `purgeAfterHours`
+  means it is never emptied.
+
+Paths are fenced. Categories and patterns are not, the same as rule categories.
+
+`notes` adds the following for these modules:
+
+- an Unlinked or Dead Torrents `target` category that none of that client's
+  seeding rules covers, so whatever is moved there keeps seeding. A module that
+  tags instead is left out, because the torrent keeps the category its rule
+  already covers.
+- an orphaned directory that is never purged. arr-mcp cannot see how big it
+  is, only that nothing empties it.
+- for a set mapped to an arr-mcp client, that client's save directories, read
+  from its torrents, compared with the scan. Cleanuparr looks only one level
+  down, and a torrent claims its save directory and its own top-level entry.
+  So a save directory that is not a scan directory is never searched. A folder
+  between a scan directory and a save directory counts as one unclaimed entry,
+  and Cleanuparr would move it whole, torrents included, unless its name is
+  excluded. That is why cross-seed link directories are listed one per
+  tracker. Paths are compared as Cleanuparr compares them: either slash, no
+  trailing slash, ignoring case. Cleanuparr can map a client's paths onto its
+  own mount, but that mapping is stored in its download client settings next
+  to the password, and arr-mcp never reads those. So when none of the save
+  directories lies inside any scan directory, the note says the two cannot be
+  compared and stops there, without flagging each directory.
+
+The client's torrent list is only read when an orphan scan is on.
+
 ### Did that command finish?
 
 `commands` is every **followable** task a service has queued or running, plus
