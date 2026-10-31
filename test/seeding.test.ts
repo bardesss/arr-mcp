@@ -437,7 +437,7 @@ describe('stack_health Cleanuparr coverage', () => {
     const rule = (over: object = {}) => ({ id: 'r', name: 'Keep 30 days', priority: 1, categories: ['radarr', 'tv-sonarr', 'cleanuparr-dead'], trackerPatterns: [], tagsAny: [], tagsAll: [], privacy: 'both', maxSeedHours: 720, unsupported: [], deleteSourceFiles: true, action: 'delete', ...over });
     const cleanuparr = (sets: object[], ignored: string[] = []) =>
         ({ id: 'cleanuparr', type: 'cleanuparr', getSeedingRules: async () => ({ sets, dryRun: false, enforced: true, ignored }) }) as unknown as ServiceAdapter;
-    const set = (over: object = {}) => ({ client: 'qBittorrent VPN', clientType: 'qBittorrent', endpoint: '192.0.2.10:8081', rules: [rule()], targetCategories: ['cleanuparr-dead'], ...over });
+    const set = (over: object = {}) => ({ client: 'qBittorrent VPN', clientType: 'qBittorrent', endpoint: '192.0.2.10:8081', rules: [rule()], deadTorrents: { enabled: true, categories: [], target: 'cleanuparr-dead', maxStrikes: 3 }, ...over });
     const torrent = (n: number, category: string) => ({ ...finished, hash: n.toString(16).padStart(40, '0'), category });
 
     it('counts the torrents no rule covers, by why, and names the categories', async () => {
@@ -460,7 +460,6 @@ describe('stack_health Cleanuparr coverage', () => {
         expect(rules.notes).toContain(
             'Cleanuparr\'s rules for qbittorrent name a category no torrent there is in: "tv-sonarr". A typo, or a category renamed in the client, leaves a rule matching nothing.'
         );
-        expect(rules.cleanuparr?.[0]).not.toHaveProperty('targetCategories');
     });
 
     it('says nothing when every torrent is covered, and still reports the count', async () => {
@@ -470,10 +469,9 @@ describe('stack_health Cleanuparr coverage', () => {
     });
 
     it('names a torrent client Cleanuparr does not know, and a Cleanuparr client that does nothing', async () => {
-        const rules = await buildSeedingRules([cleanuparr([set({ endpoint: 'elsewhere.example:8080', rules: [], modulesOff: true })]), qbit([])], () => {});
+        const rules = await buildSeedingRules([cleanuparr([set({ endpoint: 'elsewhere.example:8080', rules: [], unlinked: { enabled: false }, deadTorrents: { enabled: false }, orphanedFiles: { enabled: false } })]), qbit([])], () => {});
         expect(rules.notes.some(n => n.startsWith('qbittorrent is not a download client in Cleanuparr') && n.includes('192.0.2.10:8081') && n.includes('Unlinked, Dead and Orphaned'))).toBe(true);
         expect(rules.notes).toContain('Cleanuparr\'s client "qBittorrent VPN" has no seeding rules and Unlinked, Dead and Orphaned are all off, so the Download Cleaner does nothing with it.');
-        expect(rules.cleanuparr?.[0]).not.toHaveProperty('modulesOff');
         expect(rules.coverage).toBeUndefined();
     });
 
@@ -493,7 +491,7 @@ describe('stack_health Cleanuparr coverage', () => {
     });
 
     it('reads categories from the download dir on Transmission', async () => {
-        const sets = [set({ clientType: 'Transmission', endpoint: '192.0.2.10:9091', rules: [rule({ categories: ['tv'] })], targetCategories: [] })];
+        const sets = [set({ clientType: 'Transmission', endpoint: '192.0.2.10:9091', rules: [rule({ categories: ['tv'] })], deadTorrents: undefined })];
         const torrents = [{ ...seeded, hashString: 'b'.repeat(40), downloadDir: '/downloads/tv/' }, { ...seeded, id: 4, hashString: 'c'.repeat(40), downloadDir: '/downloads/books' }];
         const rules = await buildSeedingRules([cleanuparr(sets), transmission(torrents)], () => {});
         expect(rules.coverage).toEqual([{ service: 'transmission', torrents: 2, uncovered: 1 }]);

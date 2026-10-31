@@ -8,6 +8,7 @@ import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
     type CleanuparrCapable,
+    type CleanuparrRuleSet,
     type CleanuparrSeeding,
     type ConnectionDiagnosis,
     type HealthCheck,
@@ -66,6 +67,82 @@ type RawRule = {
     action?: string;
 };
 
+type RawCategoryModule = { enabled?: boolean; targetCategory?: string; useTag?: boolean; categories?: string[] };
+type RawOrphaned = {
+    enabled?: boolean;
+    scanDirectories?: string[];
+    orphanedDirectory?: string;
+    excludePatterns?: string[];
+    minFileAgeHours?: number;
+    purgeAfterHours?: number | null;
+};
+type RawCleanerClient = {
+    downloadClientId?: string;
+    unlinkedConfig?: (RawCategoryModule & { ignoredRootDirs?: string[] }) | null;
+    deadTorrentConfig?: (RawCategoryModule & { maxStrikes?: number }) | null;
+    orphanedFilesConfig?: RawOrphaned | null;
+};
+type RawCleaner = { ignoredDownloads?: string[]; clients?: RawCleanerClient[] };
+
+const nonEmpty = (list: string[] | undefined): string[] => (list ?? []).filter(v => typeof v === 'string' && v.trim() !== '');
+
+/** The per-client modules arrived in 2.10; a client Cleanuparr reports none for carries none. */
+function modulesOf(raw: RawCleanerClient | undefined, service: string): Pick<CleanuparrRuleSet, 'unlinked' | 'deadTorrents' | 'orphanedFiles' | 'orphanScan'> {
+    if (raw === undefined) return {};
+    const path = (p: string) => fenceText(p, { service, field: 'path' });
+    const u = raw.unlinkedConfig;
+    const d = raw.deadTorrentConfig;
+    const o = raw.orphanedFilesConfig;
+    const ignoredRootDirs = nonEmpty(u?.ignoredRootDirs).map(path);
+    const scan = nonEmpty(o?.scanDirectories);
+    const purge = o?.purgeAfterHours;
+    return {
+        ...(u == null
+            ? {}
+            : {
+                  unlinked:
+                      u.enabled === true
+                          ? {
+                                enabled: true,
+                                categories: nonEmpty(u.categories),
+                                target: u.targetCategory ?? '',
+                                ...(u.useTag === true ? { useTag: true as const } : {}),
+                                ...(ignoredRootDirs.length === 0 ? {} : { ignoredRootDirs })
+                            }
+                          : { enabled: false }
+              }),
+        ...(d == null
+            ? {}
+            : {
+                  deadTorrents:
+                      d.enabled === true
+                          ? {
+                                enabled: true,
+                                categories: nonEmpty(d.categories),
+                                target: d.targetCategory ?? '',
+                                ...(d.useTag === true ? { useTag: true as const } : {}),
+                                maxStrikes: d.maxStrikes ?? 0
+                            }
+                          : { enabled: false }
+              }),
+        ...(o == null
+            ? {}
+            : o.enabled === true
+              ? {
+                    orphanedFiles: {
+                        enabled: true,
+                        scanDirectories: scan.map(path),
+                        orphanedDirectory: path(o.orphanedDirectory ?? ''),
+                        excludePatterns: nonEmpty(o.excludePatterns),
+                        minFileAgeHours: o.minFileAgeHours ?? 0,
+                        ...(typeof purge === 'number' && purge > 0 ? { purgeAfterHours: purge } : {})
+                    },
+                    orphanScan: { scanDirectories: scan, orphanedDirectory: o.orphanedDirectory ?? '' }
+                }
+              : { orphanedFiles: { enabled: false } })
+    };
+}
+
 type RawEvent = {
     id?: string;
     timestamp?: string;
@@ -111,22 +188,6 @@ const EMITTED = new Set<HistoryEventType>(['deleted', 'strike', 'stopped', 'impo
 const DROPPED = new Set(['SearchTriggered']);
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
-
-type RawModule = { enabled?: boolean; targetCategory?: string; useTag?: boolean };
-type RawCleaner = {
-    ignoredDownloads?: string[];
-    clients?: Array<{ downloadClientId?: string; unlinkedConfig?: RawModule | null; deadTorrentConfig?: RawModule | null; orphanedFilesConfig?: { enabled?: boolean } | null }>;
-};
-
-/** Only what the coverage check needs. A client Cleanuparr gave no config for says nothing either way. */
-function modulesOf(c: NonNullable<RawCleaner['clients']>[number] | undefined): { modulesOff?: true; targetCategories?: string[] } {
-    if (c === undefined) return {};
-    const movers = [c.unlinkedConfig, c.deadTorrentConfig];
-    const off = [...movers, c.orphanedFilesConfig].every(m => m?.enabled !== true);
-    // With useTag on, the target is a tag rather than a category.
-    const targets = movers.flatMap(m => (m?.enabled === true && m.useTag !== true && m.targetCategory ? [m.targetCategory] : []));
-    return { ...(off ? { modulesOff: true as const } : {}), ...(targets.length === 0 ? {} : { targetCategories: targets }) };
-}
 
 const PRIVACY: Record<string, RulePrivacy> = { Public: 'public', Private: 'private', Both: 'both' };
 const ACTION: Record<string, RuleAction> = { Delete: 'delete', Stop: 'stop' };
@@ -247,7 +308,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             this.#general(),
             this.#http.get<RawCleaner>(`${CLEANUPARR_API}/configuration/download_cleaner`)
         ]);
-        const modules = new Map((cleaner.clients ?? []).flatMap(c => (c.downloadClientId === undefined ? [] : [[c.downloadClientId, c] as const])));
+        const cleanerOf = (id: string) => (cleaner.clients ?? []).find(c => c.downloadClientId?.toLowerCase() === id.toLowerCase());
         // Cleanuparr applies no rules for a disabled client.
         const sets = await Promise.all(
             clients.filter(c => c.enabled).map(async c => {
@@ -258,7 +319,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
                     clientType: c.type,
                     ...(endpoint === undefined ? {} : { endpoint }),
                     rules: rules.map(r => ruleOf(r, this.id)).sort((a, b) => a.priority - b.priority),
-                    ...modulesOf(modules.get(c.id))
+                    ...modulesOf(cleanerOf(c.id), this.id)
                 };
             })
         );

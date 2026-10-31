@@ -1,6 +1,7 @@
 import { isIgnored, matchRule, unmatchedReason, type TorrentFacts, type UnmatchedReason } from '../core/cleanuparrRules.ts';
 import { stripDangerous } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
+import { coverageNotes, moduleNotes, normalisePath } from './cleanuparrModules.ts';
 import { resolveRuleSets } from './cleanuparrQueue.ts';
 import {
     hasCleanuparr,
@@ -12,13 +13,14 @@ import {
     type CleanuparrRuleSet,
     type ClientSeedLimits,
     type IndexerSeedCriteria,
+    type QueueItem,
     type ServiceAdapter
 } from '../services/types.ts';
 
 export type SeedingRules = {
     clients: ClientSeedLimits[];
     indexers: IndexerSeedCriteria[];
-    cleanuparr?: Array<CleanuparrRuleSet & { service?: string }>;
+    cleanuparr?: Array<Omit<CleanuparrRuleSet, 'orphanScan'> & { service?: string }>;
     /** Per torrent client a Cleanuparr rule set maps to: how many of its torrents no rule covers. */
     coverage?: CleanuparrCoverage[];
     /** Where the rules contradict each other or leave a gap. */
@@ -112,11 +114,46 @@ function cleanuparrNotes(
             );
         }
     }
-    if (!seeding.enforced && seeding.sets.some(s => s.rules.length > 0)) {
+    for (const set of seeding.sets) notes.push(...moduleNotes(set));
+    const modules = [
+        ['Unlinked', (s: CleanuparrRuleSet) => s.unlinked?.enabled === true],
+        ['Dead Torrents', (s: CleanuparrRuleSet) => s.deadTorrents?.enabled === true],
+        ['Orphaned Files', (s: CleanuparrRuleSet) => s.orphanedFiles?.enabled === true]
+    ] as const;
+    const idle = modules.filter(([, on]) => seeding.sets.some(on)).map(([name]) => name);
+    if (!seeding.enforced && idle.length > 0) {
+        const named = idle.length === 1 ? `the ${idle[0]} module` : `the ${idle.slice(0, -1).join(', ')} and ${idle.at(-1)} modules`;
+        const rules = seeding.sets.some(s => s.rules.length > 0) ? 'its seeding rules and ' : '';
+        notes.push(`Cleanuparr's Download Cleaner is not scheduled, so none of ${rules}${named} run.`);
+    } else if (!seeding.enforced && seeding.sets.some(s => s.rules.length > 0)) {
         notes.push("Cleanuparr's Download Cleaner is not scheduled, so none of its seeding rules are applied.");
     }
     return notes;
 }
+
+/** Save directories of each client an orphan scan is mapped to, against that scan. */
+function orphanCoverage(mapped: Map<string, CleanuparrRuleSet>, queues: ReadonlyMap<string, readonly QueueItem[]>): string[] {
+    const saves = [...mapped]
+        .filter(([service, set]) => set.orphanedFiles?.enabled === true && set.orphanScan !== undefined && queues.has(service))
+        .map(([service, set]) => {
+            const queue = queues.get(service) ?? [];
+            const dirs = [...new Set(queue.flatMap(q => (q.torrent?.savePath === undefined ? [] : [q.torrent.savePath])))];
+            return { set, saves: { service, dirs } };
+        });
+    // Cleanuparr claims save paths across every client it scans for.
+    const claimed = new Set(saves.flatMap(s => s.saves.dirs.map(normalisePath)));
+    return saves.flatMap(s => coverageNotes(s.set, s.saves, claimed));
+}
+
+/** Categories Unlinked and Dead move torrents into. With a tag the torrent keeps its category. */
+const targetCategories = (set: CleanuparrRuleSet): string[] =>
+    [set.unlinked, set.deadTorrents].flatMap(m => (m?.enabled === true && m.useTag !== true && m.target !== '' ? [m.target] : []));
+
+/** Unlinked, Dead and Orphaned are all off. A client Cleanuparr reported no modules for says nothing either way. */
+const modulesOff = (set: CleanuparrRuleSet): boolean => {
+    const modules = [set.unlinked, set.deadTorrents, set.orphanedFiles];
+    return modules.some(m => m !== undefined) && modules.every(m => m?.enabled !== true);
+};
 
 const quoted = (names: readonly string[], max: number): string => {
     const shown = names.slice(0, max).map(n => `"${stripDangerous(n)}"`).join(', ');
@@ -172,7 +209,7 @@ function coverageOf(
     }
     const seen = new Set(torrents.map(t => t.category.toLowerCase()));
     // Unlinked and Dead move torrents into these, so an empty one is normal.
-    const targets = new Set((set.targetCategories ?? []).map(c => c.toLowerCase()));
+    const targets = new Set(targetCategories(set).map(c => c.toLowerCase()));
     const named = [...new Map(set.rules.flatMap(r => r.categories).map(c => [c.toLowerCase(), c])).values()];
     const unused = named.filter(c => !seen.has(c.toLowerCase()) && !targets.has(c.toLowerCase()));
     if (unused.length > 0 && torrents.length > 0) {
@@ -202,7 +239,7 @@ function gapNotes(
     for (const set of seeding.sets) {
         if (set.rules.length > 0) continue;
         notes.push(
-            set.modulesOff === true
+            modulesOff(set)
                 ? `Cleanuparr's client "${set.client}" has no seeding rules and Unlinked, Dead and Orphaned are all off, so the Download Cleaner does nothing with it.`
                 : `Cleanuparr's client "${set.client}" has no seeding rules, so the Download Cleaner never removes its torrents.`
         );
@@ -247,32 +284,36 @@ export async function buildSeedingRules(
         cleanuparr?.enforced === true &&
         [...mapped.values()].some(set => set.rules.some(r => r.maxRatio !== undefined || r.maxSeedHours !== undefined));
     const notes = notesFor(clientRows, indexerRows, prowlarrIds, cleanuparrLimits);
-    const sets = (cleanuparr?.sets ?? []).map(set => {
-        const service = [...mapped].find(([, s]) => s === set)?.[0];
-        // The coverage check's inputs stay internal.
-        const { modulesOff: _off, targetCategories: _targets, ...shown } = set;
-        return service === undefined ? shown : { ...shown, service };
+    const sets = (cleanuparr?.sets ?? []).map(original => {
+        // The unfenced scan paths are for the coverage notes only.
+        const { orphanScan: _internal, ...set } = original;
+        const service = [...mapped].find(([, s]) => s === original)?.[0];
+        return service === undefined ? set : { ...set, service };
     });
     const coverage: CleanuparrCoverage[] = [];
     if (cleanuparr !== undefined) {
         notes.push(...cleanuparrNotes(cleanuparr, mapped, conflicts, clientRows));
         notes.push(...gapNotes(cleanuparr, mapped, conflicts, adapters));
-        // The whole torrent list of each mapped client: one call each, like get_queue.
-        const reads = await Promise.all(
-            [...mapped].map(async ([service, set]) => {
+        // Each mapped client's torrents, read once for both the rule coverage and the orphan scan.
+        const wanted = [...mapped].filter(([, set]) => set.rules.length > 0 || (set.orphanedFiles?.enabled === true && set.orphanScan !== undefined));
+        const queues = new Map<string, QueueItem[]>();
+        await Promise.all(
+            wanted.map(async ([service]) => {
                 const adapter = adapters.find(a => a.id === service);
-                if (adapter === undefined || !hasQueue(adapter) || set.rules.length === 0) return undefined;
+                if (adapter === undefined || !hasQueue(adapter)) return;
                 const items = await read(service, () => adapter.getQueue());
-                if (items === undefined) return undefined;
-                return coverageOf(service, set, items.flatMap(i => (i.torrent === undefined ? [] : [i.torrent])), cleanuparr.ignored);
+                if (items !== undefined) queues.set(service, items);
             })
         );
-        for (const r of reads) {
-            if (r === undefined) continue;
+        for (const [service, set] of mapped) {
+            const items = queues.get(service);
+            if (items === undefined || set.rules.length === 0) continue;
+            const r = coverageOf(service, set, items.flatMap(i => (i.torrent === undefined ? [] : [i.torrent])), cleanuparr.ignored);
             coverage.push(r.row);
             notes.push(...r.notes);
         }
         coverage.sort((a, b) => a.service.localeCompare(b.service));
+        notes.push(...orphanCoverage(mapped, queues));
     }
 
     return {
