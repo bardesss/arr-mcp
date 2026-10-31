@@ -8,7 +8,12 @@ import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
     type CleanuparrCapable,
+    type CleanuparrMalwareBlocker,
+    type CleanuparrQueueCleaner,
+    type CleanuparrRemovalCapable,
+    type CleanuparrRemovals,
     type CleanuparrSeeding,
+    type CleanuparrStrikeLimit,
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
@@ -16,6 +21,7 @@ import {
     type HistoryEntry,
     type HistoryEventType,
     type HistoryQuery,
+    type PrivateTorrentHandling,
     type ServiceAdapter,
     type Window
 } from './types.ts';
@@ -144,11 +150,181 @@ function ruleOf(r: RawRule, service: string): CleanuparrRule {
     };
 }
 
+type RawQueueCleaner = {
+    enabled?: boolean;
+    cronExpression?: string;
+    failedImport?: {
+        maxStrikes?: number;
+        ignorePrivate?: boolean;
+        deletePrivate?: boolean;
+        patterns?: string[];
+        patternMode?: string;
+        changeCategory?: boolean;
+        forceImport?: boolean;
+    };
+    ignoredDownloads?: string[];
+    processNoContentId?: boolean;
+    downloadingMetadataMaxStrikes?: number;
+};
+type RawQueueRule = {
+    name?: string;
+    enabled?: boolean;
+    maxStrikes?: number;
+    privacyType?: string;
+    minCompletionPercentage?: number;
+    maxCompletionPercentage?: number;
+    deletePrivateTorrentsFromClient?: boolean;
+    changeCategory?: boolean;
+    minSpeed?: string;
+    maxTimeHours?: number;
+};
+type RawBlocklist = { enabled?: boolean; blocklistType?: string; blocklistPath?: string | null };
+
+/** ContentBlockerConfigResponse has one blocklist per *arr, under these keys. */
+const BLOCKLIST_ARRS = ['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'sportarr', 'lazyLibrarian'] as const;
+
+type RawMalwareBlocker = {
+    enabled?: boolean;
+    cronExpression?: string;
+    ignorePrivate?: boolean;
+    deletePrivate?: boolean;
+    processNoContentId?: boolean;
+    deleteIfAnyFileBlocked?: boolean;
+    ignoredDownloads?: string[];
+} & Partial<Record<(typeof BLOCKLIST_ARRS)[number], RawBlocklist>>;
+
+const APPLIES: Record<string, CleanuparrStrikeLimit['appliesTo']> = { Public: 'public', Private: 'private', Both: 'both' };
+
+/** A ByteSize string such as `1MB` or `500 KB`; anything else is not passed on. */
+const BYTE_SIZE = /^\d+(?:[.,]\d+)?\s?[a-z]{0,3}(?:\/s)?$/i;
+
+/** A category change leaves the torrent in the client; otherwise the flag decides. */
+const privateOf = (changeCategory: boolean, deletes: boolean): Exclude<PrivateTorrentHandling, 'skipped'> =>
+    !changeCategory && deletes ? 'deleted_from_client' : 'kept_in_client';
+
+const nonBlank = (list: string[] | undefined): number => (list ?? []).filter(v => v.trim() !== '').length;
+
+/** A URL keeps only its host, so a token in its path or query never leaves; a local path is just `file`. */
+function sourceOf(path: string | null | undefined): string {
+    try {
+        const url = new URL(path ?? '');
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.hostname : 'file';
+    } catch {
+        return 'file';
+    }
+}
+
+function queueRuleOf(r: RawQueueRule, strike: 'Stalled' | 'Slow', service: string): CleanuparrStrikeLimit {
+    const appliesTo = APPLIES[r.privacyType ?? ''] ?? 'public';
+    const changeCategory = r.changeCategory === true;
+    const [min, max] = [r.minCompletionPercentage ?? 0, r.maxCompletionPercentage ?? 100];
+    const speed = r.minSpeed?.trim() ?? '';
+    return {
+        strike,
+        rule: fenceText(r.name ?? '', { service, field: 'rule' }),
+        maxStrikes: r.maxStrikes ?? 0,
+        atLimit: changeCategory ? 'change_category' : 'remove',
+        appliesTo,
+        ...(appliesTo === 'public' ? {} : { privateTorrents: privateOf(changeCategory, r.deletePrivateTorrentsFromClient === true) }),
+        ...(min === 0 && max === 100 ? {} : { completion: `${min}-${max}%` }),
+        ...(BYTE_SIZE.test(speed) ? { minSpeed: speed } : {}),
+        ...(typeof r.maxTimeHours === 'number' && r.maxTimeHours > 0 ? { maxTimeHours: r.maxTimeHours } : {})
+    };
+}
+
+function queueCleanerOf(
+    config: RawQueueCleaner,
+    rules: { stall: RawQueueRule[]; slow: RawQueueRule[] },
+    scheduled: boolean | undefined,
+    searchesAgain: boolean | undefined,
+    service: string
+): CleanuparrQueueCleaner {
+    const strikes: CleanuparrStrikeLimit[] = [];
+    const failed = config.failedImport ?? {};
+    // 0 is off. A per-arr override can still turn it on, and that setting is served beside the arr's API key.
+    if ((failed.maxStrikes ?? 0) > 0) {
+        const changeCategory = failed.changeCategory === true;
+        strikes.push({
+            strike: 'FailedImport',
+            maxStrikes: failed.maxStrikes ?? 0,
+            atLimit: changeCategory ? 'change_category' : 'remove',
+            appliesTo: failed.ignorePrivate === true ? 'public' : 'both',
+            ...(failed.ignorePrivate === true ? {} : { privateTorrents: privateOf(changeCategory, failed.deletePrivate === true) }),
+            patterns: { mode: failed.patternMode === 'Exclude' ? 'exclude' : 'include', count: nonBlank(failed.patterns) },
+            ...(failed.forceImport === true ? { forceImport: true } : {})
+        });
+    }
+    // qBittorrent only, and it removes from the client whatever the torrent's privacy.
+    if ((config.downloadingMetadataMaxStrikes ?? 0) > 0) {
+        strikes.push({
+            strike: 'DownloadingMetadata',
+            maxStrikes: config.downloadingMetadataMaxStrikes ?? 0,
+            atLimit: 'remove',
+            appliesTo: 'both',
+            privateTorrents: 'deleted_from_client'
+        });
+    }
+    strikes.push(...rules.stall.filter(r => r.enabled !== false).map(r => queueRuleOf(r, 'Stalled', service)));
+    strikes.push(...rules.slow.filter(r => r.enabled !== false).map(r => queueRuleOf(r, 'Slow', service)));
+    return {
+        enabled: config.enabled === true,
+        ...(scheduled === undefined ? {} : { scheduled }),
+        schedule: config.cronExpression ?? '',
+        strikes,
+        onRemoval: { blocklisted: true, ...(searchesAgain === undefined ? {} : { searchesAgain }) },
+        processNoContentId: config.processNoContentId === true,
+        ignoredCount: nonBlank(config.ignoredDownloads)
+    };
+}
+
+function malwareBlockerOf(config: RawMalwareBlocker, scheduled: boolean | undefined): CleanuparrMalwareBlocker {
+    const blocklists = BLOCKLIST_ARRS.flatMap(arr => {
+        const b = config[arr];
+        if (b?.enabled !== true) return [];
+        const type = b.blocklistType === 'Whitelist' ? ('whitelist' as const) : ('blacklist' as const);
+        return [{ arr: arr.toLowerCase(), type, source: sourceOf(b.blocklistPath) }];
+    });
+    const privateTorrents: PrivateTorrentHandling =
+        config.ignorePrivate === true ? 'skipped' : config.deletePrivate === true ? 'deleted_from_client' : 'kept_in_client';
+    return {
+        enabled: config.enabled === true,
+        ...(scheduled === undefined ? {} : { scheduled }),
+        schedule: config.cronExpression ?? '',
+        blocklists,
+        removesWhen: config.deleteIfAnyFileBlocked === true ? 'any_file_blocked' : 'all_files_blocked',
+        privateTorrents,
+        processNoContentId: config.processNoContentId === true,
+        ignoredCount: nonBlank(config.ignoredDownloads)
+    };
+}
+
+const STRIKE_LABEL: Record<CleanuparrStrikeLimit['strike'], string> = {
+    FailedImport: 'failed-import strikes',
+    DownloadingMetadata: 'metadata strikes',
+    Stalled: 'stall rule',
+    Slow: 'slow rule'
+};
+
+/** Only settings the source shows delete a private torrent's files. A metadata stall has no files to seed. */
+function removalNotes(queue: CleanuparrQueueCleaner | undefined, malware: CleanuparrMalwareBlocker | undefined): string[] {
+    const notes: string[] = [];
+    const hitAndRun = 'which ends its seeding and can count as a hit-and-run on a private tracker';
+    for (const s of queue?.enabled === true ? queue.strikes : []) {
+        if (s.strike === 'DownloadingMetadata' || s.atLimit !== 'remove' || s.privateTorrents !== 'deleted_from_client') continue;
+        const what = s.rule === undefined ? STRIKE_LABEL[s.strike] : `${STRIKE_LABEL[s.strike]} ${s.rule}`;
+        notes.push(`Queue Cleaner's ${what} deletes a private torrent and its files from the download client after ${s.maxStrikes} strikes, ${hitAndRun}.`);
+    }
+    if (malware?.enabled === true && malware.privateTorrents === 'deleted_from_client') {
+        notes.push(`Malware Blocker deletes a blocked private torrent and its files from the download client, ${hitAndRun}.`);
+    }
+    return notes;
+}
+
 /**
  * Hand-written against the source at tag v2.10.9 and checked live on 2.10.12:
  * Cleanuparr publishes no API reference, and minor releases may break this contract.
  */
-export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, CleanuparrCapable, HistoryCapable {
+export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, CleanuparrCapable, CleanuparrRemovalCapable, HistoryCapable {
     readonly type: ServiceId = 'cleanuparr';
     readonly id = 'cleanuparr';
     readonly #http: ServiceHttp;
@@ -249,6 +425,42 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             dryRun: general.dryRun === true,
             enforced: jobs.some(j => j.jobType === 'DownloadCleaner' && ON_SCHEDULE.has(j.status ?? '')),
             ignored: [...(general.ignoredDownloads ?? []), ...(cleaner.ignoredDownloads ?? [])].filter(v => v.trim() !== '')
+        };
+    }
+
+    /**
+     * The Queue Cleaner and Malware Blocker settings that decide when a download is removed. Neither response
+     * carries a credential. The per-arr failed-import override is not read: it is served beside the arr's API key.
+     */
+    async getRemovalRules(): Promise<CleanuparrRemovals> {
+        const [queue, malware, jobs, seeker] = await Promise.allSettled([
+            Promise.all([
+                this.#http.get<RawQueueCleaner>(`${CLEANUPARR_API}/configuration/queue_cleaner`),
+                this.#http.get<RawQueueRule[]>(`${CLEANUPARR_API}/queue-rules/stall`),
+                this.#http.get<RawQueueRule[]>(`${CLEANUPARR_API}/queue-rules/slow`)
+            ]),
+            this.#http.get<RawMalwareBlocker>(`${CLEANUPARR_API}/configuration/malware_blocker`),
+            this.#jobs(),
+            this.#http.get<{ searchEnabled?: boolean }>(`${CLEANUPARR_API}/configuration/seeker`)
+        ]);
+        if (queue.status === 'rejected' && malware.status === 'rejected') throw queue.reason;
+        const scheduled = (type: string): boolean | undefined =>
+            jobs.status === 'fulfilled' ? jobs.value.some(j => j.jobType === type && ON_SCHEDULE.has(j.status ?? '')) : undefined;
+        const searchesAgain = seeker.status === 'fulfilled' && typeof seeker.value.searchEnabled === 'boolean' ? seeker.value.searchEnabled : undefined;
+
+        const queueCleaner =
+            queue.status === 'fulfilled'
+                ? queueCleanerOf(queue.value[0], { stall: queue.value[1], slow: queue.value[2] }, scheduled('QueueCleaner'), searchesAgain, this.id)
+                : undefined;
+        const malwareBlocker = malware.status === 'fulfilled' ? malwareBlockerOf(malware.value, scheduled('MalwareBlocker')) : undefined;
+        const unread = [
+            ...(queue.status === 'rejected' ? ['Queue Cleaner'] : []),
+            ...(malware.status === 'rejected' ? ['Malware Blocker'] : [])
+        ];
+        return {
+            ...(queueCleaner === undefined ? {} : { queueCleaner }),
+            ...(malwareBlocker === undefined ? {} : { malwareBlocker }),
+            notes: [...removalNotes(queueCleaner, malwareBlocker), ...unread.map(m => `Could not read the ${m} settings from Cleanuparr.`)]
         };
     }
 

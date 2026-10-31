@@ -409,6 +409,73 @@ export interface CleanuparrCapable {
 export const hasCleanuparr = (a: ServiceAdapter): a is ServiceAdapter & CleanuparrCapable =>
     typeof (a as Partial<CleanuparrCapable>).getSeedingRules === 'function';
 
+/** What a removal does to a private torrent: never judged, removed but left seeding, or deleted from the client. */
+export type PrivateTorrentHandling = 'skipped' | 'kept_in_client' | 'deleted_from_client';
+
+/** One strike kind, or one stall or slow rule, and what Cleanuparr does when its count is reached. */
+export type CleanuparrStrikeLimit = {
+    strike: 'FailedImport' | 'DownloadingMetadata' | 'Stalled' | 'Slow';
+    /** A stall or slow rule's name, fenced. */
+    rule?: string;
+    maxStrikes: number;
+    /** `change_category` keeps the torrent in the client under another category; `remove` takes it out of the *arr queue. */
+    atLimit: 'remove' | 'change_category';
+    /** Which torrents the strike is counted on. */
+    appliesTo: 'public' | 'private' | 'both';
+    /** Absent when `appliesTo` is `public`. */
+    privateTorrents?: Exclude<PrivateTorrentHandling, 'skipped'>;
+    /** Completion range a rule applies within, when it is narrower than 0–100%. */
+    completion?: string;
+    /** Slow rules: the speed below which a strike is counted. */
+    minSpeed?: string;
+    /** Slow rules: the hours a download may take before a strike is counted. */
+    maxTimeHours?: number;
+    /** Failed imports: whether the arr's messages must match (`include`) or must not match (`exclude`) the patterns. */
+    patterns?: { mode: 'include' | 'exclude'; count: number };
+    /** Failed imports: Cleanuparr tries to import a blocked download before it strikes it. */
+    forceImport?: boolean;
+};
+
+export type CleanuparrQueueCleaner = {
+    enabled: boolean;
+    /** The job is on its schedule, from `/api/jobs`. Absent when the job list could not be read. */
+    scheduled?: boolean;
+    schedule: string;
+    strikes: CleanuparrStrikeLimit[];
+    /** A removal always blocklists the release in the *arr. A search follows only when Seeker search is on. */
+    onRemoval: { blocklisted: true; searchesAgain?: boolean };
+    /** Downloads the arr cannot map to a film or episode are judged too. */
+    processNoContentId: boolean;
+    ignoredCount: number;
+};
+
+export type CleanuparrMalwareBlocker = {
+    enabled: boolean;
+    scheduled?: boolean;
+    schedule: string;
+    /** Per *arr, only the enabled ones. A URL is reduced to its host, a local file to `file`. */
+    blocklists: { arr: string; type: 'blacklist' | 'whitelist'; source: string }[];
+    /** Blocked files are skipped in the client; the download is removed when every file is blocked, or any. */
+    removesWhen: 'all_files_blocked' | 'any_file_blocked';
+    privateTorrents: PrivateTorrentHandling;
+    processNoContentId: boolean;
+    ignoredCount: number;
+};
+
+export type CleanuparrRemovals = {
+    queueCleaner?: CleanuparrQueueCleaner;
+    malwareBlocker?: CleanuparrMalwareBlocker;
+    /** Settings that delete what a user likely wants kept, and sources that could not be read. */
+    notes: string[];
+};
+
+export interface CleanuparrRemovalCapable {
+    getRemovalRules(): Promise<CleanuparrRemovals>;
+}
+
+export const hasCleanuparrRemovals = (a: ServiceAdapter): a is ServiceAdapter & CleanuparrRemovalCapable =>
+    typeof (a as Partial<CleanuparrRemovalCapable>).getRemovalRules === 'function';
+
 export interface TorrentEndpoint {
     /** `host:port` of the client, for matching Cleanuparr's record of it. */
     readonly endpoint: string;
