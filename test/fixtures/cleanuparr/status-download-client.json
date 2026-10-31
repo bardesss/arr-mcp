@@ -1,0 +1,1 @@
+{"Clients":[{"id":"77893a81-a4e1-450e-b187-bb0d3ccd4e17","name":"Transmission","type":"Transmission","host":"http://transmission.example:9091/","enabled":true,"isConnected":true},{"id":"0b6f3c1e-2a4d-4f7e-9c8b-1d2e3f4a5b6c","name":"qBittorrent","type":"qBittorrent","host":"http://qbittorrent.example:8080/","enabled":true,"isConnected":true}]}

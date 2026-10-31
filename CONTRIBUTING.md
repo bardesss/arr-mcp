@@ -300,14 +300,16 @@ gets held against the four checks above, which is cheaper for everyone than
 finding out afterwards.
 
 **You will have to test it yourself, properly.** The maintainer runs neither
-Lidarr, Plex nor qBittorrent. Lidarr's read fixtures came from a live 3.1.6
+Lidarr, Plex, qBittorrent nor Cleanuparr. Lidarr's read fixtures came from a live 3.1.6
 library with 1,578 artists and no download activity, and its two write fixtures
 from a temporary 2.1.3.3927 instance, so a capture against real download
 activity is still outstanding. Plex has an adapter
 and, as of a volunteer tester's report on [issue #180](../../issues/180), has
 been exercised against a real instance. [qBittorrent](../../issues/147) has an
 adapter too, exercised against a real 5.2.3 server in [#195](../../issues/195)
-for login and health only — whichever you take on, your testing is the only
+for login and health only. Cleanuparr was tested by its requester on a live
+2.10.12 with qBittorrent 5.3.0 in [#308](../../issues/308), and those captures
+are its fixtures; its Transmission path has not met a real instance. Whichever you take on, your testing is the only
 testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
@@ -500,7 +502,7 @@ diff** — the generated files are output, not source, and are not meant to be
 read by hand.
 
 Radarr, Sonarr, Whisparr, Prowlarr, Jellyfin, Seerr and Profilarr are generated.
-Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent and Plex publish no usable spec
+Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent, Plex and Cleanuparr publish no usable spec
 and are hand-written against recorded fixtures.
 
 ### The nightly compatibility check

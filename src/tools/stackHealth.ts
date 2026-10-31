@@ -309,7 +309,8 @@ export async function buildStackHealth(
 
     const seedingRules = opts.detail === 'full' ? await buildSeedingRules(adapters, markDegraded) : undefined;
     const hasSeedingRules =
-        seedingRules !== undefined && (seedingRules.clients.length > 0 || seedingRules.indexers.length > 0);
+        seedingRules !== undefined &&
+        (seedingRules.clients.length > 0 || seedingRules.indexers.length > 0 || (seedingRules.cleanuparr?.length ?? 0) > 0);
 
     // Promise.all resolves in input order but the pushes above race, so sort to
     // make the response stable across calls and diffable in tests.
@@ -397,7 +398,7 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists the searches, scans, refreshes, renames and imports each service has queued or running, plus any it finished in the last fifteen minutes — so a command that is not there has finished. A service\'s own per-minute housekeeping is left out. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. Also at `detail: "full"`, `seedingRules` gives each torrent client\'s default seed limits and what it does on reaching them, each torrent indexer\'s seed ratio and time (an *arr hands those to the client with every grab, overriding its default), and `notes` where they disagree. Which torrents are past their limit is in `get_queue`. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
+                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists the searches, scans, refreshes, renames and imports each service has queued or running, plus any it finished in the last fifteen minutes — so a command that is not there has finished. A service\'s own per-minute housekeeping is left out. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. Also at `detail: "full"`, `seedingRules` gives each torrent client\'s default seed limits and what it does on reaching them, each torrent indexer\'s seed ratio and time (an *arr hands those to the client with every grab, overriding its default), and `notes` where they disagree. Which torrents are past their limit is in `get_queue`. With Cleanuparr configured, `seedingRules.cleanuparr` lists its rules per client, matched to the arr-mcp client they act on. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema }),
             // The one read tool whose answer is not a list, so it declares its
             // own shape rather than the paged envelope. `disks` and `failures`
@@ -419,7 +420,12 @@ export function registerStackHealth(
                     .optional()
                     .describe('Quality profiles, root folders and tags each Radarr/Sonarr instance has. Only at `detail: "full"`.'),
                 seedingRules: z
-                    .object({ clients: z.array(z.unknown()), indexers: z.array(z.unknown()), notes: z.array(z.string()) })
+                    .object({
+                        clients: z.array(z.unknown()),
+                        indexers: z.array(z.unknown()),
+                        cleanuparr: z.array(z.unknown()).optional(),
+                        notes: z.array(z.string())
+                    })
                     .optional()
                     .describe('Client seed limits, indexer seed criteria, and where they disagree. Only at `detail: "full"`.'),
                 ...(primaryMediaServer === undefined

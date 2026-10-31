@@ -5,6 +5,8 @@ import { logger } from '../../core/logger.ts';
 import { artistRefusal, filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../../core/resolver.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import {
+    hasCleanuparr,
+    hasHistory,
     hasIndexers,
     hasMediaDetails,
     hasQueue,
@@ -19,7 +21,7 @@ import {
 } from '../../services/types.ts';
 import type { LibraryLoader } from '../library.ts';
 import { resolveInstance } from '../resolveInstance.ts';
-import type { Evidence } from './chain.ts';
+import { mentions, type Evidence } from './chain.ts';
 
 export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; instance?: string; user?: string };
 
@@ -31,6 +33,7 @@ export type DiagnoseDeps = {
 };
 
 const RECENT_REJECTION_LIMIT = 50;
+const CLEANUPARR_WINDOW_MS = 30 * 86_400_000;
 
 /**
  * Every probe returns `undefined` on failure and records the service in
@@ -303,6 +306,35 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         request = match === undefined ? null : { status: match.status };
     }
 
+    // null: not configured. undefined: could not look. Matched by download id,
+    // which the *arr grab and Cleanuparr's record of it both carry.
+    let cleanuparr: Evidence['cleanuparr'] = null;
+    const cleanuparrAdapter = deps.adapters.find(hasCleanuparr);
+    if (cleanuparrAdapter !== undefined && hasHistory(cleanuparrAdapter)) {
+        const ids = new Set<string>();
+        for (const q of queue?.items ?? []) {
+            if (q.downloadId !== undefined && item !== undefined && mentions(q.title, item)) ids.add(q.downloadId.toLowerCase());
+        }
+        const managing = item?.acquisition;
+        const arr = managing?.id === undefined ? undefined : deps.adapters.find(a => a.id === managing.service);
+        if (arr !== undefined && hasHistory(arr) && managing?.id !== undefined) {
+            const id = managing.id;
+            const rows = await probe(`${arr.id}:history`, degraded, () => arr.readHistory({ id, want: 50 }));
+            for (const r of rows === undefined ? [] : Array.isArray(rows) ? rows : rows.items) {
+                if (r.downloadId !== undefined) ids.add(r.downloadId.toLowerCase());
+            }
+        }
+        // Nothing to match, so an outage there must not cost an unrelated verdict its certainty.
+        if (ids.size === 0) {
+            cleanuparr = [];
+        } else {
+            const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
+            const events = await probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: 500 }));
+            const list = events === undefined ? undefined : Array.isArray(events) ? events : events.items;
+            cleanuparr = list?.filter(e => e.downloadId !== undefined && ids.has(e.downloadId));
+        }
+    }
+
     degraded.sort();
     libraryDegraded.sort();
     return {
@@ -316,6 +348,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         scan,
         ...(mediaServer === undefined ? {} : { mediaServer }),
         scanCapable: scanAdapter !== undefined,
+        cleanuparr,
         libraryDegraded,
         degraded
     };

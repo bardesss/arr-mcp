@@ -1,7 +1,11 @@
 import { logger } from '../core/logger.ts';
+import { resolveRuleSets } from './cleanuparrQueue.ts';
 import {
+    hasCleanuparr,
     hasSeedCriteria,
     hasSeedLimits,
+    type CleanuparrSeeding,
+    type CleanuparrRuleSet,
     type ClientSeedLimits,
     type IndexerSeedCriteria,
     type ServiceAdapter
@@ -10,6 +14,7 @@ import {
 export type SeedingRules = {
     clients: ClientSeedLimits[];
     indexers: IndexerSeedCriteria[];
+    cleanuparr?: Array<CleanuparrRuleSet & { service?: string }>;
     /** Where the rules contradict each other or leave a gap. */
     notes: string[];
 };
@@ -23,7 +28,8 @@ const describe = (c: IndexerSeedCriteria): string =>
         c.seedTimeSeconds === undefined ? 'no seed time' : `${c.seedTimeSeconds / 60} min`
     ].join(', ');
 
-function notesFor(clients: ClientSeedLimits[], indexers: IndexerSeedCriteria[], prowlarrIds: Set<string>): string[] {
+/** `cleanuparrLimits`: an enforced Cleanuparr rule set limits seeding on at least one client. */
+function notesFor(clients: ClientSeedLimits[], indexers: IndexerSeedCriteria[], prowlarrIds: Set<string>, cleanuparrLimits: boolean): string[] {
     const notes: string[] = [];
     const prowlarr = indexers.filter(i => prowlarrIds.has(i.service));
     const apps = indexers.filter(i => !prowlarrIds.has(i.service));
@@ -41,7 +47,15 @@ function notesFor(clients: ClientSeedLimits[], indexers: IndexerSeedCriteria[], 
     }
 
     const clientLimited = clients.some(c => c.ratioLimit !== undefined || c.seedingLimitSeconds !== undefined);
-    if (clients.length > 0 && !clientLimited) {
+    const unlimited = apps.filter(i => i.seedRatio === undefined && i.seedTimeSeconds === undefined);
+    if (clients.length > 0 && !clientLimited && cleanuparrLimits && unlimited.length > 0) {
+        // Which category an indexer's grabs land in is the *arr's to say, so the per-torrent answer is get_queue's.
+        notes.push(
+            `${unlimited.map(i => `"${i.indexer}"`).join(', ')} set no seed ratio or time and no torrent client has a default limit, ` +
+                "so Cleanuparr's rules are the only limit. A torrent in a category no rule covers seeds until someone stops it; " +
+                'get_queue at detail "full" says which rule covers each torrent, or why none does.'
+        );
+    } else if (clients.length > 0 && !clientLimited) {
         for (const i of apps) {
             if (i.seedRatio !== undefined || i.seedTimeSeconds !== undefined) continue;
             notes.push(
@@ -51,6 +65,41 @@ function notesFor(clients: ClientSeedLimits[], indexers: IndexerSeedCriteria[], 
         }
     }
 
+    return notes;
+}
+
+function cleanuparrNotes(
+    seeding: CleanuparrSeeding,
+    mapped: Map<string, CleanuparrRuleSet>,
+    conflicts: Map<string, CleanuparrRuleSet[]>,
+    clients: ClientSeedLimits[]
+): string[] {
+    const notes: string[] = [];
+    for (const [service, list] of conflicts) {
+        const names = list.map(s => `"${s.client}"`);
+        const [all, none] = names.length > 2 ? ['all', 'none of their'] : ['both', "neither's"];
+        notes.push(`Cleanuparr's clients ${names.slice(0, -1).join(', ')} and ${names.at(-1)} ${all} point at ${service}, so ${none} rules are applied to get_queue.`);
+    }
+    const conflicted = new Set([...conflicts.values()].flat());
+    for (const set of seeding.sets) {
+        if (conflicted.has(set)) continue;
+        const service = [...mapped].find(([, s]) => s === set)?.[0];
+        if (service === undefined) {
+            notes.push(`Cleanuparr's client "${set.client}" matches no configured arr-mcp client, so its rules are not applied to get_queue.`);
+            continue;
+        }
+        const own = clients.find(c => c.service === service)?.ratioLimit;
+        for (const rule of set.rules) {
+            if (rule.maxRatio === undefined || own === undefined || own === rule.maxRatio) continue;
+            notes.push(
+                `Cleanuparr rule "${rule.name}" on ${service} ${rule.action === 'delete' ? 'removes' : 'stops'} at ratio ${rule.maxRatio}, ` +
+                    `but ${service} itself seeds to ${own}. Cleanuparr acts first when it runs.`
+            );
+        }
+    }
+    if (!seeding.enforced && seeding.sets.some(s => s.rules.length > 0)) {
+        notes.push("Cleanuparr's Download Cleaner is not scheduled, so none of its seeding rules are applied.");
+    }
     return notes;
 }
 
@@ -69,9 +118,11 @@ export async function buildSeedingRules(
         }
     };
 
-    const [clients, indexers] = await Promise.all([
+    const cleanuparrSource = adapters.find(hasCleanuparr);
+    const [clients, indexers, cleanuparr] = await Promise.all([
         Promise.all(adapters.filter(hasSeedLimits).map(a => read(a.id, () => a.getSeedLimits()))),
-        Promise.all(adapters.filter(hasSeedCriteria).map(a => read(a.id, () => a.getSeedCriteria())))
+        Promise.all(adapters.filter(hasSeedCriteria).map(a => read(a.id, () => a.getSeedCriteria()))),
+        cleanuparrSource === undefined ? undefined : read(cleanuparrSource.id, () => cleanuparrSource.getSeedingRules())
     ]);
 
     const prowlarrIds = new Set(adapters.filter(a => a.type === 'prowlarr').map(a => a.id));
@@ -81,5 +132,24 @@ export async function buildSeedingRules(
         .sort((a, b) => a.service.localeCompare(b.service) || a.indexer.localeCompare(b.indexer));
     clientRows.sort((a, b) => a.service.localeCompare(b.service));
 
-    return { clients: clientRows, indexers: indexerRows, notes: notesFor(clientRows, indexerRows, prowlarrIds) };
+    const { mapped, conflicts } =
+        cleanuparr === undefined
+            ? { mapped: new Map<string, CleanuparrRuleSet>(), conflicts: new Map<string, CleanuparrRuleSet[]>() }
+            : resolveRuleSets(cleanuparr.sets, adapters);
+    const cleanuparrLimits =
+        cleanuparr?.enforced === true &&
+        [...mapped.values()].some(set => set.rules.some(r => r.maxRatio !== undefined || r.maxSeedHours !== undefined));
+    const notes = notesFor(clientRows, indexerRows, prowlarrIds, cleanuparrLimits);
+    const sets = (cleanuparr?.sets ?? []).map(set => {
+        const service = [...mapped].find(([, s]) => s === set)?.[0];
+        return service === undefined ? set : { ...set, service };
+    });
+    if (cleanuparr !== undefined) notes.push(...cleanuparrNotes(cleanuparr, mapped, conflicts, clientRows));
+
+    return {
+        clients: clientRows,
+        indexers: indexerRows,
+        ...(sets.length > 0 ? { cleanuparr: sets } : {}),
+        notes
+    };
 }

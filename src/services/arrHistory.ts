@@ -40,6 +40,7 @@ type RawHistory = {
     movieId?: number;
     seriesId?: number;
     episodeId?: number;
+    downloadId?: string;
     quality?: { quality?: { name?: string } };
     data?: {
         // Present on `grabbed` and `downloadFailed` only.
@@ -153,6 +154,7 @@ async function readHistoryPages(
                 rawEvent: raw,
                 title: fence(r.sourceTitle ?? '', 'sourceTitle'),
                 ...(mediaId === undefined ? {} : { mediaId: String(mediaId) }),
+                ...(r.downloadId === undefined || r.downloadId === '' ? {} : { downloadId: r.downloadId.toLowerCase() }),
                 ...(r.episodeId === undefined ? {} : { episodeId: String(r.episodeId) }),
                 ...(r.data?.indexer === undefined ? {} : { indexer: fence(r.data.indexer, 'indexer') }),
                 ...(r.quality?.quality?.name === undefined ? {} : { quality: r.quality.quality.name }),

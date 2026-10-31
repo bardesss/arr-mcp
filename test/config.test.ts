@@ -481,6 +481,33 @@ describe('lidarr', () => {
     });
 });
 
+describe('cleanuparr', () => {
+    it('reads write permissions on cleanuparr as off, since nothing writes to it', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { cleanuparr: { url: 'http://cleanuparr:11011', api_key: 'k', permissions: { safe_write: true, destructive: true } } }
+        });
+        expect(parsed.services.cleanuparr?.permissions).toEqual({ safe_write: false, destructive: false });
+    });
+
+    it('accepts a single cleanuparr block', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { cleanuparr: { url: 'http://cleanuparr:11011', api_key: 'k' } }
+        });
+        expect(parsed.services.cleanuparr?.url).toBe('http://cleanuparr:11011');
+    });
+
+    it('refuses a list of cleanuparr instances', () => {
+        expect(() =>
+            ConfigSchema.parse({
+                auth: AUTH,
+                services: { cleanuparr: [{ url: 'http://a:11011', api_key: 'k' }] }
+            })
+        ).toThrow(/single block/);
+    });
+});
+
 describe('per-service config shapes', () => {
     it('accepts transmission with username and password and no api_key', () => {
         const parsed = ConfigSchema.parse({

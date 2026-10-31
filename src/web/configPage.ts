@@ -3,6 +3,7 @@ import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import {
     MULTI_INSTANCE,
     OAuthSchema,
+    READ_ONLY_SERVICES,
     ServiceIdSchema,
     type Config,
     type ServiceId,
@@ -251,14 +252,16 @@ function instanceCard(
         ${serviceFields(instance, p, users)}
         ${field({ id: `${p}.timeout_ms`, name: 'timeout_ms', label: 'Timeout (ms)', type: 'number', value: service.timeout_ms })}
 
-        <p class="note" style="margin-top:.75rem">Writes — both off by default, and granted per instance.</p>
-        ${checkbox(`${p}.safe_write`, 'safe_write', 'safe_write — searches, monitoring, request verdicts', service.permissions.safe_write)}
-        ${checkbox(
-            `${p}.destructive`,
-            'destructive',
-            'destructive — deletes files, queue items and requests (implies safe_write)',
-            service.permissions.destructive
-        )}
+        ${READ_ONLY_SERVICES.has(instance.type)
+            ? html`<p class="note" style="margin-top:.75rem">Read-only: arr-mcp never writes to ${instance.type}, so there is nothing to grant.</p>`
+            : html`<p class="note" style="margin-top:.75rem">Writes — both off by default, and granted per instance.</p>
+                  ${checkbox(`${p}.safe_write`, 'safe_write', 'safe_write — searches, monitoring, request verdicts', service.permissions.safe_write)}
+                  ${checkbox(
+                      `${p}.destructive`,
+                      'destructive',
+                      'destructive — deletes files, queue items and requests (implies safe_write)',
+                      service.permissions.destructive
+                  )}`}
         ${instance.type === 'plex'
             ? html`${checkbox(
                   `${p}.allow_metadata_repair`,
