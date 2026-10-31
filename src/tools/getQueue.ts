@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
-import { annotateCleanuparr } from './cleanuparrQueue.ts';
+import { annotateCleanuparr, dueWithin, type CleanuparrDue } from './cleanuparrQueue.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 
 export type GetQueueResult = {
@@ -19,7 +19,21 @@ export type GetQueueResult = {
      * held. Every existing key is unchanged.
      */
     counts: Record<string, number>;
+    /** At `detail: "full"`: what Cleanuparr's rules fall due on in the next week, across the whole queue, not just this page. */
+    cleanuparrDue?: CleanuparrDue;
 };
+
+const GIB = 1024 ** 3;
+const size = (bytes: number): string => (bytes >= GIB ? `${(bytes / GIB).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`);
+
+/** One sentence: "Cleanuparr is due to delete 3 (12.4 GB) and stop 1 (700 MB) in the next 7 days." */
+export function dueText(due: CleanuparrDue): string {
+    const parts = (['delete', 'stop'] as const).flatMap(a => {
+        const t = due[a];
+        return t === undefined ? [] : [`${a} ${t.count} (${size(t.sizeBytes)})`];
+    });
+    return `Cleanuparr is due to ${parts.join(' and ')} in the next ${due.days} days${due.dryRun === true ? ' (dry run, so it only logs)' : ''}.`;
+}
 
 const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
     const { torrent, ...visible } = q;
@@ -54,8 +68,8 @@ export function queueLine(item: QueueItem): string {
     for (const s of item.strikes ?? []) {
         facts.push(`${s.count} Cleanuparr strike${s.count === 1 ? '' : 's'} (${s.reason}${s.dryRun === true ? ', dry run' : ''})`);
     }
+    const c = item.seeding?.cleanuparr !== undefined && 'rule' in item.seeding.cleanuparr ? item.seeding.cleanuparr : undefined;
     if (item.seeding?.overLimit === true && item.status.startsWith('seeding')) {
-        const c = item.seeding.cleanuparr !== undefined && 'rule' in item.seeding.cleanuparr ? item.seeding.cleanuparr : undefined;
         const marks = [...(c?.dryRun === true ? ['dry run'] : []), ...(c?.notEnforced === true ? ['not scheduled'] : [])];
         facts.push(
             item.seeding.forced === true
@@ -65,6 +79,7 @@ export function queueLine(item: QueueItem): string {
                   : 'past its seed limit'
         );
     }
+    if (c?.dueAt !== undefined) facts.push(`Cleanuparr ${c.action} due ${c.dueAt}${c.dryRun === true ? ' (dry run)' : ''}`);
 
     return `${item.title} — ${facts.join(', ')}`;
 }
@@ -89,8 +104,9 @@ export async function buildGetQueue(
     // downloading" wants; unknown ETAs sort last rather than first.
     items.sort((a, b) => (a.etaSeconds ?? Infinity) - (b.etaSeconds ?? Infinity) || a.title.localeCompare(b.title));
 
+    const due = opts.detail === 'full' ? dueWithin(items, Date.now()) : undefined;
     const shaped = applyLimit(items, opts.limit, opts.offset);
-    return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
+    return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts, ...(due === undefined ? {} : { cleanuparrDue: due }) };
 }
 
 export function registerGetQueue(server: McpServer, adapters: readonly ServiceAdapter[]): void {
@@ -100,7 +116,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             title: 'Download queue',
             annotations: READ_ONLY,
             description:
-                'Everything currently downloading or stalled, merged across Radarr, Sonarr, SABnzbd, NZBGet, Transmission and qBittorrent. Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data. A Radarr or Sonarr row also carries `downloadId`, the download client\'s own id for that grab — pass it to `trigger_scan` with `action: "import"` when a finished download is sitting at `importState: "importBlocked"` and never got imported. Such a row also carries `statusMessages`, the service\'s own reasons, fenced: a title mismatch or an unknown episode fails the same way on every retry and has to be fixed in the service itself. At `detail: "full"`, a finished torrent carries `seeding`: its ratio, seconds seeded, the limit the client applies to it (absent means none), whether that limit is its own or the client default, and `overLimit`. Torrents also carry `private`. The rules themselves are in `stack_health` at `detail: "full"`. When Cleanuparr is configured, a torrent it governs also carries `seeding.cleanuparr`: the rule that applies (matched the way Cleanuparr matches it), its limits, and whether Cleanuparr will act on it (`dryRun`, `notEnforced`), or why Cleanuparr skips it. `overLimit` is then judged against that rule and `limitSource` says so. A torrent no rule covers carries `seeding.cleanuparr.unmatched`, the filter that ruled every rule out (`no category`, `category not in any rule`, `tracker not in any rule`, `tags not in any rule`, `privacy unknown`, `privacy mismatch`); torrents carry `category` and `tags`, and an unmatched one its `savePath`, so you can see why. A download Cleanuparr has struck carries `strikes`, one entry per kind of strike, since Cleanuparr counts and resets each kind apart: the count since the last reset of that kind, the reason and `lastAt`, when the latest one landed; strikes on a client since deleted from Cleanuparr are left out.',
+                'Everything currently downloading or stalled, merged across Radarr, Sonarr, SABnzbd, NZBGet, Transmission and qBittorrent. Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data. A Radarr or Sonarr row also carries `downloadId`, the download client\'s own id for that grab — pass it to `trigger_scan` with `action: "import"` when a finished download is sitting at `importState: "importBlocked"` and never got imported. Such a row also carries `statusMessages`, the service\'s own reasons, fenced: a title mismatch or an unknown episode fails the same way on every retry and has to be fixed in the service itself. At `detail: "full"`, a finished torrent carries `seeding`: its ratio, seconds seeded, the limit the client applies to it (absent means none), whether that limit is its own or the client default, and `overLimit`. Torrents also carry `private`. The rules themselves are in `stack_health` at `detail: "full"`. When Cleanuparr is configured, a torrent it governs also carries `seeding.cleanuparr`: the rule that applies (matched the way Cleanuparr matches it), its limits, and whether Cleanuparr will act on it (`dryRun`, `notEnforced`), or why Cleanuparr skips it. `overLimit` is then judged against that rule and `limitSource` says so. A torrent no rule covers carries `seeding.cleanuparr.unmatched`, the filter that ruled every rule out (`no category`, `category not in any rule`, `tracker not in any rule`, `tags not in any rule`, `privacy unknown`, `privacy mismatch`); torrents carry `category` and `tags`, and an unmatched one its `savePath`, so you can see why. A download Cleanuparr has struck carries `strikes`, one entry per kind of strike, since Cleanuparr counts and resets each kind apart: the count since the last reset of that kind, the reason and `lastAt`, when the latest one landed; strikes on a client since deleted from Cleanuparr are left out. A rule Cleanuparr will certainly apply on schedule also carries `seeding.cleanuparr.dueAt`, when its `action` falls due: the next Download Cleaner run once the torrent is past the rule, otherwise the moment it reaches the seed time of the rule (ratio still to climb cannot be projected, so a ratio-only rule says nothing until it is over). `cleanuparrDue` totals the rows due within 7 days per action (`count`, `sizeBytes`), across the whole queue, with `dryRun` when Cleanuparr only logs.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
         },
@@ -108,7 +124,8 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             const result = await buildGetQueue(adapters, { detail, limit, offset });
             const summary =
                 `${result.returned} of ${result.total} item(s) in the queue` +
-                (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
+                (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.') +
+                (result.cleanuparrDue === undefined ? '' : ` ${dueText(result.cleanuparrDue)}`);
 
             return { content: [{ type: 'text', text: listText(summary, result.items, queueLine) }], structuredContent: result };
         }
