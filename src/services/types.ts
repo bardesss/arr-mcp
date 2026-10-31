@@ -458,6 +458,96 @@ export const hasTorrentEndpoint = (a: ServiceAdapter): a is ServiceAdapter & Tor
     typeof (a as Partial<TorrentEndpoint>).endpoint === 'string';
 
 /**
+ * Where a cleanup candidate stands. `scheduled` waits for its date, `eligible`
+ * is past it and goes at the next run of the deletion task, `disabled` has no
+ * rule that deletes on its own, `postponed` and `canceled` were held back.
+ */
+export type CleanupState = 'disabled' | 'scheduled' | 'eligible' | 'postponed' | 'canceled';
+
+/** Something a cleanup rule matched, which may be deleted or moved. Reclaimerr's candidate. */
+export type CleanupCandidate = {
+    id: string;
+    kind: 'movie' | 'series';
+    /** movie, version, series, season or episode. */
+    scope: string;
+    /** Fenced. Carries `S01` or `S01E02` for a season or an episode. */
+    title: string;
+    year?: number;
+    tmdbId?: number;
+    seasonNumber?: number;
+    episodeNumber?: number;
+    /** The cleanup rules that matched it, by name, fenced. */
+    rules: string[];
+    reason?: string;
+    operation: 'delete' | 'move';
+    state: CleanupState;
+    /** When automatic deletion may act on it. In the past for `eligible`. */
+    eligibleAt?: string;
+    postponedUntil?: string;
+    /** What stops it being acted on, fenced. */
+    blockers?: string[];
+    deleteAttempts?: number;
+    lastDeleteError?: string;
+};
+
+export type CleanupProtection = {
+    kind: 'movie' | 'series';
+    scope: string;
+    title: string;
+    tmdbId?: number;
+    seasonNumber?: number;
+    episodeNumber?: number;
+    permanent: boolean;
+    expiresAt?: string;
+    reason?: string;
+};
+
+/** A deletion or move the cleanup service carried out. */
+export type CleanupRemoval = {
+    at: string;
+    kind: 'movie' | 'series';
+    scope: string;
+    title: string;
+    tmdbId?: number;
+    seasonNumber?: number;
+    episodeNumber?: number;
+    operation: 'delete' | 'move';
+    rules: string[];
+    reason?: string;
+};
+
+export type CleanupRule = { id: string; name: string; kind: string; outcome: string; enabled: boolean };
+
+/** The whole picture, for `stack_health`. Absent parts were not readable with the token's scopes. */
+export type CleanupOverview = {
+    service: string;
+    /** Whether the deletion task runs at all. Without it nothing is deleted on its own. */
+    autoDelete?: { enabled: boolean; nextAt?: string };
+    totals?: { candidates: number; reclaimableBytes: number; reclaimedBytes: number; reclaimedItems: number };
+    rules?: CleanupRule[];
+    /** Soonest first: eligible, then scheduled, then the ones held back. */
+    candidates?: Window<CleanupCandidate>;
+    protections?: number;
+};
+
+/** One title's standing, for `get_media_details` and `diagnose`. */
+export type CleanupStatus = {
+    service: string;
+    candidates: CleanupCandidate[];
+    protections: CleanupProtection[];
+    /** Newest first. */
+    removals: CleanupRemoval[];
+};
+
+export interface CleanupCapable {
+    readCleanupOverview(want: number): Promise<CleanupOverview>;
+    readCleanupStatus(kind: 'movie' | 'series', tmdbId: number): Promise<CleanupStatus>;
+}
+
+export const hasCleanup = (a: ServiceAdapter): a is ServiceAdapter & CleanupCapable =>
+    typeof (a as Partial<CleanupCapable>).readCleanupStatus === 'function';
+
+/**
  * A torrent indexer's seed criteria. An *arr hands these to the client with
  * each grab, overriding the client default; absent means the default applies.
  * Prowlarr's are pushed into each app's copy when it syncs.
@@ -502,7 +592,9 @@ export const HISTORY_EVENT_TYPES = [
     'strike',
     'stopped',
     'recovered',
-    'recategorised'
+    'recategorised',
+    'scheduled',
+    'protected'
 ] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 

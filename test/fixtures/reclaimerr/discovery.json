@@ -1,0 +1,25 @@
+{
+  "api_version": "v1",
+  "resources": {
+    "candidates": "/api/v1/candidates",
+    "docs": "/api/v1/docs",
+    "events": "/api/v1/events",
+    "movies": "/api/v1/movies",
+    "openapi": "/api/v1/openapi.json",
+    "series": "/api/v1/series",
+    "stats": "/api/v1/stats",
+    "protections": "/api/v1/protections",
+    "rules": "/api/v1/rules",
+    "system": "/api/v1/system",
+    "tasks": "/api/v1/tasks"
+  },
+  "granted_scopes": [
+    "candidates:read",
+    "events:read",
+    "media:read",
+    "protections:read",
+    "rules:read",
+    "system:read",
+    "tasks:read"
+  ]
+}

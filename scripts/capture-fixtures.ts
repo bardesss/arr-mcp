@@ -1149,8 +1149,64 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // seeding-rules-<type>.json is captured by hand with GET /api/seeding-rules/<id> for each id in
         // status-download-client.json, until the script supports dependent paths.
         { name: 'configuration-download_cleaner', path: '/api/configuration/download_cleaner' }
+    ],
+    reclaimerr: [
+        // Moved to specs/reclaimerr.json, the vendored spec the contract test reads.
+        { name: 'openapi', path: '/api/v1/openapi.json' },
+        { name: 'discovery', path: '/api/v1' },
+        { name: 'system', path: '/api/v1/system' },
+        { name: 'stats', path: '/api/v1/stats' },
+        { name: 'rules', path: '/api/v1/rules' },
+        { name: 'candidates', path: '/api/v1/candidates?page=1&per_page=200', anonymise: anonymiseReclaimerr },
+        { name: 'protections', path: '/api/v1/protections?page=1&per_page=200&active_only=false', anonymise: anonymiseReclaimerr },
+        {
+            name: 'events',
+            path: () => `/api/v1/events?limit=200&occurred_after=${encodeURIComponent(new Date(Date.now() - 365 * 86_400_000).toISOString())}`,
+            anonymise: anonymiseReclaimerr
+        }
     ]
 };
+
+/**
+ * Reclaimerr names what is in the library, and its reasons name the people who
+ * watched it. One mapper for candidates, protections and events, so a title
+ * keeps the same stand-in (and TMDB id) everywhere it appears and the joins hold.
+ */
+const reclaimerrTitles = new Map<string, { title: string; tmdb: number }>();
+function reclaimerrStandIn(row: Row): { title: string; tmdb: number } {
+    const key = `${String(row.media_type)}:${String(row.tmdb_id ?? row.title)}`;
+    const known = reclaimerrTitles.get(key);
+    if (known !== undefined) return known;
+    const n = reclaimerrTitles.size + 1;
+    const made = { title: `Example ${row.media_type === 'series' ? 'Series' : 'Movie'} ${n}`, tmdb: 900_000 + n };
+    reclaimerrTitles.set(key, made);
+    return made;
+}
+
+function anonymiseReclaimerrRow(row: Row): Row {
+    const out: Row = { ...row };
+    if (typeof row.title === 'string') {
+        const { title, tmdb } = reclaimerrStandIn(row);
+        // A season or episode candidate's title ends in S01 or S01E02, which stays.
+        const suffix = /\sS\d{2}(?:E\d{2})?$/.exec(row.title)?.[0] ?? '';
+        out.title = `${title}${suffix}`;
+        if (typeof row.tmdb_id === 'number') out.tmdb_id = tmdb;
+    }
+    for (const key of ['reason', 'lifecycle_reason', 'last_delete_error']) {
+        if (typeof row[key] === 'string' && row[key] !== '') out[key] = `Example ${key.replaceAll('_', ' ')}`;
+    }
+    if (Array.isArray(row.blockers)) out.blockers = row.blockers.map((_, i) => `Example blocker ${i + 1}`);
+    for (const key of ['candidate', 'protection']) {
+        if (isRow(row[key])) out[key] = anonymiseReclaimerrRow(row[key]);
+    }
+    if (isRow(row.payload)) out.payload = anonymiseReclaimerrRow(row.payload);
+    return out;
+}
+
+function anonymiseReclaimerr(body: unknown): unknown {
+    if (!isRow(body) || !Array.isArray(body.items)) return body;
+    return { ...body, items: (body.items as unknown[]).map(item => (isRow(item) ? anonymiseReclaimerrRow(item) : item)) };
+}
 
 /** Replaces event titles and hashes with stable dummies; one download's events share a hash. */
 function anonymiseCleanuparrEvents(body: unknown): unknown {
@@ -1230,6 +1286,7 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     if (id === 'plex') return plexToken(key);
     if (id === 'sabnzbd') return queryParamKey('apikey', key);
     if (id === 'bazarr') return apiKeyHeader('X-API-KEY', key);
+    if (id === 'reclaimerr') return apiKeyHeader('Authorization', `Bearer ${key}`);
     return apiKeyHeader('X-Api-Key', key);
 }
 

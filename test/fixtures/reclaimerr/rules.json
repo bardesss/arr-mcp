@@ -1,0 +1,60 @@
+{
+  "items": [
+    {
+      "id": 2,
+      "name": "Fully watched seasons",
+      "media_type": "series",
+      "target_scope": "season",
+      "outcome": "candidate",
+      "enabled": true
+    },
+    {
+      "id": 4,
+      "name": "Protect favorites and watchlists",
+      "media_type": "movie",
+      "target_scope": "movie_version",
+      "outcome": "protect",
+      "enabled": true
+    },
+    {
+      "id": 5,
+      "name": "Protect favorites and watchlists",
+      "media_type": "series",
+      "target_scope": "series",
+      "outcome": "protect",
+      "enabled": true
+    },
+    {
+      "id": 1,
+      "name": "Protect recent imports",
+      "media_type": "movie",
+      "target_scope": "movie_version",
+      "outcome": "protect",
+      "enabled": true
+    },
+    {
+      "id": 6,
+      "name": "Protect recent imports",
+      "media_type": "series",
+      "target_scope": "series",
+      "outcome": "protect",
+      "enabled": true
+    },
+    {
+      "id": 7,
+      "name": "TEMP arr-mcp fixtures (a supprimer)",
+      "media_type": "movie",
+      "target_scope": "movie_version",
+      "outcome": "candidate",
+      "enabled": true
+    },
+    {
+      "id": 3,
+      "name": "Watched movies not revisited",
+      "media_type": "movie",
+      "target_scope": "movie_version",
+      "outcome": "candidate",
+      "enabled": true
+    }
+  ]
+}

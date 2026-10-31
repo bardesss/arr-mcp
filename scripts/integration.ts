@@ -40,6 +40,7 @@ import { Runtime } from '../src/core/runtime.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 import { ProfilarrAdapter } from '../src/services/profilarr.ts';
 import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
+import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
 
@@ -930,6 +931,31 @@ if (config.services?.cleanuparr !== undefined) {
     }
 } else {
     console.log('SKIP cleanuparr — not configured.');
+}
+
+/**
+ * Reclaimerr, read only: its version, health findings, what its rules will
+ * delete and its recent events. Nothing here is written; the adapter has no write.
+ */
+if (config.services?.reclaimerr !== undefined) {
+    const started = performance.now();
+    try {
+        const reclaimerr = new ReclaimerrAdapter(config.services.reclaimerr);
+        const version = await reclaimerr.getVersion();
+        const findings = await reclaimerr.getFailedHealthChecks();
+        const overview = await reclaimerr.readCleanupOverview(20);
+        const history = await reclaimerr.readHistory({ want: 20 });
+        const ms = Math.round(performance.now() - started);
+        console.log(
+            `PASS reclaimerr ${version}: ${findings.length} finding(s), ${overview.candidates?.total ?? 0} candidate(s), ${overview.rules?.length ?? 0} rule(s), ${history.items.length} recent event(s) (${ms}ms)`
+        );
+        passes += 1;
+    } catch (err) {
+        console.error(`FAIL reclaimerr — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+} else {
+    console.log('SKIP reclaimerr — not configured.');
 }
 
 /**

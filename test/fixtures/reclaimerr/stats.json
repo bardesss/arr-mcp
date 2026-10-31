@@ -1,0 +1,12 @@
+{
+  "candidates_total": 1,
+  "candidates_movies": 1,
+  "candidates_series": 0,
+  "reclaimable_bytes": 28028964750,
+  "reclaimed_bytes_total": 0,
+  "reclaimed_items_total": 0,
+  "pending_protection_requests": 0,
+  "pending_delete_requests": 0,
+  "next_auto_delete_at": "2027-10-30T19:56:35Z",
+  "auto_delete_task_enabled": true
+}
