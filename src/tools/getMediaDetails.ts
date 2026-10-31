@@ -214,9 +214,14 @@ export function registerGetMediaDetails(
              * plus `id` it returns that one service's own view. Only what both
              * carry is declared — enumerating either branch would make the
              * schema reject the other, and a mismatch fails the whole call.
+             *
+             * `artist` is the Lidarr raw view. The title form refuses an artist,
+             * but `service: "lidarr"` plus an artist id answers with one, and it
+             * is the route every artist refusal names for album ids. Without it
+             * here the SDK rejects the result and the caller never sees it.
              */
             outputSchema: z.looseObject({
-                kind: z.enum(['movie', 'series', 'item']),
+                kind: z.enum(['movie', 'series', 'item', 'artist']),
                 title: z.string()
             }),
             inputSchema: toolInput({
