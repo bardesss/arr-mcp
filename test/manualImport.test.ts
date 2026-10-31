@@ -116,6 +116,30 @@ describe('running a manual import', () => {
         expect(command.files[0]).toMatchObject({ path: '/downloads/Heat.1995.mkv', movieId: 15 });
     });
 
+    /**
+     * A row with no path is dropped from the candidates, so the candidate list
+     * is shorter than the rows. Pairing them by position put each verdict on
+     * the row before its own: here the clean film's verdict landed on the
+     * pathless row, and the rejected sample's on the film.
+     */
+    it('pairs each file with its own verdict when a row before it has no path', async () => {
+        const s = stack([{ relativePath: 'no path here', rejections: [] }, ...CANDIDATES]);
+        await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc');
+
+        const command = s.sent.find(x => x.method === 'POST')?.body as { files: { path?: string; movieId?: number }[] };
+        expect(command.files).toEqual([expect.objectContaining({ path: '/downloads/Heat.1995.mkv', movieId: 15 })]);
+    });
+
+    /** The harmful shape: by position, the rejected sample took the film's clean verdict and was posted. */
+    it('never posts a file the service rejected because a pathless row shifted the pairing', async () => {
+        const [film, sample] = CANDIDATES;
+        const s = stack([{ relativePath: 'no path here', rejections: [] }, sample, film]);
+        await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc');
+
+        const command = s.sent.find(x => x.method === 'POST')?.body as { files: { path?: string }[] };
+        expect(command.files.map(f => f.path)).toEqual(['/downloads/Heat.1995.mkv']);
+    });
+
     it('echoes the quality the service reported rather than inventing one', async () => {
         const s = stack();
         await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc');
