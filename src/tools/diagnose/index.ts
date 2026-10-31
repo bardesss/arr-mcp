@@ -21,7 +21,7 @@ export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
             title: 'Diagnose a missing or unplayable item',
             annotations: READ_ONLY,
             description:
-                'Why is this not playable? Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the first thing that explains the absence, with what to do about it. Give a title as `query` for how a person actually asks; give `service` plus `id` only when you already have an exact item in hand (e.g. from get_media_details) — the explicit id wins if both are given. Works with services down: any step it could not check sets `certain: false` and the summary says what was missed, rather than guessing across the hole.',
+                'Why is this not playable? Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the first thing that explains the absence, with what to do about it. Give a title as `query` for how a person actually asks; give `service` plus `id` only when you already have an exact item in hand (e.g. from get_media_details) — the explicit id wins if both are given. A query nothing in the library matches is looked up by release name in Cleanuparr and download-client history, so it can still say what happened to a release that was removed. Works with services down: any step it could not check sets `certain: false` and the summary says what was missed, rather than guessing across the hole.',
             // A verdict, not a list — so no paged envelope. `certain` is the
             // field that matters most and the one a client must not have to
             // read prose to find: a diagnosis reached across a service that

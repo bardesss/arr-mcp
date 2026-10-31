@@ -774,3 +774,86 @@ describe('collectEvidence — Cleanuparr', () => {
         expect((await run(undefined)).cleanuparr).toBeNull();
     });
 });
+
+describe('diagnose — download history for a title no library has', () => {
+    const fenced = (service: string, field: string, value: string) => `<<untrusted:${service}.${field}>>${value}<</untrusted>>`;
+    const gone = (id: string, title: string, over: Record<string, unknown> = {}) => ({
+        service: 'cleanuparr',
+        id,
+        at: '2026-10-27T05:45:10+00:00',
+        event: 'deleted',
+        rawEvent: 'DownloadCleaned',
+        title: fenced('cleanuparr', 'itemTitle', title),
+        downloadId: `hash-${id}`,
+        ...over
+    });
+
+    const stack = (cleanuparrHistory: () => Promise<unknown>, sabHistory: unknown[] = []) => {
+        const asked: unknown[] = [];
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+            stub('sabnzbd', { getQueue: async () => [], readHistory: async () => sabHistory }),
+            stub('qbittorrent', { getQueue: async () => [] }),
+            stub('cleanuparr', {
+                getSeedingRules: async () => [],
+                readHistory: async (opts: unknown) => {
+                    asked.push(opts);
+                    return cleanuparrHistory();
+                }
+            })
+        ];
+        return { asked, deps: { adapters, library: new LibraryLoader(adapters, undefined) } };
+    };
+
+    it('reports what Cleanuparr did to a release removed from Radarr', async () => {
+        const { asked, deps: d } = stack(async () => ({
+            items: [
+                gone('e2', 'Gone.Film.2024.1080p.WEB-DL', { reason: fenced('cleanuparr', 'reason', 'MaxSeedTimeReached') }),
+                gone('e1', 'Gone.Film.2024.1080p.WEB-DL', { at: '2026-10-20T00:00:00Z', event: 'strike', strikeCount: 2, downloadId: 'hash-e2' }),
+                gone('e3', 'Another.Film.2024.1080p')
+            ],
+            total: 3
+        }));
+        const result = await buildDiagnose(d, { query: 'Gone Film 2024' });
+        expect(result.verdict.stage).toBe('resolve');
+        expect(result.verdict.summary).toMatch(/Cleanuparr removed .*Gone\.Film\.2024.* on 2026-10-27: .*MaxSeedTimeReached.*, after 2 strikes\./);
+        expect(result.verdict.summary).not.toContain('Another.Film');
+        expect(result.verdict.certain).toBe(true);
+        expect(result.history?.map(h => h.id)).toEqual(['e2']);
+        // Bounded: a window and a row cap, not the whole event log.
+        expect(asked).toEqual([{ since: expect.any(String), want: 500 }]);
+    });
+
+    it('reads a usenet client’s own history too', async () => {
+        const sab = { service: 'sabnzbd', id: 'SABnzbd_nzo_1', at: '2026-10-25T00:00:00Z', event: 'failed', title: fenced('sabnzbd', 'name', 'Gone_Film_2024_1080p'), reason: fenced('sabnzbd', 'fail_message', 'Out of retention') };
+        const { deps: d } = stack(async () => ({ items: [], total: 0 }), [sab]);
+        const result = await buildDiagnose(d, { query: 'gone film' });
+        expect(result.verdict.summary).toMatch(/sabnzbd failed .*Gone_Film_2024.*Out of retention/);
+    });
+
+    it('keeps today’s answer when nothing in history matches', async () => {
+        const { deps: d } = stack(async () => ({ items: [gone('e3', 'Another.Film.2024.1080p')], total: 1 }));
+        const result = await buildDiagnose(d, { query: 'gone film' });
+        expect(result.verdict.summary).toBe('Nothing in your stack matches "gone film".');
+        expect(result.history).toBeUndefined();
+    });
+
+    it('is uncertain, not wrong, when Cleanuparr cannot be read', async () => {
+        const { deps: d } = stack(async () => {
+            throw new Error('down');
+        });
+        const result = await buildDiagnose(d, { query: 'gone film' });
+        expect(result.verdict.summary).toBe('Nothing in your stack matches "gone film".');
+        expect(result.verdict.certain).toBe(false);
+        expect(result.degraded).toContain('cleanuparr');
+    });
+
+    it('does not read history by name when the query resolves', async () => {
+        const { deps: d } = stack(async () => {
+            throw new Error('must not be asked');
+        });
+        const evidence = await collectEvidence(d, { query: 'some film' });
+        expect(evidence.history).toBeUndefined();
+        expect(evidence.degraded).not.toContain('cleanuparr');
+    });
+});
