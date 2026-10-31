@@ -87,16 +87,19 @@ export function unmatchedReason(t: TorrentFacts, rules: readonly CleanuparrRule[
     return 'category not in any rule';
 }
 
+/** Cleanuparr's ignore list matches a hash, a category, a tag or a tracker domain suffix. */
+export const isIgnored = (t: TorrentFacts, ignored: readonly string[]): boolean =>
+    ignored.some(i =>
+        same(i, t.hash) || same(i, t.category) || t.tags.some(x => same(x, i)) ||
+        t.trackerDomains.some(d => d.toLowerCase().endsWith(i.toLowerCase())));
+
 export function skipReason(
     t: TorrentFacts,
     rule: CleanuparrRule,
     ctx: { inArrQueue: ReadonlySet<string>; ignored: readonly string[] }
 ): string | undefined {
     if (!t.seeding) return 'not seeding';
-    const ignored = ctx.ignored.some(i =>
-        same(i, t.hash) || same(i, t.category) || t.tags.some(x => same(x, i)) ||
-        t.trackerDomains.some(d => d.toLowerCase().endsWith(i.toLowerCase())));
-    if (ignored) return 'ignored in Cleanuparr';
+    if (isIgnored(t, ctx.ignored)) return 'ignored in Cleanuparr';
     if (ctx.inArrQueue.has(t.hash.toLowerCase())) return 'in an *arr queue';
     if (rule.action === 'unknown') return 'unknown rule action';
     if (rule.action === 'stop' && t.stopped) return 'already stopped';

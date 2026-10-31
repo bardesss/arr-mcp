@@ -398,6 +398,10 @@ export type CleanuparrRuleSet = {
     /** `host:port` Cleanuparr reaches it on, matched against `TorrentEndpoint.endpoint`. */
     endpoint?: string;
     rules: CleanuparrRule[];
+    /** Internal, for the coverage check: Unlinked, Dead and Orphaned are all off for this client. Never returned by a tool. */
+    modulesOff?: true;
+    /** Internal, for the coverage check: categories Unlinked and Dead move torrents into. Never returned by a tool. */
+    targetCategories?: string[];
 };
 
 export type CleanuparrSeeding = {
