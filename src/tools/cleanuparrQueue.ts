@@ -1,5 +1,5 @@
 import { logger } from '../core/logger.ts';
-import { matchRule, ruleVerdict, skipReason, unmatchedReason } from '../core/cleanuparrRules.ts';
+import { matchRule, ruleVerdict, skipReason, unmatchedReason, type CleanuparrRule, type RuleVerdict } from '../core/cleanuparrRules.ts';
 import {
     hasCleanuparr,
     hasHistory,
@@ -90,6 +90,64 @@ export function resolveRuleSets(
 export const mapRuleSets = (sets: readonly CleanuparrRuleSet[], adapters: readonly ServiceAdapter[]): Map<string, CleanuparrRuleSet> =>
     resolveRuleSets(sets, adapters).mapped;
 
+/** ISO to the second: milliseconds say nothing about a cron job, and 500 rows pay for them. */
+const isoSeconds = (ms: number): string => new Date(ms).toISOString().replace(/\.\d{3}Z$/u, 'Z');
+
+/**
+ * When a rule's action falls due, or undefined when the clock alone never
+ * gets there. Past the rule, it is the Download Cleaner's next run, or now
+ * when that is unknown or overdue. Otherwise it is the moment the torrent
+ * reaches the seed time, or the minimum seed time while already over the
+ * ratio, since only that minimum holds the ratio back. Ratio still to climb
+ * depends on upload, which no clock projects. A limit reached after the next
+ * run is acted on at the first run after it, which only the cron could name,
+ * so `dueAt` is then the moment the limit is reached.
+ */
+export function projectDue(
+    rule: CleanuparrRule,
+    verdict: RuleVerdict,
+    s: { ratio?: number; seedingSeconds?: number },
+    now: number,
+    nextRunAt?: string
+): string | undefined {
+    const seeded = s.seedingSeconds ?? 0;
+    const at = (hours: number) => now + Math.max(0, hours * 3600 - seeded) * 1000;
+    const reaches: number[] = [];
+    if (verdict.over) reaches.push(now);
+    if (rule.maxSeedHours !== undefined) reaches.push(at(rule.maxSeedHours));
+    if (rule.maxRatio !== undefined && rule.minSeedHours !== undefined && s.ratio !== undefined && s.ratio >= rule.maxRatio) {
+        reaches.push(at(rule.minSeedHours));
+    }
+    if (reaches.length === 0) return undefined;
+    const reach = Math.min(...reaches);
+    const next = nextRunAt === undefined ? NaN : Date.parse(nextRunAt);
+    return isoSeconds(!Number.isNaN(next) && next >= reach ? next : reach);
+}
+
+export const DUE_WINDOW_DAYS = 7;
+
+type DueTotal = { count: number; sizeBytes: number };
+export type CleanuparrDue = { days: number; delete?: DueTotal; stop?: DueTotal; dryRun?: true };
+
+/** What Cleanuparr's rules fall due on within the window, per action. Undefined when nothing does. */
+export function dueWithin(items: readonly QueueItem[], now: number, days = DUE_WINDOW_DAYS): CleanuparrDue | undefined {
+    const end = now + days * 86_400_000;
+    const out: CleanuparrDue = { days };
+    let any = false;
+    for (const item of items) {
+        const c = item.seeding?.cleanuparr;
+        if (c === undefined || !('rule' in c) || c.dueAt === undefined || Date.parse(c.dueAt) > end) continue;
+        if (c.action !== 'delete' && c.action !== 'stop') continue;
+        const total = out[c.action] ?? { count: 0, sizeBytes: 0 };
+        total.count += 1;
+        total.sizeBytes += item.sizeBytes ?? 0;
+        out[c.action] = total;
+        if (c.dryRun === true) out.dryRun = true;
+        any = true;
+    }
+    return any ? out : undefined;
+}
+
 export async function annotateCleanuparr(
     items: QueueItem[],
     adapters: readonly ServiceAdapter[],
@@ -120,6 +178,7 @@ export async function annotateCleanuparr(
         return;
     }
     const seeding = rules.value;
+    const now = Date.now();
 
     const bySet = mapRuleSets(seeding.sets, adapters);
     const inArrQueue = new Set(items.flatMap(i => (i.torrent === undefined && i.downloadId !== undefined ? [i.downloadId.toLowerCase()] : [])));
@@ -146,6 +205,7 @@ export async function annotateCleanuparr(
         const uncertain = verdict.uncertain ?? (trackerDoubt ? 'needs the torrent\'s trackers' : undefined);
         // A rule without a ratio or time limit never acts on either, so the client's own limit still decides.
         const keepClient = uncertain !== undefined || (rule.maxRatio === undefined && rule.maxSeedHours === undefined);
+        const dueAt = uncertain !== undefined || !seeding.enforced ? undefined : projectDue(rule, verdict, item.seeding, now, seeding.nextRunAt);
         const { overLimit: clientOver, ...rest } = item.seeding;
         item.seeding = {
             ...rest,
@@ -159,7 +219,8 @@ export async function annotateCleanuparr(
                 ...(rule.minSeedHours === undefined ? {} : { minSeedSeconds: rule.minSeedHours * 3600 }),
                 ...(seeding.dryRun ? { dryRun: true as const } : {}),
                 ...(seeding.enforced ? {} : { notEnforced: true as const }),
-                ...(uncertain === undefined ? {} : { uncertain })
+                ...(uncertain === undefined ? {} : { uncertain }),
+                ...(dueAt === undefined ? {} : { dueAt })
             }
         };
         if (keepClient && clientOver === true) item.seeding.overLimit = true;

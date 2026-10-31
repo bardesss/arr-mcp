@@ -144,6 +144,7 @@ describe('CleanuparrAdapter seeding rules', () => {
         const seeding = await adapter.getSeedingRules();
         expect(seeding.dryRun).toBe(true);
         expect(seeding.enforced).toBe(true);
+        expect(seeding.nextRunAt).toBe('2026-10-09T14:00:00.000Z');
         expect(seeding.ignored).toEqual(['linux-isos', 'abcdef0123456789abcdef0123456789abcdef01']);
     });
 
@@ -184,7 +185,10 @@ describe('CleanuparrAdapter seeding rules', () => {
             j.jobType === 'DownloadCleaner' ? { ...j, status: 'Not Scheduled' } : j
         );
         const adapter = new CleanuparrAdapter(config, stub(seedingRoutes({ '/api/jobs': jobs })));
-        expect((await adapter.getSeedingRules()).enforced).toBe(false);
+        const seeding = await adapter.getSeedingRules();
+        expect(seeding.enforced).toBe(false);
+        // A next run Cleanuparr will not take says nothing about when a rule acts.
+        expect(seeding.nextRunAt).toBeUndefined();
     });
 
     it('counts a running or just finished Download Cleaner as scheduled', async () => {
