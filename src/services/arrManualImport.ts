@@ -266,7 +266,7 @@ async function readCandidates(
     resource: 'movie' | 'series',
     downloadId: string,
     mapping: ImportMapping[] = []
-): Promise<{ raw: RawCandidate[]; candidates: ImportCandidate[] }> {
+): Promise<{ raw: RawCandidate[]; judged: (ImportCandidate | undefined)[]; candidates: ImportCandidate[] }> {
     let raw: RawCandidate[];
     try {
         raw = await http.get<RawCandidate[]>(
@@ -277,10 +277,11 @@ async function readCandidates(
     }
     if (mapping.length > 0) raw = await applyMapping(http, service, resource, downloadId, raw, mapping);
 
-    return {
-        raw,
-        candidates: raw.map(r => toCandidate(service, resource, r)).filter((c): c is ImportCandidate => c !== undefined)
-    };
+    // `judged` keeps one slot per raw row, `undefined` where a row has no
+    // path, so `judged[i]` is always `raw[i]`'s own verdict. `candidates`
+    // drops those slots for display, and is never indexed against `raw`.
+    const judged = raw.map(r => toCandidate(service, resource, r));
+    return { raw, judged, candidates: judged.filter((c): c is ImportCandidate => c !== undefined) };
 }
 
 export async function listArrImportCandidates(
@@ -305,10 +306,14 @@ export async function runArrManualImport(
     downloadId: string,
     mapping?: ImportMapping[]
 ): Promise<CommandHandle> {
-    const { raw, candidates } = await readCandidates(http, service, resource, downloadId, mapping);
+    const { raw, judged, candidates } = await readCandidates(http, service, resource, downloadId, mapping);
 
+    // Indexed through `judged`, never `candidates`: the filtered list is
+    // shorter than `raw` whenever a row had no path, and pairing it with
+    // `raw` by position put the next file's verdict on the wrong row, posting
+    // a pathless row or a file the service had rejected.
     const importable = raw.filter((_, i) => {
-        const candidate = candidates[i];
+        const candidate = judged[i];
         return candidate !== undefined && candidate.rejections.length === 0 && candidate.matchedId !== undefined;
     });
 
