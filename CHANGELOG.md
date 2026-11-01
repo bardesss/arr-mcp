@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.0](https://github.com/bardesss/arr-mcp/compare/v1.50.1...v1.51.0) (2026-11-01)
+
+
+### Features
+
+* **get_playback:** count Jellyfin activity-log plays in history ([#424](https://github.com/bardesss/arr-mcp/issues/424)) ([ec12165](https://github.com/bardesss/arr-mcp/commit/ec12165beae4e4aa9bea873bf87ae26321f24633)), closes [#423](https://github.com/bardesss/arr-mcp/issues/423)
+
 ## [1.50.1](https://github.com/bardesss/arr-mcp/compare/v1.50.0...v1.50.1) (2026-11-01)
 
 
