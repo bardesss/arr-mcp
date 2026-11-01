@@ -1148,7 +1148,12 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'configuration-general', path: '/api/configuration/general' },
         // seeding-rules-<type>.json is captured by hand with GET /api/seeding-rules/<id> for each id in
         // status-download-client.json, until the script supports dependent paths.
-        { name: 'configuration-download_cleaner', path: '/api/configuration/download_cleaner' }
+        { name: 'configuration-download_cleaner', path: '/api/configuration/download_cleaner' },
+        { name: 'configuration-queue_cleaner', path: '/api/configuration/queue_cleaner' },
+        { name: 'queue-rules-stall', path: '/api/queue-rules/stall' },
+        { name: 'queue-rules-slow', path: '/api/queue-rules/slow' },
+        { name: 'configuration-malware_blocker', path: '/api/configuration/malware_blocker', anonymise: anonymiseBlocklistPaths },
+        { name: 'configuration-seeker', path: '/api/configuration/seeker' }
     ],
     reclaimerr: [
         // Moved to specs/reclaimerr.json, the vendored spec the contract test reads.
@@ -1206,6 +1211,18 @@ function anonymiseReclaimerrRow(row: Row): Row {
 function anonymiseReclaimerr(body: unknown): unknown {
     if (!isRow(body) || !Array.isArray(body.items)) return body;
     return { ...body, items: (body.items as unknown[]).map(item => (isRow(item) ? anonymiseReclaimerrRow(item) : item)) };
+}
+
+/** A blocklist can live on the operator's own host or under their home directory; keep only URL-or-file. */
+function anonymiseBlocklistPaths(body: unknown): unknown {
+    if (!isRow(body)) return body;
+    return Object.fromEntries(
+        Object.entries(body).map(([k, v]) => {
+            if (!isRow(v) || typeof v.blocklistPath !== 'string' || v.blocklistPath === '') return [k, v];
+            const url = /^https?:\/\//i.test(v.blocklistPath);
+            return [k, { ...v, blocklistPath: url ? 'https://blocklist.example/blocklist.txt' : '/config/blocklist.txt' }];
+        })
+    );
 }
 
 /** Replaces event titles and hashes with stable dummies; one download's events share a hash. */

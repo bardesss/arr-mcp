@@ -88,6 +88,7 @@ describe('stack_health primary media server', () => {
             'options',
             'seedingRules',
             'cleanup',
+            'cleanuparrRemovals',
             'degraded'
         ]);
     });

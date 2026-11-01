@@ -1,0 +1,18 @@
+[
+  {
+    "resetStrikesOnProgress": false,
+    "maxTimeHours": 0,
+    "ignoreWhileAltSpeedActive": true,
+    "minSpeed": "50KB",
+    "ignoreAboveSize": null,
+    "id": "52b2db72-330d-492d-85ff-698c9f552eae",
+    "name": "Lents : < 50 Ko/s pendant 1 h",
+    "enabled": true,
+    "maxStrikes": 12,
+    "privacyType": "Both",
+    "minCompletionPercentage": 0,
+    "maxCompletionPercentage": 100,
+    "deletePrivateTorrentsFromClient": false,
+    "changeCategory": false
+  }
+]
