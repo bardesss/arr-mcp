@@ -1,0 +1,24 @@
+{
+    "Items": [
+        {
+            "Id": 52311,
+            "Name": "Someone heeft afspelen van Some Film gestopt op Tv in woonkamer",
+            "Type": "VideoPlaybackStopped",
+            "ItemId": "b55278d542047434299055789bc9da3f",
+            "Date": "2026-10-19T19:00:59.5222629Z",
+            "UserId": "57fcb6165cd943a2a73ad0fdad6dc056",
+            "Severity": "Information"
+        },
+        {
+            "Id": 52302,
+            "Name": "Someone heeft afspelen van Some Show - Some Episode gestopt op Pixel",
+            "Type": "VideoPlaybackStopped",
+            "ItemId": "e4b826538e99ae02cdf7b91c6aa68723",
+            "Date": "2026-10-16T12:18:42.36792Z",
+            "UserId": "472c0639eaa641ebadd06d9d5107b730",
+            "Severity": "Information"
+        }
+    ],
+    "TotalRecordCount": 10174,
+    "StartIndex": 0
+}

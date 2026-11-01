@@ -5,6 +5,7 @@ import { embyToken } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import { logger } from '../core/logger.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
@@ -78,8 +79,11 @@ type RawItem = {
     ParentIndexNumber?: number;
     IndexNumber?: number;
     RunTimeTicks?: number;
-    UserData?: { PlaybackPositionTicks?: number; LastPlayedDate?: string };
+    /** Only the activity-log read uses it, to drop live TV and the like. */
+    Type?: string;
+    UserData?: { PlaybackPositionTicks?: number; LastPlayedDate?: string; Played?: boolean };
 };
+type RawActivityEntry = { Name?: string; Type?: string; ItemId?: string | null; Date?: string; UserId?: string };
 type RawSession = {
     UserId?: string;
     UserName?: string;
@@ -99,6 +103,24 @@ const TICKS_PER_SECOND = 10_000_000;
 const MUSIC_PAGE_SIZE = 500;
 const ticksToSeconds = (ticks: number | undefined): number | undefined =>
     typeof ticks === 'number' ? Math.round(ticks / TICKS_PER_SECOND) : undefined;
+
+/**
+ * Every playback stop Jellyfin logged, newest first. `type` is a real filter —
+ * confirmed against a live 12.x with an invented-parameter control, which
+ * returned the unfiltered 46k entries against 10k stops. The log is
+ * household-wide; `UserId` narrows it, and comes back in the same undashed
+ * form as `/Users`.
+ *
+ * An offline client (AFinity) reports its plays here when it reconnects, often
+ * as a lone stop and without the item ever getting `Played`. The log is kept
+ * for `ActivityLogRetentionDays` (30 by default), so this reaches no further.
+ */
+const ACTIVITY_LOG_ROUTE = '/System/ActivityLog/Entries?type=VideoPlaybackStopped&hasUserId=true&limit=500';
+
+/** Ids per `/Items?ids=` read, keeping the URL well short of proxy limits. */
+const LOGGED_ITEMS_CHUNK = 100;
+
+const HISTORY_TYPES = new Set(['Episode', 'Movie']);
 
 type RawItemDetail = {
     Id?: string;
@@ -344,15 +366,107 @@ export class JellyfinAdapter
      * not an undocumented server page size.
      */
     async getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]> {
-        const page = await this.#http.get<RawItemsPage>(
-            `/Items?userId=${encodeURIComponent(user.id)}&SortBy=DatePlayed&SortOrder=Descending` +
-                '&Filters=IsPlayed&IncludeItemTypes=Episode,Movie&Recursive=true&Limit=500&Fields=UserData'
-        );
-        return (page.Items ?? []).map(item => ({
+        const [page, logged] = await Promise.all([
+            this.#http.get<RawItemsPage>(
+                `/Items?userId=${encodeURIComponent(user.id)}&SortBy=DatePlayed&SortOrder=Descending` +
+                    '&Filters=IsPlayed&IncludeItemTypes=Episode,Movie&Recursive=true&Limit=500&Fields=UserData'
+            ),
+            this.#loggedStops(user)
+        ]);
+
+        const marked: PlaybackEntry[] = (page.Items ?? []).map(item => ({
             ...this.#commonPlayback(user, item),
             kind: 'watched' as const,
+            source: 'marked_played' as const,
             ...(item.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: item.UserData.LastPlayedDate })
         }));
+
+        const seen = new Set(marked.map(e => e.itemId));
+        const unmarked = logged.filter(e => !seen.has(e.ItemId as string));
+        const fromLog = await this.#loggedPlays(user, unmarked);
+
+        // ISO-8601 UTC strings sort lexically; an entry with no date goes last.
+        return [...marked, ...fromLog].sort((a, b) => (b.lastPlayed ?? '').localeCompare(a.lastPlayed ?? ''));
+    }
+
+    /**
+     * This user's newest stop per item. A failed read degrades to none rather
+     * than failing the history: the `IsPlayed` half is still a correct answer
+     * to most questions, and losing it over a supplementary read would not be.
+     */
+    async #loggedStops(user: ServiceUser): Promise<RawActivityEntry[]> {
+        let entries: RawActivityEntry[];
+        try {
+            entries = (await this.#http.get<{ Items?: RawActivityEntry[] }>(ACTIVITY_LOG_ROUTE)).Items ?? [];
+        } catch (err) {
+            logger.warn({ service: this.id, err }, 'activity log read failed; history covers marked-played items only');
+            return [];
+        }
+
+        const newest = new Map<string, RawActivityEntry>();
+        for (const e of entries) {
+            if (e.UserId !== user.id || typeof e.ItemId !== 'string' || e.ItemId === '') continue;
+            const kept = newest.get(e.ItemId);
+            if (kept === undefined || (e.Date ?? '') > (kept.Date ?? '')) newest.set(e.ItemId, e);
+        }
+        return [...newest.values()];
+    }
+
+    /**
+     * Logged stops as history rows. Completion is the item's own `UserData`:
+     * a resume position partway through means they stopped, so the row is
+     * `partially_watched`; no position counts as watched, because an offline
+     * client only syncs a stop once the file has been played and Jellyfin
+     * clears the position at both ends. An item gone from the library keeps
+     * its row, titled with the log's own (localised) sentence, since that is
+     * all that is left of it.
+     */
+    async #loggedPlays(user: ServiceUser, stops: RawActivityEntry[]): Promise<PlaybackEntry[]> {
+        if (stops.length === 0) return [];
+
+        const ids = stops.map(e => e.ItemId as string);
+        const pages = await Promise.all(
+            Array.from({ length: Math.ceil(ids.length / LOGGED_ITEMS_CHUNK) }, (_, i) =>
+                this.#http.get<RawItemsPage>(
+                    `/Items?userId=${encodeURIComponent(user.id)}` +
+                        `&ids=${ids.slice(i * LOGGED_ITEMS_CHUNK, (i + 1) * LOGGED_ITEMS_CHUNK).join(',')}&Fields=UserData`
+                )
+            )
+        );
+        const byId = new Map(pages.flatMap(p => p.Items ?? []).map(item => [item.Id, item]));
+
+        return stops.flatMap((stop): PlaybackEntry[] => {
+            const item = byId.get(stop.ItemId as string);
+            if (item === undefined) {
+                return [
+                    {
+                        service: this.id,
+                        kind: 'watched',
+                        source: 'activity_log',
+                        removedFromLibrary: true,
+                        itemId: stop.ItemId as string,
+                        title: this.#fence('Name', stop.Name ?? ''),
+                        user: user.name,
+                        ...(stop.Date === undefined ? {} : { lastPlayed: stop.Date })
+                    }
+                ];
+            }
+            if (!HISTORY_TYPES.has(item.Type ?? '')) return [];
+
+            const position = item.UserData?.PlaybackPositionTicks ?? 0;
+            const partial = item.UserData?.Played !== true && position > 0;
+            const dates = [item.UserData?.LastPlayedDate, stop.Date].filter((d): d is string => d !== undefined);
+            const lastPlayed = dates.sort().at(-1);
+            return [
+                {
+                    ...this.#commonPlayback(user, item),
+                    kind: partial ? 'partially_watched' : 'watched',
+                    source: 'activity_log',
+                    ...(partial ? this.#progress(ticksToSeconds(position), ticksToSeconds(item.RunTimeTicks)) : {}),
+                    ...(lastPlayed === undefined ? {} : { lastPlayed })
+                }
+            ];
+        });
     }
 
     /**
