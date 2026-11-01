@@ -535,11 +535,121 @@ const HISTORY = {
 
 describe('Jellyfin.getWatchHistory', () => {
     const someone = { id: 'u1', name: 'Someone' };
-    const adapter = () => new JellyfinAdapter(multi, serving({ [HISTORY_ROUTE]: HISTORY }));
+    const adapter = () =>
+        new JellyfinAdapter(multi, serving({ [HISTORY_ROUTE]: HISTORY, [ACTIVITY_ROUTE]: { Items: [] } }));
 
     it('reads played items from the sort-by-DatePlayed query', async () => {
         const entries = await adapter().getWatchHistory(someone);
         expect(entries).toHaveLength(1);
         expect(entries[0]).toMatchObject({ kind: 'watched', itemId: 'h-1', lastPlayed: '2026-08-19T18:29:55.0574726Z' });
+    });
+
+    it('marks IsPlayed items as such', async () => {
+        const [entry] = await adapter().getWatchHistory(someone);
+        expect(entry?.source).toBe('marked_played');
+    });
+});
+
+const ACTIVITY_ROUTE = '/System/ActivityLog/Entries?type=VideoPlaybackStopped&hasUserId=true&limit=500';
+
+// Shaped on a live 12.x capture: the entry `Name` is a localised sentence, and
+// an offline client (AFinity) syncs a play as a stop with no Played flag set.
+const stopped = (itemId: string, date: string, userId = 'u1', name = `Someone stopped ${itemId}`) => ({
+    Name: name,
+    Type: 'VideoPlaybackStopped',
+    ItemId: itemId,
+    Date: date,
+    UserId: userId
+});
+
+const loggedItemsRoute = (ids: string[]) => `/Items?userId=u1&ids=${ids.join(',')}&Fields=UserData`;
+
+describe('Jellyfin.getWatchHistory with the activity log', () => {
+    const someone = { id: 'u1', name: 'Someone' };
+
+    it('adds a logged play that never got IsPlayed, as watched, newest first', async () => {
+        const routes = {
+            [HISTORY_ROUTE]: HISTORY,
+            [ACTIVITY_ROUTE]: { Items: [stopped('off-1', '2026-10-16T12:18:42Z')] },
+            [loggedItemsRoute(['off-1'])]: {
+                Items: [{ Id: 'off-1', Name: 'Revolutie', SeriesName: 'Cruyff', Type: 'Episode', RunTimeTicks: 30_000_000_000, UserData: {} }]
+            }
+        };
+        const entries = await new JellyfinAdapter(multi, serving(routes)).getWatchHistory(someone);
+
+        expect(entries.map(e => e.itemId)).toEqual(['off-1', 'h-1']);
+        expect(entries[0]).toMatchObject({
+            kind: 'watched',
+            source: 'activity_log',
+            lastPlayed: '2026-10-16T12:18:42Z'
+        });
+        expect(entries[0]?.seriesTitle).toContain('Cruyff');
+    });
+
+    it('reports a logged play stopped partway through as partially watched', async () => {
+        const routes = {
+            [HISTORY_ROUTE]: HISTORY,
+            [ACTIVITY_ROUTE]: { Items: [stopped('part-1', '2026-10-15T13:52:26Z')] },
+            [loggedItemsRoute(['part-1'])]: {
+                Items: [
+                    {
+                        Id: 'part-1',
+                        Name: 'A Talk',
+                        Type: 'Movie',
+                        RunTimeTicks: 76_090_880_000,
+                        UserData: { Played: false, PlaybackPositionTicks: 28_460_000_000, LastPlayedDate: '2026-10-20T09:54:10Z' }
+                    }
+                ]
+            }
+        };
+        const [entry] = await new JellyfinAdapter(multi, serving(routes)).getWatchHistory(someone);
+
+        expect(entry).toMatchObject({
+            kind: 'partially_watched',
+            source: 'activity_log',
+            percentComplete: 37,
+            lastPlayed: '2026-10-20T09:54:10Z'
+        });
+    });
+
+    it('keeps a logged play whose item has since been deleted, titled from the log', async () => {
+        const routes = {
+            [HISTORY_ROUTE]: HISTORY,
+            [ACTIVITY_ROUTE]: { Items: [stopped('gone-1', '2026-10-12T12:07:38Z', 'u1', 'Someone stopped Cruyff - Pionier')] },
+            [loggedItemsRoute(['gone-1'])]: { Items: [] }
+        };
+        const [entry] = await new JellyfinAdapter(multi, serving(routes)).getWatchHistory(someone);
+
+        expect(entry).toMatchObject({ kind: 'watched', source: 'activity_log', itemId: 'gone-1', removedFromLibrary: true });
+        expect(entry?.title).toContain('Cruyff - Pionier');
+    });
+
+    it('lists an item once when it is both marked played and logged', async () => {
+        const routes = {
+            [HISTORY_ROUTE]: HISTORY,
+            [ACTIVITY_ROUTE]: { Items: [stopped('h-1', '2026-08-19T18:29:55Z')] }
+        };
+        const entries = await new JellyfinAdapter(multi, serving(routes)).getWatchHistory(someone);
+
+        expect(entries).toHaveLength(1);
+        expect(entries[0]?.source).toBe('marked_played');
+    });
+
+    it("ignores other users' plays and logged items that are not movies or episodes", async () => {
+        const routes = {
+            [HISTORY_ROUTE]: HISTORY,
+            [ACTIVITY_ROUTE]: {
+                Items: [stopped('tv-1', '2026-10-31T17:47:02Z'), stopped('theirs', '2026-10-19T19:00:59Z', 'u2')]
+            },
+            [loggedItemsRoute(['tv-1'])]: { Items: [{ Id: 'tv-1', Name: 'ESPN 1', Type: 'TvChannel', UserData: {} }] }
+        };
+        const entries = await new JellyfinAdapter(multi, serving(routes)).getWatchHistory(someone);
+
+        expect(entries.map(e => e.itemId)).toEqual(['h-1']);
+    });
+
+    it('still answers from IsPlayed when the activity log cannot be read', async () => {
+        const entries = await new JellyfinAdapter(multi, serving({ [HISTORY_ROUTE]: HISTORY })).getWatchHistory(someone);
+        expect(entries.map(e => e.itemId)).toEqual(['h-1']);
     });
 });

@@ -839,7 +839,20 @@ export const hasCalendar = (a: ServiceAdapter): a is ServiceAdapter & CalendarCa
 
 export type PlaybackEntry = {
     service: string;
-    kind: 'now_playing' | 'resume' | 'next_up' | 'watched';
+    kind: 'now_playing' | 'resume' | 'next_up' | 'watched' | 'partially_watched';
+    /**
+     * Only on history rows, and only where the server can tell them apart.
+     * `marked_played` is the item's played flag; `activity_log` is a play the
+     * server logged without setting that flag — an offline client syncing
+     * back, typically. Both answer "did they watch it".
+     */
+    source?: 'marked_played' | 'activity_log';
+    /**
+     * An `activity_log` play whose item has since left the library. Whether it
+     * was ever marked played is unknowable then — a cleanup tool deleting
+     * played items is the usual reason it is gone.
+     */
+    removedFromLibrary?: true;
     itemId: string;
     title: string;
     seriesTitle?: string;
