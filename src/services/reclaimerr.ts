@@ -2,6 +2,7 @@ import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
+import { logger } from '../core/logger.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
@@ -118,12 +119,37 @@ const MAX_PAGES = 25;
 const HISTORY_WINDOWS_DAYS = [7, 30, 180, 730];
 const REMOVAL_WINDOW_DAYS = 365;
 const SCOPES_TTL_MS = 5 * 60_000;
+const RULES_TTL_MS = 5 * 60_000;
+/** Long enough to share one read between the checks and the overview of a single stack_health, or a lookup and a diagnose. */
+const READ_TTL_MS = 30_000;
+/** How many times a capped event read halves its window towards now before giving up on the oldest rows. */
+const MAX_NARROWINGS = 6;
 const DAY_MS = 86_400_000;
 
 const kindOf = (v: string | undefined): 'movie' | 'series' => (v === 'series' ? 'series' : 'movie');
 const num = (v: number | null | undefined): number | undefined => (typeof v === 'number' ? v : undefined);
 const text = (v: string | null | undefined): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
 const daysAgo = (days: number): string => new Date(Date.now() - days * DAY_MS).toISOString();
+const isGoing = (state: CleanupState): boolean => state === 'eligible' || state === 'scheduled';
+
+/**
+ * One in-flight or recent read, shared by every caller until `ttlMs` passes.
+ * A failed read is dropped at once, so the next caller retries.
+ */
+function cached<T>(ttlMs: number, load: () => Promise<T>): () => Promise<T> {
+    let entry: { at: number; value: Promise<T> } | undefined;
+    return () => {
+        if (entry === undefined || Date.now() - entry.at > ttlMs) {
+            const value = load();
+            const current = { at: Date.now(), value };
+            value.catch(() => {
+                if (entry === current) entry = undefined;
+            });
+            entry = current;
+        }
+        return entry.value;
+    };
+}
 
 /**
  * Reclaimerr's `/api/v1`, the versioned external API with scoped bearer
@@ -135,8 +161,11 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
     readonly type: ServiceId = 'reclaimerr';
     readonly id = 'reclaimerr';
     readonly #http: ServiceHttp;
-    #scopes: { at: number; value: Promise<Set<string>> } | undefined;
-    #rules: { at: number; value: Promise<Map<number, RawRule>> } | undefined;
+    readonly #grantedScopes = cached(SCOPES_TTL_MS, () => this.#readScopes());
+    readonly #ruleMap = cached(RULES_TTL_MS, () => this.#readRules());
+    readonly #candidates = cached(READ_TTL_MS, () => this.#readAll<RawCandidate>(`${RECLAIMERR_API}/candidates`));
+    /** Every title's removals over the last year, filtered per title by the caller: one read serves many lookups. */
+    readonly #recentRemovals = cached(READ_TTL_MS, () => this.#removals(daysAgo(REMOVAL_WINDOW_DAYS)));
 
     constructor(config: ConfigByService['reclaimerr'], fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp(this.id, config, apiKeyHeader('Authorization', `Bearer ${config.api_key}`), fetchImpl);
@@ -203,6 +232,8 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             scopes.has('protections:read') ? this.#readAll<RawProtection>(`${RECLAIMERR_API}/protections?active_only=true`) : undefined
         ]);
         const sorted = candidates?.map(c => this.#candidateOf(c, rules)).sort(soonestFirst);
+        const going = sorted?.filter(c => isGoing(c.state));
+        const firstAt = going?.map(c => c.eligibleAt).filter((d): d is string => d !== undefined).sort()[0];
         return {
             service: this.id,
             ...(stats === undefined
@@ -221,6 +252,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
                   }),
             ...(rules === undefined ? {} : { rules: [...rules.values()].map(r => this.#ruleOf(r)) }),
             ...(sorted === undefined ? {} : { candidates: { items: sorted.slice(0, Math.max(0, want)), total: sorted.length } }),
+            ...(going === undefined ? {} : { going: { count: going.length, ...(firstAt === undefined ? {} : { firstAt }) } }),
             ...(protections === undefined ? {} : { protections: protections.length })
         };
     }
@@ -232,7 +264,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             scopes.has('candidates:read') ? this.#readAll<RawCandidate>(`${RECLAIMERR_API}/candidates?media_type=${kind}&tmdb_id=${tmdbId}`) : [],
             // No tmdb filter on protections, and there are few: read them all.
             scopes.has('protections:read') ? this.#readAll<RawProtection>(`${RECLAIMERR_API}/protections?media_type=${kind}&active_only=true`) : [],
-            scopes.has('events:read') ? this.#removals(daysAgo(REMOVAL_WINDOW_DAYS)) : []
+            scopes.has('events:read') ? this.#recentRemovals() : []
         ]);
         const ruleMap = await rules;
         return {
@@ -372,8 +404,29 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         return reads.flatMap(r => r.events);
     }
 
-    /** Oldest first, as the feed serves it. Stops at `MAX_PAGES`, which `capped` reports. */
-    async #events(opts: { after: string; type?: string }): Promise<{ events: RawEvent[]; capped: boolean }> {
+    /**
+     * Oldest first, as the feed serves it. A window too big for `MAX_PAGES`
+     * would keep its oldest rows and drop the newest, the ones every caller
+     * wants, so it is halved towards now until it fits. What falls before the
+     * narrowed start is left out, and logged.
+     */
+    async #events(opts: { after: string; type?: string }): Promise<{ events: RawEvent[] }> {
+        let after = opts.after;
+        for (let narrowed = 0; ; narrowed += 1) {
+            const read = await this.#eventPages({ ...opts, after });
+            if (!read.capped) return read;
+            if (narrowed === MAX_NARROWINGS) {
+                logger.warn({ service: this.id, after, type: opts.type }, 'event feed still over the page cap; returning its oldest rows');
+                return read;
+            }
+            const from = Date.parse(after);
+            const mid = new Date(from + (Date.now() - from) / 2).toISOString();
+            logger.warn({ service: this.id, from: after, to: mid, type: opts.type }, 'event feed over the page cap; narrowing the window to its newest half');
+            after = mid;
+        }
+    }
+
+    async #eventPages(opts: { after: string; type?: string }): Promise<{ events: RawEvent[]; capped: boolean }> {
         const events: RawEvent[] = [];
         let cursor: string | undefined;
         for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -391,10 +444,6 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         return { events, capped: true };
     }
 
-    async #candidates(): Promise<RawCandidate[]> {
-        return this.#readAll<RawCandidate>(`${RECLAIMERR_API}/candidates`);
-    }
-
     async #readAll<T>(path: string): Promise<T[]> {
         const out: T[] = [];
         const join = path.includes('?') ? '&' : '?';
@@ -407,33 +456,17 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         return out;
     }
 
-    async #ruleMap(): Promise<Map<number, RawRule>> {
-        if (this.#rules === undefined || Date.now() - this.#rules.at > SCOPES_TTL_MS) {
-            const value = this.#http
-                .get<{ items?: RawRule[] }>(`${RECLAIMERR_API}/rules`)
-                .then(body => new Map((body.items ?? []).filter(r => typeof r.id === 'number').map(r => [r.id as number, r])));
-            value.catch(() => {
-                this.#rules = undefined;
-            });
-            this.#rules = { at: Date.now(), value };
-        }
-        return this.#rules.value;
+    async #readRules(): Promise<Map<number, RawRule>> {
+        const body = await this.#http.get<{ items?: RawRule[] }>(`${RECLAIMERR_API}/rules`);
+        return new Map((body.items ?? []).filter(r => typeof r.id === 'number').map(r => [r.id as number, r]));
     }
 
-    async #grantedScopes(): Promise<Set<string>> {
-        if (this.#scopes === undefined || Date.now() - this.#scopes.at > SCOPES_TTL_MS) {
-            const value = this.#http.get<RawDiscovery>(RECLAIMERR_API).then(body => {
-                const granted = new Set(body.granted_scopes ?? []);
-                // Reclaimerr lists what was ticked; a :manage scope also answers its :read routes.
-                for (const [read, manage] of IMPLIED) if (granted.has(manage)) granted.add(read);
-                return granted;
-            });
-            value.catch(() => {
-                this.#scopes = undefined;
-            });
-            this.#scopes = { at: Date.now(), value };
-        }
-        return this.#scopes.value;
+    async #readScopes(): Promise<Set<string>> {
+        const body = await this.#http.get<RawDiscovery>(RECLAIMERR_API);
+        const granted = new Set(body.granted_scopes ?? []);
+        // Reclaimerr lists what was ticked; a :manage scope also answers its :read routes.
+        for (const [read, manage] of IMPLIED) if (granted.has(manage)) granted.add(read);
+        return granted;
     }
 
     async #need(scope: Scope): Promise<void> {

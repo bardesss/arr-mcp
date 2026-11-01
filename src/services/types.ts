@@ -594,6 +594,8 @@ export type CleanupOverview = {
     rules?: CleanupRule[];
     /** Soonest first: eligible, then scheduled, then the ones held back. */
     candidates?: Window<CleanupCandidate>;
+    /** Eligible or scheduled, counted over every candidate, not only the ones `candidates` returns. */
+    going?: { count: number; firstAt?: string };
     protections?: number;
 };
 

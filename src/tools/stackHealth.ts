@@ -322,33 +322,32 @@ export async function buildStackHealth(
                   .flat()
                   .sort((a, b) => a.instance.localeCompare(b.instance));
 
-    const seedingRules = opts.detail === 'full' ? await buildSeedingRules(adapters, markDegraded) : undefined;
     const cleanupAdapter = opts.detail === 'full' ? adapters.find(hasCleanup) : undefined;
-    let cleanup: CleanupOverview | undefined;
-    if (cleanupAdapter !== undefined && !degraded.includes(cleanupAdapter.id)) {
-        try {
-            cleanup = await cleanupAdapter.readCleanupOverview(opts.limit);
-        } catch (err) {
-            logger.warn({ service: cleanupAdapter.id, err }, 'cleanup overview read failed; omitting');
-            markDegraded(cleanupAdapter.id);
-        }
-    }
-    const hasSeedingRules =
-        seedingRules !== undefined &&
-        (seedingRules.clients.length > 0 || seedingRules.indexers.length > 0 || (seedingRules.cleanuparr?.length ?? 0) > 0);
-
     const removalSource = opts.detail === 'full' ? adapters.find(hasCleanuparrRemovals) : undefined;
-    const cleanuparrRemovals =
+    // Independent reads: none waits on another.
+    const [seedingRules, cleanup, cleanuparrRemovals] = await Promise.all([
+        opts.detail === 'full' ? buildSeedingRules(adapters, markDegraded) : undefined,
+        cleanupAdapter === undefined || degraded.includes(cleanupAdapter.id)
+            ? undefined
+            : cleanupAdapter.readCleanupOverview(opts.limit).catch((err: unknown) => {
+                  logger.warn({ service: cleanupAdapter.id, err }, 'cleanup overview read failed; omitting');
+                  markDegraded(cleanupAdapter.id);
+                  return undefined;
+              }),
         removalSource === undefined
             ? undefined
-            : await removalSource.getRemovalRules().then(
+            : removalSource.getRemovalRules().then(
                   r => ({ service: removalSource.id, ...r }),
                   (err: unknown) => {
                       logger.warn({ service: removalSource.id, err }, 'Cleanuparr removal rules unavailable; omitting');
                       markDegraded(removalSource.id);
                       return undefined;
                   }
-              );
+              )
+    ]);
+    const hasSeedingRules =
+        seedingRules !== undefined &&
+        (seedingRules.clients.length > 0 || seedingRules.indexers.length > 0 || (seedingRules.cleanuparr?.length ?? 0) > 0);
 
     // Promise.all resolves in input order but the pushes above race, so sort to
     // make the response stable across calls and diffable in tests.
@@ -430,11 +429,11 @@ export async function buildStackHealth(
 export function cleanupLine(cleanup: CleanupOverview | undefined): string {
     const candidates = cleanup?.candidates;
     if (cleanup === undefined || candidates === undefined) return '';
-    const going = candidates.items.filter(c => c.state === 'eligible' || c.state === 'scheduled');
     const off = cleanup.autoDelete?.enabled === false ? ' Its automatic deletion is off, so nothing goes on its own.' : '';
     if (candidates.total === 0) return ` ${cleanup.service} has nothing set to be deleted.${off}`;
-    const next = going.map(c => c.eligibleAt).filter((d): d is string => d !== undefined).sort()[0];
-    return ` ${cleanup.service}: ${candidates.total} cleanup candidate(s), ${going.length} set to go${next === undefined ? '' : `, the first on ${next.slice(0, 10)}`}.${off}`;
+    // Counted by the adapter before `limit` cut the list.
+    const going = cleanup.going ?? { count: 0 };
+    return ` ${cleanup.service}: ${candidates.total} cleanup candidate(s), ${going.count} set to go${going.firstAt === undefined ? '' : `, the first on ${going.firstAt.slice(0, 10)}`}.${off}`;
 }
 
 export function registerStackHealth(

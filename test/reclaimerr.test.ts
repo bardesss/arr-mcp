@@ -123,6 +123,22 @@ describe('ReclaimerrAdapter cleanup overview', () => {
         expect(overview.candidates?.items.map(c => c.id)).toEqual(['3', '4', '2', '1']);
     });
 
+    it('counts what is set to go over every candidate, not only the ones the limit returns', async () => {
+        const [base] = fixture<Page>('candidates').items;
+        const items = Array.from({ length: 5 }, (_, i) => ({ ...base, id: i + 1, auto_delete_state: 'scheduled', auto_delete_eligible_at: `2026-12-0${i + 1}T00:00:00Z` }));
+        const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly, '/api/v1/candidates': { items, total: 5, page: 1, per_page: 200, total_pages: 1 } })));
+        const overview = await adapter.readCleanupOverview(2);
+        expect(overview.candidates?.items).toHaveLength(2);
+        expect(overview.going).toEqual({ count: 5, firstAt: '2026-12-01T00:00:00Z' });
+    });
+
+    it('reads the candidates once for the checks and the overview of one stack_health', async () => {
+        const seen: string[] = [];
+        const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly }), seen));
+        await Promise.all([adapter.getFailedHealthChecks(), adapter.readCleanupOverview(10)]);
+        expect(seen.filter(s => s.startsWith('GET /api/v1/candidates')).length).toBe(1);
+    });
+
     it('leaves out what the token cannot read', async () => {
         const seen: string[] = [];
         const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': { granted_scopes: ['system:read'] } }), seen));
@@ -169,6 +185,33 @@ describe('ReclaimerrAdapter title status', () => {
         const status = await adapter.readCleanupStatus(candidate?.media_type as 'movie', candidate?.tmdb_id as number);
         expect(status.removals).toHaveLength(1);
         expect(status.removals[0]).toMatchObject({ at: '2026-11-02T02:00:05Z', operation: 'delete' });
+    });
+});
+
+describe('ReclaimerrAdapter event feed', () => {
+    it('narrows a window over the page cap to its newest half rather than dropping the newest rows', async () => {
+        const afters: string[] = [];
+        let page = 0;
+        const events = (u: URL) => {
+            const after = u.searchParams.get('occurred_after') ?? '';
+            if (u.searchParams.get('cursor') === null) afters.push(after);
+            // The first, widest window never ends; the narrowed one does.
+            if (afters.length === 1) return { items: [{ id: `e${(page += 1)}`, type: 'candidate.scheduled', occurred_at: '2026-01-01T00:00:00Z' }], next_cursor: `c${page}`, has_more: true };
+            return { items: [{ id: 'new', type: 'candidate.scheduled', occurred_at: '2026-10-30T00:00:00Z' }], has_more: false };
+        };
+        const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly, '/api/v1/events': events })));
+        const read = await adapter.readHistory({ since: '2025-11-01T00:00:00Z' });
+        expect(afters).toHaveLength(2);
+        expect((afters[1] as string) > (afters[0] as string)).toBe(true);
+        expect(read.items.map(e => e.id)).toEqual(['new']);
+    });
+
+    it('reads the removals once across lookups of different titles', async () => {
+        const seen: string[] = [];
+        const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly }), seen));
+        await adapter.readCleanupStatus('movie', 1);
+        await adapter.readCleanupStatus('movie', 2);
+        expect(seen.filter(s => s.includes('event_type=candidate.deleted')).length).toBe(1);
     });
 });
 

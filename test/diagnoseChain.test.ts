@@ -1635,3 +1635,31 @@ describe('buildChain — download history for an unresolved query', () => {
         expect(buildChain('some film', healthy({ item: undefined, history: [row()], degraded: ['sabnzbd'] })).verdict.certain).toBe(false);
     });
 });
+
+describe('buildChain — Reclaimerr', () => {
+    const noFile = item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } });
+    const removal = { at: '2026-01-10T02:00:00Z', kind: 'movie' as const, title: 'x', operation: 'delete' as const, rules: ['Old'] };
+    const cleanup = (scope: string) => ({ service: 'reclaimerr', candidates: [], protections: [], removals: [{ ...removal, scope }] });
+
+    it('blames a whole-title removal for a missing file', () => {
+        const step = stepFor(buildChain('some film', healthy({ item: noFile, cleanup: cleanup('movie') })), 'file');
+        expect(step?.detail).toContain('reclaimerr deleted it on 2026-01-10');
+    });
+
+    it('does not blame a removal the title was imported again after', () => {
+        const d = buildChain('some film', healthy({ item: noFile, cleanup: cleanup('movie'), lastImportAt: '2026-03-01T00:00:00Z' }));
+        expect(stepFor(d, 'file')?.detail).toBe('No file on disk yet.');
+        expect(d.verdict.remedy ?? '').not.toContain('Protect it');
+    });
+
+    it('does not count one movie version as the whole title, and still mentions it with a file on disk', () => {
+        expect(stepFor(buildChain('some film', healthy({ item: noFile, cleanup: cleanup('version') })), 'file')?.detail).toBe('No file on disk yet.');
+        const withFile = buildChain('some film', healthy({ cleanup: cleanup('version') }));
+        expect(withFile.verdict.summary).toContain('reclaimerr deleted one version of it on 2026-01-10');
+    });
+
+    it('warns before a search when Reclaimerr could not be read', () => {
+        const step = stepFor(buildChain('some film', healthy({ item: noFile, cleanup: undefined, cleanupUnread: 'reclaimerr' })), 'file');
+        expect(step?.detail).toContain('reclaimerr could not be read');
+    });
+});

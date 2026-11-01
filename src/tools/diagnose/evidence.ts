@@ -337,19 +337,27 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // which the *arr grab and Cleanuparr's record of it both carry.
     let cleanuparr: Evidence['cleanuparr'] = null;
     const cleanuparrAdapter = deps.adapters.find(hasCleanuparr);
+    const cleanupAdapter = deps.adapters.find(hasCleanup);
+    // The managing *arr's own history for this item, read once for whichever of the two below needs it.
+    let arrHistory: Promise<HistoryEntry[]> | undefined;
+    const readArrHistory = (): Promise<HistoryEntry[]> => {
+        arrHistory ??= (async () => {
+            const managing = item?.acquisition;
+            const arr = managing?.id === undefined ? undefined : deps.adapters.find(a => a.id === managing.service);
+            if (arr === undefined || !hasHistory(arr) || managing?.id === undefined) return [];
+            const id = managing.id;
+            const rows = await probe(`${arr.id}:history`, degraded, () => arr.readHistory({ id, want: 50 }));
+            return rows === undefined ? [] : Array.isArray(rows) ? rows : rows.items;
+        })();
+        return arrHistory;
+    };
     if (cleanuparrAdapter !== undefined && hasHistory(cleanuparrAdapter)) {
         const ids = new Set<string>();
         for (const q of queue?.items ?? []) {
             if (q.downloadId !== undefined && item !== undefined && mentions(q.title, item)) ids.add(q.downloadId.toLowerCase());
         }
-        const managing = item?.acquisition;
-        const arr = managing?.id === undefined ? undefined : deps.adapters.find(a => a.id === managing.service);
-        if (arr !== undefined && hasHistory(arr) && managing?.id !== undefined) {
-            const id = managing.id;
-            const rows = await probe(`${arr.id}:history`, degraded, () => arr.readHistory({ id, want: 50 }));
-            for (const r of rows === undefined ? [] : Array.isArray(rows) ? rows : rows.items) {
-                if (r.downloadId !== undefined) ids.add(r.downloadId.toLowerCase());
-            }
+        for (const r of await readArrHistory()) {
+            if (r.downloadId !== undefined) ids.add(r.downloadId.toLowerCase());
         }
         // Nothing to match, so an outage there must not cost an unrelated verdict its certainty.
         if (ids.size === 0) {
@@ -365,10 +373,18 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     const history = item === undefined && target.query !== undefined ? await historyByName(deps.adapters, target.query, degraded) : undefined;
     // null: no cleanup service, or no TMDB id to find the title by. undefined: could not look.
     let cleanup: Evidence['cleanup'] = null;
-    const cleanupAdapter = deps.adapters.find(hasCleanup);
+    let lastImportAt: string | undefined;
     const tmdb = item?.ids.tmdb;
     if (cleanupAdapter !== undefined && item !== undefined && tmdb !== undefined) {
         cleanup = await probe(cleanupAdapter.id, degraded, () => cleanupAdapter.readCleanupStatus(item.kind, tmdb));
+        // A removal only explains a missing file if nothing was imported after it.
+        if ((cleanup?.removals.length ?? 0) > 0 && item.acquisition?.hasFile !== true) {
+            lastImportAt = (await readArrHistory())
+                .filter(r => r.event === 'imported')
+                .map(r => r.at)
+                .sort()
+                .at(-1);
+        }
     }
 
     degraded.sort();
@@ -387,6 +403,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         cleanuparr,
         ...(history === undefined ? {} : { history }),
         cleanup,
+        ...(cleanupAdapter !== undefined && cleanup === undefined ? { cleanupUnread: cleanupAdapter.id } : {}),
+        ...(lastImportAt === undefined ? {} : { lastImportAt }),
         libraryDegraded,
         degraded
     };

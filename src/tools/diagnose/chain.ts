@@ -52,6 +52,10 @@ export type Evidence = {
     cleanuparr: HistoryEntry[] | null | undefined;
     /** Reclaimerr's view of this title: candidates, protections, removals. null: not configured. */
     cleanup?: CleanupStatus | null | undefined;
+    /** The cleanup service that was configured but could not be read, so a missing file's cause is unknown. */
+    cleanupUnread?: string;
+    /** The managing *arr's latest import of this item, read only when there is a removal to weigh it against. */
+    lastImportAt?: string;
     /**
      * Download-history rows whose release name matches the query, read only
      * when the query resolved to nothing: an item removed from Radarr whose
@@ -731,13 +735,18 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
                       detail: `${acquisition.service} has it, but it is not monitored.`
                   }
         );
-        const removed = acquisition.hasFile ? undefined : wholeRemoval(ev.cleanup);
+        const removed = acquisition.hasFile ? undefined : wholeRemoval(ev.cleanup, ev.lastImportAt);
+        // Searching again for something a cleanup rule removed only gets it removed again.
+        const unread =
+            ev.cleanupUnread === undefined
+                ? ''
+                : ` ${ev.cleanupUnread} could not be read, so whether a cleanup rule removed it is unknown: check there before searching again.`;
         steps.push(
             acquisition.hasFile
                 ? { stage: 'file', service: acquisition.service, status: 'ok', detail: 'A file is on disk.' }
                 : removed !== undefined
                   ? { stage: 'file', service: acquisition.service, status: 'blocked', detail: `No file on disk: ${removalSentence(ev.cleanup?.service ?? 'the cleanup service', removed)}` }
-                  : { stage: 'file', service: acquisition.service, status: 'blocked', detail: 'No file on disk yet.' }
+                  : { stage: 'file', service: acquisition.service, status: 'blocked', detail: `No file on disk yet.${unread}` }
         );
     }
 
@@ -860,7 +869,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
             : blocking.stage === 'file'
               // The `file` step always carries the managing service: it is only
               // pushed on the branch where `acquisition` is defined.
-              ? wholeRemoval(ev.cleanup) !== undefined && acquisition?.hasFile === false
+              ? wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined && acquisition?.hasFile === false
                   ? `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then search for it in ${blocking.service as string}.`
                   : fileRemedy(
                         blocking.service as string,
@@ -900,9 +909,15 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     };
 }
 
-/** A removal of the title itself, not of one season or episode, which leaves the rest on disk. */
-function wholeRemoval(cleanup: CleanupStatus | null | undefined): CleanupRemoval | undefined {
-    return cleanup?.removals.find(r => r.scope === 'movie' || r.scope === 'version' || r.scope === 'series');
+/**
+ * A removal of the title itself and the newest thing to happen to its file.
+ * Not a season or an episode, which leave the rest on disk, nor one movie
+ * version, which can leave another. Not one followed by an import either: the
+ * title came back after it, so whatever took the file since was something else.
+ */
+function wholeRemoval(cleanup: CleanupStatus | null | undefined, lastImportAt: string | undefined): CleanupRemoval | undefined {
+    const latest = cleanup?.removals.find(r => r.scope === 'movie' || r.scope === 'series');
+    return latest === undefined || (lastImportAt !== undefined && lastImportAt > latest.at) ? undefined : latest;
 }
 
 /**
@@ -917,8 +932,9 @@ function cleanupAside(ev: Evidence, fileDetail: string | undefined): string {
     if (upcoming !== undefined) return ` (Also: ${upcoming})`;
     const latest = cleanup.removals[0];
     if (latest === undefined) return '';
-    // A file on disk after a whole-title removal means it came back since.
-    if (ev.item?.acquisition?.hasFile === true && wholeRemoval({ ...cleanup, removals: [latest] }) !== undefined) return '';
+    // A file on disk after a whole-title removal means it came back since. A
+    // version removal stays worth saying: the file on disk may be another version.
+    if (ev.item?.acquisition?.hasFile === true && (latest.scope === 'movie' || latest.scope === 'series')) return '';
     const sentence = removalSentence(cleanup.service, latest);
     // Already the file step's own detail, which the verdict quotes.
     if (fileDetail?.includes(sentence) === true) return '';

@@ -36,7 +36,9 @@ export async function withCleanup<T extends { kind: string; ids: { tmdb?: number
 const day = (iso: string | undefined): string => (iso === undefined ? '' : iso.slice(0, 10));
 const ruled = (rules: string[]): string => (rules.length === 0 ? '' : ` under rule ${rules.join(', ')}`);
 const part = (c: { scope: string; seasonNumber?: number; episodeNumber?: number }): string =>
-    c.scope === 'season' && c.seasonNumber !== undefined
+    c.scope === 'version'
+        ? 'one version '
+        : c.scope === 'season' && c.seasonNumber !== undefined
         ? `season ${c.seasonNumber} `
         : c.scope === 'episode' && c.seasonNumber !== undefined && c.episodeNumber !== undefined
           ? `S${String(c.seasonNumber).padStart(2, '0')}E${String(c.episodeNumber).padStart(2, '0')} `
