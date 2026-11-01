@@ -1652,8 +1652,13 @@ describe('buildChain — Reclaimerr', () => {
         expect(d.verdict.remedy ?? '').not.toContain('Protect it');
     });
 
-    it('does not count one movie version as the whole title, and still mentions it with a file on disk', () => {
-        expect(stepFor(buildChain('some film', healthy({ item: noFile, cleanup: cleanup('version') })), 'file')?.detail).toBe('No file on disk yet.');
+    it('blames a version removal for a missing film: Radarr keeps one file per movie', () => {
+        const d = buildChain('some film', healthy({ item: noFile, cleanup: cleanup('version') }));
+        expect(stepFor(d, 'file')?.detail).toContain('reclaimerr deleted one version of it on 2026-01-10');
+        expect(d.verdict.remedy).toContain('Protect it in reclaimerr');
+    });
+
+    it('still mentions a version removal with a file on disk', () => {
         const withFile = buildChain('some film', healthy({ cleanup: cleanup('version') }));
         expect(withFile.verdict.summary).toContain('reclaimerr deleted one version of it on 2026-01-10');
     });

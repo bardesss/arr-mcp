@@ -911,12 +911,13 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
 
 /**
  * A removal of the title itself and the newest thing to happen to its file.
- * Not a season or an episode, which leave the rest on disk, nor one movie
- * version, which can leave another. Not one followed by an import either: the
+ * Not a season or an episode, which leave the rest on disk. One movie version
+ * counts: this only runs when the *arr has no file, and Radarr keeps one file
+ * per movie, so that version was it. Not one followed by an import either: the
  * title came back after it, so whatever took the file since was something else.
  */
 function wholeRemoval(cleanup: CleanupStatus | null | undefined, lastImportAt: string | undefined): CleanupRemoval | undefined {
-    const latest = cleanup?.removals.find(r => r.scope === 'movie' || r.scope === 'series');
+    const latest = cleanup?.removals.find(r => r.scope === 'movie' || r.scope === 'version' || r.scope === 'series');
     return latest === undefined || (lastImportAt !== undefined && lastImportAt > latest.at) ? undefined : latest;
 }
 

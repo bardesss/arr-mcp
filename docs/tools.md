@@ -695,10 +695,11 @@ protections and events all carry. `cleanup` is **absent** when Reclaimerr has
 nothing on the title, when the title has no TMDB id, and when Reclaimerr could
 not be read.
 
-`diagnose` reads the same thing. A whole-title removal explains a missing file
-only when the managing *arr imported nothing after it; a version, season or
-episode removal is mentioned beside the verdict instead, since the rest may
-still be on disk.
+`diagnose` reads the same thing. A removal of the film (or its version, since
+Radarr keeps one file per movie) or of the whole series explains a missing file
+only when the managing *arr imported nothing after it. A season or episode
+removal is mentioned beside the verdict instead, since the rest may still be on
+disk, and so is a version removal on a film that still has a file.
 
 ## `get_playback`
 
