@@ -3,7 +3,7 @@
 # Pinned by digest, not by tag. This file records an arm64 startup death
 # caused by a glibc mismatch; a silent upstream re-tag would change glibc
 # under a release build with no diff to review. Dependabot keeps it current.
-FROM node:24-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS build
+FROM node:24-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS build
 WORKDIR /app
 # better-sqlite3 compiles a native addon; unused in Phase 1 but proven here so
 # Phase 4 does not discover a broken build stage.
@@ -19,7 +19,7 @@ RUN npm run build && npm prune --omit=dev
 # addon imports fmod@GLIBC_2.38, so on bookworm the arm64 image died at startup
 # while amd64 — needing only 2.34 — ran fine. test/dockerGlibc.test.ts fails if
 # a future prebuild outgrows this base.
-FROM node:24-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS runtime
+FROM node:24-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS runtime
 WORKDIR /app
 
 ARG ARR_MCP_VERSION=0.0.0-dev
