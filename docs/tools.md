@@ -13,7 +13,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr and Cleanuparr did |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr and Reclaimerr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included |
 | `get_calendar` | What is due, and what just aired |
@@ -421,8 +421,9 @@ and any failed deletion. `rules` lists every rule with its outcome
 protections, `totals` gives the reclaimable and reclaimed bytes, and
 `autoDelete.enabled` says whether the deletion task runs at all: when it is
 off, nothing is deleted on its own whatever the dates say. The candidate list
-takes the call's `limit`; `total` is always the full count. The summary line
-says how many are set to go and when the first one is.
+takes the call's `limit`; `total` is always the full count. `going` counts the
+`eligible` and `scheduled` ones over every candidate, not only the ones
+returned, with `firstAt` the soonest date; the summary line quotes it.
 
 ### Did that command finish?
 
@@ -677,6 +678,28 @@ Unlike the free text beside it, the value is not fenced. It exists to be matched
 against, and a boundary marker wrapped around `jpn/eng` would make its one job
 harder; the code points `fenceText` strips are removed from it all the same.
 
+### What a cleanup service is about to do to it
+
+With Reclaimerr configured, a record carries `cleanup`, on both the title and
+the `service` plus `id` forms:
+
+- `candidates`, soonest first: what its rules matched on this title, with the
+  scope (the whole title, one movie version, a season or an episode), the rules,
+  `operation` (`delete` or `move`), `state` and `eligibleAt`.
+- `protections`: the active protections on it, with `permanent` or `expiresAt`.
+- `removals`, newest first: what it deleted or moved of this title in the last
+  year.
+
+The title is found by its TMDB id, the one id Reclaimerr's candidates,
+protections and events all carry. `cleanup` is **absent** when Reclaimerr has
+nothing on the title, when the title has no TMDB id, and when Reclaimerr could
+not be read.
+
+`diagnose` reads the same thing. A whole-title removal explains a missing file
+only when the managing *arr imported nothing after it; a version, season or
+episode removal is mentioned beside the verdict instead, since the rest may
+still be on disk.
+
 ## `get_playback`
 
 `scope` picks which of three Jellyfin reads answers the call, and defaults to
@@ -913,7 +936,9 @@ moved; `rawEvent` says which), `protected` (a candidate protected, or a
 protection created through its API) and `unknown` for a cancel, a postpone or a
 timer reset. `reason` carries the rule names and Reclaimerr's own reason,
 fenced. Its feed is oldest first, so without `since` arr-mcp reads the last 7
-days and widens to 30, 180 and 730 until it holds the rows asked for. Passing
+days and widens to 30, 180 and 730 until it holds the rows asked for. A window holding more than 5000 events
+would keep its oldest and drop its newest, so arr-mcp halves it towards now
+until it fits; what falls before the narrowed start is left out. Passing
 `id` with `service: reclaimerr` is refused: its events are per candidate, not
 per movie or series, and `get_media_details` shows one title's cleanup state.
 
