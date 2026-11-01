@@ -33,7 +33,8 @@ export const ScopeSchema = z
     .describe(
         '`active` (default): now playing and what can be resumed. `next_up`: the next unwatched episode of every ' +
             "series this user has in progress — your media server's own answer to what to watch next. `history`: " +
-            'recently watched movies and episodes, newest first.'
+            'recently watched movies and episodes, newest first — on Jellyfin including plays its activity log holds ' +
+            'that never got marked played, such as an offline client syncing back.'
     );
 
 const project = (e: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
@@ -42,10 +43,12 @@ const project = (e: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
         return { service: e.service, kind: e.kind, itemId: e.itemId, title: e.title, user: e.user };
     }
     const { device: _d, lastPlayed: _l, ...rest } = e;
-    // `lastPlayed` is the one field `history` exists to answer, so a watched
+    // `lastPlayed` is the one field `history` exists to answer, so a history
     // entry keeps it even at standard detail. `active` and `next_up` entries
-    // never carry `kind: 'watched'`, so this cannot move their output.
-    return e.kind === 'watched' && e.lastPlayed !== undefined ? { ...rest, lastPlayed: e.lastPlayed } : rest;
+    // never carry either history kind, so this cannot move their output.
+    return (e.kind === 'watched' || e.kind === 'partially_watched') && e.lastPlayed !== undefined
+        ? { ...rest, lastPlayed: e.lastPlayed }
+        : rest;
 };
 
 export async function buildGetPlayback(
@@ -101,7 +104,12 @@ export const summarize = (scope: PlaybackScope, result: GetPlaybackResult): stri
     if (result.degraded.length > 0)
         return `${result.degraded.join(', ')} could not be reached; no playback information available.`;
     if (scope === 'next_up') return `${result.total} series with a next episode to watch.`;
-    if (scope === 'history') return `${result.total} recently watched item(s).`;
+    if (scope === 'history') {
+        const partial = result.items.filter(i => i.kind === 'partially_watched').length;
+        return partial === 0
+            ? `${result.total} recently watched item(s).`
+            : `${result.total} recently watched item(s); ${partial} of those shown stopped partway.`;
+    }
     const playing = result.items.filter(i => i.kind === 'now_playing').length;
     return `${playing} item(s) playing now, ${result.total - playing} to continue.`;
 };
@@ -126,6 +134,10 @@ export function playbackLine(entry: PlaybackEntry): string {
     const facts = [entry.kind, entry.user];
     if (entry.percentComplete !== undefined) facts.push(`${Math.round(entry.percentComplete)}%`);
     if (entry.device !== undefined && entry.device !== '') facts.push(entry.device);
+    // Said on the row: an `activity_log` play is the server's log, not its
+    // played flag, and a cleanup tool keyed on that flag will not see it.
+    if (entry.source === 'activity_log')
+        facts.push(entry.removedFromLibrary === true ? 'from activity log, since removed from library' : 'from activity log, not marked played');
 
     return `${name} — ${facts.join(', ')}`;
 }
@@ -137,7 +149,7 @@ export function registerGetPlayback(server: McpServer, servers: MediaServers): v
             title: 'Playback activity',
             annotations: READ_ONLY,
             description:
-                'What a media server user is watching, has queued up next, or has already watched. Watch state exists only in your media server — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.' +
+                'What a media server user is watching, has queued up next, or has already watched. Watch state exists only in your media server — Radarr and Sonarr have no concept of it. `scope: "active"` (default) is now playing and what can be resumed, with position and completion. `scope: "next_up"` is the next unwatched episode of every series this user has in progress. `scope: "history"` is recently watched movies and episodes, newest first. On Jellyfin it also includes plays from the Jellyfin activity log that never got marked played — an offline client such as AFinity syncing back — tagged `source: "activity_log"`; those count as watched unless Jellyfin still holds a resume position, which makes them `partially_watched`. That log only reaches back as far as Jellyfin keeps it (30 days by default), and a tool that deletes only marked-played items will not see these. Defaults to the configured user; reading another requires allow_other_users. If no media server is configured at all, every scope answers zero with an empty `degraded` list — because nothing was asked, not because nothing is playing. `note` says so when that is the case; report that reason rather than telling the user their library is idle.' +
                 withBoth(
                     bothIds(servers),
                     'With two media servers configured, `service` picks one; it defaults to the primary. Call once per server for everything playing everywhere.'

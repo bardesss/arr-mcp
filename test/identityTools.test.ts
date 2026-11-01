@@ -4,7 +4,7 @@ import { IdentityResolver } from '../src/core/identity.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
 import type { MediaServerAdapter } from '../src/services/types.ts';
-import { buildGetPlayback, summarize } from '../src/tools/getPlayback.ts';
+import { buildGetPlayback, playbackLine, summarize } from '../src/tools/getPlayback.ts';
 import { buildGetRequests } from '../src/tools/getRequests.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
@@ -238,6 +238,42 @@ describe('get_playback', () => {
         const result = await buildGetPlayback(adapter, resolver, { detail: 'standard', limit: 50, scope: 'history' });
         expect(result.degraded).toContain('jellyfin');
         expect(result.items).toEqual([]);
+    });
+
+    it('keeps lastPlayed on a partially watched row at standard detail, and counts it in the summary', async () => {
+        const fake = {
+            id: 'jellyfin',
+            type: 'jellyfin',
+            getPlayback: async () => [],
+            getNextUp: async () => [],
+            getWatchHistory: async () => [
+                {
+                    service: 'jellyfin',
+                    kind: 'partially_watched' as const,
+                    source: 'activity_log' as const,
+                    itemId: 'p',
+                    title: 'A Talk',
+                    user: 'Someone',
+                    percentComplete: 37,
+                    lastPlayed: '2026-10-20T09:54:10Z'
+                }
+            ]
+        } as unknown as MediaServerAdapter;
+        const resolver = { resolve: async () => ({ id: 'u', name: 'Someone' }) } as unknown as IdentityResolver;
+        const result = await buildGetPlayback(fake, resolver, { detail: 'standard', limit: 50, scope: 'history' });
+
+        expect(result.items[0]).toMatchObject({ lastPlayed: '2026-10-20T09:54:10Z', source: 'activity_log' });
+        expect(summarize('history', result)).toBe('1 recently watched item(s); 1 of those shown stopped partway.');
+    });
+
+    it('says on the row when a play comes from the activity log rather than the played flag', () => {
+        const line = playbackLine({ service: 'jellyfin', kind: 'watched', source: 'activity_log', itemId: 'x', title: 'Revolutie', user: 'Someone' });
+        expect(line).toBe('Revolutie — watched, Someone, from activity log, not marked played');
+    });
+
+    it('does not claim a removed item was never marked played', () => {
+        const line = playbackLine({ service: 'jellyfin', kind: 'watched', source: 'activity_log', removedFromLibrary: true, itemId: 'x', title: 'Gone', user: 'Someone' });
+        expect(line).toBe('Gone — watched, Someone, from activity log, since removed from library');
     });
 
     it('reads playback from a media server that is not Jellyfin', async () => {

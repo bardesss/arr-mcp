@@ -523,6 +523,16 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 ]
             },
             {
+                // get_playback history's second source: plays an offline
+                // client synced back without the item ever getting Played.
+                // `ItemId` joins a stop to its item and `UserId` narrows the
+                // household-wide log; `Name` titles a row whose item is gone.
+                path: '/System/ActivityLog/Entries',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/activity-log.json',
+                fields: ['Items.Type', 'Items.ItemId', 'Items.Date', 'Items.UserId', 'Items.Name']
+            },
+            {
                 path: '/Shows/{seriesId}/Episodes',
                 method: 'get',
                 fixture: 'test/fixtures/jellyfin/show-episodes.json',
