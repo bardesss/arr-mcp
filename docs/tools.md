@@ -728,6 +728,29 @@ a sort-by-`DatePlayed` read over played items. `kind: "watched"`; `lastPlayed`
 carries the timestamp and survives even at `detail: "standard"`, since it is
 the one field this scope exists to answer.
 
+That read alone misses plays that never set the played flag. An offline client
+such as AFinity syncs its plays back when it reconnects, and Jellyfin logs them
+as `VideoPlaybackStopped` in the activity log without ever marking the item
+played. So history also reads `/System/ActivityLog/Entries?type=VideoPlaybackStopped`
+(newest 500 for the whole household, narrowed to the user by `UserId`), keeps the
+newest stop per item, drops anything already in the played list, and looks the
+rest up with `/Items?ids=…&Fields=UserData`. Every Jellyfin history row says
+where it came from in `source`: `marked_played` or `activity_log`.
+
+A logged play counts as `kind: "watched"` unless Jellyfin still holds a resume
+position for it, which means the viewer stopped partway: that row is
+`kind: "partially_watched"` with `percentComplete`. Logged items that are not
+movies or episodes (live TV) are dropped. An item deleted since keeps its row,
+titled with the log entry's own sentence, which Jellyfin localises, and
+`removedFromLibrary: true`: whether it was ever marked played cannot be told
+any more, and a cleanup tool deleting played items is the usual reason it is
+gone.
+
+Two limits. The log reaches back only `ActivityLogRetentionDays` (30 by
+default). And a play that left nothing in the log is invisible here. If the
+log read fails, history answers from the played list alone and logs a warning;
+the played list stays a correct answer to most questions.
+
 Every scope sends an explicit `Limit=500` (`next_up` gets whatever Jellyfin
 reports, which does not grow unbounded), so truncation is decided by `limit`
 (default 50, like every other tool) and reported honestly through `truncated`,
