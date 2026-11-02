@@ -1,8 +1,441 @@
 {
   "page": 1,
-  "pageSize": 10,
+  "pageSize": 12,
   "sortKey": "date",
   "sortDirection": "descending",
-  "totalRecords": 0,
-  "records": []
+  "totalRecords": 21,
+  "records": [
+    {
+      "albumId": 102,
+      "artistId": 101,
+      "trackId": 0,
+      "sourceTitle": "lidarr item 1",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T11:00:00Z",
+      "downloadId": "lidarr-download-1",
+      "eventType": "grabbed",
+      "data": {
+        "indexer": "Indexer 1",
+        "nzbInfoUrl": "https://indexer.example.test/",
+        "releaseGroup": null,
+        "age": "0",
+        "ageHours": "12",
+        "ageMinutes": "720",
+        "publishedDate": "2024-01-01T01:00:00Z",
+        "downloadClient": "Download client 1",
+        "size": "5000000000",
+        "downloadUrl": "https://indexer.example.test/",
+        "guid": "lidarr-guid-1",
+        "protocol": "1",
+        "downloadForced": "False",
+        "customFormatScore": "0",
+        "releaseSource": "Rss",
+        "indexerFlags": "0"
+      },
+      "id": 105
+    },
+    {
+      "albumId": 102,
+      "artistId": 101,
+      "trackId": 0,
+      "sourceTitle": "lidarr item 2",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T10:00:00Z",
+      "downloadId": "lidarr-download-2",
+      "eventType": "grabbed",
+      "data": {
+        "indexer": "Indexer 2",
+        "nzbInfoUrl": "https://indexer.example.test/",
+        "releaseGroup": null,
+        "age": "0",
+        "ageHours": "12",
+        "ageMinutes": "720",
+        "publishedDate": "2024-01-01T02:00:00Z",
+        "downloadClient": "Download client 2",
+        "size": "8000000000",
+        "downloadUrl": "https://indexer.example.test/",
+        "guid": "lidarr-guid-2",
+        "protocol": "1",
+        "downloadForced": "False",
+        "customFormatScore": "0",
+        "releaseSource": "Rss",
+        "indexerFlags": "0"
+      },
+      "id": 106
+    },
+    {
+      "albumId": 102,
+      "artistId": 101,
+      "trackId": 107,
+      "sourceTitle": "lidarr item 3",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T09:00:00Z",
+      "eventType": "trackFileRetagged",
+      "data": {
+        "tagsScrubbed": "False",
+        "releaseGroup": null,
+        "diff": "[]"
+      },
+      "id": 108
+    },
+    {
+      "albumId": 109,
+      "artistId": 110,
+      "trackId": 111,
+      "sourceTitle": "lidarr item 4",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T08:00:00Z",
+      "eventType": "trackFileDeleted",
+      "data": {
+        "reason": "Fixture message 4",
+        "releaseGroup": null,
+        "size": "1000000000",
+        "indexerFlags": "0"
+      },
+      "id": 112
+    },
+    {
+      "albumId": 113,
+      "artistId": 114,
+      "trackId": 115,
+      "sourceTitle": "lidarr item 5",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "customFormatScore": 0,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T07:00:00Z",
+      "eventType": "trackFileImported",
+      "data": {
+        "fileId": "116",
+        "droppedPath": "/media/lidarr/Item 5/File 5.bin",
+        "importedPath": "/media/lidarr/Item 5/File 5.bin",
+        "downloadClient": null,
+        "releaseGroup": null,
+        "size": "3000000000",
+        "indexerFlags": "0"
+      },
+      "id": 117
+    },
+    {
+      "albumId": 113,
+      "artistId": 114,
+      "trackId": 118,
+      "sourceTitle": "lidarr item 6",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [],
+      "customFormatScore": 0,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T07:00:00Z",
+      "eventType": "trackFileImported",
+      "data": {
+        "fileId": "119",
+        "droppedPath": "/media/lidarr/Item 6/File 6.bin",
+        "importedPath": "/media/lidarr/Item 6/File 6.bin",
+        "downloadClient": null,
+        "releaseGroup": null,
+        "size": "4000000000",
+        "indexerFlags": "0"
+      },
+      "id": 120
+    },
+    {
+      "albumId": 121,
+      "artistId": 122,
+      "trackId": 123,
+      "sourceTitle": "lidarr item 7",
+      "quality": {
+        "quality": {
+          "id": 2,
+          "name": "Quality 2"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": false,
+      "date": "2024-01-01T06:00:00Z",
+      "eventType": "trackFileDeleted",
+      "data": {
+        "reason": "Fixture message 7",
+        "releaseGroup": null,
+        "size": "2000000000",
+        "indexerFlags": "0"
+      },
+      "id": 124
+    },
+    {
+      "albumId": 125,
+      "artistId": 151,
+      "trackId": 0,
+      "sourceTitle": "lidarr item 8",
+      "quality": {
+        "quality": {
+          "id": 2,
+          "name": "Quality 2"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": false,
+      "date": "2024-01-01T05:00:00Z",
+      "downloadId": "lidarr-download-8",
+      "eventType": "downloadFailed",
+      "data": {
+        "downloadClient": "Download client 8",
+        "message": "Fixture message 8",
+        "releaseGroup": null,
+        "size": "10000000000",
+        "indexer": "Indexer 8"
+      },
+      "id": 126
+    },
+    {
+      "albumId": 127,
+      "artistId": 128,
+      "trackId": 0,
+      "sourceTitle": "lidarr item 9",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T04:00:00Z",
+      "downloadId": "lidarr-download-9",
+      "eventType": "downloadIgnored",
+      "data": {
+        "downloadClient": "Download client 9",
+        "message": "Fixture message 9",
+        "releaseGroup": null,
+        "size": "6000000000"
+      },
+      "id": 129
+    },
+    {
+      "albumId": 130,
+      "artistId": 131,
+      "trackId": 0,
+      "sourceTitle": "lidarr item 10",
+      "quality": {
+        "quality": {
+          "id": 2,
+          "name": "Quality 2"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": false,
+      "date": "2024-01-01T04:00:00Z",
+      "downloadId": "lidarr-download-10",
+      "eventType": "downloadIgnored",
+      "data": {
+        "downloadClient": "Download client 10",
+        "message": "Fixture message 10",
+        "releaseGroup": null,
+        "size": "11000000000"
+      },
+      "id": 132
+    },
+    {
+      "albumId": 133,
+      "artistId": 134,
+      "trackId": 0,
+      "sourceTitle": "lidarr item 11",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T03:00:00Z",
+      "downloadId": "lidarr-download-11",
+      "eventType": "downloadFailed",
+      "data": {
+        "downloadClient": "Download client 11",
+        "message": "Fixture message 11",
+        "size": "9000000000"
+      },
+      "id": 135
+    },
+    {
+      "albumId": 102,
+      "artistId": 101,
+      "trackId": 156,
+      "sourceTitle": "lidarr item 13",
+      "quality": {
+        "quality": {
+          "id": 1,
+          "name": "Quality 1"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "customFormats": [
+        {
+          "id": 1,
+          "name": "Custom format 1"
+        }
+      ],
+      "customFormatScore": 10,
+      "qualityCutoffNotMet": true,
+      "date": "2024-01-01T02:00:00Z",
+      "eventType": "trackFileRetagged",
+      "data": {
+        "tagsScrubbed": "False",
+        "releaseGroup": null,
+        "diff": "[]"
+      },
+      "id": 157
+    }
+  ]
 }

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig, CredentialServiceConfig } from '../src/config/schema.ts';
 import { BazarrAdapter } from '../src/services/bazarr.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { QbittorrentAdapter, btihToHex } from '../src/services/qbittorrent.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
@@ -949,5 +950,19 @@ describe('getMediaDetails ids', () => {
             /not a whisparr series id/i
         );
         expect(r.paths).toEqual([]);
+    });
+});
+
+describe('queueKind', () => {
+    it('is set by each *arr to what its queue holds, and absent on a download client', () => {
+        // `diagnose` reads it to leave an artist queue out without naming
+        // Lidarr.
+        expect([
+            new RadarrAdapter(keyed(7878)).queueKind,
+            new SonarrAdapter(keyed(8989)).queueKind,
+            new WhisparrAdapter(keyed(6969)).queueKind,
+            new LidarrAdapter(keyed(8686)).queueKind
+        ]).toEqual(['movie', 'series', 'series', 'artist']);
+        expect('queueKind' in new SabnzbdAdapter(keyed(8080))).toBe(false);
     });
 });

@@ -372,6 +372,46 @@ describe('diagnose', () => {
         expect(evidence.degraded).toContain('sabnzbd');
     });
 
+    it('leaves an artist queue out, so an unreachable Lidarr cannot make a film\'s queue unknown', async () => {
+        let lidarrReads = 0;
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [], queueKind: 'movie' }),
+            stub('lidarr', {
+                queueKind: 'artist',
+                getQueue: async () => {
+                    lidarrReads += 1;
+                    throw new Error('down');
+                }
+            })
+        ];
+
+        const evidence = await collectEvidence(
+            { adapters, library: new LibraryLoader(adapters, undefined) },
+            { query: 'some film' }
+        );
+
+        expect(lidarrReads).toBe(0);
+        expect(evidence.queue).toEqual({ items: [], partial: [] });
+        expect(evidence.degraded).not.toContain('lidarr');
+    });
+
+    it('reads a series queue and a download client\'s, which has no kind', async () => {
+        const read: string[] = [];
+        const queue = (id: string) => async () => {
+            read.push(id);
+            return [];
+        };
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM] }),
+            stub('sonarr', { getQueue: queue('sonarr'), queueKind: 'series' }),
+            stub('sabnzbd', { getQueue: queue('sabnzbd') })
+        ];
+
+        await collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+
+        expect(read.sort()).toEqual(['sabnzbd', 'sonarr']);
+    });
+
     it('collapses the queue to undefined only when every configured client fails, not when one of several does', async () => {
         const adapters = [
             stub('radarr', {

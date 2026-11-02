@@ -250,13 +250,21 @@ discovers later, and `none` is the only value that stops the wanted list growing
 by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
 `MoveArtist` job in the runs that were captured.
 
-Everything else is still out of reach: no queue, no calendar, no wanted list,
-no release search, no delete. All 21 capture endpoints were exercised against a
-live Lidarr 3.1.6.5079, but seven came back empty on a library with no download
-activity, so nothing claims them.
+Its queue, history and blocklist read the way Radarr's and Sonarr's do, in
+`get_queue`, `get_history` and `get_blocklist`, and `remove_blocklist_item`
+takes a Lidarr entry. `get_history` with `service: "lidarr"` and `id` scopes to
+one artist. Those three fixtures were captured from Lidarr 3.1.0.4875 with
+real download activity (the history one merged from the newest rows of each
+event type), and the reads were exercised against 2.1.3.3927 and 3.1.6.5079.
+
+Everything else is still out of reach: no calendar, no wanted list, no release
+search, no delete. Of the 21 capture endpoints exercised against a live Lidarr
+3.1.6.5079, four still have no rows behind them (wanted cutoff, release, tag
+and indexer), so nothing claims them.
 
 The version floor is 2.1.3. The two write endpoints were captured on 2.1.3.3927,
-and the read fixtures come from 3.1.6.5079. A volunteer exercised the adapter's
+and the read fixtures come from 3.1.6.5079, except the queue, history and
+blocklist ones above, from 3.1.0.4875. A volunteer exercised the adapter's
 reads and writes on 2.1.3.3927 and 3.1.0.4875.
 
 `CONTRIBUTING.md` lists the endpoints that still need a capture against a library

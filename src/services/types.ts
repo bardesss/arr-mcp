@@ -1,7 +1,7 @@
 import type { ServiceId } from '../config/schema.ts';
 import type { CleanuparrRule, RuleAction, TorrentFacts, UnmatchedReason } from '../core/cleanuparrRules.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
-import type { IndexInput } from '../core/resolver.ts';
+import type { IndexInput, LibraryKind } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { assertVersionSupported } from './versions.ts';
 
@@ -641,6 +641,12 @@ export const hasSeedCriteria = (a: ServiceAdapter): a is ServiceAdapter & SeedCr
 
 export interface QueueCapable {
     getQueue(): Promise<QueueItem[]>;
+    /**
+     * What the queue's rows are downloads of, set by the *arrs. Absent on a
+     * download client, whose rows can be anything. Lets a caller that only
+     * wants films and series leave Lidarr's queue out without naming it.
+     */
+    readonly queueKind?: LibraryKind;
 }
 
 export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>

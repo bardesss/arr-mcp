@@ -413,6 +413,48 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 method: 'get',
                 fixture: 'test/fixtures/lidarr/qualityprofile.json',
                 fields: ['id', 'name']
+            },
+            {
+                // `readArrQueue` with `kind: 'artist'`. `artistId` is what
+                // `orphaned` is read from: a row whose artist was deleted has none.
+                path: '/api/v1/queue',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/queue.json',
+                fields: [
+                    'records.id',
+                    'records.title',
+                    'records.status',
+                    'records.protocol',
+                    'records.size',
+                    'records.sizeleft',
+                    'records.errorMessage',
+                    'records.artistId',
+                    'records.trackedDownloadState',
+                    'records.downloadId',
+                    'records.statusMessages'
+                ]
+            },
+            {
+                // `readArrHistory` with `kind: 'artist'`. `eventType` is a
+                // string here even though the request filters on integers.
+                path: '/api/v1/history',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/history.json',
+                fields: [
+                    'records.id',
+                    'records.eventType',
+                    'records.date',
+                    'records.sourceTitle',
+                    'records.artistId',
+                    'records.quality.quality.name',
+                    'records.data'
+                ]
+            },
+            {
+                path: '/api/v1/blocklist',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/blocklist.json',
+                fields: ['records.id', 'records.artistId', 'records.sourceTitle', 'records.date', 'records.indexer', 'records.message', 'records.protocol']
             }
         ]
     },

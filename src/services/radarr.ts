@@ -193,8 +193,10 @@ export class RadarrAdapter
         return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
     }
 
+    readonly queueKind = 'movie';
+
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id, 'movie');
+        return readArrQueue(this.#http, this.id, this.queueKind);
     }
 
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
