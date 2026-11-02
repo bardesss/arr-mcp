@@ -808,6 +808,11 @@ Each Radarr or Sonarr row carries `downloadId`, the download client's own id
 for that grab. It is what `trigger_scan`'s `import` action takes, and it is the
 link between "this is stuck at `importBlocked`" and doing something about it.
 
+Lidarr rows carry `downloadId` and `statusMessages` the same way, and
+`orphaned` when the artist they were grabbed for has been deleted. Lidarr has
+no `trigger_scan` import yet, so a blocked album import is fixed in Lidarr
+itself.
+
 NZBGet rows come from its own queue (`listgroups`). Sizes arrive in megabytes
 and are converted to bytes. The ETA is worked out from the current download
 rate and everything ahead in the queue, and a paused item gets none. A row's
@@ -934,6 +939,17 @@ A failure's `reason` comes straight from the download client and is fenced
 like any other untrusted string — it is not translated, and on a non-English
 setup it will not read as English.
 
+**Lidarr** history is merged too, with its own event names mapped onto the
+same vocabulary. It has three imports — `artistFolderImported`,
+`trackFileImported` and `downloadImported` — and `albumImportIncomplete`
+counts as `failed` beside `downloadFailed`: a download that arrived but could
+not all be imported. `trackFileRetagged` has no counterpart and reads
+`unknown`, with `rawEvent` saying what it was. A filter on `imported` or
+`failed` sends Lidarr every code for that type, so one album's
+`downloadImported` row is not dropped behind its tracks' `trackFileImported`
+rows. `id` with `service: "lidarr"` is an artist id, scoped through Lidarr's
+`artistIds`, which Lidarr 2.1.3 (the version floor) applies server-side.
+
 ### Cleanuparr
 
 Cleanuparr contributes what it did to downloads. Its event types are `strike`
@@ -946,7 +962,7 @@ logged the action. `downloadClient` names the client the event happened on;
 from Cleanuparr. A `reason` is fenced like any other upstream text.
 
 `downloadId` is lowercased and links a row to the *arr grab it belongs to.
-Radarr and Sonarr rows now carry the same `downloadId`, also lowercased.
+Radarr, Sonarr and Lidarr rows now carry the same `downloadId`, also lowercased.
 `get_queue`'s `downloadId` is as the *arr reports it, so compare the two
 case-insensitively. Passing `id` with
 `service: cleanuparr` is refused, because Cleanuparr does not keep history per
@@ -1192,17 +1208,18 @@ not report itself degraded for it.
 
 The question that sends people here is "it keeps finding the same release and
 never downloading it". `get_history` shows that as a grab followed by a
-failure, over and over, and explains none of it. The blocklist does: Radarr
-and Sonarr record what they will not grab again, and why — usually in the
-download client's own words.
+failure, over and over, and explains none of it. The blocklist does: Radarr,
+Sonarr and Lidarr record what they will not grab again, and why — usually in
+the download client's own words.
 
-Rows carry `mediaId` for `get_media_details` and `id` for
-`remove_blocklist_item`, and are newest first, because a blocklist is read to
-explain something that has just gone wrong.
+Rows carry `mediaId` for `get_media_details` (on a Lidarr row, the artist id)
+and `id` for `remove_blocklist_item`, and are newest first, because a blocklist
+is read to explain something that has just gone wrong.
 
 `remove_blocklist_item` withdraws one refusal, so the release can be grabbed
-again. Safe tier: nothing on disk changes, and the inverse already exists —
-`remove_queue_item`'s `blocklist: true` puts a release back on the list.
+again. Safe tier: nothing on disk changes, and on Radarr and Sonarr the
+inverse already exists — `remove_queue_item`'s `blocklist: true` puts a
+release back on the list. The preview names it only where that works.
 
 Its preview reads the live blocklist first, and that is not a courtesy. Both
 services answer a `DELETE` of a blocklist id that **does not exist** with

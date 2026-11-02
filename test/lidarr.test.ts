@@ -79,18 +79,22 @@ describe('LidarrAdapter', () => {
      * Listing the prototype covers all 46 guards; sampling a few of them stays
      * green when someone adds the one that was not sampled.
      */
-    it('claims library reads, search and monitoring, and nothing else', () => {
+    it('claims library reads, search, monitoring, queue, history and blocklist, and nothing else', () => {
         const a = adapter({});
         const own = Object.getOwnPropertyNames(LidarrAdapter.prototype).filter(name => name !== 'constructor');
 
         expect(own.sort()).toEqual([
             'getMediaDetails',
             'getMonitorState',
+            'getQueue',
             'getVersion',
             'invalidateLibrary',
             'listArtistMonitorPolicies',
             'listLibrary',
+            'readBlocklist',
+            'readHistory',
             'refusePartialSelection',
+            'removeBlocklistItem',
             'search',
             'setArtistMonitorPolicy',
             'setMonitoring',
@@ -101,7 +105,7 @@ describe('LidarrAdapter', () => {
         expect(hasMonitoring(a)).toBe(true);
         expect(hasMonitorState(a)).toBe(true);
         expect(hasMediaDetails(a)).toBe(true);
-        expect(hasQueue(a)).toBe(false);
+        expect(hasQueue(a)).toBe(true);
         expect(hasDiskSpace(a)).toBe(false);
         expect(hasWanted(a)).toBe(false);
     });

@@ -181,8 +181,9 @@ Forty tools, but you never name them — you ask, and the model picks:
 - Lidarr 2.1.3+ for reading and for monitoring: `get_library` lists its artists
   with their album count, monitoring and file state, `get_media_details` lists an
   artist's albums, and `set_monitoring` writes one album's flag or an artist's
-  policy. Artists join to Jellyfin and Plex on the MusicBrainz artist id. No
-  queue, history, wanted list or release search.
+  policy. Artists join to Jellyfin and Plex on the MusicBrainz artist id.
+  `get_queue`, `get_history` and `get_blocklist` include Lidarr. No wanted list
+  or release search yet.
 - Docker, or Node 24+ to run from source
 - An MCP client speaking protocol revision `2026-07-28`
 
