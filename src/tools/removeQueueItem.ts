@@ -36,9 +36,9 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, SABnzbd, NZBGet, Transmission and qBittorrent; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr and Sonarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. Previews by default — call again with the returned `confirm` token to actually remove it.',
+            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, SABnzbd, NZBGet, Transmission and qBittorrent; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr and Whisparr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. Previews by default — call again with the returned `confirm` token to actually remove it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, sabnzbd, nzbget, transmission or qbittorrent.'),
+            service: ServiceIdSchema.describe('radarr, sonarr, whisparr, sabnzbd, nzbget, transmission or qbittorrent.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
             remove_from_client: z
@@ -51,7 +51,7 @@ export function registerRemoveQueueItem(
                 .boolean()
                 .default(false)
                 .describe(
-                    'Blocklist the release so it is not grabbed again. Radarr and Sonarr only; ignored elsewhere. Defaults to false.'
+                    'Blocklist the release so it is not grabbed again. Radarr, Sonarr and Whisparr only; ignored elsewhere. Defaults to false.'
                 )
         }),
         // The resolved instance id, not the bare type: permissions are granted per
@@ -90,7 +90,7 @@ export function registerRemoveQueueItem(
                 effects.push(
                     adapter.supportsBlocklist
                         ? 'Blocklists this release, so it will not be grabbed again. Undoing this means finding it in the service\'s blocklist by hand.'
-                        : `Ignored: ${adapter.id} has no blocklist of its own. To blocklist a release, remove it from the Radarr or Sonarr queue instead.`
+                        : `Ignored: ${adapter.id} has no blocklist of its own. To blocklist a release, remove it from the Radarr, Sonarr or Whisparr queue instead.`
                 );
             }
 

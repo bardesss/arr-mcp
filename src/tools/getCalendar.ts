@@ -110,7 +110,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             title: 'Upcoming releases',
             annotations: READ_ONLY,
             description:
-                'Films and episodes due in a date window, merged from Radarr and Sonarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file.',
+                'Films and episodes due in a date window, merged from Radarr, Sonarr and Whisparr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file.',
             outputSchema: PagedOutputSchema.extend({
                 missingFiles: z
                     .number()

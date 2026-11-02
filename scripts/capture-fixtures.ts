@@ -903,7 +903,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     sabnzbd: [
         { name: 'version', path: '/api?mode=version&output=json' },
         { name: 'queue', path: '/api?mode=queue&output=json' },
-        { name: 'server-stats', path: '/api?mode=server_stats&output=json' }
+        { name: 'server-stats', path: '/api?mode=server_stats&output=json' },
+        { name: 'warnings', path: '/api?mode=warnings&output=json' }
     ],
     nzbget: [
         { name: 'version', path: '/jsonrpc', body: { jsonrpc: '2.0', method: 'version', params: [], id: 1 } },
