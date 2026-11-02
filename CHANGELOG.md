@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.0](https://github.com/bardesss/arr-mcp/compare/v1.52.0...v1.53.0) (2026-11-02)
+
+
+### Features
+
+* **sabnzbd:** report health checks, and name Whisparr where it already answers ([#428](https://github.com/bardesss/arr-mcp/issues/428)) ([89fa6f2](https://github.com/bardesss/arr-mcp/commit/89fa6f2173d684abc8db1ab3ac87a6f55f3430f6))
+
 ## [1.52.0](https://github.com/bardesss/arr-mcp/compare/v1.51.0...v1.52.0) (2026-11-02)
 
 
