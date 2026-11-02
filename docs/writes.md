@@ -41,6 +41,7 @@ re-monitor it.
 | `pause_downloads` | safe | `safe_write` |
 | `retry_download` | safe | `safe_write` |
 | `set_watched` | safe | `safe_write` |
+| `sync_database` | safe | `safe_write` |
 | `remove_blocklist_item` | safe | `safe_write` |
 | `manage_indexer` | safe to add, edit, disable or enable; destructive to delete | `safe_write`, or `destructive` for `delete` |
 | `remove_queue_item` | destructive | `destructive` |
@@ -61,7 +62,7 @@ confirm rather than after.
 `remove_queue_item` is destructive rather than safe because it deletes partial
 data, and because `blocklist: true` durably teaches Radarr or Sonarr to refuse a
 release — which is hard to notice and hard to undo months later, when the same
-film mysteriously never grabs. SABnzbd and the torrent clients have no blocklist of
+film mysteriously never grabs. SABnzbd, NZBGet and the torrent clients have no blocklist of
 their own; ask for one there and the preview tells you it is being ignored
 rather than silently accepting a flag that does nothing.
 

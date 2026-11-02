@@ -47,6 +47,12 @@ password is empty. Leave them out and nothing logs in.
 Each service also takes an optional `permissions` block. Both flags default to
 false, so the config above is read-only — see [writes](writes.md).
 
+Each service also takes an optional `timeout_ms`: how long one request to it may
+take before it counts as timed out, in milliseconds, default `10000`. A read
+that times out is retried once. A few calls known to be slow on a healthy stack,
+an interactive release search and a metadata repair, carry their own longer
+limit and ignore this one.
+
 ## Services behind a URL base
 
 If a service runs under a subpath — the arr apps call it "URL Base", and it is
@@ -379,7 +385,7 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Six services stay single.** Jellyfin and Plex because each is one server,
+**Eight services stay single.** Jellyfin and Plex because each is one server,
 and [running both](#plex-and-jellyfin-together) is a different thing from
 running two of one. Lidarr because music libraries are rarely split, so a
 second instance would merge silently into every read. Seerr because a

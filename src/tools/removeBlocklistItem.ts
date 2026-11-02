@@ -19,7 +19,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasBlocklist(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no blocklist`, {
-            remedy: 'Only radarr, sonarr and lidarr keep a blocklist. Take `service` and `id` from get_blocklist.'
+            remedy: 'Only radarr, sonarr, whisparr and lidarr keep a blocklist. Take `service` and `id` from get_blocklist.'
         });
     }
     return adapter;
@@ -34,7 +34,7 @@ export function registerRemoveBlocklistItem(
         name: 'remove_blocklist_item',
         title: 'Un-blocklist a release',
         description:
-            'Removes one entry from Radarr, Sonarr or Lidarr\'s blocklist, so that release can be grabbed again. The fix for "this never downloads and I do not know why" once get_blocklist has said why. Take `service` and `id` from a get_blocklist row. Safe tier: the entry is a refusal to grab, and removing it only withdraws that refusal — nothing on disk changes, and on Radarr and Sonarr the release can be blocklisted again through remove_queue_item\'s `blocklist` flag. Previews by default — call again with the returned `confirm` token to remove it.',
+            'Removes one entry from Radarr, Sonarr, Whisparr or Lidarr\'s blocklist, so that release can be grabbed again. The fix for "this never downloads and I do not know why" once get_blocklist has said why. Take `service` and `id` from a get_blocklist row. Safe tier: the entry is a refusal to grab, and removing it only withdraws that refusal — nothing on disk changes, and on Radarr and Sonarr the release can be blocklisted again through remove_queue_item\'s `blocklist` flag. Previews by default — call again with the returned `confirm` token to remove it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr, sonarr or lidarr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
